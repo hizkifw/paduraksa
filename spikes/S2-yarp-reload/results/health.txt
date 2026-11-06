@@ -1,0 +1,57 @@
+warn: Yarp.ReverseProxy.Health.DestinationHealthUpdater[49] Active health state of destination `c-health-bad` on cluster `c-health` is set to 'Unhealthy'.
+active: c-health-bad A=Unhealthy,P=Unknown after 555 ms; c-health-good A=Healthy,P=Unknown
+warn: Yarp.ReverseProxy.Health.DestinationHealthUpdater[19] Destination `c-passive-dead` marked as 'Unhealthy` by the passive health check is scheduled for a reactivation in `00:10:00`.
+passive: c-passive-dead A=Unknown,P=Unhealthy after 5 x 502; c-passive-good A=Unknown,P=Healthy
+baseline: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+
+== phase: a) unrelated publish (identical content, new instances)  (30 publishes @100ms)
+   requests x30354: health.test 5xx=0, passive.test 5xx=0, other.test 5xx=0
+   transitions: none
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+
+== phase: b) change unrelated cluster c-other (dest address toggles)  (30 publishes @100ms)
+   requests x46177: health.test 5xx=0, passive.test 5xx=0, other.test 5xx=0
+   transitions: none
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+
+== phase: c) change only route metadata of health.test + passive.test routes  (30 publishes @100ms)
+   requests x46366: health.test 5xx=0, passive.test 5xx=0, other.test 5xx=0
+   transitions: none
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+
+== phase: d) route IDs encode generation (all routes replaced each publish)  (30 publishes @100ms)
+   requests x45394: health.test 5xx=0, passive.test 5xx=0, other.test 5xx=0
+   transitions: none
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+
+== phase: e) [extra] change the health clusters themselves (cluster Metadata + LB policy toggled, same destinations)  (30 publishes @100ms)
+   requests x45658: health.test 5xx=0, passive.test 5xx=0, other.test 5xx=0
+   transitions: none
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+
+== phase: f) [extra] change active health-check config of c-health (interval toggles 500/600 ms)  (30 publishes @100ms)
+   requests x46441: health.test 5xx=0, passive.test 5xx=0, other.test 5xx=0
+   transitions: none
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+
+== phase: g) [extra] change destination ADDRESS of c-health-bad (/bad/ <-> /bad/x/)  (10 publishes @100ms)
+   requests x25378: health.test 5xx=0, passive.test 5xx=0, other.test 5xx=0
+   transitions: none
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+warn: Yarp.ReverseProxy.Health.DestinationHealthUpdater[49] Active health state of destination `c-health-bad` on cluster `c-health` is set to 'Unhealthy'.
+
+== phase: h) [extra] remove c-health-bad for one generation, then re-add  (2 publishes @100ms)
+   requests x17043: health.test 5xx=4872, passive.test 5xx=0, other.test 5xx=0
+   transitions: 
+     [h) [extra] remove c-health-bad for one generation, then re-add] c-health/c-health-bad: DestinationState INSTANCE replaced (missing)
+     [h) [extra] remove c-health-bad for one generation, then re-add] c-health/c-health-bad: A=Unhealthy,P=Unknown -> missing
+     [h) [extra] remove c-health-bad for one generation, then re-add] c-health/c-health-bad: DestinationState INSTANCE replaced (A=Unknown,P=Unknown)
+     [h) [extra] remove c-health-bad for one generation, then re-add] c-health/c-health-bad: missing -> A=Unknown,P=Unknown
+     [h) [extra] remove c-health-bad for one generation, then re-add] c-health/c-health-bad: A=Unknown,P=Unknown -> A=Unhealthy,P=Unknown
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+
+== phase: i) [extra] point c-passive-dead (same ID) at a WORKING address  (5 publishes @100ms)
+   requests x20842: health.test 5xx=0, passive.test 5xx=0, other.test 5xx=0
+   transitions: none
+   now: c-health/c-health-good A=Healthy,P=Unknown; c-health/c-health-bad A=Unhealthy,P=Unknown; c-passive/c-passive-good A=Unknown,P=Healthy; c-passive/c-passive-dead A=Unknown,P=Unhealthy
+   after phase i: c-passive-dead A=Unknown,P=Unhealthy, AvailableDestinations = [c-passive-good]

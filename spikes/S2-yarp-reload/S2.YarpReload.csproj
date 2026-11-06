@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Spike S2: standalone, NOT part of Paduraksa.slnx. Relaxed rules live here (not in a shared
+       spikes/Directory.Build.props) to avoid colliding with other spikes. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>S2</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AnalysisLevel>none</AnalysisLevel>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <NoWarn>$(NoWarn);RS0030</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" />
+  </ItemGroup>
+</Project>

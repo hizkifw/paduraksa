@@ -1,0 +1,82 @@
+n=500 hosts, concurrency=64, 10s per phase, in-process client+proxy+upstream on 20 cores
+
+== baseline (no publishes)
+    1319936 req in 10.0s =   131991 rps | p50 0.25 ms  p99 3.65 ms  p99.9 25.90 ms  max 83.6 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 1319936, missing meta 0, meta.Generation != gate snapshot gen 0, RouteVersion mismatch (true race) 0
+
+== identical-content publish every 100ms (YARP rebuilds nothing)
+    2684189 req in 10.0s =   268408 rps | p50 0.18 ms  p99 1.51 ms  p99.9 5.12 ms  max 69.7 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes: 104, Publish() median 1.00 ms, p90 3.12, max 33.41 (n=104)
+   pipeline: requests 2684189, missing meta 0, meta.Generation != gate snapshot gen 2659463, RouteVersion mismatch (true race) 0
+
+== baseline
+    1189134 req in 10.0s =   118910 rps | p50 0.29 ms  p99 4.20 ms  p99.9 24.02 ms  max 119.0 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 1189134, missing meta 0, meta.Generation != gate snapshot gen 1189134, RouteVersion mismatch (true race) 0
+
+== 1-route publish every 100ms (probe route changes)
+    1736694 req in 10.0s =   173666 rps | p50 0.22 ms  p99 2.15 ms  p99.9 21.43 ms  max 76.5 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes: 102, Publish() median 10.68 ms, p90 27.65, max 99.45 (n=102)
+   pipeline: requests 1736694, missing meta 0, meta.Generation != gate snapshot gen 1736694, RouteVersion mismatch (true race) 0
+
+== baseline
+    2854534 req in 10.0s =   285425 rps | p50 0.18 ms  p99 1.51 ms  p99.9 5.08 ms  max 18.6 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 2854534, missing meta 0, meta.Generation != gate snapshot gen 2854534, RouteVersion mismatch (true race) 0
+
+== churn publish every 100ms (probe + 5% routes + 5% clusters change)
+    2506141 req in 10.0s =   250611 rps | p50 0.19 ms  p99 1.77 ms  p99.9 6.00 ms  max 69.8 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes: 103, Publish() median 9.27 ms, p90 14.02, max 81.89 (n=103)
+   pipeline: requests 2506141, missing meta 0, meta.Generation != gate snapshot gen 2396170, RouteVersion mismatch (true race) 11148
+
+== baseline
+    2984011 req in 10.0s =   298363 rps | p50 0.18 ms  p99 1.49 ms  p99.9 3.18 ms  max 20.4 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 2984011, missing meta 0, meta.Generation != gate snapshot gen 2835078, RouteVersion mismatch (true race) 0
+
+== gen-ids + churn every 100ms (ALL endpoints rebuilt)
+    2564192 req in 10.0s =   256415 rps | p50 0.19 ms  p99 1.50 ms  p99.9 7.24 ms  max 83.6 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes: 103, Publish() median 8.56 ms, p90 14.84, max 124.48 (n=103)
+   pipeline: requests 2564192, missing meta 0, meta.Generation != gate snapshot gen 258773, RouteVersion mismatch (true race) 11566
+
+== baseline
+    2582298 req in 10.0s =   258227 rps | p50 0.19 ms  p99 1.67 ms  p99.9 5.96 ms  max 56.0 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 2582298, missing meta 0, meta.Generation != gate snapshot gen 0, RouteVersion mismatch (true race) 0
+n=2000 hosts, concurrency=64, 10s per phase, in-process client+proxy+upstream on 20 cores
+
+== baseline (no publishes)
+    2278059 req in 10.0s =   227802 rps | p50 0.21 ms  p99 2.18 ms  p99.9 6.21 ms  max 53.3 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 2278059, missing meta 0, meta.Generation != gate snapshot gen 0, RouteVersion mismatch (true race) 0
+
+== identical-content publish every 100ms (YARP rebuilds nothing)
+    2124128 req in 10.0s =   212409 rps | p50 0.23 ms  p99 1.72 ms  p99.9 9.65 ms  max 45.9 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes: 102, Publish() median 4.51 ms, p90 11.28, max 61.79 (n=102)
+   pipeline: requests 2124128, missing meta 0, meta.Generation != gate snapshot gen 2113348, RouteVersion mismatch (true race) 0
+
+== baseline
+    2502765 req in 10.0s =   250272 rps | p50 0.21 ms  p99 2.19 ms  p99.9 4.06 ms  max 24.1 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 2502765, missing meta 0, meta.Generation != gate snapshot gen 2502765, RouteVersion mismatch (true race) 0
+
+== 1-route publish every 100ms (probe route changes)
+    2426671 req in 10.0s =   242665 rps | p50 0.22 ms  p99 1.51 ms  p99.9 4.46 ms  max 25.5 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes: 53, Publish() median 246.09 ms, p90 289.52, max 326.92 (n=53)
+   pipeline: requests 2426671, missing meta 0, meta.Generation != gate snapshot gen 2426671, RouteVersion mismatch (true race) 0
+
+== baseline
+    2672304 req in 10.0s =   267227 rps | p50 0.21 ms  p99 1.02 ms  p99.9 3.61 ms  max 15.3 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 2672304, missing meta 0, meta.Generation != gate snapshot gen 2672304, RouteVersion mismatch (true race) 0
+
+== churn publish every 100ms (probe + 5% routes + 5% clusters change)
+    2459333 req in 10.0s =   245930 rps | p50 0.23 ms  p99 0.91 ms  p99.9 5.84 ms  max 22.5 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes: 98, Publish() median 103.44 ms, p90 112.43, max 130.71 (n=98)
+   pipeline: requests 2459333, missing meta 0, meta.Generation != gate snapshot gen 2458080, RouteVersion mismatch (true race) 117811
+
+== baseline
+    2525752 req in 10.0s =   252571 rps | p50 0.21 ms  p99 1.86 ms  p99.9 3.87 ms  max 23.1 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 2525752, missing meta 0, meta.Generation != gate snapshot gen 2401861, RouteVersion mismatch (true race) 0
+
+== gen-ids + churn every 100ms (ALL endpoints rebuilt)
+    2356511 req in 10.0s =   235645 rps | p50 0.22 ms  p99 0.96 ms  p99.9 12.43 ms  max 22.9 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes: 101, Publish() median 100.28 ms, p90 115.41, max 158.71 (n=101)
+   pipeline: requests 2356511, missing meta 0, meta.Generation != gate snapshot gen 2318566, RouteVersion mismatch (true race) 112434
+
+== baseline
+    2638953 req in 10.0s =   263890 rps | p50 0.21 ms  p99 1.28 ms  p99.9 3.61 ms  max 22.8 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   pipeline: requests 2638953, missing meta 0, meta.Generation != gate snapshot gen 0, RouteVersion mismatch (true race) 0
