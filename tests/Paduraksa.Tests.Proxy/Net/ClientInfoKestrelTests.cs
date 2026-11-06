@@ -229,7 +229,13 @@ public sealed class ClientInfoKestrelTests : IAsyncLifetime
     public async Task UntrustedSourceIsDropped()
     {
         using var client = Client(V2(), HttpVersion.Version11);
-        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetStringAsync(_listeners["pp-untrusted"], Ct));
+
+        // The server aborts an untrusted peer before reading anything, so depending on timing the client fails
+        // either while writing the PROXY preamble in ConnectCallback (raw SocketException) or on the HTTP exchange.
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => client.GetStringAsync(_listeners["pp-untrusted"], Ct));
+        Assert.True(
+            error is HttpRequestException or SocketException or IOException,
+            $"Expected a connection failure, got {error.GetType()}: {error.Message}");
     }
 
     [Fact]
