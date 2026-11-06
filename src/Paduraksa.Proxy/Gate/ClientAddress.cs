@@ -1,59 +1,66 @@
-using System.Net;
-using System.Net.Sockets;
-
 using Microsoft.AspNetCore.Http;
+
+using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>
-/// The gate's seam for the client address (PLAN §7.2 C, §7.6). M1's default reads the TCP peer; integration replaces
-/// it with the resolver from <c>Paduraksa.Proxy.Net</c> (PROXY protocol, trusted proxies, Cloudflare).
+/// The gate's seam for the client address (PLAN §7.2 C, §7.6): called once per request with the request's snapshot.
 /// Must be allocation-free: it runs on every request.
 /// </summary>
 public interface IClientAddressSource
 {
-    /// <summary>The client address as a 128-bit key, IPv4 as IPv4-mapped IPv6; <see cref="UInt128.Zero"/> when unknown.</summary>
-    UInt128 GetClientAddress(HttpContext context);
+    /// <summary>The request's client address, where it came from, and whether Cloudflare headers may be trusted.</summary>
+    ClientIpResolution Resolve(HttpContext context, RuntimeSnapshot snapshot);
 }
 
-/// <summary>Default seam implementation: <c>HttpContext.Connection.RemoteIpAddress</c>, no proxy awareness.</summary>
-public sealed class RemoteIpClientAddressSource : IClientAddressSource
+/// <summary>
+/// The default source: the connection's <see cref="ClientInfo"/> (PROXY protocol or socket peer, set by stage A on TCP
+/// and by the QUIC handshake gate), resolved through the snapshot's <see cref="RuntimeSnapshot.TrustedProxies"/> with
+/// <see cref="ClientIpResolver"/>. A connection without the feature (a listener without <c>UseClientInfo</c>, or a
+/// non-Kestrel server) falls back to <c>HttpContext.Connection.RemoteIpAddress</c>. 0 B either way.
+/// </summary>
+/// <remarks>
+/// The policy is global for M1. A per-host override (PLAN §5.3) needs the host first, so it would resolve after the
+/// host lookup; that arrives with the per-host settings (M2/M6).
+/// </remarks>
+public sealed class TrustedProxyClientAddressSource : IClientAddressSource
 {
-    public static RemoteIpClientAddressSource Instance { get; } = new();
+    private long _headerMissing;
+    private long _headerInvalid;
 
-    public UInt128 GetClientAddress(HttpContext context)
+    /// <summary>Requests from a trusted proxy that carried no usable client-IP header (the peer was used). PLAN §7.6
+    /// counts these; process lifetime, read by metrics (M7).</summary>
+    public long HeaderMissing => Interlocked.Read(ref _headerMissing);
+
+    /// <summary>Requests from a trusted proxy whose client-IP header didn't parse (the peer was used).</summary>
+    public long HeaderInvalid => Interlocked.Read(ref _headerInvalid);
+
+    public ClientIpResolution Resolve(HttpContext context, RuntimeSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return context.Connection.RemoteIpAddress is { } address ? ClientAddressKey.From(address) : UInt128.Zero;
-    }
-}
+        ArgumentNullException.ThrowIfNull(snapshot);
 
-/// <summary>Converts addresses to the 128-bit key the gate and its policies use. Allocation-free.</summary>
-internal static class ClientAddressKey
-{
-    private static readonly UInt128 MappedPrefix = new(0, 0x0000_FFFF_0000_0000UL);
-
-    /// <summary>IPv4 (and IPv4-mapped IPv6) become <c>::ffff:a.b.c.d</c>, so dual-mode TCP and QUIC agree.</summary>
-    public static UInt128 From(IPAddress address)
-    {
-        ArgumentNullException.ThrowIfNull(address);
-        Span<byte> bytes = stackalloc byte[16];
-        if (address.AddressFamily == AddressFamily.InterNetwork)
+        IpKey peer;
+        ClientIpSource peerSource;
+        if (context.Features.Get<IClientInfoFeature>()?.ClientInfo is { } connection)
         {
-            _ = address.TryWriteBytes(bytes, out _);
-            uint v4 = ((uint)bytes[0] << 24) | ((uint)bytes[1] << 16) | ((uint)bytes[2] << 8) | bytes[3];
-            return MappedPrefix | v4;
+            peer = connection.Address;
+            peerSource = connection.IsFromProxyProtocol ? ClientIpSource.ProxyProtocol : ClientIpSource.Socket;
+        }
+        else
+        {
+            peer = context.Connection.RemoteIpAddress is { } remote ? IpKey.FromIPAddress(remote) : IpKey.Unspecified;
+            peerSource = ClientIpSource.Socket;
         }
 
-        _ = address.TryWriteBytes(bytes, out _);
-        ulong high = 0;
-        ulong low = 0;
-        for (int i = 0; i < 8; i++)
+        ClientIpResolution resolution = ClientIpResolver.Resolve(peer, peerSource, context.Request.Headers, snapshot.TrustedProxies);
+        if (resolution.IsFallback)
         {
-            high = (high << 8) | bytes[i];
-            low = (low << 8) | bytes[i + 8];
+            Interlocked.Increment(ref resolution.Outcome == ClientIpOutcome.HeaderMissing ? ref _headerMissing : ref _headerInvalid);
         }
 
-        return new UInt128(high, low);
+        return resolution;
     }
 }

@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Gate;
@@ -43,53 +44,49 @@ public sealed class PolicyTests
         Assert.Equal(PolicyDecision.Respond(Forbidden), Evaluate(new StaticPolicy(PolicyDecision.Respond(Forbidden)), context, state));
     }
 
-    [Fact]
-    public void AllowListUsesTheResolvedClientAddress()
+    [Theory]
+    [InlineData("192.0.2.1", true)]
+    [InlineData("::ffff:192.0.2.1", true)] // the IPv4-mapped spelling (TCP on [::]) is the same client
+    [InlineData("10.200.0.1", true)]
+    [InlineData("2001:db8::1", true)]
+    [InlineData("192.0.2.2", false)]
+    [InlineData("2001:db9::1", false)]
+    public void AllowListUsesTheResolvedClientAddress(string client, bool allowed)
     {
-        UInt128 allowed = ClientAddressKey.From(IPAddress.Parse("192.0.2.1"));
-        IpAllowListPolicy policy = new(a => a == allowed, PolicyDecision.Respond(Forbidden));
+        IpAllowListPolicy policy = new(CidrSet.Parse(["192.0.2.1", "10.0.0.0/8", "2001:db8::/32"]), PolicyDecision.Respond(Forbidden));
         DefaultHttpContext context = TestContexts.Create("a.test");
-        GateRequestState state = new();
+        GateRequestState state = new() { ClientIp = new ClientIpResolution(IpKey.Parse(client), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted) };
 
-        state.ClientAddress = allowed;
-        Assert.Equal(PolicyDecision.Continue, Evaluate(policy, context, state));
-
-        state.ClientAddress = ClientAddressKey.From(IPAddress.Parse("192.0.2.2"));
-        Assert.Equal(PolicyDecision.Respond(Forbidden), Evaluate(policy, context, state));
+        Assert.Equal(allowed ? PolicyDecision.Continue : PolicyDecision.Respond(Forbidden), Evaluate(policy, context, state));
     }
 
     [Fact]
     public void AllowListDenialMustStopTheRequest() =>
-        Assert.Throws<ArgumentException>(() => new IpAllowListPolicy(static _ => true, PolicyDecision.Continue));
+        Assert.Throws<ArgumentException>(() => new IpAllowListPolicy(CidrSet.Empty, PolicyDecision.Continue));
 
-    [Theory]
-    [InlineData("192.0.2.1", "::ffff:192.0.2.1")]
-    [InlineData("::ffff:192.0.2.1", "::ffff:192.0.2.1")]
-    [InlineData("2001:db8::1", "2001:db8::1")]
-    [InlineData("::1", "::1")]
-    public void ClientAddressKeysAreIPv4MappedIPv6(string address, string expected)
+    [Fact]
+    public void AllowListDoesNotAllocate()
     {
-        UInt128 key = ClientAddressKey.From(IPAddress.Parse(address));
-        byte[] bytes = IPAddress.Parse(expected).GetAddressBytes();
-        UInt128 expectedKey = new(BitConverter.ToUInt64([.. bytes[..8].Reverse()]), BitConverter.ToUInt64([.. bytes[8..].Reverse()]));
-
-        Assert.Equal(expectedKey, key);
+        IpAllowListPolicy policy = new(CidrSet.Parse(["192.0.2.0/24", "2001:db8::/32"]), PolicyDecision.Respond(Forbidden));
+        GateRequestState state = new() { ClientIp = new ClientIpResolution(IpKey.Parse("2001:db8::7"), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted) };
+        (IpAllowListPolicy Policy, DefaultHttpContext Context, GateRequestState State) run = (policy, TestContexts.Create("a.test"), state);
+        AllocAssert.Zero(run, static r => _ = Evaluate(r.Policy, r.Context, r.State), "IpAllowListPolicy.Evaluate");
     }
 
     [Fact]
-    public void ClientAddressConversionDoesNotAllocate()
+    public void TheFormattedClientAddressIsCachedWhileTheClientRepeats()
     {
-        IPAddress[] addresses = [IPAddress.Parse("192.0.2.1"), IPAddress.Parse("2001:db8::1"), IPAddress.IPv6Loopback];
-        AllocAssert.Zero(
-            addresses,
-            static a =>
-            {
-                foreach (IPAddress address in a)
-                {
-                    _ = ClientAddressKey.From(address);
-                }
-            },
-            "ClientAddressKey.From");
+        GateRequestState state = new() { ClientIp = new ClientIpResolution(IpKey.Parse("::ffff:192.0.2.1"), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted) };
+        string first = state.FormattedClientAddress();
+        Assert.Equal("192.0.2.1", first);
+
+        state.Reset();
+        state.ClientIp = new ClientIpResolution(IpKey.Parse("192.0.2.1"), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted);
+        Assert.Same(first, state.FormattedClientAddress());
+        AllocAssert.Zero(state, static s => _ = s.FormattedClientAddress(), "FormattedClientAddress (repeat)");
+
+        state.ClientIp = new ClientIpResolution(IpKey.Parse("2001:db8::1"), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted);
+        Assert.Equal("2001:db8::1", state.FormattedClientAddress());
     }
 
     private static PolicyDecision Evaluate(IRequestPolicy policy, HttpContext context, GateRequestState state)

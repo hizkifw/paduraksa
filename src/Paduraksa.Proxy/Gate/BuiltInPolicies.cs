@@ -1,3 +1,5 @@
+using Paduraksa.Proxy.Net;
+
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>Always returns the same decision: a static deny (e.g. 403 or "maintenance"), or a drop.</summary>
@@ -9,18 +11,18 @@ public sealed class StaticPolicy(PolicyDecision decision) : IRequestPolicy
 }
 
 /// <summary>
-/// Lets a request through only when the client address passes <paramref name="allows"/>; otherwise applies
-/// <paramref name="onDenied"/>. The predicate is the M1 stand-in for the compiled CIDR set (PLAN §7.3); it receives
-/// the resolved client address (IPv4 as IPv4-mapped IPv6) and must be allocation-free.
+/// Lets a request through only when the resolved client address (<see cref="GateRequestState.ClientAddress"/>: behind a
+/// trusted proxy, the real client) is in <paramref name="allowed"/>; otherwise applies <paramref name="onDenied"/>.
+/// One binary search over the compiled ranges (PLAN §7.3), 0 B.
 /// </summary>
-public sealed class IpAllowListPolicy(Func<UInt128, bool> allows, PolicyDecision onDenied) : IRequestPolicy
+public sealed class IpAllowListPolicy(CidrSet allowed, PolicyDecision onDenied) : IRequestPolicy
 {
-    private readonly Func<UInt128, bool> _allows = allows ?? throw new ArgumentNullException(nameof(allows));
+    public CidrSet Allowed { get; } = allowed ?? throw new ArgumentNullException(nameof(allowed));
 
     public PolicyDecision OnDenied { get; } = onDenied.Action == PolicyAction.Continue
         ? throw new ArgumentException("A denial must respond or drop.", nameof(onDenied))
         : onDenied;
 
     public PolicyDecision Evaluate(in RequestView request) =>
-        _allows(request.State.ClientAddress) ? PolicyDecision.Continue : OnDenied;
+        Allowed.Contains(request.State.ClientAddress) ? PolicyDecision.Continue : OnDenied;
 }

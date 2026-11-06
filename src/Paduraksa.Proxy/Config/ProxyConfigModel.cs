@@ -1,3 +1,4 @@
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 
@@ -50,6 +51,39 @@ public sealed record DefaultsSpec
 
     /// <summary>TLS settings of the default certificate's entry (unknown or absent SNI).</summary>
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
+
+    /// <summary>Who may tell us the client IP (PLAN §7.6). Global in M1; a per-host override comes with M2/M6.</summary>
+    public TrustedProxySpec TrustedProxies { get; init; } = TrustedProxySpec.Off;
+}
+
+/// <summary>
+/// Trusted proxies in front of Paduraksa (PLAN §7.2 C, §7.6), compiled into a <see cref="TrustedProxyPolicy"/>. Only a
+/// peer (the PROXY protocol source, else the socket peer) inside the trusted set may supply the client IP through a
+/// header; anyone else is the client.
+/// </summary>
+public sealed record TrustedProxySpec
+{
+    /// <summary>No trusted proxies.</summary>
+    public static TrustedProxySpec Off { get; } = new();
+
+    public TrustedProxyMode Mode { get; init; } = TrustedProxyMode.Off;
+
+    /// <summary>
+    /// CIDRs or addresses of the trusted peers. <see cref="TrustedProxyMode.Generic"/>: the proxies (required).
+    /// <see cref="TrustedProxyMode.CloudflareTunnel"/>: where cloudflared connects from (required).
+    /// <see cref="TrustedProxyMode.CloudflareProxy"/>: must be empty; Cloudflare's published edge ranges are used.
+    /// </summary>
+    public IReadOnlyList<string> Proxies { get; init; } = [];
+
+    /// <summary>Generic mode only: the header carrying the client (default <c>X-Forwarded-For</c>, read right to
+    /// left; or a single-address header such as <c>X-Real-IP</c>).</summary>
+    public string? Header { get; init; }
+
+    /// <summary>Cloudflare modes: also accept <c>True-Client-IP</c> (Enterprise) when <c>CF-Connecting-IP</c> is absent.</summary>
+    public bool UseTrueClientIp { get; init; }
+
+    /// <summary>Cloudflare modes: fall back to the right-most untrusted <c>X-Forwarded-For</c> entry.</summary>
+    public bool ForwardedForFallback { get; init; }
 }
 
 /// <summary>
@@ -191,7 +225,7 @@ public sealed record DenyPolicySpec(int StatusCode = 403, string Body = "forbidd
 public sealed record DropPolicySpec : PolicySpec;
 
 /// <summary>
-/// Only the listed client addresses get through (exact addresses in M1; CIDR sets arrive with the IP tables).
-/// Others get 403, or are dropped when <paramref name="DropDenied"/> is set.
+/// Only clients inside the listed addresses or CIDRs (<c>192.0.2.1</c>, <c>10.0.0.0/8</c>, <c>2001:db8::/32</c>) get
+/// through, judged on the resolved client IP. Others get 403, or are dropped when <paramref name="DropDenied"/> is set.
 /// </summary>
 public sealed record IpAllowListPolicySpec(IReadOnlyList<string> Addresses, bool DropDenied = false) : PolicySpec;

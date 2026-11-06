@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
 
@@ -72,7 +73,56 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
-    private static async Task SendAsync(ProxyTestServer server, HttpClient client, string host, string path, HttpStatusCode expected, int count)
+    /// <summary>
+    /// Client-IP resolution behind trusted proxies is part of the 0 B decision (PLAN §7.6): the connection's ClientInfo
+    /// (stage A on the listener), the peer check against the edge ranges and the header parse. The host only admits the
+    /// address the header carries, so a 200 proves the header was honoured.
+    /// </summary>
+    [Theory]
+    [InlineData(TrustedProxyMode.CloudflareProxy, "CF-Connecting-IP", "198.51.100.7", "198.51.100.7")]
+    [InlineData(TrustedProxyMode.CloudflareProxy, "CF-Connecting-IP", "2001:db8::7", "2001:db8::7")]
+    [InlineData(TrustedProxyMode.CloudflareTunnel, "CF-Connecting-IP", "198.51.100.7", "198.51.100.7")]
+    [InlineData(TrustedProxyMode.Generic, "X-Forwarded-For", "203.0.113.5, 198.51.100.7, 127.0.0.2", "198.51.100.7")]
+    public async Task ResolvingTheClientBehindTrustedProxiesAllocatesNothingOnKestrel(TrustedProxyMode mode, string header, string value, string expectedClient)
+    {
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", upstream.Address("a"))],
+            Hosts =
+            [
+                new HostSpec
+                {
+                    Key = "app",
+                    Names = ["app.test"],
+                    Policies = [new IpAllowListPolicySpec([expectedClient])],
+                    Routes = [Route("app-root", "web")],
+                },
+            ],
+            Defaults = new DefaultsSpec
+            {
+                TrustedProxies = new TrustedProxySpec
+                {
+                    Mode = mode,
+                    Proxies = mode == TrustedProxyMode.CloudflareProxy ? [] : ["127.0.0.0/8"],
+                },
+            },
+        };
+        // Loopback stands in for Cloudflare's edge.
+        SnapshotCompilerOptions options = new() { CloudflareEdgeRanges = CidrSet.Parse(["127.0.0.0/8"]) };
+        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model, measureGate: true, compilerOptions: options, clientInfo: true);
+        using HttpClient client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        void WithHeader(HttpRequestMessage request) => request.Headers.TryAddWithoutValidation(header, value);
+
+        await SendAsync(server, client, "app.test", "/", HttpStatusCode.OK, Warmup, WithHeader);
+        server.GateStats!.Reset();
+        await SendAsync(server, client, "app.test", "/", HttpStatusCode.OK, Measured, WithHeader);
+
+        Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
+        Assert.True(server.GateStats.Bytes == 0, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
+    }
+
+    private static async Task SendAsync(ProxyTestServer server, HttpClient client, string host, string path, HttpStatusCode expected, int count, Action<HttpRequestMessage>? configure = null)
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         int next = 0;
@@ -84,7 +134,9 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
                 {
                     while (Interlocked.Increment(ref next) <= count)
                     {
-                        using HttpResponseMessage response = await client.SendAsync(server.Request(host, path), ct);
+                        using HttpRequestMessage request = server.Request(host, path);
+                        configure?.Invoke(request);
+                        using HttpResponseMessage response = await client.SendAsync(request, ct);
                         Assert.Equal(expected, response.StatusCode);
                         await response.Content.LoadIntoBufferAsync(ct);
                     }

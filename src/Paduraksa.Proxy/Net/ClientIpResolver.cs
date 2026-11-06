@@ -103,7 +103,7 @@ public static class ClientIpResolver
     }
 
     /// <summary>Resolves from an explicit peer (e.g. <c>HttpContext.Connection.RemoteIpAddress</c> where no
-    /// <see cref="ClientInfo"/> feature exists, such as HTTP/3 for now).</summary>
+    /// <see cref="ClientInfo"/> feature exists, such as a listener without <c>UseClientInfo</c>).</summary>
     /// <param name="peer">The connection-level address.</param>
     /// <param name="peerSource"><see cref="ClientIpSource.Socket"/> or <see cref="ClientIpSource.ProxyProtocol"/>.</param>
     /// <param name="headers">The request headers.</param>

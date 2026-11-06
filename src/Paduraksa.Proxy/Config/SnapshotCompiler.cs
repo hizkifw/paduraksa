@@ -1,7 +1,5 @@
 using System.Buffers;
-using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
-using System.Net;
 using System.Text;
 
 using Microsoft.AspNetCore.Http;
@@ -60,6 +58,7 @@ public static class SnapshotCompiler
             certificates.SetDefault(defaultCertificate, CompileTlsPolicy(defaults.Tls));
         }
 
+        TrustedProxyPolicy trustedProxies = CompileTrustedProxies(defaults.TrustedProxies, options, errors);
         Dictionary<string, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], errors);
 
         HostTable.Builder table = new();
@@ -164,6 +163,7 @@ public static class SnapshotCompiler
                 _ => DefaultHostBehaviour.NotFound(),
             },
             Certificates = certificates.Build(),
+            TrustedProxies = trustedProxies,
         };
         return new CompileResult(snapshot, []);
     }
@@ -440,24 +440,11 @@ public static class SnapshotCompiler
             case DropPolicySpec:
                 return new StaticPolicy(PolicyDecision.Drop);
             case IpAllowListPolicySpec allow:
-                HashSet<UInt128> addresses = [];
-                foreach (string text in allow.Addresses ?? [])
-                {
-                    if (!text.Contains('%', StringComparison.Ordinal) && IPAddress.TryParse(text, out IPAddress? address))
-                    {
-                        addresses.Add(ClientAddressKey.From(address));
-                    }
-                    else
-                    {
-                        errors.Add($"{where}: '{text}' isn't an IP address");
-                    }
-                }
-
-                FrozenSet<UInt128> allowed = addresses.ToFrozenSet();
+                CidrSet allowed = CompileCidrs(allow.Addresses ?? [], where, errors);
                 PolicyDecision denied = allow.DropDenied
                     ? PolicyDecision.Drop
                     : PolicyDecision.Respond(PrecomputedResponse.Text(StatusCodes.Status403Forbidden, "forbidden\n"));
-                return new IpAllowListPolicy(allowed.Contains, denied);
+                return new IpAllowListPolicy(allowed, denied);
             default:
                 errors.Add($"{where}: unsupported policy {spec?.GetType().Name ?? "null"}");
                 break;
@@ -465,6 +452,93 @@ public static class SnapshotCompiler
 
         return new StaticPolicy(PolicyDecision.Continue);
     }
+
+    private static TrustedProxyPolicy CompileTrustedProxies(TrustedProxySpec? spec, SnapshotCompilerOptions options, List<string> errors)
+    {
+        spec ??= TrustedProxySpec.Off;
+        const string Where = "defaults: trusted proxies";
+        IReadOnlyList<string> proxies = spec.Proxies ?? [];
+        bool cloudflare = spec.Mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
+        if (spec.Header is not null && spec.Mode != TrustedProxyMode.Generic)
+        {
+            errors.Add($"{Where}: a header is only configurable in Generic mode (Cloudflare modes read CF-Connecting-IP)");
+        }
+
+        if (!cloudflare && (spec.UseTrueClientIp || spec.ForwardedForFallback))
+        {
+            errors.Add($"{Where}: True-Client-IP and the X-Forwarded-For fallback only apply to the Cloudflare modes");
+        }
+
+        switch (spec.Mode)
+        {
+            case TrustedProxyMode.Off:
+                if (proxies.Count > 0)
+                {
+                    errors.Add($"{Where}: proxies are listed but the mode is Off");
+                }
+
+                return TrustedProxyPolicy.Off;
+
+            case TrustedProxyMode.Generic:
+            case TrustedProxyMode.CloudflareTunnel:
+                if (proxies.Count == 0)
+                {
+                    errors.Add($"{Where}: {spec.Mode} mode needs at least one proxy address or CIDR");
+                    return TrustedProxyPolicy.Off;
+                }
+
+                CidrSet peers = CompileCidrs(proxies, Where, errors);
+                if (spec.Mode == TrustedProxyMode.CloudflareTunnel)
+                {
+                    return TrustedProxyPolicy.CloudflareTunnel(peers, spec.UseTrueClientIp, spec.ForwardedForFallback);
+                }
+
+                if (spec.Header is { } header && !IsHeaderName(header))
+                {
+                    errors.Add($"{Where}: '{header}' isn't a valid header name");
+                    return TrustedProxyPolicy.Off;
+                }
+
+                return TrustedProxyPolicy.Generic(peers, spec.Header ?? TrustedProxyPolicy.XForwardedFor);
+
+            case TrustedProxyMode.CloudflareProxy:
+                if (proxies.Count > 0)
+                {
+                    errors.Add($"{Where}: CloudflareProxy mode trusts Cloudflare's published edge ranges; list no proxies");
+                }
+
+                return TrustedProxyPolicy.CloudflareProxy(options.CloudflareEdgeRanges, spec.UseTrueClientIp, spec.ForwardedForFallback);
+
+            default:
+                errors.Add($"{Where}: unknown mode {spec.Mode}");
+                return TrustedProxyPolicy.Off;
+        }
+    }
+
+    /// <summary>Addresses and CIDRs (both families) into one set; each bad entry is an error.</summary>
+    private static CidrSet CompileCidrs(IReadOnlyList<string> blocks, string where, List<string> errors)
+    {
+        CidrSet.Builder builder = new();
+        foreach (string block in blocks)
+        {
+            if (!IpNetwork.TryParse(block ?? string.Empty, out IpNetwork network, out string? error))
+            {
+                errors.Add($"{where}: '{block}' isn't an IP address or CIDR ({error})");
+                continue;
+            }
+
+            builder.Add(network);
+        }
+
+        return builder.Build();
+    }
+
+    /// <summary>An RFC 9110 token.</summary>
+    private static bool IsHeaderName(string name) =>
+        name.Length is > 0 and <= 256 && !name.AsSpan().ContainsAnyExcept(HeaderNameChars);
+
+    private static readonly SearchValues<char> HeaderNameChars =
+        SearchValues.Create("!#$%&'*+-.^_`|~0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
     private static ServerCertificate? ResolveCertificate(string? reference, string where, IServerCertificateResolver? resolver, List<string> errors)
     {

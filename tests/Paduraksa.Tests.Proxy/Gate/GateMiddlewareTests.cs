@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.Features;
 
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
 
@@ -52,7 +53,7 @@ public sealed class GateMiddlewareTests : IDisposable
     public GateMiddlewareTests()
     {
         _store.Publish(Bound(Config, options: Port8443));
-        _gate = new GateMiddleware(_store, RemoteIpClientAddressSource.Instance);
+        _gate = new GateMiddleware(_store, new TrustedProxyClientAddressSource());
     }
 
     public void Dispose() => _store.Dispose();
@@ -76,7 +77,7 @@ public sealed class GateMiddlewareTests : IDisposable
         Assert.Same(_store.Current, state.Snapshot);
         Assert.Equal(routeId, state.Route!.Key);
         Assert.Same(state.Snapshot!.YarpEndpoints[state.Route.Slot], context.GetEndpoint());
-        Assert.Equal(ClientAddressKey.From(IPAddress.Loopback), state.ClientAddress);
+        Assert.Equal(IpKey.FromIPAddress(IPAddress.Loopback), state.ClientAddress);
     }
 
     [Theory]
@@ -218,7 +219,7 @@ public sealed class GateMiddlewareTests : IDisposable
             Default = DefaultHostBehaviour.NotFound(),
         }.Bind(1, [new Endpoint(static _ => Task.CompletedTask, null, "r")]));
 
-        Assert.Equal(GateAction.Forward, new GateMiddleware(store, RemoteIpClientAddressSource.Instance).Decide(TestContexts.Create("probe.test", "/x")).Action);
+        Assert.Equal(GateAction.Forward, new GateMiddleware(store, new TrustedProxyClientAddressSource()).Decide(TestContexts.Create("probe.test", "/x")).Action);
         Assert.Equal([null], hostProbe.SeenRoutes);
         Assert.Equal(["r"], routeProbe.SeenRoutes);
     }
@@ -226,12 +227,13 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void TheClientAddressComesFromTheSeam()
     {
-        UInt128 resolved = ClientAddressKey.From(IPAddress.Parse("10.0.0.5"));
+        ClientIpResolution resolved = new(IpKey.Parse("10.0.0.5"), ClientIpSource.CfConnectingIp, ClientIpOutcome.FromHeader, CloudflareHeadersTrusted: true);
         GateMiddleware gate = new(_store, new FixedAddress(resolved));
         DefaultHttpContext context = TestContexts.Create("app.test", "/api", remote: IPAddress.Parse("203.0.113.9"));
 
         Assert.Equal(GateAction.Forward, gate.Decide(context).Action);
-        Assert.Equal(resolved, context.Features.Get<IGateFeature>()!.State.ClientAddress);
+        Assert.Equal(resolved, context.Features.Get<IGateFeature>()!.State.ClientIp);
+        Assert.Equal(resolved.Address, context.Features.Get<IGateFeature>()!.State.ClientAddress);
     }
 
     [Fact]
@@ -374,9 +376,9 @@ public sealed class GateMiddlewareTests : IDisposable
         }
     }
 
-    private sealed class FixedAddress(UInt128 address) : IClientAddressSource
+    private sealed class FixedAddress(ClientIpResolution resolution) : IClientAddressSource
     {
-        public UInt128 GetClientAddress(HttpContext context) => address;
+        public ClientIpResolution Resolve(HttpContext context, RuntimeSnapshot snapshot) => resolution;
     }
 
     private sealed class AbortProbe : IHttpRequestLifetimeFeature

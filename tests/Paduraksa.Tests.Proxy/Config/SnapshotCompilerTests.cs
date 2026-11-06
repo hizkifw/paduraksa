@@ -166,7 +166,7 @@ public sealed class SnapshotCompilerTests
         { "upstream without destinations", new ProxyConfigModel { Upstreams = [new UpstreamSpec { Key = "u", Destinations = [] }] }, "at least one destination" },
         { "bad destination address", new ProxyConfigModel { Upstreams = [Upstream("u", "ftp://a/")] }, "absolute http or https address" },
         { "duplicate destination", new ProxyConfigModel { Upstreams = [new UpstreamSpec { Key = "u", Destinations = [new("d", "http://a/"), new("D", "http://b/")] }] }, "duplicate destination key" },
-        { "bad allow-list address", Hosts(Respond("a", "a.test") with { Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])] }), "isn't an IP address" },
+        { "bad allow-list address", Hosts(Respond("a", "a.test") with { Policies = [new IpAllowListPolicySpec(["10.0.0.0/8", "10.0.0.1/8"])] }), "'10.0.0.1/8' isn't an IP address or CIDR (host bits" },
         { "bad deny status", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(42)] }), "deny status 42" },
         { "respond 204 with body", Hosts(new HostSpec { Key = "a", Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204, Body = "x" } }), "a 204 response can't have a body" },
         { "respond 304 with body", Hosts(new HostSpec { Key = "a", Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 304, Body = "x" } }), "a 304 response can't have a body" },

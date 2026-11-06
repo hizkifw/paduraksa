@@ -26,7 +26,8 @@ public static class ProxyHostingExtensions
 {
     /// <summary>
     /// Registers YARP (fed by <paramref name="publisher"/>'s provider and listener, forwarding the path as received),
-    /// the client factory, routing, the gate, and the default <see cref="IClientAddressSource"/> (replace it to plug in a real resolver).
+    /// the client factory, routing, the gate, and the default <see cref="IClientAddressSource"/>
+    /// (<see cref="TrustedProxyClientAddressSource"/>: the connection's ClientInfo through the snapshot's trusted proxies).
     /// </summary>
     public static IServiceCollection AddPaduraksaProxy(this IServiceCollection services, SnapshotPublisher publisher)
     {
@@ -42,7 +43,8 @@ public static class ProxyHostingExtensions
             .AddTransforms(static transforms => transforms.AddRequestTransform(RawPathTransform.ApplyAsync));
         services.RemoveAll<IForwarderHttpClientFactory>();
         services.AddSingleton<IForwarderHttpClientFactory, PaduraksaForwarderHttpClientFactory>();
-        services.TryAddSingleton<IClientAddressSource>(RemoteIpClientAddressSource.Instance);
+        services.TryAddSingleton<TrustedProxyClientAddressSource>();
+        services.TryAddSingleton<IClientAddressSource>(static provider => provider.GetRequiredService<TrustedProxyClientAddressSource>());
         services.TryAddSingleton<GateMiddleware>();
         return services;
     }

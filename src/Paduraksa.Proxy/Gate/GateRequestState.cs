@@ -1,3 +1,4 @@
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Proxy.Gate;
@@ -29,8 +30,20 @@ public sealed class GateRequestState : IGateFeature
 
     public CompiledRoute? Route { get; internal set; }
 
-    /// <summary>The resolved client address, IPv4 as IPv4-mapped IPv6 (<c>::ffff:a.b.c.d</c>); 0 when unknown.</summary>
-    public UInt128 ClientAddress { get; internal set; }
+    // Last client address formatted for the forwarding headers, cached per connection (H1) or pooled stream (H2/H3)
+    // so repeated requests from one client format it once. Deliberately not cleared by Reset.
+    private IpKey _formattedAddress;
+    private string? _formatted;
+
+    /// <summary>
+    /// The client as resolved at gate entry (PLAN §7.6): the address, where it came from, whether the peer is a trusted
+    /// proxy and whether Cloudflare headers may be trusted. Policies and the forwarding headers use it.
+    /// </summary>
+    public ClientIpResolution ClientIp { get; internal set; }
+
+    /// <summary>The resolved client address (IPv4 as IPv4-mapped, so TCP on <c>[::]</c> and QUIC agree);
+    /// <see cref="IpKey.Unspecified"/> when unknown.</summary>
+    public IpKey ClientAddress => ClientIp.Address;
 
     GateRequestState IGateFeature.State => this;
 
@@ -40,6 +53,23 @@ public sealed class GateRequestState : IGateFeature
         Snapshot = null;
         Host = null;
         Route = null;
-        ClientAddress = UInt128.Zero;
+        ClientIp = default;
+    }
+
+    /// <summary>
+    /// <see cref="ClientAddress"/> as text (<c>192.0.2.1</c>, <c>2001:db8::1</c>), for <c>X-Forwarded-For</c> and
+    /// <c>X-Real-IP</c>. Allocates the string only when the address differs from the previous request's on this
+    /// connection or stream.
+    /// </summary>
+    public string FormattedClientAddress()
+    {
+        IpKey address = ClientAddress;
+        if (_formatted is null || address != _formattedAddress)
+        {
+            _formatted = address.ToString();
+            _formattedAddress = address;
+        }
+
+        return _formatted;
     }
 }

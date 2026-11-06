@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
 
@@ -55,8 +56,11 @@ public sealed class RuntimeSnapshot
     /// </summary>
     public CertificateTable Certificates { get; init; } = CertificateTable.Empty;
 
-    /// <summary>Opaque slot for the trusted-proxy policy (PLAN §7.6); filled during M1 integration.</summary>
-    public object? TrustedProxies { get; init; }
+    /// <summary>
+    /// Who may tell us the client IP (PLAN §7.6): off, generic proxies, Cloudflare's edge or cloudflared. Global for M1;
+    /// the gate resolves every request's client through it.
+    /// </summary>
+    public TrustedProxyPolicy TrustedProxies { get; init; } = TrustedProxyPolicy.Off;
 
     public bool IsBound => YarpEndpoints.Length == RouteIdBySlot.Length && (Generation > 0 || RouteIdBySlot.Length == 0);
 

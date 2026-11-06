@@ -16,6 +16,7 @@ using Microsoft.Extensions.Hosting;
 using Paduraksa.Proxy;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 
@@ -63,7 +64,8 @@ internal sealed class ProxyTestServer : IAsyncDisposable
     /// <summary>
     /// Builds and starts the server. <paramref name="initial"/> is published before YARP exists, like the startup
     /// publish; <paramref name="afterGate"/> is a middleware placed between the gate and routing. Without the gate
-    /// (<paramref name="withoutGate"/>), routing matches YARP's internal routes by itself.
+    /// (<paramref name="withoutGate"/>), routing matches YARP's internal routes by itself. <paramref name="clientInfo"/>
+    /// installs the stage-A ClientInfo connection middleware, as the public listeners do.
     /// </summary>
     public static async Task<ProxyTestServer> StartAsync(
         ProxyConfigModel? initial = null,
@@ -74,7 +76,8 @@ internal sealed class ProxyTestServer : IAsyncDisposable
         SnapshotPublisher? publisher = null,
         HttpProtocols protocols = HttpProtocols.Http1,
         bool withoutGate = false,
-        SnapshotCompilerOptions? compilerOptions = null)
+        SnapshotCompilerOptions? compilerOptions = null,
+        bool clientInfo = false)
     {
         publisher ??= new SnapshotPublisher(new SnapshotStore(), options: options);
         Task<PublishResult>? initialPublish = initial is null ? null : publisher.PublishAsync(TestSnapshots.Compile(initial, compilerOptions));
@@ -85,7 +88,14 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                 .UseKestrel(kestrel =>
                 {
                     kestrel.AddServerHeader = false;
-                    kestrel.Listen(IPAddress.Loopback, 0, listen => listen.Protocols = protocols);
+                    kestrel.Listen(IPAddress.Loopback, 0, listen =>
+                    {
+                        listen.Protocols = protocols;
+                        if (clientInfo)
+                        {
+                            listen.UseClientInfo();
+                        }
+                    });
                 })
                 .ConfigureServices(s =>
                 {

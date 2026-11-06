@@ -75,7 +75,7 @@ public sealed class GateMiddleware
         RuntimeSnapshot snapshot = _store.Current;
         GateRequestState state = AcquireState(context);
         state.Snapshot = snapshot;
-        state.ClientAddress = _clientAddresses.GetClientAddress(context);
+        state.ClientIp = _clientAddresses.Resolve(context, snapshot);
 
         if (TryAnswerAcmeChallenge(context, snapshot, out GateDecision challenge))
         {
