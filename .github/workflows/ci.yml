@@ -54,12 +54,10 @@ jobs:
 
       # global.json opts into Microsoft.Testing.Platform, so this runs each xUnit v3 test
       # app directly and exits non-zero on any failure.
-      # --ignore-exit-code 8 ("zero tests ran"): Unit/Integration are still empty scaffolds.
-      # TODO: drop it once every test project has tests.
+      # A project that runs zero tests exits 8 and fails the step on purpose.
       - name: Test
         run: >-
           dotnet test --no-build -c Release
-          --ignore-exit-code 8
           --results-directory "$TEST_RESULTS"
           --report-xunit-trx
           --report-xunit-markdown
