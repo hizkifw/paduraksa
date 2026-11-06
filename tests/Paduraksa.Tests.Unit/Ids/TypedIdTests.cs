@@ -261,6 +261,16 @@ public sealed class TypedIdTests
     }
 
     [Fact]
+    public void PublicEntryPointsRejectNullArguments()
+    {
+        Assert.Equal("prefix", Assert.Throws<ArgumentNullException>(() => new TypedIdAttribute(null!)).ParamName);
+
+        var factory = new TypedIdJsonConverterFactory();
+        Assert.Equal("typeToConvert", Assert.Throws<ArgumentNullException>(() => factory.CanConvert(null!)).ParamName);
+        Assert.Equal("typeToConvert", Assert.Throws<ArgumentNullException>(() => factory.CreateConverter(null!, JsonSerializerOptions.Default)).ParamName);
+    }
+
+    [Fact]
     public void JsonRoundTripWithSourceGeneratedContext()
     {
         var dto = new TypedIdJsonDto(HostId.New(), AuditEventId.New(), new Dictionary<ChallengeId, int> { [ChallengeId.New()] = 1 });

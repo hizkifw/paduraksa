@@ -29,7 +29,7 @@ public sealed class UuidV7Generator(TimeProvider timeProvider)
     // TODO: decide whether Shared should use the clock abstraction once it lands in Core.
     public static UuidV7Generator Shared { get; } = new(TimeProvider.System);
 
-    private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     // (unix ms << 12) | counter of the last issued ID.
     private long _state;

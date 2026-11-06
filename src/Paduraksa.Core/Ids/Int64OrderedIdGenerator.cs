@@ -51,6 +51,7 @@ public sealed class Int64OrderedIdGenerator
 
     public Int64OrderedIdGenerator(TimeProvider timeProvider)
     {
+        ArgumentNullException.ThrowIfNull(timeProvider);
         _timeProvider = timeProvider;
         _last = RandomNumberGenerator.GetInt32(1 << CounterBits);
     }

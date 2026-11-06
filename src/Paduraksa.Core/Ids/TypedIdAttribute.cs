@@ -10,7 +10,7 @@ namespace Paduraksa.Core.Ids;
 [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
 public sealed class TypedIdAttribute(string prefix, IdKind kind = IdKind.UuidV7) : Attribute
 {
-    public string Prefix { get; } = prefix;
+    public string Prefix { get; } = prefix ?? throw new ArgumentNullException(nameof(prefix));
 
     public IdKind Kind { get; } = kind;
 }

@@ -16,10 +16,17 @@ namespace Paduraksa.Core.Ids;
 /// </remarks>
 public sealed class TypedIdJsonConverterFactory : JsonConverterFactory
 {
-    public override bool CanConvert(Type typeToConvert) => GetConverterType(typeToConvert) is not null;
+    public override bool CanConvert(Type typeToConvert)
+    {
+        ArgumentNullException.ThrowIfNull(typeToConvert);
+        return GetConverterType(typeToConvert) is not null;
+    }
 
-    public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options) =>
-        GetConverterType(typeToConvert) is { } converterType ? (JsonConverter?)Activator.CreateInstance(converterType) : null;
+    public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(typeToConvert);
+        return GetConverterType(typeToConvert) is { } converterType ? (JsonConverter?)Activator.CreateInstance(converterType) : null;
+    }
 
     private static Type? GetConverterType(Type type) =>
         type.IsValueType

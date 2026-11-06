@@ -9,6 +9,13 @@ public sealed class IdValueGeneratorTests
     private static readonly DateTimeOffset T0 = new(2026, 3, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public void ConstructorsRejectNullTimeProvider()
+    {
+        Assert.Equal("timeProvider", Assert.Throws<ArgumentNullException>(() => new Int64OrderedIdGenerator(null!)).ParamName);
+        Assert.Equal("timeProvider", Assert.Throws<ArgumentNullException>(() => new UuidV7Generator(null!)).ParamName);
+    }
+
+    [Fact]
     public void Int64OrderedLayout()
     {
         var clock = new ManualTimeProvider(T0);
