@@ -9,7 +9,12 @@ internal sealed class PaduraksaOptions
 {
     public const string SectionName = "Paduraksa";
 
-    /// <summary>Directory holding the databases, the KEK and runtime files (§16: the one volume).</summary>
+    /// <summary>
+    /// Directory holding the databases, the KEK and runtime files (§16: the one volume).
+    /// A relative path is resolved against the content root (the directory holding <c>appsettings.json</c>,
+    /// by default the app's base directory) when the options are bound, never against the process's working
+    /// directory; after binding this is always a fully qualified path. Absolute paths are used as given.
+    /// </summary>
     public string DataDirectory { get; set; } = "./data";
 
     public PaduraksaListenOptions Listen { get; set; } = new();

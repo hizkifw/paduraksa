@@ -385,6 +385,35 @@ public sealed class DualHostTests
         Assert.NotEmpty(ex.Failures);
     }
 
+    [Theory]
+    [InlineData("./data", "data")]
+    [InlineData("state/paduraksa", "state/paduraksa")]
+    [InlineData("../shared-data", "../shared-data")]
+    public async Task RelativeDataDirectoryResolvesAgainstTheContentRoot(string configured, string relativeToContentRoot)
+    {
+        // A content root that differs from the working directory, as under systemd with WorkingDirectory=/.
+        using TempDirectory contentRoot = new();
+        Assert.NotEqual(Path.GetFullPath(Environment.CurrentDirectory), contentRoot.Path);
+
+        await using PaduraksaHost host = TestHost.Create(
+            settings: new Dictionary<string, string?> { ["Paduraksa:DataDirectory"] = configured },
+            contentRootPath: contentRoot.Path);
+
+        Assert.Equal(Path.GetFullPath(Path.Combine(contentRoot.Path, relativeToContentRoot)), host.Options.DataDirectory);
+    }
+
+    [Fact]
+    public async Task AbsoluteDataDirectoryIsUsedAsGiven()
+    {
+        using TempDirectory contentRoot = new();
+        string absolute = Path.Combine(Path.GetTempPath(), "paduraksa-absolute-data");
+        await using PaduraksaHost host = TestHost.Create(
+            settings: new Dictionary<string, string?> { ["Paduraksa:DataDirectory"] = absolute },
+            contentRootPath: contentRoot.Path);
+
+        Assert.Equal(absolute, host.Options.DataDirectory);
+    }
+
     [Fact]
     public void ListenPortsMustBeDistinct()
     {

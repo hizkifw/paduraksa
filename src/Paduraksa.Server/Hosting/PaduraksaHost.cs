@@ -87,7 +87,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             configuration.AddEnvironmentVariables();
             hostOptions.ConfigureConfiguration?.Invoke(configuration);
 
-            PaduraksaOptions options = BindAndValidate(configuration, hostOptions.AllowEphemeralPorts);
+            PaduraksaOptions options = BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
             shared = SharedServices.Create(configuration, options, hostOptions.ConfigureShared);
 
             HostContext context = new(
@@ -277,7 +277,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         }
     }
 
-    private static PaduraksaOptions BindAndValidate(ConfigurationManager configuration, bool allowEphemeralPorts)
+    private static PaduraksaOptions BindAndValidate(ConfigurationManager configuration, bool allowEphemeralPorts, string contentRootPath)
     {
         PaduraksaOptions options;
         try
@@ -291,9 +291,19 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         }
 
         ValidateOptionsResult result = new PaduraksaOptionsValidator(allowEphemeralPorts).Validate(Microsoft.Extensions.Options.Options.DefaultName, options);
-        return result.Failed
-            ? throw new OptionsValidationException(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), result.Failures)
-            : options;
+        if (result.Failed)
+        {
+            throw new OptionsValidationException(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), result.Failures);
+        }
+
+        // Relative paths resolve against the content root, like appsettings, never against the working directory
+        // (a systemd unit with WorkingDirectory=/ would otherwise put the data in /data).
+        if (!Path.IsPathFullyQualified(options.DataDirectory))
+        {
+            options.DataDirectory = Path.GetFullPath(options.DataDirectory, contentRootPath);
+        }
+
+        return options;
     }
 
     private static T Track<T>(List<IDisposable> built, T host)
