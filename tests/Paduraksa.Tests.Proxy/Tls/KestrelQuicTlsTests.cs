@@ -51,14 +51,12 @@ public sealed class KestrelQuicTlsTests : IDisposable
     private static async Task<TlsTestServer> StartAsync(TlsHandshakeSelector selector, IPAddress? address = null, RequestDelegate? handler = null)
     {
         QuicTestSupport.Require();
-        var port = QuicTestSupport.FreeTcpAndUdpPort(address ?? IPAddress.Any);
         var http3 = false;
-        var server = await TlsTestServer.StartAsync(
+        var server = await QuicTestSupport.StartOnFreePortAsync(address, port => TlsTestServer.StartAsync(
             static web => web.UsePublicHttpsTransports(),
             kestrel => http3 = kestrel.ListenPublicHttps(new PublicHttpsListenerOptions { Address = address, Port = port }, selector),
-            handler);
+            handler));
         Assert.True(http3);
-        Assert.Equal(port, server.Port);
         return server;
     }
 

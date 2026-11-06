@@ -29,15 +29,16 @@ public sealed class PublicListenersTests : IDisposable
     {
         var selector = new TlsHandshakeSelector(new CertificateTableSource(_table));
         var http3 = true;
-        var port = QuicTestSupport.FreeTcpAndUdpPort(anyAddress ? IPAddress.Any : IPAddress.Loopback);
-        await using var server = await TlsTestServer.StartAsync(
+        var address = anyAddress ? null : IPAddress.Loopback;
+        var port = 0;
+        await using var server = await QuicTestSupport.StartOnFreePortAsync(address, free => TlsTestServer.StartAsync(
             static web => web.UsePublicHttpsTransports(),
             kestrel => http3 = kestrel.ListenPublicHttps(
-                new PublicHttpsListenerOptions { Address = anyAddress ? null : IPAddress.Loopback, Port = port, EnableHttp3 = false },
-                selector));
+                new PublicHttpsListenerOptions { Address = address, Port = port = free, EnableHttp3 = false },
+                selector)));
 
         Assert.False(http3);
-        Assert.Equal(port, server.Port);
+        Assert.Equal(port, server.Port); // a fixed public port (not 0), as in production
         foreach (var version in new[] { HttpVersion.Version11, HttpVersion.Version20 })
         {
             var result = await TlsProbe.GetAsync(_pki, port, "a.test", version);
@@ -71,6 +72,24 @@ public sealed class PublicListenersTests : IDisposable
 
         Assert.Equal(2, gate.Seen);
         Assert.Equal(0, selector.RejectedUnknownServerNameTcp); // aborted before the handshake callback ran
+    }
+
+    [Fact]
+    public async Task TestServersRetryWhenThePortIsTakenBetweenProbeAndBind()
+    {
+        var attempts = 0;
+        await using var server = await QuicTestSupport.StartOnFreePortAsync(IPAddress.Loopback, port =>
+        {
+            if (++attempts == 1)
+            {
+                throw new IOException("Failed to bind.", new AddressInUseException("Address already in use."));
+            }
+
+            return TlsTestServer.StartAsync(static _ => { }, kestrel => kestrel.ListenPublicHttp(IPAddress.Loopback, port));
+        });
+
+        Assert.Equal(2, attempts);
+        Assert.NotEqual(0, server.Port);
     }
 
     [Fact]

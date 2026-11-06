@@ -37,7 +37,16 @@ internal sealed class TlsTestServer : IAsyncDisposable
         builder.WebHost.ConfigureKestrel(configureKestrel);
         var app = builder.Build();
         app.Run(handler ?? WriteProtocol);
-        await app.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            await app.StartAsync(TestContext.Current.CancellationToken);
+        }
+        catch
+        {
+            // e.g. the UDP bind failed after TCP was bound: release what did bind before a retry.
+            await app.DisposeAsync();
+            throw;
+        }
 
         var addresses = app.Services.GetRequiredService<IServer>().Features.GetRequiredFeature<IServerAddressesFeature>().Addresses;
         var port = 0;
