@@ -1,20 +1,220 @@
-T:System.Security.Cryptography.X509Certificates.X509CertificateLoader;Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
-M:System.Security.Cryptography.X509Certificates.X509Certificate.Export;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.X509Certificates.X509Certificate2.ExportPkcs12;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.X509Certificates.X509Certificate2.CopyWithPrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetRSAPrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetECDsaPrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetDSAPrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.AsymmetricAlgorithm.ExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.AsymmetricAlgorithm.ExportPkcs8PrivateKeyPem;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.AsymmetricAlgorithm.ExportEncryptedPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.AsymmetricAlgorithm.TryExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.RSA.ExportParameters;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.RSA.ExportRSAPrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.RSA.ExportRSAPrivateKeyPem;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.ECDsa.ExportParameters;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.ECAlgorithm.ExportECPrivateKey;Key material must not leave Paduraksa.Vault
-M:System.Security.Cryptography.ECAlgorithm.ExportECPrivateKeyPem;Key material must not leave Paduraksa.Vault
 T:System.Security.Cryptography.AesGcm;Symmetric encryption with managed keys belongs to Paduraksa.Vault
 T:System.Security.Cryptography.HMACSHA256;Keyed MACs belong to Paduraksa.Vault (use a capability like IMacVerifier)
 T:System.Security.Cryptography.HMACSHA512;Keyed MACs belong to Paduraksa.Vault (use a capability like IMacVerifier)
+T:System.Security.Cryptography.X509Certificates.X509CertificateLoader;Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportPkcs8PrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.FromXmlString(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.AsymmetricAlgorithm.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.AsymmetricAlgorithm.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.AsymmetricAlgorithm.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.AsymmetricAlgorithm.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.AsymmetricAlgorithm.ImportFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.AsymmetricAlgorithm.ImportPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.AsymmetricAlgorithm.ToXmlString(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.TryExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Char},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.TryExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Char},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.TryExportPkcs8PrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.TryExportPkcs8PrivateKeyPem(System.Span{System.Char},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportCompositeMLDsaPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportCompositeMLDsaPrivateKey(System.Span{System.Byte});Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportEncryptedPkcs8PrivateKey(System.String,System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportEncryptedPkcs8PrivateKeyPem(System.String,System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ExportPkcs8PrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.ImportCompositeMLDsaPrivateKey(System.Security.Cryptography.CompositeMLDsaAlgorithm,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportCompositeMLDsaPrivateKey(System.Security.Cryptography.CompositeMLDsaAlgorithm,System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportEncryptedPkcs8PrivateKey(System.String,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportFromEncryptedPem(System.String,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportFromEncryptedPem(System.String,System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportFromPem(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportPkcs8PrivateKey(System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.ImportPkcs8PrivateKey(System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.CompositeMLDsa.TryExportCompositeMLDsaPrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.TryExportEncryptedPkcs8PrivateKey(System.String,System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.CompositeMLDsa.TryExportPkcs8PrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.DSA.ExportParameters(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.DSA.FromXmlString(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.DSA.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.DSA.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.DSA.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.DSA.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.DSA.ImportFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.DSA.ImportParameters(System.Security.Cryptography.DSAParameters);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.DSA.ImportPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.DSA.ToXmlString(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.DSA.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.DSA.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.DSA.TryExportPkcs8PrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.ExportECPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.ExportECPrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.ExportExplicitParameters(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.ExportParameters(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.ImportECPrivateKey(System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECAlgorithm.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECAlgorithm.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECAlgorithm.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECAlgorithm.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECAlgorithm.ImportFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECAlgorithm.ImportParameters(System.Security.Cryptography.ECParameters);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECAlgorithm.ImportPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECAlgorithm.TryExportECPrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.TryExportECPrivateKeyPem(System.Span{System.Char},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.TryExportPkcs8PrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECDiffieHellman.FromXmlString(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECDiffieHellman.ToXmlString(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECDsa.FromXmlString(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.ECDsa.ToXmlString(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportEncryptedPkcs8PrivateKey(System.String,System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportEncryptedPkcs8PrivateKeyPem(System.String,System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportMLDsaPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportMLDsaPrivateKey(System.Span{System.Byte});Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportMLDsaPrivateSeed;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportMLDsaPrivateSeed(System.Span{System.Byte});Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ExportPkcs8PrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportEncryptedPkcs8PrivateKey(System.String,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportFromEncryptedPem(System.String,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportFromEncryptedPem(System.String,System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportFromPem(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportMLDsaPrivateKey(System.Security.Cryptography.MLDsaAlgorithm,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportMLDsaPrivateKey(System.Security.Cryptography.MLDsaAlgorithm,System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportMLDsaPrivateSeed(System.Security.Cryptography.MLDsaAlgorithm,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportMLDsaPrivateSeed(System.Security.Cryptography.MLDsaAlgorithm,System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportPkcs8PrivateKey(System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.ImportPkcs8PrivateKey(System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLDsa.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.TryExportEncryptedPkcs8PrivateKey(System.String,System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLDsa.TryExportPkcs8PrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportDecapsulationKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportDecapsulationKey(System.Span{System.Byte});Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportEncryptedPkcs8PrivateKey(System.String,System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportEncryptedPkcs8PrivateKeyPem(System.String,System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportPkcs8PrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportPrivateSeed;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ExportPrivateSeed(System.Span{System.Byte});Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.ImportDecapsulationKey(System.Security.Cryptography.MLKemAlgorithm,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportDecapsulationKey(System.Security.Cryptography.MLKemAlgorithm,System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportEncryptedPkcs8PrivateKey(System.String,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportFromEncryptedPem(System.String,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportFromEncryptedPem(System.String,System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportFromPem(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportPkcs8PrivateKey(System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportPkcs8PrivateKey(System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportPrivateSeed(System.Security.Cryptography.MLKemAlgorithm,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.ImportPrivateSeed(System.Security.Cryptography.MLKemAlgorithm,System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.MLKem.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.TryExportEncryptedPkcs8PrivateKey(System.String,System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.MLKem.TryExportPkcs8PrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.ExportParameters(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.ExportRSAPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.ExportRSAPrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.FromXmlString(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ImportFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ImportParameters(System.Security.Cryptography.RSAParameters);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ImportPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ImportRSAPrivateKey(System.ReadOnlySpan{System.Byte},System.Int32@);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.RSA.ToXmlString(System.Boolean);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.TryExportPkcs8PrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.TryExportRSAPrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.TryExportRSAPrivateKeyPem(System.Span{System.Char},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportEncryptedPkcs8PrivateKey(System.String,System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportEncryptedPkcs8PrivateKeyPem(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportEncryptedPkcs8PrivateKeyPem(System.String,System.Security.Cryptography.PbeParameters);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportPkcs8PrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportSlhDsaPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ExportSlhDsaPrivateKey(System.Span{System.Byte});Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportEncryptedPkcs8PrivateKey(System.String,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportFromEncryptedPem(System.String,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportFromEncryptedPem(System.String,System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportFromPem(System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportPkcs8PrivateKey(System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportPkcs8PrivateKey(System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportSlhDsaPrivateKey(System.Security.Cryptography.SlhDsaAlgorithm,System.Byte[]);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.ImportSlhDsaPrivateKey(System.Security.Cryptography.SlhDsaAlgorithm,System.ReadOnlySpan{System.Byte});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.SlhDsa.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Byte},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.TryExportEncryptedPkcs8PrivateKey(System.ReadOnlySpan{System.Char},System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.TryExportEncryptedPkcs8PrivateKey(System.String,System.Security.Cryptography.PbeParameters,System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.SlhDsa.TryExportPkcs8PrivateKey(System.Span{System.Byte},System.Int32@);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.DSACertificateExtensions.CopyWithPrivateKey(System.Security.Cryptography.X509Certificates.X509Certificate2,System.Security.Cryptography.DSA);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.DSACertificateExtensions.GetDSAPrivateKey(System.Security.Cryptography.X509Certificates.X509Certificate2);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions.CopyWithPrivateKey(System.Security.Cryptography.X509Certificates.X509Certificate2,System.Security.Cryptography.ECDsa);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions.GetECDsaPrivateKey(System.Security.Cryptography.X509Certificates.X509Certificate2);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.RSACertificateExtensions.CopyWithPrivateKey(System.Security.Cryptography.X509Certificates.X509Certificate2,System.Security.Cryptography.RSA);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.RSACertificateExtensions.GetRSAPrivateKey(System.Security.Cryptography.X509Certificates.X509Certificate2);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType,System.Security.SecureString);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType,System.String);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate.ExportPkcs12(System.Security.Cryptography.PbeParameters,System.String);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate.ExportPkcs12(System.Security.Cryptography.X509Certificates.Pkcs12ExportPbeParameters,System.String);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CopyWithPrivateKey(System.Security.Cryptography.CompositeMLDsa);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CopyWithPrivateKey(System.Security.Cryptography.ECDiffieHellman);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CopyWithPrivateKey(System.Security.Cryptography.MLDsa);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CopyWithPrivateKey(System.Security.Cryptography.MLKem);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CopyWithPrivateKey(System.Security.Cryptography.SlhDsa);Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CreateFromEncryptedPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CreateFromEncryptedPemFile(System.String,System.ReadOnlySpan{System.Char},System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CreateFromPem(System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CreateFromPem(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CreateFromPemFile(System.String,System.String);Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetCompositeMLDsaPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetECDiffieHellmanPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetMLDsaPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetMLKemPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetSlhDsaPrivateKey;Key material must not leave Paduraksa.Vault
+P:System.Security.Cryptography.X509Certificates.X509Certificate2.PrivateKey;Key material must not leave Paduraksa.Vault

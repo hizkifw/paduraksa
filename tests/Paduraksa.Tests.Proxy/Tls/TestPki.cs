@@ -10,10 +10,9 @@ namespace Paduraksa.Tests.Proxy.Tls;
 /// only way a client can see the intermediate is if the server sends it (spike S1).
 /// </summary>
 /// <remarks>
-/// Test-only key handling. Leaves are signed by the intermediate, so the private key has to be attached with
-/// <see cref="ECDsaCertificateExtensions.CopyWithPrivateKey"/>. The key-material ban list
-/// (<c>BannedSymbols.KeyMaterial.txt</c>) covers <c>X509Certificate2.CopyWithPrivateKey</c> but not this extension
-/// method, so no suppression is needed; nothing here loads, exports or persists a key.
+/// Test-only key handling. Leaves are signed by the intermediate, so their freshly generated private key has to be
+/// attached with <c>CopyWithPrivateKey</c>, which the key-material ban list forbids outside the Vault. That one call is
+/// suppressed in place; nothing here loads, exports or persists a key.
 /// </remarks>
 internal sealed class TestPki : IDisposable
 {
@@ -75,7 +74,9 @@ internal sealed class TestPki : IDisposable
             DateTimeOffset.UtcNow.AddDays(-1),
             DateTimeOffset.UtcNow.AddDays(28),
             RandomNumberGenerator.GetBytes(16));
+#pragma warning disable RS0030 // Test PKI: attaches an in-memory key generated just above; never exported or persisted.
         var leaf = signed.CopyWithPrivateKey(key);
+#pragma warning restore RS0030
         _owned.Add(leaf);
         return ServerCertificate.Create(leaf, [Intermediate]);
     }

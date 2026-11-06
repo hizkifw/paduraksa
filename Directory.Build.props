@@ -23,7 +23,9 @@
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
     <AdditionalFiles Include="BannedSymbols.txt" Condition="Exists('BannedSymbols.txt')" />
     <!-- Trust boundary: only projects that set PaduraksaKeyMaterialBoundary=true may touch key material.
-         (Item conditions are evaluated after all properties, so the csproj can set this.) -->
+         (Item conditions are evaluated after all properties, so the csproj can set this.)
+         Entries are exact doc-IDs: an M: line without parameters bans only the parameterless overload, so every
+         overload is listed. KeyMaterialBanTests (architecture tests) checks coverage and runs the analyzer. -->
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.KeyMaterial.txt"
                      Condition="'$(PaduraksaKeyMaterialBoundary)' != 'true'" />
   </ItemGroup>
