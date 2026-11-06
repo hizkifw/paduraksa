@@ -226,6 +226,24 @@ public sealed class TypedIdGeneratorTests
     }
 
     [Fact]
+    public void FileLocalTypedIdsReportPDKID006()
+    {
+        // Same name and namespace in two files is legal for file-local types; it used to collide on the hint name.
+        const string Declaration = """
+            namespace Sample { [Paduraksa.Core.Ids.TypedId("$PREFIX$")] file readonly partial record struct HostId; }
+            """;
+
+        GeneratorResult result = Run(
+            ("A.cs", Declaration.Replace("$PREFIX$", "hosta", StringComparison.Ordinal)),
+            ("B.cs", Declaration.Replace("$PREFIX$", "hostb", StringComparison.Ordinal)));
+
+        Assert.Equal(["PDKID006", "PDKID006"], result.GeneratorDiagnosticIds);
+        Assert.Equal(["A.cs", "B.cs"], result.GeneratorDiagnostics.Select(d => d.Location.GetLineSpan().Path).Order(StringComparer.Ordinal));
+        Assert.Empty(result.CompilationErrors);
+        Assert.Empty(result.GeneratedSources);
+    }
+
+    [Fact]
     public void GeneratedCodeAttributeCarriesGeneratorVersion()
     {
         const string Source = """
@@ -251,10 +269,13 @@ public sealed class TypedIdGeneratorTests
             Enum.GetValues<IdKindValue>().Select(k => (k.ToString(), (int)k)));
     }
 
-    private static CSharpCompilation CreateCompilation(string source) =>
+    private static CSharpCompilation CreateCompilation(string source) => CreateCompilation(("Test.cs", source));
+
+    private static CSharpCompilation CreateCompilation(params (string Path, string Source)[] files) =>
         CSharpCompilation.Create(
             "Generated",
-            [CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Latest), path: "Test.cs")],
+            files.Select(file => CSharpSyntaxTree.ParseText(
+                file.Source, new CSharpParseOptions(LanguageVersion.Latest), file.Path, cancellationToken: TestContext.Current.CancellationToken)),
             References.Value,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
@@ -265,9 +286,11 @@ public sealed class TypedIdGeneratorTests
         return Assert.Single(driver.GetRunResult().Results.SelectMany(r => r.GeneratedSources)).SourceText.ToString();
     }
 
-    private static GeneratorResult Run(string source)
+    private static GeneratorResult Run(string source) => Run(("Test.cs", source));
+
+    private static GeneratorResult Run(params (string Path, string Source)[] files)
     {
-        CSharpCompilation compilation = CreateCompilation(source);
+        CSharpCompilation compilation = CreateCompilation(files);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new TypedIdGenerator());
         driver = driver.RunGeneratorsAndUpdateCompilation(
             compilation, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);

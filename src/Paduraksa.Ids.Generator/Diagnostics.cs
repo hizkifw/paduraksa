@@ -46,4 +46,14 @@ public static class Diagnostics
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
+
+    // A 'file' type's partial declarations must all live in its own file; a generated partial in another file
+    // would declare a different, unrelated type. So the generator can't add members to a file-local type.
+    public static readonly DiagnosticDescriptor FileLocalNotSupported = new(
+        id: "PDKID006",
+        title: "File-local typed IDs are not supported",
+        messageFormat: "Typed ID '{0}' is file-local; file-local typed IDs are not supported because generated members can't be added from another file",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
 }

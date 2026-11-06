@@ -103,6 +103,11 @@ public sealed class TypedIdGenerator : IIncrementalGenerator
             diagnostics.Add(new DiagnosticInfo(Diagnostics.NotReadonlyRecordStruct, location, symbol.Name));
         }
 
+        if (symbol.IsFileLocal)
+        {
+            diagnostics.Add(new DiagnosticInfo(Diagnostics.FileLocalNotSupported, location, symbol.Name));
+        }
+
         AttributeData attribute = ctx.Attributes[0];
         ImmutableArray<TypedConstant> args = attribute.ConstructorArguments;
         string? prefix = args.Length > 0 ? args[0].Value as string : null;
