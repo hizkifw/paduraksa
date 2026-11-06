@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.4**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.5**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -233,14 +233,19 @@ Application command handler
   3. validate (field rules + cross-object: dup hostnames, dangling refs, cert coverage, regex compile w/ timeout)
   4. COMPILE a candidate RuntimeSnapshot in memory   ← fails here, nothing is persisted
   5. BEGIN TX: write entities, ConfigRevision(doc, diff), AuditEvent; check concurrency token; COMMIT
-  6. SnapshotStore.Publish(candidate)           ← atomic reference swap
-  7. notify: change feed (dashboard live update), YARP change token
+  6. PUBLISH (single writer, coalescing to the latest candidate; see §6.2):
+     a. swap the YARP provider config, cancel the old change token
+     b. await YARP ConfigurationApplied / ConfigurationApplyingFailed (matched by RevisionId, timeout → alert)
+     c. capture YARP's new Endpoint objects into the candidate's slot → Endpoint table
+     d. SnapshotStore swap                       ← atomic reference swap; requests see it from here on
+  7. notify: change feed (dashboard live update)
 ```
 
 - **Optimistic concurrency.** Each entity has a concurrency token, and commands carry `baseRevision`. Two admins editing the same host get a conflict dialog with a diff instead of a silent overwrite.
 - **Dry-run.** Every command supports `dryRun: true`, which runs steps 1–4 and returns the diff plus validation results. The dashboard's "Review changes" sheet, MCP's `preview_*` tools and `import --dry-run` all use this.
 - **Rollback.** Load an old revision's document, run it through the *import* path (validate, compile) and commit it as a **new** revision ("Rollback to #37"). History is never rewritten.
 - **Diff.** Structural diff over the canonical document (stable ordering by typed ID), rendered as an object-level change list plus a YAML side-by-side view.
+- YARP's own `IConfigValidator` runs in step 4, so an invalid YARP config fails before commit. YARP otherwise swallows invalid configs: it logs and keeps the old one.
 - **Startup = recompile the latest revision.** The DB's latest committed revision is always the source of truth, and the process compiles it on every start. A crash between step 5 (commit) and step 6 (publish) therefore costs nothing except that the change goes live on the next start. (In-process, a failed publish after a commit is a bug; it raises an alert and retries.)
 - **Last-known-good.** After each successful publish, the compiled snapshot's *source document* is also written to `data/last-good.json`. This file is only a fallback: if the DB is unreadable or migration fails at startup, the proxy still comes up serving traffic while the admin UI shows a degraded banner.
 
@@ -259,7 +264,8 @@ public sealed class RuntimeSnapshot
     public required CompiledHost[] HostsByIndex { get; init; }     // dense index used by metrics arrays
     public required CertificateTable Certificates { get; init; }   // SNI → SslStreamCertificateContext (prebuilt chains)
     public required GlobalGate Global { get; init; }               // global IP deny trie, trusted proxies, conn limits
-    public required IProxyConfig Yarp { get; init; }               // routes/clusters generated from the same revision
+    public required IProxyConfig Yarp { get; init; }               // path-only routes + clusters, pure function of content
+    public required Endpoint[] YarpEndpoints { get; init; }        // RouteSlot → YARP Endpoint, filled at publish step 6c
     public required DefaultHostBehaviour Default { get; init; }
 }
 
@@ -278,7 +284,14 @@ public sealed class CompiledHost
 
 `SnapshotStore` is just `volatile RuntimeSnapshot _current` plus `Publish` (Interlocked.Exchange, then fire change token). Each request reads the reference **once** at the start and uses only that snapshot, so a request never sees half of one config and half of another.
 
-YARP integration: a custom `IProxyConfigProvider` returns `snapshot.Yarp`, and its change token fires on publish. Route IDs encode `{generation}:{hostIndex}:{routeIndex}`. `MapReverseProxy().ConfigureEndpoints((IEndpointConventionBuilder ep, RouteConfig route) => ep.WithMetadata(…))` attaches the matching `CompiledHost`/route policy objects (typed objects, not the string `Metadata` dictionary) as **endpoint metadata**. That overload is confirmed to exist in YARP 2.3.0, and **both** `MapReverseProxy` overloads, the plain one and the custom-pipeline `MapReverseProxy(Action<IReverseProxyApplicationBuilder>)` we'll use for the policy chain, return `ReverseProxyConventionBuilder` (checked by reflection against 2.3.0; older versions differed, see dotnet/yarp#860). Re-check this if YARP gets upgraded. Spike S2 still has to confirm that it runs again on every dynamic reload with the new generation's `RouteConfig`. If it doesn't, the fallback is to parse the route ID `{generation}:{hostIndex}:{routeIndex}` and look it up in a tiny immutable `generation → snapshot` map. In both cases after routing, policies come from `endpoint.Metadata.GetMetadata<T>()` (cached, no allocation) or the fallback lookup, and are guaranteed to belong to the same snapshot as the route.
+YARP integration (decided by spike S2, `docs/spikes/S2-yarp-reload.md`): **the gate picks the YARP endpoint itself, and ASP.NET routing never matches hosts.**
+- **IDs:** YARP route, cluster and destination IDs are stable typed-ID strings, with no generation or revision in them. The YARP config is a **pure function of content**, so an edit that only touches policy is a YARP no-op and costs ≈ nothing.
+- **Routes carry no Host match.** Each YARP route is path-only (or a catch-all per cluster) and exists only to give YARP an endpoint with the right cluster and transforms. Host-header matching was ~90% of the reload cost (500 hosts: 15 ms → 1.9 ms; 2000 hosts: 64 ms → 11 ms).
+- **The gate resolves host and route** from its snapshot `S` (a per-host ordered route list: prefix/exact/regex, NPM-style `Order`). It takes the policies **and** the YARP `Endpoint` from the same `S`, then calls `HttpContext.SetEndpoint(...)` *before* `UseRouting`, so endpoint routing skips matching. A request therefore can't mix generations, and there is no version check, no snapshot ring and no 503 path. It costs 0 B in the gate. S2 measured gate entry → proxy pipeline at 152 B/request, against 256 B with Host matching.
+- **Publish order** (§6.1 step 6): YARP applies first, then the endpoint table is captured from `EndpointDataSource` (keyed by route ID), then the snapshot is swapped. Until the swap, requests keep using the old `S` with its old `Endpoint` objects. S2 showed those keep proxying correctly even after YARP removed or replaced them, following YARP's live cluster state, so in-flight requests are fine.
+- **Custom pipeline:** we use `MapReverseProxy(Action<IReverseProxyApplicationBuilder>)`, which replaces YARP's default pipeline, so **session affinity, load balancing and passive health must be added back explicitly** (`UseSessionAffinity()`, `UseLoadBalancing()`, `UsePassiveHealthChecks()`). Without them, passive health silently does nothing.
+- **Client reuse:** a custom `IForwarderHttpClientFactory` must reuse the existing client when cluster config is unchanged. A new `HttpClient` counts as a cluster change and rebuilds every route on it.
+- `ConfigureEndpoints` metadata is **not** used. S2 showed YARP only re-runs it for new or changed routes, so unchanged routes would keep stale metadata.
 
 ### 6.3 State that survives a publish
 
@@ -292,7 +305,7 @@ Snapshots are immutable and are thrown away on every publish, so **mutable runti
 | Basic-auth verify cache | Global | `AccessListId` + config hash + credential hash + IP | Same rule as forward-auth. |
 | Metrics counters/histograms | `MetricsRegistry` | **`MetricSlot`**, allocated per typed ID (`HostId`, `RouteId`, `UpstreamId`, `DestinationId`) by an append-only slot registry | The compiler asks the registry for each ID's slot, so the same host keeps the same slot forever. Slots of deleted objects are freed after a grace period (one rollup interval). |
 | Persisted metric rollups | SQLite | **typed ID** + timestamp, never slot or index | n/a |
-| YARP health state | YARP (per destination) | `DestinationId` string in cluster config | YARP keeps state for unchanged clusters/destinations across config reloads. Destination keys are typed-ID strings so they stay stable. |
+| YARP health state | YARP (per destination) | ClusterId + DestinationId (typed-ID strings) | Verified in S2: state survives every reload that keeps the IDs, including changes to the cluster's own policies. **Pitfalls:** removing and re-adding a destination resets it to *Unknown*, which YARP treats as routable, and changing a destination's address under the same ID keeps the old verdict. So rollback and import must keep destination IDs. Optionally, key destinations as `{DestinationId}~{hash8(Address, Host, Health)}` so an address change gets fresh state. This only fixes a stuck passive-unhealthy verdict, since the new key starts as Unknown, and it resets affinity for that destination. |
 | ACME HTTP-01 tokens | `IAcmeChallengeStore` | token | Independent of config snapshots. |
 
 Spike S6 turns this into a test: N generations are published under load, and it asserts that rate-limit decisions, counter totals and YARP destination health are all continuous.
@@ -337,6 +350,8 @@ C. Gate middleware (first in pipeline)
    • resolve client IP: PROXY-protocol IP from stage A if present, else trusted-proxy-aware
      X-Forwarded-For / CF-Connecting-IP (only when the TCP peer is in the trusted-proxies list)
    • resolve host (span-based lookup, no string allocation); unknown → Default behaviour
+   • resolve route (per-host ordered list) → policies + YARP Endpoint from the same snapshot;
+     HttpContext.SetEndpoint(endpoint) so the later UseRouting skips matching
    • HTTP→HTTPS redirect / Redirect and Respond hosts answered here from precomputed bytes
 
 D. Host policy chain (IRequestPolicy[], sealed classes, evaluated in order)
@@ -344,7 +359,8 @@ D. Host policy chain (IRequestPolicy[], sealed classes, evaluated in order)
    Auth (basic / forward-auth / OIDC) → [future: PoW gate, bot heuristics, header rules]
    each returns PolicyDecision { Continue | Respond(status, page) | Challenge | Drop } as a struct
 
-E. YARP (routing → load balancing → forwarder) with Paduraksa transforms
+E. YARP (endpoint already set by the gate → affinity → load balancing → passive health → forwarder)
+   with Paduraksa transforms
    • X-Forwarded-*, X-Real-IP, request ID, security headers, custom headers (precompiled transforms)
    • upstream errors / no healthy destinations → custom error pages
 
@@ -544,7 +560,7 @@ Each step is skippable where it makes sense (e.g., HTTP-01 only, no DNS provider
 | # | Spike | Why | Exit criterion |
 |---|---|---|---|
 | S1 ✅ *(partial: browser upgrade pending)* | **HTTP/3 + per-SNI cert selection** | Unverified whether Kestrel's QUIC listener invokes per-SNI selection. libmsquic availability in the container. | Either per-SNI works on QUIC with hot-swap, or the single-H3-cert fallback (§7.5) is implemented. **Plus:** the browser actually upgrades to H3 in the Docker deployment (`Alt-Svc` carries the public port, UDP 443 reachable). |
-| S2 | **YARP config churn + metadata binding** | Many hosts (500+) and frequent publishes: endpoint rebuild cost. `ConfigureEndpoints(Action<IEndpointConventionBuilder, RouteConfig>)` exists in YARP 2.3.0, but we need to confirm it re-runs on every dynamic reload with the new `RouteConfig`. | Publish < 50 ms at 500 hosts; no request errors during swaps under load; typed metadata on every endpoint matches its generation (or the route-ID fallback in §6.2 is in place). |
+| S2 ✅ *(design changed: gate selects the endpoint)* | **YARP config churn + metadata binding** | Many hosts (500+) and frequent publishes: endpoint rebuild cost. `ConfigureEndpoints(Action<IEndpointConventionBuilder, RouteConfig>)` exists in YARP 2.3.0, but we need to confirm it re-runs on every dynamic reload with the new `RouteConfig`. | Publish < 50 ms at 500 hosts; no request errors during swaps under load; typed metadata on every endpoint matches its generation (or the route-ID fallback in §6.2 is in place). |
 | S3 | **Zero-alloc gate on Kestrel** | Request-scoped state without `Items`, span-based host lookup, feature reuse per connection. | BenchmarkDotNet + in-process test shows 0 B/request from Paduraksa code. |
 | S4 | **Typed IDs × EF Core 10 × SQLite** | Convention converters, BLOB big-endian GUIDs (`UuidV7Generator` + `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types containing typed IDs, LINQ translation of comparisons, `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup. | Round-trip, query and index-ordering tests pass. |
 | S5 ✅ *(implemented as the real host)* | **Two WebApplications, one process** | Shared singletons, graceful shutdown order, logging, health. | Both apps start/stop cleanly; integration tests can host both. |
@@ -559,7 +575,7 @@ Each milestone ends with a working, testable increment.
 
 | M | Scope | Done when |
 |---|---|---|
-| **M0 Foundations** *(in progress: typed IDs, CI, arch tests, host, S1, S5 done)* | Repo, CI (build, test, format, arch tests), `[TypedId]` generator + base62 + EF/JSON/Yaml converters, Result types, clock abstraction, spikes S1–S5 | Generator tests green; arch rules enforced in CI |
+| **M0 Foundations** *(in progress: typed IDs, CI, arch tests, host, S1, S2, S5 done; S3, S4 left)* | Repo, CI (build, test, format, arch tests), `[TypedId]` generator + base62 + EF/JSON/Yaml converters, Result types, clock abstraction, spikes S1–S5 | Generator tests green; arch rules enforced in CI |
 | **M1 Proxy core** | Snapshot model + store, gate middleware, host table, TLS SNI selection, YARP provider, H1/H2/H3, HTTP→HTTPS redirect, default host, hard-coded test config | Benchmarks + S7 baseline; S6 continuity test (stub rate-limit table + metrics + YARP health); zero-alloc tests pass |
 | **M2 Config store** | EF model, migrations, Application command pipeline, validation, compiler, revisions, diff, rollback, audit (hash chain), last-known-good | Change → revision → live in < 100 ms; rollback works |
 | **M3 Vault & certs** | KEK/DEK store, capabilities, upload, self-signed, local CA, ACME client (HTTP-01 → DNS-01 Cloudflare/deSEC), renewal scheduler, ARI | Pebble-based integration tests issue + renew; banned-API rules hold |
@@ -631,3 +647,4 @@ Each milestone ends with a working, testable increment.
   - The process runs three hosts (public, admin, core) with defined startup, shutdown and exit codes (§3).
   - Custom UUIDv7 generator, with `Guid.CreateVersion7` banned. Int64Ordered is documented as predictable and gets `Observe` seeding. The STJ source-gen converter factory requirement is recorded (§4).
   - S1 result: per-SNI and hot-swap work on QUIC, so the H3 fallback is dropped. Listener layout, ALPN and chain pitfalls, the QUIC-side IP gate and the libmsquic image notes are added (§7.2, §7.5, §16).
+- **v0.5:** S2 outcome. The gate selects the YARP endpoint, routes are path-only, and `ConfigureEndpoints` metadata and the route-ID generation scheme are dropped. Publish waits for YARP's `ConfigurationApplied`. Destination-ID stability rules and the required custom-pipeline steps are recorded (§6.1, §6.2, §6.3, §7.2).
