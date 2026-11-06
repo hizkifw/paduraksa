@@ -208,8 +208,26 @@ public sealed record UpstreamSpec
     /// <summary>How long a passively unhealthy destination stays out; <see langword="null"/> = YARP's default.</summary>
     public TimeSpan? ReactivationPeriod { get; init; }
 
+    /// <summary>Active health probes (PLAN §7.4); <see langword="null"/> = none.</summary>
+    public ActiveHealthSpec? ActiveHealth { get; init; }
+
     /// <summary>Part of the HTTP client config: changing it creates a new client for this upstream.</summary>
     public int? MaxConnectionsPerServer { get; init; }
+}
+
+/// <summary>
+/// YARP active health checks: a GET of <see cref="Path"/> (appended to each destination's address) every
+/// <see cref="Interval"/>; a destination is unhealthy after consecutive failures (YARP's default: 2) and healthy again
+/// after a successful probe.
+/// </summary>
+public sealed record ActiveHealthSpec
+{
+    /// <summary>Starts with <c>/</c>.</summary>
+    public string Path { get; init; } = "/";
+
+    public TimeSpan Interval { get; init; } = TimeSpan.FromSeconds(15);
+
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(5);
 }
 
 /// <summary>A YARP destination; the key must stay stable for health state to survive (PLAN §6.3).</summary>

@@ -217,6 +217,12 @@ public static class SnapshotCompiler
                 errors.Add($"{where}: MaxConnectionsPerServer must be positive");
             }
 
+            if (spec.ActiveHealth is { } active
+                && (active.Path is not ['/', ..] || active.Path.Contains('?', StringComparison.Ordinal) || active.Interval <= TimeSpan.Zero || active.Timeout <= TimeSpan.Zero))
+            {
+                errors.Add($"{where}: an active health check needs a path starting with '/' (no query) and a positive interval and timeout");
+            }
+
             clusters[spec.Key] = new ClusterConfig
             {
                 ClusterId = spec.Key,
@@ -231,15 +237,27 @@ public static class SnapshotCompiler
                         AffinityKeyName = AffinityCookieName,
                     }
                     : null,
-                HealthCheck = spec.PassiveHealth
+                HealthCheck = spec.PassiveHealth || spec.ActiveHealth is not null
                     ? new HealthCheckConfig
                     {
-                        Passive = new PassiveHealthCheckConfig
-                        {
-                            Enabled = true,
-                            Policy = HealthCheckConstants.PassivePolicy.TransportFailureRate,
-                            ReactivationPeriod = spec.ReactivationPeriod,
-                        },
+                        Passive = spec.PassiveHealth
+                            ? new PassiveHealthCheckConfig
+                            {
+                                Enabled = true,
+                                Policy = HealthCheckConstants.PassivePolicy.TransportFailureRate,
+                                ReactivationPeriod = spec.ReactivationPeriod,
+                            }
+                            : null,
+                        Active = spec.ActiveHealth is { } probe
+                            ? new ActiveHealthCheckConfig
+                            {
+                                Enabled = true,
+                                Interval = probe.Interval,
+                                Timeout = probe.Timeout,
+                                Policy = HealthCheckConstants.ActivePolicy.ConsecutiveFailures,
+                                Path = probe.Path,
+                            }
+                            : null,
                     }
                     : null,
                 HttpClient = spec.MaxConnectionsPerServer is { } max ? new HttpClientConfig { MaxConnectionsPerServer = max } : null,

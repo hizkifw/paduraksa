@@ -85,6 +85,31 @@ public sealed class SnapshotCompilerTests
     }
 
     [Fact]
+    public void ActiveHealthChecksCompileIntoTheCluster()
+    {
+        RuntimeSnapshot snapshot = Compile(new ProxyConfigModel
+        {
+            Upstreams =
+            [
+                Upstream("both", "http://10.0.0.1/") with { PassiveHealth = true, ActiveHealth = new ActiveHealthSpec { Path = "/healthz", Interval = TimeSpan.FromSeconds(5), Timeout = TimeSpan.FromSeconds(2) } },
+                Upstream("active", "http://10.0.0.2/") with { ActiveHealth = new ActiveHealthSpec() },
+            ],
+        });
+
+        HealthCheckConfig both = Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == "both").HealthCheck!;
+        Assert.True(both.Passive!.Enabled);
+        Assert.True(both.Active!.Enabled);
+        Assert.Equal("/healthz", both.Active.Path);
+        Assert.Equal(TimeSpan.FromSeconds(5), both.Active.Interval);
+        Assert.Equal(TimeSpan.FromSeconds(2), both.Active.Timeout);
+        Assert.Equal("ConsecutiveFailures", both.Active.Policy);
+
+        HealthCheckConfig active = Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == "active").HealthCheck!;
+        Assert.Null(active.Passive);
+        Assert.Equal("/", active.Active!.Path);
+    }
+
+    [Fact]
     public void RedirectAndRespondHostsGetPrecomputedAnswers()
     {
         RuntimeSnapshot snapshot = Compile(Sample);
@@ -170,6 +195,8 @@ public sealed class SnapshotCompilerTests
         { "bad deny status", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(42)] }), "deny status 42" },
         { "respond 204 with body", Hosts(new HostSpec { Key = "a", Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204, Body = "x" } }), "a 204 response can't have a body" },
         { "respond 304 with body", Hosts(new HostSpec { Key = "a", Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 304, Body = "x" } }), "a 304 response can't have a body" },
+        { "active health path", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ActiveHealth = new ActiveHealthSpec { Path = "health" } }] }, "active health check needs a path" },
+        { "active health interval", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ActiveHealth = new ActiveHealthSpec { Interval = TimeSpan.Zero } }] }, "active health check needs" },
         { "deny 205 with body", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(205)] }), "a 205 deny response can't have a body" },
     };
 
