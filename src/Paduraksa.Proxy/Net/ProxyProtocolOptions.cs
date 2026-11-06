@@ -7,6 +7,10 @@ namespace Paduraksa.Proxy.Net;
 /// </summary>
 public sealed class ProxyProtocolOptions
 {
+    /// <summary>Upper bound for <see cref="HeaderTimeout"/>. A header that takes longer is a broken or hostile peer
+    /// (and a <see cref="CancellationTokenSource"/> can't take more than ~49.7 days anyway).</summary>
+    public static readonly TimeSpan MaxHeaderTimeout = TimeSpan.FromMinutes(1);
+
     private CidrSet _trustedSources;
 
     public ProxyProtocolOptions(CidrSet trustedSources)
@@ -28,13 +32,15 @@ public sealed class ProxyProtocolOptions
     }
 
     /// <summary>How long a trusted source has to deliver the complete header. Default 3 s: load balancers send it
-    /// immediately, so this only bounds slow or broken peers holding a connection slot.</summary>
+    /// immediately, so this only bounds slow or broken peers holding a connection slot. Must be greater than zero
+    /// and at most <see cref="MaxHeaderTimeout"/>.</summary>
     public TimeSpan HeaderTimeout
     {
         get;
         init
         {
             ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, TimeSpan.Zero);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaxHeaderTimeout);
             field = value;
         }
     } = TimeSpan.FromSeconds(3);

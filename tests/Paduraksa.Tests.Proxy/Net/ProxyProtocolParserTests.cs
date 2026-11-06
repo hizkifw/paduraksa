@@ -204,6 +204,22 @@ public sealed class ProxyProtocolParserTests
         }, "ProxyProtocolParser.TryParse");
     }
 
+    /// <summary>The <see cref="ReadOnlySequence{T}"/> overload is what <see cref="ProxyProtocolReader"/> calls; a header
+    /// split across pipe segments goes through its stack-copy path.</summary>
+    [Fact]
+    public void ParseOverSplitSequenceIsAllocationFree()
+    {
+        var v1 = V1("PROXY TCP4 203.0.113.7 192.0.2.1 50123 443\r\nGET /");
+        var v2 = Concat(V2(family: 2, source: "2001:db8::1", destination: "2001:db8::2", tlvBytes: 64), V1("payload"));
+        var state = (V1: TwoSegments(v1, 9), V2: TwoSegments(v2, 20), V2Single: new ReadOnlySequence<byte>(v2));
+        AllocAssert.Zero(state, static s =>
+        {
+            _ = ProxyProtocolParser.TryParse(s.V1, out _, out long _);
+            _ = ProxyProtocolParser.TryParse(s.V2, out _, out long _);
+            _ = ProxyProtocolParser.TryParse(s.V2Single, out _, out long _);
+        }, "ProxyProtocolParser.TryParse(ReadOnlySequence, split)");
+    }
+
     internal static ReadOnlySequence<byte> TwoSegments(byte[] bytes, int split)
     {
         var first = new Segment(bytes.AsMemory(0, split), 0);

@@ -189,6 +189,22 @@ public sealed class ClientInfoMiddlewareTests
     }
 
     [Fact]
+    public async Task EachAbortGetsItsOwnException()
+    {
+        var options = Options();
+        var (middleware, _) = Build(options);
+        var first = new TestConnection(Stranger);
+        var second = new TestConnection(Stranger);
+
+        await middleware.OnConnectionAsync(first);
+        await middleware.OnConnectionAsync(second);
+
+        Assert.NotNull(first.AbortReason);
+        Assert.NotNull(second.AbortReason);
+        Assert.NotSame(first.AbortReason, second.AbortReason);
+    }
+
+    [Fact]
     public async Task TrustedSourcesCanBeSwapped()
     {
         var options = Options();
@@ -208,6 +224,9 @@ public sealed class ClientInfoMiddlewareTests
     public void OptionsValidateTimeoutAndLength()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new ProxyProtocolOptions(CidrSet.Empty) { HeaderTimeout = TimeSpan.Zero });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ProxyProtocolOptions(CidrSet.Empty) { HeaderTimeout = TimeSpan.FromMinutes(1.5) });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ProxyProtocolOptions(CidrSet.Empty) { HeaderTimeout = TimeSpan.FromDays(50) });
+        Assert.Equal(TimeSpan.FromMinutes(1), new ProxyProtocolOptions(CidrSet.Empty) { HeaderTimeout = ProxyProtocolOptions.MaxHeaderTimeout }.HeaderTimeout);
         Assert.Throws<ArgumentOutOfRangeException>(() => new ProxyProtocolOptions(CidrSet.Empty) { MaxV2Length = 100 });
     }
 

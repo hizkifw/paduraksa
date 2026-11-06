@@ -18,11 +18,6 @@ namespace Paduraksa.Proxy.Net;
 /// </remarks>
 public sealed class ClientInfoMiddleware
 {
-    private static readonly ConnectionAbortedException UntrustedSource = new("PROXY protocol: peer is not a trusted source.");
-    private static readonly ConnectionAbortedException InvalidHeader = new("PROXY protocol: invalid header.");
-    private static readonly ConnectionAbortedException HeaderTimedOut = new("PROXY protocol: header timed out.");
-    private static readonly ConnectionAbortedException ClosedBeforeHeader = new("PROXY protocol: closed before the header.");
-
     private readonly ConnectionDelegate _next;
     private readonly ProxyProtocolOptions? _proxyProtocol;
 
@@ -51,7 +46,9 @@ public sealed class ClientInfoMiddleware
         if (!options.TrustedSources.Contains(peer))
         {
             options.Counters.CountUntrustedSource();
-            connection.Abort(UntrustedSource);
+            // Exceptions are allocated per abort (a cold path): a shared instance would carry one connection's
+            // stack trace and data into every other connection's logs.
+            connection.Abort(new ConnectionAbortedException("PROXY protocol: peer is not a trusted source."));
             return Task.CompletedTask;
         }
 
@@ -67,12 +64,12 @@ public sealed class ClientInfoMiddleware
 
         if (result.Status != ProxyProtocolReadStatus.Success)
         {
-            connection.Abort(result.Status switch
+            connection.Abort(new ConnectionAbortedException(result.Status switch
             {
-                ProxyProtocolReadStatus.Invalid => InvalidHeader,
-                ProxyProtocolReadStatus.TimedOut => HeaderTimedOut,
-                _ => ClosedBeforeHeader,
-            });
+                ProxyProtocolReadStatus.Invalid => "PROXY protocol: invalid header.",
+                ProxyProtocolReadStatus.TimedOut => "PROXY protocol: header timed out.",
+                _ => "PROXY protocol: closed before the header.",
+            }));
             return;
         }
 
