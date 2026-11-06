@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.9**: M0 done, M1 next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.10**: M0 done, M1 integrated (benchmarks and the S7 baseline pending; see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -104,6 +104,21 @@ Implemented in M0 (`src/Paduraksa.Server/Hosting`):
 - **Signals:** handled only in `PaduraksaHost.RunAsync`. A second signal hard-kills.
 - **Listener pinning:** the web apps get a last config source that blanks `urls`/`http_ports`/`https_ports` and sets `preferHostingUrls=false`. Env vars and appsettings can't rebind listeners behind our back.
 
+Public listeners as integrated in M1 (`Hosting/PublicApp.cs`, `PublicListenerSetup`), all on dual-mode `[::]` (`0.0.0.0` without IPv6):
+- **HTTP** (`Listen:Http`/tcp, H1) and **HTTPS** (`Listen:Https`/tcp, H1/H2): the stage-A `ClientInfo` connection middleware (PROXY protocol first when enabled on that listener), then on HTTPS the per-SNI TLS callback reading the live snapshot's certificate table (§7.2 B).
+- **HTTP/3** (`Listen:Https`/udp): added when `Listen:Http3` is on and libmsquic is present. Its TLS callback selects the certificate and attaches `ClientInfo` (§7.2 A). Without libmsquic it is off, with one Information log at startup; `Alt-Svc` is then never sent.
+- **One `TlsHandshakeSelector`** per process (shared singleton, its rejection counters are process state). The same options also derive the compiler's `SnapshotCompilerOptions` (public port, whether H3 is advertised, the certificate resolver), so listeners and snapshots can't disagree.
+- **Certificates until M3:** a placeholder `IServerCertificateResolver` knows one reference, `placeholder` (the in-memory self-signed certificate). The startup config uses it as the default certificate unless it names its own, so HTTPS answers for every host as before.
+
+Options under `Paduraksa:Listen` (validated at startup, invalid → exit 3):
+
+| Key | Default | Meaning |
+|---|---|---|
+| `Http`, `Https`, `Admin`, `AdminBind` | 80, 443, 9443, `0.0.0.0` | As before. TCP and UDP share `Https`. |
+| `PublicHttpsPort` | 443 | The HTTPS port clients reach: advertised in `Alt-Svc` and used by the HTTP→HTTPS redirect. Set it only behind a port mapping. |
+| `Http3` | `true` | Serve H3. Off, with an Information log, without libmsquic. Needs a fixed `Https` port (0 is rejected with H3 on). |
+| `HttpProxyProtocol`, `HttpsProxyProtocol` | `Enabled: false`, `TrustedSources: []`, `HeaderTimeout: 00:00:03` | PROXY protocol v1/v2 on that TCP listener (HTTPS: read before TLS). Enabling it makes the header mandatory and requires at least one trusted source (address or CIDR); the timeout is at most 1 min. QUIC has no PROXY protocol. |
+
 Why two apps and not one app with port filters:
 - Admin endpoints **can't be routed** on public ports, because the public pipeline doesn't contain them. No reliance on `RequireHost` or port checks.
 - Each pipeline gets its own middleware, auth and Kestrel limits (for example, admin allows large YAML uploads while public uses per-host limits).
@@ -114,7 +129,7 @@ Ports (configurable, env-overridable):
 | Purpose | Default | Notes |
 |---|---|---|
 | Public HTTP | 80/tcp | ACME HTTP-01, redirects, plain-HTTP hosts |
-| Public HTTPS | 443/tcp + **443/udp** | H1/H2 over TCP, H3 over QUIC. Docs must stress mapping the UDP port. The container listens on 80/443 *directly* (no in-container remapping, see §16) so the advertised `Alt-Svc` port is correct. |
+| Public HTTPS | 443/tcp + **443/udp** | H1/H2 over TCP, H3 over QUIC. Docs must stress mapping the UDP port. The container listens on 80/443 *directly* (no in-container remapping, see §16) so the advertised `Alt-Svc` port is correct; `Listen:PublicHttpsPort` overrides it behind a mapping. |
 | Admin | 9443/tcp | HTTPS with an internal-CA cert. The wizard offers the root CA for download. Bind address and allowed CIDRs are configurable. Never plain HTTP on the LAN. |
 | Admin fallback | loopback only, plain HTTP (opt-in, e.g. `127.0.0.1:9080`) | For headless/SSH-tunnel setups. Refuses to bind to anything but loopback. |
 
@@ -298,7 +313,7 @@ YARP integration (decided by spike S2, `docs/spikes/S2-yarp-reload.md`): **the g
 - `ConfigureEndpoints` metadata is **not** used. S2 showed YARP only re-runs it for new or changed routes, so unchanged routes would keep stale metadata.
 
 As built in M1 (`src/Paduraksa.Proxy`: `Snapshot/`, `Gate/`, `Yarp/`, `Config/`):
-- **Types:** `Revision` is a string label and `CompiledHost.Key` / `CompiledRoute.Key` are strings until M2 brings `ConfigRevisionId`/`HostId`/`RouteId`. `RuntimeSnapshot.Yarp` holds the YARP *content* (`YarpConfig`); the `IProxyConfig` with its change token and a unique `RevisionId` is created per publish by the provider. `Tls` and `TrustedProxies` are opaque slots until the TLS and client-IP work is integrated.
+- **Types:** `Revision` is a string label and `CompiledHost.Key` / `CompiledRoute.Key` are strings until M2 brings `ConfigRevisionId`/`HostId`/`RouteId`. `RuntimeSnapshot.Yarp` holds the YARP *content* (`YarpConfig`); the `IProxyConfig` with its change token and a unique `RevisionId` is created per publish by the provider. `Certificates` (`CertificateTable`) and `TrustedProxies` (`TrustedProxyPolicy`) are typed slots the compiler fills; `SnapshotStore` is the TLS selector's `ICertificateTableSource`, so a publish hot-swaps certificates for new handshakes.
 - **Unbound → bound:** the compiler produces a candidate with generation 0 and no endpoints; the publisher `Bind`s it to YARP's endpoints and the next generation. The store starts at a bootstrap snapshot (generation 0, 503 for everything), so `Current` is never null.
 - **Routes:** exact or segment-aware prefix, ordered by `Order`, then as listed; first match wins. **Match leniently, forward unchanged:** matching (and later path rules) uses a canonical *matching view* of the decoded path: `\`, `%2F` and `%5C` separate segments, repeated `/` collapse, `;…` segment parameters are dropped, trailing `.` and spaces are trimmed per segment, dot segments resolve, case is ignored. Many upstreams read those spellings as the same path, so `//admin`, `/admin;x`, `/admin.` or `/ADMIN` must hit the policies of `/admin`; over-matching only makes a policy stricter. The view costs 0 B (as is when already canonical, else on the stack, or a pooled buffer past 256 chars; Kestrel's request-line limit bounds it). The compiler rejects route paths that are percent-encoded or not canonical. Routes carry **only their own** policies. YARP routes are `/.paduraksa/r/{routeKey}/{**rest}`, and the proxy pipeline rejects (404) any request whose endpoint the gate didn't set, so they can't be reached directly.
 - **Forwarding:** the upstream gets the path exactly as received: a YARP request transform builds the URI from the raw request target (path part) plus the query, without re-escaping. YARP's default would turn `%2F` into `%252F`. M1 strips no prefixes.
@@ -321,7 +336,7 @@ Snapshots are immutable and are thrown away on every publish, so **mutable runti
 | YARP health state | YARP (per destination) | ClusterId + DestinationId (typed-ID strings) | Verified in S2: state survives every reload that keeps the IDs, including changes to the cluster's own policies. **Pitfalls:** removing and re-adding a destination resets it to *Unknown*, which YARP treats as routable, and changing a destination's address under the same ID keeps the old verdict. So rollback and import must keep destination IDs. Optionally, key destinations as `{DestinationId}~{hash8(Address, Host, Health)}` so an address change gets fresh state. This only fixes a stuck passive-unhealthy verdict, since the new key starts as Unknown, and it resets affinity for that destination. |
 | ACME HTTP-01 tokens | `IAcmeChallengeStore` | token | Independent of config snapshots. |
 
-Spike S6 turns this into a test: N generations are published under load, and it asserts that rate-limit decisions, counter totals and YARP destination health are all continuous.
+Spike S6 turns this into a test: N generations are published under load, and it asserts that rate-limit decisions, counter totals and YARP destination health are all continuous. M1 covers YARP health and request errors (`StateContinuityTests`); rate-limit and counter continuity are tested when those tables exist (M6, M7).
 
 
 ---
@@ -365,9 +380,20 @@ A. Connection (TCP: Kestrel ListenOptions.Use. QUIC has no such hook, so the sam
      on a dual-mode [::] listener TCP reports ::ffff:a.b.c.d while QUIC reports a.b.c.d
    • per-IP concurrent-connection cap (fixed-size table, CAS)
    • compute ClientInfo once per connection (IP, country index) → connection feature
+   As built in M1: UseClientInfo on both TCP listeners (HTTPS: through PublicHttpsListenerOptions.
+   ConfigureTcpConnection, before UseHttps); on QUIC, QuicClientInfoGate attaches ClientInfo.FromEndPoint
+   to the connection in the handshake callback, and H3 requests see it (verified end to end in Docker).
+   IpKey stores IPv4 and IPv4-mapped alike, so TCP and QUIC agree. Global IP deny and the per-IP cap are
+   a marked seam in that gate (M6); M1 acquires nothing there, so the QUIC ConnectionClosed gap can't leak.
 
 B. TLS handshake (TlsHandshakeCallbackOptions on both TCP and QUIC → per-SNI SslServerAuthenticationOptions)
    • SNI → snapshot → PREBUILT SslServerAuthenticationOptions, deduplicated on (cert, host TLS policy, transport).
+     The compiler builds RuntimeSnapshot.Certificates: each enabled host's DNS names (exact and *.wildcard;
+     IP literals never arrive as SNI) map to its certificate reference, or to the default certificate with
+     the host's own TLS settings (min version, TCP ALPN, H3 on/off); references resolve through
+     IServerCertificateResolver (the vault's source in M3, a placeholder until then).
+   • the handshake only sees the SNI's host, and clients coalesce connections across every name a certificate
+     covers, so the host's TLS settings are re-checked per REQUEST in the gate (stage C, ConnectionTlsCheck)
      Each holds a shared SslStreamCertificateContext.Create(cert, chain, offline: true): the only way the
      intermediate is reliably sent. Without it, TCP may fetch it via AIA mid-handshake and QUIC sends the leaf only.
    • ApplicationProtocols ALWAYS set explicitly ([h2, http/1.1] or the host's ALPN on TCP, [h3] on QUIC).
@@ -382,12 +408,28 @@ B. TLS handshake (TlsHandshakeCallbackOptions on both TCP and QUIC → per-SNI S
 
 C. Gate middleware (first in pipeline), in this order (as built in M1)
    • snapshot = SnapshotStore.Current (one volatile read)
-   • resolve client IP: PROXY-protocol IP from stage A if present, else trusted-proxy-aware
-     X-Forwarded-For / CF-Connecting-IP (only when the TCP peer is in the trusted-proxies list;
-     native Cloudflare handling in §7.6)
+   • resolve client IP: the PEER is the PROXY-protocol source from stage A if present, else the socket peer;
+     the trusted-proxy policy then applies to that peer as usual: only a peer in the trusted-proxies list
+     may supply the client through X-Forwarded-For / CF-Connecting-IP (native Cloudflare handling in §7.6),
+     otherwise the peer is the client. Built as TrustedProxyClientAddressSource: the connection's
+     ClientInfo (else Connection.RemoteIpAddress) through the snapshot's global TrustedProxyPolicy, 0 B;
+     header fallbacks are counted. The whole ClientIpResolution stays on the request state for policies
+     and the forwarding headers.
+   • resolve the trusted request SCHEME in the same step (ForwardedScheme, 0 B): from a trusted Cloudflare
+     peer CF-Visitor (exactly {"scheme":"https"} or {"scheme":"http"}, anything else invalid), else its
+     X-Forwarded-Proto; from a trusted generic proxy X-Forwarded-Proto only with TrustForwardedProto
+     (default off); otherwise the connection's. The HTTPS redirect and the upstream X-Forwarded-Proto both
+     use it, so a TLS-terminating proxy (cloudflared → :80, Flexible SSL) can't loop the redirect.
+     Cloudflare over plain HTTP for a plain-HTTP visitor (Flexible) is counted and logged once.
    • port 80: /.well-known/acme-challenge/* → IAcmeChallengeStore (FrozenDictionary swap) → 200,
      before everything below (seam in place; M3)
    • resolve host (span-based lookup, no string allocation); unknown → Default behaviour
+   • HTTPS: the host's TlsPolicy against the request's connection (HTTP/3 = QUIC/TLS 1.3 vs Http3Enabled,
+     HTTP/2 vs an HTTP/1.1-only ALPN, ITlsHandshakeFeature.Protocol vs the minimum version) → 421
+     Misdirected Request when the connection is weaker, so browsers retry on a connection of their own;
+     a few comparisons on per-connection data, 0 B. M6 adds the client-certificate requirement here.
+   • the host's precomputed Alt-Svc on TCP HTTPS responses (forwarded or answered), 0 B (§7.5); only for
+     hosts with names in the certificate table (not IP-literal-only hosts)
    • HOST policy chain (D), so it also guards the redirect and fixed answers (blocked → 403, not 301)
    • HTTP→HTTPS redirect / Redirect and Respond hosts answered here from precomputed bytes
    • resolve route (per-host ordered list, on the canonical matching view of the path; §6.2) → 404 if none
@@ -403,6 +445,18 @@ D. Policy chains: one per host, one per route (IRequestPolicy[], sealed classes,
 E. YARP (endpoint already set by the gate → affinity → load balancing → passive health → forwarder)
    with Paduraksa transforms
    • X-Forwarded-*, X-Real-IP, request ID, security headers, custom headers (precompiled transforms)
+   • forwarding headers as built in M1 (YARP's own X-Forwarded-* transforms are off), always OVERWRITTEN:
+     X-Forwarded-For, X-Real-IP = exactly one address, the resolved client (no chain is kept or appended;
+       IPv4 dotted quad, also for IPv4-mapped peers; IPv6 without brackets); left out if unknown
+     X-Forwarded-Proto = the trusted request scheme from stage C (the same one the redirect uses)
+     X-Forwarded-Host = Host / :authority as received, port included
+     Forwarded, X-Forwarded-Prefix, X-Forwarded-Port = removed (only a client could have set them)
+     every cf-* header (case-insensitive: CF-Connecting-IP, CF-Visitor, Cf-Access-Jwt-Assertion,
+       Cf-Access-Authenticated-User-Email, cf-ipcity, …) and True-Client-IP = removed unless
+       CloudflareHeadersTrusted (Cloudflare mode and trusted peer); a trusted generic proxy doesn't qualify.
+       One scan of the outgoing header names, 0 B. Otherwise a LAN client could forge Cloudflare Access SSO
+       past a tunnel.
+     The address string is cached on the pooled request state; the rest are constants or Kestrel's strings.
    • upstream errors / no healthy destinations → custom error pages
 
 F. Telemetry (always on, lock-free): counters + latency histogram per host / status class / upstream
@@ -439,7 +493,8 @@ F. Telemetry (always on, lock-free): counters + latency histogram per host / sta
   - TCP: `Http1AndHttp2`, `DisableAltSvcHeader = true`, then the connection middleware (PROXY protocol, IP gate), then `TlsHandshakeCallbackOptions`.
   - UDP: `Http3` with its own `TlsHandshakeCallbackOptions`, which also performs the stage-A gate. It's added only if `QuicListener.IsSupported`.
 - **Builder:** under `WebApplication.CreateSlimBuilder`, call `UseKestrelHttpsConfiguration()` and `UseQuic()`, otherwise H3 listeners fail at startup.
-- **Still open:** a real browser upgrading to H3 (needs a trusted cert), carrying QUIC-callback ClientInfo through to the request, routable IPv6, and arm64 libmsquic. These are M1 acceptance tests.
+- **Still open:** a real browser upgrading to H3 (needs a trusted cert), routable IPv6, and arm64 libmsquic. Carrying the QUIC-callback ClientInfo through to the request works: a feature set on the QUIC connection context in the callback is visible to the H3 request (`PublicHttp3Tests`, Docker).
+- **As built in M1:** `UsePublicHttpsTransports()` on the generic host's `UseKestrelCore()`, then `ListenPublicHttp` and `ListenPublicHttps` (§3). `run-quic-tests.sh` runs the QUIC tests of `Tests.Proxy` and an end-to-end H3 request through `PaduraksaHost` in Docker with libmsquic.
 - **Either way, `Alt-Svc` is emitted by Paduraksa, not Kestrel.** Kestrel's automatic header is disabled (`DisableAltSvcHeader`). Our header is precomputed per host, only for H3-eligible hosts, using the **public** HTTPS port from settings (default 443), not the bound port. That way a port-mapped deployment can't advertise the wrong port.
 - H3 is off globally if `libmsquic` isn't available (`QuicListener.IsSupported`). `paduraksa doctor` reports this. The stock `aspnet` image doesn't ship it: install `libmsquic` from packages.microsoft.com (≈ 21 MB incl. `libnuma1`; tested 2.6.3 on Ubuntu 24.04).
 
@@ -447,16 +502,16 @@ F. Telemetry (always on, lock-free): counters + latency histogram per host / sta
 
 Many homelabs sit behind Cloudflare's proxy (orange cloud) or a Cloudflare Tunnel. Getting the real client IP must be a toggle, not a hand-maintained CIDR list. It's a built-in **trusted-proxy provider**, which the generic trusted-proxy model (CIDRs + header) and future providers also use.
 
-- **Modes:** `Off` · `Proxy` (Cloudflare connects to us directly) · `Tunnel` (a local `cloudflared` connects to us). Set globally and overridable per host (§5.3). The wizard asks "Is this server behind Cloudflare?" and offers to set it.
+- **Modes:** `Off` · `Proxy` (Cloudflare connects to us directly) · `Tunnel` (a local `cloudflared` connects to us). Set globally and overridable per host (§5.3); M1 has the global setting only (`DefaultsSpec.TrustedProxies`: mode, trusted CIDRs, generic header, `True-Client-IP` and X-Forwarded-For fallbacks), and the per-host override comes with M2/M6. The wizard asks "Is this server behind Cloudflare?" and offers to set it.
 - **Who is trusted:**
   - `Proxy`: the TCP peer (after PROXY protocol, if any) must fall within **Cloudflare's published edge ranges**. These are shipped as a baked-in list and refreshed by a background job from `https://api.cloudflare.com/client/v4/ips`, falling back to `https://www.cloudflare.com/ips-v4` / `ips-v6`. They're stored with a fetch timestamp and compiled into the snapshot as a CIDR trie. A failed refresh keeps the last good list and raises a dashboard warning if it's stale (more than 30 days old).
   - `Tunnel`: the peer must be the configured `cloudflared` address (loopback, a Docker network CIDR or a specific IP). Edge ranges don't apply because the TCP peer is `cloudflared`.
 - **Which header:** `CF-Connecting-IP` (single value, so there's no X-Forwarded-For chain parsing). Optionally `True-Client-IP` (Enterprise) or the right-most untrusted entry of `X-Forwarded-For` as a fallback. The value is parsed span-based into the same `UInt128` client-IP representation used everywhere, with IPv4-mapped addresses normalised. A missing or unparsable header from a trusted peer counts as a counter + debug log, and the peer IP is used.
-- **Anti-spoofing:** when the peer is **not** trusted, `CF-Connecting-IP`, `True-Client-IP`, `CF-IPCountry`, `CF-Ray` and `CF-Visitor` are ignored, and they're **stripped before forwarding upstream**. Upstreams always get a clean `X-Forwarded-For` / `X-Real-IP` built from the resolved client IP.
+- **Anti-spoofing:** when the peer is **not** trusted, **every `cf-*` header** (Cloudflare adds more over time, and Cloudflare Access's `Cf-Access-Jwt-Assertion` / `Cf-Access-Authenticated-User-Email` carry identity) and `True-Client-IP` are ignored, and they're **stripped before forwarding upstream**. Upstreams always get a clean `X-Forwarded-For` / `X-Real-IP` built from the resolved client IP (§7.2 E).
 - **What the real IP feeds:** WAF IP allow/deny, geo, rate-limit keys, access lists, forward-auth headers, access logs, metrics. Connection-stage limits (§7.2 A) necessarily see the Cloudflare edge IP. They must therefore exempt trusted Cloudflare peers from per-IP connection caps, or every visitor would share a handful of edge IPs.
 - **Optional extras (per host or global):**
   - **Geo from `CF-IPCountry`:** when the peer is trusted, use it instead of the local Geo DB lookup. It's free and accurate. `XX`/`T1` map to "unknown".
-  - **`CF-Visitor` scheme:** the original scheme for the HTTP→HTTPS redirect decision when Cloudflare connects to the origin over plain HTTP ("Flexible" SSL). This avoids redirect loops. The dashboard warns that Flexible mode is insecure.
+  - **`CF-Visitor` scheme:** the original scheme for the HTTP→HTTPS redirect decision when Cloudflare connects to the origin over plain HTTP ("Flexible" SSL, or `cloudflared` forwarding to port 80). This avoids redirect loops. Built in M1 (§7.2 C) and always on in the Cloudflare modes; Flexible is counted and logged once, and the dashboard (M5) will warn that it is insecure.
   - **Origin lockdown:** reject (or 403) requests on a Cloudflare-mode host whose peer isn't Cloudflare (or `cloudflared`), so the origin can't be reached by IP to bypass Cloudflare's WAF. It's enforced at the connection stage when *all* hosts on a listener require it.
   - **Authenticated Origin Pulls:** request a client certificate from Cloudflare and verify it against Cloudflare's origin-pull CA (shipped, replaceable) on the TCP listener (§7.2 B, per-SNI `ClientCertificateRequired`). This is the strong form of origin lockdown.
   - **`CF-Ray`** is recorded in access logs and offered as a variable on error pages, next to our request ID, so issues can be correlated with the Cloudflare dashboard.
@@ -625,7 +680,7 @@ Each step is skippable where it makes sense (e.g., HTTP-01 only, no DNS provider
 | S3 ✅ *(0 B gate; see §7.1)* | **Zero-alloc gate on Kestrel** | Request-scoped state without `Items`, span-based host lookup, feature reuse per connection. | BenchmarkDotNet + in-process test shows 0 B/request from Paduraksa code. |
 | S4 ✅ *(partial: `FrozenDictionary` lookup not covered)* | **Typed IDs × EF Core 10 × SQLite** | Convention converters, BLOB big-endian GUIDs (`UuidV7Generator` + `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types containing typed IDs, LINQ translation of comparisons, `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup. | Round-trip, query and index-ordering tests pass. **Result:** done as real code in `Paduraksa.Data` (`tests/Paduraksa.Tests.Data`, real SQLite). Everything worked as planned: BLOB/INTEGER/JSON-string storage, `ORDER BY` = `CompareTo` = string order (same millisecond too), comparisons translate directly, and an Int64Ordered key is the rowid alias without `AUTOINCREMENT`. Changes: discovery replaces EF's `PropertyDiscoveryConvention` instead of scanning (§4); JSON stores strings. |
 | S5 ✅ *(implemented as the real host)* | **Two WebApplications, one process** | Shared singletons, graceful shutdown order, logging, health. | Both apps start/stop cleanly; integration tests can host both. |
-| S6 | **State continuity across publishes** (§6.3) | Rate limits and metrics must not reset on config edits. | Load test with publishes every 100 ms shows (a) continuous 429 behaviour, (b) monotonic counters, and (c) **YARP destination health preserved**: a destination marked unhealthy (active or passive) stays unhealthy across reloads that don't touch its cluster, and no healthy destination flaps. |
+| S6 ✅ *(partial: YARP health in M1; (a) with M6, (b) with M7)* | **State continuity across publishes** (§6.3) | Rate limits and metrics must not reset on config edits. | Load test with publishes every 100 ms shows (a) continuous 429 behaviour, (b) monotonic counters, and (c) **YARP destination health preserved**: a destination marked unhealthy (active or passive) stays unhealthy across reloads that don't touch its cluster, and no healthy destination flaps. **M1** (`StateContinuityTests`): no request errors and (c), over real YARP reloads, policy-only edits and unchanged configs. (a) and (b) are tested when the rate-limit table (M6) and metric slots (M7) land; stubs would test nothing. |
 | S7 | **Baseline perf vs nginx/Caddy** | Know where we stand early. | `oha`/`wrk2` numbers on the same box recorded in `bench/README.md`. |
 
 ---
@@ -637,13 +692,13 @@ Each milestone ends with a working, testable increment.
 | M | Scope | Done when |
 |---|---|---|
 | **M0 Foundations** ✅ *(done: typed IDs, CI, arch tests, host, data layer, spikes S1–S5)* | Repo, CI (build, test, format, arch tests), `[TypedId]` generator + base62 + EF/JSON/Yaml converters, Result types, clock abstraction, spikes S1–S5 | Generator tests green; arch rules enforced in CI |
-| **M1 Proxy core** | Snapshot model + store, gate middleware, host table, client-IP resolution incl. Cloudflare `Proxy`/`Tunnel` modes with baked-in ranges (§7.6), TLS SNI selection, YARP provider, H1/H2/H3, HTTP→HTTPS redirect, default host, hard-coded test config | Benchmarks + S7 baseline; S6 continuity test (stub rate-limit table + metrics + YARP health); zero-alloc tests pass |
+| **M1 Proxy core** | Snapshot model + store, gate middleware, host table, client-IP resolution incl. Cloudflare `Proxy`/`Tunnel` modes with baked-in ranges (§7.6), TLS SNI selection, YARP provider, H1/H2/H3, HTTP→HTTPS redirect, default host, hard-coded test config | Benchmarks + S7 baseline; S6 continuity test (YARP health, no request errors under publishes); zero-alloc tests pass (gate incl. client-IP resolution in every trusted-proxy mode); end-to-end tests through `PaduraksaHost` (per-SNI certs + hot swap, redirect port, PROXY protocol, Cloudflare/generic client IP, upstream headers, `Alt-Svc`, H3 in Docker) |
 | **M2 Config store** | EF model, migrations, Application command pipeline, validation, compiler, revisions, diff, rollback, audit (hash chain), last-known-good | Change → revision → live in < 100 ms; rollback works |
 | **M3 Vault & certs** | KEK/DEK store, capabilities, upload, self-signed, local CA, ACME client (HTTP-01 → DNS-01 Cloudflare/deSEC), renewal scheduler, ARI | Pebble-based integration tests issue + renew; banned-API rules hold. Open item: decide where shared EF/SQLite infrastructure (typed-ID conventions, pragmas) lives, since Vault may reference only Core. |
 | **M4 Admin backend** | Admin app, local users, cookies, TOTP, roles, API tokens, REST API + OpenAPI, first-run setup-token gate | API-only end-to-end setup possible |
 | **M5 Dashboard + wizard** | Layout, hosts/certs/settings pages, review-diff flow, history, audit, wizard | New user from `docker run` to proxied host via UI only |
-| **M6 WAF** | IP/geo/rate-limit/size/path/UA policies, Cloudflare range refresh job, `CF-IPCountry` geo, origin lockdown + Authenticated Origin Pulls (§7.6), presets, error pages, robots, maintenance mode, request simulator | Policy unit tests + simulator parity tests |
-| **M7 Observability** | Counters, histograms, `/metrics`, health checks, notifications, live tail, rollups | Dashboard overview fully live |
+| **M6 WAF** | IP/geo/rate-limit/size/path/UA policies, Cloudflare range refresh job, `CF-IPCountry` geo, origin lockdown + Authenticated Origin Pulls (§7.6), presets, error pages, robots, maintenance mode, request simulator | Policy unit tests + simulator parity tests; S6 rate-limit continuity (429 behaviour continuous across publishes) |
+| **M7 Observability** | Counters, histograms, `/metrics`, health checks, notifications, live tail, rollups | Dashboard overview fully live; S6 metric continuity (counters monotonic across publishes) |
 | **M8 Interop** | YAML import/export, CLI, MCP server, backup/restore, NPM importer (nice to have) | Round-trip export → import yields an identical revision hash |
 | **M9 Release v0.1** | Docker image (multi-arch), compose example, docs site, threat model doc, fuzzing (parsers, YAML, ACME responses), load tests | Tagged release |
 | **Later** | Forward-auth → native OIDC (admin + per-host) · **PoW gate** (HMAC-signed, IP-bound, expiring tokens; difficulty per host; JS worker solver; vault `IMacKey`) · bot heuristics · header rules · per-tag RBAC · L4 streams · GitOps mode · plugin model for policies · out-of-process vault |
@@ -662,7 +717,7 @@ Each milestone ends with a working, testable increment.
 
 ## 16. Deployment
 
-- **Container:** `ghcr.io/<org>/paduraksa:<ver>`, multi-arch (amd64/arm64), Ubuntu Noble base + `libmsquic` (pinned), `ASPNETCORE_HTTP_PORTS` cleared, non-root. Listens on **80/443 (tcp+udp)/9443 inside the container**, mapped 1:1 in compose, so `Alt-Svc` and redirects never see a translated port. Non-root binding below 1024 works because Docker (20.10+) sets `net.ipv4.ip_unprivileged_port_start=0` in the container's network namespace. For `network_mode: host` or other runtimes, the image also gives the apphost `cap_net_bind_service` (`setcap`). If someone still remaps ports, the public ports in settings drive `Alt-Svc` and redirects. One volume: `/data`. Health: `/healthz` and `/readyz` (§11.3). The image's own Docker `HEALTHCHECK` uses `paduraksa doctor --liveness` (which calls `/healthz` over loopback) at a 30 s interval, because the image ships no curl/wget. That costs a short-lived process per probe, which is acceptable at that interval. External monitors should hit `/healthz` directly.
+- **Container:** `ghcr.io/<org>/paduraksa:<ver>`, multi-arch (amd64/arm64), Ubuntu Noble base + `libmsquic` (pinned), `ASPNETCORE_HTTP_PORTS` cleared, non-root. Listens on **80/443 (tcp+udp)/9443 inside the container**, mapped 1:1 in compose, so `Alt-Svc` and redirects never see a translated port. Non-root binding below 1024 works because Docker (20.10+) sets `net.ipv4.ip_unprivileged_port_start=0` in the container's network namespace. For `network_mode: host` or other runtimes, the image also gives the apphost `cap_net_bind_service` (`setcap`). If someone still remaps ports, `Paduraksa:Listen:PublicHttpsPort` drives `Alt-Svc` and redirects. One volume: `/data`. Health: `/healthz` and `/readyz` (§11.3). The image's own Docker `HEALTHCHECK` uses `paduraksa doctor --liveness` (which calls `/healthz` over loopback) at a 30 s interval, because the image ships no curl/wget. That costs a short-lived process per probe, which is acceptable at that interval. External monitors should hit `/healthz` directly.
 - **Bare metal:** self-contained single-file publish + systemd unit (`AmbientCapabilities=CAP_NET_BIND_SERVICE`, `LoadCredential=master.key`).
 - **SQLite:** `Microsoft.Data.Sqlite` ships its own bundled SQLite (SQLitePCLRaw `e_sqlite3`), so the host's SQLite version doesn't matter. Required floor: **3.35** (`RETURNING`, used by EF Core 10; WAL long predates it). `doctor` prints the runtime version.
 - **Runtime tuning:** Server GC with DATAS (adapts heap to load, good for small homelab boxes), `TieredPGO`, ReadyToRun.
@@ -714,3 +769,4 @@ Each milestone ends with a working, testable increment.
 - **v0.8:** Native Cloudflare client-IP handling: `Proxy`/`Tunnel` modes, auto-refreshed edge ranges, anti-spoofing header stripping, `CF-IPCountry` geo, origin lockdown, Authenticated Origin Pulls (§7.6, M1/M6).
 - **v0.9:** S4 outcome: typed IDs through EF Core conventions, JSON IDs as strings and never joined against column IDs in SQL, pragmas and timeouts, Int64Ordered seeding (§4, §5). S3 outcome (0 B gate, realistic Kestrel/YARP costs, generic-host pipeline instead of `WebApplication` for the public app, per-connection/per-request state mechanisms, host lookup, IP parser, allocation-test rules) (§7.1). M0 complete.
 - **v0.10:** M1 proxy core as built: snapshot model and store, gate, compiler input records, publisher state machine, route-matching semantics, public app on the generic host (§3, §6.2).
+  - Integration: public listener layout and `Paduraksa:Listen` options (`PublicHttpsPort`, `Http3`, PROXY protocol per listener) (§3). Typed `Certificates`/`TrustedProxies` snapshot slots, certificate references through `IServerCertificateResolver`, and certificate hot swap by publishing (§6.2, §7.2 B). Client-IP resolution through the global trusted-proxy policy, ClientInfo on QUIC verified (§7.2 A/C, §7.5, §7.6). Exact upstream forwarding-header semantics, every `cf-*` header stripped unless trusted, one trusted request scheme for the redirect and `X-Forwarded-Proto` (§7.2 C/E, §7.6). Per-host TLS settings re-checked per request, 421 on a weaker coalesced connection (§7.2 B/C). S6 scoped to YARP health in M1; rate-limit and metric continuity moved to M6/M7 (§6.3, §13, §14).
