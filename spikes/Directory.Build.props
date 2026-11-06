@@ -1,0 +1,20 @@
+<Project>
+  <!--
+    Spikes are throwaway experiments, not product code. They import the repo-wide settings
+    (TFM, nullable, central package management, banned-API analyzer) but relax them so an
+    experiment is never blocked by product rules:
+      * warnings are not errors; code-style enforcement and XML docs are off;
+      * spikes count as a key-material boundary, i.e. BannedSymbols.KeyMaterial.txt is NOT
+        applied. Spikes legitimately generate / load / export certificates and keys
+        (S1 builds a throwaway CA in-process). None of this code ships.
+    Spike projects must never be added to Paduraksa.slnx.
+  -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+  <PropertyGroup>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+    <NoWarn>$(NoWarn);CA1416;CA1303;CA1031;CA1812;CA2007;CA1848;CA1515;CA5359;CA5398;CA2000</NoWarn>
+  </PropertyGroup>
+</Project>

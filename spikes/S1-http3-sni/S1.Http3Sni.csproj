@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Spike S1: HTTP/3 + per-SNI certificate selection on Kestrel. Not part of Paduraksa.slnx. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>S1.Http3Sni</RootNamespace>
+  </PropertyGroup>
+</Project>
