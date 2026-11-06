@@ -14,6 +14,11 @@ public interface IGateFeature
 /// the start of every request, so it's never shared by two concurrent requests and costs nothing in steady state.
 /// <para><b>Lifetime rule:</b> nothing may keep a reference to it after the request ends; the next request on the
 /// connection or stream reuses it.</para>
+/// <para><b>Accepted cost:</b> the references are only cleared when the next request starts, so an idle keep-alive
+/// connection (or pooled H2/H3 stream) keeps the snapshot of its last request alive. That's bounded: at most one
+/// snapshot per idle connection or pooled stream, for at most Kestrel's keep-alive timeout (130 s by default; pooled
+/// H2 streams are evicted after about 5 s). Clearing it after the response would need a continuation on every
+/// proxied request, which allocates.</para>
 /// </summary>
 public sealed class GateRequestState : IGateFeature
 {
@@ -29,8 +34,8 @@ public sealed class GateRequestState : IGateFeature
 
     GateRequestState IGateFeature.State => this;
 
-    /// <summary>Clears every field, which also stops a finished request from pinning an old snapshot.</summary>
-    public void Reset()
+    /// <summary>Clears every field at the start of a request.</summary>
+    internal void Reset()
     {
         Snapshot = null;
         Host = null;
