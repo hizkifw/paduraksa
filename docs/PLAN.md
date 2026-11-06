@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.6**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.7**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -96,7 +96,9 @@ One process, **two `WebApplication` instances** plus a non-web **core host**, on
 Implemented in M0 (`src/Paduraksa.Server/Hosting`):
 - **Shared singletons:** `SharedServices` accepts only ready-made instances and registers the *same* objects into every container. It disposes them exactly once, after all hosts have stopped. `PaduraksaOptions` itself is the shared instance, and `IOptions`/`IOptionsMonitor`/`IOptionsSnapshot`/`IOptionsFactory` all resolve to it (named options throw).
 - **Core host:** a non-web host owns every once-per-process `IHostedService` (ACME scheduler, metric sampler, …). It starts first, so a snapshot exists before any port opens, and stops last. Web apps must not register once-per-process background services.
-- **Startup:** if any host fails to start, the others are stopped and the process exits 2. Invalid config (failed validation or an unparsable appsettings file) exits 3, and any other failure to build the process exits 2, each with a one-line error on stderr (`PADURAKSA_DEBUG=1` adds the stack trace). A host that stops on its own makes the process exit 1. A stop or signal that arrives during startup aborts the start, and whatever had started is stopped again.
+- **Startup:** if any host fails to start, the others are stopped and the process exits 2. A stop, a signal or a cancelled start token that arrives during startup aborts the start instead: whatever had started is stopped again and the process exits 0. A requested abort is logged at Information, never as an error.
+- **Exit codes:** 0 = stopped on request, including during startup. 1 = a host stopped on its own, a host failed to stop, or disposal failed after an otherwise clean run. 2 = startup failed or the process couldn't be built. 3 = invalid config: failed validation or an unparsable appsettings file. Validation failures print a header plus one line per failure on stderr; any other failure to build or dispose the process prints a single line (`PADURAKSA_DEBUG=1` adds the stack trace).
+- **Data directory:** a relative `Paduraksa:DataDirectory` resolves against the content root (where appsettings live, by default the app's base directory), never the working directory. A leading `~` is rejected because nothing expands it.
 - **Shutdown:** `/readyz` switches to 503, public drains, then admin stops, then core stops, then shared singletons are disposed. One `ShutdownTimeout` (30 s) is shared by all three, so compose files need `stop_grace_period: 35s`.
 - **Signals:** handled only in `PaduraksaHost.RunAsync`. A second signal hard-kills.
 - **Listener pinning:** the web apps get a last config source that blanks `urls`/`http_ports`/`https_ports` and sets `preferHostingUrls=false`. Env vars and appsettings can't rebind listeners behind our back.
@@ -649,3 +651,4 @@ Each milestone ends with a working, testable increment.
   - S1 result: per-SNI and hot-swap work on QUIC, so the H3 fallback is dropped. Listener layout, ALPN and chain pitfalls, the QUIC-side IP gate and the libmsquic image notes are added (§7.2, §7.5, §16).
 - **v0.5:** S2 outcome. The gate selects the YARP endpoint, routes are path-only, and `ConfigureEndpoints` metadata and the route-ID generation scheme are dropped. Publish waits for YARP's `ConfigurationApplied`. Destination-ID stability rules and the required custom-pipeline steps are recorded (§6.1, §6.2, §6.3, §7.2).
 - **v0.6:** License decided: Apache-2.0 (§17).
+- **v0.7:** Hosting hardened after review (§3). A stop or signal during startup aborts the start and exits 0. The exit codes are listed in full, including failed stops and disposal. Startup errors print without a stack trace. `IOptionsFactory` also resolves to the validated options. A relative data directory resolves against the content root.
