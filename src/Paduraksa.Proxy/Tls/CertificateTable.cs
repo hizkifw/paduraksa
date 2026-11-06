@@ -17,6 +17,8 @@ public sealed class CertificateTable
     internal CertificateTable(
         FrozenDictionary<string, CertificateTableEntry> exact,
         FrozenDictionary<string, CertificateTableEntry> wildcard,
+        string[] exactNames,
+        string[] wildcardParents,
         CertificateTableEntry? defaultEntry,
         CertificateTableEntry[] entries,
         SslServerAuthenticationOptions[] options)
@@ -24,8 +26,8 @@ public sealed class CertificateTable
         _exact = exact.GetAlternateLookup<ReadOnlySpan<char>>();
         _wildcard = wildcard.GetAlternateLookup<ReadOnlySpan<char>>();
         _hasWildcards = wildcard.Count > 0;
-        ExactNames = exact.Keys;
-        WildcardParents = wildcard.Keys;
+        ExactNames = exactNames;
+        WildcardParents = wildcardParents;
         Default = defaultEntry;
         Entries = entries;
         Options = options;
@@ -37,7 +39,7 @@ public sealed class CertificateTable
     /// <summary>Used for unknown or absent SNI; null means such handshakes are rejected.</summary>
     public CertificateTableEntry? Default { get; }
 
-    /// <summary>Canonical exact names (lowercase, no trailing dot).</summary>
+    /// <summary>Canonical exact names as configured (lowercase, no trailing dot, punycode for IDNs).</summary>
     public IReadOnlyList<string> ExactNames { get; }
 
     /// <summary>Wildcard parents: <c>example.com</c> for <c>*.example.com</c>.</summary>

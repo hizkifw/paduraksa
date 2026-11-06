@@ -100,6 +100,27 @@ public sealed class KestrelQuicTlsTests : IDisposable
     }
 
     [Fact]
+    public async Task IdnNamesMatchOnBothTransports()
+    {
+        // QUIC passes the punycode SNI through; TCP (SslStream) decodes it to Unicode. Both must hit the same entry.
+        var table = new CertificateTableBuilder()
+            .Add(["xn--bcher-kva.test"], _pki.Leaf("idn exact", "xn--bcher-kva.test"), TlsPolicy.Default)
+            .Add(["*.xn--caf-dma.test"], _pki.Leaf("idn wildcard", "*.xn--caf-dma.test"), TlsPolicy.Default)
+            .Build(); // no default: a miss is a rejection, not a silent fallback
+        var selector = new TlsHandshakeSelector(new CertificateTableSource(table));
+        await using var server = await StartAsync(selector, IPAddress.Loopback);
+
+        foreach (var version in new[] { HttpVersion.Version30, HttpVersion.Version20 })
+        {
+            Assert.Equal("idn exact", (await TlsProbe.GetAsync(_pki, server.Port, "xn--bcher-kva.test", version)).ServedSubject);
+            Assert.Equal("idn wildcard", (await TlsProbe.GetAsync(_pki, server.Port, "x.xn--caf-dma.test", version)).ServedSubject);
+        }
+
+        Assert.Equal(0, selector.RejectedUnknownServerNameQuic);
+        Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
+    }
+
+    [Fact]
     public async Task RejectsUnknownNamesAndHostsWithoutHttp3()
     {
         var selector = new TlsHandshakeSelector(new CertificateTableSource(Table(withDefault: false)));

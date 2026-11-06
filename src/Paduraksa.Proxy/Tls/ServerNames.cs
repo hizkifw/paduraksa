@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Paduraksa.Proxy.Tls;
 
 /// <summary>Validation and normalisation of configured server names (cold path) and SNI trimming (hot path).</summary>
@@ -6,12 +8,16 @@ internal static class ServerNames
     private const int MaxNameLength = 253;
     private const int MaxLabelLength = 63;
 
+    // The same mapping SslStream uses to decode the SNI it hands the TCP callback, so the aliases match exactly.
+    private static readonly IdnMapping Idn = new();
+
     /// <summary>
     /// Returns the canonical form (lowercase, no trailing dot). For <c>*.example.com</c>, returns the wildcard
-    /// parent <c>example.com</c> and sets <paramref name="isWildcard"/>.
+    /// parent <c>example.com</c> and sets <paramref name="isWildcard"/>. For names with punycode (<c>xn--</c>) labels,
+    /// <paramref name="unicode"/> is the decoded, lowercased form; otherwise null.
     /// </summary>
     /// <exception cref="ArgumentException">The name isn't a valid DNS name or single-level wildcard.</exception>
-    public static string Normalize(string name, out bool isWildcard)
+    public static string Normalize(string name, out bool isWildcard, out string? unicode)
     {
         ArgumentNullException.ThrowIfNull(name);
 
@@ -29,7 +35,26 @@ internal static class ServerNames
                 nameof(name));
         }
 
-        return span.ToString().ToLowerInvariant();
+        var canonical = span.ToString().ToLowerInvariant();
+        unicode = null;
+        if (canonical.StartsWith("xn--", StringComparison.Ordinal) || canonical.Contains(".xn--", StringComparison.Ordinal))
+        {
+            try
+            {
+                // Lenient decoders return undecodable labels unchanged; then SslStream passes them unchanged too.
+                var decoded = Idn.GetUnicode(canonical).ToLowerInvariant();
+                unicode = decoded == canonical ? null : decoded;
+            }
+            catch (ArgumentException error)
+            {
+                throw new ArgumentException(
+                    $"Invalid server name '{name}': a punycode ('xn--') label doesn't decode ({error.Message}).",
+                    nameof(name),
+                    error);
+            }
+        }
+
+        return canonical;
     }
 
     /// <summary>Drops one trailing dot (fully qualified form). Allocation-free.</summary>

@@ -10,10 +10,17 @@ namespace Paduraksa.Proxy.Tls;
 /// (lowercase, trailing dot dropped); a name configured twice is an error rather than "last one wins".
 /// A failed <see cref="Add"/> leaves the builder unchanged.
 /// </summary>
+/// <remarks>
+/// IDNs are configured in punycode (<c>xn--bcher-kva.example</c>). SslStream hands the TCP callback the SNI decoded to
+/// Unicode (<c>bücher.example</c>) while QUIC passes punycode through, so such names are indexed in both forms (exact and
+/// wildcard). The lookup itself stays a single 0 B dictionary probe.
+/// </remarks>
 public sealed class CertificateTableBuilder
 {
     private readonly Dictionary<string, CertificateTableEntry> _exact = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CertificateTableEntry> _wildcard = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CertificateTableEntry> _exactUnicode = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CertificateTableEntry> _wildcardUnicode = new(StringComparer.Ordinal);
     private readonly Dictionary<(SslStreamCertificateContext Context, TlsPolicy Policy), CertificateTableEntry> _entries = [];
     private readonly List<CertificateTableEntry> _entryOrder = [];
     private CertificateTableEntry? _default;
@@ -27,11 +34,11 @@ public sealed class CertificateTableBuilder
         ArgumentNullException.ThrowIfNull(policy);
 
         // Validate everything first so a bad host can't leave half its names behind.
-        var normalized = new List<(string Key, bool Wildcard)>();
+        var normalized = new List<(string Key, bool Wildcard, string? Unicode)>();
         var seen = new HashSet<(string, bool)>();
         foreach (var name in names)
         {
-            var key = ServerNames.Normalize(name, out var wildcard);
+            var key = ServerNames.Normalize(name, out var wildcard, out var unicode);
             var table = wildcard ? _wildcard : _exact;
             if (table.ContainsKey(key) || !seen.Add((key, wildcard)))
             {
@@ -40,7 +47,7 @@ public sealed class CertificateTableBuilder
                     nameof(names));
             }
 
-            normalized.Add((key, wildcard));
+            normalized.Add((key, wildcard, unicode));
         }
 
         if (normalized.Count == 0)
@@ -49,9 +56,15 @@ public sealed class CertificateTableBuilder
         }
 
         var entry = GetOrCreateEntry(certificate, policy);
-        foreach (var (key, wildcard) in normalized)
+        foreach (var (key, wildcard, unicode) in normalized)
         {
             (wildcard ? _wildcard : _exact).Add(key, entry);
+            if (unicode is not null)
+            {
+                // Distinct punycode names decode to distinct Unicode names, and configured names are ASCII-only, so
+                // an alias can't collide with anything else.
+                (wildcard ? _wildcardUnicode : _exactUnicode).Add(unicode, entry);
+            }
         }
 
         return this;
@@ -94,11 +107,34 @@ public sealed class CertificateTableBuilder
         }
 
         return new CertificateTable(
-            _exact.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
-            _wildcard.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase),
+            WithAliases(_exact, _exactUnicode),
+            WithAliases(_wildcard, _wildcardUnicode),
+            KeysOf(_exact),
+            KeysOf(_wildcard),
             _default,
             [.. entries],
             [.. options]);
+    }
+
+    // Not a collection-expression spread: over a KeyCollection that compiles to Enumerable.ToArray (no LINQ in Proxy).
+    private static string[] KeysOf(Dictionary<string, CertificateTableEntry> names)
+    {
+        var keys = new string[names.Count];
+        names.Keys.CopyTo(keys, 0);
+        return keys;
+    }
+
+    private static FrozenDictionary<string, CertificateTableEntry> WithAliases(
+        Dictionary<string, CertificateTableEntry> names,
+        Dictionary<string, CertificateTableEntry> unicodeAliases)
+    {
+        var all = new Dictionary<string, CertificateTableEntry>(names, StringComparer.Ordinal);
+        foreach (var (alias, entry) in unicodeAliases)
+        {
+            all.Add(alias, entry);
+        }
+
+        return all.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
     }
 
     private CertificateTableEntry GetOrCreateEntry(ServerCertificate certificate, TlsPolicy policy)

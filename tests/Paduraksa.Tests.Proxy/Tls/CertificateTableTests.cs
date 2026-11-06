@@ -18,7 +18,9 @@ public sealed class CertificateTableTests : IClassFixture<CertificateTableTests.
             .Add(["a.test"], _certs.A, TlsPolicy.Default)
             .Add(["b.test", "www.b.test"], _certs.B, TlsPolicy.Default)
             .Add(["*.wild.test"], _certs.Wild, TlsPolicy.Default)
-            .Add(["exact.wild.test"], _certs.A, TlsPolicy.Default);
+            .Add(["exact.wild.test"], _certs.A, TlsPolicy.Default)
+            .Add(["xn--bcher-kva.test"], _certs.B, TlsPolicy.Default)
+            .Add(["*.xn--caf-dma.test"], _certs.Wild, TlsPolicy.Default);
         if (withDefault)
         {
             builder.SetDefault(_certs.Default, TlsPolicy.Default);
@@ -69,6 +71,47 @@ public sealed class CertificateTableTests : IClassFixture<CertificateTableTests.
         Assert.Equal(["wild.example.com"], table.WildcardParents);
         Assert.Same(_certs.A, table.Find("app.example.com")!.Certificate);
         Assert.Same(_certs.A, table.Find("x.wild.example.com")!.Certificate);
+    }
+
+    // TCP (SslStream) hands the callback the Unicode form of an IDN SNI; QUIC passes punycode through.
+    [Theory]
+    [InlineData("xn--bcher-kva.test", "a")]
+    [InlineData("bücher.test", "a")]
+    [InlineData("BÜCHER.TEST.", "a")]
+    [InlineData("x.xn--caf-dma.test", "wild")]
+    [InlineData("x.café.test", "wild")]
+    [InlineData("xn--caf-dma.test", "default")] // the wildcard doesn't cover its parent, in either form
+    [InlineData("café.test", "default")]
+    [InlineData("a.b.café.test", "default")]
+    public void IdnNamesMatchPunycodeAndUnicodeSni(string sni, string expected)
+    {
+        var table = new CertificateTableBuilder()
+            .Add(["XN--BCHER-KVA.test"], _certs.A, TlsPolicy.Default)
+            .Add(["*.xn--caf-dma.test"], _certs.Wild, TlsPolicy.Default)
+            .SetDefault(_certs.Default, TlsPolicy.Default)
+            .Build();
+
+        Assert.Equal(["xn--bcher-kva.test"], table.ExactNames); // aliases aren't configured names
+        Assert.Equal(["xn--caf-dma.test"], table.WildcardParents);
+        Assert.Equal(expected, _certs.Name(table.Find(sni)!.Certificate));
+    }
+
+    [Fact]
+    public void IdnAliasDoesNotHideDuplicates() =>
+        Assert.Throws<ArgumentException>(() => new CertificateTableBuilder()
+            .Add(["xn--bcher-kva.test"], _certs.A, TlsPolicy.Default)
+            .Add(["XN--BCHER-KVA.TEST."], _certs.B, TlsPolicy.Default));
+
+    [Fact]
+    public void UndecodablePunycodeIsKeptAsConfigured()
+    {
+        // The decoder (and so SslStream) returns undecodable labels unchanged: no alias, and the name still matches.
+        var table = new CertificateTableBuilder()
+            .Add(["xn--zzzzzzzzzzzzzzzzzzzzzz.test", "*.xn--zzzzzzzzzzzzzzzzzzzzzz.wild"], _certs.A, TlsPolicy.Default)
+            .Build();
+
+        Assert.Same(_certs.A, table.Find("xn--zzzzzzzzzzzzzzzzzzzzzz.test")!.Certificate);
+        Assert.Same(_certs.A, table.Find("x.xn--zzzzzzzzzzzzzzzzzzzzzz.wild")!.Certificate);
     }
 
     [Fact]
@@ -290,6 +333,8 @@ public sealed class CertificateTableTests : IClassFixture<CertificateTableTests.
     [InlineData("unknown.test")] // default
     [InlineData("")] // no SNI
     [InlineData("nodots")]
+    [InlineData("bücher.test")] // IDN as SslStream decodes it (alias of xn--bcher-kva.test)
+    [InlineData("x.café.test")] // IDN wildcard parent
     public void LookupsDoNotAllocate(string sni) =>
         AllocAssert.Zero((Table(), sni), static s => s.Item1.Find(s.sni), $"Find(\"{sni}\")");
 

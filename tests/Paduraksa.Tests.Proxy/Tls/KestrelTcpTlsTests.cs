@@ -143,6 +143,24 @@ public sealed class KestrelTcpTlsTests : IDisposable
         Assert.Null(observed.Value);
     }
 
+    [Theory]
+    [MemberData(nameof(TcpVersions))]
+    public async Task IdnNamesMatchTheSniSslStreamDecodes(string versionText)
+    {
+        // The client sends punycode; SslStream hands the callback "bücher.test" / "x.café.test".
+        var version = Version.Parse(versionText);
+        var table = new CertificateTableBuilder()
+            .Add(["xn--bcher-kva.test"], _pki.Leaf("idn exact", "xn--bcher-kva.test"), TlsPolicy.Default)
+            .Add(["*.xn--caf-dma.test"], _pki.Leaf("idn wildcard", "*.xn--caf-dma.test"), TlsPolicy.Default)
+            .Build(); // no default: a miss is a rejection, not a silent fallback
+        var selector = new TlsHandshakeSelector(new CertificateTableSource(table));
+        await using var server = await StartTcpAsync(selector);
+
+        Assert.Equal("idn exact", (await TlsProbe.GetAsync(_pki, server.Port, "xn--bcher-kva.test", version)).ServedSubject);
+        Assert.Equal("idn wildcard", (await TlsProbe.GetAsync(_pki, server.Port, "x.xn--caf-dma.test", version)).ServedSubject);
+        Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
+    }
+
     [Fact]
     public async Task Http11OnlyHostNegotiatesHttp11()
     {
