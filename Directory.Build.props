@@ -26,4 +26,14 @@
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.KeyMaterial.txt"
                      Condition="'$(PaduraksaKeyMaterialBoundary)' != 'true'" />
   </ItemGroup>
+
+  <!-- Typed IDs can be declared in any assembly (Core, Data, Contracts, tests...), so every project gets the
+       [TypedId] source generator as an analyzer. It's a no-op where no [TypedId] is used. Opt out with
+       PaduraksaIdsGenerator=false; set PaduraksaIdsGeneratorReferenceOutputAssembly=true to also reference the
+       generator assembly (generator tests). -->
+  <ItemGroup Condition="'$(IsRoslynComponent)' != 'true' and '$(PaduraksaIdsGenerator)' != 'false'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src/Paduraksa.Ids.Generator/Paduraksa.Ids.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="$([MSBuild]::ValueOrDefault('$(PaduraksaIdsGeneratorReferenceOutputAssembly)', 'false'))" />
+  </ItemGroup>
 </Project>

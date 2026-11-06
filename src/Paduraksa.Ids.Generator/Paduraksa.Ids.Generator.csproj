@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Referenced as an analyzer by every project via Directory.Build.props (opt out: PaduraksaIdsGenerator=false).
+       Generated code targets runtime types in Paduraksa.Core.Ids. -->
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <IsRoslynComponent>true</IsRoslynComponent>
@@ -9,5 +11,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
   </ItemGroup>
 </Project>
