@@ -10,6 +10,7 @@ using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Forwarder;
+using Yarp.ReverseProxy.Transforms;
 
 namespace Paduraksa.Proxy;
 
@@ -24,8 +25,8 @@ namespace Paduraksa.Proxy;
 public static class ProxyHostingExtensions
 {
     /// <summary>
-    /// Registers YARP (fed by <paramref name="publisher"/>'s provider and listener), the client factory, routing,
-    /// the gate, and the default <see cref="IClientAddressSource"/> (replace it to plug in a real resolver).
+    /// Registers YARP (fed by <paramref name="publisher"/>'s provider and listener, forwarding the path as received),
+    /// the client factory, routing, the gate, and the default <see cref="IClientAddressSource"/> (replace it to plug in a real resolver).
     /// </summary>
     public static IServiceCollection AddPaduraksaProxy(this IServiceCollection services, SnapshotPublisher publisher)
     {
@@ -37,7 +38,8 @@ public static class ProxyHostingExtensions
         services.AddSingleton<IProxyConfigProvider>(publisher.ConfigProvider);
         services.AddSingleton<IConfigChangeListener>(publisher.ApplyListener);
         services.AddRoutingCore();
-        services.AddReverseProxy();
+        services.AddReverseProxy()
+            .AddTransforms(static transforms => transforms.AddRequestTransform(RawPathTransform.ApplyAsync));
         services.RemoveAll<IForwarderHttpClientFactory>();
         services.AddSingleton<IForwarderHttpClientFactory, PaduraksaForwarderHttpClientFactory>();
         services.TryAddSingleton<IClientAddressSource>(RemoteIpClientAddressSource.Instance);

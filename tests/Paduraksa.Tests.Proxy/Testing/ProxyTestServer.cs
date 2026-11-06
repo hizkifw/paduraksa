@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -229,8 +230,9 @@ internal sealed class GateStats
 }
 
 /// <summary>
-/// An in-process upstream: answers 200 with the request path as the body (so a test sees which destination
-/// prefix YARP used), or 500 under <c>/bad</c>.
+/// An in-process upstream: answers 200 with the request path <b>as received</b> (raw target before <c>?</c>) as the
+/// body, so a test sees which destination prefix YARP used and how the path was encoded, plus the query in
+/// <c>x-query</c>; or 500 under <c>/bad</c>.
 /// </summary>
 public sealed class TestUpstream : IAsyncLifetime
 {
@@ -257,7 +259,10 @@ public sealed class TestUpstream : IAsyncLifetime
                         return Task.CompletedTask;
                     }
 
-                    return context.Response.WriteAsync(context.Request.Path.Value!);
+                    string raw = context.Features.Get<IHttpRequestFeature>()!.RawTarget;
+                    int query = raw.IndexOf('?', StringComparison.Ordinal);
+                    context.Response.Headers["x-query"] = query < 0 ? string.Empty : raw[query..];
+                    return context.Response.WriteAsync(query < 0 ? raw : raw[..query]);
                 })))
             .Build();
         await _host.StartAsync();
