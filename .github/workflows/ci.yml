@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# One run per ref. On PRs a new push supersedes the in-flight run; pushes to main
+# queue instead, so every main commit gets a complete run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  TEST_RESULTS: ${{ github.workspace }}/TestResults
+
+jobs:
+  build-test:
+    name: Build, test, format
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up .NET (from global.json)
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # setup-dotnet's built-in cache needs packages.lock.json; we key on the central
+      # package versions and project files instead.
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', 'Directory.Build.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        id: build
+        run: dotnet build --no-restore -c Release
+
+      # global.json opts into Microsoft.Testing.Platform, so this runs each xUnit v3 test
+      # app directly and exits non-zero on any failure.
+      # --ignore-exit-code 8 ("zero tests ran"): Unit/Integration are still empty scaffolds.
+      # TODO: drop it once every test project has tests.
+      - name: Test
+        run: >-
+          dotnet test --no-build -c Release
+          --ignore-exit-code 8
+          --results-directory "$TEST_RESULTS"
+          --report-xunit-trx
+          --report-xunit-markdown
+
+      - name: Test summary
+        if: ${{ !cancelled() }}
+        run: |
+          shopt -s nullglob
+          for f in "$TEST_RESULTS"/*.md; do cat "$f" >> "$GITHUB_STEP_SUMMARY"; echo >> "$GITHUB_STEP_SUMMARY"; done
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: ${{ env.TEST_RESULTS }}
+          if-no-files-found: ignore
+
+      # Runs whether or not the tests passed, so both kinds of failure show up in one run.
+      - name: Verify formatting
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: dotnet format --no-restore --verify-no-changes
