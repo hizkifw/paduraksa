@@ -1,1 +1,3 @@
 M:System.Guid.NewGuid;Use a TypedId factory (UUIDv7/v4 via Paduraksa.Core.Ids), never bare Guids
+M:System.Guid.CreateVersion7;Use a TypedId factory (Paduraksa.Core.Ids.UuidV7Generator is monotonic within a millisecond), never bare Guids
+M:System.Guid.CreateVersion7(System.DateTimeOffset);Use a TypedId factory (Paduraksa.Core.Ids.UuidV7Generator is monotonic within a millisecond), never bare Guids
