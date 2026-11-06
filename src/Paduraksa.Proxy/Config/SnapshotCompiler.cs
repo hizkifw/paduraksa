@@ -68,6 +68,7 @@ public static class SnapshotCompiler
         List<RouteConfig> yarpRoutes = [];
         List<string> routeIdBySlot = [];
         HttpsRedirect? httpsRedirect = null;
+        AltSvcHeader altSvc = new(options.PublicHttpsPort, options.AdvertiseHttp3);
 
         foreach (HostSpec spec in model.Hosts ?? [])
         {
@@ -96,10 +97,8 @@ public static class SnapshotCompiler
                 ? defaultCertificate
                 : ResolveCertificate(spec.Certificate, where, options.Certificates, errors);
             TlsPolicy tls = CompileTlsPolicy(spec.Tls);
-            if (spec.Enabled && certificate is not null)
-            {
-                AddServerNames(certificates, spec.Names ?? [], certificate, tls, where, errors);
-            }
+            bool servedOverTls = spec.Enabled && certificate is not null
+                && AddServerNames(certificates, spec.Names ?? [], certificate, tls, where, errors);
 
             CompiledHost host = new()
             {
@@ -110,6 +109,9 @@ public static class SnapshotCompiler
                 Policies = hostPolicies,
                 FixedResponse = fixedResponse,
                 HttpsRedirect = spec.ForceHttps ? httpsRedirect : null,
+                // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only
+                // host has none: its HTTPS rides on the default certificate's entry and that entry's settings).
+                AltSvc = servedOverTls ? altSvc.ForHost(tls) : default,
             };
 
             if (spec.Names is null || spec.Names.Count == 0)
@@ -583,9 +585,9 @@ public static class SnapshotCompiler
     /// <summary>
     /// Adds a host's DNS names to the certificate table. IP literals are left out: clients never send them as SNI (an
     /// IP-literal URL sends none and gets the default certificate). Invalid names were already reported by the host
-    /// table, so they're skipped here.
+    /// table, so they're skipped here. True if at least one name was added.
     /// </summary>
-    private static void AddServerNames(
+    private static bool AddServerNames(
         CertificateTableBuilder certificates,
         IReadOnlyList<string> names,
         ServerCertificate certificate,
@@ -606,16 +608,18 @@ public static class SnapshotCompiler
 
         if (serverNames.Count == 0)
         {
-            return;
+            return false;
         }
 
         try
         {
             certificates.Add(serverNames, certificate, tls);
+            return true;
         }
         catch (ArgumentException ex)
         {
             errors.Add($"{where}: {ex.Message}");
+            return false;
         }
     }
 

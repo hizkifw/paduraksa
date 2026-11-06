@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Gate;
 
@@ -39,6 +40,13 @@ public sealed class CompiledHost
 
     /// <summary>Redirect and Respond hosts: the whole answer. <see langword="null"/> for Proxy hosts.</summary>
     public PrecomputedResponse? FixedResponse { get; init; }
+
+    /// <summary>
+    /// The precomputed <c>Alt-Svc</c> value (<c>h3=":443"; ma=86400</c>, with the public HTTPS port), or empty when the
+    /// host isn't served over HTTP/3. The gate sets it on the host's TCP HTTPS responses, forwarded or answered
+    /// (<see cref="Tls.AltSvcHeader.Apply"/>).
+    /// </summary>
+    public StringValues AltSvc { get; init; }
 
     /// <summary>Set when the host forces HTTPS: plain-HTTP requests get this redirect first.</summary>
     internal HttpsRedirect? HttpsRedirect { get; init; }

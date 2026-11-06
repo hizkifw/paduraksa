@@ -35,6 +35,12 @@ public sealed record SnapshotCompilerOptions
     } = 443;
 
     /// <summary>
+    /// Whether the HTTP/3 listener exists (enabled and libmsquic present). When true, every host served over HTTPS with
+    /// HTTP/3 left on gets an <c>Alt-Svc</c> advertising <see cref="PublicHttpsPort"/> (PLAN §7.5).
+    /// </summary>
+    public bool AdvertiseHttp3 { get; init; }
+
+    /// <summary>
     /// Cloudflare's edge ranges for <see cref="TrustedProxyMode.CloudflareProxy"/>; null for the baked-in
     /// <see cref="CloudflareIpRanges.Default"/>. The range refresh job (M6) passes its latest list here; tests use it to
     /// put loopback "at the edge".

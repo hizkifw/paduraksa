@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Gate;
 
@@ -40,7 +41,8 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
 /// <list type="number">
 /// <item>one snapshot read, per-request state from <see cref="IPersistentStateFeature"/>, the client address;</item>
 /// <item>the ACME HTTP-01 hook (M3), which bypasses everything below;</item>
-/// <item>host lookup; an unknown host gets the default behaviour;</item>
+/// <item>host lookup; an unknown host gets the default behaviour; a known one gets its <c>Alt-Svc</c> on TCP HTTPS
+/// responses, whatever answers them;</item>
 /// <item>the <b>host policies</b>, so they guard everything the host answers (a blocked client gets 403, not a redirect);</item>
 /// <item>the HTTP→HTTPS redirect;</item>
 /// <item>Redirect and Respond hosts;</item>
@@ -69,7 +71,10 @@ public sealed class GateMiddleware
     /// <summary>For <c>app.Use(gate.InvokeAsync)</c>.</summary>
     public Task InvokeAsync(HttpContext context, RequestDelegate next) => CompleteAsync(context, Decide(context), next);
 
-    /// <summary>The synchronous decision. Never writes to the response; sets the endpoint when forwarding.</summary>
+    /// <summary>
+    /// The synchronous decision. Never writes the response; sets the endpoint when forwarding, and the host's
+    /// <c>Alt-Svc</c> header (YARP doesn't copy an upstream's own <c>Alt-Svc</c>, so ours is the one sent).
+    /// </summary>
     internal GateDecision Decide(HttpContext context)
     {
         RuntimeSnapshot snapshot = _store.Current;
@@ -92,6 +97,7 @@ public sealed class GateMiddleware
         }
 
         state.Host = host;
+        AltSvcHeader.Apply(context, host.AltSvc);
         RequestView view = new(context, state);
         if (Stops(host.Policies, in view, out GateDecision stopped))
         {
