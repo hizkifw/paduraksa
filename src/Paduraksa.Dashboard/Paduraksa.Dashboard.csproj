@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <!-- UI talks to Application services + Contracts DTOs only; never Data. -->
+  <ItemGroup>
+    <ProjectReference Include="../Paduraksa.Application/Paduraksa.Application.csproj" />
+    <ProjectReference Include="../Paduraksa.Contracts/Paduraksa.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

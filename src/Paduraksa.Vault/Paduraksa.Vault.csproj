@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
+  </ItemGroup>
+  <!-- Trust boundary: everything internal; only capability interfaces from Core are exposed. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
+  </ItemGroup>
+</Project>

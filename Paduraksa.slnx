@@ -1,0 +1,23 @@
+<Solution>
+  <Folder Name="/bench/">
+    <Project Path="bench/Paduraksa.Benchmarks/Paduraksa.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Paduraksa.Acme/Paduraksa.Acme.csproj" />
+    <Project Path="src/Paduraksa.Admin/Paduraksa.Admin.csproj" />
+    <Project Path="src/Paduraksa.Application/Paduraksa.Application.csproj" />
+    <Project Path="src/Paduraksa.Contracts/Paduraksa.Contracts.csproj" />
+    <Project Path="src/Paduraksa.Core/Paduraksa.Core.csproj" />
+    <Project Path="src/Paduraksa.Dashboard/Paduraksa.Dashboard.csproj" />
+    <Project Path="src/Paduraksa.Data/Paduraksa.Data.csproj" />
+    <Project Path="src/Paduraksa.Ids.Generator/Paduraksa.Ids.Generator.csproj" />
+    <Project Path="src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
+    <Project Path="src/Paduraksa.Server/Paduraksa.Server.csproj" />
+    <Project Path="src/Paduraksa.Vault/Paduraksa.Vault.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Paduraksa.Tests.Architecture/Paduraksa.Tests.Architecture.csproj" />
+    <Project Path="tests/Paduraksa.Tests.Integration/Paduraksa.Tests.Integration.csproj" />
+    <Project Path="tests/Paduraksa.Tests.Unit/Paduraksa.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

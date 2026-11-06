@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Composition root: hosts the public proxy app and the admin app in one process. -->
+  <PropertyGroup>
+    <AssemblyName>paduraksa</AssemblyName>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
+    <ProjectReference Include="../Paduraksa.Application/Paduraksa.Application.csproj" />
+    <ProjectReference Include="../Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
+    <ProjectReference Include="../Paduraksa.Vault/Paduraksa.Vault.csproj" />
+    <ProjectReference Include="../Paduraksa.Admin/Paduraksa.Admin.csproj" />
+    <ProjectReference Include="../Paduraksa.Dashboard/Paduraksa.Dashboard.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.Core/Paduraksa.Core.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Contracts/Paduraksa.Contracts.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Data/Paduraksa.Data.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Vault/Paduraksa.Vault.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Acme/Paduraksa.Acme.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Admin/Paduraksa.Admin.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Dashboard/Paduraksa.Dashboard.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Server/Paduraksa.Server.csproj" />
+  </ItemGroup>
+</Project>

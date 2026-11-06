@@ -1,0 +1,20 @@
+T:System.Security.Cryptography.X509Certificates.X509CertificateLoader;Key/cert loading belongs to Paduraksa.Vault (use ICertificateImport)
+M:System.Security.Cryptography.X509Certificates.X509Certificate.Export;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.ExportPkcs12;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.CopyWithPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetRSAPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetECDsaPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.X509Certificates.X509Certificate2.GetDSAPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportPkcs8PrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.ExportEncryptedPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.AsymmetricAlgorithm.TryExportPkcs8PrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.ExportParameters;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.ExportRSAPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.RSA.ExportRSAPrivateKeyPem;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECDsa.ExportParameters;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.ExportECPrivateKey;Key material must not leave Paduraksa.Vault
+M:System.Security.Cryptography.ECAlgorithm.ExportECPrivateKeyPem;Key material must not leave Paduraksa.Vault
+T:System.Security.Cryptography.AesGcm;Symmetric encryption with managed keys belongs to Paduraksa.Vault
+T:System.Security.Cryptography.HMACSHA256;Keyed MACs belong to Paduraksa.Vault (use a capability like IMacVerifier)
+T:System.Security.Cryptography.HMACSHA512;Keyed MACs belong to Paduraksa.Vault (use a capability like IMacVerifier)

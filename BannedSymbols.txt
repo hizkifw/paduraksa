@@ -1,0 +1,1 @@
+M:System.Guid.NewGuid;Use a TypedId factory (UUIDv7/v4 via Paduraksa.Core.Ids), never bare Guids
