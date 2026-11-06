@@ -6,4 +6,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Yarp.ReverseProxy" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Paduraksa.Tests.Proxy" />
+  </ItemGroup>
 </Project>

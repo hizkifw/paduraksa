@@ -1,0 +1,84 @@
+using Microsoft.AspNetCore.Http;
+
+using Paduraksa.Proxy.Gate;
+
+namespace Paduraksa.Proxy.Snapshot;
+
+/// <summary>Host kinds in v1 (PLAN §5.1). <c>Admin</c> (PLAN §3.1) joins with M4.</summary>
+public enum HostKind : byte
+{
+    /// <summary>Routes to upstreams through YARP.</summary>
+    Proxy,
+
+    /// <summary>Answers every request with a precomputed redirect.</summary>
+    Redirect,
+
+    /// <summary>Answers every request with a fixed status and body.</summary>
+    Respond,
+}
+
+/// <summary>A configured host, compiled for the gate (PLAN §6.2). Immutable; belongs to one snapshot.</summary>
+public sealed class CompiledHost
+{
+    /// <summary>Position in <see cref="RuntimeSnapshot.HostsByIndex"/>; valid for this snapshot only.</summary>
+    public required int Index { get; init; }
+
+    /// <summary>Stable identity across snapshots (the host's key; <c>HostId</c> from M2).</summary>
+    public required string Key { get; init; }
+
+    public required HostKind Kind { get; init; }
+
+    /// <summary>Proxy hosts: ordered, first match wins. Empty for the other kinds.</summary>
+    public required CompiledRoute[] Routes { get; init; }
+
+    /// <summary>The host-level chain, as configured. The gate runs each route's flattened <see cref="CompiledRoute.Policies"/>.</summary>
+    public required IRequestPolicy[] Policies { get; init; }
+
+    /// <summary>Redirect and Respond hosts: the whole answer. <see langword="null"/> for Proxy hosts.</summary>
+    public PrecomputedResponse? FixedResponse { get; init; }
+
+    /// <summary>Set when the host forces HTTPS: plain-HTTP requests get this redirect first.</summary>
+    internal HttpsRedirect? HttpsRedirect { get; init; }
+
+    /// <summary>
+    /// Placeholder for the stable metric slot (PLAN §6.3, §7.4): the same host keeps the same slot across snapshots.
+    /// -1 until the metrics registry exists (M7).
+    /// </summary>
+    public int MetricSlot { get; init; } = -1;
+
+    /// <summary>The first route that takes <paramref name="path"/>, or <see langword="null"/>.</summary>
+    public CompiledRoute? Match(ReadOnlySpan<char> path)
+    {
+        foreach (CompiledRoute route in Routes)
+        {
+            if (route.Matches(path))
+            {
+                return route;
+            }
+        }
+
+        return null;
+    }
+}
+
+/// <summary>
+/// The precomputed HTTP→HTTPS redirect of one host: <c>301</c> for <c>GET</c>/<c>HEAD</c>, <c>308</c> otherwise so the
+/// method and body survive. The <c>Location</c> keeps the request host and target and uses the <b>public</b> HTTPS
+/// port from settings, never the bound port (PLAN §7.5).
+/// </summary>
+internal sealed class HttpsRedirect
+{
+    public HttpsRedirect(int publicHttpsPort)
+    {
+        RedirectTarget target = RedirectTarget.Https(publicHttpsPort);
+        Safe = PrecomputedResponse.RedirectTo(StatusCodes.Status301MovedPermanently, target);
+        Unsafe = PrecomputedResponse.RedirectTo(StatusCodes.Status308PermanentRedirect, target);
+    }
+
+    public PrecomputedResponse Safe { get; }
+
+    public PrecomputedResponse Unsafe { get; }
+
+    public PrecomputedResponse For(string method) =>
+        HttpMethods.IsGet(method) || HttpMethods.IsHead(method) ? Safe : Unsafe;
+}
