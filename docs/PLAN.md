@@ -94,7 +94,7 @@ One process, **two `WebApplication` instances** plus a non-web **core host**, on
 ```
 
 Implemented in M0 (`src/Paduraksa.Server/Hosting`):
-- **Shared singletons:** `SharedServices` accepts only ready-made instances and registers the *same* objects into every container. It disposes them exactly once, after all hosts have stopped. `PaduraksaOptions` itself is the shared instance, and `IOptions`/`IOptionsMonitor`/`IOptionsSnapshot` all resolve to it.
+- **Shared singletons:** `SharedServices` accepts only ready-made instances and registers the *same* objects into every container. It disposes them exactly once, after all hosts have stopped. `PaduraksaOptions` itself is the shared instance, and `IOptions`/`IOptionsMonitor`/`IOptionsSnapshot`/`IOptionsFactory` all resolve to it (named options throw).
 - **Core host:** a non-web host owns every once-per-process `IHostedService` (ACME scheduler, metric sampler, …). It starts first, so a snapshot exists before any port opens, and stops last. Web apps must not register once-per-process background services.
 - **Startup:** if any host fails to start, the others are stopped and the process exits 2. Invalid config exits 3, and a host that stops on its own makes the process exit 1.
 - **Shutdown:** `/readyz` switches to 503, public drains, then admin stops, then core stops, then shared singletons are disposed. One `ShutdownTimeout` (30 s) is shared by all three, so compose files need `stop_grace_period: 35s`.

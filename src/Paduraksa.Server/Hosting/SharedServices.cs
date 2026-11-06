@@ -73,13 +73,15 @@ internal sealed class SharedServices : IAsyncDisposable
             // Created first => disposed last.
             loggerFactory = builder.Own(CreateLoggerFactory(configuration));
             TimeProvider timeProvider = builder.Add(TimeProvider.System);
-            // The validated options are the instance consumers get. IOptions/IOptionsMonitor/IOptionsSnapshot are
-            // pinned to it too; left alone they'd build their own unbound (default) copies from configuration.
+            // The validated options are the instance consumers get. IOptions/IOptionsMonitor/IOptionsSnapshot and
+            // IOptionsFactory are pinned to it too; left alone they'd build their own unvalidated copies from
+            // configuration (or unbound defaults).
             builder.Add(options);
             FixedOptions<PaduraksaOptions> fixedOptions = new(options);
             builder.Add<IOptions<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsMonitor<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsSnapshot<PaduraksaOptions>>(fixedOptions);
+            builder.Add<IOptionsFactory<PaduraksaOptions>>(fixedOptions);
             builder.Add(new HealthState());
             builder.Add(new SnapshotStore(timeProvider));
             builder.Add(PlaceholderServerCertificate.Create(timeProvider));

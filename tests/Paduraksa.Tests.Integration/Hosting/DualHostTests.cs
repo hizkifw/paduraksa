@@ -106,6 +106,12 @@ public sealed class DualHostTests
             Assert.Same(host.Options, c.GetRequiredService<IOptionsMonitor<PaduraksaOptions>>().CurrentValue);
             using IServiceScope scope = c.CreateScope();
             Assert.Same(host.Options, scope.ServiceProvider.GetRequiredService<IOptionsSnapshot<PaduraksaOptions>>().Value);
+
+            // The factory too: the default one would build an unvalidated copy straight from configuration.
+            IOptionsFactory<PaduraksaOptions> factory = c.GetRequiredService<IOptionsFactory<PaduraksaOptions>>();
+            Assert.Same(host.Options, factory.Create(Options.DefaultName));
+            Assert.Throws<InvalidOperationException>(() => factory.Create("named"));
+            Assert.Throws<InvalidOperationException>(() => c.GetRequiredService<IOptionsMonitor<PaduraksaOptions>>().Get("named"));
         });
 
         // Each host gets its own role-tagged view of the one logger factory.
