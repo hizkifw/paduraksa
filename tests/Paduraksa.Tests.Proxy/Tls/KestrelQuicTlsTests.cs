@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -118,6 +120,38 @@ public sealed class KestrelQuicTlsTests : IDisposable
 
         Assert.Equal(0, selector.RejectedUnknownServerNameQuic);
         Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
+    }
+
+    [Fact]
+    public async Task RequiredClientCertificateIsEnforcedOverQuicWithoutDownloads()
+    {
+        await using var aia = new HitCounter();
+        var trusted = _pki.ClientCertificateWithAia("origin-pull", aia.Url);
+        var other = _pki.ClientCertificateWithAia("someone-else", aia.Url);
+        var thumbprint = trusted.Thumbprint;
+        var policy = new TlsPolicy
+        {
+            ClientCertificate = new ClientCertificatePolicy
+            {
+                Validator = (_, certificate, _, _) => certificate is X509Certificate2 c && c.Thumbprint == thumbprint,
+            },
+        };
+        var table = new CertificateTableBuilder()
+            .Add(["locked.test"], _a, policy)
+            .Add(["open.test"], _b, TlsPolicy.Default)
+            .Build();
+        await using var server = await StartAsync(
+            new TlsHandshakeSelector(new CertificateTableSource(table)),
+            IPAddress.Loopback,
+            static context => context.Response.WriteAsync(context.Connection.ClientCertificate?.Thumbprint ?? "none"));
+        // Offline contexts so the client itself never chases the AIA URL.
+        static Action<SslClientAuthenticationOptions> Present(X509Certificate2 certificate) =>
+            options => options.ClientCertificateContext = SslStreamCertificateContext.Create(certificate, null, offline: true);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "locked.test", HttpVersion.Version30));
+        await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "locked.test", HttpVersion.Version30, configureSsl: Present(other)));
+        Assert.Equal(thumbprint, (await TlsProbe.GetAsync(_pki, server.Port, "locked.test", HttpVersion.Version30, configureSsl: Present(trusted))).Body);
+        Assert.Equal(0, aia.Hits);
     }
 
     [Fact]

@@ -162,6 +162,34 @@ public sealed class KestrelTcpTlsTests : IDisposable
     }
 
     [Fact]
+    public async Task ClientCertificateChainIsBuiltWithoutDownloads()
+    {
+        // An unauthenticated client controls the AIA URL of the certificate it presents. Building its chain must not
+        // fetch that URL (SSRF), even though the issuer is missing.
+        await using var aia = new HitCounter();
+        var client = _pki.ClientCertificateWithAia("aia-client", aia.Url);
+        var policy = new TlsPolicy
+        {
+            ClientCertificate = new ClientCertificatePolicy { Validator = static (_, certificate, _, _) => certificate is not null },
+        };
+        var table = new CertificateTableBuilder().Add(["locked.test"], _a, policy).Build();
+        await using var server = await StartTcpAsync(
+            new TlsHandshakeSelector(new CertificateTableSource(table)),
+            static context => context.Response.WriteAsync(context.Connection.ClientCertificate?.Thumbprint ?? "none"));
+
+        var result = await TlsProbe.GetAsync(
+            _pki,
+            server.Port,
+            "locked.test",
+            HttpVersion.Version20,
+            // Offline context on the client too: otherwise the *client* chases the AIA while preparing to send its cert.
+            configureSsl: options => options.ClientCertificateContext = SslStreamCertificateContext.Create(client, null, offline: true));
+
+        Assert.Equal(client.Thumbprint, result.Body); // the server did build and validate a chain for it
+        Assert.Equal(0, aia.Hits);
+    }
+
+    [Fact]
     public async Task Http11OnlyHostNegotiatesHttp11()
     {
         var table = new CertificateTableBuilder()

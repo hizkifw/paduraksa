@@ -169,6 +169,7 @@ public sealed class CertificateTableBuilder
         AllowRenegotiation = false,
         ClientCertificateRequired = policy.ClientCertificate is not null,
         RemoteCertificateValidationCallback = ClientCertificateValidation.Create(policy.ClientCertificate),
+        CertificateChainPolicy = ClientCertificateValidation.ChainPolicy(policy.ClientCertificate),
     };
 
     // QUIC is TLS 1.3 only, so MinimumVersion and TcpAlpn don't apply.
@@ -178,6 +179,7 @@ public sealed class CertificateTableBuilder
         ApplicationProtocols = [SslApplicationProtocol.Http3],
         ClientCertificateRequired = policy.ClientCertificate is not null,
         RemoteCertificateValidationCallback = ClientCertificateValidation.Create(policy.ClientCertificate),
+        CertificateChainPolicy = ClientCertificateValidation.ChainPolicy(policy.ClientCertificate),
     };
 
     /// <summary>Adapts a <see cref="ClientCertificatePolicy"/> to SslStream's validation callback (built once per entry).</summary>
@@ -185,6 +187,17 @@ public sealed class CertificateTableBuilder
     {
         public static RemoteCertificateValidationCallback? Create(ClientCertificatePolicy? policy) =>
             policy is null ? null : new ClientCertificateValidation(policy).Validate;
+
+        /// <summary>
+        /// Chain building for client certificates is offline: by default it follows the AIA URL of a missing issuer,
+        /// which would let any unauthenticated client make the proxy fetch a URL of its choosing mid-handshake (SSRF).
+        /// Revocation isn't checked either (no OCSP/CRL fetches). One policy per options object; SslStream copies it.
+        /// </summary>
+        // TODO(M6): Authenticated Origin Pulls: X509ChainTrustMode.CustomRootTrust with Cloudflare's origin-pull CA.
+        public static X509ChainPolicy? ChainPolicy(ClientCertificatePolicy? policy) =>
+            policy is null
+                ? null
+                : new X509ChainPolicy { DisableCertificateDownloads = true, RevocationMode = X509RevocationMode.NoCheck };
 
         private bool Validate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors)
         {

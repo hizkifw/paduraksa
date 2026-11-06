@@ -93,6 +93,31 @@ internal sealed class TestPki : IDisposable
         return certificate;
     }
 
+    /// <summary>
+    /// A client certificate issued by a CA nobody has, with an AIA "CA issuers" URL: a chain builder that may download
+    /// would fetch <paramref name="caIssuers"/> to find the missing issuer.
+    /// </summary>
+    public X509Certificate2 ClientCertificateWithAia(string commonName, Uri caIssuers)
+    {
+        using var issuerKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var request = new CertificateRequest($"CN={commonName}", key, HashAlgorithmName.SHA256);
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
+        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([ClientAuth], false));
+        request.CertificateExtensions.Add(new X509AuthorityInformationAccessExtension(null, [caIssuers.AbsoluteUri]));
+        using var signed = request.Create(
+            new X500DistinguishedName("CN=Unreachable Issuing CA"),
+            X509SignatureGenerator.CreateForECDsa(issuerKey),
+            DateTimeOffset.UtcNow.AddDays(-1),
+            DateTimeOffset.UtcNow.AddDays(1),
+            RandomNumberGenerator.GetBytes(16));
+#pragma warning disable RS0030 // Test PKI: attaches an in-memory key generated just above; never exported or persisted.
+        var certificate = signed.CopyWithPrivateKey(key);
+#pragma warning restore RS0030
+        _owned.Add(certificate);
+        return certificate;
+    }
+
     public void Dispose()
     {
         foreach (var owned in _owned)
