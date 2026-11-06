@@ -1,0 +1,62 @@
+[probe] mode=GateSelect, YARP routes are path-only '/__r/{slot}/{**catch-all}'; every request below is GET /x (matches NO route)
+
+(i) 20 fleet hosts via gate-selected endpoint, path /x: all 200 = True; moved.test -> 200 upstream path /moved/x; unknown host -> 404 (gate answers, never reaches routing)
+    proxy-pipeline requests 21, gate-selected 21
+
+(iv) LB RoundRobin over 40 requests: /b/=20, /a/=20
+     affinity: first -> /a/x, cookie '.pd-aff=CfDJ8LG9u2yCXb9Hm6UapkNdBfiI70wNBjgn14nEpBfxmraUOelpvnGrXjKTSnkmJ7T7phSPAXaObxMYzlJNaEEaOEicA64RhDGIABP%2FZwo87F%2F4k0VL%2Fu2Vqe83rTxKmyS62w'; next 30 with cookie hit {/a/x}
+     active health: c-health-bad=Unhealthy; 100 requests -> 5xx 0, served by /good/ 100
+     passive health: c-passive-dead=Unhealthy after 5 x 502; next 100 requests -> 5xx 0
+
+(v) listener so far: Applied=1, endpoints already live at ConfigurationApplied: 0 yes / 0 no
+
+(ii) published gen 2: removed gone.test (route+cluster), routegone.test (route only), replaced moved.test route + its destination. publish 9.30 ms
+     old endpoint objects still in YARP data source? gone=False, routegone=False, moved=False
+     right after: pinned OLD endpoints -> gone 200 (/gone/x), routegone 200 (/kept/x), moved 200 (/moved2/x); current snapshot -> moved 200 (/moved2/x), gone 404
+     +3 s      : pinned OLD endpoints -> gone 200 (/gone/x), routegone 200 (/kept/x), moved 200 (/moved2/x); current snapshot -> moved 200 (/moved2/x), gone 404
+
+(iii) GateSelect, 5000 warm requests: gate lookup+SetEndpoint 0.0 B/req; gate entry -> proxy pipeline (incl. UseRouting) 152.0 B/req (n=5000)
+     listener total: Applied=2, inline in Publish()=1, endpoints live at ConfigurationApplied 1 yes / 0 no
+(iii) HostMatch baseline, 5000 warm requests: gate entry -> proxy pipeline (UseRouting with Host matching) 256.0 B/req (n=5000)
+
+== gate design publish cost, n=500 hosts, 1 route changed per publish (idle)
+   Cancel() returns          : median 1.87 ms, p90 1.92, max 9.22 (n=30)
+   ConfigurationApplied seen : median 1.87 ms, p90 1.92, max 9.22 (n=30)  (inline in Publish(): 70/71; endpoints already live at the callback: 70 yes / 0 no)
+   endpoint table build      : median 0.05 ms, p90 0.05, max 0.07 (n=30)
+   total until swapped       : median 1.92 ms, p90 1.99, max 9.29 (n=30)
+
+== gate design publish cost, n=2000 hosts, 1 route changed per publish (idle)
+   Cancel() returns          : median 11.23 ms, p90 16.00, max 18.77 (n=30)
+   ConfigurationApplied seen : median 11.23 ms, p90 16.00, max 18.77 (n=30)  (inline in Publish(): 70/71; endpoints already live at the callback: 70 yes / 0 no)
+   endpoint table build      : median 0.45 ms, p90 0.54, max 2.65 (n=30)
+   total until swapped       : median 11.68 ms, p90 16.45, max 21.07 (n=30)
+
+== GateSelect: n=500, churn (5% routes + 5% clusters) publish every 100 ms, 5s
+    1149480 req in 5.0s =   229868 rps | p50 0.22 ms  p99 1.24 ms  p99.9 4.75 ms  max 13.7 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes 51, publish->swapped median 4.59 ms, p90 16.10, max 35.08 (n=51)
+   gate-selected 1149480, unknown host 0
+
+== RoutingFirst: n=500, churn (5% routes + 5% clusters) publish every 100 ms, 5s
+    1148721 req in 5.0s =   229740 rps | p50 0.21 ms  p99 1.58 ms  p99.9 3.77 ms  max 38.7 ms | non-2xx 625 (5xx 625, 404 0)  errors 0  status{503=625}
+   publishes 51, publish->swapped median 40.87 ms, p90 57.38, max 75.83 (n=51)
+   fallback check {current, previous}: match current 1148096, previous 0, pending 0, mismatch -> 503 625
+
+== RoutingFirst: n=500, churn (5% routes + 5% clusters) publish every 100 ms, 5s
+    1055754 req in 5.0s =   211143 rps | p50 0.22 ms  p99 1.98 ms  p99.9 6.19 ms  max 26.5 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes 51, publish->swapped median 35.40 ms, p90 54.50, max 68.36 (n=51)
+   fallback check {current, previous, pending}: match current 1055208, previous 0, pending 546, mismatch -> 503 0
+
+== GateSelect: n=2000, churn (5% routes + 5% clusters) publish every 100 ms, 5s
+     845196 req in 5.0s =   169020 rps | p50 0.25 ms  p99 1.90 ms  p99.9 10.34 ms  max 41.8 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes 50, publish->swapped median 24.76 ms, p90 39.68, max 68.00 (n=50)
+   gate-selected 845196, unknown host 0
+
+== RoutingFirst: n=2000, churn (5% routes + 5% clusters) publish every 100 ms, 5s
+     867381 req in 5.0s =   173440 rps | p50 0.29 ms  p99 2.04 ms  p99.9 7.63 ms  max 45.5 ms | non-2xx 446 (5xx 446, 404 0)  errors 0  status{503=446}
+   publishes 13, publish->swapped median 438.15 ms, p90 473.17, max 488.35 (n=13)
+   fallback check {current, previous}: match current 866935, previous 0, pending 0, mismatch -> 503 446
+
+== RoutingFirst: n=2000, churn (5% routes + 5% clusters) publish every 100 ms, 5s
+     807492 req in 5.0s =   161488 rps | p50 0.29 ms  p99 2.16 ms  p99.9 7.70 ms  max 22.7 ms | non-2xx 0 (5xx 0, 404 0)  errors 0
+   publishes 13, publish->swapped median 427.19 ms, p90 528.20, max 539.43 (n=13)
+   fallback check {current, previous, pending}: match current 807094, previous 0, pending 398, mismatch -> 503 0

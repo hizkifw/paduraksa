@@ -308,6 +308,7 @@ public sealed class Upstream : IAsyncDisposable
         app.Run(ctx =>
         {
             if (ctx.Request.Path.StartsWithSegments("/bad")) { ctx.Response.StatusCode = 500; return Task.CompletedTask; }
+            if (ctx.Request.Headers.ContainsKey("x-want-path")) ctx.Response.Headers["x-up-path"] = ctx.Request.Path.Value; // gate probe only
             ctx.Response.ContentLength = ok.Length;
             return ctx.Response.Body.WriteAsync(ok).AsTask();
         });

@@ -95,9 +95,9 @@ public static class Scenarios
         {
             for (var i = 0; i < 25; i++)
             {
-                SpikeSnapshot s;
-                lock (lockObj) { gen++; s = Compiler.Build(gen, hosts, clusters, true, cap); }
-                px.Provider.Publish(s);
+                // Build AND publish under the lock: the provider swap order must equal generation order
+                // (publishing outside the lock could let an older generation be swapped in last).
+                lock (lockObj) { gen++; px.Provider.Publish(Compiler.Build(gen, hosts, clusters, true, cap)); }
             }
         })));
         var epGens = px.YarpEndpoints.Endpoints.Select(e => e.Metadata.GetMetadata<CompiledHostRef>()!.Generation).Distinct().ToArray();
@@ -420,7 +420,7 @@ public static class Scenarios
             lock (transitions) mine = transitions.Skip(t0).ToList();
             Console.WriteLine($"\n== phase: {name}  ({publishes} publishes @100ms)");
             Console.WriteLine($"   requests x{total}: health.test 5xx={h5xx}, passive.test 5xx={p5xx}, other.test 5xx={other}");
-            Console.WriteLine($"   transitions: {(mine.Count == 0 ? "none" : "")}");
+            Console.WriteLine(mine.Count == 0 ? "   transitions: none" : "   transitions:");
             foreach (var t in mine) Console.WriteLine("     " + t);
             Console.WriteLine("   now: " + string.Join("; ", watched.Select(w => $"{w} {last[w]}")));
         }

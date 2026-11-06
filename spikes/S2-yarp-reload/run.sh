@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Spike S2 runner. Usage: ./run.sh [metadata|reload|load|health|all]   (default: all)
+# Spike S2 runner. Usage: ./run.sh [metadata|reload|load|health|gate|all]   (default: all)
 # Output is also tee'd to results/<scenario>.txt.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -30,11 +30,25 @@ run_load() {
 
 run_health() { "${BIN[@]}" health 2>&1 | tee results/health.txt; }
 
+# Review follow-up: gate-selected YARP endpoints (probe (i)-(v), publish cost, short churn loads).
+run_gate() {
+  {
+    "${BIN[@]}" gate
+    "${BIN[@]}" gate-cost 500,2000
+    for n in 500 2000; do
+      "${BIN[@]}" gate-load GateSelect "$n" 64 5
+      "${BIN[@]}" gate-load RoutingFirst "$n" 64 5
+      "${BIN[@]}" gate-load RoutingFirst "$n" 64 5 pending
+    done
+  } 2>&1 | tee results/gate.txt
+}
+
 case "$what" in
   metadata) run_metadata ;;
   reload) run_reload ;;
   load) run_load ;;
   health) run_health ;;
-  all) run_metadata; run_reload; run_load; run_health ;;
+  gate) run_gate ;;
+  all) run_metadata; run_reload; run_load; run_health; run_gate ;;
   *) echo "unknown scenario: $what" >&2; exit 2 ;;
 esac
