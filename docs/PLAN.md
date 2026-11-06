@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.8**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.9**: M0 done, M1 next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -324,6 +324,25 @@ Spike S6 turns this into a test: N generations are published under load, and it 
 - Per-request allocations in Paduraksa code: **0 B** steady state on keep-alive connections. Kestrel/YARP's own allocations are out of scope but measured. Enforced by benchmark tests asserting `GC.GetAllocatedBytesForCurrentThread()` deltas.
 - Precompute everything at compile time: byte arrays for responses/headers, `SearchValues<string>` for substring sets, CIDR tries, country bitsets, redirect targets.
 
+**Spike S3 confirmed this** (`docs/spikes/S3-zero-alloc-gate.md`; .NET 10.0.13, YARP 2.3.0): the gate measured **0 B/request on H1 and H2** in every end-to-end run, taking 145–225 ns for the synchronous section. For realistic browser traffic, the costs we accept are:
+
+| | B/request |
+|---|---|
+| Kestrel itself | ~1 KB |
+| Routing + YARP hand-off | 152 B |
+| Whole proxied request | ~4.1 KB on H1, ~4.4 KB on H2 |
+
+Mechanisms M1 adopts:
+- **Pipeline:** the public app is built on the **generic host with an explicit pipeline**: `Configure(app => { app.Use(gate); app.UseRouting(); app.UseEndpoints(e => e.MapReverseProxy(…)); })`, not `WebApplication`. YARP calls `AddAuthorization()` unconditionally, and `WebApplication` then auto-inserts `UseAuthorization()` *ahead of the gate*. That costs bytes and is a hazard if a `FallbackPolicy` is ever set. A guard test with a spy `IAuthorizationPolicyProvider` asserts it never runs.
+- **Gate shape:** one synchronous gate middleware. It decides what to do, and the response body is written *after* the measured section. Responses come from precomputed bytes plus shared header values set through the typed header properties.
+- **Per-connection state:** an immutable `ClientInfo`, set as a connection feature in `ListenOptions.Use`. It's shared by all H2 streams on the connection, so it must stay immutable. Never use `IConnectionItemsFeature.Items`, which is one non-thread-safe dictionary for all streams.
+- **Per-request state:** one object cached in `IPersistentStateFeature` and reset each request. Stream reuse happens only on graceful end, so RST, cancels and Drop reallocate, and that's accepted.
+- **Host lookup:** `Headers.Host[0]` (H2 `:authority` is already folded in), with the port stripped by span. Two `FrozenDictionary` tables (exact names, wildcard parents), `OrdinalIgnoreCase`, looked up via `GetAlternateLookup<ReadOnlySpan<char>>`: 11–22 ns, 0 B. `Request.Host.Host` allocates when a port is present. The compiler **rejects duplicate host names** (otherwise the last one silently wins) and canonicalises IPv6-literal keys.
+- **Client-IP parsing:** our own span parser into `UInt128`. `IPAddress.TryParse` allocates 40/80 B. Ours is stricter than the BCL: no octal, hex, short forms, zone IDs or whitespace. M1 keeps the edge-case list plus a differential fuzz against the BCL.
+- **Policies:** sealed `IRequestPolicy` classes returning a 16-byte `PolicyDecision` struct.
+- **Tests:** `AllocAssert.Zero(state, static lambda)` for synchronous code, plus one in-process Kestrel test asserting gate bytes == 0. Kestrel and YARP numbers are tracked in `bench/`, not asserted.
+- **Benchmarks:** they run under workstation GC, because BenchmarkDotNet's `Allocated` column is wrong under Server GC with the in-process toolchain. Non-monotonic `GC.GetTotalAllocatedBytes` samples are discarded.
+
 ### 7.2 Request pipeline
 
 ```
@@ -586,7 +605,7 @@ Each step is skippable where it makes sense (e.g., HTTP-01 only, no DNS provider
 |---|---|---|---|
 | S1 ✅ *(partial: browser upgrade pending)* | **HTTP/3 + per-SNI cert selection** | Unverified whether Kestrel's QUIC listener invokes per-SNI selection. libmsquic availability in the container. | Either per-SNI works on QUIC with hot-swap, or the single-H3-cert fallback (§7.5) is implemented. **Plus:** the browser actually upgrades to H3 in the Docker deployment (`Alt-Svc` carries the public port, UDP 443 reachable). |
 | S2 ✅ *(design changed: gate selects the endpoint)* | **YARP config churn + metadata binding** | Many hosts (500+) and frequent publishes: endpoint rebuild cost. `ConfigureEndpoints(Action<IEndpointConventionBuilder, RouteConfig>)` exists in YARP 2.3.0, but we need to confirm it re-runs on every dynamic reload with the new `RouteConfig`. | Publish < 50 ms at 500 hosts; no request errors during swaps under load; typed metadata on every endpoint matches its generation (or the route-ID fallback in §6.2 is in place). |
-| S3 | **Zero-alloc gate on Kestrel** | Request-scoped state without `Items`, span-based host lookup, feature reuse per connection. | BenchmarkDotNet + in-process test shows 0 B/request from Paduraksa code. |
+| S3 ✅ *(0 B gate; see §7.1)* | **Zero-alloc gate on Kestrel** | Request-scoped state without `Items`, span-based host lookup, feature reuse per connection. | BenchmarkDotNet + in-process test shows 0 B/request from Paduraksa code. |
 | S4 ✅ *(partial: `FrozenDictionary` lookup not covered)* | **Typed IDs × EF Core 10 × SQLite** | Convention converters, BLOB big-endian GUIDs (`UuidV7Generator` + `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types containing typed IDs, LINQ translation of comparisons, `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup. | Round-trip, query and index-ordering tests pass. **Result:** done as real code in `Paduraksa.Data` (`tests/Paduraksa.Tests.Data`, real SQLite). Everything worked as planned: BLOB/INTEGER/JSON-string storage, `ORDER BY` = `CompareTo` = string order (same millisecond too), comparisons translate directly, and an Int64Ordered key is the rowid alias without `AUTOINCREMENT`. Changes: discovery replaces EF's `PropertyDiscoveryConvention` instead of scanning (§4); JSON stores strings. |
 | S5 ✅ *(implemented as the real host)* | **Two WebApplications, one process** | Shared singletons, graceful shutdown order, logging, health. | Both apps start/stop cleanly; integration tests can host both. |
 | S6 | **State continuity across publishes** (§6.3) | Rate limits and metrics must not reset on config edits. | Load test with publishes every 100 ms shows (a) continuous 429 behaviour, (b) monotonic counters, and (c) **YARP destination health preserved**: a destination marked unhealthy (active or passive) stays unhealthy across reloads that don't touch its cluster, and no healthy destination flaps. |
@@ -600,7 +619,7 @@ Each milestone ends with a working, testable increment.
 
 | M | Scope | Done when |
 |---|---|---|
-| **M0 Foundations** *(in progress: typed IDs, CI, arch tests, host, S1, S2, S4, S5 done; S3 left)* | Repo, CI (build, test, format, arch tests), `[TypedId]` generator + base62 + EF/JSON/Yaml converters, Result types, clock abstraction, spikes S1–S5 | Generator tests green; arch rules enforced in CI |
+| **M0 Foundations** ✅ *(done: typed IDs, CI, arch tests, host, data layer, spikes S1–S5)* | Repo, CI (build, test, format, arch tests), `[TypedId]` generator + base62 + EF/JSON/Yaml converters, Result types, clock abstraction, spikes S1–S5 | Generator tests green; arch rules enforced in CI |
 | **M1 Proxy core** | Snapshot model + store, gate middleware, host table, client-IP resolution incl. Cloudflare `Proxy`/`Tunnel` modes with baked-in ranges (§7.6), TLS SNI selection, YARP provider, H1/H2/H3, HTTP→HTTPS redirect, default host, hard-coded test config | Benchmarks + S7 baseline; S6 continuity test (stub rate-limit table + metrics + YARP health); zero-alloc tests pass |
 | **M2 Config store** | EF model, migrations, Application command pipeline, validation, compiler, revisions, diff, rollback, audit (hash chain), last-known-good | Change → revision → live in < 100 ms; rollback works |
 | **M3 Vault & certs** | KEK/DEK store, capabilities, upload, self-signed, local CA, ACME client (HTTP-01 → DNS-01 Cloudflare/deSEC), renewal scheduler, ARI | Pebble-based integration tests issue + renew; banned-API rules hold. Open item: decide where shared EF/SQLite infrastructure (typed-ID conventions, pragmas) lives, since Vault may reference only Core. |
@@ -676,3 +695,4 @@ Each milestone ends with a working, testable increment.
 - **v0.6:** License decided: Apache-2.0 (§17).
 - **v0.7:** Hosting hardened after review (§3). A stop or signal during startup aborts the start and exits 0. The exit codes are listed in full, including failed stops and disposal. Startup errors print without a stack trace. `IOptionsFactory` also resolves to the validated options. A relative data directory resolves against the content root.
 - **v0.8:** Native Cloudflare client-IP handling: `Proxy`/`Tunnel` modes, auto-refreshed edge ranges, anti-spoofing header stripping, `CF-IPCountry` geo, origin lockdown, Authenticated Origin Pulls (§7.6, M1/M6).
+- **v0.9:** S4 outcome: typed IDs through EF Core conventions, JSON IDs as strings and never joined against column IDs in SQL, pragmas and timeouts, Int64Ordered seeding (§4, §5). S3 outcome (0 B gate, realistic Kestrel/YARP costs, generic-host pipeline instead of `WebApplication` for the public app, per-connection/per-request state mechanisms, host lookup, IP parser, allocation-test rules) (§7.1). M0 complete.
