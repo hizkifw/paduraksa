@@ -375,6 +375,10 @@ B. TLS handshake (TlsHandshakeCallbackOptions on both TCP and QUIC → per-SNI S
      silently breaks the other transport if instances are shared. A unit test asserts non-null ALPN.
    • unknown SNI: default cert, or reject by THROWING from the callback (client sees EOF / TLS alert; server
      stays healthy). Count rejections ourselves: QUIC logs nothing.
+   • cipher suites (TCP, Linux): AEAD + ECDHE only via CipherSuitesPolicy (TLS 1.3 suites, ECDHE AES-GCM /
+     ChaCha20-Poly1305 for TLS 1.2). Other OSes keep the OS defaults; QUIC (TLS 1.3) is AEAD-only already.
+   • client certificates (per host): chain built offline (no AIA/CRL/OCSP fetches: a client-controlled AIA URL
+     would be SSRF); M6 adds CustomRootTrust with the origin-pull CA.
 
 C. Gate middleware (first in pipeline), in this order (as built in M1)
    • snapshot = SnapshotStore.Current (one volatile read)
