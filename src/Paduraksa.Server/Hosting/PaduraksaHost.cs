@@ -526,10 +526,21 @@ internal enum ShutdownReason
 
 internal readonly record struct ShutdownRequest(ShutdownReason Reason, HostRole? Role);
 
+/// <summary>Process exit codes of <c>paduraksa serve</c> (PLAN §3).</summary>
 internal static class ExitCodes
 {
+    /// <summary>Stopped on request (signal, or a shutdown request), including during startup.</summary>
     public const int Success = 0;
+
+    /// <summary>Ran, then a host stopped on its own, a host failed to stop cleanly, or disposal failed.</summary>
     public const int Failure = 1;
+
+    /// <summary>
+    /// Never ran: a host failed to start (e.g. a port is taken) or stopped itself during startup, or the process
+    /// couldn't be built (e.g. an unreadable configuration file).
+    /// </summary>
     public const int StartupFailed = 2;
+
+    /// <summary>The <c>Paduraksa</c> settings failed validation, or a configuration file couldn't be parsed.</summary>
     public const int InvalidConfiguration = 3;
 }

@@ -1,6 +1,7 @@
 using System.CommandLine;
 
 using Paduraksa.Server.Cli;
+using Paduraksa.Server.Hosting;
 
 namespace Paduraksa.Tests.Integration.Cli;
 
@@ -24,4 +25,58 @@ public sealed class PaduraksaCliTests
     {
         Assert.NotEmpty(PaduraksaCli.BuildRootCommand().Parse(args).Errors);
     }
+
+    [Fact]
+    public async Task MalformedAppsettingsIsOneLineAndInvalidConfiguration()
+    {
+        using TempDirectory contentRoot = new();
+        await File.WriteAllTextAsync(Path.Combine(contentRoot.Path, "appsettings.json"), "{ \"Paduraksa\": ", TestContext.Current.CancellationToken);
+        using StringWriter error = new();
+
+        int exitCode = await PaduraksaCli.ServeAsync(Options(contentRoot.Path), error, includeStackTrace: false, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExitCodes.InvalidConfiguration, exitCode);
+        string line = Assert.Single(Lines(error));
+        Assert.StartsWith("Invalid configuration: ", line, StringComparison.Ordinal);
+        Assert.Contains("appsettings.json", line, StringComparison.Ordinal);
+        Assert.Contains(PaduraksaCli.DebugVariable, line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OtherStartupFailuresAreOneLineAndStartupFailed()
+    {
+        using TempDirectory contentRoot = new();
+        using StringWriter error = new();
+        PaduraksaHostOptions options = Options(contentRoot.Path, static _ => throw new IOException("config source unreadable", new UnauthorizedAccessException("permission denied")));
+
+        int exitCode = await PaduraksaCli.ServeAsync(options, error, includeStackTrace: false, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExitCodes.StartupFailed, exitCode);
+        string line = Assert.Single(Lines(error));
+        Assert.StartsWith("Paduraksa failed to start: config source unreadable ---> permission denied", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StackTraceIsPrintedOnlyWhenAskedFor()
+    {
+        using TempDirectory contentRoot = new();
+        using StringWriter error = new();
+        PaduraksaHostOptions options = Options(contentRoot.Path, static _ => throw new IOException("config source unreadable"));
+
+        int exitCode = await PaduraksaCli.ServeAsync(options, error, includeStackTrace: true, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExitCodes.StartupFailed, exitCode);
+        Assert.Contains("System.IO.IOException: config source unreadable", error.ToString(), StringComparison.Ordinal);
+        Assert.Contains(" at ", error.ToString(), StringComparison.Ordinal);
+    }
+
+    private static PaduraksaHostOptions Options(string contentRootPath, Action<Microsoft.Extensions.Configuration.IConfigurationBuilder>? configure = null) => new()
+    {
+        EnvironmentName = "Testing",
+        ContentRootPath = contentRootPath,
+        ConfigureConfiguration = configure,
+    };
+
+    private static string[] Lines(StringWriter writer) =>
+        writer.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 }
