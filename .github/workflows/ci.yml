@@ -42,7 +42,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ env.NUGET_PACKAGES }}
-          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', 'Directory.Build.props', '**/*.csproj') }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
 
       - name: Restore
@@ -77,6 +77,11 @@ jobs:
           if-no-files-found: ignore
 
       # Runs whether or not the tests passed, so both kinds of failure show up in one run.
+      # dotnet format has no -c/--configuration and rejects -p:. MSBuild picks up environment
+      # variables as properties, so Configuration=Release makes dotnet format's design-time build
+      # use the Release outputs from the build step instead of creating a Debug tree.
       - name: Verify formatting
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          Configuration: Release
         run: dotnet format --no-restore --verify-no-changes
