@@ -8,14 +8,26 @@ namespace Paduraksa.Proxy.Tls;
 
 /// <summary>
 /// Connection-stage gate for QUIC (PLAN §7.2 A). QUIC has no <c>ListenOptions.Use</c>, so the IP deny / per-IP cap /
-/// ClientInfo work runs inside the QUIC handshake callback, before any certificate is chosen. Return false to reject.
+/// ClientInfo work runs inside the QUIC handshake callback, after the 0 B certificate lookup but before the options
+/// are returned. Return false to reject.
 /// </summary>
+/// <remarks>
+/// <para>Runs once per QUIC handshake on the hot path: it must not block or allocate.</para>
+/// <para>
+/// <b>Releasing what the gate acquires.</b> The gate runs last in the selection, so when it returns true the callback
+/// always returns options. Anything it acquires (e.g. a per-IP connection slot) must be released when the connection
+/// closes, via <see cref="BaseConnectionContext.ConnectionClosed"/>. Caveat, verified in Docker: if the TLS handshake fails
+/// <i>after</i> the callback returned (e.g. a required client certificate is missing or rejected), Kestrel never fires
+/// <c>ConnectionClosed</c> for that connection. A slot taken in the gate would then leak. Pair the
+/// acquisition with a bound that doesn't depend on that signal (e.g. a short lease that the established connection
+/// confirms) until this is solved (KestrelQuicTlsTests.ConnectionClosedReleasesWhatTheGateAcquired pins the behaviour).
+/// </para>
+/// </remarks>
 /// <param name="remoteEndPoint">
 /// The client's endpoint, or null if Kestrel didn't provide an IP endpoint. On a dual-mode <c>[::]</c> listener QUIC
 /// reports IPv4 clients as plain IPv4 while TCP reports them IPv4-mapped (spike S1), so normalise before matching.
 /// </param>
 /// <param name="connection">The QUIC connection (e.g. to attach a ClientInfo feature), or null when not called from Kestrel.</param>
-/// <remarks>Runs once per QUIC handshake on the hot path: it must not block or allocate.</remarks>
 public delegate bool QuicConnectionGate(IPEndPoint? remoteEndPoint, ConnectionContext? connection);
 
 /// <summary>
@@ -37,6 +49,7 @@ public sealed class TlsHandshakeSelector
     private readonly ICertificateTableSource _tables;
     private readonly QuicConnectionGate? _quicGate;
 
+    // TODO(M7 metrics): these share a cache line; pad or stripe them if rejection floods ever show contention.
     private long _unknownServerNameTcp;
     private long _unknownServerNameQuic;
     private long _http3Disabled;
@@ -84,18 +97,15 @@ public sealed class TlsHandshakeSelector
     }
 
     /// <summary>
-    /// Runs the connection gate, then selects the QUIC options for <paramref name="serverName"/>, or throws. A host that
-    /// opted out of H3 is rejected rather than served by the wildcard or default certificate.
+    /// Selects the QUIC options for <paramref name="serverName"/>, then runs the connection gate, or throws. A host that
+    /// opted out of H3 is rejected rather than served by the wildcard or default certificate. Unknown names and
+    /// H3-disabled hosts are rejected before the gate runs, so an accepting gate always leads to returned options.
     /// </summary>
     /// <exception cref="TlsHandshakeRejectedException">Denied by the gate, no entry, or H3 disabled for the host.</exception>
     public SslServerAuthenticationOptions SelectQuic(string? serverName, IPEndPoint? remoteEndPoint, ConnectionContext? connection)
     {
-        if (_quicGate is not null && !_quicGate(remoteEndPoint, connection))
-        {
-            Interlocked.Increment(ref _connectionDenied);
-            throw new TlsHandshakeRejectedException(TlsRejectionReason.ConnectionDenied, serverName ?? string.Empty);
-        }
-
+        // Selection first (0 B, no side effects), the gate last: once the gate has accepted (and possibly acquired a
+        // per-IP slot), nothing in here rejects any more.
         var entry = _tables.Current.Find(serverName);
         if (entry is null)
         {
@@ -107,6 +117,12 @@ public sealed class TlsHandshakeSelector
         {
             Interlocked.Increment(ref _http3Disabled);
             throw new TlsHandshakeRejectedException(TlsRejectionReason.Http3Disabled, serverName ?? string.Empty);
+        }
+
+        if (_quicGate is not null && !_quicGate(remoteEndPoint, connection))
+        {
+            Interlocked.Increment(ref _connectionDenied);
+            throw new TlsHandshakeRejectedException(TlsRejectionReason.ConnectionDenied, serverName ?? string.Empty);
         }
 
         return options;

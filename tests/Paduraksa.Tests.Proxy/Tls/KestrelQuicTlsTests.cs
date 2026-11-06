@@ -38,7 +38,8 @@ public sealed class KestrelQuicTlsTests : IDisposable
         var builder = new CertificateTableBuilder()
             .Add(["a.test"], _a, TlsPolicy.Default)
             .Add(["b.test"], _b, new TlsPolicy { Http3Enabled = false })
-            .Add(["*.wild.test"], _wild, TlsPolicy.Default);
+            .Add(["*.wild.test"], _wild, TlsPolicy.Default)
+            .Add(["tcp.wild.test"], _b, new TlsPolicy { Http3Enabled = false }); // H3 off under an H3-enabled wildcard
         if (withDefault)
         {
             builder.SetDefault(_default, TlsPolicy.Default);
@@ -154,6 +155,44 @@ public sealed class KestrelQuicTlsTests : IDisposable
         Assert.Equal(0, aia.Hits);
     }
 
+    /// <summary>
+    /// Pins the release behaviour the <see cref="QuicConnectionGate"/> contract documents: <c>ConnectionClosed</c> fires
+    /// for a completed connection, but not when the handshake fails after the gate accepted. If the second case starts
+    /// failing, Kestrel now signals those closes: simplify the contract.
+    /// </summary>
+    [Theory]
+    [InlineData(false)] // handshake completes, the client goes away
+    [InlineData(true)] // handshake fails *after* the gate accepted (client certificate missing)
+    public async Task ConnectionClosedReleasesWhatTheGateAcquired(bool failAfterGate)
+    {
+        var slots = new SlotCounter();
+        var table = new CertificateTableBuilder()
+            .Add(["a.test"], _a, TlsPolicy.Default)
+            .Add(["locked.test"], _b, new TlsPolicy { ClientCertificate = new ClientCertificatePolicy() })
+            .Build();
+        var selector = new TlsHandshakeSelector(new CertificateTableSource(table), slots.Gate);
+        await using var server = await StartAsync(selector, IPAddress.Loopback);
+
+        if (failAfterGate)
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "locked.test", HttpVersion.Version30));
+        }
+        else
+        {
+            Assert.Equal("a.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30)).ServedSubject);
+        }
+
+        Assert.Equal(1, slots.Acquired);
+        var deadline = DateTime.UtcNow.AddSeconds(failAfterGate ? 3 : 15);
+        while (slots.Released < 1 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        // Known gap (see QuicConnectionGate): no ConnectionClosed after a handshake that failed past the gate.
+        Assert.Equal(failAfterGate ? 0 : 1, slots.Released);
+    }
+
     [Fact]
     public async Task RejectsUnknownNamesAndHostsWithoutHttp3()
     {
@@ -163,13 +202,16 @@ public sealed class KestrelQuicTlsTests : IDisposable
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "unknown.test", HttpVersion.Version30));
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, null, HttpVersion.Version30));
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "b.test", HttpVersion.Version30));
+        await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "tcp.wild.test", HttpVersion.Version30));
 
         Assert.Equal(2, selector.RejectedUnknownServerNameQuic);
-        Assert.Equal(1, selector.RejectedHttp3Disabled);
+        Assert.Equal(2, selector.RejectedHttp3Disabled);
         Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
 
         // The opted-out host is still served over TCP, and the QUIC listener is still healthy.
         Assert.Equal("b.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "b.test", HttpVersion.Version20)).ServedSubject);
+        Assert.Equal("b.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "tcp.wild.test", HttpVersion.Version20)).ServedSubject);
+        Assert.Equal("*.wild.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "x.wild.test", HttpVersion.Version30)).ServedSubject);
         Assert.Equal("a.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30)).ServedSubject);
     }
 
@@ -258,5 +300,24 @@ public sealed class KestrelQuicTlsTests : IDisposable
 
         Assert.Equal("h3=\":443\"", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version20)).AltSvc); // parsed: default ma dropped
         Assert.Null((await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30)).AltSvc);
+    }
+
+    /// <summary>A stand-in per-IP cap: acquires in the gate, releases on <c>ConnectionClosed</c>.</summary>
+    private sealed class SlotCounter
+    {
+        private int _acquired;
+        private int _released;
+
+        public int Acquired => Volatile.Read(ref _acquired);
+
+        public int Released => Volatile.Read(ref _released);
+
+        public bool Gate(IPEndPoint? remote, Microsoft.AspNetCore.Connections.ConnectionContext? connection)
+        {
+            Assert.NotNull(connection);
+            Interlocked.Increment(ref _acquired);
+            connection.ConnectionClosed.Register(static state => Interlocked.Increment(ref ((SlotCounter)state!)._released), this);
+            return true;
+        }
     }
 }

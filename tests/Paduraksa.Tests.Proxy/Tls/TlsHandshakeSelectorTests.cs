@@ -116,7 +116,7 @@ public sealed class TlsHandshakeSelectorTests : IClassFixture<CertificateTableTe
     }
 
     [Fact]
-    public void QuicGateRunsBeforeCertificateSelection()
+    public void QuicGateRunsLastSoAnAcceptedGateAlwaysYieldsOptions()
     {
         var seen = new List<IPEndPoint?>();
         var selector = new TlsHandshakeSelector(
@@ -128,15 +128,35 @@ public sealed class TlsHandshakeSelectorTests : IClassFixture<CertificateTableTe
             });
         var allowed = new IPEndPoint(IPAddress.Parse("198.51.100.7"), 443);
 
-        // Denied even for a known name, and the gate wins over "unknown name" too.
-        Assert.Equal(TlsRejectionReason.ConnectionDenied, Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("a.test", Client, null)).Reason);
-        Assert.Equal(TlsRejectionReason.ConnectionDenied, Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("unknown.test", Client, null)).Reason);
-        Assert.NotNull(selector.SelectQuic("a.test", allowed, null));
-        Assert.Equal(TlsRejectionReason.UnknownServerName, Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("unknown.test", allowed, null)).Reason);
+        // Unknown names and H3-disabled hosts are rejected before the gate runs (nothing acquired, nothing to release).
+        Assert.Equal(TlsRejectionReason.UnknownServerName, Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("unknown.test", Client, null)).Reason);
+        Assert.Equal(TlsRejectionReason.Http3Disabled, Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("tcp-only.test", allowed, null)).Reason);
+        Assert.Empty(seen);
 
-        Assert.Equal([Client, Client, allowed, allowed], seen);
-        Assert.Equal(2, selector.RejectedConnectionDenied);
+        // Known names reach the gate, which denies or accepts; accepting always returns options.
+        Assert.Equal(TlsRejectionReason.ConnectionDenied, Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("a.test", Client, null)).Reason);
+        Assert.NotNull(selector.SelectQuic("a.test", allowed, null));
+
+        Assert.Equal([Client, allowed], seen);
+        Assert.Equal(1, selector.RejectedConnectionDenied);
         Assert.Equal(1, selector.RejectedUnknownServerNameQuic);
+        Assert.Equal(1, selector.RejectedHttp3Disabled);
+    }
+
+    [Fact]
+    public void QuicRejectsAnH3DisabledExactNameUnderAnH3EnabledWildcard()
+    {
+        var table = new CertificateTableBuilder()
+            .Add(["*.wild.test"], _certs.Wild, TlsPolicy.Default)
+            .Add(["tcp.wild.test"], _certs.A, new TlsPolicy { Http3Enabled = false })
+            .SetDefault(_certs.Default, TlsPolicy.Default)
+            .Build();
+        var selector = new TlsHandshakeSelector(new CertificateTableSource(table));
+
+        // The exact entry wins and has no QUIC options: rejected, not served by the wildcard (or the default).
+        Assert.Equal(TlsRejectionReason.Http3Disabled, Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("tcp.wild.test", Client, null)).Reason);
+        Assert.Same(table.Find("x.wild.test")!.QuicOptions, selector.SelectQuic("x.wild.test", Client, null));
+        Assert.Same(table.Find("tcp.wild.test")!.TcpOptions, selector.SelectTcp("tcp.wild.test"));
     }
 
     [Fact]
