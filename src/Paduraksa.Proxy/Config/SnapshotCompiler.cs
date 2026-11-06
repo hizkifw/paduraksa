@@ -277,6 +277,15 @@ public static class SnapshotCompiler
             {
                 errors.Add($"{routeWhere}: the path must start with '/' and have no query or fragment, got '{path}'");
             }
+            else if (path.Contains('%', StringComparison.Ordinal))
+            {
+                errors.Add($"{routeWhere}: write the path decoded, without percent-encoding, got '{path}'");
+            }
+            else if (RoutePath.Canonicalize(path) is var canonical && !string.Equals(canonical, path, StringComparison.Ordinal))
+            {
+                // Requests are matched on the canonical view, so a non-canonical route path could never match.
+                errors.Add($"{routeWhere}: the path isn't canonical ('\\', '//', ';', dot segments, trailing dots or spaces); use '{canonical}'");
+            }
 
             if (spec.Upstream is null || !clusters.ContainsKey(spec.Upstream))
             {

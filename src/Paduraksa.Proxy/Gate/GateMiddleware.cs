@@ -1,3 +1,5 @@
+using System.Buffers;
+
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
@@ -85,7 +87,7 @@ public sealed class GateMiddleware
             return GateDecision.Respond(fixedResponse);
         }
 
-        CompiledRoute? route = host.Match(request.Path.Value);
+        CompiledRoute? route = MatchRoute(host, request.Path.Value);
         if (route is null)
         {
             return GateDecision.Respond(snapshot.NoRoute);
@@ -131,6 +133,34 @@ public sealed class GateMiddleware
             default:
                 context.Abort();
                 return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Matches on the canonical view of the path (<see cref="RoutePath"/>) without allocating: as is when it's already
+    /// canonical, else rewritten on the stack, or in a pooled buffer past <see cref="RoutePath.StackLimit"/> chars.
+    /// </summary>
+    private static CompiledRoute? MatchRoute(CompiledHost host, ReadOnlySpan<char> path)
+    {
+        if (RoutePath.IsCanonical(path))
+        {
+            return host.Match(path);
+        }
+
+        if (path.Length < RoutePath.StackLimit)
+        {
+            Span<char> buffer = stackalloc char[RoutePath.StackLimit];
+            return host.Match(buffer[..RoutePath.Canonicalize(path, buffer)]);
+        }
+
+        char[] rented = ArrayPool<char>.Shared.Rent(path.Length + 1);
+        try
+        {
+            return host.Match(rented.AsSpan(0, RoutePath.Canonicalize(path, rented)));
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(rented);
         }
     }
 

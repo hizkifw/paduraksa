@@ -253,6 +253,29 @@ public sealed class GateMiddlewareTests : IDisposable
     }
 
     [Fact]
+    public void NonCanonicalPathsDoNotAllocate()
+    {
+        DefaultHttpContext[] contexts =
+        [
+            TestContexts.Create("app.test", "//blocked/x"),
+            TestContexts.Create("app.test", "/api;v=1/items"),
+            TestContexts.Create("app.test", "/" + new string('a', 300) + "//x"),
+        ];
+        AllocAssert.Zero(
+            (_gate, contexts),
+            static s =>
+            {
+                foreach (DefaultHttpContext context in s.contexts)
+                {
+                    _ = s._gate.Decide(context);
+                }
+            },
+            "gate with non-canonical paths (stack and pooled buffers)");
+        Assert.Equal(451, _gate.Decide(TestContexts.Create("app.test", "//blocked/x")).Response!.StatusCode);
+        Assert.Equal("app-api", Decided(_gate, TestContexts.Create("app.test", "/api;v=1/items")));
+    }
+
+    [Fact]
     public void AnsweredDecisionsDoNotAllocate()
     {
         DefaultHttpContext[] contexts =
@@ -275,6 +298,12 @@ public sealed class GateMiddlewareTests : IDisposable
                 }
             },
             "gate answered decisions");
+    }
+
+    private static string? Decided(GateMiddleware gate, DefaultHttpContext context)
+    {
+        _ = gate.Decide(context);
+        return context.GetEndpoint()?.DisplayName;
     }
 
     private sealed class FixedAddress(UInt128 address) : IClientAddressSource

@@ -18,10 +18,12 @@ public enum RouteMatchKind : byte
 /// <summary>
 /// One entry of a proxy host's ordered route list (PLAN §6.2, §7.2 C). Matching runs in the gate on the request
 /// path span; YARP never matches anything.
-/// <para><b>Case:</b> paths are compared <b>ignoring ASCII case</b>. Upstreams such as IIS/ASP.NET treat paths
-/// case-insensitively, so a case-sensitive match would let <c>/ADMIN</c> slip past a policy that guards
-/// <c>/admin</c>. Over-matching a policy-bearing route is the safe side. The path is the one Kestrel decoded and
-/// normalised (dot segments removed, <c>%2F</c> kept encoded); the query string never takes part.</para>
+/// <para><b>What is matched:</b> the canonical matching view of the decoded path (<see cref="RoutePath"/>: separators
+/// <c>\</c>/<c>%2F</c>/<c>%5C</c>, repeated <c>/</c>, <c>;</c> parameters, trailing dots and spaces, dot segments),
+/// compared <b>ignoring ASCII case</b>. Upstreams differ in how they read such spellings (IIS/ASP.NET ignore case,
+/// Tomcat drops <c>;</c> parameters, Windows trims trailing dots), so the gate matches leniently: <c>/ADMIN</c>,
+/// <c>//admin</c> and <c>/admin;x</c> all reach the policies of <c>/admin</c>. Over-matching a policy-bearing route
+/// is the safe side. The request itself is forwarded as received; the query string never takes part.</para>
 /// </summary>
 public sealed class CompiledRoute
 {
@@ -30,7 +32,7 @@ public sealed class CompiledRoute
 
     public required RouteMatchKind MatchKind { get; init; }
 
-    /// <summary>Starts with <c>/</c>.</summary>
+    /// <summary>Starts with <c>/</c> and is its own canonical view (the compiler rejects anything else).</summary>
     public required string Path { get; init; }
 
     /// <summary>Index into <see cref="RuntimeSnapshot.YarpEndpoints"/>; valid for this snapshot only.</summary>
@@ -39,7 +41,7 @@ public sealed class CompiledRoute
     /// <summary>The effective chain for this route: the host's policies followed by the route's own, already flattened.</summary>
     public required IRequestPolicy[] Policies { get; init; }
 
-    /// <summary>Does this route take <paramref name="path"/>? An empty path counts as <c>/</c>.</summary>
+    /// <summary>Does this route take <paramref name="path"/> (a canonical view)? An empty path counts as <c>/</c>.</summary>
     public bool Matches(ReadOnlySpan<char> path)
     {
         if (path.IsEmpty)
