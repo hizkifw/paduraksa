@@ -117,6 +117,26 @@ public sealed class CidrSetTests
     }
 
     [Fact]
+    public void DefaultNetworkIsTheUnspecifiedAddressNotEverything()
+    {
+        var network = default(IpNetwork);
+        Assert.Equal(128, network.Prefix128);
+        Assert.Equal(IpKey.Unspecified, network.Last);
+        Assert.True(network.Contains(IpKey.Unspecified));
+        Assert.False(network.Contains(IpKey.Parse("1.2.3.4")));
+        Assert.False(network.Contains(IpKey.Parse("2001:db8::1")));
+        Assert.Equal("::/128", network.ToString());
+
+        var set = new CidrSet.Builder().Add(default(IpNetwork)).Build();
+        Assert.False(set.Contains(IpKey.Parse("1.2.3.4")));
+        Assert.True(set.Contains(IpKey.Unspecified));
+
+        // An explicit ::/0 still covers everything.
+        Assert.Equal(0, IpNetwork.Parse("::/0").Prefix128);
+        Assert.True(IpNetwork.Parse("::/0").Contains(IpKey.Parse("1.2.3.4")));
+    }
+
+    [Fact]
     public void EmptySetContainsNothing()
     {
         Assert.True(CidrSet.Empty.IsEmpty);

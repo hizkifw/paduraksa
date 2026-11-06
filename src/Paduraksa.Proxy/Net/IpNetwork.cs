@@ -12,13 +12,18 @@ namespace Paduraksa.Proxy.Net;
 /// address and 0–128 for an IPv6-text address, written in decimal without leading zeros or signs. Host bits set
 /// below the prefix (<c>10.0.0.1/8</c>) are rejected rather than silently masked: in a trust list that's usually
 /// a typo for a single address. A bare address is a /32 or /128.</para>
+/// <para><c>default(IpNetwork)</c> is <c>::/128</c>, the single unspecified address, never <c>::/0</c>: the struct
+/// stores the number of host bits, so an uninitialised value can't silently match everything.</para>
 /// </remarks>
 public readonly struct IpNetwork : IEquatable<IpNetwork>
 {
+    // 128 - prefix length, so the zero-initialised default is a /128 rather than a match-all /0.
+    private readonly byte _hostBits;
+
     private IpNetwork(IpKey first, int prefix128)
     {
         First = first;
-        Prefix128 = prefix128;
+        _hostBits = (byte)(128 - prefix128);
     }
 
     /// <summary>The network address (lowest address in the block).</summary>
@@ -28,7 +33,7 @@ public readonly struct IpNetwork : IEquatable<IpNetwork>
     public IpKey Last => new(First.Value | ~IpKey.PrefixMask(Prefix128));
 
     /// <summary>The prefix length in the 128-bit key space (an IPv4 /8 is 104).</summary>
-    public int Prefix128 { get; }
+    public int Prefix128 => 128 - _hostBits;
 
     /// <summary>True when the block is inside the IPv4(-mapped) range (/96 or longer over <c>::ffff:0:0</c>).</summary>
     public bool IsIPv4 => First.IsIPv4 && Prefix128 >= 96;
