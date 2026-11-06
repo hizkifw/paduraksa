@@ -79,7 +79,7 @@ Server ──► everything (composition only)
 
 ## 3. Process & hosting model
 
-One process, **two `WebApplication` instances** plus a non-web **core host**, one shared set of core singletons:
+One process, **two web apps** (the public app on the generic host with an explicit pipeline since M1, §7.1; the admin `WebApplication`) plus a non-web **core host**, one shared set of core singletons:
 
 ```
                     ┌──────────────────────── paduraksa process ────────────────────────┐
@@ -297,6 +297,15 @@ YARP integration (decided by spike S2, `docs/spikes/S2-yarp-reload.md`): **the g
 - **Client reuse:** a custom `IForwarderHttpClientFactory` must reuse the existing client when cluster config is unchanged. A new `HttpClient` counts as a cluster change and rebuilds every route on it.
 - `ConfigureEndpoints` metadata is **not** used. S2 showed YARP only re-runs it for new or changed routes, so unchanged routes would keep stale metadata.
 
+As built in M1 (`src/Paduraksa.Proxy`: `Snapshot/`, `Gate/`, `Yarp/`, `Config/`):
+- **Types:** `Revision` is a string label and `CompiledHost.Key` / `CompiledRoute.Key` are strings until M2 brings `ConfigRevisionId`/`HostId`/`RouteId`. `RuntimeSnapshot.Yarp` holds the YARP *content* (`YarpConfig`); the `IProxyConfig` with its change token and a unique `RevisionId` is created per publish by the provider. `Tls` and `TrustedProxies` are opaque slots until the TLS and client-IP work is integrated.
+- **Unbound → bound:** the compiler produces a candidate with generation 0 and no endpoints; the publisher `Bind`s it to YARP's endpoints and the next generation. The store starts at a bootstrap snapshot (generation 0, 503 for everything), so `Current` is never null.
+- **Routes:** exact or segment-aware prefix, ordered by `Order`, then as listed; first match wins. **Match leniently, forward unchanged:** matching (and later path rules) uses a canonical *matching view* of the decoded path: `\`, `%2F` and `%5C` separate segments, repeated `/` collapse, `;…` segment parameters are dropped, trailing `.` and spaces are trimmed per segment, dot segments resolve, case is ignored. Many upstreams read those spellings as the same path, so `//admin`, `/admin;x`, `/admin.` or `/ADMIN` must hit the policies of `/admin`; over-matching only makes a policy stricter. The view costs 0 B (as is when already canonical, else on the stack, or a pooled buffer past 256 chars; Kestrel's request-line limit bounds it). The compiler rejects route paths that are percent-encoded or not canonical. Routes carry **only their own** policies. YARP routes are `/.paduraksa/r/{routeKey}/{**rest}`, and the proxy pipeline rejects (404) any request whose endpoint the gate didn't set, so they can't be reached directly.
+- **Forwarding:** the upstream gets the path exactly as received: a YARP request transform builds the URI from the raw request target (path part) plus the query, without re-escaping. YARP's default would turn `%2F` into `%252F`. M1 strips no prefixes.
+- **Publisher:** single writer; a queued candidate is completed as `Superseded` when a newer one arrives. YARP's `IConfigValidator` plus a route → cluster check run first (`Invalid`). Content equal to what YARP runs skips the YARP round trip (policy-only edits). `ConfigurationApplyingFailed` → `Rejected`, and the previous YARP config is re-applied so provider and YARP agree; no outcome within `ApplyTimeout` (10 s) → `TimedOut`. On any failure the old snapshot stays live. **Before YARP exists** (the core host publishes first), an empty-YARP candidate publishes at once and any other waits for `MapPaduraksaProxy`, which validates it and hands it to YARP's initial load. Startup code therefore **never awaits** a publish: the core host's start returns before the public app starts, so it queues the publish and `/readyz` (`HasPublished`) reports when it's live. Disposing the publisher (shared-services disposal) stops the writer and fails anything queued or in flight.
+- **Fixed answers** (Respond hosts, policy responses) with status 204, 205 or 304 must have an empty body (compile error otherwise) and are sent without `Content-Length`.
+- **Default host:** 404 (default), 421, or close (abort: H1 closes the connection, H2/H3 reset the stream). The HTTP→HTTPS redirect is 301 for GET/HEAD and 308 otherwise; its `Location` (request host + raw target + public port) is the one string a gate-answered response allocates, built after the decision.
+
 ### 6.3 State that survives a publish
 
 Snapshots are immutable and are thrown away on every publish, so **mutable runtime state must never live inside one**. Otherwise every config edit would silently reset rate limits and break metric series. Long-lived state sits in process-lifetime singletons (`RuntimeState`). Snapshots only hold *keys* into it, and those keys are derived from **stable identities**, never from array positions.
@@ -367,18 +376,22 @@ B. TLS handshake (TlsHandshakeCallbackOptions on both TCP and QUIC → per-SNI S
    • unknown SNI: default cert, or reject by THROWING from the callback (client sees EOF / TLS alert; server
      stays healthy). Count rejections ourselves: QUIC logs nothing.
 
-C. Gate middleware (first in pipeline)
+C. Gate middleware (first in pipeline), in this order (as built in M1)
    • snapshot = SnapshotStore.Current (one volatile read)
-   • port 80: /.well-known/acme-challenge/* → IAcmeChallengeStore (FrozenDictionary swap) → 200
    • resolve client IP: PROXY-protocol IP from stage A if present, else trusted-proxy-aware
      X-Forwarded-For / CF-Connecting-IP (only when the TCP peer is in the trusted-proxies list;
      native Cloudflare handling in §7.6)
+   • port 80: /.well-known/acme-challenge/* → IAcmeChallengeStore (FrozenDictionary swap) → 200,
+     before everything below (seam in place; M3)
    • resolve host (span-based lookup, no string allocation); unknown → Default behaviour
-   • resolve route (per-host ordered list) → policies + YARP Endpoint from the same snapshot;
-     HttpContext.SetEndpoint(endpoint) so the later UseRouting skips matching
+   • HOST policy chain (D), so it also guards the redirect and fixed answers (blocked → 403, not 301)
    • HTTP→HTTPS redirect / Redirect and Respond hosts answered here from precomputed bytes
+   • resolve route (per-host ordered list, on the canonical matching view of the path; §6.2) → 404 if none
+   • ROUTE policy chain (D): the route's own policies only
+   • HttpContext.SetEndpoint(YARP Endpoint from the same snapshot) so the later UseRouting skips matching
 
-D. Host policy chain (IRequestPolicy[], sealed classes, evaluated in order)
+D. Policy chains: one per host, one per route (IRequestPolicy[], sealed classes, evaluated in order;
+   host policies run before a route is known, so State.Route is null for them)
    IpAccess → Geo → RateLimit → RequestLimits → PathRules → UserAgentRules → Robots →
    Auth (basic / forward-auth / OIDC) → [future: PoW gate, bot heuristics, header rules]
    each returns PolicyDecision { Continue | Respond(status, page) | Challenge | Drop } as a struct
@@ -696,3 +709,4 @@ Each milestone ends with a working, testable increment.
 - **v0.7:** Hosting hardened after review (§3). A stop or signal during startup aborts the start and exits 0. The exit codes are listed in full, including failed stops and disposal. Startup errors print without a stack trace. `IOptionsFactory` also resolves to the validated options. A relative data directory resolves against the content root.
 - **v0.8:** Native Cloudflare client-IP handling: `Proxy`/`Tunnel` modes, auto-refreshed edge ranges, anti-spoofing header stripping, `CF-IPCountry` geo, origin lockdown, Authenticated Origin Pulls (§7.6, M1/M6).
 - **v0.9:** S4 outcome: typed IDs through EF Core conventions, JSON IDs as strings and never joined against column IDs in SQL, pragmas and timeouts, Int64Ordered seeding (§4, §5). S3 outcome (0 B gate, realistic Kestrel/YARP costs, generic-host pipeline instead of `WebApplication` for the public app, per-connection/per-request state mechanisms, host lookup, IP parser, allocation-test rules) (§7.1). M0 complete.
+- **v0.10:** M1 proxy core as built: snapshot model and store, gate, compiler input records, publisher state machine, route-matching semantics, public app on the generic host (§3, §6.2).
