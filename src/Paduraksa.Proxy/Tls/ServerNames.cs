@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 namespace Paduraksa.Proxy.Tls;
@@ -30,9 +31,19 @@ internal static class ServerNames
 
         if (!IsValidHostName(span, out var problem))
         {
-            throw new ArgumentException(
-                $"Invalid server name '{name}': {problem}. Expected a DNS name such as 'app.example.com' or a single-level wildcard such as '*.example.com'.",
-                nameof(name));
+            Reject(name, problem);
+        }
+
+        // No TLD is all-numeric: such a name is an IP literal, and clients never send IPs as SNI (RFC 6066).
+        var lastLabel = span[(span.LastIndexOf('.') + 1)..];
+        if (!lastLabel.ContainsAnyExceptInRange('0', '9'))
+        {
+            Reject(name, "the last label is numeric, so it is an IP address and can never match an SNI");
+        }
+
+        if (isWildcard && !span.Contains('.'))
+        {
+            Reject(name, "a wildcard needs a parent of at least two labels ('*.example.com', not '*.com')");
         }
 
         var canonical = span.ToString().ToLowerInvariant();
@@ -56,6 +67,12 @@ internal static class ServerNames
 
         return canonical;
     }
+
+    [DoesNotReturn]
+    private static void Reject(string name, string problem) =>
+        throw new ArgumentException(
+            $"Invalid server name '{name}': {problem}. Expected a DNS name such as 'app.example.com' or a single-level wildcard such as '*.example.com'.",
+            nameof(name));
 
     /// <summary>Drops one trailing dot (fully qualified form). Allocation-free.</summary>
     public static ReadOnlySpan<char> TrimTrailingDot(ReadOnlySpan<char> name) =>

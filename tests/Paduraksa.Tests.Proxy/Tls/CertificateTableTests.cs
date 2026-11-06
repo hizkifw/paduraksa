@@ -168,11 +168,25 @@ public sealed class CertificateTableTests : IClassFixture<CertificateTableTests.
     [InlineData("a:443")]
     [InlineData("[::1]")]
     [InlineData("bücher.test")]
+    [InlineData("192.168.1.10")] // IP-like: the last label is numeric
+    [InlineData("10.0.0.1.")]
+    [InlineData("host.123")]
+    [InlineData("*.1.2")]
+    [InlineData("*.com")] // wildcard parent needs two labels
+    [InlineData("*.lan.")]
     public void InvalidNamesAreRejected(string name)
     {
         var error = Assert.Throws<ArgumentException>(() => new CertificateTableBuilder().Add([name], _certs.A, TlsPolicy.Default));
         Assert.Contains("Invalid server name", error.Message, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("123.example.com")] // numeric labels are fine, just not the last one
+    [InlineData("localhost")] // single-label exact names are allowed
+    [InlineData("*.home.arpa")]
+    [InlineData("a-1.b2.c3d")]
+    public void EdgeCaseNamesAreAccepted(string name) =>
+        Assert.NotNull(new CertificateTableBuilder().Add([name], _certs.A, TlsPolicy.Default).Build());
 
     [Fact]
     public void OverlongNamesAndLabelsAreRejected()
