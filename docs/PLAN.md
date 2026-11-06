@@ -43,6 +43,7 @@ Paduraksa.slnx
 │  └─ Paduraksa.Server          Composition root + CLI. Hosts the public and admin apps in one process. Binary: `paduraksa`
 ├─ tests/
 │  ├─ Paduraksa.Tests.Unit
+│  ├─ Paduraksa.Tests.Data          (EF Core mapping on real SQLite: typed IDs, pragmas, seeding)
 │  ├─ Paduraksa.Tests.Integration   (real Kestrel, real SQLite, Pebble ACME test server in CI)
 │  └─ Paduraksa.Tests.Architecture  (dependency rules, DTO rules, typed-ID rules)
 └─ bench/Paduraksa.Benchmarks       (BenchmarkDotNet: hot-path policies, lookups, zero-alloc assertions)
@@ -144,7 +145,7 @@ The generator emits for each:
 - `Value` (`Guid` or `long`), `New()`, `Empty`/`IsEmpty`, `static abstract` contract `ITypedId<TSelf>`
 - `ToString()` → `host_0J9zb3xQk1Lr8m2V7aYc4D`, plus `ISpanFormattable`, `IUtf8SpanFormattable`, `ISpanParsable`/`IUtf8SpanParsable` (prefix-validated, allocation-free)
 - `System.Text.Json` converter (registered in a source-gen `JsonSerializerContext`), `TypeConverter` (Blazor routing and Minimal API binding), YamlDotNet converter
-- EF Core `ValueConverter` + `ValueComparer`, applied by **convention** (`ConfigureConventions` scans for `ITypedId<>`), so no per-property config
+- EF Core `ValueConverter` + `ValueComparer`, applied by **convention** (`ConfigureConventions` → `AddTypedIdConventions()`, which recognizes `ITypedId<,>` member types during EF's property discovery), so no per-property config
 - OpenAPI schema transformer: `{ type: string, pattern: "^host_[0-9A-Za-z]{22}$", example: … }`
 
 ### 4.2 Representations
@@ -162,6 +163,7 @@ Generator notes (M0):
 - Every **source-generated** `JsonSerializerContext` that serializes typed IDs must register `TypedIdJsonConverterFactory` via `[JsonSourceGenerationOptions(Converters = [typeof(TypedIdJsonConverterFactory)])]`. The STJ source generator can't see the `[JsonConverter]` attribute our generator emits, and without the factory IDs serialize as `{}`.
 - The generator is added as an analyzer to every project through `Directory.Build.props`. Prefix uniqueness is checked per compilation (PDKID004) and across all src assemblies by an architecture test.
 - EF value converters can't call static abstract members inside expression trees (CS8927). Generic converters go through a plain generic helper (`static T Wrap<T, TV>(TV v) => T.FromValue(v)`).
+- EF mapping (S4, `Paduraksa.Data.Ids`): `configurationBuilder.AddTypedIdConventions()` swaps in a `PropertyDiscoveryConvention` that accepts typed IDs, so they're found from the model's own CLR member types (no scanning or type lists) in entities and complex types, as keys, FKs and nullables. Typed-ID properties are `ValueGenerated.Never`. **Inside JSON complex types IDs are stored as their canonical string** (`host_…`), not BLOB/INTEGER: the document stays readable and JSON members compare against a string parameter. ID lists (`List<RouteId>`) are primitive collections of canonical strings, as a column or inside JSON. Owned types mapped to JSON are rejected at model build; use complex types. **Hard rule: a JSON ID (TEXT) never equals a column ID (BLOB/INTEGER) in SQL**, so references inside JSON settings are resolved in memory by the compiler, never joined or compared in SQL. LINQ `==`/`!=`/`<`/`>`/`CompareTo`/`Contains`/`OrderBy` on IDs translate; `id.Value` doesn't (EF can't see through a converter).
 
 ### 4.3 Secrets that look like IDs (but aren't)
 
@@ -213,7 +215,7 @@ SQLite settings: WAL, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout`. A
 
 ### 5.3 Global defaults → profile → host → route
 
-`HostSettings` is one record with every tunable as `Override<T>` (`Inherit` | `Value(T)`), stored as an EF Core 10 JSON complex type. New settings mean no schema migration, just a defaulted field. The **compiler** resolves the layers into a flat, fully concrete `EffectivePolicy`. The dashboard shows where each value comes from ("inherited from Global" or "from profile *LAN only*") with a one-click "override here" or "reset to inherited".
+`HostSettings` is one record with every tunable as `Override<T>` (`Inherit` | `Value(T)`), stored as an EF Core 10 JSON complex type. New settings mean no schema migration, just a defaulted field. The **compiler** resolves the layers into a flat, fully concrete `EffectivePolicy`. IDs inside `HostSettings` (JSON, stored as strings) are resolved by the compiler in memory, never by SQL joins or comparisons against ID columns (§4.2). The dashboard shows where each value comes from ("inherited from Global" or "from profile *LAN only*") with a one-click "override here" or "reset to inherited".
 
 Host kinds in v1: **Proxy** (YARP), **Redirect** (precomputed target), **Respond** (fixed status + body from the compiled snapshot, e.g. 404/410/"coming soon"), **Admin** (§3.1). Serving files from disk (**Static**) is **cut from v1**: it needs path-traversal, symlink, MIME and caching semantics designed properly. When it comes back, the plan is a chroot-like root under `data/www/<hostId>`, symlinks disabled, `PhysicalFileProvider` with `ExclusionFilters.Sensitive`, ETag/Last-Modified, precompressed `.br/.gz` siblings.
 
@@ -585,7 +587,7 @@ Each step is skippable where it makes sense (e.g., HTTP-01 only, no DNS provider
 | S1 ✅ *(partial: browser upgrade pending)* | **HTTP/3 + per-SNI cert selection** | Unverified whether Kestrel's QUIC listener invokes per-SNI selection. libmsquic availability in the container. | Either per-SNI works on QUIC with hot-swap, or the single-H3-cert fallback (§7.5) is implemented. **Plus:** the browser actually upgrades to H3 in the Docker deployment (`Alt-Svc` carries the public port, UDP 443 reachable). |
 | S2 ✅ *(design changed: gate selects the endpoint)* | **YARP config churn + metadata binding** | Many hosts (500+) and frequent publishes: endpoint rebuild cost. `ConfigureEndpoints(Action<IEndpointConventionBuilder, RouteConfig>)` exists in YARP 2.3.0, but we need to confirm it re-runs on every dynamic reload with the new `RouteConfig`. | Publish < 50 ms at 500 hosts; no request errors during swaps under load; typed metadata on every endpoint matches its generation (or the route-ID fallback in §6.2 is in place). |
 | S3 | **Zero-alloc gate on Kestrel** | Request-scoped state without `Items`, span-based host lookup, feature reuse per connection. | BenchmarkDotNet + in-process test shows 0 B/request from Paduraksa code. |
-| S4 | **Typed IDs × EF Core 10 × SQLite** | Convention converters, BLOB big-endian GUIDs (`UuidV7Generator` + `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types containing typed IDs, LINQ translation of comparisons, `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup. | Round-trip, query and index-ordering tests pass. |
+| S4 ✅ *(partial: `FrozenDictionary` lookup not covered)* | **Typed IDs × EF Core 10 × SQLite** | Convention converters, BLOB big-endian GUIDs (`UuidV7Generator` + `TryWriteBytes(span, bigEndian: true, out _)`), JSON complex types containing typed IDs, LINQ translation of comparisons, `FrozenDictionary` `OrdinalIgnoreCase` alternate span lookup. | Round-trip, query and index-ordering tests pass. **Result:** done as real code in `Paduraksa.Data` (`tests/Paduraksa.Tests.Data`, real SQLite). Everything worked as planned: BLOB/INTEGER/JSON-string storage, `ORDER BY` = `CompareTo` = string order (same millisecond too), comparisons translate directly, and an Int64Ordered key is the rowid alias without `AUTOINCREMENT`. Changes: discovery replaces EF's `PropertyDiscoveryConvention` instead of scanning (§4); JSON stores strings. |
 | S5 ✅ *(implemented as the real host)* | **Two WebApplications, one process** | Shared singletons, graceful shutdown order, logging, health. | Both apps start/stop cleanly; integration tests can host both. |
 | S6 | **State continuity across publishes** (§6.3) | Rate limits and metrics must not reset on config edits. | Load test with publishes every 100 ms shows (a) continuous 429 behaviour, (b) monotonic counters, and (c) **YARP destination health preserved**: a destination marked unhealthy (active or passive) stays unhealthy across reloads that don't touch its cluster, and no healthy destination flaps. |
 | S7 | **Baseline perf vs nginx/Caddy** | Know where we stand early. | `oha`/`wrk2` numbers on the same box recorded in `bench/README.md`. |
@@ -598,10 +600,10 @@ Each milestone ends with a working, testable increment.
 
 | M | Scope | Done when |
 |---|---|---|
-| **M0 Foundations** *(in progress: typed IDs, CI, arch tests, host, S1, S2, S5 done; S3, S4 left)* | Repo, CI (build, test, format, arch tests), `[TypedId]` generator + base62 + EF/JSON/Yaml converters, Result types, clock abstraction, spikes S1–S5 | Generator tests green; arch rules enforced in CI |
+| **M0 Foundations** *(in progress: typed IDs, CI, arch tests, host, S1, S2, S4, S5 done; S3 left)* | Repo, CI (build, test, format, arch tests), `[TypedId]` generator + base62 + EF/JSON/Yaml converters, Result types, clock abstraction, spikes S1–S5 | Generator tests green; arch rules enforced in CI |
 | **M1 Proxy core** | Snapshot model + store, gate middleware, host table, client-IP resolution incl. Cloudflare `Proxy`/`Tunnel` modes with baked-in ranges (§7.6), TLS SNI selection, YARP provider, H1/H2/H3, HTTP→HTTPS redirect, default host, hard-coded test config | Benchmarks + S7 baseline; S6 continuity test (stub rate-limit table + metrics + YARP health); zero-alloc tests pass |
 | **M2 Config store** | EF model, migrations, Application command pipeline, validation, compiler, revisions, diff, rollback, audit (hash chain), last-known-good | Change → revision → live in < 100 ms; rollback works |
-| **M3 Vault & certs** | KEK/DEK store, capabilities, upload, self-signed, local CA, ACME client (HTTP-01 → DNS-01 Cloudflare/deSEC), renewal scheduler, ARI | Pebble-based integration tests issue + renew; banned-API rules hold |
+| **M3 Vault & certs** | KEK/DEK store, capabilities, upload, self-signed, local CA, ACME client (HTTP-01 → DNS-01 Cloudflare/deSEC), renewal scheduler, ARI | Pebble-based integration tests issue + renew; banned-API rules hold. Open item: decide where shared EF/SQLite infrastructure (typed-ID conventions, pragmas) lives, since Vault may reference only Core. |
 | **M4 Admin backend** | Admin app, local users, cookies, TOTP, roles, API tokens, REST API + OpenAPI, first-run setup-token gate | API-only end-to-end setup possible |
 | **M5 Dashboard + wizard** | Layout, hosts/certs/settings pages, review-diff flow, history, audit, wizard | New user from `docker run` to proxied host via UI only |
 | **M6 WAF** | IP/geo/rate-limit/size/path/UA policies, Cloudflare range refresh job, `CF-IPCountry` geo, origin lockdown + Authenticated Origin Pulls (§7.6), presets, error pages, robots, maintenance mode, request simulator | Policy unit tests + simulator parity tests |
