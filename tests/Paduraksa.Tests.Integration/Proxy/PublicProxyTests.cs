@@ -15,6 +15,7 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
+using Paduraksa.Server.Placeholders;
 using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Proxy;
@@ -36,7 +37,7 @@ public sealed class PublicProxyTests
         Assert.Equal(0, boot.Hosts.Count);
         Assert.True(host.Shared.SnapshotPublisher.IsAttached);
 
-        PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(new ProxyConfigModel
+        PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, new ProxyConfigModel
         {
             Revision = "it-1",
             Upstreams = [new UpstreamSpec { Key = "app", Destinations = [new("app-1", upstream.Address)] }],
@@ -89,7 +90,7 @@ public sealed class PublicProxyTests
         {
             if (role == HostRole.Core)
             {
-                services.AddSingleton(new Paduraksa.Server.Placeholders.StartupProxyConfig(startup));
+                services.AddSingleton(new StartupProxyConfig(startup));
             }
         }
 
@@ -128,7 +129,7 @@ public sealed class PublicProxyTests
         });
         await host.StartAsync(ct);
         Assert.Same(spy, host.Public.Services.GetRequiredService<IAuthorizationPolicyProvider>());
-        PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(new ProxyConfigModel
+        PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, new ProxyConfigModel
         {
             Upstreams = [new UpstreamSpec { Key = "app", Destinations = [new("app-1", upstream.Address)] }],
             Hosts = [new HostSpec { Key = "app", Names = ["app.test"], Routes = [new RouteSpec { Key = "app-root", Upstream = "app" }] }],
@@ -171,9 +172,15 @@ public sealed class PublicProxyTests
         await app.StopAsync(ct);
     }
 
-    private static RuntimeSnapshot Compile(ProxyConfigModel model)
+    /// <summary>Compiles like the server does: its compiler options, the placeholder as the default certificate.</summary>
+    internal static RuntimeSnapshot Compile(PaduraksaHost host, ProxyConfigModel model, SnapshotCompilerOptions? options = null)
     {
-        CompileResult result = SnapshotCompiler.Compile(model);
+        if (model.Defaults.Certificate is null)
+        {
+            model = model with { Defaults = model.Defaults with { Certificate = PlaceholderCertificates.Reference } };
+        }
+
+        CompileResult result = SnapshotCompiler.Compile(model, options ?? host.Shared.PublicListeners.CompilerOptions);
         Assert.True(result.Succeeded, string.Join("; ", result.Errors));
         return result.Snapshot!;
     }

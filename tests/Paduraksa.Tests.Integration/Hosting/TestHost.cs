@@ -42,6 +42,7 @@ internal static class TestHost
             ["Paduraksa:DataDirectory"] = Path.Combine(Path.GetTempPath(), "paduraksa-tests"),
             ["Paduraksa:Listen:Http"] = "0",
             ["Paduraksa:Listen:Https"] = "0",
+            ["Paduraksa:Listen:Http3"] = "false", // needs a fixed port; the QUIC tests pick one
             ["Paduraksa:Listen:Admin"] = "0",
             ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
             ["Paduraksa:ShutdownTimeout"] = "00:00:05",
@@ -80,10 +81,11 @@ internal static class TestHost
         };
     }
 
-    /// <summary>Loopback URI of a bound listener, e.g. <c>https://127.0.0.1:41234/</c>.</summary>
+    /// <summary>Loopback URI of a bound listener, e.g. <c>https://127.0.0.1:41234/</c>. With HTTP/3 the HTTPS address is
+    /// listed twice (TCP and UDP share it).</summary>
     public static Uri Endpoint(PaduraksaHost host, HostRole role, string scheme)
     {
-        string address = host.GetListenAddresses(role).Single(a => a.StartsWith(scheme + "://", StringComparison.Ordinal));
+        string address = host.GetListenAddresses(role).Distinct().Single(a => a.StartsWith(scheme + "://", StringComparison.Ordinal));
         return new UriBuilder(scheme, IPAddress.Loopback.ToString(), new Uri(address).Port).Uri;
     }
 

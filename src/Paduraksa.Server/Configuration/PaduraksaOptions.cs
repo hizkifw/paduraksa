@@ -35,12 +35,48 @@ internal sealed class PaduraksaListenOptions
     /// <summary>Public plain-HTTP port (H1). 0 (OS-assigned) only with <c>PaduraksaHostOptions.AllowEphemeralPorts</c> (tests).</summary>
     public int Http { get; set; } = 80;
 
-    /// <summary>Public HTTPS port (H1/H2 over TCP). 0 (OS-assigned) only with <c>PaduraksaHostOptions.AllowEphemeralPorts</c> (tests).</summary>
+    /// <summary>
+    /// Public HTTPS port: H1/H2 over TCP and, with <see cref="Http3"/>, H3 over UDP on the same number. 0 (OS-assigned)
+    /// only with <c>PaduraksaHostOptions.AllowEphemeralPorts</c> (tests), and never with HTTP/3.
+    /// </summary>
     public int Https { get; set; } = 443;
+
+    /// <summary>
+    /// The HTTPS port clients reach (PLAN §7.5, §16): advertised in <c>Alt-Svc</c> and used by the HTTP→HTTPS redirect.
+    /// Differs from <see cref="Https"/> only behind a port mapping (e.g. bound to 8443, published as 443).
+    /// </summary>
+    public int PublicHttpsPort { get; set; } = 443;
+
+    /// <summary>
+    /// Serve HTTP/3 (QUIC on UDP <see cref="Https"/>). On by default; off, with an Information log, where libmsquic isn't installed.
+    /// </summary>
+    public bool Http3 { get; set; } = true;
+
+    /// <summary>PROXY protocol on the public HTTP listener (PLAN §7.2 A). Off by default.</summary>
+    public ProxyProtocolListenOptions HttpProxyProtocol { get; set; } = new();
+
+    /// <summary>PROXY protocol on the public HTTPS TCP listener, read before TLS. QUIC has none. Off by default.</summary>
+    public ProxyProtocolListenOptions HttpsProxyProtocol { get; set; } = new();
 
     /// <summary>Admin HTTPS port. 0 (OS-assigned) only with <c>PaduraksaHostOptions.AllowEphemeralPorts</c> (tests).</summary>
     public int Admin { get; set; } = 9443;
 
     /// <summary>Bind address of the admin listener (§3: configurable).</summary>
     public string AdminBind { get; set; } = "0.0.0.0";
+}
+
+/// <summary>
+/// PROXY protocol (v1 and v2) on one public TCP listener. Enabling it makes the header <b>mandatory</b> on that listener:
+/// connections from outside <see cref="TrustedSources"/> are dropped unread, and trusted ones must send a valid header
+/// within <see cref="HeaderTimeout"/>.
+/// </summary>
+internal sealed class ProxyProtocolListenOptions
+{
+    public bool Enabled { get; set; }
+
+    /// <summary>Addresses or CIDRs of the load balancers allowed to connect (required when enabled).</summary>
+    public IList<string> TrustedSources { get; } = new List<string>();
+
+    /// <summary>How long a trusted source has to send the whole header (default 3 s, at most 1 min).</summary>
+    public TimeSpan HeaderTimeout { get; set; } = TimeSpan.FromSeconds(3);
 }

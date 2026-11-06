@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.Server.Hosting;
 
 namespace Paduraksa.Server.Placeholders;
 
@@ -14,6 +15,8 @@ internal sealed record StartupProxyConfig(ProxyConfigModel Model);
 /// PLACEHOLDER (M2): stands in for the startup recompile (load the latest revision or last-known-good, compile,
 /// publish). M1 publishes the <b>empty</b> config unless a <see cref="StartupProxyConfig"/> is registered (tests).
 /// Runs in the core host, which starts before the web apps.
+/// <para>Until M3, a config that names no default certificate gets the placeholder one, so HTTPS answers for every
+/// host (as it did before per-SNI selection).</para>
 /// <para><b>Never awaits YARP.</b> A config with routes can only go live once the public app attaches YARP, and the
 /// public app starts after this host's start has returned, so awaiting it here would deadlock startup. The publish is
 /// queued and this returns; it completes while the public app starts (before its listeners accept connections), and
@@ -22,6 +25,7 @@ internal sealed record StartupProxyConfig(ProxyConfigModel Model);
 /// </summary>
 internal sealed partial class PlaceholderSnapshotLoader(
     SnapshotPublisher publisher,
+    PublicListenerSetup listeners,
     ILogger<PlaceholderSnapshotLoader> logger,
     StartupProxyConfig? startupConfig = null) : IHostedService
 {
@@ -33,7 +37,13 @@ internal sealed partial class PlaceholderSnapshotLoader(
         }
 
         ProxyConfigModel model = startupConfig?.Model ?? ProxyConfigModel.Empty;
-        CompileResult compiled = SnapshotCompiler.Compile(model);
+        DefaultsSpec defaults = model.Defaults ?? new DefaultsSpec();
+        if (defaults.Certificate is null)
+        {
+            model = model with { Defaults = defaults with { Certificate = PlaceholderCertificates.Reference } };
+        }
+
+        CompileResult compiled = SnapshotCompiler.Compile(model, listeners.CompilerOptions);
         RuntimeSnapshot candidate = compiled.Snapshot
             ?? throw new InvalidOperationException("The startup config failed to compile: " + string.Join("; ", compiled.Errors));
 

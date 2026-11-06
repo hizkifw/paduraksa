@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Runs the QUIC / HTTP/3 TLS tests (trait Transport=Quic) in Docker, where libmsquic is installed.
+# Runs the QUIC / HTTP/3 tests (trait Transport=Quic) in Docker, where libmsquic is installed: the Kestrel TLS tests
+# of Paduraksa.Tests.Proxy and the end-to-end HTTP/3 tests through PaduraksaHost in Paduraksa.Tests.Integration.
 # Normal `dotnet test` runs skip them (no libmsquic on dev machines or CI); this script is separate and changes
 # nothing about that run. Same approach as spikes/S1-http3-sni: pinned SDK image + pinned libmsquic from
 # packages.microsoft.com. PADURAKSA_REQUIRE_QUIC=1 turns a missing QUIC stack into a failure, so a green run here
@@ -10,7 +11,8 @@
 #
 # Usage: tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh [extra test-app arguments]
 # Override versions with SDK_TAG=... LIBMSQUIC_VERSION=...
-# QUIC_TESTS_ALL=1 runs the whole Proxy test project instead (checks the rest on a QUIC-capable host too).
+# QUIC_TESTS_ALL=1 runs both whole test projects instead (checks the rest on a QUIC-capable host too).
+# QUIC_TEST_PROJECTS="Paduraksa.Tests.Proxy" limits the run to some of the projects.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,14 +45,20 @@ docker run --rm \
   -v paduraksa-quic-tests-nuget:/root/.nuget/packages \
   -e PADURAKSA_REQUIRE_QUIC=1 \
   -e "QUIC_TESTS_ALL=${QUIC_TESTS_ALL:-0}" \
+  -e "QUIC_TEST_PROJECTS=${QUIC_TEST_PROJECTS:-Paduraksa.Tests.Proxy Paduraksa.Tests.Integration}" \
   "$image" bash -euo pipefail -c '
     dpkg-query -W -f="libmsquic \${Version}\n" libmsquic
     dotnet --version
     mkdir -p /work
     tar -C /src --exclude=bin --exclude=obj --exclude=.git -cf - . | tar -C /work -xf -
     cd /work
-    dotnet build tests/Paduraksa.Tests.Proxy -c Release -v quiet -nologo
     filter=(-trait "Transport=Quic")
     if [ "$QUIC_TESTS_ALL" = 1 ]; then filter=(); fi
-    dotnet tests/Paduraksa.Tests.Proxy/bin/Release/net10.0/Paduraksa.Tests.Proxy.dll "${filter[@]}" "$@"
+    for project in $QUIC_TEST_PROJECTS; do
+      dotnet build "tests/$project" -c Release -v quiet -nologo
+    done
+    for project in $QUIC_TEST_PROJECTS; do
+      echo "== $project"
+      dotnet "tests/$project/bin/Release/net10.0/$project.dll" "${filter[@]}" "$@"
+    done
   ' bash "$@"

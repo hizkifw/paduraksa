@@ -45,6 +45,8 @@ internal sealed class SharedServices : IAsyncDisposable
         SnapshotStore = Get<SnapshotStore>();
         SnapshotPublisher = Get<SnapshotPublisher>();
         ServerCertificate = Get<PlaceholderServerCertificate>();
+        Certificates = Get<PlaceholderCertificates>();
+        PublicListeners = Get<PublicListenerSetup>();
     }
 
     /// <summary>The one logger factory of the process. Each host sees it through a <see cref="RoleLoggerFactory"/>.</summary>
@@ -64,8 +66,14 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>Silences the generic hosts' error about a start that was aborted on request.</summary>
     public StartupLogFilter StartupLogFilter { get; } = new();
 
-    /// <summary>TEMPORARY (M3): shared by the public HTTPS and admin listeners until the vault exists.</summary>
+    /// <summary>TEMPORARY (M3): the admin listener's certificate and the public default certificate until the vault exists.</summary>
     public PlaceholderServerCertificate ServerCertificate { get; }
+
+    /// <summary>TEMPORARY (M3): resolves the config's certificate references for the snapshot compiler.</summary>
+    public PlaceholderCertificates Certificates { get; }
+
+    /// <summary>The public listener layout, the TLS handshake selector and the compiler options derived from it.</summary>
+    public PublicListenerSetup PublicListeners { get; }
 
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
@@ -99,7 +107,9 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add(new HealthState());
             SnapshotStore snapshots = builder.Add(new SnapshotStore());
             builder.Add(new SnapshotPublisher(snapshots, new RoleLoggerFactory(loggerFactory, HostRole.Core), timeProvider));
-            builder.Add(PlaceholderServerCertificate.Create(timeProvider));
+            PlaceholderServerCertificate placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
+            PlaceholderCertificates certificates = builder.Add(new PlaceholderCertificates(placeholder));
+            builder.Add(new PublicListenerSetup(options.Listen, snapshots, certificates));
             // TODO(M1): MetricsRegistry. TODO(M3): Vault capabilities, IAcmeChallengeStore.
             configure?.Invoke(builder);
             builder.Freeze();

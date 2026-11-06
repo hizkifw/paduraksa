@@ -1,0 +1,59 @@
+using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Proxy.Tls;
+using Paduraksa.Server.Configuration;
+
+namespace Paduraksa.Server.Hosting;
+
+/// <summary>
+/// Everything the public listeners and the snapshot compiler must agree on, derived once from
+/// <see cref="PaduraksaListenOptions"/> (PLAN §3, §7.5): whether HTTP/3 is really served, the public HTTPS port, the
+/// PROXY protocol settings per listener, and the one <see cref="TlsHandshakeSelector"/> of the process. A shared
+/// singleton: its counters (TLS rejections, PROXY protocol outcomes) are process-lifetime state (PLAN §6.3).
+/// </summary>
+internal sealed class PublicListenerSetup
+{
+    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots, IServerCertificateResolver certificates)
+    {
+        ArgumentNullException.ThrowIfNull(listen);
+        ArgumentNullException.ThrowIfNull(snapshots);
+        ArgumentNullException.ThrowIfNull(certificates);
+
+        Http3Requested = listen.Http3;
+        Http3 = listen.Http3 && PublicListeners.IsHttp3Supported;
+        HttpProxyProtocol = Create(listen.HttpProxyProtocol);
+        HttpsProxyProtocol = Create(listen.HttpsProxyProtocol);
+        Selector = new TlsHandshakeSelector(snapshots, QuicClientInfoGate.Gate);
+        CompilerOptions = new SnapshotCompilerOptions
+        {
+            Certificates = certificates,
+            PublicHttpsPort = listen.PublicHttpsPort,
+            AdvertiseHttp3 = Http3,
+        };
+    }
+
+    /// <summary>HTTP/3 is configured on (<c>Paduraksa:Listen:Http3</c>).</summary>
+    public bool Http3Requested { get; }
+
+    /// <summary>HTTP/3 is configured on <b>and</b> libmsquic is available: the UDP listener exists and hosts get
+    /// <c>Alt-Svc</c>.</summary>
+    public bool Http3 { get; }
+
+    /// <summary>PROXY protocol on the plain-HTTP listener, or null.</summary>
+    public ProxyProtocolOptions? HttpProxyProtocol { get; }
+
+    /// <summary>PROXY protocol on the HTTPS TCP listener (before TLS), or null.</summary>
+    public ProxyProtocolOptions? HttpsProxyProtocol { get; }
+
+    /// <summary>Per-SNI certificate selection on TCP and QUIC, reading the live snapshot's certificate table.</summary>
+    public TlsHandshakeSelector Selector { get; }
+
+    /// <summary>What every snapshot is compiled with (certificates, public port, H3 advertising).</summary>
+    public SnapshotCompilerOptions CompilerOptions { get; }
+
+    private static ProxyProtocolOptions? Create(ProxyProtocolListenOptions options) =>
+        options.Enabled
+            ? new ProxyProtocolOptions(CidrSet.Parse(options.TrustedSources)) { HeaderTimeout = options.HeaderTimeout }
+            : null;
+}

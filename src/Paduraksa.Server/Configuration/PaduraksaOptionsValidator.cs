@@ -2,6 +2,8 @@ using System.Net;
 
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Proxy.Net;
+
 namespace Paduraksa.Server.Configuration;
 
 /// <summary>
@@ -73,6 +75,48 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             failures.Add($"{PaduraksaOptions.SectionName}:Listen:AdminBind must be an IP address, was '{listen.AdminBind}'.");
         }
 
+        if (listen.PublicHttpsPort is < 1 or > MaxPort)
+        {
+            failures.Add($"{PaduraksaOptions.SectionName}:Listen:PublicHttpsPort must be between 1 and {MaxPort}, was {listen.PublicHttpsPort}.");
+        }
+
+        if (listen.Http3 && listen.Https == 0)
+        {
+            // Only reachable with ephemeral ports (tests): TCP and UDP must share one port, which 0 can't guarantee.
+            failures.Add($"{PaduraksaOptions.SectionName}:Listen:Http3 needs a fixed Https port (TCP and UDP share it); turn it off with an OS-assigned port.");
+        }
+
+        ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
+        ValidateProxyProtocol("HttpsProxyProtocol", listen.HttpsProxyProtocol, failures);
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateProxyProtocol(string name, ProxyProtocolListenOptions? options, List<string> failures)
+    {
+        string key = $"{PaduraksaOptions.SectionName}:Listen:{name}";
+        if (options is null)
+        {
+            failures.Add($"{key} must not be null.");
+            return;
+        }
+
+        foreach (string source in options.TrustedSources)
+        {
+            if (!IpNetwork.TryParse(source ?? string.Empty, out _, out string? error))
+            {
+                failures.Add($"{key}:TrustedSources has '{source}', which isn't an IP address or CIDR ({error}).");
+            }
+        }
+
+        if (options.Enabled && options.TrustedSources.Count == 0)
+        {
+            failures.Add($"{key}:TrustedSources must list the load balancers' addresses when PROXY protocol is enabled.");
+        }
+
+        if (options.HeaderTimeout <= TimeSpan.Zero || options.HeaderTimeout > ProxyProtocolOptions.MaxHeaderTimeout)
+        {
+            failures.Add($"{key}:HeaderTimeout must be positive and at most {ProxyProtocolOptions.MaxHeaderTimeout}, was {options.HeaderTimeout}.");
+        }
     }
 }
