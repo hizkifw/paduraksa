@@ -85,19 +85,23 @@ internal static class PaduraksaCli
             return ExitCodes.StartupFailed;
         }
 
+        int exitCode = ExitCodes.Success;
         try
         {
             await using (host.ConfigureAwait(false))
             {
-                return await host.RunAsync(cancellationToken).ConfigureAwait(false);
+                exitCode = await host.RunAsync(cancellationToken).ConfigureAwait(false);
             }
+
+            return exitCode;
         }
 #pragma warning disable CA1031 // RunAsync turns start/run failures into exit codes; only disposal can still throw here.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
             await WriteErrorAsync(error, "Paduraksa failed to shut down cleanly", ex, includeStackTrace).ConfigureAwait(false);
-            return ExitCodes.Failure;
+            // A run that already failed keeps its own code (e.g. 2 for a failed start); a clean one becomes a failure.
+            return exitCode == ExitCodes.Success ? ExitCodes.Failure : exitCode;
         }
     }
 

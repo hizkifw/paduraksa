@@ -1,7 +1,11 @@
 using System.CommandLine;
+using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
 
 using Paduraksa.Server.Cli;
 using Paduraksa.Server.Hosting;
+using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Cli;
 
@@ -68,6 +72,43 @@ public sealed class PaduraksaCliTests
         Assert.Equal(ExitCodes.StartupFailed, exitCode);
         Assert.Contains("System.IO.IOException: config source unreadable", error.ToString(), StringComparison.Ordinal);
         Assert.Contains(" at ", error.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DisposalFailureKeepsAFailedRunsExitCode()
+    {
+        // The admin port is taken, so the start fails (2); disposing the shared services then throws too.
+        using TcpListener blocker = new(IPAddress.Loopback, 0);
+        blocker.Start();
+        PaduraksaHostOptions options = TestHost.CreateOptions(
+            settings: new Dictionary<string, string?> { ["Paduraksa:Listen:Admin"] = ((IPEndPoint)blocker.LocalEndpoint).Port.ToString(CultureInfo.InvariantCulture) },
+            configureShared: static shared => shared.Add(new ThrowsOnDispose()));
+        using StringWriter error = new();
+
+        int exitCode = await PaduraksaCli.ServeAsync(options, error, includeStackTrace: false, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExitCodes.StartupFailed, exitCode);
+        Assert.StartsWith("Paduraksa failed to shut down cleanly: ", Assert.Single(Lines(error)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DisposalFailureTurnsACleanRunIntoAFailure()
+    {
+        // Cancelled before it starts: a requested stop (0), but disposing the shared services throws.
+        PaduraksaHostOptions options = TestHost.CreateOptions(configureShared: static shared => shared.Add(new ThrowsOnDispose()));
+        using StringWriter error = new();
+        using CancellationTokenSource cancelled = new();
+        await cancelled.CancelAsync();
+
+        int exitCode = await PaduraksaCli.ServeAsync(options, error, includeStackTrace: false, cancelled.Token);
+
+        Assert.Equal(ExitCodes.Failure, exitCode);
+        Assert.StartsWith("Paduraksa failed to shut down cleanly: ", Assert.Single(Lines(error)), StringComparison.Ordinal);
+    }
+
+    private sealed class ThrowsOnDispose : IDisposable
+    {
+        public void Dispose() => throw new InvalidOperationException("dispose failed");
     }
 
     private static PaduraksaHostOptions Options(string contentRootPath, Action<Microsoft.Extensions.Configuration.IConfigurationBuilder>? configure = null) => new()
