@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 using Paduraksa.Proxy.Tls;
@@ -44,14 +45,15 @@ public sealed class KestrelQuicTlsTests : IDisposable
         return builder.Build();
     }
 
-    private static async Task<TlsTestServer> StartAsync(TlsHandshakeSelector selector, IPAddress? address = null)
+    private static async Task<TlsTestServer> StartAsync(TlsHandshakeSelector selector, IPAddress? address = null, RequestDelegate? handler = null)
     {
         QuicTestSupport.Require();
         var port = QuicTestSupport.FreeTcpAndUdpPort(address ?? IPAddress.Any);
         var http3 = false;
         var server = await TlsTestServer.StartAsync(
             static web => web.UsePublicHttpsTransports(),
-            kestrel => http3 = kestrel.ListenPublicHttps(new PublicHttpsListenerOptions { Address = address, Port = port }, selector));
+            kestrel => http3 = kestrel.ListenPublicHttps(new PublicHttpsListenerOptions { Address = address, Port = port }, selector),
+            handler);
         Assert.True(http3);
         Assert.Equal(port, server.Port);
         return server;
@@ -184,5 +186,22 @@ public sealed class KestrelQuicTlsTests : IDisposable
         var address = Assert.Single(seen);
         Assert.NotNull(address);
         Assert.Equal(IPAddress.Loopback, address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address);
+    }
+
+    [Fact]
+    public async Task AltSvcAdvertisesThePublicPortOnTcpOnly()
+    {
+        var value = new AltSvcHeader(443, http3Listening: true).Value;
+        await using var server = await StartAsync(
+            new TlsHandshakeSelector(new CertificateTableSource(Table())),
+            IPAddress.Loopback,
+            context =>
+            {
+                AltSvcHeader.Apply(context, value);
+                return context.Response.WriteAsync(context.Request.Protocol);
+            });
+
+        Assert.Equal("h3=\":443\"", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version20)).AltSvc); // parsed: default ma dropped
+        Assert.Null((await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30)).AltSvc);
     }
 }

@@ -54,9 +54,9 @@ public static class PublicListeners
     /// Adds the public HTTPS listeners: TCP <c>Http1AndHttp2</c> (connection middleware, then the TCP handshake
     /// callback) and, when H3 is enabled and supported, UDP <c>Http3</c> on the same endpoint (the QUIC callback,
     /// which also runs the connection gate). Kestrel's own <c>Alt-Svc</c> is disabled on both: it advertises the bound
-    /// port, so Paduraksa emits the header itself (see <c>AltSvcHeader</c>).
+    /// port, so Paduraksa emits the header itself (<see cref="AltSvcHeader"/>).
     /// </summary>
-    /// <returns>True if the H3 listener was added (it decides whether hosts get an <c>Alt-Svc</c> header).</returns>
+    /// <returns>True if the H3 listener was added (pass it to <see cref="AltSvcHeader"/>).</returns>
     /// <exception cref="ArgumentException">Port 0 with an H3 listener (TCP and UDP would get different ports).</exception>
     public static bool ListenPublicHttps(this KestrelServerOptions kestrel, PublicHttpsListenerOptions options, TlsHandshakeSelector selector)
     {

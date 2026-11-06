@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 
 namespace Paduraksa.Tests.Proxy.Tls;
 
@@ -41,6 +43,8 @@ internal static class TlsProbe
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
         using var response = await SendAsync(client, port, serverName, version, versionPolicy, address);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        // SocketsHttpHandler parses Alt-Svc itself (H3 discovery) and drops the default "ma=86400"; use RawHttp11Async
+        // to see the exact bytes.
         var altSvc = response.Headers.TryGetValues("Alt-Svc", out var values) ? string.Join(", ", values) : null;
         var (subject, received, trusted) = observed.Value ?? throw new InvalidOperationException("The certificate callback never ran.");
         return new TlsProbeResult(subject, received, trusted, response.Version, body, altSvc);
@@ -107,5 +111,26 @@ internal static class TlsProbe
         }
 
         return await client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>One HTTP/1.1 GET over a raw TLS stream; returns the response head exactly as sent.</summary>
+    public static async Task<string> RawHttp11HeadAsync(int port, string serverName)
+    {
+        using var tcp = new TcpClient();
+        await tcp.ConnectAsync(IPAddress.Loopback, port, TestContext.Current.CancellationToken);
+        await using var tls = new SslStream(tcp.GetStream());
+        await tls.AuthenticateAsClientAsync(
+            new SslClientAuthenticationOptions
+            {
+                TargetHost = serverName,
+                ApplicationProtocols = [SslApplicationProtocol.Http11],
+                RemoteCertificateValidationCallback = static (_, certificate, _, _) => certificate is not null,
+            },
+            TestContext.Current.CancellationToken);
+        await tls.WriteAsync(Encoding.ASCII.GetBytes($"GET / HTTP/1.1\r\nHost: {serverName}\r\nConnection: close\r\n\r\n"), TestContext.Current.CancellationToken);
+        using var reader = new StreamReader(tls, Encoding.ASCII);
+        var response = await reader.ReadToEndAsync(TestContext.Current.CancellationToken);
+        var end = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        return end < 0 ? response : response[..end];
     }
 }
