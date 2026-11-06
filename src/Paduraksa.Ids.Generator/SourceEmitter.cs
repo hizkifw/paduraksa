@@ -11,7 +11,7 @@ internal static class SourceEmitter
         $NAMESPACE_OPEN$
         [global::System.Text.Json.Serialization.JsonConverter(typeof(global::Paduraksa.Core.Ids.TypedIdJsonConverter<$TYPE$>))]
         [global::System.ComponentModel.TypeConverter(typeof(global::Paduraksa.Core.Ids.TypedIdTypeConverter<$TYPE$>))]
-        [global::System.CodeDom.Compiler.GeneratedCode("Paduraksa.Ids.Generator", "1.0.0")]
+        [global::System.CodeDom.Compiler.GeneratedCode("Paduraksa.Ids.Generator", "$GENERATOR_VERSION$")]
         readonly partial record struct $NAME$ : global::Paduraksa.Core.Ids.ITypedId<$TYPE$, $VALUE$>
         {
             private const string PrefixWithSeparator = "$PREFIX$_";
@@ -114,6 +114,10 @@ internal static class SourceEmitter
         $NAMESPACE_CLOSE$
         """;
 
+    // The generator assembly's version: fixed per build, so emitted output stays deterministic.
+    private static readonly string GeneratorVersion =
+        typeof(TypedIdGenerator).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+
     public static string Emit(TypedIdModel model)
     {
         bool isGuid = model.Kind != IdKindValue.Int64Ordered;
@@ -140,6 +144,7 @@ internal static class SourceEmitter
             .Replace("$WIDTH$", width.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .Replace("$LENGTH$", (model.Prefix.Length + 1 + width).ToString(System.Globalization.CultureInfo.InvariantCulture))
             .Replace("$FACTORY$", factory)
+            .Replace("$GENERATOR_VERSION$", GeneratorVersion)
             .ToString();
     }
 }

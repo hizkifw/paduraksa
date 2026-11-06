@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.RegularExpressions;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -225,6 +226,24 @@ public sealed class TypedIdGeneratorTests
     }
 
     [Fact]
+    public void GeneratedCodeAttributeCarriesGeneratorVersion()
+    {
+        const string Source = """
+            [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
+            """;
+
+        string first = GenerateSingleSource(Source);
+        Match match = Regex.Match(first, @"GeneratedCode\(""Paduraksa\.Ids\.Generator"", ""(?<version>[^""]*)""\)");
+
+        Assert.True(match.Success);
+        string version = match.Groups["version"].Value;
+        Assert.Matches(@"^\d+\.\d+\.\d+\.\d+$", version);
+        Assert.NotEqual("0.0.0.0", version);
+        Assert.Equal(typeof(TypedIdGenerator).Assembly.GetName().Version?.ToString(), version);
+        Assert.Equal(first, GenerateSingleSource(Source));
+    }
+
+    [Fact]
     public void GeneratorKindEnumMatchesCore()
     {
         Assert.Equal(
@@ -238,6 +257,13 @@ public sealed class TypedIdGeneratorTests
             [CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Latest), path: "Test.cs")],
             References.Value,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+
+    private static string GenerateSingleSource(string source)
+    {
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new TypedIdGenerator())
+            .RunGenerators(CreateCompilation(source), TestContext.Current.CancellationToken);
+        return Assert.Single(driver.GetRunResult().Results.SelectMany(r => r.GeneratedSources)).SourceText.ToString();
+    }
 
     private static GeneratorResult Run(string source)
     {
