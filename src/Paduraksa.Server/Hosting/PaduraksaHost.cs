@@ -35,7 +35,10 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     private int _state = (int)HostState.Created;
     private int _disposed;
     private int _signalCount;
-    private bool _stopFaulted;
+
+    // Only ever flips false -> true (a host failed to stop) and is read after that stop has completed. There's no
+    // read-modify-write, so volatile (visibility across async continuations on other threads) is all it needs.
+    private volatile bool _stopFaulted;
 
     private PaduraksaHost(ConfigurationManager configuration, SharedServices shared, IHost core, WebApplication publicApp, WebApplication adminApp)
     {
