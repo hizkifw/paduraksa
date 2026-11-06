@@ -10,7 +10,7 @@ namespace Paduraksa.Tests.Architecture;
 /// (<see cref="SolutionLayers.FixtureModel"/>, must fail) so a rule that silently matches nothing is caught.
 /// </summary>
 /// <remarks>
-/// <b>Empty layers.</b> ArchUnitNET (0.12+) fails a rule whose <c>That()</c> clause selects no
+/// <b>Empty layers.</b> ArchUnitNET 0.12 and later fail a rule whose <c>That()</c> clause selects no
 /// types ("requires positive evaluation"). Most src projects are still empty, so every rule opts out
 /// with <c>WithoutRequiringPositiveResults()</c>. The protection that positive-results would give
 /// (the selector is not broken) comes instead from the fixture sanity tests, which require each
