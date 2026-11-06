@@ -75,7 +75,7 @@ public static class SnapshotCompiler
 
             IRequestPolicy[] hostPolicies = CompilePolicies(spec.Policies ?? [], where, errors);
             CompiledRoute[] routes = spec.Kind == HostKind.Proxy
-                ? CompileRoutes(spec, hostPolicies, clusters, routeKeys, yarpRoutes, routeIdBySlot, where, errors)
+                ? CompileRoutes(spec, clusters, routeKeys, yarpRoutes, routeIdBySlot, where, errors)
                 : RejectRoutes(spec, where, errors);
             PrecomputedResponse? fixedResponse = CompileFixedResponse(spec, where, errors);
 
@@ -230,7 +230,6 @@ public static class SnapshotCompiler
 
     private static CompiledRoute[] CompileRoutes(
         HostSpec host,
-        IRequestPolicy[] hostPolicies,
         Dictionary<string, ClusterConfig> clusters,
         HashSet<string> routeKeys,
         List<RouteConfig> yarpRoutes,
@@ -292,10 +291,8 @@ public static class SnapshotCompiler
                 errors.Add($"{routeWhere}: upstream '{spec.Upstream}' doesn't exist");
             }
 
+            // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
             IRequestPolicy[] own = CompilePolicies(spec.Policies ?? [], routeWhere, errors);
-            IRequestPolicy[] effective = new IRequestPolicy[hostPolicies.Length + own.Length];
-            hostPolicies.CopyTo(effective, 0);
-            own.CopyTo(effective, hostPolicies.Length);
 
             int slot = routeIdBySlot.Count;
             routeIdBySlot.Add(spec.Key ?? string.Empty);
@@ -311,7 +308,7 @@ public static class SnapshotCompiler
                 MatchKind = spec.Match,
                 Path = path,
                 Slot = slot,
-                Policies = effective,
+                Policies = own,
             };
         }
 

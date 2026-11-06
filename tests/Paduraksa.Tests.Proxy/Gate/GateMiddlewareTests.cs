@@ -38,9 +38,14 @@ public sealed class GateMiddlewareTests : IDisposable
             ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true },
             new HostSpec { Key = "old", Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test", StatusCode = 308 } },
             new HostSpec { Key = "soon", Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
+            ProxyHost("locked", "locked.test", Route("locked-api", "api", "/api")) with { ForceHttps = true, Policies = [LanOnly] },
+            new HostSpec { Key = "locked-old", Names = ["locked-old.test"], Kind = HostKind.Redirect, Policies = [LanOnly], Redirect = new RedirectSpec { Target = "https://new.test" } },
+            new HostSpec { Key = "locked-soon", Names = ["locked-soon.test"], Kind = HostKind.Respond, Policies = [LanOnly], Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
         ],
         Defaults = new DefaultsSpec { PublicHttpsPort = 8443 },
     };
+
+    private static IpAllowListPolicySpec LanOnly => new(["10.0.0.5"]);
 
     private readonly SnapshotStore _store = new();
     private readonly GateMiddleware _gate;
@@ -164,6 +169,59 @@ public sealed class GateMiddlewareTests : IDisposable
         {
             Assert.Equal(403, decision.Response!.StatusCode);
         }
+    }
+
+    [Theory]
+    [InlineData("locked.test", "http", "/api")]
+    [InlineData("locked.test", "http", "/no-such-route")]
+    [InlineData("locked.test", "https", "/no-such-route")]
+    [InlineData("locked-old.test", "http", "/")]
+    [InlineData("locked-soon.test", "http", "/")]
+    public void HostPoliciesRunBeforeRedirectsFixedAnswersAndRouting(string host, string scheme, string path)
+    {
+        GateDecision blocked = _gate.Decide(TestContexts.Create(host, path, scheme: scheme, remote: IPAddress.Parse("203.0.113.9")));
+
+        Assert.Equal(GateAction.Respond, blocked.Action);
+        Assert.Equal(403, blocked.Response!.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("locked.test", "http", "/api", 301)]
+    [InlineData("locked.test", "https", "/no-such-route", 404)]
+    [InlineData("locked-old.test", "http", "/", 301)]
+    [InlineData("locked-soon.test", "http", "/", 503)]
+    public void AllowedClientsGetTheHostsUsualAnswer(string host, string scheme, string path, int status)
+    {
+        GateDecision allowed = _gate.Decide(TestContexts.Create(host, path, scheme: scheme, remote: IPAddress.Parse("10.0.0.5")));
+
+        Assert.Equal(status, allowed.Response!.StatusCode);
+    }
+
+    [Fact]
+    public void HostPoliciesSeeNoRouteAndRoutePoliciesSeeTheirRoute()
+    {
+        RouteProbe hostProbe = new();
+        RouteProbe routeProbe = new();
+        CompiledRoute route = new() { Key = "r", MatchKind = RouteMatchKind.Prefix, Path = "/", Slot = 0, Policies = [routeProbe] };
+        CompiledHost host = new() { Index = 0, Key = "h", Kind = HostKind.Proxy, Routes = [route], Policies = [hostProbe] };
+        HostTable.Builder table = new();
+        Assert.True(table.TryAdd("probe.test", host, out _));
+        using SnapshotStore store = new();
+        store.Publish(new RuntimeSnapshot
+        {
+            Generation = 0,
+            Revision = "probe",
+            Hosts = table.Build(),
+            HostsByIndex = [host],
+            Yarp = Paduraksa.Proxy.Yarp.YarpConfig.Empty,
+            RouteIdBySlot = ["r"],
+            YarpEndpoints = [],
+            Default = DefaultHostBehaviour.NotFound(),
+        }.Bind(1, [new Endpoint(static _ => Task.CompletedTask, null, "r")]));
+
+        Assert.Equal(GateAction.Forward, new GateMiddleware(store, RemoteIpClientAddressSource.Instance).Decide(TestContexts.Create("probe.test", "/x")).Action);
+        Assert.Equal([null], hostProbe.SeenRoutes);
+        Assert.Equal(["r"], routeProbe.SeenRoutes);
     }
 
     [Fact]
@@ -304,6 +362,17 @@ public sealed class GateMiddlewareTests : IDisposable
     {
         _ = gate.Decide(context);
         return context.GetEndpoint()?.DisplayName;
+    }
+
+    private sealed class RouteProbe : IRequestPolicy
+    {
+        public List<string?> SeenRoutes { get; } = [];
+
+        public PolicyDecision Evaluate(in RequestView request)
+        {
+            SeenRoutes.Add(request.State.Route?.Key);
+            return PolicyDecision.Continue;
+        }
     }
 
     private sealed class FixedAddress(UInt128 address) : IClientAddressSource

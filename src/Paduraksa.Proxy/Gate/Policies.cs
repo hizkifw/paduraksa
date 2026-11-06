@@ -67,8 +67,9 @@ public readonly ref struct RequestView
 }
 
 /// <summary>
-/// One step of a host's policy chain (PLAN §7.2 D). Implementations are sealed classes with everything precompiled
-/// into the instance; <see cref="Evaluate"/> runs on the hot path, so it must not allocate, lock or await.
+/// One step of a host's or a route's policy chain (PLAN §7.2 D). Implementations are sealed classes with everything
+/// precompiled into the instance; <see cref="Evaluate"/> runs on the hot path, so it must not allocate, lock or await.
+/// Host policies run before any route is matched, so <see cref="GateRequestState.Route"/> may be <see langword="null"/>.
 /// </summary>
 public interface IRequestPolicy
 {

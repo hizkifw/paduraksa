@@ -64,10 +64,10 @@ public sealed class SnapshotCompilerTests
             Assert.Equal(route.Key, snapshot.RouteIdBySlot[route.Slot]);
         }
 
-        // Effective chain: host policies, then the route's own.
-        Assert.Equal(2, site.Routes[0].Policies.Length);
-        Assert.IsType<IpAllowListPolicy>(site.Routes[0].Policies[0]);
-        Assert.Single(site.Routes[1].Policies);
+        // Host policies stay on the host (the gate runs them first); routes carry only their own.
+        Assert.IsType<IpAllowListPolicy>(Assert.Single(site.Policies));
+        Assert.IsType<StaticPolicy>(Assert.Single(site.Routes[0].Policies));
+        Assert.Empty(site.Routes[1].Policies);
         Assert.NotNull(site.HttpsRedirect);
         Assert.Equal(":8443", site.HttpsRedirect!.Safe.Redirect!.PortSuffix);
 

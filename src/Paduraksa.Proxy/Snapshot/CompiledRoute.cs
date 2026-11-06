@@ -38,7 +38,7 @@ public sealed class CompiledRoute
     /// <summary>Index into <see cref="RuntimeSnapshot.YarpEndpoints"/>; valid for this snapshot only.</summary>
     public required int Slot { get; init; }
 
-    /// <summary>The effective chain for this route: the host's policies followed by the route's own, already flattened.</summary>
+    /// <summary>The route's own policies. The host's chain has already run when these do (see <c>GateMiddleware</c>).</summary>
     public required IRequestPolicy[] Policies { get; init; }
 
     /// <summary>Does this route take <paramref name="path"/> (a canonical view)? An empty path counts as <c>/</c>.</summary>

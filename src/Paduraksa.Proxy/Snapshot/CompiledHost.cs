@@ -31,7 +31,10 @@ public sealed class CompiledHost
     /// <summary>Proxy hosts: ordered, first match wins. Empty for the other kinds.</summary>
     public required CompiledRoute[] Routes { get; init; }
 
-    /// <summary>The host-level chain, as configured. The gate runs each route's flattened <see cref="CompiledRoute.Policies"/>.</summary>
+    /// <summary>
+    /// The host-level chain. It runs right after host lookup, before the HTTPS redirect, a Redirect/Respond answer
+    /// and route matching, so <c>State.Route</c> is still <see langword="null"/> for these policies.
+    /// </summary>
     public required IRequestPolicy[] Policies { get; init; }
 
     /// <summary>Redirect and Respond hosts: the whole answer. <see langword="null"/> for Proxy hosts.</summary>

@@ -36,10 +36,20 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
 
 /// <summary>
 /// The first middleware of the public pipeline (PLAN §7.2 C/D, spike S3). <see cref="Decide"/> is synchronous and
-/// allocation-free: one snapshot read, per-request state from <see cref="IPersistentStateFeature"/>, client address,
-/// host, HTTPS redirect, Redirect/Respond hosts, route, policy chain, and finally
-/// <see cref="EndpointHttpContextExtensions.SetEndpoint"/> with YARP's endpoint from the same snapshot, so the
-/// <c>UseRouting</c> that follows skips matching. Writing a response happens afterwards, in <see cref="CompleteAsync"/>.
+/// allocation-free. In order:
+/// <list type="number">
+/// <item>one snapshot read, per-request state from <see cref="IPersistentStateFeature"/>, the client address;</item>
+/// <item>the ACME HTTP-01 hook (M3), which bypasses everything below;</item>
+/// <item>host lookup; an unknown host gets the default behaviour;</item>
+/// <item>the <b>host policies</b>, so they guard everything the host answers (a blocked client gets 403, not a redirect);</item>
+/// <item>the HTTP→HTTPS redirect;</item>
+/// <item>Redirect and Respond hosts;</item>
+/// <item>route match (404 when none takes the path);</item>
+/// <item>the <b>route's own policies</b>;</item>
+/// <item><see cref="EndpointHttpContextExtensions.SetEndpoint"/> with YARP's endpoint from the same snapshot, so the
+/// <c>UseRouting</c> that follows skips matching.</item>
+/// </list>
+/// Writing a response happens afterwards, in <see cref="CompleteAsync"/>.
 /// </summary>
 public sealed class GateMiddleware
 {
@@ -67,6 +77,11 @@ public sealed class GateMiddleware
         state.Snapshot = snapshot;
         state.ClientAddress = _clientAddresses.GetClientAddress(context);
 
+        if (TryAnswerAcmeChallenge(context, snapshot, out GateDecision challenge))
+        {
+            return challenge;
+        }
+
         HttpRequest request = context.Request;
         StringValues hostHeader = request.Headers.Host;
         CompiledHost? host = hostHeader.Count == 1 ? snapshot.Hosts.Find(hostHeader[0]) : null;
@@ -77,6 +92,12 @@ public sealed class GateMiddleware
         }
 
         state.Host = host;
+        RequestView view = new(context, state);
+        if (Stops(host.Policies, in view, out GateDecision stopped))
+        {
+            return stopped;
+        }
+
         if (host.HttpsRedirect is { } httpsRedirect && !request.IsHttps)
         {
             return GateDecision.Respond(httpsRedirect.For(request.Method));
@@ -94,19 +115,9 @@ public sealed class GateMiddleware
         }
 
         state.Route = route;
-        RequestView view = new(context, state);
-        foreach (IRequestPolicy policy in route.Policies)
+        if (Stops(route.Policies, in view, out stopped))
         {
-            PolicyDecision decision = policy.Evaluate(in view);
-            switch (decision.Action)
-            {
-                case PolicyAction.Continue:
-                    continue;
-                case PolicyAction.Respond:
-                    return GateDecision.Respond(decision.Response!);
-                default:
-                    return GateDecision.Abort;
-            }
+            return stopped;
         }
 
         Endpoint[] endpoints = snapshot.YarpEndpoints;
@@ -134,6 +145,44 @@ public sealed class GateMiddleware
                 context.Abort();
                 return Task.CompletedTask;
         }
+    }
+
+    /// <summary>Runs a chain; true (with the decision) when a policy responds or drops.</summary>
+    private static bool Stops(IRequestPolicy[] policies, in RequestView view, out GateDecision decision)
+    {
+        foreach (IRequestPolicy policy in policies)
+        {
+            PolicyDecision verdict = policy.Evaluate(in view);
+            switch (verdict.Action)
+            {
+                case PolicyAction.Continue:
+                    continue;
+                case PolicyAction.Respond:
+                    decision = GateDecision.Respond(verdict.Response!);
+                    return true;
+                default:
+                    decision = GateDecision.Abort;
+                    return true;
+            }
+        }
+
+        decision = default;
+        return false;
+    }
+
+    /// <summary>
+    /// SEAM (M3): answers <c>/.well-known/acme-challenge/{token}</c> on plain HTTP from <c>IAcmeChallengeStore</c>,
+    /// before host lookup and every policy, so a challenge can't be blocked, redirected to HTTPS or answered by the
+    /// default host (PLAN §7.2 C). Nothing is answered until the challenge store exists.
+    /// </summary>
+    private static bool TryAnswerAcmeChallenge(HttpContext context, RuntimeSnapshot snapshot, out GateDecision decision)
+    {
+        // TODO(M3): if (!context.Request.IsHttps && path starts with "/.well-known/acme-challenge/") look the token
+        // up in the challenge store and answer 200 with the key authorisation (precomputed bytes), else fall through.
+        _ = context;
+        _ = snapshot;
+        decision = default;
+        return false;
     }
 
     /// <summary>
