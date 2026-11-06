@@ -306,7 +306,18 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         // (a systemd unit with WorkingDirectory=/ would otherwise put the data in /data).
         if (!Path.IsPathFullyQualified(options.DataDirectory))
         {
-            options.DataDirectory = Path.GetFullPath(options.DataDirectory, contentRootPath);
+            try
+            {
+                options.DataDirectory = Path.GetFullPath(options.DataDirectory, contentRootPath);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                // The validator rejects the known cases ('\0'); anything else the platform refuses is still bad config.
+                throw new OptionsValidationException(
+                    PaduraksaOptions.SectionName,
+                    typeof(PaduraksaOptions),
+                    [$"{PaduraksaOptions.SectionName}:DataDirectory isn't a valid path: {ex.Message}"]);
+            }
         }
 
         return options;

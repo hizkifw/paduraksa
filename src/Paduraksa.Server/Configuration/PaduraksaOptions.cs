@@ -14,6 +14,7 @@ internal sealed class PaduraksaOptions
     /// A relative path is resolved against the content root (the directory holding <c>appsettings.json</c>,
     /// by default the app's base directory) when the options are bound, never against the process's working
     /// directory; after binding this is always a fully qualified path. Absolute paths are used as given.
+    /// A leading <c>~</c> is rejected: nothing expands it, so it would silently become a directory named <c>~</c>.
     /// </summary>
     public string DataDirectory { get; set; } = "./data";
 

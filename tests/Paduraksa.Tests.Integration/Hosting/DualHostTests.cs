@@ -598,6 +598,21 @@ public sealed class DualHostTests
         Assert.Equal(absolute, host.Options.DataDirectory);
     }
 
+    [Theory]
+    [InlineData("~", "'~'")]
+    [InlineData("~/paduraksa", "'~'")]
+    [InlineData("data\0more", "valid in a path")]
+    public void UnusableDataDirectoryIsAValidationFailure(string configured, string expected)
+    {
+        // '~' would silently become <content root>/~/...; '\0' used to escape as an ArgumentException (exit 2, not 3).
+        OptionsValidationException ex = Assert.Throws<OptionsValidationException>(
+            () => TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:DataDirectory"] = configured }));
+
+        string failure = Assert.Single(ex.Failures);
+        Assert.StartsWith("Paduraksa:DataDirectory ", failure, StringComparison.Ordinal);
+        Assert.Contains(expected, failure, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ListenPortsMustBeDistinct()
     {

@@ -25,6 +25,15 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         {
             failures.Add($"{PaduraksaOptions.SectionName}:DataDirectory must not be empty.");
         }
+        else if (options.DataDirectory.StartsWith('~'))
+        {
+            // Nothing expands '~' here (that's the shell's job); it would silently become <content root>/~/...
+            failures.Add($"{PaduraksaOptions.SectionName}:DataDirectory must not start with '~' (no home-directory expansion); use an absolute path, was '{options.DataDirectory}'.");
+        }
+        else if (options.DataDirectory.AsSpan().IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+        {
+            failures.Add($"{PaduraksaOptions.SectionName}:DataDirectory contains characters that aren't valid in a path.");
+        }
 
         if (options.ShutdownTimeout <= TimeSpan.Zero)
         {
