@@ -31,7 +31,6 @@ public sealed class ProxyEndToEndTests(TestUpstream upstream) : IClassFixture<Te
             new HostSpec { Key = "empty", Names = ["empty.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204 } },
             ProxyHost("quiet", "quiet.test", Route("quiet-root", "ua") with { Policies = [new DenyPolicySpec(304, string.Empty)] }),
         ],
-        Defaults = new DefaultsSpec { PublicHttpsPort = 8443 },
     };
 
     [Theory]
@@ -131,7 +130,7 @@ public sealed class ProxyEndToEndTests(TestUpstream upstream) : IClassFixture<Te
     [InlineData("POST", HttpStatusCode.PermanentRedirect)]
     public async Task PlainHttpIsRedirectedToHttpsOnThePublicPort(string method, HttpStatusCode status)
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(Config);
+        await using ProxyTestServer server = await ProxyTestServer.StartAsync(Config, compilerOptions: Port8443);
         using HttpClient client = ProxyTestServer.CreateClient();
 
         using HttpResponseMessage response = await client.SendAsync(server.Request("secure.test:80", "/a%20b/c?d=e", new HttpMethod(method)), TestContext.Current.CancellationToken);

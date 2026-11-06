@@ -37,13 +37,13 @@ public sealed class SnapshotCompilerTests
             new HostSpec { Key = "soon", Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "coming soon" } },
             new HostSpec { Key = "off", Names = ["off.test"], Enabled = false, Routes = [Route("off-root", "web")] },
         ],
-        Defaults = new DefaultsSpec { UnknownHost = UnknownHostMode.MisdirectedRequest, PublicHttpsPort = 8443 },
+        Defaults = new DefaultsSpec { UnknownHost = UnknownHostMode.MisdirectedRequest },
     };
 
     [Fact]
     public void CompilesHostsRoutesAndYarpConfig()
     {
-        RuntimeSnapshot snapshot = Compile(Sample);
+        RuntimeSnapshot snapshot = Compile(Sample, Port8443);
 
         Assert.Equal(0, snapshot.Generation);
         Assert.Equal("rev-1", snapshot.Revision);
@@ -171,7 +171,6 @@ public sealed class SnapshotCompilerTests
         { "respond 204 with body", Hosts(new HostSpec { Key = "a", Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204, Body = "x" } }), "a 204 response can't have a body" },
         { "respond 304 with body", Hosts(new HostSpec { Key = "a", Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 304, Body = "x" } }), "a 304 response can't have a body" },
         { "deny 205 with body", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(205)] }), "a 205 deny response can't have a body" },
-        { "public https port", new ProxyConfigModel { Defaults = new DefaultsSpec { PublicHttpsPort = 0 } }, "public HTTPS port" },
     };
 
     [Theory]

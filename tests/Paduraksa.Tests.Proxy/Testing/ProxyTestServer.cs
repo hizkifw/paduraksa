@@ -31,9 +31,10 @@ internal sealed class ProxyTestServer : IAsyncDisposable
 {
     private readonly IHost _host;
 
-    private ProxyTestServer(IHost host, SnapshotPublisher publisher, GateStats? stats, HttpProtocols protocols)
+    private ProxyTestServer(IHost host, SnapshotPublisher publisher, GateStats? stats, HttpProtocols protocols, SnapshotCompilerOptions? compilerOptions)
     {
         _host = host;
+        CompilerOptions = compilerOptions;
         Http2 = protocols == HttpProtocols.Http2;
         Publisher = publisher;
         GateStats = stats;
@@ -43,6 +44,9 @@ internal sealed class ProxyTestServer : IAsyncDisposable
     }
 
     public SnapshotPublisher Publisher { get; }
+
+    /// <summary>Used for every config this server compiles.</summary>
+    public SnapshotCompilerOptions? CompilerOptions { get; }
 
     public SnapshotStore Store => Publisher.Store;
 
@@ -69,10 +73,11 @@ internal sealed class ProxyTestServer : IAsyncDisposable
         SnapshotPublisherOptions? options = null,
         SnapshotPublisher? publisher = null,
         HttpProtocols protocols = HttpProtocols.Http1,
-        bool withoutGate = false)
+        bool withoutGate = false,
+        SnapshotCompilerOptions? compilerOptions = null)
     {
         publisher ??= new SnapshotPublisher(new SnapshotStore(), options: options);
-        Task<PublishResult>? initialPublish = initial is null ? null : publisher.PublishAsync(TestSnapshots.Compile(initial));
+        Task<PublishResult>? initialPublish = initial is null ? null : publisher.PublishAsync(TestSnapshots.Compile(initial, compilerOptions));
         GateStats? stats = measureGate ? new GateStats() : null;
 
         IHost host = new HostBuilder()
@@ -132,11 +137,11 @@ internal sealed class ProxyTestServer : IAsyncDisposable
             Assert.True(result.Succeeded, string.Join("; ", result.Errors));
         }
 
-        return new ProxyTestServer(host, publisher, stats, protocols);
+        return new ProxyTestServer(host, publisher, stats, protocols, compilerOptions);
     }
 
     public async Task<PublishResult> PublishAsync(ProxyConfigModel model) =>
-        await Publisher.PublishAsync(TestSnapshots.Compile(model), TestContext.Current.CancellationToken);
+        await Publisher.PublishAsync(TestSnapshots.Compile(model, CompilerOptions), TestContext.Current.CancellationToken);
 
     public static HttpClient CreateClient(int maxConnections = 16) => new(new SocketsHttpHandler
     {

@@ -1,13 +1,17 @@
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Proxy.Tls;
+
 namespace Paduraksa.Proxy.Snapshot;
 
 /// <summary>
 /// The one live <see cref="RuntimeSnapshot"/> of the process (PLAN §6.2): a volatile reference, read lock-free once
 /// per request, swapped by a single writer. Starts at <see cref="RuntimeSnapshot.Bootstrap"/>, so
 /// <see cref="Current"/> is never <see langword="null"/>.
+/// <para>It is also the TLS handshake selector's <see cref="ICertificateTableSource"/>: each handshake reads the live
+/// snapshot's <see cref="RuntimeSnapshot.Certificates"/>, so certificates are hot-swapped by publishing.</para>
 /// </summary>
-public sealed class SnapshotStore : IDisposable
+public sealed class SnapshotStore : IDisposable, ICertificateTableSource
 {
     private readonly Lock _publishLock = new();
     private volatile RuntimeSnapshot _current = RuntimeSnapshot.Bootstrap;
@@ -15,6 +19,9 @@ public sealed class SnapshotStore : IDisposable
 
     /// <summary>The live snapshot. One volatile read; take it once per request and use only that instance.</summary>
     public RuntimeSnapshot Current => _current;
+
+    /// <summary>The live snapshot's certificate table (one volatile read).</summary>
+    CertificateTable ICertificateTableSource.Current => _current.Certificates;
 
     /// <summary>A snapshot has been published (the bootstrap one doesn't count).</summary>
     public bool HasPublished => _current.Generation > 0;

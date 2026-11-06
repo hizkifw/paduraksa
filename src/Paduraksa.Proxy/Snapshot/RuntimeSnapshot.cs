@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
 
 namespace Paduraksa.Proxy.Snapshot;
@@ -47,8 +48,12 @@ public sealed class RuntimeSnapshot
     /// <summary>A route has no endpoint (only possible for an unbound snapshot).</summary>
     public PrecomputedResponse Unavailable { get; init; } = DefaultUnavailable;
 
-    /// <summary>Opaque slot for the TLS table (SNI → prebuilt server options); filled during M1 integration.</summary>
-    public object? Tls { get; init; }
+    /// <summary>
+    /// SNI → prebuilt server options (PLAN §7.2 B). The handshake callbacks read it through
+    /// <see cref="SnapshotStore"/> (an <see cref="ICertificateTableSource"/>), so a publish swaps certificates for new
+    /// handshakes. Empty (every handshake rejected) until a config with certificates is compiled.
+    /// </summary>
+    public CertificateTable Certificates { get; init; } = CertificateTable.Empty;
 
     /// <summary>Opaque slot for the trusted-proxy policy (PLAN §7.6); filled during M1 integration.</summary>
     public object? TrustedProxies { get; init; }
@@ -101,7 +106,7 @@ public sealed class RuntimeSnapshot
             Default = Default,
             NoRoute = NoRoute,
             Unavailable = Unavailable,
-            Tls = Tls,
+            Certificates = Certificates,
             TrustedProxies = TrustedProxies,
         };
     }

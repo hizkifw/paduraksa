@@ -42,7 +42,6 @@ public sealed class GateMiddlewareTests : IDisposable
             new HostSpec { Key = "locked-old", Names = ["locked-old.test"], Kind = HostKind.Redirect, Policies = [LanOnly], Redirect = new RedirectSpec { Target = "https://new.test" } },
             new HostSpec { Key = "locked-soon", Names = ["locked-soon.test"], Kind = HostKind.Respond, Policies = [LanOnly], Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
         ],
-        Defaults = new DefaultsSpec { PublicHttpsPort = 8443 },
     };
 
     private static IpAllowListPolicySpec LanOnly => new(["10.0.0.5"]);
@@ -52,7 +51,7 @@ public sealed class GateMiddlewareTests : IDisposable
 
     public GateMiddlewareTests()
     {
-        _store.Publish(Bound(Config));
+        _store.Publish(Bound(Config, options: Port8443));
         _gate = new GateMiddleware(_store, RemoteIpClientAddressSource.Instance);
     }
 

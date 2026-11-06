@@ -1,4 +1,5 @@
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Config;
 
@@ -40,8 +41,37 @@ public sealed record DefaultsSpec
 {
     public UnknownHostMode UnknownHost { get; init; } = UnknownHostMode.NotFound;
 
-    /// <summary>The HTTPS port clients use (may differ from the bound port behind a port mapping, PLAN §7.5).</summary>
-    public int PublicHttpsPort { get; init; } = 443;
+    /// <summary>
+    /// Reference (resolved by <see cref="SnapshotCompilerOptions.Certificates"/>) of the certificate served when the
+    /// SNI matches no host, or is absent (an IP-literal URL). It is also the certificate of hosts that don't name their
+    /// own. Null: such handshakes are rejected, and hosts without a certificate aren't served over HTTPS.
+    /// </summary>
+    public string? Certificate { get; init; }
+
+    /// <summary>TLS settings of the default certificate's entry (unknown or absent SNI).</summary>
+    public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
+}
+
+/// <summary>
+/// The configurable part of a host's <see cref="TlsPolicy"/> (PLAN §7.2 B). Client certificates (Authenticated Origin
+/// Pulls) arrive with M6.
+/// </summary>
+public sealed record HostTlsSpec
+{
+    /// <summary>TLS 1.2+, <c>h2</c> + <c>http/1.1</c>, HTTP/3 on.</summary>
+    public static HostTlsSpec Default { get; } = new();
+
+    /// <summary>Lowest TLS version over TCP (QUIC is always TLS 1.3).</summary>
+    public TlsMinimumVersion MinimumVersion { get; init; } = TlsMinimumVersion.Tls12;
+
+    /// <summary>ALPN offered over TCP.</summary>
+    public TcpAlpn TcpAlpn { get; init; } = TcpAlpn.Http2AndHttp11;
+
+    /// <summary>
+    /// Serve the host over HTTP/3 (when the H3 listener exists). Off: its QUIC handshakes are rejected and it gets no
+    /// <c>Alt-Svc</c>.
+    /// </summary>
+    public bool Http3 { get; init; } = true;
 }
 
 /// <summary>A host (PLAN §5.1). Disabled hosts are validated but left out of the snapshot.</summary>
@@ -58,6 +88,16 @@ public sealed record HostSpec
 
     /// <summary>Plain-HTTP requests are redirected to HTTPS before anything else.</summary>
     public bool ForceHttps { get; init; }
+
+    /// <summary>
+    /// Reference of the certificate served for this host's names (exact and wildcard; IP literals never arrive as SNI).
+    /// Null: the default certificate (<see cref="DefaultsSpec.Certificate"/>) with this host's TLS settings, or no HTTPS
+    /// at all when there is no default either.
+    /// </summary>
+    public string? Certificate { get; init; }
+
+    /// <summary>The host's TLS settings.</summary>
+    public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
 
     /// <summary>Proxy hosts only; ordered by <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];

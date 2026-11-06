@@ -7,7 +7,9 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
@@ -28,6 +30,9 @@ public sealed record CompileResult(RuntimeSnapshot? Snapshot, IReadOnlyList<stri
 /// <para>YARP config is a pure function of content: route ID = route key, cluster ID = upstream key, destination ID
 /// = destination key, each route path-only (<c>/.paduraksa/r/{key}/{**rest}</c>), never requested because the gate
 /// picks the endpoint itself.</para>
+/// <para>TLS: every enabled host's DNS names (exact and wildcard) go into the snapshot's <see cref="CertificateTable"/>
+/// with the host's certificate (or the default one) and its TLS settings; the default certificate serves unknown or
+/// absent SNI. References are resolved through <see cref="SnapshotCompilerOptions.Certificates"/>.</para>
 /// </summary>
 public static class SnapshotCompiler
 {
@@ -40,15 +45,19 @@ public static class SnapshotCompiler
     private static readonly SearchValues<char> KeyChars =
         SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.~-");
 
-    public static CompileResult Compile(ProxyConfigModel model)
+    /// <summary>Compiles <paramref name="model"/> with <paramref name="options"/> (default: <see cref="SnapshotCompilerOptions.Default"/>).</summary>
+    public static CompileResult Compile(ProxyConfigModel model, SnapshotCompilerOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(model);
+        options ??= SnapshotCompilerOptions.Default;
         List<string> errors = [];
 
         DefaultsSpec defaults = model.Defaults ?? new DefaultsSpec();
-        if (defaults.PublicHttpsPort is < 1 or > 65535)
+        CertificateTableBuilder certificates = new();
+        ServerCertificate? defaultCertificate = ResolveCertificate(defaults.Certificate, "defaults", options.Certificates, errors);
+        if (defaultCertificate is not null)
         {
-            errors.Add($"defaults: public HTTPS port {defaults.PublicHttpsPort} is out of range");
+            certificates.SetDefault(defaultCertificate, CompileTlsPolicy(defaults.Tls));
         }
 
         Dictionary<string, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], errors);
@@ -79,9 +88,18 @@ public static class SnapshotCompiler
                 : RejectRoutes(spec, where, errors);
             PrecomputedResponse? fixedResponse = CompileFixedResponse(spec, where, errors);
 
-            if (spec.ForceHttps && defaults.PublicHttpsPort is >= 1 and <= 65535)
+            if (spec.ForceHttps)
             {
-                httpsRedirect ??= new HttpsRedirect(defaults.PublicHttpsPort);
+                httpsRedirect ??= new HttpsRedirect(options.PublicHttpsPort);
+            }
+
+            ServerCertificate? certificate = spec.Certificate is null
+                ? defaultCertificate
+                : ResolveCertificate(spec.Certificate, where, options.Certificates, errors);
+            TlsPolicy tls = CompileTlsPolicy(spec.Tls);
+            if (spec.Enabled && certificate is not null)
+            {
+                AddServerNames(certificates, spec.Names ?? [], certificate, tls, where, errors);
             }
 
             CompiledHost host = new()
@@ -145,6 +163,7 @@ public static class SnapshotCompiler
                 UnknownHostMode.MisdirectedRequest => DefaultHostBehaviour.MisdirectedRequest(),
                 _ => DefaultHostBehaviour.NotFound(),
             },
+            Certificates = certificates.Build(),
         };
         return new CompileResult(snapshot, []);
     }
@@ -445,6 +464,85 @@ public static class SnapshotCompiler
         }
 
         return new StaticPolicy(PolicyDecision.Continue);
+    }
+
+    private static ServerCertificate? ResolveCertificate(string? reference, string where, IServerCertificateResolver? resolver, List<string> errors)
+    {
+        if (reference is null)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            errors.Add($"{where}: the certificate reference can't be empty (leave it unset to use the default)");
+            return null;
+        }
+
+        if (resolver is null)
+        {
+            errors.Add($"{where}: certificate '{reference}' can't be resolved: no certificate source is configured");
+            return null;
+        }
+
+        if (!resolver.TryResolve(reference, out ServerCertificate? certificate))
+        {
+            errors.Add($"{where}: certificate '{reference}' doesn't exist");
+            return null;
+        }
+
+        return certificate;
+    }
+
+    /// <summary>Equal specs give equal policies (records), so hosts with the same settings share one entry per certificate.</summary>
+    private static TlsPolicy CompileTlsPolicy(HostTlsSpec? spec)
+    {
+        spec ??= HostTlsSpec.Default;
+        return new TlsPolicy
+        {
+            MinimumVersion = spec.MinimumVersion,
+            TcpAlpn = spec.TcpAlpn,
+            Http3Enabled = spec.Http3,
+        };
+    }
+
+    /// <summary>
+    /// Adds a host's DNS names to the certificate table. IP literals are left out: clients never send them as SNI (an
+    /// IP-literal URL sends none and gets the default certificate). Invalid names were already reported by the host
+    /// table, so they're skipped here.
+    /// </summary>
+    private static void AddServerNames(
+        CertificateTableBuilder certificates,
+        IReadOnlyList<string> names,
+        ServerCertificate certificate,
+        TlsPolicy tls,
+        string where,
+        List<string> errors)
+    {
+        List<string> serverNames = new(names.Count);
+        foreach (string name in names)
+        {
+            if (HostNames.TryNormalize(name, out string normalized, out HostNameKind kind, out _)
+                && kind != HostNameKind.IPv6Literal
+                && !(kind == HostNameKind.Exact && IpParser.TryParseIPv4(normalized, out _)))
+            {
+                serverNames.Add(normalized);
+            }
+        }
+
+        if (serverNames.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            certificates.Add(serverNames, certificate, tls);
+        }
+        catch (ArgumentException ex)
+        {
+            errors.Add($"{where}: {ex.Message}");
+        }
     }
 
     private static void RemoveSlotsFrom(CompiledRoute[] routes, List<RouteConfig> yarpRoutes, List<string> routeIdBySlot)

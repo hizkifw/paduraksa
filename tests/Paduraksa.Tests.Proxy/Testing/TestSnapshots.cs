@@ -8,17 +8,20 @@ namespace Paduraksa.Tests.Proxy.Testing;
 /// <summary>Compiles test configs and binds them to stand-in endpoints, without YARP.</summary>
 internal static class TestSnapshots
 {
-    public static RuntimeSnapshot Compile(ProxyConfigModel model)
+    /// <summary>Public HTTPS port 8443, so redirects show which port they use.</summary>
+    public static SnapshotCompilerOptions Port8443 { get; } = new() { PublicHttpsPort = 8443 };
+
+    public static RuntimeSnapshot Compile(ProxyConfigModel model, SnapshotCompilerOptions? options = null)
     {
-        CompileResult result = SnapshotCompiler.Compile(model);
+        CompileResult result = SnapshotCompiler.Compile(model, options);
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
         return result.Snapshot!;
     }
 
     /// <summary>Compiles and binds with one fake endpoint per slot, named after the YARP route ID.</summary>
-    public static RuntimeSnapshot Bound(ProxyConfigModel model, long generation = 1)
+    public static RuntimeSnapshot Bound(ProxyConfigModel model, long generation = 1, SnapshotCompilerOptions? options = null)
     {
-        RuntimeSnapshot candidate = Compile(model);
+        RuntimeSnapshot candidate = Compile(model, options);
         Endpoint[] endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
         for (int i = 0; i < endpoints.Length; i++)
         {
