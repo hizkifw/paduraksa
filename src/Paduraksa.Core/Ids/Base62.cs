@@ -16,7 +16,8 @@ namespace Paduraksa.Core.Ids;
 public static class Base62
 {
     /// <summary>The alphabet, in ASCII (and therefore ordinal) order.</summary>
-    public const string Alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    // Not const, so consumers read it from this assembly instead of baking a copy in at compile time.
+    public static readonly string Alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
     /// <summary>Encoded length of a 128-bit value (62^22 &gt; 2^128).</summary>
     public const int Width128 = 22;
@@ -32,6 +33,7 @@ public static class Base62
     private static readonly UInt128 MaxHigh128 = UInt128.MaxValue / Pow20;
     private const ulong MaxHigh64 = ulong.MaxValue / Pow10;
 
+    // The table the codec actually uses. Must equal Alphabet (checked by Base62Tests).
     private static ReadOnlySpan<byte> AlphabetUtf8 => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"u8;
 
     // ---- Encode -------------------------------------------------------------------------------------------------

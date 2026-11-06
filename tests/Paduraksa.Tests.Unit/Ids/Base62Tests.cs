@@ -24,6 +24,26 @@ public sealed class Base62Tests
     }
 
     [Fact]
+    public void CodecDigitTableMatchesAlphabet()
+    {
+        // The codec encodes from a private UTF-8 copy of the alphabet; encoding each digit 0..61 reads it back out.
+        byte[] utf8Digits = new byte[62];
+        char[] charDigits = new char[62];
+        Span<byte> utf8 = stackalloc byte[Base62.Width64];
+        Span<char> chars = stackalloc char[Base62.Width64];
+        for (int digit = 0; digit < 62; digit++)
+        {
+            Assert.True(Base62.TryEncode((ulong)digit, utf8));
+            Assert.True(Base62.TryEncode((ulong)digit, chars));
+            utf8Digits[digit] = utf8[^1];
+            charDigits[digit] = chars[^1];
+        }
+
+        Assert.Equal(Encoding.UTF8.GetBytes(Base62.Alphabet), utf8Digits);
+        Assert.Equal(Base62.Alphabet, new string(charDigits));
+    }
+
+    [Fact]
     public void KnownValues()
     {
         Assert.Equal(new string('0', 22), Base62.Encode(UInt128.Zero));

@@ -291,17 +291,17 @@ public sealed class TypedIdTests
     {
         var random = new Random(12345);
         string[] seeds = [HostId.New().ToString(), ChallengeId.New().ToString(), AuditEventId.New().ToString()];
-        const string Noise = Base62.Alphabet + "_-:/ \0\u00e9\u0130zZ09";
+        string noise = Base62.Alphabet + "_-:/ \0\u00e9\u0130zZ09";
 
         for (int i = 0; i < 20_000; i++)
         {
             string input = (i % 3) switch
             {
                 // Mutate a valid ID: replace, insert or delete one char.
-                0 => Mutate(seeds[random.Next(seeds.Length)], random, Noise),
+                0 => Mutate(seeds[random.Next(seeds.Length)], random, noise),
                 // Valid prefix + random tail of random length.
-                1 => seeds[random.Next(seeds.Length)][..(random.Next(3, 6))] + RandomString(random, Noise, random.Next(0, 25)),
-                _ => RandomString(random, Noise, random.Next(0, 35)),
+                1 => seeds[random.Next(seeds.Length)][..(random.Next(3, 6))] + RandomString(random, noise, random.Next(0, 25)),
+                _ => RandomString(random, noise, random.Next(0, 35)),
             };
 
             FuzzOne<HostId>(input);
