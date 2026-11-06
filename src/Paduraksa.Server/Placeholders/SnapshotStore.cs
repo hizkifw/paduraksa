@@ -6,10 +6,17 @@ namespace Paduraksa.Server.Placeholders;
 /// <see langword="volatile"/> reference that readers load lock-free, and a generation number that travels
 /// with the snapshot so a reader can never pair snapshot N with generation N+1.
 /// </summary>
-internal sealed class SnapshotStore(TimeProvider timeProvider)
+internal sealed class SnapshotStore
 {
+    private readonly TimeProvider _timeProvider;
     private readonly Lock _publishLock = new();
     private volatile PlaceholderSnapshot? _current;
+
+    public SnapshotStore(TimeProvider timeProvider)
+    {
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        _timeProvider = timeProvider;
+    }
 
     /// <summary>The live snapshot, or <see langword="null"/> before the first publish.</summary>
     public PlaceholderSnapshot? Current => _current;
@@ -20,7 +27,7 @@ internal sealed class SnapshotStore(TimeProvider timeProvider)
         lock (_publishLock)
         {
             long next = (_current?.Generation ?? 0) + 1;
-            PlaceholderSnapshot snapshot = new(next, timeProvider.GetUtcNow());
+            PlaceholderSnapshot snapshot = new(next, _timeProvider.GetUtcNow());
             _current = snapshot;
             return snapshot;
         }

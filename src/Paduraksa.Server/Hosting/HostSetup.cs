@@ -26,6 +26,9 @@ internal static class HostSetup
     /// </summary>
     public static void ApplyCommon(IHostApplicationBuilder builder, HostContext context, HostRole role)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(context);
+
         // Every host reads the same, already-built configuration root (not disposed by the host).
         builder.Configuration.AddConfiguration(context.Configuration, shouldDisposeConfiguration: false);
 
@@ -46,7 +49,10 @@ internal static class HostSetup
     /// <c>URLS</c> environment variable or appsettings key can never move a listener, let alone put the admin on
     /// plain HTTP. Listeners come only from <c>Paduraksa:Listen</c>. Must be the last configuration source.
     /// </summary>
-    public static void PinListenerConfiguration(IHostApplicationBuilder builder) =>
+    public static void PinListenerConfiguration(IHostApplicationBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["urls"] = string.Empty,
@@ -54,10 +60,16 @@ internal static class HostSetup
             ["https_ports"] = string.Empty,
             ["preferHostingUrls"] = "false",
         });
+    }
 
     /// <summary>Lets callers (tests, later milestones) add services to one host; applied last.</summary>
-    public static void ApplyCallerServices(IHostApplicationBuilder builder, HostContext context, HostRole role) =>
+    public static void ApplyCallerServices(IHostApplicationBuilder builder, HostContext context, HostRole role)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(context);
+
         context.ConfigureServices?.Invoke(role, builder.Services);
+    }
 
     /// <summary>Lifetime that doesn't listen to the console or signals; the orchestrator does.</summary>
     private sealed class PassiveHostLifetime : IHostLifetime

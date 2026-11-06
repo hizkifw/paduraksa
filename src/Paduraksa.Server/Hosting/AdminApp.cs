@@ -22,8 +22,13 @@ internal static class AdminApp
 {
     private static readonly string[] GetAndHead = [HttpMethods.Get, HttpMethods.Head];
 
+    private static readonly byte[] PlaceholderPageBody =
+        "<!doctype html><html><head><title>Paduraksa</title></head><body><h1>Paduraksa admin</h1><p>Placeholder: the dashboard arrives in M5.</p></body></html>"u8.ToArray();
+
     public static WebApplication Build(HostContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         WebApplicationBuilder builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions
         {
             ApplicationName = context.ApplicationName,
@@ -33,7 +38,13 @@ internal static class AdminApp
         HostSetup.ApplyCommon(builder, context, HostRole.Admin);
 
         PaduraksaListenOptions listen = context.Options.Listen;
-        IPAddress bind = IPAddress.Parse(listen.AdminBind);
+        // The validator already checked this; failing here would mean options that bypassed it.
+        if (!IPAddress.TryParse(listen.AdminBind, out IPAddress? bind))
+        {
+            throw new InvalidOperationException(
+                $"{PaduraksaOptions.SectionName}:Listen:AdminBind must be an IP address, was '{listen.AdminBind}'.");
+        }
+
         // TODO(M3): certificate issued by the internal CA (vault).
         X509Certificate2 certificate = context.Shared.ServerCertificate.Certificate;
 
@@ -54,7 +65,7 @@ internal static class AdminApp
 
         WebApplication app = builder.Build();
         MapHealth(app);
-        app.MapGet("/", PlaceholderPageAsync);
+        app.MapMethods("/", GetAndHead, PlaceholderPageAsync);
         return app;
     }
 
@@ -87,9 +98,11 @@ internal static class AdminApp
     // TODO(M5): replaced by the Blazor dashboard.
     private static Task PlaceholderPageAsync(HttpContext context)
     {
-        context.Response.ContentType = "text/html; charset=utf-8";
-        return context.Response.WriteAsync(
-            "<!doctype html><html><head><title>Paduraksa</title></head><body><h1>Paduraksa admin</h1><p>Placeholder: the dashboard arrives in M5.</p></body></html>",
-            context.RequestAborted);
+        HttpResponse response = context.Response;
+        response.ContentType = "text/html; charset=utf-8";
+        response.ContentLength = PlaceholderPageBody.Length;
+        return HttpMethods.IsHead(context.Request.Method)
+            ? Task.CompletedTask
+            : response.Body.WriteAsync(PlaceholderPageBody, context.RequestAborted).AsTask();
     }
 }

@@ -21,6 +21,8 @@ internal static class CoreHost
 {
     public static IHost Build(HostContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         HostApplicationBuilder builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings
         {
             ApplicationName = context.ApplicationName,

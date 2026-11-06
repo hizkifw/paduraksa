@@ -22,6 +22,8 @@ internal static class PublicApp
 
     public static WebApplication Build(HostContext context)
     {
+        ArgumentNullException.ThrowIfNull(context);
+
         WebApplicationBuilder builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions
         {
             ApplicationName = context.ApplicationName,

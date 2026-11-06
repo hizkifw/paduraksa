@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -42,6 +43,27 @@ public sealed class DualHostTests
         using HttpResponseMessage page = await client.GetAsync(admin, ct);
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         Assert.Equal("text/html", page.Content.Headers.ContentType?.MediaType);
+        byte[] body = await page.Content.ReadAsByteArrayAsync(ct);
+        Assert.Equal(body.Length, page.Content.Headers.ContentLength);
+
+        using HttpRequestMessage pageHead = new(HttpMethod.Head, admin);
+        using HttpResponseMessage pageHeadResponse = await client.SendAsync(pageHead, ct);
+        Assert.Equal(HttpStatusCode.OK, pageHeadResponse.StatusCode);
+        Assert.Equal("text/html", pageHeadResponse.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(body.Length, pageHeadResponse.Content.Headers.ContentLength);
+    }
+
+    [Fact]
+    public async Task AdminAppNamesTheConfigKeyForAnUnparsableBindAddress()
+    {
+        // The validator rejects this first; AdminApp.Build still fails clearly for options that bypassed it.
+        PaduraksaOptions options = new() { Listen = { AdminBind = "not-an-ip" } };
+        IConfigurationRoot configuration = new ConfigurationBuilder().Build();
+        await using SharedServices shared = SharedServices.Create(configuration, options);
+        HostContext context = new("paduraksa", "Testing", AppContext.BaseDirectory, configuration, options, shared, ConfigureServices: null);
+
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => AdminApp.Build(context));
+        Assert.Contains("Paduraksa:Listen:AdminBind", ex.Message, StringComparison.Ordinal);
     }
 
     [Theory]

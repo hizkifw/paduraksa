@@ -13,12 +13,20 @@ namespace Paduraksa.Server.Hosting;
 /// Doesn't own the inner factory: disposing it is a no-op, <see cref="SharedServices"/> owns the real one.
 /// Entries the optional <see cref="StartupLogFilter"/> rejects are dropped.
 /// </summary>
-internal sealed class RoleLoggerFactory(ILoggerFactory inner, HostRole role, StartupLogFilter? startupLogFilter = null) : ILoggerFactory
+internal sealed class RoleLoggerFactory : ILoggerFactory
 {
-    private readonly ILoggerFactory _inner = inner;
-    private readonly AppScope _scope = new(role.ToLogName());
-    private readonly StartupLogFilter? _startupLogFilter = startupLogFilter;
+    private readonly ILoggerFactory _inner;
+    private readonly AppScope _scope;
+    private readonly StartupLogFilter? _startupLogFilter;
     private readonly ConcurrentDictionary<string, ILogger> _loggers = new(StringComparer.Ordinal);
+
+    public RoleLoggerFactory(ILoggerFactory inner, HostRole role, StartupLogFilter? startupLogFilter = null)
+    {
+        ArgumentNullException.ThrowIfNull(inner);
+        _inner = inner;
+        _scope = new AppScope(role.ToLogName());
+        _startupLogFilter = startupLogFilter;
+    }
 
     public ILogger CreateLogger(string categoryName) =>
         _loggers.GetOrAdd(
