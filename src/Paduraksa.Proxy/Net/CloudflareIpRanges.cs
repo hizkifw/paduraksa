@@ -73,7 +73,10 @@ public static class CloudflareHeaders
     public const string Ray = "CF-Ray";
     public const string Visitor = "CF-Visitor";
 
-    /// <summary>Headers that are only meaningful from a trusted Cloudflare peer. When the peer is not trusted they
-    /// are ignored and must be <b>removed before forwarding upstream</b>, so a client can't spoof them.</summary>
+    /// <summary>Headers that are only meaningful from a trusted Cloudflare peer. Unless
+    /// <see cref="ClientIpResolution.CloudflareHeadersTrusted"/> is true (a Cloudflare mode <em>and</em> a trusted
+    /// peer; <see cref="ClientIpResolution.PeerTrusted"/> is not enough, since a trusted generic proxy passes client
+    /// headers through), they are ignored and must be <b>removed before forwarding upstream</b>, so a client can't
+    /// spoof them.</summary>
     public static ImmutableArray<string> StripWhenUntrusted { get; } = [ConnectingIp, TrueClientIp, IpCountry, Ray, Visitor];
 }

@@ -41,6 +41,34 @@ public sealed class ClientIpResolverTests
         Assert.False(result.IsFallback);
     }
 
+    /// <summary>A trusted generic proxy (nginx) passes client-sent CF-* headers through, so PeerTrusted alone must
+    /// never be taken as "CF-IPCountry / CF-Visitor are genuine".</summary>
+    [Theory]
+    [InlineData("off", "203.0.113.1", false, false)]
+    [InlineData("generic", "10.0.0.2", true, false)]
+    [InlineData("generic", "198.51.100.23", false, false)]
+    [InlineData("cf-proxy", "172.70.1.2", true, true)]
+    [InlineData("cf-proxy", "198.51.100.23", false, false)]
+    [InlineData("cf-tunnel", "172.18.0.3", true, true)]
+    [InlineData("cf-tunnel", "172.70.1.2", false, false)]
+    public void CloudflareHeadersTrusted_OnlyForATrustedPeerInCloudflareMode(string mode, string peer, bool peerTrusted, bool cfTrusted)
+    {
+        var policy = mode switch { "off" => TrustedProxyPolicy.Off, "generic" => Generic, "cf-proxy" => CfProxy, _ => CfTunnel };
+        var headers = Headers(
+            (CloudflareHeaders.ConnectingIp, "1.2.3.4"),
+            (CloudflareHeaders.IpCountry, "NL"),
+            (CloudflareHeaders.Visitor, "{\"scheme\":\"https\"}"),
+            ("X-Forwarded-For", "1.2.3.4"));
+
+        var result = ClientIpResolver.Resolve(Socket(IpKey.Parse(peer)), headers, policy);
+        Assert.Equal(peerTrusted, result.PeerTrusted);
+        Assert.Equal(cfTrusted, result.CloudflareHeadersTrusted);
+
+        // Also on the fallback paths: a trusted Cloudflare peer with no usable header still has genuine CF-* headers.
+        var missing = ClientIpResolver.Resolve(Socket(IpKey.Parse(peer)), Headers(), policy);
+        Assert.Equal(cfTrusted, missing.CloudflareHeadersTrusted);
+    }
+
     [Theory]
     [InlineData("generic")]
     [InlineData("cf-proxy")]
@@ -67,7 +95,7 @@ public sealed class ClientIpResolverTests
         // Cloudflare → L4 load balancer (PROXY protocol) → us: trust applies to the PROXY-protocol address.
         var info = new ClientInfo(CloudflareEdge, 1, ConnectionAddressSource.ProxyProtocol, IpKey.Parse("10.9.9.9"), 2);
         var result = ClientIpResolver.Resolve(info, Headers((CloudflareHeaders.ConnectingIp, "203.0.113.5")), CfProxy);
-        Assert.Equal(new ClientIpResolution(IpKey.Parse("203.0.113.5"), ClientIpSource.CfConnectingIp, ClientIpOutcome.FromHeader), result);
+        Assert.Equal(new ClientIpResolution(IpKey.Parse("203.0.113.5"), ClientIpSource.CfConnectingIp, ClientIpOutcome.FromHeader, CloudflareHeadersTrusted: true), result);
     }
 
     // ---- Generic --------------------------------------------------------------------------------------------
@@ -88,7 +116,7 @@ public sealed class ClientIpResolverTests
     public void Generic_RightMostUntrustedEntry(string forwardedFor, string expected)
     {
         var result = ClientIpResolver.Resolve(Socket(InternalProxy), Headers(("X-Forwarded-For", forwardedFor)), Generic);
-        Assert.Equal(new ClientIpResolution(IpKey.Parse(expected), ClientIpSource.XForwardedFor, ClientIpOutcome.FromHeader), result);
+        Assert.Equal(new ClientIpResolution(IpKey.Parse(expected), ClientIpSource.ForwardingHeader, ClientIpOutcome.FromHeader), result);
         Assert.True(result.PeerTrusted);
     }
 
@@ -153,7 +181,7 @@ public sealed class ClientIpResolverTests
     {
         var headers = Headers((CloudflareHeaders.ConnectingIp, "2001:db8::77"), ("X-Forwarded-For", "9.9.9.9"));
         Assert.Equal(
-            new ClientIpResolution(IpKey.Parse("2001:db8::77"), ClientIpSource.CfConnectingIp, ClientIpOutcome.FromHeader),
+            new ClientIpResolution(IpKey.Parse("2001:db8::77"), ClientIpSource.CfConnectingIp, ClientIpOutcome.FromHeader, CloudflareHeadersTrusted: true),
             ClientIpResolver.Resolve(Socket(CloudflareEdge), headers, CfProxy));
         Assert.Equal(IpKey.Parse("2001:db8::77"), ClientIpResolver.Resolve(Socket(CloudflareEdgeV6), headers, CfProxy).Address);
     }
@@ -176,7 +204,7 @@ public sealed class ClientIpResolverTests
         var policy = TrustedProxyPolicy.CloudflareProxy(useTrueClientIp: true, forwardedForFallback: true);
         var headers = Headers((CloudflareHeaders.ConnectingIp, value), (CloudflareHeaders.TrueClientIp, "9.9.9.9"), ("X-Forwarded-For", "8.8.8.8"));
         Assert.Equal(
-            new ClientIpResolution(CloudflareEdge, ClientIpSource.Socket, ClientIpOutcome.HeaderInvalid),
+            new ClientIpResolution(CloudflareEdge, ClientIpSource.Socket, ClientIpOutcome.HeaderInvalid, CloudflareHeadersTrusted: true),
             ClientIpResolver.Resolve(Socket(CloudflareEdge), headers, policy));
     }
 
@@ -196,12 +224,12 @@ public sealed class ClientIpResolverTests
     {
         var headers = Headers((CloudflareHeaders.TrueClientIp, "203.0.113.50"));
         Assert.Equal(
-            new ClientIpResolution(CloudflareEdge, ClientIpSource.Socket, ClientIpOutcome.HeaderMissing),
+            new ClientIpResolution(CloudflareEdge, ClientIpSource.Socket, ClientIpOutcome.HeaderMissing, CloudflareHeadersTrusted: true),
             ClientIpResolver.Resolve(Socket(CloudflareEdge), headers, CfProxy));
 
         var withTrueClientIp = TrustedProxyPolicy.CloudflareProxy(useTrueClientIp: true);
         Assert.Equal(
-            new ClientIpResolution(IpKey.Parse("203.0.113.50"), ClientIpSource.TrueClientIp, ClientIpOutcome.FromHeader),
+            new ClientIpResolution(IpKey.Parse("203.0.113.50"), ClientIpSource.TrueClientIp, ClientIpOutcome.FromHeader, CloudflareHeadersTrusted: true),
             ClientIpResolver.Resolve(Socket(CloudflareEdge), headers, withTrueClientIp));
 
         // CF-Connecting-IP wins when both are present.
@@ -217,7 +245,7 @@ public sealed class ClientIpResolverTests
 
         var withFallback = TrustedProxyPolicy.CloudflareProxy(forwardedForFallback: true);
         Assert.Equal(
-            new ClientIpResolution(IpKey.Parse("203.0.113.60"), ClientIpSource.XForwardedFor, ClientIpOutcome.FromHeader),
+            new ClientIpResolution(IpKey.Parse("203.0.113.60"), ClientIpSource.ForwardingHeader, ClientIpOutcome.FromHeader, CloudflareHeadersTrusted: true),
             ClientIpResolver.Resolve(Socket(CloudflareEdge), headers, withFallback));
     }
 
@@ -235,7 +263,7 @@ public sealed class ClientIpResolverTests
     {
         var headers = Headers((CloudflareHeaders.ConnectingIp, "203.0.113.70"));
         Assert.Equal(
-            new ClientIpResolution(IpKey.Parse("203.0.113.70"), ClientIpSource.CfConnectingIp, ClientIpOutcome.FromHeader),
+            new ClientIpResolution(IpKey.Parse("203.0.113.70"), ClientIpSource.CfConnectingIp, ClientIpOutcome.FromHeader, CloudflareHeadersTrusted: true),
             ClientIpResolver.Resolve(Socket(Cloudflared), headers, CfTunnel));
         Assert.Equal(IpKey.Parse("203.0.113.70"), ClientIpResolver.Resolve(Socket(IpKey.Parse("::1")), headers, CfTunnel).Address);
         Assert.Equal(ClientIpOutcome.PeerNotTrusted, ClientIpResolver.Resolve(Socket(CloudflareEdge), headers, CfTunnel).Outcome);

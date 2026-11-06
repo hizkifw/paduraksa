@@ -30,12 +30,12 @@ public sealed class TrustedProxyPolicy
     private TrustedProxyPolicy(
         TrustedProxyMode mode,
         CidrSet trustedPeers,
-        string? forwardedHeader,
+        string? forwardingHeader,
         bool useTrueClientIp)
     {
         Mode = mode;
         TrustedPeers = trustedPeers;
-        ForwardedHeader = forwardedHeader;
+        ForwardingHeader = forwardingHeader;
         UseTrueClientIp = useTrueClientIp;
     }
 
@@ -47,9 +47,11 @@ public sealed class TrustedProxyPolicy
     /// <summary>Peers whose headers are honoured: the generic proxies, Cloudflare's edge, or cloudflared.</summary>
     public CidrSet TrustedPeers { get; }
 
-    /// <summary>Generic mode: the list header to read. Cloudflare modes: an optional <c>X-Forwarded-For</c>-style
-    /// fallback when <c>CF-Connecting-IP</c> (and <c>True-Client-IP</c>, if enabled) are absent; null = no fallback.</summary>
-    public string? ForwardedHeader { get; }
+    /// <summary>The forwarding header, read as a right-to-left address list and reported as
+    /// <see cref="ClientIpSource.ForwardingHeader"/>. Generic mode: the primary header, never null (default
+    /// <c>X-Forwarded-For</c>, or e.g. <c>X-Real-IP</c>). Cloudflare modes: <c>X-Forwarded-For</c> as an optional last
+    /// resort after <c>CF-Connecting-IP</c> (and <c>True-Client-IP</c>, if enabled), or null for no fallback.</summary>
+    public string? ForwardingHeader { get; }
 
     /// <summary>Cloudflare modes: also accept <c>True-Client-IP</c> (Enterprise) when <c>CF-Connecting-IP</c> is absent.</summary>
     public bool UseTrueClientIp { get; }

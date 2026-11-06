@@ -12,8 +12,9 @@ public enum ClientIpSource : byte
     /// <summary>The PROXY protocol header (stage A).</summary>
     ProxyProtocol = 1,
 
-    /// <summary><c>X-Forwarded-For</c>, or the generic policy's configured header.</summary>
-    XForwardedFor = 2,
+    /// <summary>The policy's forwarding header (<see cref="TrustedProxyPolicy.ForwardingHeader"/>): <c>X-Forwarded-For</c>
+    /// by default, or a custom one such as <c>X-Real-IP</c> in generic mode.</summary>
+    ForwardingHeader = 2,
 
     CfConnectingIp = 3,
 
@@ -36,11 +37,28 @@ public enum ClientIpOutcome : byte
 }
 
 /// <summary>Result of <see cref="ClientIpResolver.Resolve(ClientInfo, IHeaderDictionary, TrustedProxyPolicy)"/>.</summary>
-public readonly record struct ClientIpResolution(IpKey Address, ClientIpSource Source, ClientIpOutcome Outcome)
+/// <param name="Address">The resolved client address.</param>
+/// <param name="Source">Where <paramref name="Address"/> came from.</param>
+/// <param name="Outcome">Whether headers were used, ignored, or missing/invalid.</param>
+/// <param name="CloudflareHeadersTrusted">True only for a trusted peer in a Cloudflare mode (see the property).</param>
+public readonly record struct ClientIpResolution(
+    IpKey Address,
+    ClientIpSource Source,
+    ClientIpOutcome Outcome,
+    bool CloudflareHeadersTrusted = false)
 {
-    /// <summary>The peer is a trusted proxy (so its Cloudflare / forwarding headers may be used, e.g. <c>CF-IPCountry</c>,
-    /// and needn't be stripped).</summary>
+    /// <summary>The peer is one of the policy's trusted proxies, so the policy's client-IP headers were consulted.
+    /// <b>This does not make Cloudflare headers trustworthy</b>: in generic mode a trusted nginx forwards whatever
+    /// <c>CF-IPCountry</c> or <c>CF-Visitor</c> the client sent. Use <see cref="CloudflareHeadersTrusted"/> for those.</summary>
     public bool PeerTrusted => Outcome != ClientIpOutcome.PeerNotTrusted;
+
+    /// <summary>
+    /// True only in <see cref="TrustedProxyMode.CloudflareProxy"/> / <see cref="TrustedProxyMode.CloudflareTunnel"/>
+    /// mode with a trusted peer (Cloudflare's edge or cloudflared). Only then may <c>CF-IPCountry</c>,
+    /// <c>CF-Visitor</c>, <c>CF-Ray</c> etc. be used; whenever it is false, every header in
+    /// <see cref="CloudflareHeaders.StripWhenUntrusted"/> must be ignored and stripped before forwarding.
+    /// </summary>
+    public bool CloudflareHeadersTrusted { get; init; } = CloudflareHeadersTrusted;
 
     /// <summary>A trusted peer sent no usable header, so the peer address was used. The caller bumps its counter
     /// (the resolver itself has no side effects).</summary>
@@ -102,9 +120,15 @@ public static class ClientIpResolver
 
         if (policy.Mode == TrustedProxyMode.Generic)
         {
-            return FromList(headers[policy.ForwardedHeader!], policy.TrustedPeers, peer, peerSource);
+            return FromList(headers[policy.ForwardingHeader!], policy.TrustedPeers, peer, peerSource);
         }
 
+        // Cloudflare mode with a trusted peer: the only case where CF-* headers are genuine.
+        return ResolveCloudflare(peer, peerSource, headers, policy) with { CloudflareHeadersTrusted = true };
+    }
+
+    private static ClientIpResolution ResolveCloudflare(IpKey peer, ClientIpSource peerSource, IHeaderDictionary headers, TrustedProxyPolicy policy)
+    {
         var connectingIp = headers[CloudflareHeaders.ConnectingIp];
         if (connectingIp.Count != 0)
         {
@@ -120,9 +144,9 @@ public static class ClientIpResolver
             }
         }
 
-        if (policy.ForwardedHeader is { } forwardedHeader)
+        if (policy.ForwardingHeader is { } forwardingHeader)
         {
-            var forwarded = headers[forwardedHeader];
+            var forwarded = headers[forwardingHeader];
             if (forwarded.Count != 0)
             {
                 return FromList(forwarded, policy.TrustedPeers, peer, peerSource);
@@ -164,7 +188,7 @@ public static class ClientIpResolver
 
                 if (!trusted.Contains(address))
                 {
-                    return new ClientIpResolution(address, ClientIpSource.XForwardedFor, ClientIpOutcome.FromHeader);
+                    return new ClientIpResolution(address, ClientIpSource.ForwardingHeader, ClientIpOutcome.FromHeader);
                 }
 
                 leftmost = address;
@@ -178,7 +202,7 @@ public static class ClientIpResolver
         }
 
         // Every hop is a trusted proxy: the left-most entry is the furthest we can see.
-        return new ClientIpResolution(leftmost, ClientIpSource.XForwardedFor, ClientIpOutcome.FromHeader);
+        return new ClientIpResolution(leftmost, ClientIpSource.ForwardingHeader, ClientIpOutcome.FromHeader);
     }
 
     /// <summary>An address, optionally with a port: <c>a.b.c.d[:port]</c> or <c>[v6][:port]</c>.</summary>
