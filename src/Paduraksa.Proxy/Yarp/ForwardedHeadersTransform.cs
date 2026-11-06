@@ -1,0 +1,134 @@
+using System.Net.Http.Headers;
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
+
+using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Net;
+
+using Yarp.ReverseProxy.Transforms;
+
+namespace Paduraksa.Proxy.Yarp;
+
+/// <summary>
+/// The forwarding headers an upstream receives (PLAN §3.1, §7.2 E, §7.6). YARP's own <c>X-Forwarded-*</c> transforms are
+/// disabled; this replaces them. Every value comes from the gate's resolution of the request, never from what the
+/// client sent, and is <b>overwritten, never appended to</b>:
+/// <list type="bullet">
+/// <item><c>X-Forwarded-For</c> and <c>X-Real-IP</c>: exactly one address, the resolved client
+/// (<see cref="GateRequestState.ClientAddress"/>: the PROXY protocol source or socket peer, or, behind a trusted proxy,
+/// the address its header carried). IPv4 as dotted quad (also for IPv4-mapped peers), IPv6 without brackets. Left out
+/// when the address is unknown (a non-IP transport).</item>
+/// <item><c>X-Forwarded-Proto</c>: <c>https</c> or <c>http</c>, the scheme the client used to reach Paduraksa; when the
+/// peer is a trusted proxy (any mode) and sent exactly one <c>X-Forwarded-Proto</c> of <c>http</c> or <c>https</c>,
+/// that value, since it terminated the client's connection.</item>
+/// <item><c>X-Forwarded-Host</c>: the request's <c>Host</c> (H2/H3 <c>:authority</c>) as received, port included.</item>
+/// <item>Removed and not replaced: <c>Forwarded</c>, <c>X-Forwarded-Prefix</c>, <c>X-Forwarded-Port</c>, which only a
+/// client could have set.</item>
+/// <item>Cloudflare's headers (every <c>cf-*</c> header plus <c>True-Client-IP</c>,
+/// <see cref="CloudflareHeaders.IsStrippedWhenUntrusted"/>) pass through only when
+/// <see cref="ClientIpResolution.CloudflareHeadersTrusted"/> (a Cloudflare mode and a trusted peer); otherwise they're
+/// removed, so a client can't spoof them (e.g. forge Cloudflare Access's identity headers past a tunnel).</item>
+/// </list>
+/// Cost per request: the header-store entries YARP's request needs anyway; the client address string is cached per
+/// connection/stream (<see cref="GateRequestState.FormattedClientAddress"/>), the other values are shared constants or the
+/// strings Kestrel already holds.
+/// </summary>
+internal static class ForwardedHeadersTransform
+{
+    public const string XForwardedFor = "X-Forwarded-For";
+    public const string XForwardedProto = "X-Forwarded-Proto";
+    public const string XForwardedHost = "X-Forwarded-Host";
+    public const string XRealIp = "X-Real-IP";
+    public const string Forwarded = "Forwarded";
+    public const string XForwardedPrefix = "X-Forwarded-Prefix";
+    public const string XForwardedPort = "X-Forwarded-Port";
+
+    private const string Http = "http";
+    private const string Https = "https";
+
+    /// <summary>Client-supplied forwarding headers that are dropped without a replacement.</summary>
+    private static readonly string[] Dropped = [Forwarded, XForwardedPrefix, XForwardedPort];
+
+    public static ValueTask ApplyAsync(RequestTransformContext context)
+    {
+        HttpRequestHeaders upstream = context.ProxyRequest.Headers;
+        HttpRequest request = context.HttpContext.Request;
+        GateRequestState? state = context.HttpContext.Features.Get<IGateFeature>()?.State;
+
+        // Decide from the incoming request before anything is removed from the outgoing one.
+        string proto = Scheme(request, state);
+
+        upstream.Remove(XForwardedFor);
+        upstream.Remove(XRealIp);
+        upstream.Remove(XForwardedProto);
+        upstream.Remove(XForwardedHost);
+        foreach (string name in Dropped)
+        {
+            upstream.Remove(name);
+        }
+
+        if (state is null || !state.ClientIp.CloudflareHeadersTrusted)
+        {
+            // Usually there is none: one scan of the names (struct enumerators, 0 B). Each removal restarts the scan,
+            // as the collection can't change under its enumerator.
+            while (FindCloudflareHeader(upstream) is { } name)
+            {
+                upstream.Remove(name);
+            }
+        }
+
+        if (state is not null && state.ClientAddress != IpKey.Unspecified)
+        {
+            string client = state.FormattedClientAddress();
+            upstream.TryAddWithoutValidation(XForwardedFor, client);
+            upstream.TryAddWithoutValidation(XRealIp, client);
+        }
+
+        upstream.TryAddWithoutValidation(XForwardedProto, proto);
+        StringValues host = request.Headers.Host;
+        if (host.Count == 1 && !string.IsNullOrEmpty(host[0]))
+        {
+            upstream.TryAddWithoutValidation(XForwardedHost, host[0]);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>The first header <see cref="CloudflareHeaders.IsStrippedWhenUntrusted"/> applies to, or null. 0 B.</summary>
+    internal static string? FindCloudflareHeader(HttpRequestHeaders headers)
+    {
+        foreach (KeyValuePair<string, HeaderStringValues> header in headers.NonValidated)
+        {
+            if (CloudflareHeaders.IsStrippedWhenUntrusted(header.Key))
+            {
+                return header.Key;
+            }
+        }
+
+        return null;
+    }
+
+    private static string Scheme(HttpRequest request, GateRequestState? state)
+    {
+        if (state is { ClientIp.PeerTrusted: true })
+        {
+            StringValues forwarded = request.Headers[XForwardedProto];
+            if (forwarded.Count == 1)
+            {
+                ReadOnlySpan<char> value = forwarded[0].AsSpan().Trim(" \t");
+                if (value.Equals(Https, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Https;
+                }
+
+                if (value.Equals(Http, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Http;
+                }
+            }
+        }
+
+        return request.IsHttps ? Https : Http;
+    }
+}

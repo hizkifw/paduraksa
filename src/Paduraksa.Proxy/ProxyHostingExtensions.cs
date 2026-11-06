@@ -25,7 +25,8 @@ namespace Paduraksa.Proxy;
 public static class ProxyHostingExtensions
 {
     /// <summary>
-    /// Registers YARP (fed by <paramref name="publisher"/>'s provider and listener, forwarding the path as received),
+    /// Registers YARP (fed by <paramref name="publisher"/>'s provider and listener, forwarding the path as received and
+    /// clean forwarding headers built from the gate's client resolution instead of YARP's own <c>X-Forwarded-*</c>),
     /// the client factory, routing, the gate, and the default <see cref="IClientAddressSource"/>
     /// (<see cref="TrustedProxyClientAddressSource"/>: the connection's ClientInfo through the snapshot's trusted proxies).
     /// </summary>
@@ -40,7 +41,12 @@ public static class ProxyHostingExtensions
         services.AddSingleton<IConfigChangeListener>(publisher.ApplyListener);
         services.AddRoutingCore();
         services.AddReverseProxy()
-            .AddTransforms(static transforms => transforms.AddRequestTransform(RawPathTransform.ApplyAsync));
+            .AddTransforms(static transforms =>
+            {
+                transforms.UseDefaultForwarders = false;
+                transforms.AddRequestTransform(RawPathTransform.ApplyAsync);
+                transforms.AddRequestTransform(ForwardedHeadersTransform.ApplyAsync);
+            });
         services.RemoveAll<IForwarderHttpClientFactory>();
         services.AddSingleton<IForwarderHttpClientFactory, PaduraksaForwarderHttpClientFactory>();
         services.TryAddSingleton<TrustedProxyClientAddressSource>();

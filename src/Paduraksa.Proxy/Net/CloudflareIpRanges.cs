@@ -73,10 +73,22 @@ public static class CloudflareHeaders
     public const string Ray = "CF-Ray";
     public const string Visitor = "CF-Visitor";
 
-    /// <summary>Headers that are only meaningful from a trusted Cloudflare peer. Unless
-    /// <see cref="ClientIpResolution.CloudflareHeadersTrusted"/> is true (a Cloudflare mode <em>and</em> a trusted
-    /// peer; <see cref="ClientIpResolution.PeerTrusted"/> is not enough, since a trusted generic proxy passes client
-    /// headers through), they are ignored and must be <b>removed before forwarding upstream</b>, so a client can't
-    /// spoof them.</summary>
+    /// <summary>The prefix of every Cloudflare request header (<c>CF-Connecting-IP</c>, <c>Cf-Access-Jwt-Assertion</c>,
+    /// <c>cf-ipcity</c>, …), compared ignoring case.</summary>
+    public const string Prefix = "cf-";
+
+    /// <summary>The well-known headers that are only meaningful from a trusted Cloudflare peer: the client-IP ones and
+    /// those Paduraksa reads. The strip rule is wider, see <see cref="IsStrippedWhenUntrusted"/>.</summary>
     public static ImmutableArray<string> StripWhenUntrusted { get; } = [ConnectingIp, TrueClientIp, IpCountry, Ray, Visitor];
+
+    /// <summary>
+    /// Whether a header is only trustworthy from a trusted Cloudflare peer: <b>every</b> <c>cf-*</c> header (Cloudflare
+    /// adds more over time, and some carry identity, e.g. Cloudflare Access's <c>Cf-Access-Authenticated-User-Email</c>
+    /// and <c>Cf-Access-Jwt-Assertion</c>), plus <c>True-Client-IP</c>. Unless
+    /// <see cref="ClientIpResolution.CloudflareHeadersTrusted"/> is true (a Cloudflare mode <em>and</em> a trusted peer;
+    /// <see cref="ClientIpResolution.PeerTrusted"/> is not enough, since a trusted generic proxy passes client headers
+    /// through), such headers are ignored and <b>removed before forwarding upstream</b>, so a client can't spoof them.
+    /// </summary>
+    public static bool IsStrippedWhenUntrusted(ReadOnlySpan<char> name) =>
+        name.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) || name.Equals(TrueClientIp, StringComparison.OrdinalIgnoreCase);
 }
