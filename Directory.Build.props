@@ -13,6 +13,8 @@
     <IsPackable>false</IsPackable>
     <Authors>Hizkia Felix</Authors>
     <Product>Paduraksa</Product>
+    <Copyright>Copyright 2026 Hizkia Felix</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RootNamespace>$(MSBuildProjectName)</RootNamespace>
   </PropertyGroup>
 

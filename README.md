@@ -15,3 +15,7 @@ dotnet build
 dotnet test
 dotnet run --project src/Paduraksa.Server --launch-profile dev
 ```
+
+## License
+
+[Apache-2.0](LICENSE). See [NOTICE](NOTICE).

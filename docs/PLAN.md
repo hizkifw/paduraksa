@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.5**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.6**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -609,11 +609,11 @@ Each milestone ends with a working, testable increment.
 
 ---
 
-## 17. Open questions (proposed resolutions, pending owner sign-off)
+## 17. Open questions (proposed resolutions, pending owner sign-off unless marked decided)
 
 | # | Question | Proposed |
 |---|---|---|
-| 1 | License | **Apache-2.0.** Adoption matters more for infra tools; AGPL only pays off if closed forks are a real worry. |
+| 1 | License | **Decided: Apache-2.0** (`LICENSE`, `NOTICE`). Adoption matters more for infra tools; AGPL only pays off if closed forks are a real worry. |
 | 2 | UI kit | **MudBlazor**; revisit only if it gets in the way. |
 | 3 | Admin port default | **HTTPS 9443 with the internal CA** + root-CA download in the wizard + **plain-HTTP loopback-only fallback** (§3). Never plain HTTP on the LAN. |
 | 4 | Geo DB | **DB-IP Lite** by default (no account), MaxMind GeoLite2 optional with a license key. |
@@ -648,3 +648,4 @@ Each milestone ends with a working, testable increment.
   - Custom UUIDv7 generator, with `Guid.CreateVersion7` banned. Int64Ordered is documented as predictable and gets `Observe` seeding. The STJ source-gen converter factory requirement is recorded (§4).
   - S1 result: per-SNI and hot-swap work on QUIC, so the H3 fallback is dropped. Listener layout, ALPN and chain pitfalls, the QUIC-side IP gate and the libmsquic image notes are added (§7.2, §7.5, §16).
 - **v0.5:** S2 outcome. The gate selects the YARP endpoint, routes are path-only, and `ConfigureEndpoints` metadata and the route-ID generation scheme are dropped. Publish waits for YARP's `ConfigurationApplied`. Destination-ID stability rules and the required custom-pipeline steps are recorded (§6.1, §6.2, §6.3, §7.2).
+- **v0.6:** License decided: Apache-2.0 (§17).
