@@ -55,14 +55,19 @@ public readonly record struct ClientIpResolution(
     /// <summary>
     /// True only in <see cref="TrustedProxyMode.CloudflareProxy"/> / <see cref="TrustedProxyMode.CloudflareTunnel"/>
     /// mode with a trusted peer (Cloudflare's edge or cloudflared). Only then may <c>CF-IPCountry</c>,
-    /// <c>CF-Visitor</c>, <c>CF-Ray</c> etc. be used; whenever it is false, every header in
-    /// <see cref="CloudflareHeaders.StripWhenUntrusted"/> must be ignored and stripped before forwarding.
+    /// <c>CF-Visitor</c>, <c>CF-Ray</c> etc. be used; whenever it is false, every <c>cf-*</c> header and
+    /// <c>True-Client-IP</c> (<see cref="CloudflareHeaders.IsStrippedWhenUntrusted"/>) must be ignored and stripped
+    /// before forwarding.
     /// </summary>
     public bool CloudflareHeadersTrusted { get; init; } = CloudflareHeadersTrusted;
 
     /// <summary>A trusted peer sent no usable header, so the peer address was used. The caller bumps its counter
     /// (the resolver itself has no side effects).</summary>
     public bool IsFallback => Outcome is ClientIpOutcome.HeaderMissing or ClientIpOutcome.HeaderInvalid;
+
+    /// <summary>The request scheme as the trusted proxies report it (<see cref="ForwardedScheme"/>); default: the
+    /// connection's. Set by the gate's client-address source next to the address.</summary>
+    public RequestScheme Scheme { get; init; }
 }
 
 /// <summary>

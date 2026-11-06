@@ -489,6 +489,11 @@ public static class SnapshotCompiler
             errors.Add($"{Where}: True-Client-IP and the X-Forwarded-For fallback only apply to the Cloudflare modes");
         }
 
+        if (spec.TrustForwardedProto && spec.Mode != TrustedProxyMode.Generic)
+        {
+            errors.Add($"{Where}: TrustForwardedProto only applies to Generic mode (Cloudflare modes read CF-Visitor)");
+        }
+
         switch (spec.Mode)
         {
             case TrustedProxyMode.Off:
@@ -519,7 +524,7 @@ public static class SnapshotCompiler
                     return TrustedProxyPolicy.Off;
                 }
 
-                return TrustedProxyPolicy.Generic(peers, spec.Header ?? TrustedProxyPolicy.XForwardedFor);
+                return TrustedProxyPolicy.Generic(peers, spec.Header ?? TrustedProxyPolicy.XForwardedFor, spec.TrustForwardedProto);
 
             case TrustedProxyMode.CloudflareProxy:
                 if (proxies.Count > 0)

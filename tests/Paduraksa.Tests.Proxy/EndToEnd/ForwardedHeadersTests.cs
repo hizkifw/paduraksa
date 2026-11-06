@@ -115,12 +115,40 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
         // Right-most untrusted entry, sent alone: the chain isn't appended to.
         Assert.Equal("203.0.113.5", seen["X-Forwarded-For"]);
         Assert.Equal("203.0.113.5", seen["X-Real-IP"]);
-        Assert.Equal("https", seen["X-Forwarded-Proto"]);
+        // The proxy's X-Forwarded-Proto isn't trusted by default (it may be the client's): our own scheme.
+        Assert.Equal("http", seen["X-Forwarded-Proto"]);
         // A trusted nginx passes client headers through, so they are as untrusted as the client.
         foreach (string removed in AnyCloudflare)
         {
             Assert.False(seen.ContainsKey(removed), removed);
         }
+    }
+
+    [Fact]
+    public async Task GenericProxiesCanBeTrustedForTheScheme()
+    {
+        Dictionary<string, string> seen = await SendAsync(
+            Model(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["127.0.0.0/8"], TrustForwardedProto = true }),
+            static request => request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "HTTPS"),
+            "/");
+
+        Assert.Equal("https", seen["X-Forwarded-Proto"]);
+    }
+
+    [Fact]
+    public async Task CloudflareFlexibleIsForwardedAsHttp()
+    {
+        // CF-Visitor beats the edge's X-Forwarded-Proto: the visitor's own scheme.
+        Dictionary<string, string> seen = await SendAsync(
+            Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }),
+            static request =>
+            {
+                request.Headers.TryAddWithoutValidation("CF-Visitor", "{\"scheme\":\"http\"}");
+                request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "https");
+            },
+            "/");
+
+        Assert.Equal("http", seen["X-Forwarded-Proto"]);
     }
 
     [Fact]

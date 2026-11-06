@@ -84,6 +84,13 @@ public sealed record TrustedProxySpec
 
     /// <summary>Cloudflare modes: fall back to the right-most untrusted <c>X-Forwarded-For</c> entry.</summary>
     public bool ForwardedForFallback { get; init; }
+
+    /// <summary>
+    /// Generic mode only: take the request scheme (for the HTTPS redirect and the upstream <c>X-Forwarded-Proto</c>)
+    /// from the trusted proxies' <c>X-Forwarded-Proto</c>. Off by default: set it only when every trusted proxy sets
+    /// that header itself. Cloudflare modes always read <c>CF-Visitor</c>, then <c>X-Forwarded-Proto</c>.
+    /// </summary>
+    public bool TrustForwardedProto { get; init; }
 }
 
 /// <summary>

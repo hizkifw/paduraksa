@@ -250,6 +250,42 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         }
     }
 
+    [Theory]
+    [InlineData("127.0.0.0/8", HttpStatusCode.OK)] // the peer is cloudflared: the visitor is on HTTPS already
+    [InlineData("10.0.0.2", HttpStatusCode.MovedPermanently)] // anyone else: CF-Visitor is a spoof, redirect
+    public async Task ATunnelOnPlainHttpDoesNotLoopTheHttpsRedirect(string cloudflared, HttpStatusCode expected)
+    {
+        await using PaduraksaHost host = await StartAsync();
+        await PublishAsync(host, App(new HostSpec { Key = "secure", Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Key = "secure-root", Upstream = "echo" }] }) with
+        {
+            Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = [cloudflared, "::1"] } },
+        });
+
+        // cloudflared forwards to http://paduraksa:80 with the visitor's scheme in CF-Visitor.
+        (HttpResponseMessage response, Dictionary<string, string> seen) = await SendAsync(
+            host,
+            "http",
+            "secure.test",
+            static request =>
+            {
+                request.Headers.TryAddWithoutValidation("CF-Visitor", "{\"scheme\":\"https\"}");
+                request.Headers.TryAddWithoutValidation("CF-Connecting-IP", "198.51.100.7");
+            });
+        using (response)
+        {
+            Assert.Equal(expected, response.StatusCode);
+            if (expected == HttpStatusCode.OK)
+            {
+                Assert.Equal("https", seen["X-Forwarded-Proto"]); // the same scheme the redirect decision used
+                Assert.Equal("198.51.100.7", seen["X-Forwarded-For"]);
+            }
+            else
+            {
+                Assert.Equal("https://secure.test/", response.Headers.Location!.OriginalString);
+            }
+        }
+    }
+
     [Fact]
     public async Task GenericModeTakesTheClientFromTheForwardedChain()
     {

@@ -41,6 +41,12 @@ public sealed class GateRequestState : IGateFeature
     /// </summary>
     public ClientIpResolution ClientIp { get; internal set; }
 
+    /// <summary>
+    /// The scheme the client used (PLAN §7.6): the trusted proxies' (<see cref="ClientIpResolution.Scheme"/>) or else the
+    /// connection's. The HTTP→HTTPS redirect and the upstream <c>X-Forwarded-Proto</c> both use it.
+    /// </summary>
+    public bool IsHttps { get; internal set; }
+
     /// <summary>The resolved client address (IPv4 as IPv4-mapped, so TCP on <c>[::]</c> and QUIC agree);
     /// <see cref="IpKey.Unspecified"/> when unknown.</summary>
     public IpKey ClientAddress => ClientIp.Address;
@@ -54,6 +60,7 @@ public sealed class GateRequestState : IGateFeature
         Host = null;
         Route = null;
         ClientIp = default;
+        IsHttps = false;
     }
 
     /// <summary>

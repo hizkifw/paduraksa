@@ -81,6 +81,7 @@ public sealed class GateMiddleware
         GateRequestState state = AcquireState(context);
         state.Snapshot = snapshot;
         state.ClientIp = _clientAddresses.Resolve(context, snapshot);
+        state.IsHttps = state.ClientIp.Scheme.EffectiveIsHttps(context.Request.IsHttps);
 
         if (TryAnswerAcmeChallenge(context, snapshot, out GateDecision challenge))
         {
@@ -104,7 +105,8 @@ public sealed class GateMiddleware
             return stopped;
         }
 
-        if (host.HttpsRedirect is { } httpsRedirect && !request.IsHttps)
+        // The trusted scheme, not the connection's: behind a TLS-terminating trusted proxy the client already uses HTTPS.
+        if (host.HttpsRedirect is { } httpsRedirect && !state.IsHttps)
         {
             return GateDecision.Respond(httpsRedirect.For(request.Method));
         }

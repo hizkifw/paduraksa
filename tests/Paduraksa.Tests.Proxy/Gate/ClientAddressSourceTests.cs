@@ -111,10 +111,39 @@ public sealed class ClientAddressSourceTests
     }
 
     [Fact]
+    public void TheTrustedSchemeIsResolvedInTheSameStep()
+    {
+        DefaultHttpContext context = TestContexts.Create("a.test");
+        context.Request.Headers[CloudflareHeaders.ConnectingIp] = "198.51.100.7";
+        context.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"https\"}";
+
+        Assert.Equal(new RequestScheme(true, SchemeSource.CfVisitor), _source.Resolve(context, CloudflareProxy).Scheme);
+        Assert.Equal(default, _source.Resolve(context, Snapshot(TrustedProxySpec.Off)).Scheme);
+        Assert.Equal(0, _source.CloudflarePlainHttp);
+    }
+
+    [Fact]
+    public void CloudflareOverPlainHttpForAPlainHttpVisitorIsCounted()
+    {
+        DefaultHttpContext flexible = TestContexts.Create("a.test");
+        flexible.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"http\"}";
+        DefaultHttpContext secure = TestContexts.Create("a.test", scheme: "https");
+        secure.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"http\"}";
+
+        _ = _source.Resolve(flexible, CloudflareProxy);
+        _ = _source.Resolve(flexible, CloudflareProxy);
+        _ = _source.Resolve(secure, CloudflareProxy); // reached us over TLS: not Flexible
+        _ = _source.Resolve(flexible, Snapshot(TrustedProxySpec.Off)); // not Cloudflare at all
+
+        Assert.Equal(2, _source.CloudflarePlainHttp);
+    }
+
+    [Fact]
     public void ResolvingAllocatesNothing()
     {
         DefaultHttpContext context = TestContexts.Create("a.test", remote: IPAddress.Parse("::ffff:127.0.0.1"));
         context.Request.Headers[CloudflareHeaders.ConnectingIp] = "2001:db8::7";
+        context.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"https\"}";
         context.Features.Set<IClientInfoFeature>(ClientInfo.FromEndPoint(new IPEndPoint(IPAddress.Loopback, 1234)));
         (TrustedProxyClientAddressSource Source, DefaultHttpContext Context, RuntimeSnapshot Snapshot) run = (_source, context, CloudflareProxy);
 

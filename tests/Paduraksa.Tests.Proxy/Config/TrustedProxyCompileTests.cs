@@ -24,6 +24,8 @@ public sealed class TrustedProxyCompileTests
         Assert.True(policy.IsTrustedPeer(IpKey.Parse("2001:db8::1")));
         Assert.False(policy.IsTrustedPeer(IpKey.Parse("192.0.2.1")));
         Assert.Equal(TrustedProxyPolicy.XForwardedFor, Compile(With(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.1"] })).TrustedProxies.ForwardingHeader);
+        Assert.False(policy.TrustForwardedProto);
+        Assert.True(Compile(With(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.1"], TrustForwardedProto = true })).TrustedProxies.TrustForwardedProto);
     }
 
     [Fact]
@@ -61,6 +63,7 @@ public sealed class TrustedProxyCompileTests
         { new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy, Header = "X-Real-IP" }, "only configurable in Generic mode" },
         { new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.1"], UseTrueClientIp = true }, "only apply to the Cloudflare modes" },
         { new TrustedProxySpec { Proxies = ["10.0.0.1"] }, "the mode is Off" },
+        { new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy, TrustForwardedProto = true }, "TrustForwardedProto only applies to Generic" },
         { new TrustedProxySpec { Mode = (TrustedProxyMode)42 }, "unknown mode" },
     };
 

@@ -19,9 +19,10 @@ namespace Paduraksa.Proxy.Yarp;
 /// (<see cref="GateRequestState.ClientAddress"/>: the PROXY protocol source or socket peer, or, behind a trusted proxy,
 /// the address its header carried). IPv4 as dotted quad (also for IPv4-mapped peers), IPv6 without brackets. Left out
 /// when the address is unknown (a non-IP transport).</item>
-/// <item><c>X-Forwarded-Proto</c>: <c>https</c> or <c>http</c>, the scheme the client used to reach Paduraksa; when the
-/// peer is a trusted proxy (any mode) and sent exactly one <c>X-Forwarded-Proto</c> of <c>http</c> or <c>https</c>,
-/// that value, since it terminated the client's connection.</item>
+/// <item><c>X-Forwarded-Proto</c>: <c>https</c> or <c>http</c>, the request's trusted scheme
+/// (<see cref="GateRequestState.IsHttps"/>, the same one the HTTPS redirect uses): from a trusted Cloudflare peer its
+/// <c>CF-Visitor</c>, else its <c>X-Forwarded-Proto</c>; from a trusted generic proxy its <c>X-Forwarded-Proto</c> only
+/// with <c>TrustForwardedProto</c>; otherwise the scheme the client used to reach Paduraksa.</item>
 /// <item><c>X-Forwarded-Host</c>: the request's <c>Host</c> (H2/H3 <c>:authority</c>) as received, port included.</item>
 /// <item>Removed and not replaced: <c>Forwarded</c>, <c>X-Forwarded-Prefix</c>, <c>X-Forwarded-Port</c>, which only a
 /// client could have set.</item>
@@ -56,8 +57,7 @@ internal static class ForwardedHeadersTransform
         HttpRequest request = context.HttpContext.Request;
         GateRequestState? state = context.HttpContext.Features.Get<IGateFeature>()?.State;
 
-        // Decide from the incoming request before anything is removed from the outgoing one.
-        string proto = Scheme(request, state);
+        string proto = (state?.IsHttps ?? request.IsHttps) ? Https : Http;
 
         upstream.Remove(XForwardedFor);
         upstream.Remove(XRealIp);
@@ -109,26 +109,4 @@ internal static class ForwardedHeadersTransform
         return null;
     }
 
-    private static string Scheme(HttpRequest request, GateRequestState? state)
-    {
-        if (state is { ClientIp.PeerTrusted: true })
-        {
-            StringValues forwarded = request.Headers[XForwardedProto];
-            if (forwarded.Count == 1)
-            {
-                ReadOnlySpan<char> value = forwarded[0].AsSpan().Trim(" \t");
-                if (value.Equals(Https, StringComparison.OrdinalIgnoreCase))
-                {
-                    return Https;
-                }
-
-                if (value.Equals(Http, StringComparison.OrdinalIgnoreCase))
-                {
-                    return Http;
-                }
-            }
-        }
-
-        return request.IsHttps ? Https : Http;
-    }
 }

@@ -31,12 +31,14 @@ public sealed class TrustedProxyPolicy
         TrustedProxyMode mode,
         CidrSet trustedPeers,
         string? forwardingHeader,
-        bool useTrueClientIp)
+        bool useTrueClientIp,
+        bool trustForwardedProto = false)
     {
         Mode = mode;
         TrustedPeers = trustedPeers;
         ForwardingHeader = forwardingHeader;
         UseTrueClientIp = useTrueClientIp;
+        TrustForwardedProto = trustForwardedProto;
     }
 
     /// <summary>No trusted proxies.</summary>
@@ -56,13 +58,21 @@ public sealed class TrustedProxyPolicy
     /// <summary>Cloudflare modes: also accept <c>True-Client-IP</c> (Enterprise) when <c>CF-Connecting-IP</c> is absent.</summary>
     public bool UseTrueClientIp { get; }
 
+    /// <summary>Generic mode: take the request scheme from a trusted proxy's <c>X-Forwarded-Proto</c>
+    /// (<see cref="ForwardedScheme"/>). Off by default: many proxies pass a client's own header through. Cloudflare modes
+    /// always use <c>CF-Visitor</c>, then <c>X-Forwarded-Proto</c>, from a trusted peer.</summary>
+    public bool TrustForwardedProto { get; }
+
     /// <summary>Trusted proxies in front of us, read from <paramref name="headerName"/> (a comma-separated list
     /// such as <c>X-Forwarded-For</c>, or a single-address header such as <c>X-Real-IP</c>).</summary>
-    public static TrustedProxyPolicy Generic(CidrSet proxies, string headerName = XForwardedFor)
+    /// <param name="proxies">The trusted proxies.</param>
+    /// <param name="headerName">The client-IP header.</param>
+    /// <param name="trustForwardedProto">Also take the request scheme from their <c>X-Forwarded-Proto</c>.</param>
+    public static TrustedProxyPolicy Generic(CidrSet proxies, string headerName = XForwardedFor, bool trustForwardedProto = false)
     {
         ArgumentNullException.ThrowIfNull(proxies);
         ArgumentException.ThrowIfNullOrWhiteSpace(headerName);
-        return new TrustedProxyPolicy(TrustedProxyMode.Generic, proxies, headerName, false);
+        return new TrustedProxyPolicy(TrustedProxyMode.Generic, proxies, headerName, false, trustForwardedProto);
     }
 
     /// <summary>Behind Cloudflare's proxy (orange cloud).</summary>
