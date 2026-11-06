@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Security;
+using System.Runtime.Versioning;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 
@@ -187,6 +188,34 @@ public sealed class KestrelTcpTlsTests : IDisposable
 
         Assert.Equal(client.Thumbprint, result.Body); // the server did build and validate a chain for it
         Assert.Equal(0, aia.Hits);
+    }
+
+    [Fact]
+    [SupportedOSPlatform("linux")] // skipped at run time elsewhere; the attribute satisfies CA1416 inside the lambdas
+    public async Task OnlyAeadCipherSuitesAreAcceptedOnLinux()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Assert.Skip("CipherSuitesPolicy is applied on Linux only (OS defaults elsewhere).");
+        }
+        else
+        {
+            var table = new CertificateTableBuilder().Add(["a.test"], _a, TlsPolicy.Default).Build();
+            Assert.NotNull(table.Find("a.test")!.TcpOptions.CipherSuitesPolicy);
+            Assert.Null(table.Find("a.test")!.QuicOptions!.CipherSuitesPolicy); // TLS 1.3 only: all AEAD already
+            await using var server = await StartTcpAsync(new TlsHandshakeSelector(new CertificateTableSource(table)));
+            static Action<SslClientAuthenticationOptions> Tls12With(TlsCipherSuite suite) => options =>
+            {
+                options.EnabledSslProtocols = SslProtocols.Tls12;
+                options.CipherSuitesPolicy = new CipherSuitesPolicy([suite]);
+            };
+
+            await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(
+                _pki, server.Port, "a.test", HttpVersion.Version11, configureSsl: Tls12With(TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256)));
+            Assert.Equal("a.test v1", (await TlsProbe.GetAsync(
+                _pki, server.Port, "a.test", HttpVersion.Version11, configureSsl: Tls12With(TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256))).ServedSubject);
+            Assert.Equal("a.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version20)).ServedSubject); // TLS 1.3
+        }
     }
 
     [Fact]

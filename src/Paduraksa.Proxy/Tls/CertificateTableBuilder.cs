@@ -155,10 +155,32 @@ public sealed class CertificateTableBuilder
         return entry;
     }
 
+    /// <summary>
+    /// Cipher suites for TCP (PLAN §7.2 B): AEAD only, ECDHE only (forward secrecy). TLS 1.3 suites are all AEAD; for
+    /// TLS 1.2 this drops the CBC/SHA-1 and static-RSA suites OpenSSL's default list still allows. Linux only:
+    /// <see cref="CipherSuitesPolicy"/> isn't supported on Windows, and Linux is what we ship, so other platforms keep
+    /// the OS defaults. QUIC doesn't get it: QUIC is TLS 1.3, whose suites are all AEAD already.
+    /// </summary>
+    private static readonly CipherSuitesPolicy? TcpCipherSuites = OperatingSystem.IsLinux()
+        ? new CipherSuitesPolicy(
+        [
+            TlsCipherSuite.TLS_AES_128_GCM_SHA256,
+            TlsCipherSuite.TLS_AES_256_GCM_SHA384,
+            TlsCipherSuite.TLS_CHACHA20_POLY1305_SHA256,
+            TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+            TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+            TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+            TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+            TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+            TlsCipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+        ])
+        : null;
+
     // ApplicationProtocols is ALWAYS set: both Kestrel transports write their own ALPN into a returned options object
     // whose list is null, which breaks the other transport when instances are shared (spike S1, trap 1).
     private static SslServerAuthenticationOptions CreateTcpOptions(ServerCertificate certificate, TlsPolicy policy) => new()
     {
+        CipherSuitesPolicy = TcpCipherSuites,
         ServerCertificateContext = certificate.Context,
         ApplicationProtocols = policy.TcpAlpn == TcpAlpn.Http11Only
             ? [SslApplicationProtocol.Http11]
