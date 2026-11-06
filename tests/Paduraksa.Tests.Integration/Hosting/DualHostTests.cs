@@ -142,7 +142,7 @@ public sealed class DualHostTests
         Assert.Equal(3, loggerFactories.Distinct().Count());
 
         // The core host published the snapshot before the web apps started; everyone sees generation 1.
-        Assert.Equal(1, host.Shared.SnapshotStore.Current?.Generation);
+        Assert.Equal(1, host.Shared.SnapshotStore.Current.Generation);
     }
 
     [Fact]

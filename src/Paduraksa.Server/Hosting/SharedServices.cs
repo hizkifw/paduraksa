@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Placeholders;
 
@@ -41,6 +43,7 @@ internal sealed class SharedServices : IAsyncDisposable
         Options = Get<PaduraksaOptions>();
         Health = Get<HealthState>();
         SnapshotStore = Get<SnapshotStore>();
+        SnapshotPublisher = Get<SnapshotPublisher>();
         ServerCertificate = Get<PlaceholderServerCertificate>();
     }
 
@@ -54,6 +57,9 @@ internal sealed class SharedServices : IAsyncDisposable
     public HealthState Health { get; }
 
     public SnapshotStore SnapshotStore { get; }
+
+    /// <summary>The single writer of <see cref="SnapshotStore"/>; attaches to the public app's YARP when it starts.</summary>
+    public SnapshotPublisher SnapshotPublisher { get; }
 
     /// <summary>Silences the generic hosts' error about a start that was aborted on request.</summary>
     public StartupLogFilter StartupLogFilter { get; } = new();
@@ -91,7 +97,8 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add<IOptionsSnapshot<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsFactory<PaduraksaOptions>>(fixedOptions);
             builder.Add(new HealthState());
-            builder.Add(new SnapshotStore(timeProvider));
+            SnapshotStore snapshots = builder.Add(new SnapshotStore());
+            builder.Add(new SnapshotPublisher(snapshots, new RoleLoggerFactory(loggerFactory, HostRole.Core), timeProvider));
             builder.Add(PlaceholderServerCertificate.Create(timeProvider));
             // TODO(M1): MetricsRegistry. TODO(M3): Vault capabilities, IAcmeChallengeStore.
             configure?.Invoke(builder);

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Placeholders;
 
@@ -77,11 +78,11 @@ internal static class AdminApp
 
         // Live: the process is up and a snapshot is loaded.
         app.MapMethods("/healthz", GetAndHead, context =>
-            WriteStatusAsync(context, snapshots.Current is not null, "ok\n", "unavailable\n"));
+            WriteStatusAsync(context, snapshots.HasPublished, "ok\n", "unavailable\n"));
 
         // Ready: listeners bound and not draining. TODO(M2): DB reachable. TODO(M3): vault unlocked.
         app.MapMethods("/readyz", GetAndHead, context =>
-            WriteStatusAsync(context, health.IsReady && snapshots.Current is not null, "ready\n", "not ready\n"));
+            WriteStatusAsync(context, health.IsReady && snapshots.HasPublished, "ready\n", "not ready\n"));
     }
 
     private static Task WriteStatusAsync(HttpContext context, bool healthy, string okBody, string failBody)

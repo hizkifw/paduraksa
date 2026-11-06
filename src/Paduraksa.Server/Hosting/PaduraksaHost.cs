@@ -15,7 +15,7 @@ using Paduraksa.Server.Configuration;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// The <c>paduraksa</c> process: one core host plus the public and admin <c>WebApplication</c>s, sharing one
+/// The <c>paduraksa</c> process: one core host, the public app (generic web host) and the admin <c>WebApplication</c>, sharing one
 /// <see cref="SharedServices"/> (PLAN §3).
 /// <para><b>Start:</b> core host first (snapshot loaded), then public and admin concurrently. If either fails, the
 /// other one's start is cancelled, everything that started is stopped, and the failure is rethrown.</para>
@@ -44,7 +44,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     // read-modify-write, so volatile (visibility across async continuations on other threads) is all it needs.
     private volatile bool _stopFaulted;
 
-    private PaduraksaHost(ConfigurationManager configuration, SharedServices shared, IHost core, WebApplication publicApp, WebApplication adminApp)
+    private PaduraksaHost(ConfigurationManager configuration, SharedServices shared, IHost core, IHost publicApp, WebApplication adminApp)
     {
         _configuration = configuration;
         Shared = shared;
@@ -60,7 +60,8 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
     public IHost Core { get; }
 
-    public WebApplication Public { get; }
+    /// <summary>The public app: a generic host with an explicit pipeline (see <see cref="PublicApp"/>).</summary>
+    public IHost Public { get; }
 
     public WebApplication Admin { get; }
 
@@ -107,7 +108,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
                 hostOptions.ConfigureServices);
 
             IHost core = Track(built, CoreHost.Build(context));
-            WebApplication publicApp = Track(built, PublicApp.Build(context));
+            IHost publicApp = Track(built, PublicApp.Build(context));
             WebApplication adminApp = Track(built, AdminApp.Build(context));
             return new PaduraksaHost(configuration, shared, core, publicApp, adminApp);
         }
@@ -240,7 +241,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     /// <summary>Bound addresses of a web app (e.g. <c>https://[::]:443</c>); empty for the core host or before start.</summary>
     public IReadOnlyList<string> GetListenAddresses(HostRole role)
     {
-        WebApplication? app = role switch
+        IHost? app = role switch
         {
             HostRole.Public => Public,
             HostRole.Admin => Admin,
@@ -330,7 +331,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         return host;
     }
 
-    private async Task StartWebAppAsync(WebApplication app, CancellationTokenSource startCts)
+    private async Task StartWebAppAsync(IHost app, CancellationTokenSource startCts)
     {
         try
         {

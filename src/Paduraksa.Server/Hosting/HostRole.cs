@@ -6,7 +6,7 @@ internal enum HostRole
     /// <summary>Non-web host owning process-wide background services. Starts first, stops last.</summary>
     Core,
 
-    /// <summary>Public <c>WebApplication</c>: :80 / :443, proxy pipeline only.</summary>
+    /// <summary>Public app (generic web host): :80 / :443, proxy pipeline only.</summary>
     Public,
 
     /// <summary>Admin <c>WebApplication</c>: :9443, dashboard, API, MCP, health.</summary>

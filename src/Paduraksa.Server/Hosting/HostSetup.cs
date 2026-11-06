@@ -27,20 +27,35 @@ internal static class HostSetup
     public static void ApplyCommon(IHostApplicationBuilder builder, HostContext context, HostRole role)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        ApplySharedConfiguration(builder.Configuration, context);
+        ApplySharedServices(builder.Services, context, role);
+    }
+
+    /// <summary>The configuration half of <see cref="ApplyCommon"/>, for a generic <see cref="IHostBuilder"/>.</summary>
+    public static void ApplySharedConfiguration(IConfigurationBuilder configuration, HostContext context)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(context);
 
         // Every host reads the same, already-built configuration root (not disposed by the host).
-        builder.Configuration.AddConfiguration(context.Configuration, shouldDisposeConfiguration: false);
+        configuration.AddConfiguration(context.Configuration, shouldDisposeConfiguration: false);
+    }
 
-        context.Shared.RegisterInto(builder.Services, role);
+    /// <summary>The services half of <see cref="ApplyCommon"/>, for a generic <see cref="IHostBuilder"/>.</summary>
+    public static void ApplySharedServices(IServiceCollection services, HostContext context, HostRole role)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(context);
+
+        context.Shared.RegisterInto(services, role);
 
         // ConsoleLifetime would hook SIGINT/SIGTERM in every host and stop each one independently.
         // PaduraksaHost owns signals and the stop order instead.
-        builder.Services.RemoveAll<IHostLifetime>();
-        builder.Services.AddSingleton<IHostLifetime>(new PassiveHostLifetime());
+        services.RemoveAll<IHostLifetime>();
+        services.AddSingleton<IHostLifetime>(new PassiveHostLifetime());
 
         // PaduraksaHost enforces one shutdown budget across all three hosts; the per-host timeout is disabled.
-        builder.Services.Configure<HostOptions>(static host => host.ShutdownTimeout = Timeout.InfiniteTimeSpan);
+        services.Configure<HostOptions>(static host => host.ShutdownTimeout = Timeout.InfiniteTimeSpan);
     }
 
     /// <summary>
@@ -52,8 +67,15 @@ internal static class HostSetup
     public static void PinListenerConfiguration(IHostApplicationBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        PinListenerConfiguration(builder.Configuration);
+    }
 
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+    /// <inheritdoc cref="PinListenerConfiguration(IHostApplicationBuilder)"/>
+    public static void PinListenerConfiguration(IConfigurationBuilder configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["urls"] = string.Empty,
             ["http_ports"] = string.Empty,
@@ -66,9 +88,16 @@ internal static class HostSetup
     public static void ApplyCallerServices(IHostApplicationBuilder builder, HostContext context, HostRole role)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        ApplyCallerServices(builder.Services, context, role);
+    }
+
+    /// <inheritdoc cref="ApplyCallerServices(IHostApplicationBuilder, HostContext, HostRole)"/>
+    public static void ApplyCallerServices(IServiceCollection services, HostContext context, HostRole role)
+    {
+        ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(context);
 
-        context.ConfigureServices?.Invoke(role, builder.Services);
+        context.ConfigureServices?.Invoke(role, services);
     }
 
     /// <summary>Lifetime that doesn't listen to the console or signals; the orchestrator does.</summary>
