@@ -1,0 +1,66 @@
+// * Summary *
+BenchmarkDotNet v0.15.8, Linux CachyOS
+| Method                                        | Host                 | Mean     | Error     | StdDev   | Ratio        | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|---------------------------------------------- |--------------------- |---------:|----------:|---------:|-------------:|--------:|-------:|----------:|------------:|
+| 'HostTable.Find(span) (Frozen alt-lookup)'    | H123.TEST            | 17.31 ns | 30.959 ns | 1.697 ns |     baseline |         |      - |         - |          NA |
+| 'Substring port + Dictionary<string> (naive)' | H123.TEST            | 15.66 ns | 22.853 ns | 1.253 ns | 1.11x faster |   0.12x |      - |         - |          NA |
+|                                               |                      |          |           |          |              |         |        |           |             |
+| 'HostTable.Find(span) (Frozen alt-lookup)'    | a.w3.test            | 19.95 ns |  5.200 ns | 0.285 ns |     baseline |         |      - |         - |          NA |
+| 'Substring port + Dictionary<string> (naive)' | a.w3.test            | 25.68 ns |  2.637 ns | 0.145 ns | 1.29x slower |   0.02x | 0.0063 |      80 B |          NA |
+|                                               |                      |          |           |          |              |         |        |           |             |
+| 'HostTable.Find(span) (Frozen alt-lookup)'    | h123.test            | 18.07 ns | 43.281 ns | 2.372 ns |     baseline |         |      - |         - |          NA |
+| 'Substring port + Dictionary<string> (naive)' | h123.test            | 13.66 ns | 12.546 ns | 0.688 ns | 1.32x faster |   0.16x |      - |         - |          NA |
+|                                               |                      |          |           |          |              |         |        |           |             |
+| 'HostTable.Find(span) (Frozen alt-lookup)'    | h123.test:8443       | 17.87 ns | 23.961 ns | 1.313 ns |     baseline |         |      - |         - |          NA |
+| 'Substring port + Dictionary<string> (naive)' | h123.test:8443       | 22.27 ns |  1.480 ns | 0.081 ns | 1.25x slower |   0.08x | 0.0032 |      40 B |          NA |
+|                                               |                      |          |           |          |              |         |        |           |             |
+| 'HostTable.Find(span) (Frozen alt-lookup)'    | nope.example.org     | 11.35 ns |  9.921 ns | 0.544 ns |     baseline |         |      - |         - |          NA |
+| 'Substring port + Dictionary<string> (naive)' | nope.example.org     | 31.25 ns | 24.101 ns | 1.321 ns | 2.76x slower |   0.15x | 0.0076 |      96 B |          NA |
+|                                               |                      |          |           |          |              |         |        |           |             |
+| 'HostTable.Find(span) (Frozen alt-lookup)'    | xn--bcher57-n2a.test | 19.63 ns |  6.772 ns | 0.371 ns |     baseline |         |      - |         - |          NA |
+| 'Substring port + Dictionary<string> (naive)' | xn--bcher57-n2a.test | 14.50 ns | 21.648 ns | 1.187 ns | 1.36x faster |   0.10x |      - |         - |          NA |
+// * Summary *
+BenchmarkDotNet v0.15.8, Linux CachyOS
+| Method                             | Mean      | Error      | StdDev    | Gen0   | Allocated |
+|----------------------------------- |----------:|-----------:|----------:|-------:|----------:|
+| 'Headers.Host[0] → HostName(span)' |  9.568 ns | 17.4134 ns | 0.9545 ns |      - |         - |
+| 'Request.Host (HostString struct)' | 13.834 ns |  0.8515 ns | 0.0467 ns |      - |         - |
+| 'Request.Host.Host (port present)' | 39.456 ns | 40.6810 ns | 2.2299 ns | 0.0032 |      40 B |
+| 'Request.Host.Port (port present)' | 37.055 ns |  3.7928 ns | 0.2079 ns |      - |         - |
+// * Summary *
+BenchmarkDotNet v0.15.8, Linux CachyOS
+| Method                               | Value                | Mean     | Error     | StdDev   | Ratio        | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|------------------------------------- |--------------------- |---------:|----------:|---------:|-------------:|--------:|-------:|----------:|------------:|
+| 'Ip.TryParse (custom span parser)'   | 2001:(...):7334 [28] | 58.05 ns |  3.899 ns | 0.214 ns |     baseline |         |      - |         - |          NA |
+| 'IPAddress.TryParse(span) → UInt128' | 2001:(...):7334 [28] | 66.70 ns | 11.072 ns | 0.607 ns | 1.15x slower |   0.01x | 0.0063 |      80 B |          NA |
+|                                      |                      |          |           |          |              |         |        |           |             |
+| 'Ip.TryParse (custom span parser)'   | 203.0.113.77         | 15.16 ns | 10.583 ns | 0.580 ns |     baseline |         |      - |         - |          NA |
+| 'IPAddress.TryParse(span) → UInt128' | 203.0.113.77         | 19.68 ns |  2.909 ns | 0.159 ns | 1.30x slower |   0.04x | 0.0032 |      40 B |          NA |
+|                                      |                      |          |           |          |              |         |        |           |             |
+| 'Ip.TryParse (custom span parser)'   | ::ffff:198.51.100.9  | 35.42 ns |  1.895 ns | 0.104 ns |     baseline |         |      - |         - |          NA |
+| 'IPAddress.TryParse(span) → UInt128' | ::ffff:198.51.100.9  | 65.45 ns | 23.311 ns | 1.278 ns | 1.85x slower |   0.03x | 0.0063 |      80 B |          NA |
+// * Summary *
+BenchmarkDotNet v0.15.8, Linux CachyOS
+| Method                                           | Mean      | Error     | StdDev    | Ratio        | RatioSD | Allocated | Alloc Ratio |
+|------------------------------------------------- |----------:|----------:|----------:|-------------:|--------:|----------:|------------:|
+| 'chain of 3 via IRequestPolicy[] (all Continue)' | 66.326 ns | 32.186 ns | 1.7642 ns |     baseline |         |         - |          NA |
+| 'IpRange (2000 CIDRs, binary search)'            |  7.653 ns | 15.187 ns | 0.8325 ns | 8.74x faster |   0.90x |         - |          NA |
+| 'UserAgent (30 needles, SearchValues, OIC)'      | 39.264 ns |  9.668 ns | 0.5299 ns | 1.69x faster |   0.04x |         - |          NA |
+| 'PathPrefix (4 prefixes)'                        | 14.931 ns |  6.515 ns | 0.3571 ns | 4.44x faster |   0.14x |         - |          NA |
+// * Summary *
+BenchmarkDotNet v0.15.8, Linux CachyOS
+| Method                              | Mean      | Error     | StdDev    | Ratio        | RatioSD | Allocated | Alloc Ratio |
+|------------------------------------ |----------:|----------:|----------:|-------------:|--------:|----------:|------------:|
+| 'interface over sealed classes (8)' | 15.479 ns | 10.235 ns | 0.5610 ns |     baseline |         |         - |          NA |
+| 'abstract base class (8)'           | 11.201 ns | 27.773 ns | 1.5223 ns | 1.40x faster |   0.17x |         - |          NA |
+| 'enum switch on a record (8)'       |  6.752 ns |  3.409 ns | 0.1869 ns | 2.29x faster |   0.09x |         - |          NA |
+// * Summary *
+BenchmarkDotNet v0.15.8, Linux CachyOS
+| Method                    | Mode       | Host           | Mean     | Error     | StdDev   | Gen0   | Allocated |
+|-------------------------- |----------- |--------------- |---------:|----------:|---------:|-------:|----------:|
+| 'Gate.Run (forward path)' | Locals     | a.w3.test:8443 | 149.4 ns | 148.10 ns |  8.12 ns |      - |         - |
+| 'Gate.Run (forward path)' | Locals     | h123.test      | 145.3 ns |  62.57 ns |  3.43 ns |      - |         - |
+| 'Gate.Run (forward path)' | NewFeature | a.w3.test:8443 | 192.2 ns | 176.13 ns |  9.65 ns | 0.0062 |      80 B |
+| 'Gate.Run (forward path)' | NewFeature | h123.test      | 184.3 ns | 158.93 ns |  8.71 ns | 0.0062 |      80 B |
+| 'Gate.Run (forward path)' | Pooled     | a.w3.test:8443 | 218.9 ns | 106.18 ns |  5.82 ns |      - |         - |
+| 'Gate.Run (forward path)' | Pooled     | h123.test      | 226.1 ns | 307.79 ns | 16.87 ns |      - |         - |

@@ -1,0 +1,86 @@
+mode=bare proto=h1 path=/x conns=4 depth=16 cf=False xf=default | 11176176 req in 5.0s (2235302 rps), client: 11180011 ok, 0 4xx/5xx | server total 0.0 B/req (idle 0.03 B/req of that; gen0 GCs 0) | gate n/a B/req (nonzero 0/0, max 0, fwd 0, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=bare proto=h1 path=/x* conns=4 depth=16 cf=False xf=default | 10024787 req in 5.0s (2005072 rps), client: 10031136 ok, 0 4xx/5xx | server total 32.0 B/req (idle 0.03 B/req of that; gen0 GCs 125) | gate n/a B/req (nonzero 0/0, max 0, fwd 0, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=gate proto=h1 path=/static conns=4 depth=16 cf=False xf=default | 9458397 req in 5.0s (1891605 rps), client: 9462902 ok, 0 4xx/5xx | server total 0.0 B/req (idle 0.03 B/req of that; gen0 GCs 0) | gate 0.00 B/req (nonzero 0/9458416, max 0, fwd 0, resp 9458416, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 9458397
+mode=gate proto=h1 path=/admin conns=4 depth=16 cf=False xf=default | 9040173 req in 5.0s (1807990 rps), client: 0 ok, 9044991 4xx/5xx | server total 0.0 B/req (idle 0.03 B/req of that; gen0 GCs 0) | gate 0.00 B/req (nonzero 0/9040197, max 0, fwd 0, resp 9040197, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 9040173
+mode=gate proto=h1 path=/old conns=4 depth=16 cf=False xf=default | 9482997 req in 5.0s (1896526 rps), client: 9487035 ok, 0 4xx/5xx | server total 0.0 B/req (idle 0.03 B/req of that; gen0 GCs 0) | gate 0.00 B/req (nonzero 0/9483046, max 0, fwd 0, resp 9483046, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 9482997
+mode=gate proto=h1 path=/x conns=4 depth=16 cf=False xf=default | 604935 req in 5.0s (120983 rps), client: 605248 ok, 0 4xx/5xx | server total 2816.0 B/req (idle 0.03 B/req of that; gen0 GCs 572) | gate 0.00 B/req (nonzero 0/604970, max 0, fwd 604970, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 604935
+mode=gate proto=h1 path=/x* conns=4 depth=16 cf=False xf=default | 591209 req in 5.0s (118235 rps), client: 591407 ok, 0 4xx/5xx | server total 2856.0 B/req (idle 0.04 B/req of that; gen0 GCs 421) | gate 0.00 B/req (nonzero 0/591234, max 0, fwd 591234, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 591209
+mode=gate proto=h1 path=/x conns=4 depth=16 cf=True xf=default | 578679 req in 5.0s (115731 rps), client: 578971 ok, 0 4xx/5xx | server total 2920.1 B/req (idle 0.04 B/req of that; gen0 GCs 484) | gate 0.00 B/req (nonzero 0/578712, max 0, fwd 578712, resp 0, noClientInfo 0, cf 578711) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 578679
+mode=gate proto=h1 path=/x conns=4 depth=16 cf=False xf=default noauthz | 605506 req in 5.0s (121096 rps), client: 605827 ok, 0 4xx/5xx | server total 2656.2 B/req (idle 0.03 B/req of that; gen0 GCs 287) | gate 0.00 B/req (nonzero 0/605539, max 0, fwd 605539, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 0
+mode=gate proto=h1 path=/x conns=4 depth=16 cf=False xf=off noauthz | 618146 req in 5.0s (123619 rps), client: 618389 ok, 0 4xx/5xx | server total 2504.0 B/req (idle 0.03 B/req of that; gen0 GCs 533) | gate 0.00 B/req (nonzero 0/618159, max 0, fwd 618159, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 0
+mode=bare proto=h2 path=/x conns=4 depth=16 cf=False xf=default | 3348526 req in 5.0s (669799 rps), client: 3350480 ok, 0 4xx/5xx | server total 0.0 B/req (idle 0.01 B/req of that; gen0 GCs 0) | gate n/a B/req (nonzero 0/0, max 0, fwd 0, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=bare proto=h2 path=/x* conns=4 depth=16 cf=False xf=default | 3105784 req in 5.0s (621216 rps), client: 3107823 ok, 0 4xx/5xx | server total 28.1 B/req (idle 0.01 B/req of that; gen0 GCs 35) | gate n/a B/req (nonzero 0/0, max 0, fwd 0, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=gate proto=h2 path=/static conns=4 depth=16 cf=False xf=default | 3355869 req in 5.0s (671179 rps), client: 3357343 ok, 0 4xx/5xx | server total 0.0 B/req (idle 0.01 B/req of that; gen0 GCs 0) | gate 0.00 B/req (nonzero 0/3355880, max 0, fwd 0, resp 3355880, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 3355868
+mode=gate proto=h2 path=/admin conns=4 depth=16 cf=False xf=default | 3268011 req in 5.0s (653595 rps), client: 0 ok, 3269199 4xx/5xx | server total 0.0 B/req (idle 0.01 B/req of that; gen0 GCs 0) | gate 0.00 B/req (nonzero 0/3268027, max 0, fwd 0, resp 3268027, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 3268011
+mode=gate proto=h2 path=/old conns=4 depth=16 cf=False xf=default | 2125931 req in 5.0s (425192 rps), client: 2126597 ok, 0 4xx/5xx | server total 0.0 B/req (idle 0.01 B/req of that; gen0 GCs 0) | gate 0.00 B/req (nonzero 1/2125956, max 408, fwd 0, resp 2125956, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 2125931
+mode=gate proto=h2 path=/x conns=4 depth=16 cf=False xf=default | 1089492 req in 5.0s (217887 rps), client: 1089781 ok, 0 4xx/5xx | server total 3176.4 B/req (idle 0.02 B/req of that; gen0 GCs 269) | gate 0.00 B/req (nonzero 0/1089492, max 0, fwd 1089492, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 1089492
+mode=gate proto=h2 path=/x* conns=4 depth=16 cf=False xf=default | 855002 req in 5.0s (171016 rps), client: 855199 ok, 0 4xx/5xx | server total 3213.1 B/req (idle 0.02 B/req of that; gen0 GCs 236) | gate 0.00 B/req (nonzero 1/855039, max 408, fwd 855039, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 855002
+mode=gate proto=h2 path=/x conns=4 depth=16 cf=True xf=default | 854786 req in 5.0s (170960 rps), client: 854788 ok, 0 4xx/5xx | server total 3280.4 B/req (idle 0.02 B/req of that; gen0 GCs 228) | gate 0.00 B/req (nonzero 0/854787, max 0, fwd 854787, resp 0, noClientInfo 0, cf 854787) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 854786
+mode=gate proto=h2 path=/x conns=4 depth=16 cf=False xf=default noauthz | 989722 req in 5.0s (197940 rps), client: 989780 ok, 0 4xx/5xx | server total 3017.2 B/req (idle 0.02 B/req of that; gen0 GCs 277) | gate 0.00 B/req (nonzero 2/989733, max 408, fwd 989733, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 0
+mode=gate proto=h2 path=/x conns=4 depth=16 cf=False xf=off noauthz | 1171812 req in 5.0s (234370 rps), client: 1172164 ok, 0 4xx/5xx | server total 2864.0 B/req (idle 0.02 B/req of that; gen0 GCs 290) | gate 0.00 B/req (nonzero 1/1171824, max 408, fwd 1171824, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 0
+mode=bare proto=h1 path=/x conns=4 depth=16 cf=False xf=default browser | 6040030 req in 5.0s (1208155 rps), client: 6042984 ok, 0 4xx/5xx | server total 1057.1 B/req (idle 0.00 B/req of that; gen0 GCs 862) | gate n/a B/req (nonzero 0/0, max 0, fwd 0, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=gate proto=h1 path=/static conns=4 depth=16 cf=False xf=default browser generichost | 4896196 req in 5.0s (979203 rps), client: 4898007 ok, 0 4xx/5xx | server total 1093.0 B/req (idle 0.00 B/req of that; gen0 GCs 705) | gate 0.00 B/req (nonzero 0/4896230, max 0, fwd 0, resp 4896230, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=gate proto=h1 path=/admin conns=4 depth=16 cf=False xf=default browser generichost | 4739649 req in 5.0s (947890 rps), client: 0 ok, 4741175 4xx/5xx | server total 1089.8 B/req (idle 0.00 B/req of that; gen0 GCs 680) | gate 0.00 B/req (nonzero 0/4739696, max 0, fwd 0, resp 4739696, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=gate proto=h1 path=/x conns=4 depth=16 cf=False xf=default browser | 515640 req in 5.0s (103125 rps), client: 515898 ok, 0 4xx/5xx | server total 4302.9 B/req (idle 0.04 B/req of that; gen0 GCs 396) | gate 0.00 B/req (nonzero 0/515681, max 0, fwd 515681, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 515639
+mode=gate proto=h1 path=/x conns=4 depth=16 cf=False xf=default browser generichost | 383279 req in 5.0s (76652 rps), client: 383372 ok, 0 4xx/5xx | server total 4142.9 B/req (idle 0.05 B/req of that; gen0 GCs 327) | gate 0.00 B/req (nonzero 0/383294, max 0, fwd 383294, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 0
+mode=gate proto=h1 path=/x conns=4 depth=16 cf=True xf=default browser generichost | 475400 req in 5.0s (95044 rps), client: 475526 ok, 0 4xx/5xx | server total 4782.1 B/req (idle 0.04 B/req of that; gen0 GCs 443) | gate 0.00 B/req (nonzero 0/475435, max 0, fwd 475435, resp 0, noClientInfo 0, cf 475435) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 0
+mode=bare proto=h2 path=/x conns=4 depth=16 cf=False xf=default browser | 1789047 req in 5.0s (357855 rps), client: 1789907 ok, 0 4xx/5xx | server total 1011.2 B/req (idle 0.01 B/req of that; gen0 GCs 322) | gate n/a B/req (nonzero 0/0, max 0, fwd 0, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=gate proto=h2 path=/static conns=4 depth=16 cf=False xf=default browser generichost | 2390193 req in 5.0s (478030 rps), client: 2390969 ok, 0 4xx/5xx | server total 974.7 B/req (idle 0.01 B/req of that; gen0 GCs 298) | gate 0.00 B/req (nonzero 0/2390237, max 0, fwd 0, resp 2390237, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=gate proto=h2 path=/admin conns=4 depth=16 cf=False xf=default browser generichost | 2410214 req in 5.0s (482003 rps), client: 0 ok, 2411130 4xx/5xx | server total 973.0 B/req (idle 0.01 B/req of that; gen0 GCs 335) | gate 0.00 B/req (nonzero 0/2410242, max 0, fwd 0, resp 2410242, noClientInfo 0, cf 0) | handoff→proxy pipeline n/a B/req | auth fallback-policy lookups 0
+mode=gate proto=h2 path=/x conns=4 depth=16 cf=False xf=default browser | 834750 req in 5.0s (166948 rps), client: 834913 ok, 0 4xx/5xx | server total 4605.6 B/req (idle 0.03 B/req of that; gen0 GCs 284) | gate 0.00 B/req (nonzero 1/834772, max 408, fwd 834772, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 834750
+mode=gate proto=h2 path=/x conns=4 depth=16 cf=False xf=default browser generichost | 819155 req in 5.0s (163815 rps), client: 819336 ok, 0 4xx/5xx | server total 4445.8 B/req (idle 0.03 B/req of that; gen0 GCs 239) | gate 0.00 B/req (nonzero 0/819218, max 0, fwd 819218, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 0
+mode=gate proto=h2 path=/x conns=4 depth=16 cf=True xf=default browser generichost | 749393 req in 5.0s (149875 rps), client: 749538 ok, 0 4xx/5xx | server total 5086.8 B/req (idle 0.03 B/req of that; gen0 GCs 215) | gate 0.00 B/req (nonzero 2/749393, max 408, fwd 749393, resp 0, noClientInfo 0, cf 749393) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 0
+mode=gate proto=h1 path=/x conns=4 depth=16 cf=False xf=default | 565564 req in 5.0s (113445 rps), client: 567146 ok, 0 4xx/5xx | server total 2856.7 B/req (idle 0.04 B/req of that; gen0 GCs 279) | gate 0.00 B/req (nonzero 0/565578, max 0, fwd 565578, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 565564
+  AllocationTick samples (sampled ~100 KB each; share = ticks of type / all ticks; listener's own allocations included):
+     17.0%    2606 ticks  System.String
+     16.3%    2498 ticks  System.Net.Http.Headers.HeaderEntry[]
+     10.6%    1627 ticks  AsyncStateMachineBox`1[Yarp.ReverseProxy.Forwarder.ForwarderError,Yarp.ReverseProxy.Forwarder.HttpForwarder+<SendAsync>d__8]
+     10.2%    1568 ticks  AsyncStateMachineBox`1[System.Net.Http.HttpResponseMessage,System.Net.Http.HttpConnectionPool+<SendWithVersionDetectionAndRetryAsync>d__52]
+      5.8%     896 ticks  AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Yarp.ReverseProxy.Forwarder.ForwarderMiddleware+<Invoke>d__5]
+      5.5%     842 ticks  AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Microsoft.AspNetCore.Authorization.AuthorizationMiddleware+<Invoke>d__11]
+      4.9%     752 ticks  AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Yarp.ReverseProxy.Health.PassiveHealthCheckMiddleware+<Invoke>d__3]
+      3.8%     589 ticks  Yarp.ReverseProxy.Model.ReverseProxyFeature
+      3.6%     553 ticks  System.Threading.Tasks.Task`1[System.IO.Stream]
+      3.3%     505 ticks  System.Net.Http.HttpRequestMessage
+      3.1%     468 ticks  System.Net.Http.HttpConnectionResponseContent
+      2.5%     386 ticks  System.Net.Http.HttpResponseMessage
+      2.0%     309 ticks  AsyncStateMachineBox`1[System.Net.Http.HttpResponseMessage,System.Net.Http.HttpConnection+<SendAsync>d__56]
+      1.8%     282 ticks  System.Func`1[System.Threading.Tasks.Task]
+      1.5%     224 ticks  System.Int64
+      1.3%     204 ticks  Yarp.ReverseProxy.Transforms.RequestTransformContext
+      1.1%     168 ticks  System.Net.Http.Headers.HttpResponseHeaders
+      0.9%     141 ticks  Node[System.Net.Http.HttpConnection]
+      0.8%     129 ticks  System.Uri
+      0.8%     125 ticks  System.Net.Http.Headers.HttpContentHeaders
+      0.4%      55 ticks  HeaderStoreItemInfo
+      0.4%      54 ticks  System.Net.Http.Headers.HttpRequestHeaders
+      0.3%      53 ticks  UriInfo
+      0.3%      47 ticks  MoreEventInfo
+      0.3%      45 ticks  System.Object[]
+mode=gate proto=h2 path=/x conns=4 depth=16 cf=False xf=default | 976723 req in 5.0s (195777 rps), client: 978156 ok, 0 4xx/5xx | server total 3223.1 B/req (idle 0.02 B/req of that; gen0 GCs 271) | gate 0.00 B/req (nonzero 0/976723, max 0, fwd 976723, resp 0, noClientInfo 0, cf 0) | handoff→proxy pipeline 152.0 B/req | auth fallback-policy lookups 976723
+  AllocationTick samples (sampled ~100 KB each; share = ticks of type / all ticks; listener's own allocations included):
+     13.7%    4089 ticks  System.Net.Http.Headers.HeaderEntry[]
+     13.0%    3878 ticks  AsyncStateMachineBox`1[Yarp.ReverseProxy.Forwarder.ForwarderError,Yarp.ReverseProxy.Forwarder.HttpForwarder+<SendAsync>d__8]
+      8.0%    2404 ticks  AsyncStateMachineBox`1[System.Net.Http.HttpResponseMessage,System.Net.Http.HttpConnectionPool+<SendWithVersionDetectionAndRetryAsync>d__52]
+      7.4%    2215 ticks  AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Microsoft.AspNetCore.Authorization.AuthorizationMiddleware+<Invoke>d__11]
+      6.4%    1924 ticks  AsyncStateMachineBox`1[System.Net.Http.HttpResponseMessage,System.Net.Http.HttpConnection+<SendAsync>d__56]
+      5.9%    1777 ticks  AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Yarp.ReverseProxy.Forwarder.ForwarderMiddleware+<Invoke>d__5]
+      4.6%    1363 ticks  System.String
+      4.1%    1225 ticks  AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol+<ProcessRequests>d__236`1[Microsoft.AspNetCore.Hosting.HostingApplication+Context]]
+      3.5%    1059 ticks  System.Net.Http.Headers.HttpResponseHeaders
+      3.3%     983 ticks  UriInfo
+      3.2%     966 ticks  System.Net.Http.HttpResponseMessage
+      2.4%     728 ticks  <>c__DisplayClass0_2
+      2.2%     661 ticks  System.Net.Http.HttpRequestMessage
+      2.1%     638 ticks  Yarp.ReverseProxy.Model.ReverseProxyFeature
+      2.1%     618 ticks  AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http.HttpProtocol+<ProcessRequestsAsync>d__235`1[Microsoft.AspNetCore.Hosting.HostingApplication+Context]]
+      1.9%     572 ticks  System.Net.Http.HttpConnectionResponseContent
+      1.9%     572 ticks  HeaderStoreItemInfo
+      1.9%     571 ticks  AsyncStateMachineBox`1[System.Threading.Tasks.VoidTaskResult,Yarp.ReverseProxy.Health.PassiveHealthCheckMiddleware+<Invoke>d__3]
+      1.7%     503 ticks  System.Net.Http.Headers.HttpContentHeaders
+      1.6%     471 ticks  System.Threading.Tasks.Task`1[System.IO.Stream]
+      1.6%     469 ticks  ContentLengthReadStream
+      1.5%     440 ticks  System.Uri
+      1.4%     433 ticks  System.Func`1[System.Threading.Tasks.Task]
+      1.3%     391 ticks  Yarp.ReverseProxy.Transforms.RequestTransformContext
+      1.0%     308 ticks  System.Net.Http.Headers.HttpRequestHeaders

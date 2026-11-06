@@ -1,0 +1,15 @@
+ip parse: 400000 random round-trips compared with IPAddress.TryParse
+hosts: table of 520, punycode of bücher57.test = xn--bcher57-n2a.test
+AllocAssert (1000 warm-up + 10000 measured calls, current thread):
+  0 B   HostTable.Find over 6 inputs
+  216.0 B/call  naive: Substring(port) + "*" + parent + Dictionary<string> over the same 6 inputs (expected to allocate)
+  0 B   Ip.TryParse v4 + v6
+  120.0 B/call  IPAddress.TryParse v4 + v6 (BCL, expected to allocate)
+   40.0 B/call  Request.Host.Host with a port (DefaultHttpContext, expected to allocate)
+  0 B   policy chain (3 policies, all Continue)
+  0 B   Gate.Run forward path, StateMode=Pooled
+  0 B   Gate.Run forward path, StateMode=Locals
+   80.0 B/call  Gate.Run forward path, StateMode=NewFeature
+   40.0 B/call  accidental allocation demo: LINQ FirstOrDefault over a non-empty IDictionary.Values (boxed enumerator)
+   96.1 B/call  async method with await Task.Yield() (measures only the part before the first real suspension)
+selftest: all checks passed

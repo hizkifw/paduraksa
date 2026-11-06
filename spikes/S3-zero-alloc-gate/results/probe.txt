@@ -1,0 +1,33 @@
+# warm-up done for HTTP/1.1 (4 keep-alive conns)
+# warm-up done for HTTP/2 (1 conn, 16 concurrent streams)
+
+Kestrel probe: per-operation allocation on the request thread, after warm-up (10.0.13, server GC=True)
+Requests measured: HTTP/1.1 20000, HTTP/2 20000. Host header 'h123.test:8443'.
+
+| operation                                            |  H1 B/req | H1 nonzero |  H2 B/req | H2 nonzero |
+|------------------------------------------------------|-----------|------------|-----------|------------|
+| Request.Headers.Host[0]                              |       0.0 |          0 |       0.0 |          0 |
+| Request.Host.Value                                   |       0.0 |          0 |       0.0 |          0 |
+| Request.Host.Host (port present)                     |      40.0 |      20000 |      40.0 |      20000 |
+| Request.Host.Port                                    |       0.0 |          0 |       0.0 |          0 |
+| HostTable.Find(Headers.Host[0])                      |       0.0 |          0 |       0.0 |          0 |
+| Features.Get<IClientInfoFeature>() [conn feature]    |       0.0 |          0 |       0.0 |          0 |
+| Features.Get<IConnectionItemsFeature>().Items[k]     |       0.0 |          0 |       0.0 |          0 |
+| Connection.RemoteIpAddress → UInt128                 |       0.0 |          0 |       0.0 |          0 |
+| Headers["CF-Connecting-IP"] + Ip.TryParse            |       0.0 |          0 |       0.0 |          0 |
+| Headers["CF-Connecting-IP"] + IPAddress.TryParse     |      80.0 |      20000 |      80.0 |      20000 |
+| new GateRequestState + Features.Set                  |      80.0 |      20000 |      80.0 |      20000 |
+| IPersistentStateFeature pooled object                |       0.0 |          0 |       0.0 |          0 |
+| Features.Set<IGateFeature>(pooled)                   |       0.0 |          0 |       0.0 |          0 |
+| Features.Get<IGateFeature>()                         |       0.0 |          0 |       0.0 |          0 |
+| Request.Path.Value + route match                     |       0.0 |          0 |       0.0 |          0 |
+| SnapshotStore.Current + SetEndpoint                  |       0.0 |          0 |       0.0 |          0 |
+| Response.Headers.Location = sv                       |       0.0 |          0 |       0.0 |          0 |
+| Response.Headers["Location"] = sv                    |       0.0 |          0 |       0.0 |          0 |
+| Response.Headers.CacheControl = sv                   |       0.0 |          0 |       0.0 |          0 |
+| Response.Headers["X-Paduraksa"] = sv (unknown)       |       0.0 |          0 |       0.0 |          0 |
+| Response.ContentType = const string                  |       0.0 |          0 |       0.0 |          0 |
+| ResponseWriter.WriteAsync (sync part)                |       0.0 |          0 |       0.0 |          0 |
+
+misses: IClientInfoFeature null=0, IConnectionItemsFeature/key missing=0, WriteAsync not completed sync=0
+pooled GateRequestState objects created (IPersistentStateFeature): 20 for 44000 requests; connections opened: 5

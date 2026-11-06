@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Spike S3: zero-allocation gate on Kestrel. Not part of Paduraksa.slnx. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>S3</RootNamespace>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" />
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+</Project>
