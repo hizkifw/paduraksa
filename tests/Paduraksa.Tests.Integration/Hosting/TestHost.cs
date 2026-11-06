@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 using Paduraksa.Server.Hosting;
 
@@ -22,7 +23,19 @@ internal static class TestHost
         Action<HostRole, IServiceCollection>? configureServices = null,
         bool allowEphemeralPorts = true,
         Action<SharedServices.Builder>? configureShared = null,
-        string? contentRootPath = null)
+        string? contentRootPath = null,
+        LogCapture? logs = null) =>
+        PaduraksaHost.Create(CreateOptions(events, settings, configureServices, allowEphemeralPorts, configureShared, contentRootPath, logs));
+
+    /// <summary>The options <see cref="Create"/> builds the host from (for callers that build it themselves, e.g. the CLI).</summary>
+    public static PaduraksaHostOptions CreateOptions(
+        EventLog? events = null,
+        IReadOnlyDictionary<string, string?>? settings = null,
+        Action<HostRole, IServiceCollection>? configureServices = null,
+        bool allowEphemeralPorts = true,
+        Action<SharedServices.Builder>? configureShared = null,
+        string? contentRootPath = null,
+        LogCapture? logs = null)
     {
         Dictionary<string, string?> config = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -39,7 +52,7 @@ internal static class TestHost
             config[key] = value;
         }
 
-        return PaduraksaHost.Create(new PaduraksaHostOptions
+        return new PaduraksaHostOptions
         {
             EnvironmentName = "Testing",
             AllowEphemeralPorts = allowEphemeralPorts,
@@ -63,7 +76,8 @@ internal static class TestHost
 
                 configureServices?.Invoke(role, services);
             },
-        });
+            ConfigureLogging = logs is null ? null : logging => logging.AddProvider(logs),
+        };
     }
 
     /// <summary>Loopback URI of a bound listener, e.g. <c>https://127.0.0.1:41234/</c>.</summary>
@@ -88,6 +102,36 @@ internal static class TestHost
         };
         return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
     }
+}
+
+/// <summary>Captures every log entry that passes the configured filters (tests run at Warning and above).</summary>
+internal sealed class LogCapture : ILoggerProvider
+{
+    private readonly ConcurrentQueue<LogEntry> _entries = new();
+
+    public IReadOnlyList<LogEntry> Entries => [.. _entries];
+
+    public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
+
+    public void Dispose()
+    {
+    }
+
+    private sealed class Logger(LogCapture owner, string category) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            owner._entries.Enqueue(new LogEntry(category, logLevel, eventId, formatter(state, exception), exception));
+    }
+}
+
+internal sealed record LogEntry(string Category, LogLevel Level, EventId EventId, string Message, Exception? Exception)
+{
+    public override string ToString() => $"{Level} {Category}[{EventId.Id}] {Message}";
 }
 
 /// <summary>Thread-safe ordered record of lifecycle events across hosts.</summary>
@@ -142,6 +186,20 @@ internal sealed class StopsHostOnStart(IHostApplicationLifetime lifetime) : IHos
     {
         lifetime.StopApplication();
         return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}
+
+/// <summary>Holds its host's start in <see cref="StartAsync"/> until the start is cancelled.</summary>
+internal sealed class BlocksStart : IHostedService
+{
+    public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        Entered.TrySetResult();
+        await Task.Delay(Timeout.Infinite, cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -220,6 +220,162 @@ public sealed class DualHostTests
         Assert.Equal(1, probe.DisposeCount);
     }
 
+    [Theory]
+    [InlineData("Core")]
+    [InlineData("Public")]
+    [InlineData("Admin")]
+    public async Task StopDuringStartAbortsTheStartAndStopsEverything(string blockedHost)
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        HostRole blockedRole = Enum.Parse<HostRole>(blockedHost);
+        EventLog events = new();
+        LogCapture logs = new();
+        BlocksStart blocker = new();
+        await using PaduraksaHost host = TestHost.Create(events, configureServices: BlockStartOf(blockedRole, blocker), logs: logs);
+
+        Task starting = host.StartAsync(ct);
+        await blocker.Entered.Task.WaitAsync(ct);
+        Assert.Equal(HostState.Starting, host.State);
+
+        await host.StopAsync(ct).WaitAsync(ct);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+        Assert.Equal(HostState.Stopped, host.State);
+        Assert.False(host.Shared.Health.IsReady);
+        Assert.Equal(new ShutdownRequest(ShutdownReason.Requested, Role: null), await host.ShutdownRequested.WaitAsync(ct));
+
+        // Whatever started was stopped again, core last.
+        IReadOnlyList<string> log = events.Events;
+        foreach (HostRole role in Enum.GetValues<HostRole>())
+        {
+            if (log.Contains($"{role}:start"))
+            {
+                Assert.Contains($"{role}:stop", log);
+            }
+        }
+
+        Assert.Equal("Core:stop", log[^1]);
+
+        // A requested abort isn't an error: no "Hosting failed to start" from the generic host, nothing else either.
+        Assert.DoesNotContain(logs.Entries, static e => e.Level >= LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task StopDuringStartUnbindsListenersThatWereAlreadyAccepting()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        BlocksStart blocker = new();
+        await using PaduraksaHost host = TestHost.Create(configureServices: BlockStartOf(HostRole.Admin, blocker));
+
+        // Admin is held mid-start while public binds its listeners and accepts connections.
+        Task starting = host.StartAsync(ct);
+        await blocker.Entered.Task.WaitAsync(ct);
+        await WaitUntilAsync(() => host.GetListenAddresses(HostRole.Public).Count == 2, ct);
+        int[] publicPorts = [TestHost.Endpoint(host, HostRole.Public, "http").Port, TestHost.Endpoint(host, HostRole.Public, "https").Port];
+        foreach (int port in publicPorts)
+        {
+            using TcpClient client = new();
+            await client.ConnectAsync(IPAddress.Loopback, port, ct);
+        }
+
+        await host.StopAsync(ct).WaitAsync(ct);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+        foreach (int port in publicPorts)
+        {
+            await AssertRefusesConnectionsAsync(port, ct);
+        }
+    }
+
+    [Fact]
+    public async Task StopDuringStartWithACancelledTokenStillStopsEverythingWithoutThrowing()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        EventLog events = new();
+        BlocksStart blocker = new();
+        await using PaduraksaHost host = TestHost.Create(events, configureServices: BlockStartOf(HostRole.Core, blocker));
+
+        Task starting = host.StartAsync(ct);
+        await blocker.Entered.Task.WaitAsync(ct);
+        using CancellationTokenSource cancelled = new();
+        await cancelled.CancelAsync();
+
+        await host.StopAsync(cancelled.Token).WaitAsync(ct);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+        Assert.Equal(HostState.Stopped, host.State);
+        Assert.Equal("Core:stop", events.Events[^1]);
+    }
+
+    [Fact]
+    public async Task CancellingTheStartTokenIsARequestedAbort()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        LogCapture logs = new();
+        BlocksStart blocker = new();
+        await using PaduraksaHost host = TestHost.Create(configureServices: BlockStartOf(HostRole.Core, blocker), logs: logs);
+        using CancellationTokenSource startToken = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        Task starting = host.StartAsync(startToken.Token);
+        await blocker.Entered.Task.WaitAsync(ct);
+        await startToken.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+        Assert.Equal(HostState.Stopped, host.State);
+        Assert.Equal(new ShutdownRequest(ShutdownReason.Requested, Role: null), await host.ShutdownRequested.WaitAsync(ct));
+        Assert.DoesNotContain(logs.Entries, static e => e.Level >= LogLevel.Error);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RunAsyncReturnsSuccessWhenShutdownIsRequestedDuringStart(bool viaToken)
+    {
+        // A signal takes the same path (a shutdown request that cancels the start); a real one would hit every test.
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        BlocksStart blocker = new();
+        await using PaduraksaHost host = TestHost.Create(configureServices: BlockStartOf(HostRole.Core, blocker));
+        using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        Task<int> run = host.RunAsync(stop.Token);
+        await blocker.Entered.Task.WaitAsync(ct);
+        if (viaToken)
+        {
+            await stop.CancelAsync();
+        }
+        else
+        {
+            host.RequestShutdown();
+        }
+
+        Assert.Equal(ExitCodes.Success, await run.WaitAsync(ct));
+        Assert.Equal(HostState.Stopped, host.State);
+    }
+
+    [Fact]
+    public async Task RunAsyncReturnsFailureWhenAHostFailsToStopAfterAnAbortedStart()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        BlocksStart blocker = new();
+        await using PaduraksaHost host = TestHost.Create(configureServices: (role, services) =>
+        {
+            if (role == HostRole.Core)
+            {
+                services.AddSingleton<IHostedService>(new LifecycleProbe(new EventLog(), role)
+                {
+                    OnStop = static _ => throw new InvalidOperationException("Simulated stop failure."),
+                });
+                services.AddSingleton<IHostedService>(blocker);
+            }
+        });
+
+        Task<int> run = host.RunAsync(ct);
+        await blocker.Entered.Task.WaitAsync(ct);
+        host.RequestShutdown();
+
+        Assert.Equal(ExitCodes.Failure, await run.WaitAsync(ct));
+    }
+
     [Fact]
     public async Task AHostStoppingOnItsOwnRequestsProcessShutdown()
     {
@@ -458,6 +614,15 @@ public sealed class DualHostTests
         using TcpClient client = new();
         await Assert.ThrowsAnyAsync<SocketException>(async () => await client.ConnectAsync(IPAddress.Loopback, port, ct));
     }
+
+    /// <summary>Holds <paramref name="role"/>'s start in <paramref name="blocker"/> until the start is cancelled.</summary>
+    private static Action<HostRole, IServiceCollection> BlockStartOf(HostRole role, BlocksStart blocker) => (r, services) =>
+    {
+        if (r == role)
+        {
+            services.AddSingleton<IHostedService>(blocker);
+        }
+    };
 
     private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken ct)
     {

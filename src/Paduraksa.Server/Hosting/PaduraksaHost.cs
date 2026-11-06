@@ -32,6 +32,10 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     private readonly ILogger _logger;
     private readonly TaskCompletionSource<ShutdownRequest> _shutdown = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly CancellationTokenSource _shutdownToken = new();
+    private readonly TaskCompletionSource _startFinished = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // Bounds the stop that follows an aborted start; a StopAsync arriving during the start links its token to it.
+    private readonly CancellationTokenSource _abortedStartDrain = new();
     private int _state = (int)HostState.Created;
     private int _disposed;
     private int _signalCount;
@@ -91,7 +95,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             hostOptions.ConfigureConfiguration?.Invoke(configuration);
 
             PaduraksaOptions options = BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
-            shared = SharedServices.Create(configuration, options, hostOptions.ConfigureShared);
+            shared = SharedServices.Create(configuration, options, hostOptions.ConfigureShared, hostOptions.ConfigureLogging);
 
             HostContext context = new(
                 typeof(PaduraksaHost).Assembly.GetName().Name ?? "paduraksa",
@@ -129,7 +133,16 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         }
     }
 
-    /// <summary>Starts core, then public and admin concurrently. On failure everything started is stopped again.</summary>
+    /// <summary>
+    /// Starts core, then public and admin concurrently. Can be called once; a second call throws.
+    /// <para>On success the state is <see cref="HostState.Running"/>. On failure everything that started is stopped
+    /// again, the state becomes <see cref="HostState.Faulted"/> and the failure is rethrown.</para>
+    /// <para>A shutdown request arriving while starting (<see cref="StopAsync"/>, <see cref="RequestShutdown"/>, a
+    /// signal, or a host stopping on its own) aborts the start the same way and throws
+    /// <see cref="OperationCanceledException"/>. The state then becomes <see cref="HostState.Stopped"/>, or
+    /// <see cref="HostState.Faulted"/> if a host stopped on its own. Cancelling <paramref name="cancellationToken"/>
+    /// is such a request too (as if <see cref="RequestShutdown"/> had been called): the host won't run afterwards.</para>
+    /// </summary>
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.CompareExchange(ref _state, (int)HostState.Starting, (int)HostState.Created) != (int)HostState.Created)
@@ -139,51 +152,38 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
         try
         {
-            WatchForSelfStop(Core, HostRole.Core);
-            WatchForSelfStop(Public, HostRole.Public);
-            WatchForSelfStop(Admin, HostRole.Admin);
-
-            await Core.StartAsync(cancellationToken).ConfigureAwait(false);
-
-            using CancellationTokenSource startCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            await Task.WhenAll(
-                StartWebAppAsync(Public, startCts),
-                StartWebAppAsync(Admin, startCts)).ConfigureAwait(false);
-
-            // A host can stop itself while the others are still starting (since .NET 10, BackgroundService.ExecuteAsync
-            // always runs in the background, so a crash surfaces asynchronously) without any start being cancelled,
-            // e.g. once Kestrel has already bound. That's still a failed startup, never a running process.
-            if (_shutdown.Task.IsCompleted && _shutdown.Task.Result.Reason == ShutdownReason.HostStopped)
-            {
-                throw new OperationCanceledException("A host stopped on its own during startup.");
-            }
+            using CancellationTokenRegistration cancellation = cancellationToken.Register(static self => ((PaduraksaHost)self!).RequestShutdown(), this);
+            await StartHostsAsync().ConfigureAwait(false);
         }
-        catch (Exception ex)
+        finally
         {
-            if (ex is OperationCanceledException && _shutdown.Task.IsCompleted && _shutdown.Task.Result.Role is { } stoppedRole)
-            {
-                // A host stopped itself mid-start (e.g. a BackgroundService crashed). That host already logged the
-                // real error; the cancellation is only how the remaining starts were aborted.
-                string stoppedApp = stoppedRole.ToLogName();
-                LogHostStoppedDuringStartup(_logger, stoppedApp);
-            }
-            else
-            {
-                LogStartFailed(_logger, ex);
-            }
-
-            await FailureCleanup.RunAsync(() => StopHostsAsync(CancellationToken.None), _logger, "stopping the hosts").ConfigureAwait(false);
-            Volatile.Write(ref _state, (int)HostState.Faulted);
-            throw;
+            // The state is final by now; a StopAsync that arrived during the start waits for this.
+            _startFinished.TrySetResult();
         }
-
-        Shared.Health.MarkListenersBound();
-        Volatile.Write(ref _state, (int)HostState.Running);
     }
 
-    /// <summary>Graceful stop in order public, admin, core. No-op unless running. Doesn't dispose anything.</summary>
+    /// <summary>
+    /// Graceful stop in order public, admin, core. Doesn't dispose anything. Depends on the state:
+    /// <list type="bullet">
+    /// <item><b>Running:</b> stops, and the state becomes <see cref="HostState.Stopped"/>.</item>
+    /// <item><b>Starting:</b> the stop takes effect. It requests shutdown, which aborts the start (<see cref="StartAsync"/>
+    /// stops whatever already started and throws to its caller), and waits for the start to finish. If the start
+    /// completed anyway, the host is then stopped as if it had been running.</item>
+    /// <item><b>Created</b> (never started), <b>Stopping</b> (another stop is in progress and isn't awaited),
+    /// <b>Stopped</b>, <b>Faulted</b>: no-op.</item>
+    /// </list>
+    /// In both stopping cases <paramref name="cancellationToken"/> cuts the graceful drain short: the hosts still
+    /// stop, without waiting. It never makes this method throw.
+    /// </summary>
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
+        if (State == HostState.Starting)
+        {
+            using CancellationTokenRegistration drain = cancellationToken.Register(static cts => ((CancellationTokenSource)cts!).Cancel(), _abortedStartDrain);
+            RequestShutdown();
+            await _startFinished.Task.ConfigureAwait(false);
+        }
+
         if (Interlocked.CompareExchange(ref _state, (int)HostState.Stopping, (int)HostState.Running) != (int)HostState.Running)
         {
             return;
@@ -195,7 +195,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         LogStopped(_logger);
     }
 
-    /// <summary>Asks <see cref="RunAsync"/> to shut down. The first request wins.</summary>
+    /// <summary>Asks <see cref="RunAsync"/> to shut down and aborts a <see cref="StartAsync"/> in progress. The first request wins.</summary>
     public void RequestShutdown() => RequestShutdownCore(new ShutdownRequest(ShutdownReason.Requested, Role: null));
 
     /// <summary>
@@ -211,14 +211,16 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
         try
         {
-            await StartAsync(_shutdownToken.Token).ConfigureAwait(false);
+            await StartAsync(CancellationToken.None).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_shutdown.Task.IsCompleted)
         {
             // Start was aborted by a shutdown request. A signal (or caller cancellation) is a clean exit;
             // a host stopping itself during startup is a startup failure.
             ShutdownRequest aborted = await _shutdown.Task.ConfigureAwait(false);
-            return aborted.Reason == ShutdownReason.HostStopped ? ExitCodes.StartupFailed : ExitCodes.Success;
+            return aborted.Reason == ShutdownReason.HostStopped ? ExitCodes.StartupFailed
+                : _stopFaulted ? ExitCodes.Failure
+                : ExitCodes.Success;
         }
 #pragma warning disable CA1031 // Startup failures are logged by StartAsync and turned into an exit code.
         catch (Exception)
@@ -277,6 +279,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             // Runs while a disposal failure may be propagating; don't let these replace it.
             FailureCleanup.Run(_configuration.Dispose, _logger, "disposing the configuration");
             _shutdownToken.Dispose();
+            _abortedStartDrain.Dispose();
         }
     }
 
@@ -329,6 +332,61 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             await FailureCleanup.RunAsync(startCts.CancelAsync, _logger, "cancelling the sibling app's start").ConfigureAwait(false);
             throw;
         }
+    }
+
+    private async Task StartHostsAsync()
+    {
+        try
+        {
+            WatchForSelfStop(Core, HostRole.Core);
+            WatchForSelfStop(Public, HostRole.Public);
+            WatchForSelfStop(Admin, HostRole.Admin);
+
+            // Any shutdown request cancels the start: StopAsync, RequestShutdown, a signal, the caller's token, or a
+            // host stopping itself.
+            using CancellationTokenSource startCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken.Token);
+            await Core.StartAsync(startCts.Token).ConfigureAwait(false);
+            await Task.WhenAll(
+                StartWebAppAsync(Public, startCts),
+                StartWebAppAsync(Admin, startCts)).ConfigureAwait(false);
+
+            // A shutdown can be requested without any start observing the cancellation, e.g. once Kestrel has
+            // already bound. Since .NET 10, BackgroundService.ExecuteAsync always runs in the background, so a host
+            // stopping itself after a crash surfaces this way too. Either way the process must not end up running.
+            if (_shutdown.Task.IsCompleted)
+            {
+                throw new OperationCanceledException("Shutdown was requested during startup.");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShutdownRequest? abortedBy = ex is OperationCanceledException && _shutdown.Task.IsCompleted ? _shutdown.Task.Result : null;
+            if (abortedBy is { Role: { } stoppedRole })
+            {
+                // A host stopped itself mid-start (e.g. a BackgroundService crashed). That host already logged the
+                // real error; the cancellation is only how the remaining starts were aborted.
+                string stoppedApp = stoppedRole.ToLogName();
+                LogHostStoppedDuringStartup(_logger, stoppedApp);
+            }
+            else if (abortedBy is { } request)
+            {
+                LogStartAborted(_logger, request.Reason);
+            }
+            else
+            {
+                LogStartFailed(_logger, ex);
+            }
+
+            await FailureCleanup.RunAsync(() => StopHostsAsync(_abortedStartDrain.Token), _logger, "stopping the hosts").ConfigureAwait(false);
+
+            // A requested stop ends cleanly; a host stopping on its own mid-start is a failed startup.
+            HostState final = abortedBy is { Reason: not ShutdownReason.HostStopped } ? HostState.Stopped : HostState.Faulted;
+            Volatile.Write(ref _state, (int)final);
+            throw;
+        }
+
+        Shared.Health.MarkListenersBound();
+        Volatile.Write(ref _state, (int)HostState.Running);
     }
 
     private async Task StopHostsAsync(CancellationToken cancellationToken)
@@ -399,6 +457,12 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     {
         if (_shutdown.TrySetResult(request))
         {
+            if (request.Reason != ShutdownReason.HostStopped)
+            {
+                // Before cancelling: the generic hosts log the cancelled start as "Hosting failed to start".
+                Shared.StartupLogFilter.StartAbortRequested();
+            }
+
             _shutdownToken.Cancel();
         }
     }
@@ -418,6 +482,9 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "Paduraksa failed to start; stopping everything that started")]
     private static partial void LogStartFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Start aborted (reason: {Reason}); stopping everything that started")]
+    private static partial void LogStartAborted(ILogger logger, ShutdownReason reason);
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "Paduraksa failed to start: the {App} host stopped during startup (see its error above); stopping everything that started")]
     private static partial void LogHostStoppedDuringStartup(ILogger logger, string app);

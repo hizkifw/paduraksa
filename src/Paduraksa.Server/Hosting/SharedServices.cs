@@ -55,13 +55,21 @@ internal sealed class SharedServices : IAsyncDisposable
 
     public SnapshotStore SnapshotStore { get; }
 
+    /// <summary>Silences the generic hosts' error about a start that was aborted on request.</summary>
+    public StartupLogFilter StartupLogFilter { get; } = new();
+
     /// <summary>TEMPORARY (M3): shared by the public HTTPS and admin listeners until the vault exists.</summary>
     public PlaceholderServerCertificate ServerCertificate { get; }
 
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     /// <summary>Builds every shared singleton. <paramref name="configure"/> may add more instances (tests, later milestones).</summary>
-    public static SharedServices Create(IConfiguration configuration, PaduraksaOptions options, Action<Builder>? configure = null)
+    /// <remarks><paramref name="configureLogging"/> adds to the one logger factory of the process (tests capture logs with it).</remarks>
+    public static SharedServices Create(
+        IConfiguration configuration,
+        PaduraksaOptions options,
+        Action<Builder>? configure = null,
+        Action<ILoggingBuilder>? configureLogging = null)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(options);
@@ -71,7 +79,7 @@ internal sealed class SharedServices : IAsyncDisposable
         try
         {
             // Created first => disposed last.
-            loggerFactory = builder.Own(CreateLoggerFactory(configuration));
+            loggerFactory = builder.Own(CreateLoggerFactory(configuration, configureLogging));
             TimeProvider timeProvider = builder.Add(TimeProvider.System);
             // The validated options are the instance consumers get. IOptions/IOptionsMonitor/IOptionsSnapshot and
             // IOptionsFactory are pinned to it too; left alone they'd build their own unvalidated copies from
@@ -118,7 +126,7 @@ internal sealed class SharedServices : IAsyncDisposable
 
         // Every host has its own LoggerFactory registration by default; swap it for a view of the shared one.
         services.RemoveAll<ILoggerFactory>();
-        services.AddSingleton<ILoggerFactory>(new RoleLoggerFactory(LoggerFactory, role));
+        services.AddSingleton<ILoggerFactory>(new RoleLoggerFactory(LoggerFactory, role, StartupLogFilter));
     }
 
     /// <summary>Disposes every shared instance exactly once (idempotent, thread-safe).</summary>
@@ -129,7 +137,7 @@ internal sealed class SharedServices : IAsyncDisposable
         where T : class =>
         (T)_registrations.First(static r => r.Key == typeof(T)).Value;
 
-    private static ILoggerFactory CreateLoggerFactory(IConfiguration configuration) =>
+    private static ILoggerFactory CreateLoggerFactory(IConfiguration configuration, Action<ILoggingBuilder>? configureLogging) =>
         Microsoft.Extensions.Logging.LoggerFactory.Create(logging =>
         {
             logging.AddConfiguration(configuration.GetSection("Logging"));
@@ -141,6 +149,7 @@ internal sealed class SharedServices : IAsyncDisposable
                 console.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z' ";
                 console.ColorBehavior = LoggerColorBehavior.Default;
             });
+            configureLogging?.Invoke(logging);
         });
 
     private static async ValueTask DisposeAllAsync(IReadOnlyList<object> owned)

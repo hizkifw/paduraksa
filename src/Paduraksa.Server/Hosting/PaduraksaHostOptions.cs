@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Paduraksa.Server.Hosting;
 
@@ -26,6 +27,9 @@ internal sealed class PaduraksaHostOptions
 
     /// <summary>Adds extra shared instances (registered into all three hosts, disposed once at the end).</summary>
     public Action<SharedServices.Builder>? ConfigureShared { get; init; }
+
+    /// <summary>Adds to the process's one logger factory, e.g. a provider capturing log entries (tests).</summary>
+    public Action<ILoggingBuilder>? ConfigureLogging { get; init; }
 
     /// <summary>Adds services to one host's container, after Paduraksa's own registrations.</summary>
     public Action<HostRole, IServiceCollection>? ConfigureServices { get; init; }

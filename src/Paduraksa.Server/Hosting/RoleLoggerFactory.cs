@@ -11,15 +11,20 @@ namespace Paduraksa.Server.Hosting;
 /// <c>App</c> scope property (<c>core</c>/<c>public</c>/<c>admin</c>). The simple console formatter
 /// prints it as <c>=&gt; app=public</c>; the JSON formatter emits it as a property.
 /// Doesn't own the inner factory: disposing it is a no-op, <see cref="SharedServices"/> owns the real one.
+/// Entries the optional <see cref="StartupLogFilter"/> rejects are dropped.
 /// </summary>
-internal sealed class RoleLoggerFactory(ILoggerFactory inner, HostRole role) : ILoggerFactory
+internal sealed class RoleLoggerFactory(ILoggerFactory inner, HostRole role, StartupLogFilter? startupLogFilter = null) : ILoggerFactory
 {
     private readonly ILoggerFactory _inner = inner;
     private readonly AppScope _scope = new(role.ToLogName());
+    private readonly StartupLogFilter? _startupLogFilter = startupLogFilter;
     private readonly ConcurrentDictionary<string, ILogger> _loggers = new(StringComparer.Ordinal);
 
     public ILogger CreateLogger(string categoryName) =>
-        _loggers.GetOrAdd(categoryName, static (category, self) => new RoleLogger(self._inner.CreateLogger(category), self._scope), this);
+        _loggers.GetOrAdd(
+            categoryName,
+            static (category, self) => new RoleLogger(self._inner.CreateLogger(category), self._scope, category, self._startupLogFilter),
+            this);
 
     /// <summary>Providers are configured once, centrally; an app adding its own would only see part of the process.</summary>
     public void AddProvider(ILoggerProvider provider) =>
@@ -30,7 +35,7 @@ internal sealed class RoleLoggerFactory(ILoggerFactory inner, HostRole role) : I
         // Intentionally empty: the shared factory is disposed exactly once by SharedServices.
     }
 
-    private sealed class RoleLogger(ILogger inner, AppScope scope) : ILogger
+    private sealed class RoleLogger(ILogger inner, AppScope scope, string category, StartupLogFilter? startupLogFilter) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => inner.BeginScope(state);
@@ -39,7 +44,7 @@ internal sealed class RoleLoggerFactory(ILoggerFactory inner, HostRole role) : I
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            if (!inner.IsEnabled(logLevel))
+            if (!inner.IsEnabled(logLevel) || (startupLogFilter?.ShouldDrop(category, eventId) ?? false))
             {
                 return;
             }
