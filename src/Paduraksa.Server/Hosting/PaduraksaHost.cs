@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Server.Configuration;
@@ -105,13 +106,22 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         }
         catch
         {
+            // Each step is guarded so a failing cleanup can't replace the original exception. Before the shared
+            // logger factory exists there's nothing to log to, but then the only cleanup left is the configuration.
+            ILogger logger = shared is null
+                ? NullLogger.Instance
+                : new RoleLoggerFactory(shared.LoggerFactory, HostRole.Core).CreateLogger<PaduraksaHost>();
             for (int i = built.Count - 1; i >= 0; i--)
             {
-                built[i].Dispose();
+                FailureCleanup.Run(built[i].Dispose, logger, "disposing a host");
             }
 
-            shared?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            configuration.Dispose();
+            if (shared is { } builtShared)
+            {
+                FailureCleanup.Run(() => builtShared.DisposeAsync().AsTask().GetAwaiter().GetResult(), logger, "disposing shared services");
+            }
+
+            FailureCleanup.Run(configuration.Dispose, logger, "disposing the configuration");
             throw;
         }
     }
@@ -159,7 +169,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
                 LogStartFailed(_logger, ex);
             }
 
-            await StopHostsAsync(CancellationToken.None).ConfigureAwait(false);
+            await FailureCleanup.RunAsync(() => StopHostsAsync(CancellationToken.None), _logger, "stopping the hosts").ConfigureAwait(false);
             Volatile.Write(ref _state, (int)HostState.Faulted);
             throw;
         }
@@ -261,7 +271,8 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         }
         finally
         {
-            _configuration.Dispose();
+            // Runs while a disposal failure may be propagating; don't let these replace it.
+            FailureCleanup.Run(_configuration.Dispose, _logger, "disposing the configuration");
             _shutdownToken.Dispose();
         }
     }
@@ -292,7 +303,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         return host;
     }
 
-    private static async Task StartWebAppAsync(WebApplication app, CancellationTokenSource startCts)
+    private async Task StartWebAppAsync(WebApplication app, CancellationTokenSource startCts)
     {
         try
         {
@@ -300,8 +311,9 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         }
         catch
         {
-            // Fail fast: don't let the sibling app finish starting only to be stopped again.
-            await startCts.CancelAsync().ConfigureAwait(false);
+            // Fail fast: don't let the sibling app finish starting only to be stopped again. Cancellation runs
+            // registered callbacks, which may throw; that must not replace the start failure.
+            await FailureCleanup.RunAsync(startCts.CancelAsync, _logger, "cancelling the sibling app's start").ConfigureAwait(false);
             throw;
         }
     }

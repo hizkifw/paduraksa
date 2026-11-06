@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 
@@ -66,10 +67,11 @@ internal sealed class SharedServices : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(options);
 
         Builder builder = new();
+        ILoggerFactory? loggerFactory = null;
         try
         {
             // Created first => disposed last.
-            ILoggerFactory loggerFactory = builder.Own(CreateLoggerFactory(configuration));
+            loggerFactory = builder.Own(CreateLoggerFactory(configuration));
             TimeProvider timeProvider = builder.Add(TimeProvider.System);
             // The validated options are the instance consumers get. IOptions/IOptionsMonitor/IOptionsSnapshot are
             // pinned to it too; left alone they'd build their own unbound (default) copies from configuration.
@@ -88,7 +90,10 @@ internal sealed class SharedServices : IAsyncDisposable
         }
         catch
         {
-            DisposeAllAsync(builder.Owned).AsTask().GetAwaiter().GetResult();
+            // The logger is created before the factory is disposed (last, in reverse creation order); the console
+            // provider still writes synchronously after disposal, so a cleanup failure is reported, not lost.
+            ILogger logger = loggerFactory is null ? NullLogger.Instance : loggerFactory.CreateLogger<SharedServices>();
+            FailureCleanup.Run(() => DisposeAllAsync(builder.Owned).AsTask().GetAwaiter().GetResult(), logger, "disposing shared services");
             throw;
         }
     }

@@ -20,7 +20,9 @@ internal static class TestHost
         EventLog? events = null,
         IReadOnlyDictionary<string, string?>? settings = null,
         Action<HostRole, IServiceCollection>? configureServices = null,
-        bool allowEphemeralPorts = true)
+        bool allowEphemeralPorts = true,
+        Action<SharedServices.Builder>? configureShared = null,
+        string? contentRootPath = null)
     {
         Dictionary<string, string?> config = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -41,9 +43,17 @@ internal static class TestHost
         {
             EnvironmentName = "Testing",
             AllowEphemeralPorts = allowEphemeralPorts,
-            ContentRootPath = AppContext.BaseDirectory,
+            ContentRootPath = contentRootPath ?? AppContext.BaseDirectory,
             ConfigureConfiguration = builder => builder.AddInMemoryCollection(config),
-            ConfigureShared = events is null ? null : shared => shared.Add(new DisposalProbe(events)),
+            ConfigureShared = shared =>
+            {
+                if (events is not null)
+                {
+                    shared.Add(new DisposalProbe(events));
+                }
+
+                configureShared?.Invoke(shared);
+            },
             ConfigureServices = (role, services) =>
             {
                 if (events is not null)
