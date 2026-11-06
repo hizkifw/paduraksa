@@ -104,8 +104,9 @@ public sealed class ClientInfoKestrelTests : IAsyncLifetime
     /// <c>HttpRequestHeaders</c>; H2: per-stream), on the request thread, synchronously.</summary>
     private static string MeasureResolve(ClientInfo info, IHeaderDictionary headers)
     {
-        var cloudflare = AllocAssert.Measure((info, headers), static s => _ = ClientIpResolver.Resolve(s.info, s.headers, CloudflareAtTestNet), warmup: 200, iterations: 2_000);
-        var generic = AllocAssert.Measure((info, headers), static s => _ = ClientIpResolver.Resolve(s.info, s.headers, GenericAtTestNet), warmup: 200, iterations: 2_000);
+        // Settled: a lone counter jump under parallel load isn't an allocation (see AllocAssert.MeasureSettled).
+        var cloudflare = AllocAssert.MeasureSettled((info, headers), static s => _ = ClientIpResolver.Resolve(s.info, s.headers, CloudflareAtTestNet), warmup: 200, iterations: 2_000);
+        var generic = AllocAssert.MeasureSettled((info, headers), static s => _ = ClientIpResolver.Resolve(s.info, s.headers, GenericAtTestNet), warmup: 200, iterations: 2_000);
         var cf = ClientIpResolver.Resolve(info, headers, CloudflareAtTestNet);
         var xff = ClientIpResolver.Resolve(info, headers, GenericAtTestNet);
         return $"{cloudflare.TotalBytes}|{generic.TotalBytes}|{cf.Address}|{cf.Source}|{xff.Address}|{xff.Source}";

@@ -56,13 +56,23 @@ internal static class AllocAssert
         return new Result(total, iterations, first, max);
     }
 
-    /// <summary>Fails the test if the measured calls allocate.</summary>
+    /// <summary>
+    /// <see cref="Measure"/>, re-measured once (without warm-up) when the first run saw anything; returns the second run
+    /// then. Use it, or <see cref="Zero"/>, wherever a result is compared with 0.
+    /// </summary>
     /// <remarks>
-    /// Under parallel test load the per-thread counter occasionally jumps once by a few KB with nothing allocated
-    /// by the code under test (seen as a single outlier thousands of iterations after warm-up). A real hot-path
-    /// allocation happens on every call, or at least repeatably, so a non-zero first measurement is re-measured
-    /// once and the test fails only if that second run allocates too.
+    /// Under parallel test load the per-thread counter occasionally jumps once, by up to one allocation quantum
+    /// (2.5–8 KB seen), with nothing allocated by the code under test: always exactly one sample at a random iteration,
+    /// also with tiered compilation off and with no GC during that call, never in isolation. A real hot-path allocation
+    /// in deterministic code happens on every call, or at least repeatably, so it survives the re-measure.
     /// </remarks>
+    public static Result MeasureSettled<TState>(TState state, Action<TState> action, int warmup = 1_000, int iterations = 10_000)
+    {
+        var result = Measure(state, action, warmup, iterations);
+        return result.TotalBytes == 0 ? result : Measure(state, action, warmup: 0, iterations);
+    }
+
+    /// <summary>Fails the test if the measured calls allocate (after one re-measure, see <see cref="MeasureSettled"/>).</summary>
     public static void Zero<TState>(TState state, Action<TState> action, string what, int warmup = 1_000, int iterations = 10_000)
     {
         var result = Measure(state, action, warmup, iterations);

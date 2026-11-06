@@ -17,6 +17,10 @@ public sealed class AllocAssertTests
     }
 
     [Fact]
+    public void MeasureSettledStillSeesRepeatableAllocations() =>
+        Assert.True(AllocAssert.MeasureSettled(8, static n => GC.KeepAlive(new byte[n]), warmup: 10, iterations: 100).TotalBytes >= 100 * 8);
+
+    [Fact]
     public void ZeroFailsWhenCodeAllocates() =>
         Assert.ThrowsAny<Exception>(() =>
             AllocAssert.Zero(8, static n => GC.KeepAlive(new byte[n]), "allocating code", warmup: 10, iterations: 100));
