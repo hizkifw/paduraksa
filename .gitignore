@@ -487,4 +487,3 @@ data/
 *.db-shm
 *.db-wal
 master.key
-BenchmarkDotNet.Artifacts/

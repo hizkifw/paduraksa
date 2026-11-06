@@ -15,7 +15,6 @@
     <Product>Paduraksa</Product>
     <Copyright>Copyright 2026 Hizkia Felix</Copyright>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <RootNamespace>$(MSBuildProjectName)</RootNamespace>
   </PropertyGroup>
 
   <!-- Per-project BannedSymbols.txt (trust boundary + TypedId enforcement), plus a repo-wide list. -->
