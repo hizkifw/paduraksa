@@ -16,7 +16,7 @@ public sealed class TypedIdTests
         Assert.Equal(("host", IdKind.UuidV7, 27), Describe<HostId>());
         Assert.Equal(("chl", IdKind.UuidV4, 26), Describe<ChallengeId>());
         Assert.Equal(("aud", IdKind.Int64Ordered, 15), Describe<AuditEventId>());
-        Assert.Equal(("usr2fa", IdKind.UuidV7, 29), Describe<InternalId>());
+        Assert.Equal(("int", IdKind.UuidV7, 26), Describe<InternalId>());
     }
 
     [Fact]

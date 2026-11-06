@@ -11,7 +11,7 @@ public readonly partial record struct ChallengeId;
 [TypedId("aud", IdKind.Int64Ordered)]
 public readonly partial record struct AuditEventId;
 
-[TypedId("usr2fa", IdKind.UuidV7)]
+[TypedId("int", IdKind.UuidV7)]
 internal readonly partial record struct InternalId;
 
 /// <summary>Settable clock for generator tests.</summary>
