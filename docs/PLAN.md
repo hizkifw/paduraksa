@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.7**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.8**: M0 in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -350,7 +350,8 @@ C. Gate middleware (first in pipeline)
    • snapshot = SnapshotStore.Current (one volatile read)
    • port 80: /.well-known/acme-challenge/* → IAcmeChallengeStore (FrozenDictionary swap) → 200
    • resolve client IP: PROXY-protocol IP from stage A if present, else trusted-proxy-aware
-     X-Forwarded-For / CF-Connecting-IP (only when the TCP peer is in the trusted-proxies list)
+     X-Forwarded-For / CF-Connecting-IP (only when the TCP peer is in the trusted-proxies list;
+     native Cloudflare handling in §7.6)
    • resolve host (span-based lookup, no string allocation); unknown → Default behaviour
    • resolve route (per-host ordered list) → policies + YARP Endpoint from the same snapshot;
      HttpContext.SetEndpoint(endpoint) so the later UseRouting skips matching
@@ -403,6 +404,26 @@ F. Telemetry (always on, lock-free): counters + latency histogram per host / sta
 - **Still open:** a real browser upgrading to H3 (needs a trusted cert), carrying QUIC-callback ClientInfo through to the request, routable IPv6, and arm64 libmsquic. These are M1 acceptance tests.
 - **Either way, `Alt-Svc` is emitted by Paduraksa, not Kestrel.** Kestrel's automatic header is disabled (`DisableAltSvcHeader`). Our header is precomputed per host, only for H3-eligible hosts, using the **public** HTTPS port from settings (default 443), not the bound port. That way a port-mapped deployment can't advertise the wrong port.
 - H3 is off globally if `libmsquic` isn't available (`QuicListener.IsSupported`). `paduraksa doctor` reports this. The stock `aspnet` image doesn't ship it: install `libmsquic` from packages.microsoft.com (≈ 21 MB incl. `libnuma1`; tested 2.6.3 on Ubuntu 24.04).
+
+### 7.6 Client IP behind Cloudflare (native)
+
+Many homelabs sit behind Cloudflare's proxy (orange cloud) or a Cloudflare Tunnel. Getting the real client IP must be a toggle, not a hand-maintained CIDR list. It's a built-in **trusted-proxy provider**, which the generic trusted-proxy model (CIDRs + header) and future providers also use.
+
+- **Modes:** `Off` · `Proxy` (Cloudflare connects to us directly) · `Tunnel` (a local `cloudflared` connects to us). Set globally and overridable per host (§5.3). The wizard asks "Is this server behind Cloudflare?" and offers to set it.
+- **Who is trusted:**
+  - `Proxy`: the TCP peer (after PROXY protocol, if any) must fall within **Cloudflare's published edge ranges**. These are shipped as a baked-in list and refreshed by a background job from `https://api.cloudflare.com/client/v4/ips`, falling back to `https://www.cloudflare.com/ips-v4` / `ips-v6`. They're stored with a fetch timestamp and compiled into the snapshot as a CIDR trie. A failed refresh keeps the last good list and raises a dashboard warning if it's stale (more than 30 days old).
+  - `Tunnel`: the peer must be the configured `cloudflared` address (loopback, a Docker network CIDR or a specific IP). Edge ranges don't apply because the TCP peer is `cloudflared`.
+- **Which header:** `CF-Connecting-IP` (single value, so there's no X-Forwarded-For chain parsing). Optionally `True-Client-IP` (Enterprise) or the right-most untrusted entry of `X-Forwarded-For` as a fallback. The value is parsed span-based into the same `UInt128` client-IP representation used everywhere, with IPv4-mapped addresses normalised. A missing or unparsable header from a trusted peer counts as a counter + debug log, and the peer IP is used.
+- **Anti-spoofing:** when the peer is **not** trusted, `CF-Connecting-IP`, `True-Client-IP`, `CF-IPCountry`, `CF-Ray` and `CF-Visitor` are ignored, and they're **stripped before forwarding upstream**. Upstreams always get a clean `X-Forwarded-For` / `X-Real-IP` built from the resolved client IP.
+- **What the real IP feeds:** WAF IP allow/deny, geo, rate-limit keys, access lists, forward-auth headers, access logs, metrics. Connection-stage limits (§7.2 A) necessarily see the Cloudflare edge IP. They must therefore exempt trusted Cloudflare peers from per-IP connection caps, or every visitor would share a handful of edge IPs.
+- **Optional extras (per host or global):**
+  - **Geo from `CF-IPCountry`:** when the peer is trusted, use it instead of the local Geo DB lookup. It's free and accurate. `XX`/`T1` map to "unknown".
+  - **`CF-Visitor` scheme:** the original scheme for the HTTP→HTTPS redirect decision when Cloudflare connects to the origin over plain HTTP ("Flexible" SSL). This avoids redirect loops. The dashboard warns that Flexible mode is insecure.
+  - **Origin lockdown:** reject (or 403) requests on a Cloudflare-mode host whose peer isn't Cloudflare (or `cloudflared`), so the origin can't be reached by IP to bypass Cloudflare's WAF. It's enforced at the connection stage when *all* hosts on a listener require it.
+  - **Authenticated Origin Pulls:** request a client certificate from Cloudflare and verify it against Cloudflare's origin-pull CA (shipped, replaceable) on the TCP listener (§7.2 B, per-SNI `ClientCertificateRequired`). This is the strong form of origin lockdown.
+  - **`CF-Ray`** is recorded in access logs and offered as a variable on error pages, next to our request ID, so issues can be correlated with the Cloudflare dashboard.
+- **Certificates:** Cloudflare Origin CA certificates can be uploaded like any other (§9), with a hint that they're only trusted by Cloudflare. DNS-01 via the Cloudflare DNS provider (§9) works whether or not the proxy mode is on.
+- **Request simulator** (§12) takes a "via Cloudflare" toggle, so users can see which IP and country the policies would see.
 
 ---
 
@@ -578,12 +599,12 @@ Each milestone ends with a working, testable increment.
 | M | Scope | Done when |
 |---|---|---|
 | **M0 Foundations** *(in progress: typed IDs, CI, arch tests, host, S1, S2, S5 done; S3, S4 left)* | Repo, CI (build, test, format, arch tests), `[TypedId]` generator + base62 + EF/JSON/Yaml converters, Result types, clock abstraction, spikes S1–S5 | Generator tests green; arch rules enforced in CI |
-| **M1 Proxy core** | Snapshot model + store, gate middleware, host table, TLS SNI selection, YARP provider, H1/H2/H3, HTTP→HTTPS redirect, default host, hard-coded test config | Benchmarks + S7 baseline; S6 continuity test (stub rate-limit table + metrics + YARP health); zero-alloc tests pass |
+| **M1 Proxy core** | Snapshot model + store, gate middleware, host table, client-IP resolution incl. Cloudflare `Proxy`/`Tunnel` modes with baked-in ranges (§7.6), TLS SNI selection, YARP provider, H1/H2/H3, HTTP→HTTPS redirect, default host, hard-coded test config | Benchmarks + S7 baseline; S6 continuity test (stub rate-limit table + metrics + YARP health); zero-alloc tests pass |
 | **M2 Config store** | EF model, migrations, Application command pipeline, validation, compiler, revisions, diff, rollback, audit (hash chain), last-known-good | Change → revision → live in < 100 ms; rollback works |
 | **M3 Vault & certs** | KEK/DEK store, capabilities, upload, self-signed, local CA, ACME client (HTTP-01 → DNS-01 Cloudflare/deSEC), renewal scheduler, ARI | Pebble-based integration tests issue + renew; banned-API rules hold |
 | **M4 Admin backend** | Admin app, local users, cookies, TOTP, roles, API tokens, REST API + OpenAPI, first-run setup-token gate | API-only end-to-end setup possible |
 | **M5 Dashboard + wizard** | Layout, hosts/certs/settings pages, review-diff flow, history, audit, wizard | New user from `docker run` to proxied host via UI only |
-| **M6 WAF** | IP/geo/rate-limit/size/path/UA policies, presets, error pages, robots, maintenance mode, request simulator | Policy unit tests + simulator parity tests |
+| **M6 WAF** | IP/geo/rate-limit/size/path/UA policies, Cloudflare range refresh job, `CF-IPCountry` geo, origin lockdown + Authenticated Origin Pulls (§7.6), presets, error pages, robots, maintenance mode, request simulator | Policy unit tests + simulator parity tests |
 | **M7 Observability** | Counters, histograms, `/metrics`, health checks, notifications, live tail, rollups | Dashboard overview fully live |
 | **M8 Interop** | YAML import/export, CLI, MCP server, backup/restore, NPM importer (nice to have) | Round-trip export → import yields an identical revision hash |
 | **M9 Release v0.1** | Docker image (multi-arch), compose example, docs site, threat model doc, fuzzing (parsers, YAML, ACME responses), load tests | Tagged release |
@@ -652,3 +673,4 @@ Each milestone ends with a working, testable increment.
 - **v0.5:** S2 outcome. The gate selects the YARP endpoint, routes are path-only, and `ConfigureEndpoints` metadata and the route-ID generation scheme are dropped. Publish waits for YARP's `ConfigurationApplied`. Destination-ID stability rules and the required custom-pipeline steps are recorded (§6.1, §6.2, §6.3, §7.2).
 - **v0.6:** License decided: Apache-2.0 (§17).
 - **v0.7:** Hosting hardened after review (§3). A stop or signal during startup aborts the start and exits 0. The exit codes are listed in full, including failed stops and disposal. Startup errors print without a stack trace. `IOptionsFactory` also resolves to the validated options. A relative data directory resolves against the content root.
+- **v0.8:** Native Cloudflare client-IP handling: `Proxy`/`Tunnel` modes, auto-refreshed edge ranges, anti-spoofing header stripping, `CF-IPCountry` geo, origin lockdown, Authenticated Origin Pulls (§7.6, M1/M6).
