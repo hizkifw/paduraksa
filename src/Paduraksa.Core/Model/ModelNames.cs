@@ -54,6 +54,37 @@ public static class ModelNames
         _ => throw Undefined(status),
     };
 
+    public static string ToName(this AcmeAccountStatus status) => status switch
+    {
+        AcmeAccountStatus.Active => "active",
+        AcmeAccountStatus.Deactivated => "deactivated",
+        _ => throw Undefined(status),
+    };
+
+    public static string ToName(this AcmeOrderStatus status) => status switch
+    {
+        AcmeOrderStatus.Pending => "pending",
+        AcmeOrderStatus.Ordered => "ordered",
+        AcmeOrderStatus.Finalizing => "finalizing",
+        AcmeOrderStatus.Valid => "valid",
+        AcmeOrderStatus.Failed => "failed",
+        _ => throw Undefined(status),
+    };
+
+    public static string ToName(this AcmeChallengeType type) => type switch
+    {
+        AcmeChallengeType.Http01 => "http-01",
+        AcmeChallengeType.Dns01 => "dns-01",
+        _ => throw Undefined(type),
+    };
+
+    public static string ToName(this DnsProviderKind kind) => kind switch
+    {
+        DnsProviderKind.Cloudflare => "cloudflare",
+        DnsProviderKind.DeSec => "desec",
+        _ => throw Undefined(kind),
+    };
+
     /// <exception cref="FormatException"><paramref name="name"/> is not one of the names above.</exception>
     public static ActorKind ParseActorKind(string name) => name switch
     {
@@ -104,6 +135,41 @@ public static class ModelNames
         "active" => CertificateStatus.Active,
         "failed" => CertificateStatus.Failed,
         _ => throw NotAName<CertificateStatus>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static AcmeAccountStatus ParseAcmeAccountStatus(string name) => name switch
+    {
+        "active" => AcmeAccountStatus.Active,
+        "deactivated" => AcmeAccountStatus.Deactivated,
+        _ => throw NotAName<AcmeAccountStatus>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static AcmeOrderStatus ParseAcmeOrderStatus(string name) => name switch
+    {
+        "pending" => AcmeOrderStatus.Pending,
+        "ordered" => AcmeOrderStatus.Ordered,
+        "finalizing" => AcmeOrderStatus.Finalizing,
+        "valid" => AcmeOrderStatus.Valid,
+        "failed" => AcmeOrderStatus.Failed,
+        _ => throw NotAName<AcmeOrderStatus>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static AcmeChallengeType ParseAcmeChallengeType(string name) => name switch
+    {
+        "http-01" => AcmeChallengeType.Http01,
+        "dns-01" => AcmeChallengeType.Dns01,
+        _ => throw NotAName<AcmeChallengeType>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static DnsProviderKind ParseDnsProviderKind(string name) => name switch
+    {
+        "cloudflare" => DnsProviderKind.Cloudflare,
+        "desec" => DnsProviderKind.DeSec,
+        _ => throw NotAName<DnsProviderKind>(name),
     };
 
     private static FormatException NotAName<T>(string? name)
