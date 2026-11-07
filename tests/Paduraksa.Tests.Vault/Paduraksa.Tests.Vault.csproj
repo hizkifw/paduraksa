@@ -8,6 +8,11 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Paduraksa.Vault/Paduraksa.Vault.csproj" />
     <ProjectReference Include="../../src/Paduraksa.Storage/Paduraksa.Storage.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Acme/Paduraksa.Acme.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The in-memory Cloudflare of the DNS provider tests, behind the vault's real authenticating handler. -->
+    <Compile Include="../Paduraksa.Tests.Acme/Dns/FakeDnsApis.cs" LinkBase="Shared/AcmeFakes" />
   </ItemGroup>
   <ItemGroup>
     <!-- A local HTTPS server (Kestrel) for the authenticating handler's wire tests. -->

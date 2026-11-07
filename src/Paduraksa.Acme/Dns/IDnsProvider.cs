@@ -17,7 +17,7 @@ namespace Paduraksa.Acme.Dns;
 /// </para>
 /// <para>
 /// Failures throw <see cref="DnsProviderException"/>, which says whether trying again later can help.
-/// Propagation (waiting until the CA's resolvers can see the record) is not this interface's concern yet; the orchestrator waits a configured delay.
+/// Propagation (waiting until the CA's resolvers can see the record) is not this interface's concern: see <see cref="IDnsPropagationCheck"/>.
 /// </para>
 /// </remarks>
 public interface IDnsProvider
@@ -34,11 +34,55 @@ public interface IDnsProvider
     ValueTask DeleteTxtAsync(string recordName, string value, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Adds several TXT records. The orchestrator publishes a whole order's records in one call, so a provider whose API limits
+    /// writes (deSEC) can send them together. The default adds them one by one.
+    /// </summary>
+    /// <exception cref="DnsProviderException">The provider refused or could not be reached.</exception>
+    async ValueTask CreateTxtBatchAsync(IReadOnlyList<DnsChallengeRecord> records, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        foreach (DnsChallengeRecord record in records)
+        {
+            await CreateTxtAsync(record.Name, record.Value, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Removes several TXT records. The default removes them one by one, and does not stop at a failing one: the first failure
+    /// is thrown after the others were tried (a stale record is clutter, and the rest should still go).
+    /// </summary>
+    /// <exception cref="DnsProviderException">The provider refused or could not be reached.</exception>
+    async ValueTask DeleteTxtBatchAsync(IReadOnlyList<DnsChallengeRecord> records, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        DnsProviderException? first = null;
+        foreach (DnsChallengeRecord record in records)
+        {
+            try
+            {
+                await DeleteTxtAsync(record.Name, record.Value, cancellationToken).ConfigureAwait(false);
+            }
+            catch (DnsProviderException ex)
+            {
+                first ??= ex;
+            }
+        }
+
+        if (first is not null)
+        {
+            throw first;
+        }
+    }
+
+    /// <summary>
     /// Checks that the credential works (the "Test credentials" button): a read-only call such as listing zones.
     /// A bad credential is a result, not an exception.
     /// </summary>
     ValueTask<DnsCredentialCheck> ValidateCredentialsAsync(CancellationToken cancellationToken);
 }
+
+/// <summary>A TXT record to publish or remove: its fully qualified name without a trailing dot and its value.</summary>
+public sealed record DnsChallengeRecord(string Name, string Value);
 
 /// <summary>The outcome of <see cref="IDnsProvider.ValidateCredentialsAsync"/>.</summary>
 /// <param name="Valid">Whether the provider accepted the credential.</param>
@@ -61,4 +105,10 @@ public sealed class DnsProviderException(string message, bool isTransient, Excep
 {
     /// <summary>Whether trying again later can help.</summary>
     public bool IsTransient { get; } = isTransient;
+
+    /// <summary>Whether the provider is throttling this account (HTTP 429) rather than failing; the schedule treats it like a CA rate limit.</summary>
+    public bool IsRateLimited { get; init; }
+
+    /// <summary>How long the provider asked to wait before the next call (a rate limit's <c>Retry-After</c>); null when it did not say.</summary>
+    public TimeSpan? RetryAfter { get; init; }
 }
