@@ -1,10 +1,10 @@
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Tests.Vault.Testing;
+using Paduraksa.Vault.Certificates;
 
 namespace Paduraksa.Tests.Vault.Certificates;
 
@@ -144,13 +144,11 @@ public sealed class CertificateImportHardeningTests : IDisposable
         using var leaf = ca.IssueWithKey(key, "slow.example.com");
         var heavy = key.ExportEncryptedPkcs8PrivateKeyPem(Password, new PbeParameters(PbeEncryptionAlgorithm.Aes256Cbc, HashAlgorithmName.SHA256, 700_000));
 
-        var watch = Stopwatch.StartNew();
         var ex = await Refused(leaf.ExportCertificatePem() + "\n" + heavy);
-        watch.Stop();
 
+        // The count is read from the structure and refused as such: no password derivation is attempted (that would be "wrong password").
         Assert.Equal(CertificateImportFailure.Unreadable, ex.Reason);
         Assert.Contains("iterations", ex.Message, StringComparison.Ordinal);
-        Assert.True(watch.Elapsed < TimeSpan.FromMilliseconds(500), $"refused after {watch.Elapsed}: the derivation must not run");
     }
 
     [Fact]
@@ -167,27 +165,53 @@ public sealed class CertificateImportHardeningTests : IDisposable
     }
 
     [Fact]
-    public async Task AWrongPasswordOnAnEcdsaKeyRunsTheDerivationOnce()
+    public async Task AWrongPasswordIsAWrongPasswordNotAnythingElse()
     {
         using var ca = TestCa.CreateRoot();
         using var key = TestCa.NewKey();
-        using var leaf = ca.IssueWithKey(key, "once.example.com");
-        var pem = key.ExportEncryptedPkcs8PrivateKeyPem(Password, new PbeParameters(PbeEncryptionAlgorithm.Aes256Cbc, HashAlgorithmName.SHA256, 300_000));
+        using var leaf = ca.IssueWithKey(key, "wrong.example.com");
+        var pem = key.ExportEncryptedPkcs8PrivateKeyPem(Password, new PbeParameters(PbeEncryptionAlgorithm.Aes256Cbc, HashAlgorithmName.SHA256, 10_000));
 
-        // One derivation is measured against the same call made directly; two would take about twice as long.
-        var direct = Stopwatch.StartNew();
-        using (var probe = ECDsa.Create())
-        {
-            Assert.ThrowsAny<CryptographicException>(() => probe.ImportEncryptedPkcs8PrivateKey("wrong".AsSpan(), Convert.FromBase64String(string.Concat(pem.Split('\n').Skip(1).TakeWhile(l => !l.StartsWith("-----", StringComparison.Ordinal)))), out _));
-        }
-
-        direct.Stop();
-        var watch = Stopwatch.StartNew();
         var ex = await Refused(leaf.ExportCertificatePem() + "\n" + pem);
-        watch.Stop();
 
         Assert.Equal(CertificateImportFailure.WrongPassword, ex.Reason);
-        Assert.True(watch.Elapsed < direct.Elapsed * 1.8 + TimeSpan.FromMilliseconds(100), $"{watch.Elapsed} vs one derivation {direct.Elapsed}");
+    }
+
+    [Fact]
+    public void AnEcdsaOnlyUploadTriesOneKeyTypeSoTheDerivationRunsOnce()
+    {
+        using var ca = TestCa.CreateRoot();
+        using var leaf = ca.IssueWithKey("one.example.com");
+
+        var creators = CertificateImport.CandidateKeyTypes([leaf]);
+
+        using var created = Assert.Single(creators)();
+        Assert.IsAssignableFrom<ECDsa>(created);
+    }
+
+    [Fact]
+    public void AMixedUploadTriesEcdsaThenRsaAndOneWithNeitherTriesNothing()
+    {
+        using var ca = TestCa.CreateRoot();
+        using var ecdsa = ca.IssueWithKey("ec.example.com");
+        using var rsaKey = RSA.Create(2048);
+        var request = new CertificateRequest("CN=rsa.example.com", rsaKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var rsa = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+
+        var creators = CertificateImport.CandidateKeyTypes([ecdsa, rsa]);
+
+        Assert.Equal(2, creators.Count);
+        using (var first = creators[0]())
+        {
+            Assert.IsAssignableFrom<ECDsa>(first);
+        }
+
+        using (var second = creators[1]())
+        {
+            Assert.IsAssignableFrom<RSA>(second);
+        }
+
+        Assert.Empty(CertificateImport.CandidateKeyTypes([]));
     }
 
     private sealed class RejectEverything : ICertificateNameRules

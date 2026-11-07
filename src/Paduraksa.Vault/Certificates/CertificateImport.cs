@@ -340,6 +340,36 @@ internal sealed class CertificateImport(VaultRuntime runtime, CertificateStore s
             throw Failure(CertificateImportFailure.Unreadable, $"The private key's password derivation uses {iterations} iterations; the vault accepts at most {MaxKdfIterations}.");
         }
 
+        var creators = CandidateKeyTypes(certificates);
+        if (creators.Count == 0)
+        {
+            throw Failure(CertificateImportFailure.NoMatchingKey, "No certificate in the upload has an RSA or ECDSA key.");
+        }
+
+        foreach (var create in creators)
+        {
+            using var key = create();
+            try
+            {
+                key.ImportEncryptedPkcs8PrivateKey(password, encrypted, out _);
+                return KeyPairs.ExportPkcs8(key);
+            }
+            catch (CryptographicException)
+            {
+                // Not this key type, or the wrong password; the other type is tried, then the structure (already read) judges.
+            }
+        }
+
+        throw Failure(CertificateImportFailure.WrongPassword, "The private key's password is missing or wrong (or the key is neither RSA nor ECDSA).");
+    }
+
+    /// <summary>
+    /// The key types an encrypted key can have, from the public keys of the uploaded certificates: one creator per type present
+    /// (ECDSA, then RSA), so a key that can only be one type is decrypted with one derivation. Empty when no certificate has an RSA
+    /// or ECDSA key.
+    /// </summary>
+    internal static List<Func<AsymmetricAlgorithm>> CandidateKeyTypes(IReadOnlyList<X509Certificate2> certificates)
+    {
         var hasEc = false;
         var hasRsa = false;
         foreach (var certificate in certificates)
@@ -366,26 +396,7 @@ internal sealed class CertificateImport(VaultRuntime runtime, CertificateStore s
             creators.Add(() => RSA.Create());
         }
 
-        if (creators.Count == 0)
-        {
-            throw Failure(CertificateImportFailure.NoMatchingKey, "No certificate in the upload has an RSA or ECDSA key.");
-        }
-
-        foreach (var create in creators)
-        {
-            using var key = create();
-            try
-            {
-                key.ImportEncryptedPkcs8PrivateKey(password, encrypted, out _);
-                return KeyPairs.ExportPkcs8(key);
-            }
-            catch (CryptographicException)
-            {
-                // Not this key type, or the wrong password; the other type is tried, then the structure (already read) judges.
-            }
-        }
-
-        throw Failure(CertificateImportFailure.WrongPassword, "The private key's password is missing or wrong (or the key is neither RSA nor ECDSA).");
+        return creators;
     }
 
     /// <summary>
