@@ -92,7 +92,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         Assert.Equal("a.test v1", await EdgeClient.ServedSubjectAsync(host, "a.test"));
         await PublishAsync(host, model with { Revision = "renewed" });
         Assert.Equal("a.test v2", await EdgeClient.ServedSubjectAsync(host, "a.test"));
-        Assert.Equal(0, host.Shared.PublicListeners.Selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(0, host.Shared.PublicListeners.Selector.Counters.UnknownServerNameTcp);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         Assert.Equal("b.test", await EdgeClient.ServedSubjectAsync(host, "b.test"));
         await Assert.ThrowsAsync<HttpRequestException>(() => EdgeClient.ServedSubjectAsync(host, "unknown.test"));
         await Assert.ThrowsAsync<HttpRequestException>(() => EdgeClient.ServedSubjectAsync(host, "app.test")); // no certificate, no default
-        Assert.Equal(2, host.Shared.PublicListeners.Selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(2, host.Shared.PublicListeners.Selector.Counters.UnknownServerNameTcp);
     }
 
     [Theory]

@@ -21,16 +21,31 @@ public enum TcpAlpn
 
 /// <summary>
 /// Per-host TLS settings (PLAN §7.2 B). A value type in spirit: two hosts with equal policies (and the same
-/// certificate) share one prebuilt <see cref="SslServerAuthenticationOptions"/> per transport.
+/// certificate) share one prebuilt <see cref="SslServerAuthenticationOptions"/> per transport. Undefined enum values
+/// throw on init, rather than silently falling back to the weakest setting when the options are built.
 /// </summary>
 public sealed record TlsPolicy
 {
     /// <summary>TLS 1.2+, <c>h2</c> + <c>http/1.1</c>, H3 enabled, no client certificate.</summary>
     public static TlsPolicy Default { get; } = new();
 
-    public TlsMinimumVersion MinimumVersion { get; init; } = TlsMinimumVersion.Tls12;
+    /// <exception cref="ArgumentOutOfRangeException">On init, a value that isn't a defined <see cref="TlsMinimumVersion"/>.</exception>
+    public TlsMinimumVersion MinimumVersion
+    {
+        get;
+        init => field = Enum.IsDefined(value)
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(value), value, "Not a defined TlsMinimumVersion.");
+    } = TlsMinimumVersion.Tls12;
 
-    public TcpAlpn TcpAlpn { get; init; } = TcpAlpn.Http2AndHttp11;
+    /// <exception cref="ArgumentOutOfRangeException">On init, a value that isn't a defined <see cref="Tls.TcpAlpn"/>.</exception>
+    public TcpAlpn TcpAlpn
+    {
+        get;
+        init => field = Enum.IsDefined(value)
+            ? value
+            : throw new ArgumentOutOfRangeException(nameof(value), value, "Not a defined TcpAlpn.");
+    } = TcpAlpn.Http2AndHttp11;
 
     /// <summary>
     /// Whether the host is served over HTTP/3. When false the host has no QUIC entry, so a QUIC handshake naming it is
@@ -54,6 +69,7 @@ public sealed record TlsPolicy
 /// report no errors.</item>
 /// </list>
 /// Delegates compare by reference, so reuse one validator instance across hosts to keep their options shared.
+/// Every combination of values is valid, so there is nothing to check on init.
 /// </remarks>
 public sealed record ClientCertificatePolicy
 {

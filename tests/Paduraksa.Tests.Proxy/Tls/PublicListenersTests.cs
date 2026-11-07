@@ -71,7 +71,7 @@ public sealed class PublicListenersTests : IDisposable
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "unknown.test", HttpVersion.Version20));
 
         Assert.Equal(2, gate.Seen);
-        Assert.Equal(0, selector.RejectedUnknownServerNameTcp); // aborted before the handshake callback ran
+        Assert.Equal(0, selector.Counters.UnknownServerNameTcp); // aborted before the handshake callback ran
     }
 
     [Fact]

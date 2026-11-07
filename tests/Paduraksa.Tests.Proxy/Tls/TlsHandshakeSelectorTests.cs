@@ -62,8 +62,8 @@ public sealed class TlsHandshakeSelectorTests : IClassFixture<CertificateTableTe
             Assert.DoesNotContain(sni, error.Message, StringComparison.Ordinal);
         }
 
-        Assert.Equal(1, selector.RejectedUnknownServerNameTcp);
-        Assert.Equal(0, selector.RejectedUnknownServerNameQuic);
+        Assert.Equal(1, selector.Counters.UnknownServerNameTcp);
+        Assert.Equal(0, selector.Counters.UnknownServerNameQuic);
     }
 
     [Fact]
@@ -85,8 +85,8 @@ public sealed class TlsHandshakeSelectorTests : IClassFixture<CertificateTableTe
         var error = Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("tcp-only.test", Client, null));
 
         Assert.Equal(TlsRejectionReason.Http3Disabled, error.Reason);
-        Assert.Equal(1, selector.RejectedHttp3Disabled);
-        Assert.Equal(0, selector.RejectedUnknownServerNameQuic);
+        Assert.Equal(1, selector.Counters.Http3Disabled);
+        Assert.Equal(0, selector.Counters.UnknownServerNameQuic);
     }
 
     [Fact]
@@ -111,8 +111,8 @@ public sealed class TlsHandshakeSelectorTests : IClassFixture<CertificateTableTe
         var error = Assert.Throws<TlsHandshakeRejectedException>(() => selector.SelectQuic("unknown.test", Client, null));
 
         Assert.Equal(TlsRejectionReason.UnknownServerName, error.Reason);
-        Assert.Equal(1, selector.RejectedUnknownServerNameQuic);
-        Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(1, selector.Counters.UnknownServerNameQuic);
+        Assert.Equal(0, selector.Counters.UnknownServerNameTcp);
     }
 
     [Fact]
@@ -138,9 +138,9 @@ public sealed class TlsHandshakeSelectorTests : IClassFixture<CertificateTableTe
         Assert.NotNull(selector.SelectQuic("a.test", allowed, null));
 
         Assert.Equal([Client, allowed], seen);
-        Assert.Equal(1, selector.RejectedConnectionDenied);
-        Assert.Equal(1, selector.RejectedUnknownServerNameQuic);
-        Assert.Equal(1, selector.RejectedHttp3Disabled);
+        Assert.Equal(1, selector.Counters.ConnectionDenied);
+        Assert.Equal(1, selector.Counters.UnknownServerNameQuic);
+        Assert.Equal(1, selector.Counters.Http3Disabled);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class TlsHandshakeSelectorTests : IClassFixture<CertificateTableTe
         var selector = new TlsHandshakeSelector(new CertificateTableSource(Table(withDefault: false)), static (_, _) => false);
 
         Assert.NotNull(selector.SelectTcp("a.test"));
-        Assert.Equal(0, selector.RejectedConnectionDenied);
+        Assert.Equal(0, selector.Counters.ConnectionDenied);
     }
 
     [Fact]

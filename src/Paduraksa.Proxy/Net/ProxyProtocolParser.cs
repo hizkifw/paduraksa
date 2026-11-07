@@ -87,8 +87,15 @@ public static class ProxyProtocolParser
     /// real load balancers send well under 1 KB.</summary>
     public const int DefaultMaxV2Length = 4096;
 
-    // Fixed part + the largest address block (AF_UNIX: 2 × 108 bytes). Also covers v1's 107 bytes.
-    private const int PeekLength = V2FixedLength + 216;
+    /// <summary>Longest v2 header without TLVs: the fixed part plus the largest address block (AF_UNIX, 2 × 108
+    /// bytes). The parser peeks this many bytes (which also covers v1's 107), and a configured maximum
+    /// (<see cref="ProxyProtocolOptions.MaxV2Length"/>) can't be lower.</summary>
+    public const int V2MaxLengthWithoutTlvs = V2FixedLength + UnixAddressLength;
+
+    // AF_UNIX address block: source and destination paths, 108 bytes each.
+    private const int UnixAddressLength = 216;
+
+    private const int PeekLength = V2MaxLengthWithoutTlvs;
 
     private static ReadOnlySpan<byte> V2Signature => [0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A];
 
@@ -233,7 +240,7 @@ public static class ProxyProtocolParser
                     BinaryPrimitives.ReadUInt16BigEndian(addresses[34..36]));
                 return ProxyProtocolParseStatus.Success;
 
-            case 3 when addressLength >= 216:
+            case 3 when addressLength >= UnixAddressLength:
             case 0:
             case 1 or 2 when transport == 0 && addressLength >= (family == 1 ? 12 : 36):
                 // AF_UNIX (no IP), AF_UNSPEC, or an unspecified transport: use the socket's endpoints.

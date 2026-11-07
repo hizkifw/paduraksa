@@ -19,8 +19,9 @@ public sealed class ProxyProtocolOptions
         _trustedSources = trustedSources;
     }
 
-    /// <summary>Socket peers allowed to send a header (the load balancers). Can be swapped at runtime (e.g. on a
-    /// config publish); each new connection reads the current set once.</summary>
+    /// <summary>Socket peers allowed to send a header (the load balancers). Each new connection reads the current set
+    /// once, so it can be swapped at runtime; in M1 nothing does yet (the listener config is fixed at startup), and the
+    /// swap on publish arrives with the config store (M2/M6).</summary>
     public CidrSet TrustedSources
     {
         get => Volatile.Read(ref _trustedSources);
@@ -45,13 +46,14 @@ public sealed class ProxyProtocolOptions
         }
     } = TimeSpan.FromSeconds(3);
 
-    /// <summary>Cap on a whole v2 header including TLVs (see <see cref="ProxyProtocolParser.DefaultMaxV2Length"/>).</summary>
+    /// <summary>Cap on a whole v2 header including TLVs (see <see cref="ProxyProtocolParser.DefaultMaxV2Length"/>). At
+    /// least <see cref="ProxyProtocolParser.V2MaxLengthWithoutTlvs"/>, so every address family still fits.</summary>
     public int MaxV2Length
     {
         get;
         init
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, ProxyProtocolParser.V2FixedLength + 216);
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, ProxyProtocolParser.V2MaxLengthWithoutTlvs);
             field = value;
         }
     } = ProxyProtocolParser.DefaultMaxV2Length;

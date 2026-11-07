@@ -31,9 +31,6 @@ public interface IClientAddressSource
 public sealed partial class TrustedProxyClientAddressSource : IClientAddressSource
 {
     private readonly ILogger? _logger;
-    private long _headerMissing;
-    private long _headerInvalid;
-    private long _flexible;
 
     public TrustedProxyClientAddressSource()
     {
@@ -42,19 +39,8 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
     /// <param name="logger">Gets one warning the first time Cloudflare "Flexible" SSL is seen.</param>
     public TrustedProxyClientAddressSource(ILogger<TrustedProxyClientAddressSource> logger) => _logger = logger;
 
-    /// <summary>Requests from a trusted proxy that carried no usable client-IP header (the peer was used). PLAN §7.6
-    /// counts these; process lifetime, read by metrics (M7).</summary>
-    public long HeaderMissing => Interlocked.Read(ref _headerMissing);
-
-    /// <summary>Requests from a trusted proxy whose client-IP header didn't parse (the peer was used).</summary>
-    public long HeaderInvalid => Interlocked.Read(ref _headerInvalid);
-
-    /// <summary>
-    /// Requests a trusted Cloudflare peer sent over plain HTTP saying the visitor used plain HTTP too
-    /// (<c>CF-Visitor: {"scheme":"http"}</c>): Cloudflare "Flexible" SSL or plain-HTTP visitors. Flexible is insecure
-    /// (PLAN §7.6); the first one is logged as a warning.
-    /// </summary>
-    public long CloudflarePlainHttp => Interlocked.Read(ref _flexible);
+    /// <summary>Header fallbacks and Cloudflare plain-HTTP requests (process lifetime; read by metrics, M7).</summary>
+    public ClientAddressCounters Counters { get; } = new();
 
     public ClientIpResolution Resolve(HttpContext context, RuntimeSnapshot snapshot)
     {
@@ -78,12 +64,12 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
         ClientIpResolution resolution = ClientIpResolver.Resolve(peer, peerSource, headers, snapshot.TrustedProxies);
         if (resolution.IsFallback)
         {
-            Interlocked.Increment(ref resolution.Outcome == ClientIpOutcome.HeaderMissing ? ref _headerMissing : ref _headerInvalid);
+            Counters.CountFallback(resolution.Outcome);
         }
 
         RequestScheme scheme = ForwardedScheme.Resolve(in resolution, headers, snapshot.TrustedProxies);
         if (scheme is { Source: SchemeSource.CfVisitor, IsHttps: false } && !context.Request.IsHttps
-            && Interlocked.Increment(ref _flexible) == 1 && _logger is not null)
+            && Counters.CountCloudflarePlainHttp() == 1 && _logger is not null)
         {
             LogCloudflarePlainHttp(_logger);
         }
@@ -91,6 +77,35 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
         return resolution with { Scheme = scheme };
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Cloudflare reached this server over plain HTTP for a plain-HTTP visitor (CF-Visitor scheme http). If Cloudflare's SSL mode is \"Flexible\", visitors' traffic crosses the internet unencrypted between Cloudflare and this server: use \"Full (strict)\" with a certificate here. Logged once; counted in CloudflarePlainHttp.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Cloudflare reached this server over plain HTTP for a plain-HTTP visitor (CF-Visitor scheme http). If Cloudflare's SSL mode is \"Flexible\", visitors' traffic crosses the internet unencrypted between Cloudflare and this server: use \"Full (strict)\" with a certificate here. Logged once; counted in Counters.CloudflarePlainHttp.")]
     private static partial void LogCloudflarePlainHttp(ILogger logger);
+}
+
+/// <summary>Lock-free counters of a <see cref="TrustedProxyClientAddressSource"/>.</summary>
+public sealed class ClientAddressCounters
+{
+    private long _headerMissing;
+    private long _headerInvalid;
+    private long _cloudflarePlainHttp;
+
+    /// <summary>Requests from a trusted proxy that carried no usable client-IP header (the peer was used). PLAN §7.6
+    /// counts these.</summary>
+    public long HeaderMissing => Volatile.Read(ref _headerMissing);
+
+    /// <summary>Requests from a trusted proxy whose client-IP header didn't parse (the peer was used).</summary>
+    public long HeaderInvalid => Volatile.Read(ref _headerInvalid);
+
+    /// <summary>
+    /// Requests a trusted Cloudflare peer sent over plain HTTP saying the visitor used plain HTTP too
+    /// (<c>CF-Visitor: {"scheme":"http"}</c>): Cloudflare "Flexible" SSL or plain-HTTP visitors. Flexible is insecure
+    /// (PLAN §7.6); the first one is logged as a warning.
+    /// </summary>
+    public long CloudflarePlainHttp => Volatile.Read(ref _cloudflarePlainHttp);
+
+    /// <summary>Counts a header fallback (<see cref="ClientIpResolution.IsFallback"/>) by its outcome.</summary>
+    internal void CountFallback(ClientIpOutcome outcome) =>
+        Interlocked.Increment(ref outcome == ClientIpOutcome.HeaderMissing ? ref _headerMissing : ref _headerInvalid);
+
+    /// <summary>Returns the new count, so the caller can log the first one.</summary>
+    internal long CountCloudflarePlainHttp() => Interlocked.Increment(ref _cloudflarePlainHttp);
 }

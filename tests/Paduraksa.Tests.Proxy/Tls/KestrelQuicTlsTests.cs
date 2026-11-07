@@ -117,8 +117,8 @@ public sealed class KestrelQuicTlsTests : IDisposable
             Assert.Equal("idn wildcard", (await TlsProbe.GetAsync(_pki, server.Port, "x.xn--caf-dma.test", version)).ServedSubject);
         }
 
-        Assert.Equal(0, selector.RejectedUnknownServerNameQuic);
-        Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(0, selector.Counters.UnknownServerNameQuic);
+        Assert.Equal(0, selector.Counters.UnknownServerNameTcp);
     }
 
     [Fact]
@@ -202,9 +202,9 @@ public sealed class KestrelQuicTlsTests : IDisposable
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "b.test", HttpVersion.Version30));
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "tcp.wild.test", HttpVersion.Version30));
 
-        Assert.Equal(2, selector.RejectedUnknownServerNameQuic);
-        Assert.Equal(2, selector.RejectedHttp3Disabled);
-        Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(2, selector.Counters.UnknownServerNameQuic);
+        Assert.Equal(2, selector.Counters.Http3Disabled);
+        Assert.Equal(0, selector.Counters.UnknownServerNameTcp);
 
         // The opted-out host is still served over TCP, and the QUIC listener is still healthy.
         Assert.Equal("b.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "b.test", HttpVersion.Version20)).ServedSubject);
@@ -244,7 +244,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
         await using var server = await StartAsync(selector, IPAddress.Loopback);
 
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version30));
-        Assert.Equal(1, selector.RejectedConnectionDenied);
+        Assert.Equal(1, selector.Counters.ConnectionDenied);
         // TCP isn't gated by the QUIC gate (its stage A is ListenOptions.Use).
         Assert.Equal("a.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", HttpVersion.Version20)).ServedSubject);
 

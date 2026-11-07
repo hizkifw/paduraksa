@@ -86,7 +86,7 @@ public sealed class KestrelTcpTlsTests : IDisposable
             Assert.True(result.ChainTrusted);
         }
 
-        Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(0, selector.Counters.UnknownServerNameTcp);
     }
 
     [Theory]
@@ -101,7 +101,7 @@ public sealed class KestrelTcpTlsTests : IDisposable
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, "a.b.wild.test", version));
         await Assert.ThrowsAsync<HttpRequestException>(() => TlsProbe.GetAsync(_pki, server.Port, null, version));
 
-        Assert.Equal(3, selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(3, selector.Counters.UnknownServerNameTcp);
         Assert.Equal("a.test v1", (await TlsProbe.GetAsync(_pki, server.Port, "a.test", version)).ServedSubject);
     }
 
@@ -159,7 +159,7 @@ public sealed class KestrelTcpTlsTests : IDisposable
 
         Assert.Equal("idn exact", (await TlsProbe.GetAsync(_pki, server.Port, "xn--bcher-kva.test", version)).ServedSubject);
         Assert.Equal("idn wildcard", (await TlsProbe.GetAsync(_pki, server.Port, "x.xn--caf-dma.test", version)).ServedSubject);
-        Assert.Equal(0, selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(0, selector.Counters.UnknownServerNameTcp);
     }
 
     [Fact]

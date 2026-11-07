@@ -1,6 +1,7 @@
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Testing;
 
 using Yarp.ReverseProxy.Configuration;
@@ -169,6 +170,7 @@ public sealed class SnapshotCompilerTests
         { "duplicate host key", Hosts(Respond("a", "a.test"), Respond("a", "b.test")), "duplicate host key" },
         { "duplicate name across hosts", Hosts(Respond("a", "x.test"), Respond("b", "X.TEST.")), "duplicate host name 'x.test'" },
         { "invalid name", Hosts(Respond("a", "a.*.test")), "wildcard" },
+        { "unknown TLS setting", Hosts(Respond("a", "a.test") with { Tls = new HostTlsSpec { TcpAlpn = (TcpAlpn)7 } }), "unknown TLS setting" },
         { "single-label wildcard parent", Hosts(Respond("a", "*.localhost")), "at least two labels" },
         { "duplicate name in a disabled host", Hosts(Respond("a", "a.test") with { Names = ["x.test", "X.test."], Enabled = false }), "duplicate host name 'x.test'" },
         { "no names", Hosts(new HostSpec { Key = "a", Names = [], Kind = HostKind.Respond, Respond = new RespondSpec() }), "at least one name" },

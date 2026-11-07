@@ -55,7 +55,7 @@ public static class SnapshotCompiler
         ServerCertificate? defaultCertificate = ResolveCertificate(defaults.Certificate, "defaults", options.Certificates, errors);
         if (defaultCertificate is not null)
         {
-            certificates.SetDefault(defaultCertificate, CompileTlsPolicy(defaults.Tls));
+            certificates.SetDefault(defaultCertificate, CompileTlsPolicy(defaults.Tls, "defaults", errors));
         }
 
         TrustedProxyPolicy trustedProxies = CompileTrustedProxies(defaults.TrustedProxies, options, errors);
@@ -96,7 +96,7 @@ public static class SnapshotCompiler
             ServerCertificate? certificate = spec.Certificate is null
                 ? defaultCertificate
                 : ResolveCertificate(spec.Certificate, where, options.Certificates, errors);
-            TlsPolicy tls = CompileTlsPolicy(spec.Tls);
+            TlsPolicy tls = CompileTlsPolicy(spec.Tls, where, errors);
             List<string> serverNames = spec.Enabled && certificate is not null ? ServerNamesOf(spec.Names ?? []) : [];
 
             CompiledHost host = new()
@@ -600,9 +600,16 @@ public static class SnapshotCompiler
     }
 
     /// <summary>Equal specs give equal policies (records), so hosts with the same settings share one entry per certificate.</summary>
-    private static TlsPolicy CompileTlsPolicy(HostTlsSpec? spec)
+    private static TlsPolicy CompileTlsPolicy(HostTlsSpec? spec, string where, List<string> errors)
     {
         spec ??= HostTlsSpec.Default;
+        if (!Enum.IsDefined(spec.MinimumVersion) || !Enum.IsDefined(spec.TcpAlpn))
+        {
+            // TlsPolicy would throw; report it like any other config error.
+            errors.Add($"{where}: unknown TLS setting (minimum version {spec.MinimumVersion}, TCP ALPN {spec.TcpAlpn})");
+            return TlsPolicy.Default;
+        }
+
         return new TlsPolicy
         {
             MinimumVersion = spec.MinimumVersion,

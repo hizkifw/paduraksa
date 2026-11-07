@@ -106,8 +106,8 @@ public sealed class ClientAddressSourceTests
         Assert.Equal(ClientIpOutcome.HeaderInvalid, _source.Resolve(invalid, snapshot).Outcome);
         Assert.Equal(ClientIpOutcome.HeaderInvalid, _source.Resolve(invalid, snapshot).Outcome);
 
-        Assert.Equal(1, _source.HeaderMissing);
-        Assert.Equal(2, _source.HeaderInvalid);
+        Assert.Equal(1, _source.Counters.HeaderMissing);
+        Assert.Equal(2, _source.Counters.HeaderInvalid);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class ClientAddressSourceTests
 
         Assert.Equal(new RequestScheme(true, SchemeSource.CfVisitor), _source.Resolve(context, CloudflareProxy).Scheme);
         Assert.Equal(default, _source.Resolve(context, Snapshot(TrustedProxySpec.Off)).Scheme);
-        Assert.Equal(0, _source.CloudflarePlainHttp);
+        Assert.Equal(0, _source.Counters.CloudflarePlainHttp);
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public sealed class ClientAddressSourceTests
         _ = _source.Resolve(secure, CloudflareProxy); // reached us over TLS: not Flexible
         _ = _source.Resolve(flexible, Snapshot(TrustedProxySpec.Off)); // not Cloudflare at all
 
-        Assert.Equal(2, _source.CloudflarePlainHttp);
+        Assert.Equal(2, _source.Counters.CloudflarePlainHttp);
     }
 
     [Fact]

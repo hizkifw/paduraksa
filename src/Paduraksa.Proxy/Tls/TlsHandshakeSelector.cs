@@ -37,7 +37,7 @@ public delegate bool QuicConnectionGate(IPEndPoint? remoteEndPoint, ConnectionCo
 /// logs QUIC rejections nowhere (and TCP ones only at Debug).
 /// </summary>
 /// <remarks>
-/// One instance per process (the counters are process-lifetime state, PLAN §6.3). The accepted path allocates nothing;
+/// One instance per process (its <see cref="Counters"/> are process-lifetime state, PLAN §6.3). The accepted path allocates nothing;
 /// a rejection allocates its exception.
 /// </remarks>
 public sealed class TlsHandshakeSelector
@@ -49,12 +49,6 @@ public sealed class TlsHandshakeSelector
     private readonly ICertificateTableSource _tables;
     private readonly QuicConnectionGate? _quicGate;
 
-    // TODO(M7 metrics): these share a cache line; pad or stripe them if rejection floods ever show contention.
-    private long _unknownServerNameTcp;
-    private long _unknownServerNameQuic;
-    private long _http3Disabled;
-    private long _connectionDenied;
-
     public TlsHandshakeSelector(ICertificateTableSource tables, QuicConnectionGate? quicConnectionGate = null)
     {
         ArgumentNullException.ThrowIfNull(tables);
@@ -62,17 +56,8 @@ public sealed class TlsHandshakeSelector
         _quicGate = quicConnectionGate;
     }
 
-    /// <summary>TCP handshakes rejected for an unknown (or absent, with no default) server name.</summary>
-    public long RejectedUnknownServerNameTcp => Interlocked.Read(ref _unknownServerNameTcp);
-
-    /// <summary>QUIC handshakes rejected for an unknown (or absent, with no default) server name.</summary>
-    public long RejectedUnknownServerNameQuic => Interlocked.Read(ref _unknownServerNameQuic);
-
-    /// <summary>QUIC handshakes rejected because the matching host opted out of HTTP/3.</summary>
-    public long RejectedHttp3Disabled => Interlocked.Read(ref _http3Disabled);
-
-    /// <summary>QUIC handshakes rejected by the <see cref="QuicConnectionGate"/>.</summary>
-    public long RejectedConnectionDenied => Interlocked.Read(ref _connectionDenied);
+    /// <summary>Rejected handshakes by reason (process lifetime; read by metrics).</summary>
+    public TlsHandshakeCounters Counters { get; } = new();
 
     /// <summary>Options for the TCP (H1/H2) listener's <c>UseHttps</c>.</summary>
     public TlsHandshakeCallbackOptions CreateTcpCallbackOptions() =>
@@ -89,7 +74,7 @@ public sealed class TlsHandshakeSelector
         var entry = _tables.Current.Find(serverName);
         if (entry is null)
         {
-            Interlocked.Increment(ref _unknownServerNameTcp);
+            Counters.CountUnknownServerName(quic: false);
             throw new TlsHandshakeRejectedException(TlsRejectionReason.UnknownServerName, serverName ?? string.Empty);
         }
 
@@ -109,19 +94,19 @@ public sealed class TlsHandshakeSelector
         var entry = _tables.Current.Find(serverName);
         if (entry is null)
         {
-            Interlocked.Increment(ref _unknownServerNameQuic);
+            Counters.CountUnknownServerName(quic: true);
             throw new TlsHandshakeRejectedException(TlsRejectionReason.UnknownServerName, serverName ?? string.Empty);
         }
 
         if (entry.QuicOptions is not { } options)
         {
-            Interlocked.Increment(ref _http3Disabled);
+            Counters.CountHttp3Disabled();
             throw new TlsHandshakeRejectedException(TlsRejectionReason.Http3Disabled, serverName ?? string.Empty);
         }
 
         if (_quicGate is not null && !_quicGate(remoteEndPoint, connection))
         {
-            Interlocked.Increment(ref _connectionDenied);
+            Counters.CountConnectionDenied();
             throw new TlsHandshakeRejectedException(TlsRejectionReason.ConnectionDenied, serverName ?? string.Empty);
         }
 
@@ -143,4 +128,33 @@ public sealed class TlsHandshakeSelector
             connection?.RemoteEndPoint as IPEndPoint,
             connection));
     }
+}
+
+/// <summary>Lock-free counters of the handshakes a <see cref="TlsHandshakeSelector"/> rejected.</summary>
+public sealed class TlsHandshakeCounters
+{
+    // TODO(M7 metrics): these share a cache line; pad or stripe them if rejection floods ever show contention.
+    private long _unknownServerNameTcp;
+    private long _unknownServerNameQuic;
+    private long _http3Disabled;
+    private long _connectionDenied;
+
+    /// <summary>TCP handshakes rejected for an unknown (or absent, with no default) server name.</summary>
+    public long UnknownServerNameTcp => Volatile.Read(ref _unknownServerNameTcp);
+
+    /// <summary>QUIC handshakes rejected for an unknown (or absent, with no default) server name.</summary>
+    public long UnknownServerNameQuic => Volatile.Read(ref _unknownServerNameQuic);
+
+    /// <summary>QUIC handshakes rejected because the matching host opted out of HTTP/3.</summary>
+    public long Http3Disabled => Volatile.Read(ref _http3Disabled);
+
+    /// <summary>QUIC handshakes rejected by the <see cref="QuicConnectionGate"/>.</summary>
+    public long ConnectionDenied => Volatile.Read(ref _connectionDenied);
+
+    internal void CountUnknownServerName(bool quic) =>
+        Interlocked.Increment(ref quic ? ref _unknownServerNameQuic : ref _unknownServerNameTcp);
+
+    internal void CountHttp3Disabled() => Interlocked.Increment(ref _http3Disabled);
+
+    internal void CountConnectionDenied() => Interlocked.Increment(ref _connectionDenied);
 }

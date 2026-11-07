@@ -120,7 +120,7 @@ public sealed class CertificateCompileTests : IDisposable
         store.Publish(Bound(Model(), generation: 2, options: _options));
         Assert.Same(renewed.Context, selector.SelectTcp("a.test").ServerCertificateContext);
         Assert.Same(renewed.Context, selector.SelectQuic("a.test", null, null).ServerCertificateContext);
-        Assert.Equal(1, selector.RejectedUnknownServerNameTcp);
+        Assert.Equal(1, selector.Counters.UnknownServerNameTcp);
     }
 
     private static HostSpec Respond(string key, string[] names) =>

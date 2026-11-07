@@ -116,6 +116,13 @@ public sealed class CertificateTableTests : IClassFixture<CertificateTableTests.
     }
 
     [Fact]
+    public void UndefinedTlsSettingsThrowOnInit()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TlsPolicy { MinimumVersion = (TlsMinimumVersion)2 });
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TlsPolicy { TcpAlpn = (TcpAlpn)(-1) });
+    }
+
+    [Fact]
     public void EmptyTableRejectsEverything()
     {
         Assert.Null(CertificateTable.Empty.Find("a.test"));

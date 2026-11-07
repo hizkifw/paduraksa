@@ -81,7 +81,7 @@ public sealed class PublicHttp3Tests
         // A host that opted out of H3 is refused on QUIC but still served on TCP.
         using HttpClient refused = EdgeClient.Create(out _);
         await Assert.ThrowsAsync<HttpRequestException>(() => refused.SendAsync(EdgeClient.Request(host, "https", "tcp.test", "/", HttpVersion.Version30), ct));
-        Assert.Equal(1, host.Shared.PublicListeners.Selector.RejectedHttp3Disabled);
+        Assert.Equal(1, host.Shared.PublicListeners.Selector.Counters.Http3Disabled);
 
         // A QUIC connection negotiated for another entry (no SNI: the default certificate, H3 on) can't carry a request
         // for a host that turned H3 off: 421, so the client retries over TCP.
