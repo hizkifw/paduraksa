@@ -347,6 +347,7 @@ Spike S6 turns this into a test: N generations are published under load, and it 
 - No DB, no `await` on anything except I/O to client/upstream, no locks (`lock`, `SemaphoreSlim`), no LINQ, no closures, no `string` building, no regex with backtracking.
 - Per-request allocations in Paduraksa code: **0 B** steady state on keep-alive connections. Kestrel/YARP's own allocations are out of scope but measured. Enforced by benchmark tests asserting `GC.GetAllocatedBytesForCurrentThread()` deltas.
 - Precompute everything at compile time: byte arrays for responses/headers, `SearchValues<string>` for substring sets, CIDR tries, country bitsets, redirect targets.
+- Options validate themselves: an invalid value throws at `init` or construction, never later on the hot path (the snapshot compiler checks config first and reports it as an error).
 
 **Spike S3 confirmed this** (`docs/spikes/S3-zero-alloc-gate.md`; .NET 10.0.13, YARP 2.3.0): the gate measured **0 B/request on H1 and H2** in every end-to-end run, taking 145–225 ns for the synchronous section. For realistic browser traffic, the costs we accept are:
 
