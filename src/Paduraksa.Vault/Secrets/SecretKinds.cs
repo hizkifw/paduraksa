@@ -10,6 +10,10 @@ internal static class SecretKinds
 
     public static bool IsMac(SecretKind kind) => kind is SecretKind.EabHmacKey or SecretKind.TsigKey or SecretKind.HmacSigningKey;
 
-    /// <summary>The purpose name sealed into a secret's AAD: its stable kind name.</summary>
-    public static string Purpose(SecretKind kind) => kind.ToName();
+    /// <summary>
+    /// The purpose sealed into a secret's AAD: the stable kind name, the MAC algorithm name (or empty) and the allowed hosts,
+    /// each field on its own line (none can contain a newline: names are fixed, hosts are normalised plain hosts).
+    /// </summary>
+    public static string Purpose(SecretKind kind, MacAlgorithm? algorithm, IReadOnlyList<string> allowedHosts) =>
+        $"{kind.ToName()}\n{algorithm?.ToName()}\n{string.Join(',', allowedHosts)}";
 }
