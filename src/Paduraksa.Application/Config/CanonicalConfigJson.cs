@@ -44,6 +44,11 @@ public static class CanonicalConfigJson
     /// <exception cref="JsonException">Not valid JSON, or not a valid document shape.</exception>
     public static ConfigDocument Deserialize(ReadOnlySpan<byte> utf8Json)
     {
+        if (UnsupportedApiVersion(utf8Json) is { } version)
+        {
+            throw new JsonException(UnsupportedApiVersionMessage(version), "$.apiVersion", null, null);
+        }
+
         ConfigDocument document = JsonSerializer.Deserialize(utf8Json, ConfigJsonContext.Default.ConfigDocument)
             ?? throw new JsonException("The config document can't be null.");
         RejectNullElements(document);
@@ -51,9 +56,18 @@ public static class CanonicalConfigJson
     }
 
     /// <summary><see cref="Deserialize"/>, reporting a failure as a <see cref="ConfigError"/> with the JSON pointer of
-    /// where reading stopped.</summary>
+    /// where reading stopped. A document of another <c>apiVersion</c> is reported as
+    /// <see cref="ConfigErrorCodes.ApiVersionUnsupported"/> before anything else, so a newer document says so rather
+    /// than failing on its first field this build doesn't know.</summary>
     public static bool TryDeserialize(ReadOnlySpan<byte> utf8Json, [NotNullWhen(true)] out ConfigDocument? document, [NotNullWhen(false)] out ConfigError? error)
     {
+        if (UnsupportedApiVersion(utf8Json) is { } version)
+        {
+            document = null;
+            error = new ConfigError("/apiVersion", ConfigErrorCodes.ApiVersionUnsupported, UnsupportedApiVersionMessage(version));
+            return false;
+        }
+
         try
         {
             document = Deserialize(utf8Json);
@@ -67,6 +81,47 @@ public static class CanonicalConfigJson
             return false;
         }
     }
+
+    // The top-level apiVersion when it is a string other than V1; null when it is V1, absent, or the input is no object
+    // (reading proper reports those).
+    private static string? UnsupportedApiVersion(ReadOnlySpan<byte> utf8Json)
+    {
+        try
+        {
+            Utf8JsonReader reader = new(utf8Json);
+            if (!reader.Read() || reader.TokenType != JsonTokenType.StartObject)
+            {
+                return null;
+            }
+
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                bool isApiVersion = reader.ValueTextEquals("apiVersion"u8);
+                if (!reader.Read())
+                {
+                    return null;
+                }
+
+                if (isApiVersion)
+                {
+                    return reader.TokenType == JsonTokenType.String && reader.GetString() is { } version && version != ConfigDocument.V1
+                        ? version
+                        : null;
+                }
+
+                reader.Skip();
+            }
+        }
+        catch (JsonException)
+        {
+            // Malformed: reading proper reports where.
+        }
+
+        return null;
+    }
+
+    private static string UnsupportedApiVersionMessage(string version) =>
+        $"apiVersion '{version}' isn't supported; this build reads '{ConfigDocument.V1}'";
 
     /// <summary>The canonical form of <paramref name="document"/> (see the remarks); idempotent.</summary>
     public static ConfigDocument Canonicalize(ConfigDocument document)

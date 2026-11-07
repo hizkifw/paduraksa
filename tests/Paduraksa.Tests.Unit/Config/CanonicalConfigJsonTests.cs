@@ -250,6 +250,30 @@ public sealed class CanonicalConfigJsonTests
         Assert.StartsWith(path, error.Path, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("""{"apiVersion":"paduraksa.dev/v2","hosts":[{"newField":1}]}""")]
+    [InlineData("""{"hosts":[{"x":{"apiVersion":"nested"}}],"waf":{},"apiVersion":"paduraksa.dev/v2"}""")]
+    public void ReportsAnotherApiVersionBeforeItsUnknownFields(string json)
+    {
+        byte[] utf8 = Encoding.UTF8.GetBytes(json);
+
+        Assert.False(CanonicalConfigJson.TryDeserialize(utf8, out _, out ConfigError? error));
+        Assert.Equal(("/apiVersion", ConfigErrorCodes.ApiVersionUnsupported), (error.Path, error.Code));
+        Assert.Contains("paduraksa.dev/v2", error.Message, StringComparison.Ordinal);
+        Assert.Equal("$.apiVersion", Assert.ThrowsAny<JsonException>(() => CanonicalConfigJson.Deserialize(utf8)).Path);
+    }
+
+    [Theory]
+    [InlineData("""{"apiVersion":2,"hosts":[]}""", "/apiVersion")]
+    [InlineData("""{"apiVersion":"paduraksa.dev/v1","hostz":[]}""", "/hostz")]
+    [InlineData("""{"apiVersion":"paduraksa.dev/v2""", "")]
+    public void LeavesOtherFaultsToTheReader(string json, string path)
+    {
+        Assert.False(CanonicalConfigJson.TryDeserialize(Encoding.UTF8.GetBytes(json), out _, out ConfigError? error));
+        Assert.Equal(CanonicalConfigJson.InvalidJsonCode, error.Code);
+        Assert.StartsWith(path, error.Path, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void RequiresTheApiVersion()
     {
