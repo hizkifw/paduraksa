@@ -141,8 +141,16 @@ public sealed class RenewalScheduleTests
     }
 
     [Fact]
-    public void RetryAfterMeansNothingForOtherKinds()
+    public void RetryAfterMeansNothingForPermanentFailures()
     {
-        Assert.Equal(TimeSpan.FromMinutes(5), RenewalSchedule.Backoff(AcmeFailureKind.Transient, 1, TimeSpan.FromDays(3), 0.5, Options));
+        Assert.Equal(TimeSpan.FromHours(1), RenewalSchedule.Backoff(AcmeFailureKind.Permanent, 1, TimeSpan.FromDays(3), 0.5, Options));
+    }
+
+    [Fact]
+    public void ATransientFailuresRetryAfterIsAFloorBelowTheCap()
+    {
+        Assert.Equal(TimeSpan.FromMinutes(5), RenewalSchedule.Backoff(AcmeFailureKind.Transient, 1, TimeSpan.FromSeconds(30), 0.5, Options));
+        Assert.Equal(TimeSpan.FromHours(2), RenewalSchedule.Backoff(AcmeFailureKind.Transient, 1, TimeSpan.FromHours(2), 0.5, Options));
+        Assert.Equal(Options.TransientBackoffCap, RenewalSchedule.Backoff(AcmeFailureKind.Transient, 1, TimeSpan.FromDays(3), 0.5, Options));
     }
 }

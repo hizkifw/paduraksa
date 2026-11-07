@@ -56,8 +56,8 @@ internal static class RenewalSchedule
 
     /// <summary>
     /// How long to wait after the <paramref name="attempts"/>th failure in a row: exponential from the base of the
-    /// failure's kind up to its cap, jittered; for <see cref="AcmeFailureKind.RateLimited"/> never less than the CA's
-    /// <paramref name="retryAfter"/> (capped by <see cref="AcmeIssuanceOptions.RateLimitBackoffCap"/>).
+    /// failure's kind up to its cap, jittered; for <see cref="AcmeFailureKind.RateLimited"/> and <see cref="AcmeFailureKind.Transient"/>
+    /// never less than the <paramref name="retryAfter"/> the CA or the DNS provider asked for (capped by the kind's cap).
     /// </summary>
     public static TimeSpan Backoff(AcmeFailureKind kind, int attempts, TimeSpan? retryAfter, double random, AcmeIssuanceOptions options)
     {
@@ -75,7 +75,7 @@ internal static class RenewalSchedule
         int doublings = Math.Clamp(attempts - 1, 0, 20);
         double jitter = 1d + (spread * ((2d * Math.Clamp(random, 0d, 1d)) - 1d));
         TimeSpan wait = TimeSpan.FromTicks((long)(Math.Min(first.Ticks * Math.Pow(2, doublings), ceiling) * jitter));
-        if (kind == AcmeFailureKind.RateLimited && retryAfter is { } asked && asked > wait)
+        if (kind is AcmeFailureKind.RateLimited or AcmeFailureKind.Transient && retryAfter is { } asked && asked > wait)
         {
             wait = asked;
         }
