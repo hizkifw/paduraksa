@@ -342,6 +342,18 @@ Snapshots are immutable and are thrown away on every publish, so **mutable runti
 Spike S6 turns this into a test: N generations are published under load, and it asserts that rate-limit decisions, counter totals and YARP destination health are all continuous. M1 covers YARP health and request errors (`StateContinuityTests`); rate-limit and counter continuity are tested when those tables exist (M6, M7).
 
 
+### 6.4 M2 build decisions
+
+These refine §5 and §6.1 for the M2 build.
+
+- **The config document is the source of truth.** `ConfigDocument` (in `Paduraksa.Contracts`, `apiVersion: paduraksa.dev/v1`) holds the global settings, profiles, upstreams and hosts with their routes. It contains references only, never secrets. Each revision stores it as canonical JSON (deterministic bytes), Brotli-compressed, with the SHA-256 of the uncompressed bytes. Startup, rollback, diff and export all read documents.
+- **The EF config entities are a projection of the latest revision.** They are written in the same transaction as the revision, and serve queries (dashboard lists, "which hosts use this upstream") and DB-level invariants: a unique `COLLATE NOCASE` host name and foreign keys. Nothing reads them to rebuild config.
+- **Host names are natural keys.** Each is stored normalised (§5.1), with no `hn_` ID.
+- **Concurrency.** Every top-level object (global settings, profile, upstream, host) carries a `Version` that the pipeline increments on change. A command names the version it edited, so two admins editing different hosts never conflict. Whole-document commands (import, rollback) name the `baseRevision` and need it to be the latest. One writer at a time (`SemaphoreSlim`) in the Application layer.
+- **Settings layering.** `HostSettings` fields are nullable; null (absent in JSON) means *inherit*. The compiler resolves built-in defaults → global defaults → profile → host → route (routes carry the route-level subset) into the concrete `ProxyConfigModel`. Nested settings (TLS) merge field by field; list-valued settings (an IP allow list) replace as a whole.
+- **Errors carry a path.** Validation and compile errors carry a JSON-pointer path into the document (`/hosts/3/routes/0/path`), a stable code and a message, so every surface can point at the field.
+- **Audit hash chain.** `hash = SHA-256(prevHash ‖ canonical bytes of the event)`; the first event's `prevHash` is 32 zero bytes. A verifier walks the chain in ID order and reports the first break.
+
 ---
 
 ## 7. Hot path
