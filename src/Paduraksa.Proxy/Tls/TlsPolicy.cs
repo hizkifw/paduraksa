@@ -33,8 +33,9 @@ public sealed record TlsPolicy
     public TcpAlpn TcpAlpn { get; init; } = TcpAlpn.Http2AndHttp11;
 
     /// <summary>
-    /// Whether the host is served over HTTP/3. When false the host has no QUIC entry, so a QUIC handshake for it
-    /// is rejected (never served by the wildcard or default certificate), and it gets no <c>Alt-Svc</c>.
+    /// Whether the host is served over HTTP/3. When false the host has no QUIC entry, so a QUIC handshake naming it is
+    /// rejected (never served by the wildcard or default certificate), it gets no <c>Alt-Svc</c>, and an HTTP/3 request
+    /// for it on a QUIC connection negotiated for another name gets 421 (<see cref="ConnectionTlsCheck"/>).
     /// </summary>
     public bool Http3Enabled { get; init; } = true;
 

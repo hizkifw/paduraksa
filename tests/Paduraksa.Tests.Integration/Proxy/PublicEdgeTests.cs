@@ -114,6 +114,27 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         Assert.Equal(2, host.Shared.PublicListeners.Selector.RejectedUnknownServerNameTcp);
     }
 
+    [Theory]
+    [InlineData(System.Security.Authentication.SslProtocols.Tls12, HttpStatusCode.MisdirectedRequest)]
+    [InlineData(System.Security.Authentication.SslProtocols.Tls13, HttpStatusCode.OK)]
+    public async Task AHostRequiringTls13RefusesAWeakerConnectionNegotiatedForAnotherName(System.Security.Authentication.SslProtocols client, HttpStatusCode expected)
+    {
+        await using PaduraksaHost host = await StartAsync();
+        // No SNI (an IP-literal URL): the default entry (TLS 1.2+) negotiates; the Host names the strict host.
+        await PublishAsync(host, App(new HostSpec
+        {
+            Key = "strict",
+            Names = ["127.0.0.1"],
+            Tls = new HostTlsSpec { MinimumVersion = Paduraksa.Proxy.Tls.TlsMinimumVersion.Tls13 },
+            Routes = [new RouteSpec { Key = "strict-root", Upstream = "echo" }],
+        }));
+
+        using HttpClient http = EdgeClient.Create(out _, client);
+        using HttpResponseMessage response = await http.GetAsync(TestHost.Endpoint(host, HostRole.Public, "https"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
     [Fact]
     public async Task PlainHttpIsRedirectedToThePublicHttpsPort()
     {

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Snapshot;
 
@@ -47,6 +48,13 @@ public sealed class CompiledHost
     /// (<see cref="Tls.AltSvcHeader.Apply"/>).
     /// </summary>
     public StringValues AltSvc { get; init; }
+
+    /// <summary>
+    /// The host's TLS settings. The handshake applies the settings of the SNI's host; the gate re-checks this host's
+    /// against the request's connection (<see cref="ConnectionTlsCheck"/>), since clients coalesce connections across
+    /// names, and answers 421 when the connection is weaker.
+    /// </summary>
+    public TlsPolicy Tls { get; init; } = TlsPolicy.Default;
 
     /// <summary>Set when the host forces HTTPS: plain-HTTP requests get this redirect first.</summary>
     internal HttpsRedirect? HttpsRedirect { get; init; }

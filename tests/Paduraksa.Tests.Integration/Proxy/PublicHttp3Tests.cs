@@ -46,6 +46,7 @@ public sealed class PublicHttp3Tests
             [
                 new HostSpec { Key = "app", Names = ["app.test"], Certificate = "app", Routes = [new RouteSpec { Key = "app-root", Upstream = "echo" }] },
                 new HostSpec { Key = "tcp", Names = ["tcp.test"], Certificate = "app", Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Key = "tcp-root", Upstream = "echo" }] },
+                new HostSpec { Key = "literal", Names = ["127.0.0.1"], Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Key = "literal-root", Upstream = "echo" }] },
             ],
         });
         PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(snapshot, ct);
@@ -81,6 +82,18 @@ public sealed class PublicHttp3Tests
         using HttpClient refused = EdgeClient.Create(out _);
         await Assert.ThrowsAsync<HttpRequestException>(() => refused.SendAsync(EdgeClient.Request(host, "https", "tcp.test", "/", HttpVersion.Version30), ct));
         Assert.Equal(1, host.Shared.PublicListeners.Selector.RejectedHttp3Disabled);
+
+        // A QUIC connection negotiated for another entry (no SNI: the default certificate, H3 on) can't carry a request
+        // for a host that turned H3 off: 421, so the client retries over TCP.
+        using HttpClient coalesced = EdgeClient.Create(out _);
+        using HttpRequestMessage literal = new(HttpMethod.Get, TestHost.Endpoint(host, HostRole.Public, "https"))
+        {
+            Version = HttpVersion.Version30,
+            VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+        };
+        using HttpResponseMessage misdirected = await coalesced.SendAsync(literal, ct);
+        Assert.Equal(HttpVersion.Version30, misdirected.Version);
+        Assert.Equal(HttpStatusCode.MisdirectedRequest, misdirected.StatusCode);
     }
 
     private static async Task<PaduraksaHost> StartOnFreePortAsync(ClientInfoProbe probe)

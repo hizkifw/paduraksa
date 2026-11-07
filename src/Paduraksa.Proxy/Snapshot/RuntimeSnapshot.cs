@@ -20,6 +20,7 @@ public sealed class RuntimeSnapshot
 {
     private static readonly PrecomputedResponse DefaultNoRoute = PrecomputedResponse.Text(StatusCodes.Status404NotFound, "not found\n");
     private static readonly PrecomputedResponse DefaultUnavailable = PrecomputedResponse.Text(StatusCodes.Status503ServiceUnavailable, "service unavailable\n");
+    private static readonly PrecomputedResponse DefaultMisdirected = PrecomputedResponse.Text(StatusCodes.Status421MisdirectedRequest, "misdirected request\n");
 
     /// <summary>0 until bound; then strictly increasing per store.</summary>
     public required long Generation { get; init; }
@@ -48,6 +49,9 @@ public sealed class RuntimeSnapshot
 
     /// <summary>A route has no endpoint (only possible for an unbound snapshot).</summary>
     public PrecomputedResponse Unavailable { get; init; } = DefaultUnavailable;
+
+    /// <summary>The request's connection is weaker than its host's TLS settings (421: retry on a connection of its own).</summary>
+    public PrecomputedResponse Misdirected { get; init; } = DefaultMisdirected;
 
     /// <summary>
     /// SNI → prebuilt server options (PLAN §7.2 B). The handshake callbacks read it through
@@ -110,6 +114,7 @@ public sealed class RuntimeSnapshot
             Default = Default,
             NoRoute = NoRoute,
             Unavailable = Unavailable,
+            Misdirected = Misdirected,
             Certificates = Certificates,
             TrustedProxies = TrustedProxies,
         };

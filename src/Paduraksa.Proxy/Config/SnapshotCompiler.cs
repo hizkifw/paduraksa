@@ -109,6 +109,7 @@ public static class SnapshotCompiler
                 Policies = hostPolicies,
                 FixedResponse = fixedResponse,
                 HttpsRedirect = spec.ForceHttps ? httpsRedirect : null,
+                Tls = tls,
                 // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only
                 // host has none: its HTTPS rides on the default certificate's entry and that entry's settings).
                 AltSvc = servedOverTls ? altSvc.ForHost(tls) : default,

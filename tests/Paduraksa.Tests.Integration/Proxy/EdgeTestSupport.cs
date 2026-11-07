@@ -5,6 +5,7 @@ using System.Net.Quic;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -64,7 +65,7 @@ internal sealed class TestCertificates : IDisposable
 /// </summary>
 internal static class EdgeClient
 {
-    public static HttpClient Create(out StrongBox<string?> servedSubject)
+    public static HttpClient Create(out StrongBox<string?> servedSubject, SslProtocols protocols = SslProtocols.None)
     {
         StrongBox<string?> box = new();
         servedSubject = box;
@@ -75,6 +76,7 @@ internal static class EdgeClient
             ConnectTimeout = TimeSpan.FromSeconds(5),
             SslOptions =
             {
+                EnabledSslProtocols = protocols,
                 RemoteCertificateValidationCallback = (_, certificate, _, _) =>
                 {
                     box.Value = (certificate as X509Certificate2)?.GetNameInfo(X509NameType.SimpleName, forIssuer: false);

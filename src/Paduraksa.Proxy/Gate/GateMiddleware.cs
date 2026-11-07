@@ -41,8 +41,9 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
 /// <list type="number">
 /// <item>one snapshot read, per-request state from <see cref="IPersistentStateFeature"/>, the client address;</item>
 /// <item>the ACME HTTP-01 hook (M3), which bypasses everything below;</item>
-/// <item>host lookup; an unknown host gets the default behaviour; a known one gets its <c>Alt-Svc</c> on TCP HTTPS
-/// responses, whatever answers them;</item>
+/// <item>host lookup; an unknown host gets the default behaviour; an HTTPS request whose connection is weaker than the
+/// host's TLS settings (HTTP/3, TLS version, ALPN; a connection coalesced from another name) gets 421; a known host gets
+/// its <c>Alt-Svc</c> on TCP HTTPS responses, whatever answers them;</item>
 /// <item>the <b>host policies</b>, so they guard everything the host answers (a blocked client gets 403, not a redirect);</item>
 /// <item>the HTTP→HTTPS redirect;</item>
 /// <item>Redirect and Respond hosts;</item>
@@ -98,6 +99,11 @@ public sealed class GateMiddleware
         }
 
         state.Host = host;
+        if (request.IsHttps && !ConnectionTlsCheck.Satisfies(context, host.Tls))
+        {
+            return GateDecision.Respond(snapshot.Misdirected);
+        }
+
         AltSvcHeader.Apply(context, host.AltSvc);
         RequestView view = new(context, state);
         if (Stops(host.Policies, in view, out GateDecision stopped))

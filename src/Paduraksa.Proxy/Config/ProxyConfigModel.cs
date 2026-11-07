@@ -95,22 +95,25 @@ public sealed record TrustedProxySpec
 
 /// <summary>
 /// The configurable part of a host's <see cref="TlsPolicy"/> (PLAN §7.2 B). Client certificates (Authenticated Origin
-/// Pulls) arrive with M6.
+/// Pulls) arrive with M6. The handshake applies the settings of the host named in the SNI; because clients reuse a
+/// connection for every name its certificate covers, the gate re-checks each request against its own host's settings
+/// and answers 421 Misdirected Request when the connection is weaker.
 /// </summary>
 public sealed record HostTlsSpec
 {
     /// <summary>TLS 1.2+, <c>h2</c> + <c>http/1.1</c>, HTTP/3 on.</summary>
     public static HostTlsSpec Default { get; } = new();
 
-    /// <summary>Lowest TLS version over TCP (QUIC is always TLS 1.3).</summary>
+    /// <summary>Lowest TLS version over TCP (QUIC is always TLS 1.3). Requests on an older connection get 421.</summary>
     public TlsMinimumVersion MinimumVersion { get; init; } = TlsMinimumVersion.Tls12;
 
-    /// <summary>ALPN offered over TCP.</summary>
+    /// <summary>ALPN offered over TCP. With HTTP/1.1 only, requests on an HTTP/2 connection get 421.</summary>
     public TcpAlpn TcpAlpn { get; init; } = TcpAlpn.Http2AndHttp11;
 
     /// <summary>
-    /// Serve the host over HTTP/3 (when the H3 listener exists). Off: its QUIC handshakes are rejected and it gets no
-    /// <c>Alt-Svc</c>.
+    /// Serve the host over HTTP/3 (when the H3 listener exists). Off: QUIC handshakes whose SNI names the host are
+    /// rejected, HTTP/3 requests for it arriving on a QUIC connection negotiated for another name get 421, and it gets
+    /// no <c>Alt-Svc</c>.
     /// </summary>
     public bool Http3 { get; init; } = true;
 }
