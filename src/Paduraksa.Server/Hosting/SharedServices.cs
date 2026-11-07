@@ -51,6 +51,7 @@ internal sealed class SharedServices : IAsyncDisposable
         Certificates = Get<PlaceholderCertificates>();
         PublicListeners = Get<PublicListenerSetup>();
         Config = Get<ConfigService>();
+        CertificateService = Get<CertificateService>();
         LastKnownGood = Get<LastKnownGoodFile>();
     }
 
@@ -82,6 +83,9 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The config write path, started by the core host (<see cref="ConfigStartup"/>); see <see cref="ConfigStore"/>.</summary>
     public ConfigService Config { get; }
+
+    /// <summary>The certificate inventory's service (PLAN §9.2): shares <see cref="Config"/>'s writer; the vault wave's flows call it.</summary>
+    public CertificateService CertificateService { get; }
 
     /// <summary><c>&lt;data dir&gt;/last-good.json</c>, written after every successful publish.</summary>
     public LastKnownGoodFile LastKnownGood { get; }

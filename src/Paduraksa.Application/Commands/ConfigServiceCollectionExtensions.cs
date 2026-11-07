@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.LastKnownGood;
@@ -19,7 +20,8 @@ public static class ConfigServiceCollectionExtensions
     /// the allow-everything <see cref="IConfigCommandAuthorizer"/> and default <see cref="ConfigServiceOptions"/>
     /// unless those are already registered. The config database's context factory, an <see cref="IConfigCompiler"/>
     /// and the <see cref="SnapshotPublisher"/> must be registered too; a <see cref="LastKnownGoodFile"/>, an
-    /// <see cref="IServerCertificateSource"/> and <see cref="IBuiltInCertificates"/> are used when registered.
+    /// <see cref="IServerCertificateSource"/> and <see cref="IBuiltInCertificates"/> are used when registered. Also
+    /// registers the <see cref="CertificateService"/>, which shares the service's writer.
     /// </summary>
     public static IServiceCollection AddPaduraksaConfigService(this IServiceCollection services)
     {
@@ -37,6 +39,12 @@ public static class ConfigServiceCollectionExtensions
             sp.GetRequiredService<ConfigServiceOptions>(),
             sp.GetService<LastKnownGoodFile>(),
             sp.GetService<IServerCertificateSource>(),
+            sp.GetService<IBuiltInCertificates>()));
+        services.TryAddSingleton(sp => new CertificateService(
+            sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
+            sp.GetRequiredService<ConfigService>(),
+            sp.GetRequiredService<TimeProvider>(),
+            (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<CertificateService>(),
             sp.GetService<IBuiltInCertificates>()));
         return services;
     }

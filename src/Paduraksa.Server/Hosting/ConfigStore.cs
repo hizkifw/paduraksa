@@ -63,5 +63,6 @@ internal static class ConfigStore
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
         builder.AddOwnedElsewhere(container.GetRequiredService<IDbContextFactory<ConfigDbContext>>());
         builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
     }
 }
