@@ -28,7 +28,13 @@ public sealed class SqliteSetupTests : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await _services.DisposeAsync();
-        SqliteConnection.ClearAllPools(); // pooled connections keep the file open
+        // Pooled connections keep the file open. Clear only this database's pool: ClearAllPools would also close
+        // connections that tests running in parallel rely on (PragmasRunOncePerPhysicalConnectionNotOnEveryOpen).
+        using (var connection = new SqliteConnection(PaduraksaSqlite.ConnectionString(DatabasePath)))
+        {
+            SqliteConnection.ClearPool(connection);
+        }
+
         Directory.Delete(_directory, recursive: true);
     }
 
@@ -82,7 +88,7 @@ public sealed class SqliteSetupTests : IAsyncLifetime
     {
         // The bundled SQLite may already default foreign_keys to on, so prove the setting itself: turned off
         // explicitly, the same orphan insert succeeds.
-        var off = new SqliteConnectionStringBuilder(PaduraksaSqlite.ConnectionString(DatabasePath)) { ForeignKeys = false }.ToString();
+        var off = new SqliteConnectionStringBuilder(PaduraksaSqlite.ConnectionString(DatabasePath)) { ForeignKeys = false, Pooling = false }.ToString();
         var insertOrphan = "INSERT INTO Routes (Id, HostId, \"Order\", RelatedHostIds) VALUES (randomblob(16), randomblob(16), 0, '[]')";
 
         await using (var withoutForeignKeys = new SqliteConnection(off))
