@@ -228,6 +228,9 @@ public sealed class SnapshotCompilerTests
         { "active health path", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ActiveHealth = new ActiveHealthSpec { Path = "health" } }] }, "active health check needs a path" },
         { "active health interval", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { ActiveHealth = new ActiveHealthSpec { Interval = TimeSpan.Zero } }] }, "active health check needs" },
         { "deny 205 with body", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(205)] }), "a 205 deny response can't have a body" },
+        { "unknown host kind", Hosts(Respond("a", "a.test") with { Kind = (HostKind)9 }), "unknown host kind 9" },
+        { "unknown match kind", WithWeb(ProxyHost("a", "a.test", Route("r", "web") with { Match = (RouteMatchKind)9 })), "unknown match kind 9" },
+        { "unknown default-host behaviour", new ProxyConfigModel { Defaults = new DefaultsSpec { UnknownHost = (UnknownHostMode)9 } }, "unknown default-host behaviour 9" },
     };
 
     [Theory]

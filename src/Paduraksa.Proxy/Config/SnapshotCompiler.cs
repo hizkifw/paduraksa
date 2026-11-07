@@ -54,6 +54,11 @@ public static class SnapshotCompiler
         List<CompileError> errors = [];
 
         DefaultsSpec defaults = model.Defaults ?? new DefaultsSpec();
+        if (!Enum.IsDefined(defaults.UnknownHost))
+        {
+            errors.Add(new(CompileErrorSource.Defaults, $"unknown default-host behaviour {defaults.UnknownHost}"));
+        }
+
         CertificateTableBuilder certificates = new();
         ServerCertificate? defaultCertificate = ResolveCertificate(defaults.Certificate, CompileErrorSource.Defaults, options.Certificates, errors);
         if (defaultCertificate is not null)
@@ -84,6 +89,11 @@ public static class SnapshotCompiler
             else if (!hostIds.Add(spec.Id))
             {
                 errors.Add(new(where, "duplicate host ID"));
+            }
+
+            if (!Enum.IsDefined(spec.Kind))
+            {
+                errors.Add(new(where, $"unknown host kind {spec.Kind}"));
             }
 
             IRequestPolicy[] hostPolicies = CompilePolicies(spec.Policies ?? [], where, errors);
@@ -354,6 +364,11 @@ public static class SnapshotCompiler
             else if (!yarpRouteIds.TryAdd(routeId, spec.Id))
             {
                 errors.Add(new(routeWhere, CaseCollision("route", routeId, yarpRouteIds[routeId].ToString())));
+            }
+
+            if (!Enum.IsDefined(spec.Match))
+            {
+                errors.Add(new(routeWhere, $"unknown match kind {spec.Match}"));
             }
 
             string path = spec.Path ?? string.Empty;
