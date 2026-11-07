@@ -49,6 +49,8 @@ public sealed class VaultContractTests
         typeof(IMacKeySource),
         typeof(ISecretStore),
         typeof(ISecretHttpHandlerFactory),
+        typeof(IVaultLifecycle),
+        typeof(IVaultKekRotation),
     ];
 
     /// <summary>
