@@ -1,8 +1,13 @@
 namespace Paduraksa.Application.Config;
 
-/// <summary>The stable <see cref="Contracts.Config.ConfigError.Code"/>s of <see cref="ConfigValidator"/>.</summary>
+/// <summary>The stable <see cref="Contracts.Config.ConfigError.Code"/>s of <see cref="ConfigValidator"/> and of the
+/// config compiler.</summary>
 public static class ConfigErrorCodes
 {
+    /// <summary>The compiler rejected the document (<see cref="Compilation.ConfigCompiler"/>): something only it can
+    /// check, such as a certificate that doesn't exist, or a rule the validator misses. The path is the object's.</summary>
+    public const string CompileFailed = "compile.failed";
+
     // Whole document and any object.
     public const string ApiVersionUnsupported = "apiVersion.unsupported";
     public const string IdEmpty = "id.empty";

@@ -1,0 +1,253 @@
+using Paduraksa.Application.Compilation;
+using Paduraksa.Application.Config;
+using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Config;
+
+using static Paduraksa.Application.Config.ConfigErrorCodes;
+using static Paduraksa.Tests.Unit.Config.ConfigSamples;
+
+namespace Paduraksa.Tests.Unit.Compilation;
+
+public sealed class ConfigCompilerTests : IDisposable
+{
+    private static readonly ConfigRevisionId Revision = Id<ConfigRevisionId>(7);
+
+    private readonly AnyCertificate _certificates = new();
+    private readonly ConfigCompiler _compiler;
+
+    public ConfigCompilerTests() => _compiler = new ConfigCompiler(new SnapshotCompilerOptions { Certificates = _certificates });
+
+    public void Dispose() => _certificates.Dispose();
+
+    [Fact]
+    public void AValidDocumentCompilesToALabelledCandidate()
+    {
+        ConfigCompilation compilation = _compiler.Compile(Valid(), Revision);
+
+        Assert.True(compilation.Succeeded);
+        Assert.Empty(compilation.Errors);
+        Assert.Equal(Revision, compilation.Snapshot!.Revision);
+        Assert.Equal(0, compilation.Snapshot.Generation);
+        Assert.Equal(AppHost, compilation.Snapshot.Hosts.Find("x.app.example.com")!.Id);
+    }
+
+    [Fact]
+    public void ErrorsPointAtTheObjectInTheDocumentAsGiven()
+    {
+        // Not in canonical order: hosts and upstreams by descending ID, routes by descending order, a disabled
+        // destination first. The compiler reads the canonical form; the paths index what was given.
+        UpstreamId spare = Id<UpstreamId>(2);
+        ConfigDocument document = new(
+            Settings: new GlobalSettings(DefaultCertificateId: Id<CertificateId>(1)),
+            Upstreams:
+            [
+                new UpstreamConfig(spare, "spare", Destinations: [new DestinationConfig(Id<DestinationId>(2), "http://spare")]),
+                new UpstreamConfig(
+                    AppUpstream,
+                    "app",
+                    Destinations: [new DestinationConfig(Id<DestinationId>(3), "ftp://off", Enabled: false), new DestinationConfig(AppDestination, "ftp://app")]),
+            ],
+            Hosts:
+            [
+                new HostConfig(
+                    Id<HostId>(2),
+                    ["b.example.com"],
+                    Certificate: new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = Id<CertificateId>(9) },
+                    Routes: [new RouteConfig(RootRoute, spare, Order: 10), new RouteConfig(ApiRoute, spare, Path: "api")]),
+                new HostConfig(AppHost, ["a.example.com"], Routes: [new RouteConfig(Id<RouteId>(3), spare)]),
+            ]);
+        _certificates.Missing.Add(Id<CertificateId>(1));
+        _certificates.Missing.Add(Id<CertificateId>(9));
+
+        ConfigCompilation compilation = _compiler.Compile(document, Revision);
+
+        Assert.False(compilation.Succeeded);
+        Assert.Null(compilation.Snapshot);
+        Assert.All(compilation.Errors, e => Assert.Equal(CompileFailed, e.Code));
+        Assert.Equal(
+            ["/hosts/0", "/hosts/0/routes/1", "/settings", "/upstreams/1/destinations/1"],
+            compilation.Errors.Select(e => e.Path).Order(StringComparer.Ordinal).ToArray());
+        Assert.Contains(compilation.Errors, e => e.Path == "/hosts/0" && e.Message.Contains($"certificate '{Id<CertificateId>(9)}' doesn't exist", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ADuplicateIdPointsAtTheLaterObject()
+    {
+        ConfigDocument document = Valid();
+        HostConfig twin = new(AppHost, ["twin.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200));
+
+        ConfigError error = Assert.Single(_compiler.Compile(document with { Hosts = [.. document.Hosts, twin] }, Revision).Errors);
+        Assert.Equal(("/hosts/3", "duplicate host ID"), (error.Path, error.Message));
+
+        // Two more copies: two duplicate errors, both at the last copy, reported once.
+        ConfigDocument triple = document with { Hosts = [.. document.Hosts, twin, twin with { Names = ["twin2.example.com"] }] };
+        error = Assert.Single(_compiler.Compile(triple, Revision).Errors);
+        Assert.Equal(("/hosts/4", "duplicate host ID"), (error.Path, error.Message));
+    }
+
+    [Fact]
+    public void AnInheritedValueIsReportedWhereItIsUsed()
+    {
+        // The bad address comes from the global defaults: each host whose chain carries it reports it.
+        ConfigDocument document = Valid();
+        ConfigDocument changed = document with
+        {
+            Settings = document.Settings with { Defaults = new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.1/8"]) } },
+            Profiles = [],
+            Hosts = [.. document.Hosts.Where(h => h.Id != RespondHost).Select(h => h with { ProfileId = null })],
+        };
+
+        IReadOnlyList<ConfigError> errors = _compiler.Compile(changed, Revision).Errors;
+
+        Assert.Equal(["/hosts/0", "/hosts/1"], errors.Select(e => e.Path));
+        Assert.All(errors, e => Assert.Contains("'10.0.0.1/8' isn't an IP address or CIDR", e.Message, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ValuesTheModelCantCarryFailWithAPath()
+    {
+        ConfigDocument document = Valid();
+        ConfigDocument changed = document with
+        {
+            Upstreams = [document.Upstreams[0] with { LoadBalancing = (LoadBalancingPolicy)9 }],
+            Hosts =
+            [
+                .. document.Hosts.Select(h => h.Id == AppHost ? h with { Certificate = new CertificateBinding { Mode = (CertificateBindingMode)9 } }
+                    : h.Id == RespondHost ? h with { Respond = h.Respond! with { ContentType = null! } }
+                    : h),
+            ],
+        };
+
+        ConfigCompilation compilation = _compiler.Compile(changed, Revision);
+
+        Assert.False(compilation.Succeeded);
+        Assert.Equal(
+            [("/hosts/0", "unknown certificate binding mode 9"), ("/hosts/2", "a respond host needs a content type"), ("/upstreams/0", "unknown load-balancing policy 9")],
+            compilation.Errors.Select(e => (e.Path, e.Message)));
+    }
+
+    [Fact]
+    public void ANullRespondBodyIsTheEmptyBody()
+    {
+        ConfigDocument document = Valid();
+        ConfigDocument changed = document with { Hosts = [.. document.Hosts.Select(h => h.Id == RespondHost ? h with { Respond = h.Respond! with { Body = null! } } : h)] };
+
+        Assert.Empty(ConfigValidator.Validate(changed));
+        Assert.Empty(_compiler.Compile(changed, Revision).Errors);
+    }
+
+    [Fact]
+    public void TrustedProxyErrorsPointAtTheTrustedProxies()
+    {
+        ConfigDocument document = new(Settings: new GlobalSettings(TrustedProxies: new TrustedProxySettings(TrustedProxyMode.Generic)));
+
+        Assert.Equal("/settings/trustedProxies", Assert.Single(_compiler.Compile(document, Revision).Errors).Path);
+    }
+
+    [Fact]
+    public void ForcingHttpsOnAHostWithoutHttpsFailsAtTheHost()
+    {
+        // The validator reports it too; the compiler is the backstop, and judges the setting after layering.
+        ConfigDocument document = Valid();
+        ConfigDocument changed = document with
+        {
+            Hosts = [.. document.Hosts.Select(h => h.Id == RespondHost ? h with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } } : h)],
+        };
+
+        ConfigError error = Assert.Single(_compiler.Compile(changed, Revision).Errors);
+        Assert.Equal(("/hosts/2", CompileFailed), (error.Path, error.Code));
+        Assert.Contains("can't force HTTPS", error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The backstop property: the validator accepts nothing the compiler rejects (certificates aside, which only the
+    /// compiler can resolve; here every ID resolves). A counterexample is a validator gap.
+    /// </summary>
+    [Fact]
+    public void EveryDocumentThatValidatesCompiles()
+    {
+        foreach ((string name, ConfigDocument document) in Samples())
+        {
+            Assert.True(ConfigValidator.Validate(document).Count == 0, $"{name} should be valid");
+            AssertCompiles(name, document);
+        }
+
+        int valid = 0;
+        int total = 0;
+        for (int seed = 0; seed < 400; seed++)
+        {
+            ConfigDocument random = Random(seed);
+            foreach ((string name, ConfigDocument document) in (ReadOnlySpan<(string, ConfigDocument)>)[($"random {seed}", random), ($"respelled {seed}", Respelled(random, seed))])
+            {
+                total++;
+                if (ConfigValidator.Validate(document).Count == 0)
+                {
+                    valid++;
+                    AssertCompiles(name, document);
+                }
+            }
+        }
+
+        // Not vacuous: a good share of the generated documents are valid.
+        Assert.True(valid * 4 >= total, $"only {valid} of {total} documents validate");
+    }
+
+    private void AssertCompiles(string name, ConfigDocument document)
+    {
+        ConfigCompilation compilation = _compiler.Compile(document, Revision);
+        Assert.True(compilation.Succeeded, $"{name}: {string.Join("; ", compilation.Errors.Select(e => $"{e.Path}: {e.Message}"))}");
+    }
+
+    private static IEnumerable<(string Name, ConfigDocument Document)> Samples()
+    {
+        yield return ("valid", Valid());
+        yield return ("empty", new ConfigDocument());
+        yield return ("edges", Edges());
+        foreach (TrustedProxySettings trusted in (TrustedProxySettings[])
+            [
+                new(TrustedProxyMode.CloudflareProxy, UseTrueClientIp: true, ForwardedForFallback: true),
+                new(TrustedProxyMode.CloudflareTunnel, ["127.0.0.1", "::1"]),
+                new(TrustedProxyMode.Generic, ["10.0.0.0/8"], Header: " X-Forwarded-For ", TrustForwardedProto: true),
+            ])
+        {
+            yield return ($"trusted proxies {trusted.Mode}", Valid() with { Settings = Valid().Settings with { TrustedProxies = trusted } });
+        }
+    }
+
+    // Valid spellings at the edges of the rules: IP-literal and IDN names, overlapping exact and wildcard names, paths
+    // that differ in case or match kind only, base paths, bodiless statuses, IPv4-mapped blocks, an upstream that only a
+    // disabled host routes to with every destination disabled.
+    private static ConfigDocument Edges()
+    {
+        UpstreamId parked = Id<UpstreamId>(2);
+        return new ConfigDocument(
+            Settings: new GlobalSettings(Defaults: new HostSettings { IpAllowList = new IpAllowListSettings([" ::FFFF:10.0.0.0/104 ", "2001:DB8::/32"], DropDenied: true) }),
+            Upstreams:
+            [
+                new UpstreamConfig(AppUpstream, "app", Destinations: [new DestinationConfig(AppDestination, "https://app:8443/base/")], ActiveHealth: new ActiveHealthConfig("/")),
+                new UpstreamConfig(parked, "parked", Destinations: [new DestinationConfig(Id<DestinationId>(2), "http://parked", Enabled: false)]),
+            ],
+            Hosts:
+            [
+                new HostConfig(
+                    AppHost,
+                    ["[2001:DB8::1]", "192.0.2.10", "Bücher.example", "*.Example.org", " a.example.org. "],
+                    Routes:
+                    [
+                        new RouteConfig(RootRoute, AppUpstream, Order: -5, Match: RouteMatchKind.Exact, Path: "/API"),
+                        new RouteConfig(ApiRoute, AppUpstream, Order: -5, Path: "/api", Settings: new RouteSettings { IpAllowList = new IpAllowListSettings([]) }),
+                        new RouteConfig(Id<RouteId>(3), AppUpstream, Order: int.MaxValue, Path: "/a b/é"),
+                    ]),
+                new HostConfig(Id<HostId>(2), ["parked.example.com"], Enabled: false, Routes: [new RouteConfig(Id<RouteId>(4), parked)]),
+                new HostConfig(Id<HostId>(3), ["gone.example.com"], Kind: HostKind.Redirect, Redirect: new RedirectConfig("https://new.example.com/base/", 307)),
+                new HostConfig(Id<HostId>(4), ["empty.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(204, ContentType: "text/plain;\tcharset=utf-8")),
+                new HostConfig(
+                    Id<HostId>(5),
+                    ["plain.example.com"],
+                    Kind: HostKind.Respond,
+                    Certificate: new CertificateBinding { Mode = CertificateBindingMode.None },
+                    Respond: new RespondConfig(200)),
+            ]);
+    }
+}

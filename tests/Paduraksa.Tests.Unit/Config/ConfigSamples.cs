@@ -68,6 +68,12 @@ internal static class ConfigSamples
         string[] Some(string[] pool) => [.. pool.Where(_ => Coin())];
 
         string[] addresses = ["10.0.0.0/8", "192.168.1.0/24", "2001:db8::/32", "203.0.113.7", "::1"];
+        IpAllowListSettings AllowList()
+        {
+            string[] list = Some(addresses);
+            return new IpAllowListSettings(list, DropDenied: list.Length > 0 && Coin());
+        }
+
         HostSettings Settings() => new()
         {
             ForceHttps = Coin() ? Coin() : null,
@@ -77,7 +83,7 @@ internal static class ConfigSamples
                 TcpAlpn = Coin() ? (TcpAlpn)random.Next(2) : null,
                 Http3 = Coin() ? Coin() : null,
             }),
-            IpAllowList = Maybe(() => new IpAllowListSettings(Some(addresses), Coin())),
+            IpAllowList = Maybe(AllowList),
         };
 
         ProfileConfig[] profiles =
@@ -118,9 +124,12 @@ internal static class ConfigSamples
                     Kind: kind,
                     Enabled: Coin(),
                     ProfileId: profiles.Length > 0 && Coin() ? profiles[random.Next(profiles.Length)].Id : null,
-                    Certificate: Coin()
-                        ? new CertificateBinding()
-                        : new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = NewId<CertificateId>() },
+                    Certificate: random.Next(3) switch
+                    {
+                        0 => new CertificateBinding(),
+                        1 => new CertificateBinding { Mode = CertificateBindingMode.None },
+                        _ => new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = NewId<CertificateId>() },
+                    },
                     Settings: Settings(),
                     Routes: kind != HostKind.Proxy
                         ? []
@@ -132,7 +141,7 @@ internal static class ConfigSamples
                                 Order: random.Next(3) * 10,
                                 Match: (RouteMatchKind)random.Next(2),
                                 Path: j == 0 ? "/" : $"/p{j}",
-                                Settings: new RouteSettings { IpAllowList = Maybe(() => new IpAllowListSettings(Some(addresses))) })),
+                                Settings: new RouteSettings { IpAllowList = Maybe(AllowList) })),
                         ],
                     Redirect: kind == HostKind.Redirect ? new RedirectConfig("https://example.com", 308, PreservePath: Coin()) : null,
                     Respond: kind == HostKind.Respond ? new RespondConfig(200 + random.Next(300), "\"quoted\"\n", "text/html") : null,

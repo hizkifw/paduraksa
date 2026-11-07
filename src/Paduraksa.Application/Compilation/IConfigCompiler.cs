@@ -8,7 +8,8 @@ namespace Paduraksa.Application.Compilation;
 /// Compiles a validated config document into an unbound <see cref="RuntimeSnapshot"/> candidate (PLAN §6.1 step 4,
 /// §6.4): resolves the settings layers into the proxy's compiler input and runs the snapshot compiler. Cold path.
 /// </summary>
-/// <remarks>The command pipeline runs <see cref="Config.ConfigValidator"/> first; the compiler is the backstop.</remarks>
+/// <remarks>The command pipeline runs <see cref="Config.ConfigValidator"/> first; the compiler is the backstop. The
+/// implementation is <see cref="ConfigCompiler"/> (the mapping itself: <see cref="ProxyConfigMapping"/>).</remarks>
 public interface IConfigCompiler
 {
     /// <summary>Compiles <paramref name="document"/>, labelled with <paramref name="revision"/>.</summary>

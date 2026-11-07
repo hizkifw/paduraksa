@@ -7,6 +7,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Paduraksa.Core.Ids;
 using Paduraksa.Ids.Generator;
 
+// Paduraksa.Tests.Unit.Compilation (the config compiler tests) hides Roslyn's Compilation here.
+using RoslynCompilation = Microsoft.CodeAnalysis.Compilation;
+
 namespace Paduraksa.Tests.Unit.Ids;
 
 public sealed class TypedIdGeneratorTests
@@ -293,7 +296,7 @@ public sealed class TypedIdGeneratorTests
         CSharpCompilation compilation = CreateCompilation(files);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new TypedIdGenerator());
         driver = driver.RunGeneratorsAndUpdateCompilation(
-            compilation, out Compilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+            compilation, out RoslynCompilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
 
         return new GeneratorResult(
             diagnostics,
