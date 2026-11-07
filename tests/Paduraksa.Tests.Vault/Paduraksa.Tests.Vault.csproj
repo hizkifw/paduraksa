@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Verifying the vault's output takes key material: a signature is checked with the public key, a DEK is
+         opened to see that it round-trips, a certificate is generated for a local TLS server. These tests may use
+         the APIs that BannedSymbols.KeyMaterial.txt bans everywhere else, exactly like the project they test. -->
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.Vault/Paduraksa.Vault.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Storage/Paduraksa.Storage.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- A local HTTPS server (Kestrel) for the authenticating handler's wire tests. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

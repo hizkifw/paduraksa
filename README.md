@@ -45,12 +45,16 @@ a scratch file in the temp directory unless you name one after `--`, e.g.
 `dotnet ef database update --project src/Paduraksa.Data -- data/paduraksa.db`. Keep `dotnet-ef` in `.config/dotnet-tools.json` on the same version as the EF Core packages in
 `Directory.Packages.props`.
 
+The vault database (`VaultDbContext` in `src/Paduraksa.Vault`, `data/vault.db`) has migrations of its own in
+`src/Paduraksa.Vault/Migrations`, applied at startup by the vault (`IVaultLifecycle.InitializeAsync`). Add one the same way:
+`dotnet ef migrations add <Name> --project src/Paduraksa.Vault --output-dir Migrations`.
+
 ## Repository layout
 
 - `src/`: the product projects (layering in [docs/PLAN.md](docs/PLAN.md) §1).
 - `tests/`: unit (`Paduraksa.Tests.Unit`), data (`Paduraksa.Tests.Data`), proxy hot path and end-to-end
   (`Paduraksa.Tests.Proxy`), integration (`Paduraksa.Tests.Integration`) and architecture
-  (`Paduraksa.Tests.Architecture`) tests.
+  (`Paduraksa.Tests.Architecture`) tests, and `Paduraksa.Tests.Vault` for the vault (a key-material boundary project like the vault itself).
 - `bench/`: BenchmarkDotNet micro-benchmarks (`Paduraksa.Benchmarks`), the end-to-end runner
   (`Paduraksa.Bench.Runner`) and the nginx/Caddy baseline (`run-baseline.sh`, results in `bench/results/`).
 - `spikes/`: throwaway experiments, excluded from the solution. Findings live in [docs/spikes/](docs/spikes/).

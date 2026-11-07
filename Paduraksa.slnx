@@ -24,5 +24,6 @@
     <Project Path="tests/Paduraksa.Tests.Integration/Paduraksa.Tests.Integration.csproj" />
     <Project Path="tests/Paduraksa.Tests.Proxy/Paduraksa.Tests.Proxy.csproj" />
     <Project Path="tests/Paduraksa.Tests.Unit/Paduraksa.Tests.Unit.csproj" />
+    <Project Path="tests/Paduraksa.Tests.Vault/Paduraksa.Tests.Vault.csproj" />
   </Folder>
 </Solution>

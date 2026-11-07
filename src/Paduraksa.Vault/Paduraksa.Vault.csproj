@@ -9,6 +9,8 @@
   <!-- Trust boundary: everything internal; only capability interfaces from Core are exposed. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
-    <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
+    <!-- For `dotnet ef` (design time only; doesn't flow to referencing projects). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Vault" />
   </ItemGroup>
 </Project>
