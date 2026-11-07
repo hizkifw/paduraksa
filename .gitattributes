@@ -1,2 +1,5 @@
 # Normalize line endings to LF in the repo and working tree (matches .editorconfig end_of_line).
 * text=auto eol=lf
+
+# Raw benchmark and tool output is committed verbatim (BenchmarkDotNet pads lines).
+bench/results/** -whitespace
