@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.13**: M0, M1 and M2 done, M3 next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.14**: M0, M1 and M2 done, M3 foundations in place and the rest of M3 next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -871,3 +871,4 @@ Each milestone ends with a working, testable increment.
 - **v0.11:** M1 done. S7 baseline recorded in `bench/results/2026-11-07-baseline.md` (§13, §14). §1 lists `Tests.Proxy` and `Bench.Runner`. §7.5 describes the as-built builder; the slim-builder note is kept as spike history.
 - **v0.12:** M2 done. The config document is the source of truth and the EF entities are its projection (§6.4). Typed IDs reach the proxy model. Canonical JSON, validation and diff work over the document. The compiler resolves the settings layers and places IP allow lists in the host and route chains (§6.4). Commands carry per-object versions that are revision numbers, and rollback is committed as a new revision. The audit log is a hash chain. Startup recompiles the latest revision, and `last-good.json` gives a degraded start or a restore (§6.1, §6.4, §11.3). The M3 open items now include the placeholder certificate (§14).
 - **v0.13:** Request simulator designed (§7.7): runs the real gate over live, stored or draft config through a zero-cost generic tracer, with parity tests. Its core moves forward to M4; M6 adds a trace step per policy (§12, §14).
+- **v0.14:** M3 foundations. Shared EF/SQLite infrastructure moved into `Paduraksa.Storage`, which Data and Vault reference (§1, §5; the §14 M3 open item is closed). The vault capability contracts are written in `Paduraksa.Core.Vault` (§8.2): the authenticating HTTP handler is the whole transport and never exposes the credential, secrets carry their allowed hosts and MAC algorithm, certificates are replaced atomically under a stable ID with staged keys, and enums persist by name. Certificate, ACME account and DNS provider storage and compile-time decisions are recorded (§9.1), and account key rollover is deferred (§9).
