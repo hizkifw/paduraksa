@@ -60,7 +60,7 @@ public sealed class CertificateRecoveryTests
         new DateTimeOffset(certificate.NotBefore.ToUniversalTime(), TimeSpan.Zero),
         new DateTimeOffset(certificate.NotAfter.ToUniversalTime(), TimeSpan.Zero),
         certificate.IssuerName.Name,
-        certificate.SerialNumber,
+        Convert.ToHexString(certificate.SerialNumberBytes.Span),
         null,
         Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256)),
         "ECDSA P-256",

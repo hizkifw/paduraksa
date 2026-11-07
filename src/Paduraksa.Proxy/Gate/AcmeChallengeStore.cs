@@ -13,7 +13,10 @@ namespace Paduraksa.Proxy.Gate;
 /// </summary>
 public sealed class AcmeChallengeStore : IAcmeChallengeStore
 {
-    /// <summary>The path an HTTP-01 response is served under (RFC 8555 §8.3).</summary>
+    /// <summary>
+    /// The path an HTTP-01 response is served under (RFC 8555 §8.3). Must match <c>AcmeChallenges.Http01PathPrefix</c> in Paduraksa.Acme,
+    /// which Proxy cannot reference.
+    /// </summary>
     public const string PathPrefix = "/.well-known/acme-challenge/";
 
     private const int MaxTokenLength = 512;

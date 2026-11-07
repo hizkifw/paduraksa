@@ -260,9 +260,13 @@ public sealed class AcmeClient : IDisposable
             static o => o.Status,
             static o => o.RetryAfter,
             static status => status is AcmeStatus.Valid or AcmeStatus.Invalid,
-            static o => o.Status is AcmeStatus.Ready or AcmeStatus.Unknown
-                ? throw new AcmeProtocolException($"{AcmeText.Url(o.Url)} is {o.Status} after finalization; it will not become valid by waiting.")
-                : 0,
+            static o =>
+            {
+                if (o.Status is AcmeStatus.Ready or AcmeStatus.Unknown)
+                {
+                    throw new AcmeProtocolException($"{AcmeText.Url(o.Url)} is {o.Status} after finalization; it will not become valid by waiting.");
+                }
+            },
             cancellationToken);
 
     // ---- Finalization and download (RFC 8555 §7.4, §7.4.2) ----
@@ -422,7 +426,7 @@ public sealed class AcmeClient : IDisposable
         Func<T, AcmeStatus> statusOf,
         Func<T, TimeSpan?> retryAfterOf,
         Func<AcmeStatus, bool> done,
-        Func<T, int>? guard,
+        Action<T>? guard,
         CancellationToken cancellationToken)
         where T : class
     {

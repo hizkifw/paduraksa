@@ -258,16 +258,11 @@ internal static class CertificateFacts
     }
 
     /// <summary>
-    /// The serial number as the DER INTEGER's content bytes in uppercase hex: <c>SerialNumberBytes</c>
-    /// without the sign byte, which is put back when the high bit is set.
+    /// The serial number as the DER INTEGER's content bytes in uppercase hex (what RFC 9773 puts in an ARI certificate ID):
+    /// <c>SerialNumberBytes</c> is already exactly those bytes, big-endian with the leading <c>00</c> of a positive serial whose high
+    /// bit is set.
     /// </summary>
-    public static string SerialNumberOf(X509Certificate2 certificate)
-    {
-        var bytes = certificate.SerialNumberBytes.Span;
-        return bytes.Length > 0 && (bytes[0] & 0x80) != 0
-            ? "00" + Convert.ToHexString(bytes)
-            : Convert.ToHexString(bytes);
-    }
+    public static string SerialNumberOf(X509Certificate2 certificate) => Convert.ToHexString(certificate.SerialNumberBytes.Span);
 
     private static string? AuthorityKeyIdentifierOf(X509Certificate2 certificate)
     {

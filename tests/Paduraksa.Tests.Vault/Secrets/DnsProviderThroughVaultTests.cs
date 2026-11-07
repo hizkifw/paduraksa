@@ -66,7 +66,8 @@ public sealed class DnsProviderThroughVaultTests : IDisposable
     [Fact]
     public async Task ASecretThatIsGoneIsRefusedPermanently()
     {
-        IDnsProvider provider = await ProviderAsync("api.cloudflare.com");
+        // A real DNS token is stored, so the vault is not empty; the provider below names a secret that does not exist.
+        _ = await ProviderAsync("api.cloudflare.com");
         SecretId unknown = SecretId.New();
         IDnsProvider orphan = new DnsProviderFactory(_vault.Get<ISecretHttpHandlerFactory>()).Create(DnsProviderKind.Cloudflare, unknown);
 
@@ -74,7 +75,6 @@ public sealed class DnsProviderThroughVaultTests : IDisposable
 
         Assert.False(ex.IsTransient);
         Assert.Empty(_terminalSaw);
-        _ = provider;
     }
 
     private sealed class Terminal(DnsProviderThroughVaultTests owner) : HttpMessageHandler

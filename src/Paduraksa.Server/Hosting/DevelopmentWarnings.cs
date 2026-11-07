@@ -24,6 +24,6 @@ internal static partial class DevelopmentWarnings
     [LoggerMessage(Level = LogLevel.Warning, Message = "The development placeholder certificate is enabled (Paduraksa:Development:PlaceholderCertificate) in a release build: hosts without a certificate of their own are served with an in-memory self-signed one.")]
     private static partial void LogPlaceholderEnabled(ILogger logger);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "ACME over plain http is enabled (Paduraksa:Development:AcmeInsecureHttp): a CA directory and every URL it hands out may use http://, so account requests can be read and altered on the wire.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "ACME over plain http is enabled (Paduraksa:Development:AcmeInsecureHttp): a CA directory on a loopback host (and every URL it hands out there) may use http://, so a local proxy or process can read and alter account requests.")]
     private static partial void LogAcmeInsecureHttp(ILogger logger);
 }

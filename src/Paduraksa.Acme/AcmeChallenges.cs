@@ -14,7 +14,7 @@ public static partial class AcmeChallenges
     /// <summary>The label DNS-01 puts in front of the validated name.</summary>
     public const string Dns01Label = "_acme-challenge";
 
-    /// <summary>The path an HTTP-01 response is served at.</summary>
+    /// <summary>The path an HTTP-01 response is served at. Must match <c>AcmeChallengeStore.PathPrefix</c> in Paduraksa.Proxy (the gate).</summary>
     public const string Http01PathPrefix = "/.well-known/acme-challenge/";
 
     /// <summary>

@@ -291,6 +291,8 @@ internal static class VaultCommands
         }
     }
 
+    // Stricter than the vault's check of a configured key file (which accepts group read, for Docker secrets mounted 0440): this file
+    // is a hand-made, short-lived copy of the new key that should be readable by its owner only, and deleted afterwards.
     private static bool IsAccessibleToOthers(string path) =>
         !OperatingSystem.IsWindows()
         && (File.GetUnixFileMode(path) & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.OtherRead | UnixFileMode.OtherWrite)) != 0;

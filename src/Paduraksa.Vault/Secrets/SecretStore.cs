@@ -75,37 +75,39 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
         await using (context.ConfigureAwait(false))
         {
             var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
-            await using var _ = transaction.ConfigureAwait(false);
-            var row = await context.Secrets.SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false)
-                ?? throw new KeyNotFoundException($"There is no secret {id}.");
-
-            var checkedOptions = options is null ? null : Validate(row.Kind, value.Length, options, row);
-            var now = runtime.Time.GetUtcNow();
-            var kek = runtime.Kek;
-
-            if (SecretKinds.IsMac(row.Kind))
+            await using (transaction.ConfigureAwait(false))
             {
-                // The value being replaced stays verifiable for the grace window (IMacKey): keep its seal as it is.
-                row.PreviousSealed = row.Sealed;
-                row.PreviousVersion = row.Version;
-                row.PreviousRetiredAt = now;
+                var row = await context.Secrets.SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false)
+                    ?? throw new KeyNotFoundException($"There is no secret {id}.");
+
+                var checkedOptions = options is null ? null : Validate(row.Kind, value.Length, options, row);
+                var now = runtime.Time.GetUtcNow();
+                var kek = runtime.Kek;
+
+                if (SecretKinds.IsMac(row.Kind))
+                {
+                    // The value being replaced stays verifiable for the grace window (IMacKey): keep its seal as it is.
+                    row.PreviousSealed = row.Sealed;
+                    row.PreviousVersion = row.Version;
+                    row.PreviousRetiredAt = now;
+                }
+
+                if (checkedOptions is not null)
+                {
+                    row.Label = checkedOptions.Label;
+                    row.AllowedHosts = [.. checkedOptions.AllowedHosts];
+                }
+
+                // After the hosts are set: they are part of what the new value is sealed to (SecretReader.ContextOf).
+                row.Version++;
+                row.UpdatedAt = now;
+                row.Sealed = EnvelopeCipher.Seal(kek, value.Span, SecretReader.ContextOf(row, row.Version));
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                macKeys.Invalidate(id);
+                return SecretReader.ToMetadata(row);
             }
-
-            if (checkedOptions is not null)
-            {
-                row.Label = checkedOptions.Label;
-                row.AllowedHosts = [.. checkedOptions.AllowedHosts];
-            }
-
-            // After the hosts are set: they are part of what the new value is sealed to (SecretReader.ContextOf).
-            row.Version++;
-            row.UpdatedAt = now;
-            row.Sealed = EnvelopeCipher.Seal(kek, value.Span, SecretReader.ContextOf(row, row.Version));
-
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            macKeys.Invalidate(id);
-            return SecretReader.ToMetadata(row);
         }
     }
 
