@@ -311,7 +311,12 @@ public sealed class AcmeRenewalSchedulerTests
         var (h, id) = await IssuedAsync();
         await using var _ = h;
         AdvanceTo(h, (await h.OrderAsync(id)).NextRenewalAt!.Value);
-        var scheduler = new AcmeRenewalScheduler(h.Issuance, h.Options, TimeProvider.System, h.Loggers.CreateLogger<AcmeRenewalScheduler>());
+        // A start delay far beyond the test keeps the scheduler idle until the drain: nothing can race it into a look.
+        var scheduler = new AcmeRenewalScheduler(
+            h.Issuance,
+            h.Options with { SchedulerStartDelay = TimeSpan.FromHours(1) },
+            TimeProvider.System,
+            h.Loggers.CreateLogger<AcmeRenewalScheduler>());
         await scheduler.StartAsync(Ct);
 
         // Idle (in its start delay): the grace is not waited for.

@@ -76,7 +76,7 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
             catch (Exception ex)
 #pragma warning restore CA1031
             {
-                LogActFailed(order.CertificateId, ex.GetType().Name);
+                LogActFailed(ex, order.CertificateId);
             }
         }
 
@@ -119,9 +119,16 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
             await PauseAsync(_options.SchedulerStartDelay, stoppingToken).ConfigureAwait(false);
             while (!stoppingToken.IsCancellationRequested && !_draining)
             {
+                _working = true;
+                if (_draining)
+                {
+                    // DrainAsync began between the loop test and the flag above and saw the loop idle: start nothing.
+                    _working = false;
+                    break;
+                }
+
                 try
                 {
-                    _working = true;
                     _ = await RunOnceAsync(stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -132,7 +139,7 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
                 catch (Exception ex)
 #pragma warning restore CA1031
                 {
-                    LogLookFailed(ex.GetType().Name);
+                    LogLookFailed(ex);
                 }
                 finally
                 {
@@ -166,14 +173,14 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            LogLookFailed(ex.GetType().Name);
+            LogLookFailed(ex);
             await Task.Delay(FallbackPause, _time, stoppingToken).ConfigureAwait(false);
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Certificate {Certificate}: the scheduler could not act ({ErrorType}).")]
-    private partial void LogActFailed(CertificateId certificate, string errorType);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Certificate {Certificate}: the scheduler could not act.")]
+    private partial void LogActFailed(Exception exception, CertificateId certificate);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "The renewal scheduler's look failed ({ErrorType}); trying again next time.")]
-    private partial void LogLookFailed(string errorType);
+    [LoggerMessage(Level = LogLevel.Error, Message = "The renewal scheduler's look failed; trying again next time.")]
+    private partial void LogLookFailed(Exception exception);
 }
