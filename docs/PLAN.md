@@ -586,32 +586,57 @@ TLS private keys (server certs **and** upstream mTLS client certs) · ACME accou
 
 ### 8.2 Public surface (capability interfaces in `Paduraksa.Core`, all implemented `internal` in Vault)
 
-```csharp
-interface IServerCertificateSource   // the ONE sanctioned egress: Kestrel needs the key in-process
-{   ValueTask<SslStreamCertificateContext> LoadForServingAsync(CertificateId id, CancellationToken ct); }
+The contracts are in `src/Paduraksa.Core/Vault` (sketch, with the refinements made when they were written):
 
-interface IClientCertificateSource   // second sanctioned egress: upstream mTLS (SocketsHttpHandler needs the key in-process)
-{   ValueTask<X509Certificate2> LoadForUpstreamAsync(CertificateId id, CancellationToken ct); }
+```csharp
+interface IServerCertificateSource   // the ONE sanctioned egress for serving: Kestrel needs the key in-process
+{   ValueTask<SslStreamCertificateContext?> LoadForServingAsync(CertificateId id, CancellationToken ct); }
+
+interface IClientCertificateSource   // second sanctioned egress: upstream mTLS, for SslClientAuthenticationOptions.ClientCertificateContext
+{   ValueTask<SslStreamCertificateContext?> LoadForUpstreamAsync(CertificateId id, CancellationToken ct); }
 
 interface ICertificateIssuance       // keys are generated inside, only CSR / public data leave
-{   ValueTask<CsrResult> CreateKeyAndCsrAsync(CertificateId id, KeySpec spec, IReadOnlyList<string> sans, CancellationToken ct);
-    ValueTask AttachChainAsync(CertificateId id, ReadOnlyMemory<byte> pemChain, CancellationToken ct);
-    ValueTask<CertificateInfo> CreateSelfSignedAsync(...);   ValueTask<CertificateInfo> IssueFromLocalCaAsync(...); }
+{   ValueTask<CsrResult> CreateKeyAndCsrAsync(CertificateId id, KeySpec spec, IReadOnlyList<string> names, CancellationToken ct);   // CsrResult carries a StagedKeyId
+    ValueTask<CertificateInfo> AttachChainAsync(CertificateId id, StagedKeyId stagedKey, ReadOnlyMemory<byte> pemChain, CancellationToken ct);
+    ValueTask<CertificateInfo> CreateSelfSignedAsync(CertificateId id, KeySpec spec, IReadOnlyList<string> names, TimeSpan validity, CancellationToken ct);
+    ValueTask<CertificateInfo> EnsureLocalCaAsync(CertificateId id, KeySpec spec, TimeSpan validity, CancellationToken ct);   // the root is a normal certificate
+    ValueTask<CertificateInfo> IssueFromLocalCaAsync(CertificateId id, KeySpec spec, IReadOnlyList<string> names, TimeSpan validity, CancellationToken ct);
+    ValueTask<bool> DeleteAsync(CertificateId id, CancellationToken ct); }   // a deleted certificate takes its key with it
 
 interface ICertificateImport         // uploads stream straight in; returns public info only
-{   ValueTask<CertificateInfo> ImportAsync(Stream pemOrPfx, ReadOnlyMemory<char> password, CancellationToken ct); }
+{   ValueTask<CertificateInfo> ImportAsync(CertificateId id, Stream pemOrPfx, ReadOnlyMemory<char> password, CancellationToken ct); }
 
-interface IJwsSigner                 // ACME: vault signs the JWS; account key never leaves
-{   ValueTask<JwsResult> SignAsync(AcmeAccountId id, ReadOnlyMemory<byte> protectedHeader, ReadOnlyMemory<byte> payload, CancellationToken ct);
-    JsonWebKeyPublic GetPublicJwk(AcmeAccountId id); }
+interface IJwsSigner                 // ACME: Acme builds the JWS, the vault only computes the signature over it
+{   ValueTask<AcmeAccountKeyInfo> CreateAccountKeyAsync(AcmeAccountId id, JwsAlgorithm alg, CancellationToken ct);   // public JWK + RFC 7638 thumbprint
+    ValueTask<AcmeAccountKeyInfo?> GetAccountKeyAsync(AcmeAccountId id, CancellationToken ct);
+    ValueTask<JwsFlattened> SignAsync(AcmeAccountId id, ReadOnlyMemory<byte> protectedHeader, ReadOnlyMemory<byte> payload, CancellationToken ct);
+    ValueTask<bool> DeleteAccountKeyAsync(AcmeAccountId id, CancellationToken ct); }
 
-interface ISecretHttpHandlerFactory  // DNS provider creds: vault-owned DelegatingHandler injects auth headers
-{   HttpMessageHandler CreateAuthenticatingHandler(SecretId id, SecretInjection how); }
+interface IMacKey { MacAlgorithm Algorithm { get; } int TagLength { get; } int Sign(ReadOnlySpan<byte> data, Span<byte> tag); bool Verify(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag); }
+interface IMacKeySource { ValueTask<IMacKey?> OpenAsync(SecretId id, SecretKind expected, CancellationToken ct); }   // refused on a kind mismatch
 
-interface IMacKey { bool Verify(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag); int Sign(ReadOnlySpan<byte> data, Span<byte> tag); }
-interface ISecretStore { ValueTask<SecretId> PutAsync(SecretKind kind, ReadOnlyMemory<byte> value, ...); ValueTask DeleteAsync(SecretId id, ...); SecretMetadata Describe(SecretId id); }
-// Note: no Get(). Secrets go in, capabilities come out.
+interface ISecretStore               // no Get(). Secrets go in, capabilities come out.
+{   ValueTask<SecretId> PutAsync(SecretKind kind, ReadOnlyMemory<byte> value, SecretOptions options, CancellationToken ct);   // label, MAC algorithm, allowed hosts
+    ValueTask<SecretMetadata> ReplaceAsync(SecretId id, ReadOnlyMemory<byte> value, SecretOptions? options, CancellationToken ct);
+    ValueTask<bool> DeleteAsync(SecretId id, CancellationToken ct);
+    ValueTask<SecretMetadata?> DescribeAsync(SecretId id, CancellationToken ct); }
+
+interface ISecretHttpHandlerFactory  // DNS provider creds: the vault returns the whole transport; the credential never reaches the caller
+{   HttpMessageHandler CreateAuthenticatingHandler(SecretId id, SecretInjection how, SecretHttpTransportOptions transport); }
 ```
+
+Notes on the refinements:
+- **Serving flow.** The snapshot compiler is synchronous, so Application preloads the serving contexts (`LoadForServingAsync`) for the certificate inventory (§9.1) before each compile and gives the compiler an immutable `IServerCertificateResolver` over them. The proxy never sees the source, and the vault returns the same context instance for an unchanged certificate (the proxy deduplicates by instance). The vault never disposes an instance it handed out; a replaced one is dropped and collected. The context's `TargetCertificate` carries the key, so the guard against exporting it is the key-material ban list (`BannedSymbols.KeyMaterial.txt`), not the type.
+- **Caller-chosen IDs, atomic replacement, staged keys.** Every way of replacing a certificate (`AttachChainAsync`, import, self-signed, local-CA re-issue) keeps its `CertificateId` and swaps key and chain in one transaction, so Specific bindings survive renewals. `CreateKeyAndCsrAsync` stages a key and returns a `StagedKeyId` that `AttachChainAsync` must present; a stale token throws `StagedKeyMismatchException`.
+- **Import.** PEM must carry a PKCS#8 key (plain or encrypted), otherwise PFX under the vault's own `Pkcs12LoaderLimits`; at most 1 MiB is read; every failure surfaces as `CertificateImportException` with a reason.
+- **Certificate metadata.** `CertificateInfo` has the SHA-256 fingerprint, the serial number as the DER INTEGER content bytes (leading `00` kept), the Authority Key Identifier (with the serial it is the RFC 9773 ARI certificate ID) and the issuers of the chain (for `preferred_chain` selection). The subject has a CN only for a DNS name of at most 64 characters, otherwise it is empty.
+- **JWS.** Acme writes the protected header and payload; the vault base64url-encodes, signs (ES256/ES384 as fixed-width `R||S`, RS256 as PKCS#1 v1.5) and returns the flattened-JWS pieces. It refuses a header whose `alg` is not the key's. EAB's inner JWS is built by Acme and signed with an `IMacKey` (HS256). Account key rollover is deferred (§9).
+- **MAC keys.** The algorithm is fixed in the secret's metadata when it is stored, and `OpenAsync` checks the expected kind. A handle resolves the current version on every call; `Verify` also accepts the previous version for a grace window after a rotation, `Sign` never does.
+- **Secrets carry their destinations.** `SecretOptions.AllowedHosts` (required for `DnsApiToken`) is set by the admin when creating the DNS provider and stored with the secret. The authenticating handler uses its intersection with the provider code's own `SecretInjection.AllowedHosts` (normalised host names, compared with `Uri.IdnHost`).
+- **TOTP.** Since there is no get, M4's TOTP needs vault-side generation: the vault creates the secret, returns only the one-time provisioning URI for the QR code, and verifies codes itself.
+- **Async lookups, nullable misses.** `Describe` and the public-key lookups are async (they read the vault database), and a missing item returns `null`.
+
+**Why the handler factory returns the whole transport.** A caller-supplied inner handler would see every request header, including the credential; a returned `DelegatingHandler` would let the caller swap its `InnerHandler` until the first send; and a response's `RequestMessage` would carry the injected header back. So the factory returns a sealed `internal` vault handler over a `SocketsHttpHandler` the vault builds itself (no automatic redirects, https only, timeouts, DNS refresh and proxy from `SecretHttpTransportOptions`), adds the credential to a **clone** of the request and sets `response.RequestMessage` back to the caller's original. It refuses non-https requests, hosts outside the allowlist and secrets that are not `DnsApiToken`, on every request. It never follows a redirect: providers handle 3xx themselves, and a redirect to another host fails the host check, so it never carries the credential. Tests substitute the transport through an internal seam in Vault, never through Core.
 
 The `ISecretHttpHandlerFactory` pattern is the key trick. A DNS-provider client in `Paduraksa.Acme` builds an `HttpClient` over a vault-owned handler. The Cloudflare API token is added to the outgoing request *inside* the vault assembly and never exists as a value in Acme code. RFC2136 TSIG gets the same treatment through `IMacKey`.
 
