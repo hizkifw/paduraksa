@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.11**: M0 and M1 done, M2 next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.12**: M0, M1 and M2 done, M3 next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -817,3 +817,4 @@ Each milestone ends with a working, testable increment.
 - **v0.10:** M1 proxy core as built: snapshot model and store, gate, compiler input records, publisher state machine, route-matching semantics, public app on the generic host (§3, §6.2).
   - Integration: public listener layout and `Paduraksa:Listen` options (`PublicHttpsPort`, `Http3`, PROXY protocol per listener) (§3). Typed `Certificates`/`TrustedProxies` snapshot slots, certificate references through `IServerCertificateResolver`, and certificate hot swap by publishing (§6.2, §7.2 B). Client-IP resolution through the global trusted-proxy policy, ClientInfo on QUIC verified (§7.2 A/C, §7.5, §7.6). Exact upstream forwarding-header semantics, every `cf-*` header stripped unless trusted, one trusted request scheme for the redirect and `X-Forwarded-Proto` (§7.2 C/E, §7.6). Per-host TLS settings re-checked per request, 421 on a weaker coalesced connection (§7.2 B/C). S6 scoped to YARP health in M1; rate-limit and metric continuity moved to M6/M7 (§6.3, §13, §14).
 - **v0.11:** M1 done. S7 baseline recorded in `bench/results/2026-11-07-baseline.md` (§13, §14). §1 lists `Tests.Proxy` and `Bench.Runner`. §7.5 describes the as-built builder; the slim-builder note is kept as spike history.
+- **v0.12:** M2 done. The config document is the source of truth and the EF entities are its projection (§6.4). Typed IDs reach the proxy model. Canonical JSON, validation and diff work over the document. The compiler resolves the settings layers and places IP allow lists in the host and route chains (§6.4). Commands carry per-object versions that are revision numbers, and rollback is committed as a new revision. The audit log is a hash chain. Startup recompiles the latest revision, and `last-good.json` gives a degraded start or a restore (§6.1, §6.4, §11.3). The M3 open items now include the placeholder certificate (§14).
