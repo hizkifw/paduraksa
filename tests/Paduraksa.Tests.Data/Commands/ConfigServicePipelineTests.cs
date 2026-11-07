@@ -190,6 +190,27 @@ public sealed class ConfigServicePipelineTests
     }
 
     [Fact]
+    public void ASlowSubscriberLosesTheOldestNotificationsAndSeesTheSeqSkip()
+    {
+        var feed = new ConfigChangeFeed();
+        using var subscription = feed.Subscribe();
+        const int Extra = 5;
+
+        for (var seq = 1; seq <= ConfigChangeFeed.Capacity + Extra; seq++)
+        {
+            feed.Publish(new ConfigCommitted(new RevisionRef(ConfigRevisionId.New(), seq), []));
+        }
+
+        var seen = new List<long>();
+        while (subscription.Reader.TryRead(out var notification))
+        {
+            seen.Add(notification.Revision.Seq);
+        }
+
+        Assert.Equal(Enumerable.Range(Extra + 1, ConfigChangeFeed.Capacity).Select(s => (long)s), seen);
+    }
+
+    [Fact]
     public async Task AProjectionThatDoesntShowTheParentRevisionIsRewrittenWhole()
     {
         await using var h = await ConfigServiceHarness.CreateAsync();

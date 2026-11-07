@@ -168,6 +168,24 @@ public sealed class ConfigServiceStartupTests
     }
 
     [Fact]
+    public async Task ALastKnownGoodFileNewerThanTheDatabaseIsOnlyAWarning()
+    {
+        await using var h = await ConfigServiceHarness.CreateAsync();
+        var latest = await CommitAndRememberAsync(h, "a.example.com");
+        await WriteLastKnownGoodAsync(
+            h, new RevisionRef(ConfigRevisionId.New(), latest.Seq + 2), new ConfigDocument(Hosts: [RespondHost(HostId.New(), "b.example.com")]));
+        await using var restarted = Restart(h);
+
+        var status = await restarted.Service.StartAsync(Ct);
+        await restarted.Service.StartupPublishFollowed;
+
+        Assert.Equal(new ConfigStoreStatus(ConfigSource.Database, latest), status);
+        Assert.Equal(latest.Id, restarted.Store.Current.Revision);
+        Assert.Single(restarted.Logs.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("newer than the database's latest", StringComparison.Ordinal));
+        Assert.Single(await h.RevisionsAsync());
+    }
+
+    [Fact]
     public async Task AnEmptyDatabaseIsRestoredFromTheLastKnownGoodFile()
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
