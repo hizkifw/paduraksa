@@ -1,6 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Contracts.Issuance;
+using Paduraksa.Core.Model;
+using Paduraksa.Data;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
 
@@ -106,6 +110,77 @@ public sealed class AcmeHostingTests
         await host.StartAsync(Ct);
 
         Assert.Equal(warned, logs.Entries.Any(e => e.Level == LogLevel.Warning && e.Message.Contains("ACME over plain http", StringComparison.Ordinal)));
+        await host.StopAsync(Ct);
+    }
+
+    [Theory]
+    [InlineData("Paduraksa:Acme:DnsPropagation:Timeout", "00:00:00")]
+    [InlineData("Paduraksa:Acme:DnsPropagation:Timeout", "02:00:00")]
+    [InlineData("Paduraksa:Acme:DnsPropagation:InitialInterval", "00:00:00.010")]
+    [InlineData("Paduraksa:Acme:DnsPropagation:MaxInterval", "00:20:00")]
+    [InlineData("Paduraksa:Acme:DnsPropagation:QueryTimeout", "00:01:00")]
+    [InlineData("Paduraksa:Acme:DnsPropagation:UnreachableRounds", "0")]
+    [InlineData("Paduraksa:Acme:DnsPropagation:UnreachableRounds", "50")]
+    [InlineData("Paduraksa:Acme:DnsPropagation:Resolvers:0", "not-an-address")]
+    public void InvalidDnsPropagationSettingsRefuseTheStart(string key, string value)
+    {
+        OptionsValidationException ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?> { [key] = value }));
+
+        Assert.Contains(ex.Failures, f => f.StartsWith(key.Replace(":Resolvers:0", ":Resolvers", StringComparison.Ordinal), StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AMaximumIntervalBelowTheInitialOneRefusesTheStart()
+    {
+        OptionsValidationException ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?>
+        {
+            ["Paduraksa:Acme:DnsPropagation:InitialInterval"] = "00:00:30",
+            ["Paduraksa:Acme:DnsPropagation:MaxInterval"] = "00:00:05",
+        }));
+
+        Assert.Contains(ex.Failures, f => f.Contains("MaxInterval must not be below", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DnsProvidersAreInstalledSoDns01IsNoLongerNotSupportedAndTheSettingsAreBound()
+    {
+        IDbContextFactory<ConfigDbContext>? contexts = null;
+        await using PaduraksaHost host = TestHost.Create(
+            settings: new Dictionary<string, string?>
+            {
+                ["Paduraksa:Acme:DnsPropagation:Timeout"] = "00:02:00",
+                ["Paduraksa:Acme:DnsPropagation:Resolvers:0"] = "10.9.8.7",
+            },
+            configureShared: builder => contexts = (IDbContextFactory<ConfigDbContext>)builder.Registrations.First(r => r.Key == typeof(IDbContextFactory<ConfigDbContext>)).Value);
+        await host.StartAsync(Ct);
+
+        // A provider row whose secret is not in the vault: the real provider is built and asks the vault for a handler, which refuses
+        // before anything is sent (no network). Without a registered factory the answer would be "No DNS provider implementations".
+        // (A raw insert: the row type is internal to Data, and the vault's secret store is not reachable from here.)
+        DnsProviderId id = DnsProviderId.New();
+        byte[] idBytes = id.Value.ToByteArray(bigEndian: true);
+        byte[] secretBytes = SecretId.New().Value.ToByteArray(bigEndian: true);
+        await using (ConfigDbContext context = await contexts!.CreateDbContextAsync(Ct))
+        {
+            _ = await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO DnsProviders (Id, Kind, Label, CredentialSecretId, CreatedAt, UpdatedAt) VALUES ({idBytes}, 'cloudflare', 'test', {secretBytes}, '2026-01-01T00:00:00.0000000Z', '2026-01-01T00:00:00.0000000Z')",
+                Ct);
+        }
+
+        DnsProviderTestResult result = await host.Shared.DnsProviders.TestAsync(id, Ct);
+
+        Assert.True(result.Found);
+        Assert.False(result.Valid);
+        Assert.DoesNotContain("No DNS provider implementations", result.Message, StringComparison.Ordinal);
+        Assert.Contains("vault refused", result.Message, StringComparison.Ordinal);
+        await host.StopAsync(Ct);
+    }
+
+    [Fact]
+    public async Task TheDnsPropagationCheckCanBeSwitchedOff()
+    {
+        await using PaduraksaHost host = TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:DnsPropagation:Enabled"] = "false" });
+        await host.StartAsync(Ct);
         await host.StopAsync(Ct);
     }
 }

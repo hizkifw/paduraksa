@@ -29,8 +29,9 @@ namespace Paduraksa.Server.Hosting;
 /// roots of <c>Paduraksa:Acme:TrustedRootsFile</c> when set (a private CA, Pebble), which must be self-signed CA certificates (anything
 /// else stops the start with the file named). The file is read once, here. The handler is owned here and disposed after the
 /// container that holds the clients.</para>
-/// <para><b>DNS providers:</b> none are registered yet, so <c>IDnsProviderFactory</c> is absent and a DNS-01 request fails as not supported.
-/// The DNS provider registration (<c>AddPaduraksaDnsProviders</c>) goes in the chain below, before <c>AddPaduraksaIssuance</c>.</para>
+/// <para><b>DNS providers:</b> <c>AddPaduraksaDnsProviders</c> (Cloudflare, deSEC and the authoritative-NS propagation check, configured by
+/// <c>Paduraksa:Acme:DnsPropagation</c>) runs before <c>AddPaduraksaIssuance</c>, over the vault's secret handler factory: the provider code
+/// never holds a token. <c>Enabled</c> false there keeps the fixed <c>DnsPropagationDelay</c>.</para>
 /// </remarks>
 internal static class IssuanceStore
 {
@@ -83,6 +84,7 @@ internal static class IssuanceStore
                 () => transport,
                 timeProvider,
                 sp.GetRequiredService<ILoggerFactory>()))
+            .AddPaduraksaDnsProviders(acme.DnsPropagation)
             .AddPaduraksaIssuance()
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
 

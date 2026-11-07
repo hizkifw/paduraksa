@@ -2,6 +2,7 @@ using System.Net;
 
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Application.Issuance;
 using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Server.Configuration;
@@ -107,6 +108,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         Bound(acme.SchedulerStartDelay, TimeSpan.Zero, TimeSpan.FromHours(1), $"{key}:SchedulerStartDelay", failures);
         Bound(acme.SchedulerPollInterval, TimeSpan.FromSeconds(1), TimeSpan.FromDays(1), $"{key}:SchedulerPollInterval", failures);
         Bound(acme.DnsPropagationDelay, TimeSpan.Zero, TimeSpan.FromHours(1), $"{key}:DnsPropagationDelay", failures);
+        ValidateDnsPropagation(acme.DnsPropagation, $"{key}:DnsPropagation", failures);
 
         if (!string.IsNullOrWhiteSpace(acme.TrustedRootsFile))
         {
@@ -126,6 +128,43 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
                 failures.Add($"{key}:TrustedRootsFile '{acme.TrustedRootsFile}' can't be read: {ex.Message}");
+            }
+        }
+    }
+
+    private static void ValidateDnsPropagation(DnsPropagationSettings? settings, string key, List<string> failures)
+    {
+        if (settings is null)
+        {
+            failures.Add($"{key} must not be null.");
+            return;
+        }
+
+        Bound(settings.Timeout, TimeSpan.FromSeconds(1), TimeSpan.FromHours(1), $"{key}:Timeout", failures);
+        Bound(settings.InitialInterval, TimeSpan.FromMilliseconds(100), TimeSpan.FromMinutes(10), $"{key}:InitialInterval", failures);
+        Bound(settings.MaxInterval, TimeSpan.FromMilliseconds(100), TimeSpan.FromMinutes(10), $"{key}:MaxInterval", failures);
+        Bound(settings.QueryTimeout, TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(30), $"{key}:QueryTimeout", failures);
+        if (settings.MaxInterval < settings.InitialInterval)
+        {
+            failures.Add($"{key}:MaxInterval must not be below InitialInterval.");
+        }
+
+        if (settings.UnreachableRounds is < 1 or > 20)
+        {
+            failures.Add($"{key}:UnreachableRounds must be 1 to 20.");
+        }
+
+        if (settings.Resolvers is null || settings.Resolvers.Count > 8)
+        {
+            failures.Add($"{key}:Resolvers must be a list of at most 8 addresses.");
+            return;
+        }
+
+        for (int i = 0; i < settings.Resolvers.Count; i++)
+        {
+            if (!IPEndPoint.TryParse(settings.Resolvers[i]?.Trim() ?? string.Empty, out _))
+            {
+                failures.Add($"{key}:Resolvers:{i} '{settings.Resolvers[i]}' is not an IP address (optionally with a port).");
             }
         }
     }

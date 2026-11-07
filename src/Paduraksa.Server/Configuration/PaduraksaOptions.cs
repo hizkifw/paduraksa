@@ -1,3 +1,5 @@
+using Paduraksa.Application.Issuance;
+
 namespace Paduraksa.Server.Configuration;
 
 /// <summary>
@@ -94,6 +96,15 @@ internal sealed class PaduraksaAcmeOptions
 
     /// <summary>How long to wait after publishing DNS-01 TXT records before the CA is told to validate (see <c>AcmeIssuanceOptions.DnsPropagationDelay</c>). 0 to 1 hour.</summary>
     public TimeSpan DnsPropagationDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// The DNS-01 propagation check (<c>Paduraksa:Acme:DnsPropagation</c>): before the CA is told to validate, the zone's own name
+    /// servers are asked until each returns the TXT records. <c>Enabled</c> false keeps the fixed <see cref="DnsPropagationDelay"/>
+    /// (a host that cannot send DNS to the zone's servers); <c>Resolvers</c> names the recursive resolvers that find them
+    /// (<c>1.1.1.1</c>, <c>10.0.0.2:53</c>), the system's when empty. The check's timeout is 1 second to 1 hour, the intervals 0.1
+    /// second to 10 minutes, a query 0.1 to 30 seconds, <c>UnreachableRounds</c> 1 to 20 and at most 8 resolvers. See <c>DnsPropagationSettings</c>.
+    /// </summary>
+    public DnsPropagationSettings DnsPropagation { get; set; } = new();
 }
 
 internal sealed class PaduraksaListenOptions
