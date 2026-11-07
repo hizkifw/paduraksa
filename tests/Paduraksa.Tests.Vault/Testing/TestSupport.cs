@@ -41,3 +41,17 @@ internal sealed class ListLogger<T> : ILogger<T>
         }
     }
 }
+
+/// <summary>A clock that only moves when told to; timestamps follow it, so <c>GetElapsedTime</c> does too.</summary>
+internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
+{
+    public DateTimeOffset Now { get; set; } = now;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+    public override DateTimeOffset GetUtcNow() => Now;
+
+    public override long GetTimestamp() => Now.UtcTicks;
+
+    public void Advance(TimeSpan by) => Now += by;
+}

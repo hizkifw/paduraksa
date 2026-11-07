@@ -77,11 +77,14 @@ public static class ArchRules
 
     /// <summary>
     /// Vault is a trust boundary: everything is internal except the DI-registration entry point.
+    /// The one exemption is <c>Paduraksa.Vault.Migrations</c>: <c>dotnet ef</c> emits public migration classes and the
+    /// repo commits its output verbatim; they hold schema only (the vault's own tests check that nothing else is there).
     /// Note: a public type nested in an internal type is also flagged (stricter than C# visibility).
     /// "Static class" is matched as abstract + sealed, which is how C# emits it in IL.
     /// </summary>
     public static IArchRule VaultHasNoPublicTypes { get; } =
         Types().That().ResideInNamespaceMatching(NamespacePattern(Layer.Vault)).And().ArePublic()
+            .And().DoNotResideInNamespaceMatching(@"^Paduraksa\.Vault\.Migrations$")
             .Should().Be(Classes().That().AreAbstract().And().AreSealed().And().HaveNameEndingWith(VaultEntryPointSuffix))
             .Because("PLAN §8: Vault types are internal; only its DI registration entry point is public")
             .WithoutRequiringPositiveResults();
