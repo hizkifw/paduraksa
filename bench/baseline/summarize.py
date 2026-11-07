@@ -94,8 +94,13 @@ def runtime(samples, result):
     first, last = inside[0], inside[-1]
     seconds = (last["ts"] - first["ts"]) / 1000
     requests_per_s = result["requests"] / result["seconds"]
+    # The allocation counter isn't reliably monotonic under Server GC (spike S3): besides samples that go backwards
+    # (dropped on load), a single high reading makes the next ones look like drops or the run's total wrong. The
+    # median of the per-second rates ignores such one-off readings.
+    rates = [(b["alloc"] - a["alloc"]) / ((b["ts"] - a["ts"]) / 1000) for a, b in zip(inside, inside[1:])]
+    rates = [r for r in rates if r >= 0]
     return {
-        "bytes_per_request": (last["alloc"] - first["alloc"]) / seconds / requests_per_s,
+        "bytes_per_request": statistics.median(rates) / requests_per_s if rates else None,
         "gen0_per_s": (last["gen0"] - first["gen0"]) / seconds,
         "gen1_per_s": (last["gen1"] - first["gen1"]) / seconds,
         "gen2": last["gen2"] - first["gen2"],
@@ -220,7 +225,7 @@ def main() -> None:
         emit("")
         emit("### Paduraksa runtime counters per run (whole process, from the runner's per-second samples)")
         emit("")
-        emit("Allocated bytes are `GC.GetTotalAllocatedBytes(precise: true)` deltas over the run ÷ requests: Kestrel, routing,")
+        emit("Allocated bytes are the median per-second rate of `GC.GetTotalAllocatedBytes(precise: true)` ÷ the request rate: Kestrel, routing,")
         emit("YARP and the gate together (PLAN §7.1 tracks these here; the gate's own share is asserted 0 B in tests).")
         if dropped:
             emit(f"{dropped} non-monotonic allocation sample(s) were dropped.")
