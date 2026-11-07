@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Core.Vault;
 using Paduraksa.Storage.Sqlite;
 using Paduraksa.Vault.Crypto;
+using Paduraksa.Vault.Keys;
 using Paduraksa.Vault.Persistence;
 using Paduraksa.Vault.Secrets;
 
@@ -50,6 +51,7 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ISecretStore, SecretStore>();
         services.AddSingleton<IMacKeySource, MacKeySource>();
         services.AddSingleton<ISecretHttpHandlerFactory, SecretHttpHandlerFactory>();
+        services.AddSingleton<IJwsSigner, JwsSigner>();
         return services;
     }
 }
