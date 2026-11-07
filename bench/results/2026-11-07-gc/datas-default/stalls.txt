@@ -1,0 +1,3 @@
+paduraksa.h1.q30000.r1.db: 299994 requests, 1288 over 3 ms (0.4 %); 7 stalls (0.7/s) hold 99 % of them; worst latency per stall: median 5.5 ms, max 7.5 ms; slow requests per stall: median 84
+paduraksa.h1.q30000.r2.db: 299983 requests, 3212 over 3 ms (1.1 %); 9 stalls (0.9/s) hold 99 % of them; worst latency per stall: median 8.3 ms, max 11.7 ms; slow requests per stall: median 33
+paduraksa.h1.q30000.r3.db: 299983 requests, 2216 over 3 ms (0.7 %); 8 stalls (0.8/s) hold 99 % of them; worst latency per stall: median 7.3 ms, max 14.6 ms; slow requests per stall: median 72

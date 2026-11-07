@@ -1,0 +1,4 @@
+caddy.h1.q30000.r1.db: 299970 requests, 4069 over 3 ms (1.4 %); 129 stalls (12.9/s) hold 75 % of them; worst latency per stall: median 3.9 ms, max 14.6 ms; slow requests per stall: median 15
+caddy.h1.q30000.r2.db: 299968 requests, 4766 over 3 ms (1.6 %); 136 stalls (13.6/s) hold 78 % of them; worst latency per stall: median 3.9 ms, max 16.4 ms; slow requests per stall: median 14
+nginx.h1.q30000.r1.db: 299985 requests, 344 over 3 ms (0.1 %); 9 stalls (0.9/s) hold 95 % of them; worst latency per stall: median 3.9 ms, max 10.2 ms; slow requests per stall: median 35
+nginx.h1.q30000.r2.db: 299987 requests, 401 over 3 ms (0.1 %); 4 stalls (0.4/s) hold 99 % of them; worst latency per stall: median 7.6 ms, max 10.8 ms; slow requests per stall: median 30
