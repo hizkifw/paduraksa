@@ -7,7 +7,8 @@
 #   RATES="" bench/run-baseline.sh                         # no fixed-rate runs
 #   REPEATS=3 RATE_DURATION=30s RATES=30000 bench/run-baseline.sh
 #
-# Needs: Docker (host networking), the .NET SDK from global.json, curl, openssl, python3, taskset, ss, git.
+# Needs: Docker (host networking), the .NET SDK from global.json, curl, openssl, python3, taskset, ss, git, getconf,
+# sha256sum.
 # Results: bench/results/<date>-<time>-baseline/ (or $OUT, which must not exist yet):
 #   raw/<run>.json       oha's output for every measured run
 #   raw/<run>.meta.json  the run's time window, the proxy's CPU time, and upstream TCP states at its end
@@ -299,6 +300,7 @@ run_cloudflare() {
         -H "CF-Connecting-IP: 2001:db8:85a3::8a2e:370:7334" -H 'CF-Visitor: {"scheme":"https"}' -H "CF-Ray: 8f1e2d3c4b5a6978-SIN")
     log "paduraksa: cf (plain HTTP/1.1 from a trusted tunnel, c=$CONNS, $PROXY_WARMUP warm-up)"
     oha "" -z "$PROXY_WARMUP" "${cf[@]}" "http://bench.test:$http/"
+    # Proxy label "paduraksa", not "paduraksa-cf", on purpose: summarize.py and proxy_cpu_us key on it.
     measure paduraksa paduraksa.cf -z "$DURATION" "${cf[@]}" "http://bench.test:$http/"
     stop_paduraksa
 }

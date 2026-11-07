@@ -72,7 +72,7 @@ DOTNET_GCDynamicAdaptationMode=0 PROXIES=paduraksa bench/run-baseline.sh   # DOT
 ```
 
 **Requirements:** Docker with host networking, the .NET SDK from `global.json`, and `curl`, `openssl`, `python3`,
-`taskset`, `ss` and `git`. The script checks for them before it starts.
+`taskset`, `ss`, `git`, `getconf` and `sha256sum`. The script checks for them before it starts.
 
 **What the script does:**
 - pulls the pinned `nginx`, `caddy` and `oha` images (by digest) if they are missing;
