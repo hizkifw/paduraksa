@@ -9,6 +9,8 @@ using Microsoft.Extensions.Options;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Core.Acme;
+using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
@@ -131,7 +133,10 @@ internal sealed class SharedServices : IAsyncDisposable
             PublicListenerSetup listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots));
             // Created after the publisher, so disposed before it (the service publishes with it).
             ConfigStore.AddTo(builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, timeProvider, coreLoggers);
-            // TODO(M7): MetricsRegistry. TODO(M3): Vault capabilities, IAcmeChallengeStore.
+            // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate reads the class.
+            AcmeChallengeStore challenges = builder.Add(new AcmeChallengeStore());
+            builder.Add<IAcmeChallengeStore>(challenges);
+            // TODO(M7): MetricsRegistry. TODO(M3): Vault capabilities.
             configure?.Invoke(builder);
             builder.Freeze();
             return new SharedServices(builder, loggerFactory);

@@ -8,6 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Proxy" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Issuance" />
     <InternalsVisibleTo Include="Paduraksa.Benchmarks" />
   </ItemGroup>
 </Project>

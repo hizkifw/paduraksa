@@ -40,7 +40,7 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
 /// allocation-free. In order:
 /// <list type="number">
 /// <item>one snapshot read, per-request state from <see cref="IPersistentStateFeature"/>, the client address;</item>
-/// <item>the ACME HTTP-01 hook (M3), which bypasses everything below;</item>
+/// <item>the ACME HTTP-01 answer, for a token the orchestrator published, which bypasses everything below;</item>
 /// <item>host lookup; an unknown host gets the default behaviour; an HTTPS request for a host without HTTPS, or whose
 /// connection is weaker than the host's TLS settings (HTTP/3, TLS version, ALPN; a connection coalesced from another
 /// name), gets 421; a known host gets
@@ -61,13 +61,18 @@ public sealed class GateMiddleware
 
     private readonly SnapshotStore _store;
     private readonly IClientAddressSource _clientAddresses;
+    private readonly AcmeChallengeStore? _challenges;
 
-    public GateMiddleware(SnapshotStore store, IClientAddressSource clientAddresses)
+    /// <param name="store">The live snapshot.</param>
+    /// <param name="clientAddresses">Resolves the client address.</param>
+    /// <param name="challenges">The HTTP-01 answers; without it the gate answers no challenge.</param>
+    public GateMiddleware(SnapshotStore store, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(clientAddresses);
         _store = store;
         _clientAddresses = clientAddresses;
+        _challenges = challenges;
     }
 
     /// <summary>For <c>app.Use(gate.InvokeAsync)</c>.</summary>
@@ -85,7 +90,7 @@ public sealed class GateMiddleware
         state.ClientIp = _clientAddresses.Resolve(context, snapshot);
         state.IsHttps = state.ClientIp.Scheme.EffectiveIsHttps(context.Request.IsHttps);
 
-        if (TryAnswerAcmeChallenge(context, snapshot, out GateDecision challenge))
+        if (TryAnswerAcmeChallenge(context, out GateDecision challenge))
         {
             return challenge;
         }
@@ -186,18 +191,31 @@ public sealed class GateMiddleware
     }
 
     /// <summary>
-    /// SEAM (M3): answers <c>/.well-known/acme-challenge/{token}</c> on plain HTTP from <c>IAcmeChallengeStore</c>,
-    /// before host lookup and every policy, so a challenge can't be blocked, redirected to HTTPS or answered by the
-    /// default host (PLAN §7.2 C). Nothing is answered until the challenge store exists.
+    /// Answers <c>GET</c> and <c>HEAD /.well-known/acme-challenge/{token}</c> on plain HTTP with the key authorization of a
+    /// token the orchestrator published (<c>text/plain</c>, 200), before host lookup and every policy, so a challenge
+    /// can't be blocked, redirected to HTTPS or answered by the default host (PLAN §7.2 C). The token is the rest of the
+    /// path, compared exactly; anything else (another method, HTTPS, an unknown or nested token) falls through to the
+    /// normal pipeline, where it is a request like any other: that is how an upstream that runs its own ACME client
+    /// keeps serving its own challenges. 0 B.
     /// </summary>
-    private static bool TryAnswerAcmeChallenge(HttpContext context, RuntimeSnapshot snapshot, out GateDecision decision)
+    private bool TryAnswerAcmeChallenge(HttpContext context, out GateDecision decision)
     {
-        // TODO(M3): if (!context.Request.IsHttps && path starts with "/.well-known/acme-challenge/") look the token
-        // up in the challenge store and answer 200 with the key authorisation (precomputed bytes), else fall through.
-        _ = context;
-        _ = snapshot;
         decision = default;
-        return false;
+        HttpRequest request = context.Request;
+        if (_challenges is null || request.IsHttps || request.Path.Value is not { } path
+            || !path.StartsWith(AcmeChallengeStore.PathPrefix, StringComparison.Ordinal)
+            || !(HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method)))
+        {
+            return false;
+        }
+
+        if (!_challenges.TryGet(path.AsSpan(AcmeChallengeStore.PathPrefix.Length), out PrecomputedResponse? response))
+        {
+            return false;
+        }
+
+        decision = GateDecision.Respond(response);
+        return true;
     }
 
     /// <summary>
