@@ -224,4 +224,4 @@ throughput. Compare latency at the fixed rates below.
   injected through `SnapshotCompilerOptions`, which the server builds internally. Both modes take the same resolver
   path.
 - **Placeholders:** the runner publishes its config through `Placeholders.StartupProxyConfig` and names
-  `PlaceholderCertificates.Reference` as each host's certificate. Switch both when M2 and M3 replace them.
+  `PlaceholderCertificates.Id` as each host's certificate. Switch both when M2 and M3 replace them.
