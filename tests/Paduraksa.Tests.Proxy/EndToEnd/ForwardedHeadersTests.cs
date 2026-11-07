@@ -1,19 +1,12 @@
-using System.Globalization;
 using System.Net;
 
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -190,55 +183,17 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     }
 }
 
-/// <summary>An upstream answering with the forwarding-related request headers it received, one <c>name: value</c> per
-/// line (repeated lines joined with <c>|</c>), plus <c>target</c>: the raw request target.</summary>
+/// <summary>The <see cref="HeaderEchoUpstreamHost"/> upstream as a class fixture.</summary>
 public sealed class HeaderEchoUpstream : IAsyncLifetime
 {
-    private static readonly string[] Echoed =
-    [
-        "X-Forwarded-For", "X-Real-IP", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Prefix", "X-Forwarded-Port",
-        "Forwarded", .. CloudflareHeaders.StripWhenUntrusted, "Cf-Access-Authenticated-User-Email", "Cf-Access-Jwt-Assertion", "cf-ipcity",
-    ];
-
     private IHost? _host;
 
     public string Address { get; private set; } = string.Empty;
 
-    public static Dictionary<string, string> Parse(string body)
-    {
-        Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string line in body.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        {
-            int colon = line.IndexOf(": ", StringComparison.Ordinal);
-            headers[line[..colon]] = line[(colon + 2)..];
-        }
+    public static Dictionary<string, string> Parse(string body) => HeaderEchoUpstreamHost.Parse(body);
 
-        return headers;
-    }
-
-    public async ValueTask InitializeAsync()
-    {
-        _host = new HostBuilder()
-            .ConfigureWebHost(static web => web
-                .UseKestrel(static kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(static app => app.Run(static context =>
-                {
-                    List<string> lines = [$"target: {context.Features.Get<IHttpRequestFeature>()!.RawTarget}"];
-                    foreach (string name in Echoed)
-                    {
-                        if (context.Request.Headers.TryGetValue(name, out var values))
-                        {
-                            lines.Add($"{name}: {string.Join('|', values.ToArray())}");
-                        }
-                    }
-
-                    return context.Response.WriteAsync(string.Join('\n', lines));
-                })))
-            .Build();
-        await _host.StartAsync();
-        string address = Assert.Single(_host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
-        Address = string.Create(CultureInfo.InvariantCulture, $"{address}/");
-    }
+    public async ValueTask InitializeAsync() =>
+        (_host, Address) = await HeaderEchoUpstreamHost.StartAsync(onResponse: null, TestContext.Current.CancellationToken);
 
     public async ValueTask DisposeAsync()
     {

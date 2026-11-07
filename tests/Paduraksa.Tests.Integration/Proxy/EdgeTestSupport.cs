@@ -12,18 +12,14 @@ using System.Text;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
+using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Proxy;
 
@@ -166,18 +162,12 @@ internal static class EdgeClient
 }
 
 /// <summary>
-/// The upstream of the edge tests: answers with the request's forwarding-related headers (one <c>name: value</c> per
-/// line, plus <c>target</c> and <c>protocol</c>), and sets its own <c>Alt-Svc</c> that must never reach the client.
+/// The upstream of the edge tests: a <see cref="HeaderEchoUpstreamHost"/> that also sets its own <c>Alt-Svc</c>, which
+/// must never reach the client.
 /// </summary>
 internal sealed class EdgeUpstream : IAsyncDisposable
 {
     public const string UpstreamAltSvc = "h2=\":9999\"";
-
-    private static readonly string[] Echoed =
-    [
-        "X-Forwarded-For", "X-Real-IP", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Prefix", "X-Forwarded-Port",
-        "Forwarded", .. CloudflareHeaders.StripWhenUntrusted, "Cf-Access-Authenticated-User-Email",
-    ];
 
     private readonly IHost _host;
 
@@ -191,51 +181,13 @@ internal sealed class EdgeUpstream : IAsyncDisposable
 
     public static async Task<EdgeUpstream> StartAsync()
     {
-        IHost host = new HostBuilder()
-            .ConfigureLogging(static logging => logging.ClearProviders())
-            .ConfigureWebHost(static web => web
-                .UseKestrel(static kestrel => kestrel.Listen(IPAddress.Loopback, 0))
-                .Configure(static app => app.Run(static context =>
-                {
-                    List<string> lines = [$"target: {context.Features.Get<IHttpRequestFeature>()!.RawTarget}"];
-                    foreach (string name in Echoed)
-                    {
-                        if (context.Request.Headers.TryGetValue(name, out var values))
-                        {
-                            lines.Add($"{name}: {string.Join('|', values.ToArray())}");
-                        }
-                    }
-
-                    context.Response.Headers.AltSvc = UpstreamAltSvc;
-                    return context.Response.WriteAsync(string.Join('\n', lines));
-                })))
-            .Build();
-        await host.StartAsync(TestContext.Current.CancellationToken);
-        string address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-        return new EdgeUpstream(host, address + "/");
+        (IHost host, string address) = await HeaderEchoUpstreamHost.StartAsync(
+            static response => response.Headers.AltSvc = UpstreamAltSvc, TestContext.Current.CancellationToken);
+        return new EdgeUpstream(host, address);
     }
 
     /// <summary>The echoed headers of a response body (or of the body of a raw HTTP/1.1 response).</summary>
-    public static Dictionary<string, string> Parse(string body)
-    {
-        int head = body.IndexOf("\r\n\r\n", StringComparison.Ordinal);
-        if (head >= 0)
-        {
-            body = body[(head + 4)..];
-        }
-
-        Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string line in body.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        {
-            int colon = line.IndexOf(": ", StringComparison.Ordinal);
-            if (colon > 0)
-            {
-                headers[line[..colon]] = line[(colon + 2)..];
-            }
-        }
-
-        return headers;
-    }
+    public static Dictionary<string, string> Parse(string body) => HeaderEchoUpstreamHost.Parse(body);
 
     public async ValueTask DisposeAsync()
     {
