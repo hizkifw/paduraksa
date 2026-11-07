@@ -17,7 +17,7 @@ namespace Paduraksa.Application.Audit;
 /// reordered. Thread-safe; the caller owns the context and the transaction.
 /// </summary>
 /// <remarks>
-/// Internal until the config command pipeline (also in Application) wraps it: its API takes a
+/// Internal: the config command pipeline (<see cref="Commands.ConfigService"/>) wraps it, and its API takes a
 /// <see cref="ConfigDbContext"/>, which must not appear on Application's public surface.
 /// </remarks>
 internal sealed partial class AuditLog

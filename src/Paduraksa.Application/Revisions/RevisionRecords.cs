@@ -8,7 +8,11 @@ namespace Paduraksa.Application.Revisions;
 /// <param name="Actor">Who made the change.</param>
 /// <param name="Channel">Where it came in.</param>
 /// <param name="Message">An optional note ("Rollback to #37", a commit message from the API).</param>
-internal sealed record NewRevision(ReadOnlyMemory<byte> Document, string Summary, Actor Actor, Channel Channel, string? Message = null);
+internal sealed record NewRevision(ReadOnlyMemory<byte> Document, string Summary, Actor Actor, Channel Channel, string? Message = null)
+{
+    /// <summary>The revision's ID, from <see cref="ConfigRevisionStore.NextId"/>; null: a new one.</summary>
+    public ConfigRevisionId? Id { get; init; }
+}
 
 /// <summary>A committed revision's metadata: everything but the document itself.</summary>
 /// <param name="Id">The revision ID.</param>

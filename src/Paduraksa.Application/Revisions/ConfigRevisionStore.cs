@@ -16,7 +16,7 @@ namespace Paduraksa.Application.Revisions;
 /// Thread-safe; the caller owns the context and, for appends, the transaction.
 /// </summary>
 /// <remarks>
-/// Internal until the config command pipeline (also in Application) wraps it: its API takes a
+/// Internal: the config command pipeline (<see cref="Commands.ConfigService"/>) wraps it, and its API takes a
 /// <see cref="ConfigDbContext"/>, which must not appear on Application's public surface.
 /// </remarks>
 internal sealed class ConfigRevisionStore
@@ -51,6 +51,12 @@ internal sealed class ConfigRevisionStore
     }
 
     /// <summary>
+    /// A new revision ID from this store's clock, for a caller that needs the ID before it appends (the command
+    /// pipeline labels the compiled snapshot with it); pass it as <see cref="NewRevision.Id"/>.
+    /// </summary>
+    public ConfigRevisionId NextId() => ConfigRevisionId.FromValue(_ids.Next());
+
+    /// <summary>
     /// Commits <paramref name="revision"/> on top of the latest one: <c>Seq</c> = latest + 1 (1 for the first),
     /// parent = latest. Must run inside the caller's transaction, which also holds the projection and audit writes;
     /// this saves the context (flushing anything else pending in it), the caller commits. If a concurrent writer got
@@ -58,7 +64,7 @@ internal sealed class ConfigRevisionStore
     /// </summary>
     /// <exception cref="InvalidOperationException">No transaction is active on <paramref name="context"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// The document is empty, too large or not JSON; the summary is not JSON or too long; the message is too long or
+    /// The ID is empty; the document is empty, too large or not JSON; the summary is not JSON or too long; the message is too long or
     /// has a lone surrogate; the actor or channel is undefined.
     /// </exception>
     public async Task<RevisionInfo> AppendAsync(ConfigDbContext context, NewRevision revision, CancellationToken cancellationToken = default)
@@ -77,7 +83,7 @@ internal sealed class ConfigRevisionStore
 
         var entity = new ConfigRevision
         {
-            Id = ConfigRevisionId.FromValue(_ids.Next()),
+            Id = revision.Id ?? NextId(),
             Seq = (latest?.Seq ?? 0) + 1,
             ParentId = latest?.Id,
             ActorKind = revision.Actor.Kind,
@@ -164,6 +170,11 @@ internal sealed class ConfigRevisionStore
 
     private static void Validate(NewRevision revision)
     {
+        if (revision.Id is { IsEmpty: true })
+        {
+            throw new ArgumentException("The revision ID can't be empty.", nameof(revision));
+        }
+
         if (revision.Document.IsEmpty || revision.Document.Length > MaxDocumentLength)
         {
             throw new ArgumentException($"The document must be 1 to {MaxDocumentLength} bytes, not {revision.Document.Length}.", nameof(revision));
