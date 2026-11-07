@@ -12,5 +12,11 @@ internal sealed class ActorKindConverter()
 internal sealed class ChannelConverter()
     : ValueConverter<Channel, string>(value => value.ToName(), name => ModelNames.ParseChannel(name));
 
+internal sealed class CertificateSourceConverter()
+    : ValueConverter<CertificateSource, string>(value => value.ToName(), name => ModelNames.ParseCertificateSource(name));
+
+internal sealed class CertificateStatusConverter()
+    : ValueConverter<CertificateStatus, string>(value => value.ToName(), name => ModelNames.ParseCertificateStatus(name));
+
 internal sealed class AuditOutcomeConverter()
     : ValueConverter<AuditOutcome, string>(value => value.ToName(), name => ModelNames.ParseAuditOutcome(name));

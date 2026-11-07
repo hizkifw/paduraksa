@@ -31,6 +31,10 @@ internal static class NameChecks
 
     public static string AuditOutcome(string column) => In(column, Enum.GetValues<AuditOutcome>().Select(o => o.ToName()));
 
+    public static string CertificateSource(string column) => In(column, Enum.GetValues<CertificateSource>().Select(s => s.ToName()));
+
+    public static string CertificateStatus(string column) => In(column, Enum.GetValues<CertificateStatus>().Select(s => s.ToName()));
+
     private static string In(string column, IEnumerable<string> names) =>
         $"\"{column}\" IN ({string.Join(", ", names.Select(n => $"'{n}'"))})";
 }

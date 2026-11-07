@@ -90,6 +90,105 @@ namespace Paduraksa.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Data.Certificates.CertificateNameRow", b =>
+                {
+                    b.Property<byte[]>("CertificateId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("Name")
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.HasKey("CertificateId", "Name");
+
+                    b.HasIndex("Name");
+
+                    b.ToTable("CertificateNames", (string)null);
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Certificates.CertificateRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("AuthorityKeyIdentifier")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChainIssuers")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Issuer")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KeyAlgorithm")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotAfter")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotBefore")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PublicChainPem")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SerialNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Sha256Fingerprint")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StatusMessage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotAfter");
+
+                    b.HasIndex("Sha256Fingerprint");
+
+                    b.ToTable("Certificates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Certificates_Source", "\"Source\" IN ('acme', 'uploaded', 'self_signed', 'local_ca', 'local_ca_root')");
+
+                            t.HasCheckConstraint("CK_Certificates_Status", "\"Status\" IN ('pending', 'active', 'failed')");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Data.Projection.DestinationRow", b =>
                 {
                     b.Property<byte[]>("Id")
@@ -380,6 +479,15 @@ namespace Paduraksa.Data.Migrations
                         .WithMany()
                         .HasForeignKey("RevisionId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Certificates.CertificateNameRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Certificates.CertificateRow", null)
+                        .WithMany()
+                        .HasForeignKey("CertificateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Paduraksa.Data.Projection.DestinationRow", b =>
