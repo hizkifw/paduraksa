@@ -71,6 +71,50 @@ namespace Paduraksa.Vault.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Vault.Persistence.CertificateKeyRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("ChainPem")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsLocalCaRoot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("Sealed")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsLocalCaRoot")
+                        .IsUnique()
+                        .HasFilter("\"IsLocalCaRoot\" = 1");
+
+                    b.ToTable("CertificateKeys", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CertificateKeys_Chain", "length(\"ChainPem\") > 0");
+
+                            t.HasCheckConstraint("CK_CertificateKeys_Sealed", "length(\"Sealed\") > 0");
+
+                            t.HasCheckConstraint("CK_CertificateKeys_Version", "\"Version\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Vault.Persistence.SecretRow", b =>
                 {
                     b.Property<byte[]>("Id")
@@ -131,6 +175,38 @@ namespace Paduraksa.Vault.Migrations
                             t.HasCheckConstraint("CK_Secrets_Sealed", "length(\"Sealed\") > 0");
 
                             t.HasCheckConstraint("CK_Secrets_Version", "\"Version\" >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("Paduraksa.Vault.Persistence.StagedKeyRow", b =>
+                {
+                    b.Property<byte[]>("CertificateId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("Names")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Sealed")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<byte[]>("StagedKeyId")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.HasKey("CertificateId");
+
+                    b.HasIndex("StagedKeyId")
+                        .IsUnique();
+
+                    b.ToTable("StagedKeys", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StagedKeys_Sealed", "length(\"Sealed\") > 0");
                         });
                 });
 

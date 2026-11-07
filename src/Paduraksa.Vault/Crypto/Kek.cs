@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using Paduraksa.Core;
+using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Vault.Crypto;
 
@@ -76,29 +78,10 @@ internal sealed class Kek : IDisposable
     /// <exception cref="FormatException">It is not base64 of exactly 32 bytes, or it is all zeros.</exception>
     public static Kek Parse(ReadOnlySpan<char> text)
     {
-        text = text.Trim();
-        if (text.Length != TextLength)
-        {
-            throw NotAKey();
-        }
-
-        Span<byte> bytes = stackalloc byte[Length + 3];
+        Span<byte> bytes = stackalloc byte[Length];
         try
         {
-            if (!Convert.TryFromBase64Chars(text, bytes, out var written) || written != Length)
-            {
-                throw NotAKey();
-            }
-
-            // Reject non-canonical encodings (non-zero padding bits) and all-zero keys, which only a mistake produces.
-            Span<char> canonical = stackalloc char[TextLength];
-            Convert.TryToBase64Chars(bytes[..Length], canonical, out _);
-            if (!text.SequenceEqual(canonical) || !bytes[..Length].ContainsAnyExcept((byte)0))
-            {
-                throw NotAKey();
-            }
-
-            return FromBytes(bytes[..Length]);
+            return MasterKeyFormat.TryDecode(text.Trim(), bytes) ? FromBytes(bytes) : throw NotAKey();
         }
         finally
         {

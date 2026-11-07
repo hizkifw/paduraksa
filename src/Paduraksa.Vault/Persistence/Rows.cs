@@ -90,6 +90,55 @@ internal sealed class AccountKeyRow
     public const int SealedVersion = 1;
 }
 
+/// <summary>
+/// A certificate the vault holds: the private key sealed, and the public chain in the clear (it is public). One row per
+/// <see cref="CertificateId"/>, so a replacement (a renewal, a re-issue, a new upload) is an update of this row, and key and
+/// chain change together or not at all. A row always has both: a key staged for a chain that has not been issued yet is a
+/// <see cref="StagedKeyRow"/>.
+/// </summary>
+internal sealed class CertificateKeyRow
+{
+    public CertificateId Id { get; set; }
+
+    /// <summary>True for the local CA root: the one key the vault signs with.</summary>
+    public bool IsLocalCaRoot { get; set; }
+
+    /// <summary>Bound into the AAD of <see cref="Sealed"/>; a replacement increments it, and a write that lost a race with another process fails.</summary>
+    public int Version { get; set; }
+
+    /// <summary>The leaf first, then its intermediates, as concatenated PEM <c>CERTIFICATE</c> blocks (the root only when the certificate is its own root).</summary>
+    public string ChainPem { get; set; } = "";
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>The PKCS#8 key as <see cref="Crypto.EnvelopeCipher"/> made it, bound to <c>(Id, purpose, Version)</c>.</summary>
+    public byte[] Sealed { get; set; } = [];
+}
+
+/// <summary>
+/// A key generated for a CSR and waiting for its chain (<c>ICertificateIssuance.CreateKeyAndCsrAsync</c>). At most one per
+/// certificate: staging again replaces it, which is what makes the earlier token stale. Sealed to its certificate, its own
+/// <see cref="StagedKeyId"/> and a digest of its <see cref="Names"/>, so it cannot be moved onto another row or have its names edited.
+/// </summary>
+internal sealed class StagedKeyRow
+{
+    public CertificateId CertificateId { get; set; }
+
+    public StagedKeyId StagedKeyId { get; set; }
+
+    /// <summary>The names the CSR asked for; the chain that comes back must cover them.</summary>
+    public List<string> Names { get; set; } = [];
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public byte[] Sealed { get; set; } = [];
+
+    /// <summary>The seal version is always 1: the row's ID and names are in the AAD, and a re-staging seals a new key under a new staged ID.</summary>
+    public const int SealedVersion = 1;
+}
+
 internal sealed class VaultMetaRowConfiguration : IEntityTypeConfiguration<VaultMetaRow>
 {
     public void Configure(EntityTypeBuilder<VaultMetaRow> builder)
@@ -144,5 +193,38 @@ internal sealed class AccountKeyRowConfiguration : IEntityTypeConfiguration<Acco
         builder.Property(r => r.Crv).HasMaxLength(8);
         builder.Property(r => r.Thumbprint).HasMaxLength(64);
         builder.Property(r => r.Sealed).IsRequired();
+    }
+}
+
+internal sealed class CertificateKeyRowConfiguration : IEntityTypeConfiguration<CertificateKeyRow>
+{
+    public void Configure(EntityTypeBuilder<CertificateKeyRow> builder)
+    {
+        builder.ToTable("CertificateKeys", table =>
+        {
+            table.HasCheckConstraint("CK_CertificateKeys_Version", "\"Version\" >= 1");
+            table.HasCheckConstraint("CK_CertificateKeys_Sealed", "length(\"Sealed\") > 0");
+            table.HasCheckConstraint("CK_CertificateKeys_Chain", "length(\"ChainPem\") > 0");
+        });
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Sealed).IsRequired();
+        builder.Property(r => r.ChainPem).IsRequired();
+
+        // Like a secret's version, it is in the AAD: a concurrent replacement must fail rather than seal under a used version.
+        builder.Property(r => r.Version).IsConcurrencyToken();
+
+        // There is one local CA, whatever two processes do at the same time.
+        builder.HasIndex(r => r.IsLocalCaRoot).IsUnique().HasFilter("\"IsLocalCaRoot\" = 1");
+    }
+}
+
+internal sealed class StagedKeyRowConfiguration : IEntityTypeConfiguration<StagedKeyRow>
+{
+    public void Configure(EntityTypeBuilder<StagedKeyRow> builder)
+    {
+        builder.ToTable("StagedKeys", table => table.HasCheckConstraint("CK_StagedKeys_Sealed", "length(\"Sealed\") > 0"));
+        builder.HasKey(r => r.CertificateId);
+        builder.Property(r => r.Sealed).IsRequired();
+        builder.HasIndex(r => r.StagedKeyId).IsUnique();
     }
 }

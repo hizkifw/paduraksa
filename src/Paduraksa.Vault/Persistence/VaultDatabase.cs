@@ -9,6 +9,9 @@ internal static class VaultDatabase
     /// <summary>The database file name inside the data directory (PLAN §5).</summary>
     public const string FileName = "vault.db";
 
+    /// <summary>The <see cref="Exception.Data"/> key under which a KEK mismatch carries the database's check value.</summary>
+    public const string StoredCheckKey = "Paduraksa.Vault.StoredKekCheck";
+
     /// <summary>
     /// Brings the database up to date and proves the KEK is the one it was written under: creates the file if needed
     /// (mode 0600 on Unix, and SQLite gives the <c>-wal</c> and <c>-shm</c> files the same mode), applies pending
@@ -39,7 +42,9 @@ internal static class VaultDatabase
                 if (meta is null)
                 {
                     var holdsData = await context.Secrets.AnyAsync(cancellationToken).ConfigureAwait(false)
-                        || await context.AccountKeys.AnyAsync(cancellationToken).ConfigureAwait(false);
+                        || await context.AccountKeys.AnyAsync(cancellationToken).ConfigureAwait(false)
+                        || await context.CertificateKeys.AnyAsync(cancellationToken).ConfigureAwait(false)
+                        || await context.StagedKeys.AnyAsync(cancellationToken).ConfigureAwait(false);
                     if (holdsData)
                     {
                         throw new InvalidOperationException(
@@ -52,9 +57,13 @@ internal static class VaultDatabase
                 }
                 else if (!kek.Matches(meta.KekCheck))
                 {
-                    throw new InvalidOperationException(
+                    var mismatch = new InvalidOperationException(
                         $"The master key does not match {databasePath}: it was written under a different key. "
                         + $"Use the original key ({KekProvider.KeyFileVariable}, {KekProvider.KeyVariable} or master.key), or restore it from a backup.");
+
+                    // So a start can look for the key that does match (VaultRuntime), without a new exception type.
+                    mismatch.Data[StoredCheckKey] = meta.KekCheck;
+                    throw mismatch;
                 }
 
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);

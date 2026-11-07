@@ -45,13 +45,17 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
             CreatedAt = now,
             UpdatedAt = now,
         };
-        row.Sealed = EnvelopeCipher.Seal(runtime.Kek, value.Span, SecretReader.ContextOf(row, row.Version));
-
         var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            context.Secrets.Add(row);
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
+            await using (transaction.ConfigureAwait(false))
+            {
+                row.Sealed = EnvelopeCipher.Seal(runtime.Kek, value.Span, SecretReader.ContextOf(row, row.Version));
+                context.Secrets.Add(row);
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
 
         return row.Id;
@@ -70,6 +74,8 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
         var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
+            var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
+            await using var _ = transaction.ConfigureAwait(false);
             var row = await context.Secrets.SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false)
                 ?? throw new KeyNotFoundException($"There is no secret {id}.");
 
@@ -97,6 +103,7 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
             row.Sealed = EnvelopeCipher.Seal(kek, value.Span, SecretReader.ContextOf(row, row.Version));
 
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             macKeys.Invalidate(id);
             return SecretReader.ToMetadata(row);
         }

@@ -2,7 +2,7 @@ namespace Paduraksa.Core.Vault;
 
 /// <summary>What a KEK rotation re-wrapped.</summary>
 /// <param name="SecretsRewrapped">Secret values re-wrapped (a MAC secret's previous value counts as one more).</param>
-/// <param name="KeysRewrapped">Account keys re-wrapped.</param>
+/// <param name="KeysRewrapped">Keys re-wrapped: ACME account keys, certificate keys and the keys staged for a chain.</param>
 public sealed record KekRotationResult(int SecretsRewrapped, int KeysRewrapped);
 
 /// <summary>

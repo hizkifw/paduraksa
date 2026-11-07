@@ -76,6 +76,15 @@ internal sealed partial class VaultRuntime(
 
                 return status;
             }
+            catch (InvalidOperationException ex) when (resolved.Source == KekSourceKind.GeneratedFile && ex.Data[VaultDatabase.StoredCheckKey] is byte[] stored)
+            {
+                resolved.Kek.Dispose();
+                var backup = KekProvider.FindMatchingBackup(options.DataDirectory, stored);
+                throw backup is null
+                    ? ex
+                    : new InvalidOperationException(
+                        $"{ex.Message} {backup} in the data directory holds the key this database was written under: if a rotation was interrupted, put it back as {KekProvider.GeneratedFileName}.", ex);
+            }
             catch
             {
                 resolved.Kek.Dispose();
@@ -85,6 +94,34 @@ internal sealed partial class VaultRuntime(
         finally
         {
             _initialization.Release();
+        }
+    }
+
+    /// <summary>
+    /// Starts the transaction a seal happens in and checks, inside it, that the database still belongs to the KEK this process
+    /// holds. A <c>vault rotate-kek</c> run from another process while this one serves would otherwise leave it sealing new
+    /// values under the old key into a database that now checks against the new one. Inside a transaction the check can't be
+    /// overtaken either: a rotation that commits after it makes this transaction's write fail instead. Call inside the gate.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The database is under another KEK: this process must be restarted with the current one.</exception>
+    public async ValueTask<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction> BeginSealingAsync(VaultDbContext context, CancellationToken cancellationToken)
+    {
+        var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var meta = await context.Meta.AsNoTracking().SingleAsync(cancellationToken).ConfigureAwait(false);
+            if (!Kek.Matches(meta.KekCheck))
+            {
+                throw new InvalidOperationException(
+                    "The master key changed under this process (a rotation ran elsewhere): restart it with the current key. Nothing was written.");
+            }
+
+            return transaction;
+        }
+        catch
+        {
+            await transaction.DisposeAsync().ConfigureAwait(false);
+            throw;
         }
     }
 

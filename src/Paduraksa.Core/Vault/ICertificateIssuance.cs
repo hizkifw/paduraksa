@@ -51,7 +51,9 @@ public interface ICertificateIssuance
     /// <summary>
     /// Pairs the issued chain (PEM, leaf first) with the key staged as <paramref name="stagedKey"/> and makes the pair the
     /// serving certificate of <paramref name="id"/>, atomically. The vault checks that the leaf's public key matches the
-    /// staged key and rejects the chain otherwise. Returns the leaf's public facts, for the certificate's metadata row.
+    /// staged key, that its names cover the requested ones, that it is valid now (not expired, not valid only later than a
+    /// five-minute clock tolerance), and that the chain links up by issuer, key identifier and signature; it rejects the
+    /// chain otherwise (the staged key keeps waiting). Returns the leaf's public facts, for the certificate's metadata row.
     /// </summary>
     /// <exception cref="StagedKeyMismatchException">The token is not the current staged key of <paramref name="id"/>.</exception>
     ValueTask<CertificateInfo> AttachChainAsync(
@@ -59,16 +61,17 @@ public interface ICertificateIssuance
 
     /// <summary>
     /// Creates a key and a self-signed certificate for <paramref name="names"/>, valid for <paramref name="validity"/>
-    /// from now. On an existing <paramref name="id"/> it replaces the certificate atomically.
+    /// from now (capped at 825 days, like a local-CA leaf). On an existing <paramref name="id"/> it replaces the certificate atomically.
     /// </summary>
     ValueTask<CertificateInfo> CreateSelfSignedAsync(
         CertificateId id, KeySpec spec, IReadOnlyList<string> names, TimeSpan validity, CancellationToken cancellationToken);
 
     /// <summary>
     /// Creates the local CA root, a normal certificate with <paramref name="id"/> (so it gets a Certificates row, expiry
-    /// monitoring and a downloadable <see cref="CertificateInfo.PublicChainPem"/> like any other). If a local CA already
-    /// exists this returns its info unchanged and ignores the other arguments, so callers look up the existing root's ID
-    /// first and pass that. There is one local CA; the vault uses its key for signing and nothing else. Rotating or deleting
+    /// monitoring and a downloadable <see cref="CertificateInfo.PublicChainPem"/> like any other). If the local CA already
+    /// exists under this <paramref name="id"/> this returns its info unchanged and ignores the other arguments; if it exists under
+    /// another ID the vault throws <see cref="LocalCaExistsException"/> naming it (and carrying its info), since there is one
+    /// local CA and its ID names its key. The vault uses that key for signing and nothing else. Rotating or deleting
     /// the CA root is later work (PLAN §9.1).
     /// </summary>
     ValueTask<CertificateInfo> EnsureLocalCaAsync(
@@ -76,7 +79,8 @@ public interface ICertificateIssuance
 
     /// <summary>
     /// Creates a key and a leaf certificate for <paramref name="names"/> signed by the local CA, valid for
-    /// <paramref name="validity"/> from now (the vault caps it at the CA's own remaining validity). On an existing
+    /// <paramref name="validity"/> from now (the vault caps it at the CA's own remaining validity, and at 825 days, the
+    /// longest validity Apple's trust store accepts). On an existing
     /// <paramref name="id"/> it re-issues under a new key atomically (the one-click re-issue of PLAN §9).
     /// </summary>
     /// <exception cref="InvalidOperationException">There is no local CA yet (<see cref="EnsureLocalCaAsync"/>).</exception>

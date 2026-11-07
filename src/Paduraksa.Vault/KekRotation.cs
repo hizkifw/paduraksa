@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Vault;
+using Paduraksa.Vault.Certificates;
 using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.Keys;
 using Paduraksa.Vault.Secrets;
@@ -9,7 +10,7 @@ namespace Paduraksa.Vault;
 
 /// <summary>What <see cref="KekRotation.RotateAsync"/> re-wrapped.</summary>
 /// <param name="Secrets">Secret values re-wrapped (a MAC secret's previous value counts too).</param>
-/// <param name="AccountKeys">Account keys re-wrapped.</param>
+/// <param name="AccountKeys">Account keys, certificate keys and staged certificate keys re-wrapped.</param>
 internal sealed record KekRotated(int Secrets, int AccountKeys);
 
 /// <summary>
@@ -102,6 +103,19 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                 foreach (var row in await context.AccountKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
                 {
                     row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, JwsSigner.ContextOf(row.Id, row.Algorithm));
+                    accountKeys++;
+                }
+
+                // Certificate keys, and the keys staged for a chain, count with the account keys.
+                foreach (var row in await context.CertificateKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.ContextOf(row.Id, row.IsLocalCaRoot, row.Version));
+                    accountKeys++;
+                }
+
+                foreach (var row in await context.StagedKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.StagedContextOf(row.CertificateId, row.StagedKeyId, row.Names));
                     accountKeys++;
                 }
 

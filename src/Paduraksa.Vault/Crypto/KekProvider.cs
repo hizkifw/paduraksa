@@ -206,6 +206,47 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
         }
     }
 
+    /// <summary>
+    /// After a start failed because the key does not match the database: the name of the <c>master.key.old</c> or
+    /// <c>master.key.new</c> of an interrupted <c>vault rotate-kek</c> that does hold the key the database belongs to, or null.
+    /// </summary>
+    public static string? FindMatchingBackup(string dataDirectory, ReadOnlySpan<byte> storedCheck)
+    {
+        foreach (var name in new[] { GeneratedFileName + ".old", GeneratedFileName + ".new" })
+        {
+            var buffer = GC.AllocateArray<byte>(MaxKeyFileBytes + 1, pinned: true);
+            try
+            {
+                using var stream = new FileStream(Path.Combine(dataDirectory, name), FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 0);
+                var read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
+                var chars = new char[read];
+                try
+                {
+                    System.Text.Encoding.ASCII.GetChars(buffer.AsSpan(0, read), chars);
+                    using var kek = Kek.Parse(chars);
+                    if (kek.Matches(storedCheck))
+                    {
+                        return name;
+                    }
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(System.Runtime.InteropServices.MemoryMarshal.AsBytes(chars.AsSpan()));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
+            {
+                // Not there, not readable or not a key: not the one.
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(buffer);
+            }
+        }
+
+        return null;
+    }
+
     private Kek ReadFile(string path, string what, bool generated)
     {
         var buffer = GC.AllocateArray<byte>(MaxKeyFileBytes + 1, pinned: true);

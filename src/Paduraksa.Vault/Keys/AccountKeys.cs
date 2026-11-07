@@ -55,6 +55,8 @@ internal sealed class JwsSigner(VaultRuntime runtime) : IJwsSigner
         var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
+            var transaction = await runtime.BeginSealingAsync(context, cancellationToken).ConfigureAwait(false);
+            await using var _ = transaction.ConfigureAwait(false);
             if (await context.AccountKeys.AnyAsync(k => k.Id == id, cancellationToken).ConfigureAwait(false))
             {
                 throw new InvalidOperationException($"The account {id} already has a key.");
@@ -77,6 +79,7 @@ internal sealed class JwsSigner(VaultRuntime runtime) : IJwsSigner
             };
             context.AccountKeys.Add(row);
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             return ToInfo(row);
         }
     }

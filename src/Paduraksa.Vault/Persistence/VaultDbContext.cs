@@ -26,6 +26,10 @@ internal sealed class VaultDbContext(DbContextOptions<VaultDbContext> options) :
 
     internal DbSet<AccountKeyRow> AccountKeys => Set<AccountKeyRow>();
 
+    internal DbSet<CertificateKeyRow> CertificateKeys => Set<CertificateKeyRow>();
+
+    internal DbSet<StagedKeyRow> StagedKeys => Set<StagedKeyRow>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.AddTypedIdConventions();
@@ -40,6 +44,8 @@ internal sealed class VaultDbContext(DbContextOptions<VaultDbContext> options) :
         modelBuilder.ApplyConfiguration(new VaultMetaRowConfiguration());
         modelBuilder.ApplyConfiguration(new SecretRowConfiguration());
         modelBuilder.ApplyConfiguration(new AccountKeyRowConfiguration());
+        modelBuilder.ApplyConfiguration(new CertificateKeyRowConfiguration());
+        modelBuilder.ApplyConfiguration(new StagedKeyRowConfiguration());
     }
 }
 
