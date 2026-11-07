@@ -294,7 +294,11 @@ public sealed class ConfigValidatorTests
             Hosts = MapHost(
                 MapHost(document, AppHost, h => h with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific } }),
                 RedirectHost,
-                h => h with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.None, CertificateId = Id<CertificateId>(1) } }),
+                h => h with
+                {
+                    Certificate = new CertificateBinding { Mode = CertificateBindingMode.None, CertificateId = Id<CertificateId>(1) },
+                    Settings = new HostSettings { ForceHttps = false },
+                }),
         };
 
         AssertErrors(
@@ -302,6 +306,37 @@ public sealed class ConfigValidatorTests
             ("/settings/defaultCertificateId", IdEmpty),
             ($"{Proxy}/certificate/certificateId", HostCertificateIdRequired),
             ($"{RedirectHostPath}/certificate/certificateId", HostCertificateIdUnexpected));
+    }
+
+    [Fact]
+    public void AHostWithoutHttpsCantForceHttpsAfterLayering()
+    {
+        // Valid() forces HTTPS in the global defaults; the app host's profile is the LAN profile.
+        ConfigDocument document = Valid();
+        CertificateBinding none = new() { Mode = CertificateBindingMode.None };
+        ConfigDocument inherited = document with { Hosts = MapHost(document, RespondHost, h => h with { Certificate = none }) };
+        ConfigDocument fromProfile = document with
+        {
+            Settings = document.Settings with { Defaults = new HostSettings() },
+            Profiles = [document.Profiles[0] with { Settings = new HostSettings { ForceHttps = true } }],
+            Hosts = MapHost(document, AppHost, h => h with { Certificate = none }),
+        };
+        ConfigDocument own = document with
+        {
+            Settings = document.Settings with { Defaults = new HostSettings() },
+            Hosts = MapHost(document, RespondHost, h => h with { Certificate = none, Settings = new HostSettings { ForceHttps = true } }),
+        };
+        ConfigDocument lifted = document with
+        {
+            Hosts = MapHost(document, RespondHost, h => h with { Certificate = none, Settings = new HostSettings { ForceHttps = false } }),
+        };
+
+        AssertErrors(inherited, ($"{RespondHostPath}/certificate/mode", HostCertificateNoneWithForceHttps));
+        Assert.Contains("inherited from the global defaults", ConfigValidator.Validate(inherited).Single().Message, StringComparison.Ordinal);
+        AssertErrors(fromProfile, ($"{Proxy}/certificate/mode", HostCertificateNoneWithForceHttps));
+        Assert.Contains("inherited from its profile", ConfigValidator.Validate(fromProfile).Single().Message, StringComparison.Ordinal);
+        AssertErrors(own, ($"{RespondHostPath}/certificate/mode", HostCertificateNoneWithForceHttps));
+        AssertErrors(lifted);
     }
 
     [Fact]

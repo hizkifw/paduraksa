@@ -28,7 +28,9 @@ namespace Paduraksa.Application.Config;
 /// but its names only have to be unique within itself, so a replacement can be staged next to the live host. A host
 /// can't have two routes with the same match kind and path (ignoring case, like matching): the second could never
 /// match. References to profiles and upstreams must resolve, and an upstream that an enabled host routes to needs an
-/// enabled destination; certificate references can't be checked until certificates exist (M3).</para>
+/// enabled destination; certificate references can't be checked until certificates exist (M3). A host without HTTPS
+/// (certificate mode none) can't force HTTPS, judged on the setting it ends up with after the profile and global
+/// layers.</para>
 /// </remarks>
 public static class ConfigValidator
 {
@@ -98,13 +100,20 @@ public static class ConfigValidator
                 }
             }
 
-            HashSet<ProfileId> profileIds = [.. profiles.Where(p => p is not null).Select(p => p.Id)];
+            // A duplicate profile ID is reported above; the first one is the layer.
+            Dictionary<ProfileId, HostSettings?> profileSettings = [];
+            foreach (ProfileConfig profile in profiles.Where(p => p is not null))
+            {
+                profileSettings.TryAdd(profile.Id, profile.Settings);
+            }
+
             HashSet<UpstreamId> upstreamIds = [.. upstreams.Where(u => u is not null).Select(u => u.Id)];
+            HostSettings? defaults = document.Settings?.Defaults;
             for (int i = 0; i < hosts.Count; i++)
             {
                 if (NotNull(hosts[i], $"/hosts/{i}"))
                 {
-                    CheckHost(hosts[i], $"/hosts/{i}", profileIds, upstreamIds);
+                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds);
                 }
             }
         }
@@ -256,14 +265,20 @@ public static class ConfigValidator
             CheckNotes(upstream.Notes, path);
         }
 
-        private void CheckHost(HostConfig host, string path, HashSet<ProfileId> profiles, HashSet<UpstreamId> upstreams)
+        private void CheckHost(
+            HostConfig host,
+            string path,
+            HostSettings? defaults,
+            Dictionary<ProfileId, HostSettings?> profiles,
+            HashSet<UpstreamId> upstreams)
         {
             CheckId(host.Id, path);
             CheckVersion(host.Version, path);
             CheckHostNames(host, path);
             bool kindDefined = CheckEnum(host.Kind, $"{path}/kind");
 
-            if (host.ProfileId is { } profileId && !profiles.Contains(profileId))
+            HostSettings? profile = null;
+            if (host.ProfileId is { } profileId && !profiles.TryGetValue(profileId, out profile))
             {
                 Add($"{path}/profileId", HostProfileUnknown, $"profile '{profileId}' doesn't exist");
             }
@@ -271,6 +286,16 @@ public static class ConfigValidator
             CertificateBinding certificate = host.Certificate ?? new();
             if (CheckEnum(certificate.Mode, $"{path}/certificate/mode"))
             {
+                // Judged after layering (PLAN §6.4): the host, else its profile, else the global defaults.
+                if (certificate.Mode == CertificateBindingMode.None
+                    && (host.Settings?.ForceHttps ?? profile?.ForceHttps ?? defaults?.ForceHttps ?? false))
+                {
+                    string from = host.Settings?.ForceHttps is not null ? string.Empty
+                        : profile?.ForceHttps is not null ? " (inherited from its profile)"
+                        : " (inherited from the global defaults)";
+                    Add($"{path}/certificate/mode", HostCertificateNoneWithForceHttps, $"a host without HTTPS (certificate mode none) can't force HTTPS{from}; set its forceHttps to false");
+                }
+
                 if (certificate.Mode == CertificateBindingMode.Specific && certificate.CertificateId is null or { IsEmpty: true })
                 {
                     Add($"{path}/certificate/certificateId", HostCertificateIdRequired, "a specific certificate binding needs a certificate ID");

@@ -43,6 +43,7 @@ public static class ConfigErrorCodes
     public const string HostProfileUnknown = "host.profile.unknown";
     public const string HostCertificateIdRequired = "host.certificate.idRequired";
     public const string HostCertificateIdUnexpected = "host.certificate.idUnexpected";
+    public const string HostCertificateNoneWithForceHttps = "host.certificate.noneWithForceHttps";
     public const string HostRoutesRequired = "host.routes.required";
     public const string HostRoutesUnexpected = "host.routes.unexpected";
     public const string HostRedirectRequired = "host.redirect.required";
