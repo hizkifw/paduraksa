@@ -9,5 +9,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
+    <!-- The end-to-end config store tests read the history, the audit chain and the last-known-good file. -->
+    <InternalsVisibleTo Include="Paduraksa.Tests.Integration" />
   </ItemGroup>
 </Project>
