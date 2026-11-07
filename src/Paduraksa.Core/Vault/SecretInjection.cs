@@ -24,8 +24,8 @@ public enum SecretInjectionKind
 /// <b>Every injection names the hosts it may talk to,</b> and the handler only talks https. A handler that attached the
 /// token to any URL would turn a bug or a hostile redirect in provider code into a token leak, so the vault-owned handler
 /// refuses a request to any other host, or over plain http, before sending anything. Host names are normalised by
-/// <see cref="VaultHostNames.Normalize"/> (no scheme, port, path or wildcard; IDN as punycode; no trailing dot) and compared
-/// exactly against the request's <c>Uri.IdnHost</c>. The hosts the secret itself allows (<see cref="SecretOptions.AllowedHosts"/>,
+/// <see cref="VaultHostNames.NormalizeAuthority"/> (no scheme, path or wildcard; IDN as punycode; no trailing dot; a port only if
+/// written, <c>host:8443</c>) and compared exactly against the request's <c>Uri.IdnHost</c>, plus its port unless that is 443. The hosts the secret itself allows (<see cref="SecretOptions.AllowedHosts"/>,
 /// set by the admin) are intersected with these: provider code can narrow, never widen.
 /// </para>
 /// <para>
@@ -54,7 +54,7 @@ public sealed class SecretInjection
         Scheme = scheme;
         HeaderName = headerName;
         Username = username;
-        AllowedHosts = [.. allowedHosts.Select(VaultHostNames.Normalize).Distinct(StringComparer.Ordinal)];
+        AllowedHosts = [.. allowedHosts.Select(VaultHostNames.NormalizeAuthority).Distinct(StringComparer.Ordinal)];
     }
 
     /// <summary>How the secret is put on the request.</summary>

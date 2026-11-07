@@ -53,6 +53,32 @@ public sealed class VaultContractsTests
     public void HostNamesRefuseAnythingButAPlainHost(string input) =>
         Assert.Throws<ArgumentException>(() => VaultHostNames.Normalize(input));
 
+    [Theory]
+    [InlineData("api.example.com", "api.example.com")]
+    [InlineData("API.example.com:443", "api.example.com")]
+    [InlineData("API.example.com.:8443", "api.example.com:8443")]
+    [InlineData("bücher.example:8443", "xn--bcher-kva.example:8443")]
+    [InlineData("localhost:1", "localhost:1")]
+    [InlineData("localhost:65535", "localhost:65535")]
+    public void AuthoritiesNormaliseAndWriteTheDefaultPortAsNone(string input, string expected) =>
+        Assert.Equal(expected, VaultHostNames.NormalizeAuthority(input));
+
+    [Theory]
+    [InlineData("api.example.com:")]
+    [InlineData("api.example.com:0")]
+    [InlineData("api.example.com:65536")]
+    [InlineData("api.example.com:80a")]
+    [InlineData("api.example.com:-1")]
+    [InlineData("api.example.com:8443:1")]
+    [InlineData("api.example.com:123456")]
+    [InlineData("[::1]:8443")]
+    [InlineData("::1")]
+    [InlineData("https://api.example.com:8443")]
+    [InlineData(":8443")]
+    [InlineData("a.example/x:8443")]
+    public void AuthoritiesRefuseABadPortOrAnythingButAHost(string input) =>
+        Assert.Throws<ArgumentException>(() => VaultHostNames.NormalizeAuthority(input));
+
     [Fact]
     public void InjectionNormalisesHostsAndKeepsOneOfEach()
     {
@@ -69,6 +95,7 @@ public sealed class VaultContractsTests
     {
         Assert.Throws<ArgumentException>(() => SecretInjection.Bearer([]));
         Assert.Throws<ArgumentException>(() => SecretInjection.Bearer(["https://api.example"]));
+        Assert.Equal(["api.example:8443", "api.example"], SecretInjection.Bearer(["api.example:8443", "API.example:443"]).AllowedHosts);
     }
 
     [Theory]

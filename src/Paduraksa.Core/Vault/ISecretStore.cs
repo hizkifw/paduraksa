@@ -46,7 +46,7 @@ public enum SecretKind
 /// <param name="AllowedHosts">
 /// Required (non-empty) for <see cref="SecretKind.DnsApiToken"/>, refused for the others: the hosts the token may ever be
 /// sent to. The admin sets them when creating the DNS provider (Cloudflare's API host, the user's acme-dns server), they are
-/// normalised with <see cref="VaultHostNames.Normalize"/>, and the authenticating handler uses their intersection with the
+/// normalised with <see cref="VaultHostNames.NormalizeAuthority"/> (a host, optionally with the port it may be reached on; 443 otherwise), and the authenticating handler uses their intersection with the
 /// caller's own list (<see cref="SecretInjection.AllowedHosts"/>), so provider code can narrow the destinations but never widen them.
 /// </param>
 public sealed record SecretOptions(string? Label, MacAlgorithm? MacAlgorithm, IReadOnlyList<string>? AllowedHosts);

@@ -166,7 +166,7 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
 
         var hosts = options.AllowedHosts is null
             ? []
-            : options.AllowedHosts.Select(VaultHostNames.Normalize).Distinct(StringComparer.Ordinal).ToList();
+            : options.AllowedHosts.Select(VaultHostNames.NormalizeAuthority).Distinct(StringComparer.Ordinal).ToList();
         if (kind == SecretKind.DnsApiToken)
         {
             if (hosts.Count == 0)

@@ -49,6 +49,7 @@ public static class VaultServiceCollectionExtensions
 
         services.AddSingleton<ISecretStore, SecretStore>();
         services.AddSingleton<IMacKeySource, MacKeySource>();
+        services.AddSingleton<ISecretHttpHandlerFactory, SecretHttpHandlerFactory>();
         return services;
     }
 }
