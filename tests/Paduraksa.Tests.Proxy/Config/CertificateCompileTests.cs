@@ -106,8 +106,54 @@ public sealed class CertificateCompileTests : IDisposable
         Assert.Equal(1, a.AltSvc.Count);
     }
 
+    [Fact]
+    public void EachNameOfAHostGetsItsOwnCertificate()
+    {
+        // example.test is covered by one certificate and www.example.test by another; the third name rides the host's.
+        HostSpec host = Respond("multi", ["example.test", "WWW.example.test.", "other.test", "192.0.2.7"]) with
+        {
+            Certificate = TestIds.Certificate("fallback"),
+            NameCertificates = new Dictionary<string, CertificateId>
+            {
+                ["example.test"] = TestIds.Certificate("a"),
+                ["www.EXAMPLE.test"] = TestIds.Certificate("b"),
+            },
+            Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
+        };
+
+        CertificateTable table = Compile(new ProxyConfigModel { Hosts = [host] }, _options).Certificates;
+
+        Assert.Same(_certificates["a"], table.Find("example.test")!.Certificate);
+        Assert.Same(_certificates["b"], table.Find("www.example.test")!.Certificate);
+        Assert.Same(_certificates["fallback"], table.Find("other.test")!.Certificate);
+        Assert.All(["example.test", "www.example.test", "other.test"], name => Assert.Equal(TlsMinimumVersion.Tls13, table.Find(name)!.Policy.MinimumVersion));
+        Assert.Equal(["example.test", "other.test", "www.example.test"], table.ExactNames.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void NameCertificatesLeaveOtherNamesOnTheDefaultOrRejected()
+    {
+        HostSpec host = Respond("multi", ["a.test", "uncovered.test"]) with
+        {
+            NameCertificates = new Dictionary<string, CertificateId> { ["a.test"] = TestIds.Certificate("a") },
+        };
+
+        CertificateTable withDefault = Compile(new ProxyConfigModel { Hosts = [host], Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("fallback") } }, _options).Certificates;
+        Assert.Same(_certificates["a"], withDefault.Find("a.test")!.Certificate);
+        Assert.Same(_certificates["fallback"], withDefault.Find("uncovered.test")!.Certificate);
+
+        CertificateTable without = Compile(new ProxyConfigModel { Hosts = [host] }, _options).Certificates;
+        Assert.Same(_certificates["a"], without.Find("a.test")!.Certificate);
+        Assert.Null(without.Find("uncovered.test"));
+    }
+
     public static TheoryData<string, ProxyConfigModel, bool, string> InvalidCertificates => new()
     {
+        { "name certificate for a name the host doesn't have", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { NameCertificates = new Dictionary<string, CertificateId> { ["b.test"] = TestIds.Certificate("a") } }] }, true, "'b.test', which is not one of the host's names" },
+        { "name certificate for an IPv4 literal", new ProxyConfigModel { Hosts = [Respond("a", ["a.test", "192.0.2.10"]) with { NameCertificates = new Dictionary<string, CertificateId> { ["192.0.2.10"] = TestIds.Certificate("a") } }] }, true, "the IP literal '192.0.2.10'" },
+        { "name certificate for an IPv6 literal", new ProxyConfigModel { Hosts = [Respond("a", ["a.test", "[2001:db8::10]"]) with { NameCertificates = new Dictionary<string, CertificateId> { ["[2001:DB8::10]"] = TestIds.Certificate("a") } }] }, true, "the IP literal '[2001:DB8::10]'" },
+        { "unknown name certificate", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { NameCertificates = new Dictionary<string, CertificateId> { ["a.test"] = TestIds.Certificate("nope") } }] }, true, "doesn't exist" },
+        { "name certificate without HTTPS", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Https = false, NameCertificates = new Dictionary<string, CertificateId> { ["a.test"] = TestIds.Certificate("a") } }] }, true, "a host without HTTPS can't name a certificate" },
         { "unknown host certificate", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("nope") }] }, true, $"host '{TestIds.Host("a")}': certificate '{TestIds.Certificate("nope")}' doesn't exist" },
         { "unknown default", new ProxyConfigModel { Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("nope") } }, true, $"defaults: certificate '{TestIds.Certificate("nope")}' doesn't exist" },
         { "empty ID", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = CertificateId.Empty }] }, true, "can't be empty" },

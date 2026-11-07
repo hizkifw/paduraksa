@@ -157,6 +157,15 @@ public sealed record HostSpec
     /// </summary>
     public CertificateId? Certificate { get; init; }
 
+    /// <summary>
+    /// Certificates for individual names of the host, overriding <see cref="Certificate"/> (or the default one) for
+    /// exactly those names: the key is one of <see cref="Names"/> (compared after normalisation, so any spelling of it
+    /// does), the value the certificate its handshakes get. This is how each name of a multi-name host gets the best
+    /// certificate that covers it, when no single one covers them all (Application picks per name). IP literals never
+    /// reach the certificate table, so they can't be listed. Null or empty: none.
+    /// </summary>
+    public IReadOnlyDictionary<string, CertificateId>? NameCertificates { get; init; }
+
     /// <summary>The host's TLS settings.</summary>
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
 

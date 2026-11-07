@@ -122,8 +122,10 @@ public static class SnapshotCompiler
             ServerCertificate? certificate = !spec.Https ? null
                 : spec.Certificate is null ? defaultCertificate
                 : ResolveCertificate(spec.Certificate, where, options.Certificates, errors);
+            Dictionary<string, ServerCertificate> nameCertificates = ResolveNameCertificates(spec, where, options.Certificates, errors);
             TlsPolicy tls = CompileTlsPolicy(spec.Tls, where, errors);
-            List<string> serverNames = spec.Enabled && certificate is not null ? ServerNamesOf(spec.Names ?? []) : [];
+            List<(ServerCertificate Certificate, List<string> Names)> serverNames =
+                spec.Enabled ? GroupByCertificate(ServerNamesOf(spec.Names ?? []), certificate, nameCertificates) : [];
 
             CompiledHost host = new()
             {
@@ -159,9 +161,12 @@ public static class SnapshotCompiler
                 }
             }
 
-            if (namesValid && certificate is not null && serverNames.Count > 0)
+            if (namesValid)
             {
-                AddServerNames(certificates, serverNames, certificate, tls, where, errors);
+                foreach ((ServerCertificate named, List<string> names) in serverNames)
+                {
+                    AddServerNames(certificates, names, named, tls, where, errors);
+                }
             }
 
             if (spec.Enabled)
@@ -675,6 +680,84 @@ public static class SnapshotCompiler
         }
 
         return certificate;
+    }
+
+    /// <summary>
+    /// The certificates a host names for individual names (<see cref="HostSpec.NameCertificates"/>), by normalised name.
+    /// Every entry is resolved, also for a disabled host, like the host's own certificate.
+    /// </summary>
+    private static Dictionary<string, ServerCertificate> ResolveNameCertificates(
+        HostSpec spec, CompileErrorSource where, IServerCertificateResolver? resolver, List<CompileError> errors)
+    {
+        Dictionary<string, ServerCertificate> resolved = new(StringComparer.Ordinal);
+        if (spec.NameCertificates is not { Count: > 0 } named)
+        {
+            return resolved;
+        }
+
+        if (!spec.Https)
+        {
+            errors.Add(new(where, "a host without HTTPS can't name a certificate"));
+            return resolved;
+        }
+
+        HashSet<string> hostNames = new(StringComparer.Ordinal);
+        foreach (string name in spec.Names ?? [])
+        {
+            if (HostNames.TryNormalize(name, out string normalizedName, out _, out _))
+            {
+                hostNames.Add(normalizedName);
+            }
+        }
+
+        foreach ((string name, CertificateId id) in named)
+        {
+            if (!HostNames.TryNormalize(name, out string normalized, out HostNameKind kind, out _) || !hostNames.Contains(normalized))
+            {
+                errors.Add(new(where, $"a certificate is named for '{name}', which is not one of the host's names"));
+            }
+            else if (kind == HostNameKind.IPv6Literal || (kind == HostNameKind.Exact && IpParser.TryParseIPv4(normalized, out _)))
+            {
+                errors.Add(new(where, $"a certificate is named for the IP literal '{name}', which never reaches the certificate table"));
+            }
+            else if (ResolveCertificate(id, where, resolver, errors) is { } certificate)
+            {
+                resolved[normalized] = certificate;
+            }
+        }
+
+        return resolved;
+    }
+
+    /// <summary>
+    /// The server names (<see cref="ServerNamesOf"/>) grouped by the certificate they get: the one named for the name,
+    /// else the host's. Names without one are left out (they ride the default certificate's entry, or are rejected).
+    /// Groups keep the order of their first name.
+    /// </summary>
+    private static List<(ServerCertificate Certificate, List<string> Names)> GroupByCertificate(
+        List<string> names, ServerCertificate? hostCertificate, Dictionary<string, ServerCertificate> nameCertificates)
+    {
+        List<(ServerCertificate Certificate, List<string> Names)> groups = [];
+        foreach (string name in names)
+        {
+            ServerCertificate? certificate = nameCertificates.GetValueOrDefault(name) ?? hostCertificate;
+            if (certificate is null)
+            {
+                continue;
+            }
+
+            int group = groups.FindIndex(g => ReferenceEquals(g.Certificate, certificate));
+            if (group < 0)
+            {
+                groups.Add((certificate, [name]));
+            }
+            else
+            {
+                groups[group].Names.Add(name);
+            }
+        }
+
+        return groups;
     }
 
     /// <summary>Equal specs give equal policies (records), so hosts with the same settings share one entry per certificate.</summary>
