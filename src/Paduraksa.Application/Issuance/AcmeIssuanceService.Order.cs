@@ -41,8 +41,15 @@ public sealed partial class AcmeIssuanceService
         // The vault already attached this order's chain (a restart or a failed registration caught it): only the registration is left.
         if (row.AttachedInfo is { } attached)
         {
-            LogStep(row.CertificateId, "registering the attached certificate");
-            return await RegisterIssuedAsync(attempt, JsonSerializer.Deserialize<CertificateInfo>(attached)!).ConfigureAwait(false);
+            if (ReadAttached(attached) is { } info)
+            {
+                LogStep(row.CertificateId, "registering the attached certificate");
+                return await RegisterIssuedAsync(attempt, info).ConfigureAwait(false);
+            }
+
+            // Unreadable saved facts (a hand edit, another build): nothing can be registered from them, so start over with a new order.
+            LogStep(row.CertificateId, "the saved certificate facts are unreadable; starting a new order");
+            await UpdateAsync(row, Forget, cancellationToken).ConfigureAwait(false);
         }
 
         AcmeOrder? order = await FindUsableOrderAsync(attempt, cancellationToken).ConfigureAwait(false);
@@ -545,6 +552,18 @@ public sealed partial class AcmeIssuanceService
         row.NextRenewalAt = renewAt;
         LogRenewalInfo(row.CertificateId, renewAt);
         return info;
+    }
+
+    private static CertificateInfo? ReadAttached(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<CertificateInfo>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Forgets the stored order and everything that belongs to it: the next run makes a new order.</summary>
