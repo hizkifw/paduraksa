@@ -8,5 +8,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
   </ItemGroup>
 </Project>

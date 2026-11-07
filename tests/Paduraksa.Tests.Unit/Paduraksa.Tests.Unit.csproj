@@ -8,5 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Paduraksa.Core/Paduraksa.Core.csproj" />
+    <!-- Pure Application logic (the audit chain encoding). -->
+    <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
   </ItemGroup>
 </Project>
