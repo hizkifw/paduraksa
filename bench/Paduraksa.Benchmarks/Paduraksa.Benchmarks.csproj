@@ -1,7 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Hot-path micro-benchmarks (PLAN §7.1, §15); see bench/README.md.
+    GC: workstation and non-concurrent. The benchmarks run in-process (Program.cs), so this project's runtimeconfig is
+    the GC they see, and BenchmarkDotNet's Allocated column is wrong under Server GC with the in-process toolchain
+    (spike S3). Non-concurrent keeps the background GC thread out of the timings. The proxy itself runs Server GC; that
+    changes throughput, not what our code allocates.
+  -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
