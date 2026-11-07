@@ -2,14 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Model;
 using Paduraksa.Data.Audit;
 using Paduraksa.Data.Ids;
+using Paduraksa.Data.Projection;
 using Paduraksa.Data.Revisions;
 using Paduraksa.Data.Storage;
 
 namespace Paduraksa.Data;
 
 /// <summary>
-/// The config database (<c>data/paduraksa.db</c>, PLAN §5): revisions, audit and, from the next M2 wave, the
-/// projection of the latest revision's config entities. Entities are internal to Data and Application; nothing
+/// The config database (<c>data/paduraksa.db</c>, PLAN §5): revisions, audit and the projection of the latest
+/// revision's config entities (<see cref="Projection.GlobalSettingsRow"/>). Entities are internal to Data and Application; nothing
 /// outside them sees a row type. Create contexts from the registered <see cref="IDbContextFactory{TContext}"/>
 /// (<see cref="Sqlite.PaduraksaSqlite.AddPaduraksaDbContextFactory{TContext}"/>); the schema comes from migrations
 /// (applied at startup by <c>ConfigDatabase.InitializeAsync</c>).
@@ -24,6 +25,20 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
 
     internal DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
+    internal DbSet<GlobalSettingsRow> GlobalSettings => Set<GlobalSettingsRow>();
+
+    internal DbSet<ProfileRow> Profiles => Set<ProfileRow>();
+
+    internal DbSet<UpstreamRow> Upstreams => Set<UpstreamRow>();
+
+    internal DbSet<DestinationRow> Destinations => Set<DestinationRow>();
+
+    internal DbSet<HostRow> Hosts => Set<HostRow>();
+
+    internal DbSet<HostNameRow> HostNames => Set<HostNameRow>();
+
+    internal DbSet<RouteRow> Routes => Set<RouteRow>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.AddTypedIdConventions();
@@ -37,5 +52,12 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
     {
         modelBuilder.ApplyConfiguration(new ConfigRevisionConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEventConfiguration());
+        modelBuilder.ApplyConfiguration(new GlobalSettingsRowConfiguration());
+        modelBuilder.ApplyConfiguration(new ProfileRowConfiguration());
+        modelBuilder.ApplyConfiguration<UpstreamRow>(new UpstreamRowConfiguration());
+        modelBuilder.ApplyConfiguration<DestinationRow>(new UpstreamRowConfiguration());
+        modelBuilder.ApplyConfiguration<HostRow>(new HostRowConfiguration());
+        modelBuilder.ApplyConfiguration<HostNameRow>(new HostRowConfiguration());
+        modelBuilder.ApplyConfiguration<RouteRow>(new HostRowConfiguration());
     }
 }

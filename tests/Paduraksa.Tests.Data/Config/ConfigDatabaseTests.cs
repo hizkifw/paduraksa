@@ -34,7 +34,9 @@ public sealed class ConfigDatabaseTests
         Assert.Empty(result.ObservedKeys);
         Assert.Empty(await context.Database.GetPendingMigrationsAsync(Ct));
         var tables = await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
-        Assert.Equal(["AuditEvents", "ConfigRevisions", "__EFMigrationsHistory", "__EFMigrationsLock"], tables.Select(r => (string)r[0]!).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            ["AuditEvents", "ConfigRevisions", "Destinations", "GlobalSettings", "HostNames", "Hosts", "Profiles", "Routes", "Upstreams", "__EFMigrationsHistory", "__EFMigrationsLock"],
+            tables.Select(r => (string)r[0]!).Order(StringComparer.Ordinal));
         Assert.Equal("wal", await db.ScalarAsync("PRAGMA journal_mode"));
     }
 
