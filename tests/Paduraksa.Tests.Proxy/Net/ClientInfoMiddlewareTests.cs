@@ -19,7 +19,7 @@ public sealed class ClientInfoMiddlewareTests
         new(CidrSet.Parse(["10.0.0.0/24"])) { HeaderTimeout = timeout ?? TimeSpan.FromSeconds(5) };
 
     [Fact]
-    public async Task WithoutProxyProtocol_TakesTheSocketPeer()
+    public async Task WithoutProxyProtocolTakesTheSocketPeer()
     {
         var (middleware, seen) = Build(null);
         var connection = new TestConnection(new IPEndPoint(IPAddress.Parse("::ffff:192.0.2.44"), 5555));
@@ -35,7 +35,7 @@ public sealed class ClientInfoMiddlewareTests
     }
 
     [Fact]
-    public async Task NonIpEndPoint_GivesUnspecifiedAddress()
+    public async Task NonIpEndPointGivesTheUnspecifiedAddress()
     {
         var (middleware, seen) = Build(null);
         await middleware.OnConnectionAsync(new TestConnection(null));
@@ -45,7 +45,7 @@ public sealed class ClientInfoMiddlewareTests
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
-    public async Task TrustedSourceWithHeader_SetsClientInfoAndLeavesThePayload(int version)
+    public async Task TrustedSourceWithHeaderSetsClientInfoAndLeavesThePayload(int version)
     {
         var options = Options();
         var (middleware, seen, payloads) = BuildReadingPayload(options);
@@ -69,7 +69,7 @@ public sealed class ClientInfoMiddlewareTests
     }
 
     [Fact]
-    public async Task HeaderArrivingInPieces_IsAssembled()
+    public async Task HeaderArrivingInPiecesIsAssembled()
     {
         var options = Options();
         var (middleware, seen, payloads) = BuildReadingPayload(options);
@@ -93,7 +93,7 @@ public sealed class ClientInfoMiddlewareTests
     [Theory]
     [InlineData(0, 1)] // LOCAL
     [InlineData(1, 0)] // AF_UNSPEC
-    public async Task LocalOrUnspecified_UsesTheSocketPeer(int command, int family)
+    public async Task LocalOrUnspecifiedHeaderUsesTheSocketPeer(int command, int family)
     {
         var options = Options();
         var (middleware, seen, _) = BuildReadingPayload(options);
@@ -111,7 +111,7 @@ public sealed class ClientInfoMiddlewareTests
     }
 
     [Fact]
-    public async Task UntrustedSource_IsAbortedWithoutReading()
+    public async Task UntrustedSourceIsAbortedWithoutReading()
     {
         var options = Options();
         var (middleware, seen) = Build(options);
@@ -129,7 +129,7 @@ public sealed class ClientInfoMiddlewareTests
     }
 
     [Fact]
-    public async Task TrustedSourceWithoutHeader_IsAborted()
+    public async Task TrustedSourceWithoutHeaderIsAborted()
     {
         var options = Options();
         var (middleware, seen) = Build(options);
@@ -144,7 +144,7 @@ public sealed class ClientInfoMiddlewareTests
     }
 
     [Fact]
-    public async Task ClosedBeforeTheHeader_IsAborted()
+    public async Task ClosedBeforeTheHeaderIsAborted()
     {
         var options = Options();
         var (middleware, seen) = Build(options);
@@ -160,7 +160,7 @@ public sealed class ClientInfoMiddlewareTests
     }
 
     [Fact]
-    public async Task SlowOrSilentPeer_TimesOut()
+    public async Task SlowOrSilentPeerTimesOut()
     {
         var options = Options(TimeSpan.FromMilliseconds(200));
         var (middleware, seen) = Build(options);
@@ -232,7 +232,7 @@ public sealed class ClientInfoMiddlewareTests
 
     /// <summary>Malformed, truncated and random input never throws and never outlives the timeout.</summary>
     [Fact]
-    public async Task Fuzz_MalformedInput_NeverThrowsOrHangs()
+    public async Task FuzzMalformedInputNeverThrowsOrHangs()
     {
         var random = new Random(7239);
         var timeout = TimeSpan.FromMilliseconds(100);

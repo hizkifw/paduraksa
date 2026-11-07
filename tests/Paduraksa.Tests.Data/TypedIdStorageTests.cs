@@ -13,7 +13,7 @@ public sealed class TypedIdStorageTests
     private static readonly DateTimeOffset Now = new(2026, 11, 6, 12, 34, 56, 789, TimeSpan.Zero);
 
     [Fact]
-    public async Task UuidV7_IsA16ByteBigEndianBlob_StartingWithTheTimestamp()
+    public async Task UuidV7IsA16ByteBigEndianBlobStartingWithTheTimestamp()
     {
         await using var db = await CreateAsync();
         var id = HostId.FromValue(new UuidV7Generator(new ManualTimeProvider(Now)).Next());
@@ -30,7 +30,7 @@ public sealed class TypedIdStorageTests
     }
 
     [Fact]
-    public async Task UuidV4_IsA16ByteBigEndianBlob()
+    public async Task UuidV4IsA16ByteBigEndianBlob()
     {
         await using var db = await CreateAsync();
         var host = new Host { Id = HostId.New(), Name = "h" };
@@ -47,7 +47,7 @@ public sealed class TypedIdStorageTests
     }
 
     [Fact]
-    public async Task Int64Ordered_IsAnInteger_HoldingTheIdValue()
+    public async Task Int64OrderedIsAnIntegerHoldingTheIdValue()
     {
         await using var db = await CreateAsync();
         var first = new AuditEvent { Id = AuditEventId.New(), Action = "a" };
@@ -60,7 +60,7 @@ public sealed class TypedIdStorageTests
     }
 
     [Fact]
-    public async Task NullableIds_AreSqlNull_AndColumnComplexTypesUseColumnStorage()
+    public async Task NullableIdsAreSqlNullAndColumnComplexTypesUseColumnStorage()
     {
         await using var db = await CreateAsync();
         var host = new Host { Id = HostId.New(), Name = "h" };
@@ -82,7 +82,7 @@ public sealed class TypedIdStorageTests
     }
 
     [Fact]
-    public async Task InsideJson_EveryKindIsItsCanonicalString()
+    public async Task InsideJsonEveryKindIsItsCanonicalString()
     {
         await using var db = await CreateAsync();
         var settings = new HostSettings
@@ -113,7 +113,7 @@ public sealed class TypedIdStorageTests
     }
 
     [Fact]
-    public async Task Int64OrderedKey_IsTheRowidAlias_WithoutAutoincrement()
+    public async Task Int64OrderedKeyIsTheRowidAliasWithoutAutoincrement()
     {
         await using var db = await CreateAsync();
         var ddl = (string)(await db.ScalarAsync("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'AuditEvents'"))!;
@@ -128,7 +128,7 @@ public sealed class TypedIdStorageTests
     }
 
     [Fact]
-    public async Task Int64OrderedKey_IsNotGeneratedByTheDatabase()
+    public async Task Int64OrderedKeyIsNotGeneratedByTheDatabase()
     {
         await using var db = await CreateAsync();
         var id = AuditEventId.FromValue(123);
@@ -138,7 +138,7 @@ public sealed class TypedIdStorageTests
     }
 
     [Fact]
-    public async Task EveryTypedIdProperty_HasTheConventionConverterAndIsNeverGenerated()
+    public async Task EveryTypedIdPropertyHasTheConventionConverterAndIsNeverGenerated()
     {
         await using var db = await CreateAsync();
         await using var context = db.NewContext();

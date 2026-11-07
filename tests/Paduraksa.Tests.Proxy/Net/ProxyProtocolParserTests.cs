@@ -13,7 +13,7 @@ public sealed class ProxyProtocolParserTests
     [InlineData("PROXY TCP6 2001:db8::1 2001:db8::2 1 2\r\n", "2001:db8::1", 1, "2001:db8::2", 2)]
     [InlineData("PROXY TCP6 ::ffff:203.0.113.7 ::1 1 2\r\n", "203.0.113.7", 1, "::1", 2)]
     [InlineData("PROXY TCP6 ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff 65535 65535\r\n", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", 65535, "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", 65535)]
-    public void V1_Valid(string line, string source, int sourcePort, string destination, int destinationPort)
+    public void V1ValidHeadersParse(string line, string source, int sourcePort, string destination, int destinationPort)
     {
         var bytes = V1(line + "GET / HTTP/1.1\r\n");
         Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out int consumed));
@@ -30,7 +30,7 @@ public sealed class ProxyProtocolParserTests
     [Theory]
     [InlineData("PROXY UNKNOWN\r\n")]
     [InlineData("PROXY UNKNOWN ffff:f...f:ffff ffff:f...f:ffff 65535 65535\r\n")]
-    public void V1_Unknown_HasNoAddresses(string line)
+    public void V1UnknownHasNoAddresses(string line)
     {
         Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(V1(line), out var header, out int consumed));
         Assert.Equal(line.Length, consumed);
@@ -61,11 +61,11 @@ public sealed class ProxyProtocolParserTests
     [InlineData("proxy TCP4 203.0.113.7 192.0.2.1 50123 443\r\n")]
     [InlineData("GET / HTTP/1.1\r\n")]
     [InlineData("\x16\x03\x01")]
-    public void V1_Invalid(string line) =>
+    public void V1InvalidHeadersAreRejected(string line) =>
         Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse(V1(line), out _, out int _));
 
     [Fact]
-    public void V1_LongerThan107BytesIsInvalid()
+    public void V1LongerThan107BytesIsInvalid()
     {
         var line = "PROXY UNKNOWN " + new string('x', 200) + "\r\n";
         Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse(V1(line), out _, out int _));
@@ -76,7 +76,7 @@ public sealed class ProxyProtocolParserTests
     }
 
     [Fact]
-    public void V2_Inet()
+    public void V2InetParses()
     {
         var bytes = Concat(V2(), V1("rest"));
         Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out int consumed));
@@ -91,7 +91,7 @@ public sealed class ProxyProtocolParserTests
     }
 
     [Fact]
-    public void V2_Inet6WithTlvs()
+    public void V2Inet6WithTlvsParses()
     {
         var bytes = V2(family: 2, source: "2001:db8::77", destination: "2001:db8::1", tlvBytes: 300);
         Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out int consumed));
@@ -107,7 +107,7 @@ public sealed class ProxyProtocolParserTests
     [InlineData(1, 0, 0)] // PROXY, AF_UNSPEC
     [InlineData(1, 3, 1)] // PROXY, AF_UNIX
     [InlineData(1, 1, 0)] // PROXY, INET, transport UNSPEC
-    public void V2_WithoutAddresses(int command, int family, int transport)
+    public void V2WithoutAddresses(int command, int family, int transport)
     {
         var bytes = V2(command: command, family: family, transport: transport);
         Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out int consumed));
@@ -117,7 +117,7 @@ public sealed class ProxyProtocolParserTests
     }
 
     [Fact]
-    public void V2_Invalid()
+    public void V2InvalidHeadersAreRejected()
     {
         Assert.Equal(ProxyProtocolParseStatus.Invalid, Parse(V2(version: 1)));
         Assert.Equal(ProxyProtocolParseStatus.Invalid, Parse(V2(version: 3)));
@@ -138,7 +138,7 @@ public sealed class ProxyProtocolParserTests
     }
 
     [Fact]
-    public void V2_MaxLengthIsConfigurable()
+    public void V2MaxLengthIsConfigurable()
     {
         var bytes = V2(tlvBytes: 5000);
         Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out _, out int _, maxV2Length: 8192));

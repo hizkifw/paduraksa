@@ -145,7 +145,7 @@ public sealed class CidrSetTests
     }
 
     [Fact]
-    public void Fuzz_MatchesNaiveContains()
+    public void FuzzMatchesNaiveContains()
     {
         var random = new Random(1918);
         for (var round = 0; round < 50; round++)

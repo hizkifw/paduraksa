@@ -32,7 +32,7 @@ public sealed class SqliteSetupTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ContextFactory_OpensConnectionsWithThePlanSettings()
+    public async Task ContextFactoryOpensConnectionsWithThePlanSettings()
     {
         await using var context = await Factory.CreateDbContextAsync(Ct);
         await context.Database.OpenConnectionAsync(Ct);
@@ -46,7 +46,7 @@ public sealed class SqliteSetupTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Pragmas_RunOncePerPhysicalConnection_NotOnEveryOpen()
+    public async Task PragmasRunOncePerPhysicalConnectionNotOnEveryOpen()
     {
         // Change a setting behind the interceptor's back; if the pragmas re-ran on the next (pooled) open, it would
         // be reset to NORMAL.
@@ -77,7 +77,7 @@ public sealed class SqliteSetupTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ForeignKeys_AreEnforcedBecauseOfTheConnectionString()
+    public async Task ForeignKeysAreEnforcedBecauseOfTheConnectionString()
     {
         // The bundled SQLite may already default foreign_keys to on, so prove the setting itself: turned off
         // explicitly, the same orphan insert succeeds.
@@ -98,7 +98,7 @@ public sealed class SqliteSetupTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task BusyWriter_FailsAfterTheBusyTimeout_NotMicrosoftDataSqlites30Seconds()
+    public async Task BusyWriterFailsAfterTheBusyTimeoutNotMicrosoftDataSqlites30Seconds()
     {
         await using var holder = new SqliteConnection(PaduraksaSqlite.ConnectionString(DatabasePath));
         await holder.OpenAsync(Ct);

@@ -7,7 +7,7 @@ namespace Paduraksa.Tests.Data;
 public sealed class TypedIdCollectionTests
 {
     [Fact]
-    public async Task ColumnList_RoundTrips_AsAJsonArrayOfStrings()
+    public async Task ColumnListRoundTripsAsAJsonArrayOfStrings()
     {
         await using var db = await CreateAsync();
         var host = new Host { Id = HostId.New(), Name = "h" };
@@ -21,7 +21,7 @@ public sealed class TypedIdCollectionTests
     }
 
     [Fact]
-    public async Task JsonList_RoundTrips_AsAJsonArrayOfStrings()
+    public async Task JsonListRoundTripsAsAJsonArrayOfStrings()
     {
         await using var db = await CreateAsync();
         var allowed = new List<RouteId> { RouteId.New(), RouteId.New() };
@@ -35,7 +35,7 @@ public sealed class TypedIdCollectionTests
     }
 
     [Fact]
-    public async Task Contains_OnAList_TranslatesToJsonEach()
+    public async Task ContainsOnAListTranslatesToJsonEach()
     {
         await using var db = await CreateAsync();
         var host = new Host { Id = HostId.New(), Name = "h", Settings = { AllowedRouteIds = [RouteId.New()] } };

@@ -9,7 +9,7 @@ namespace Paduraksa.Tests.Data;
 public sealed class TypedIdConventionTests
 {
     [Fact]
-    public async Task ExplicitConfiguration_WinsOverTheConvention()
+    public async Task ExplicitConfigurationWinsOverTheConvention()
     {
         await using var model = await ModelDatabase.CreateAsync(m => m.Entity<AuditEvent>(audit =>
         {
@@ -23,7 +23,7 @@ public sealed class TypedIdConventionTests
     }
 
     [Fact]
-    public void WithoutTheConventions_TypedIdsAreNotMappable()
+    public void WithoutTheConventionsTypedIdsAreNotMappable()
     {
         // Documents why AddTypedIdConventions is required: EF has no idea what a typed ID is on its own.
         using var context = new ModelContext(m => m.Entity<Challenge>(), conventions: false);
@@ -33,7 +33,7 @@ public sealed class TypedIdConventionTests
     }
 
     [Fact]
-    public async Task TablePerType_DerivedKeyKeepsItsConverter()
+    public async Task TablePerTypeDerivedKeyKeepsItsConverter()
     {
         // The TPT link (derived Id -> base Id) rebuilds the derived key without the convention's converter; the
         // finalizing pass restores it.
@@ -52,7 +52,7 @@ public sealed class TypedIdConventionTests
     }
 
     [Fact]
-    public async Task OnlyPropertiesWithASetter_AreMapped_LikeEfDoesForGuid()
+    public async Task OnlyPropertiesWithASetterAreMappedLikeEfDoesForGuid()
     {
         await using var model = await ModelDatabase.CreateAsync(m => m.Entity<Computed>());
         await using var context = model.NewContext();
@@ -69,7 +69,7 @@ public sealed class TypedIdConventionTests
     }
 
     [Fact]
-    public void OwnedTypeMappedToJson_IsRejected()
+    public void OwnedTypeMappedToJsonIsRejected()
     {
         using var context = new ModelContext(m => m.Entity<Owner>().OwnsOne(o => o.Blob, b => b.ToJson()));
 

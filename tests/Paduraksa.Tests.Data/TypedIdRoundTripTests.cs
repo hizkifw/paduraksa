@@ -7,7 +7,7 @@ namespace Paduraksa.Tests.Data;
 public sealed class TypedIdRoundTripTests
 {
     [Fact]
-    public async Task UuidV7_RoundTrips_AsKeyForeignKeyAndNullable()
+    public async Task UuidV7RoundTripsAsKeyForeignKeyAndNullable()
     {
         await using var db = await CreateAsync();
         var parent = new Host { Id = HostId.New(), Name = "parent" };
@@ -27,7 +27,7 @@ public sealed class TypedIdRoundTripTests
     }
 
     [Fact]
-    public async Task UuidV4_RoundTrips_AsKeyAndNullable()
+    public async Task UuidV4RoundTripsAsKeyAndNullable()
     {
         await using var db = await CreateAsync();
         var host = new Host { Id = HostId.New(), Name = "h" };
@@ -45,7 +45,7 @@ public sealed class TypedIdRoundTripTests
     }
 
     [Fact]
-    public async Task Int64Ordered_RoundTrips_AsKeyForeignKeyAndNullable()
+    public async Task Int64OrderedRoundTripsAsKeyForeignKeyAndNullable()
     {
         await using var db = await CreateAsync();
         var first = new AuditEvent { Id = AuditEventId.New(), Action = "create" };
@@ -65,7 +65,7 @@ public sealed class TypedIdRoundTripTests
     }
 
     [Fact]
-    public async Task EveryKind_RoundTrips_InsideJsonComplexType()
+    public async Task EveryKindRoundTripsInsideJsonComplexType()
     {
         await using var db = await CreateAsync();
         var settings = new HostSettings
@@ -106,7 +106,7 @@ public sealed class TypedIdRoundTripTests
     }
 
     [Fact]
-    public async Task TrackedEntity_KeepsIdentity_AndUpdatesByTypedKey()
+    public async Task TrackedEntityKeepsIdentityAndUpdatesByTypedKey()
     {
         await using var db = await CreateAsync();
         var host = new Host { Id = HostId.New(), Name = "before" };
@@ -129,7 +129,7 @@ public sealed class TypedIdRoundTripTests
     }
 
     [Fact]
-    public async Task ForeignKeys_AreEnforced_OnTypedIdColumns()
+    public async Task ForeignKeysAreEnforcedOnTypedIdColumns()
     {
         await using var db = await CreateAsync();
         var orphan = new Route { Id = RouteId.New(), HostId = HostId.New() };

@@ -33,7 +33,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     public async ValueTask DisposeAsync() => await _db.DisposeAsync();
 
     [Fact]
-    public async Task Equality_TranslatesToAParameterComparison()
+    public async Task EqualityTranslatesToAParameterComparison()
     {
         await using var context = _db.NewContext();
         var id = _hosts[3].Id;
@@ -45,7 +45,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Inequality_TranslatesToNotEqual()
+    public async Task InequalityTranslatesToNotEqual()
     {
         await using var context = _db.NewContext();
         var id = _hosts[3].Id;
@@ -56,7 +56,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task NullableEquality_AndNullChecks_Translate()
+    public async Task NullableEqualityAndNullChecksTranslate()
     {
         await using var context = _db.NewContext();
         ChallengeId? challengeId = (await context.Challenges.SingleAsync(Ct)).Id;
@@ -70,7 +70,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Contains_OverAListOfIds_TranslatesToIn()
+    public async Task ContainsOverAListOfIdsTranslatesToIn()
     {
         await using var context = _db.NewContext();
         List<HostId> ids = [_hosts[1].Id, _hosts[4].Id, _hosts[7].Id, HostId.New()];
@@ -85,7 +85,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task OrderBy_TranslatesToOrderByTheColumn()
+    public async Task OrderByTranslatesToOrderByTheColumn()
     {
         await using var context = _db.NewContext();
         var ascending = context.Hosts.OrderBy(h => h.Id).Select(h => h.Id);
@@ -98,7 +98,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ComparisonOperators_TranslateToSqlComparisons()
+    public async Task ComparisonOperatorsTranslateToSqlComparisons()
     {
         await using var context = _db.NewContext();
         var cursor = _hosts[4].Id;
@@ -118,7 +118,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CompareTo_TranslatesLikeTheOperators()
+    public async Task CompareToTranslatesLikeTheOperators()
     {
         await using var context = _db.NewContext();
         var cursor = _hosts[4].Id;
@@ -129,7 +129,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CursorPagination_WalksEveryRowOnceInIdOrder()
+    public async Task CursorPaginationWalksEveryRowOnceInIdOrder()
     {
         await using var context = _db.NewContext();
         var forward = await Paginate(context.Hosts, h => h.Id, pageSize: 3, descending: false);
@@ -140,7 +140,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task JsonMembers_CompareAsCanonicalStrings()
+    public async Task JsonMembersCompareAsCanonicalStrings()
     {
         await using var context = _db.NewContext();
         var routeId = _hosts[5].Settings.DefaultRouteId;
@@ -154,7 +154,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task JsonIds_NeverEqualColumnIds_InSql()
+    public async Task JsonIdsNeverEqualColumnIdsInSql()
     {
         // Hard rule (PLAN §4.2/§5.3): an ID inside a JSON document is TEXT, a column ID is a BLOB/INTEGER, so SQL never
         // finds them equal. References inside JSON settings are resolved in memory by the snapshot compiler, never
@@ -181,7 +181,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ValueMemberAccess_IsNotTranslated_UseTheIdItself()
+    public async Task ValueMemberAccessIsNotTranslatedSoUseTheIdItself()
     {
         // EF can't see through a value converter, so `.Value` is client-side and EF refuses it. Compare IDs directly
         // (the operators above translate); this test pins that behaviour so a future EF change is noticed.

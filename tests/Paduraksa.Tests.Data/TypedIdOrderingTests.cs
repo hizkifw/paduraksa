@@ -13,7 +13,7 @@ public sealed class TypedIdOrderingTests
     private static readonly DateTimeOffset Start = new(2026, 11, 6, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task UuidV7_SqlOrder_IsCreationOrder_IncludingWithinOneMillisecond()
+    public async Task UuidV7SqlOrderIsCreationOrderIncludingWithinOneMillisecond()
     {
         var clock = new ManualTimeProvider(Start);
         var generator = new UuidV7Generator(clock);
@@ -34,7 +34,7 @@ public sealed class TypedIdOrderingTests
     }
 
     [Fact]
-    public async Task UuidV4_SqlOrder_MatchesCompareToAndStringOrder()
+    public async Task UuidV4SqlOrderMatchesCompareToAndStringOrder()
     {
         // Random IDs have no creation order, but BLOB order must still equal CompareTo and string order.
         var host = new Host { Id = HostId.New(), Name = "h" };
@@ -47,7 +47,7 @@ public sealed class TypedIdOrderingTests
     }
 
     [Fact]
-    public async Task Int64Ordered_SqlOrder_IsCreationOrder_IncludingWithinOneMillisecond()
+    public async Task Int64OrderedSqlOrderIsCreationOrderIncludingWithinOneMillisecond()
     {
         var clock = new ManualTimeProvider(Start);
         var generator = new Int64OrderedIdGenerator(clock);
@@ -68,7 +68,7 @@ public sealed class TypedIdOrderingTests
     }
 
     [Fact]
-    public async Task JsonIds_SqlStringOrder_MatchesCompareTo()
+    public async Task JsonIdsSqlStringOrderMatchesCompareTo()
     {
         var clock = new ManualTimeProvider(Start);
         var generator = new UuidV7Generator(clock);

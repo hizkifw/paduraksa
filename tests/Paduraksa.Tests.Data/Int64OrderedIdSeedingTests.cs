@@ -12,7 +12,7 @@ public sealed class Int64OrderedIdSeedingTests
     private static readonly DateTimeOffset Now = new(2026, 11, 6, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task Observe_MaxPersistedId_KeepsNewIdsAboveIt_WhenTheClockIsBehind()
+    public async Task ObserveMaxPersistedIdKeepsNewIdsAboveItWhenTheClockIsBehind()
     {
         // IDs persisted by a previous run whose clock was an hour ahead of ours.
         var previousRun = new Int64OrderedIdGenerator(new ManualTimeProvider(Now.AddHours(1)));
@@ -32,7 +32,7 @@ public sealed class Int64OrderedIdSeedingTests
     }
 
     [Fact]
-    public async Task Observe_EmptyTables_LeavesTheGeneratorAlone()
+    public async Task ObserveEmptyTablesLeavesTheGeneratorAlone()
     {
         await using var db = await CreateAsync();
         var generator = new Int64OrderedIdGenerator(new ManualTimeProvider(Now));
@@ -45,7 +45,7 @@ public sealed class Int64OrderedIdSeedingTests
     }
 
     [Fact]
-    public async Task Observe_OnlyLooksAtInt64OrderedPrimaryKeys()
+    public async Task ObserveOnlyLooksAtInt64OrderedPrimaryKeys()
     {
         // A nullable Int64Ordered column elsewhere (Routes.Origin_CreatedByAuditId) holds a larger value, but it isn't a
         // key this generator feeds, and Guid-keyed tables are skipped.
@@ -66,7 +66,7 @@ public sealed class Int64OrderedIdSeedingTests
     }
 
     [Fact]
-    public async Task Observe_TheSqlItRuns_IsAMaxOverTheRowidKey_NotAScan()
+    public async Task ObserveTheSqlItRunsIsAMaxOverTheRowidKeyNotAScan()
     {
         await using var db = await CreateAsync();
         var capture = new CommandCapture();

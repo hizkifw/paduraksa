@@ -163,7 +163,7 @@ public sealed class IpParserTests
     // ---------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void Fuzz_RandomStrings_NeverAcceptWhatTheBclRejects()
+    public void FuzzRandomStringsNeverAcceptWhatTheBclRejects()
     {
         const string Alphabet = "0123456789abcdefABCDEF:::...%[]x -/0";
         var random = new Random(20261106);
@@ -185,7 +185,7 @@ public sealed class IpParserTests
     }
 
     [Fact]
-    public void Fuzz_NonCanonicalValidForms_AcceptedAndEqualToBcl()
+    public void FuzzNonCanonicalValidFormsAreAcceptedAndEqualToBcl()
     {
         var random = new Random(4291);
         for (var i = 0; i < 100_000; i++)
@@ -204,7 +204,7 @@ public sealed class IpParserTests
     }
 
     [Fact]
-    public void Fuzz_MutatedValidForms_NeverAcceptWhatTheBclRejects()
+    public void FuzzMutatedValidFormsNeverAcceptWhatTheBclRejects()
     {
         const string Alphabet = "0123456789abcdefABCDEF:.%[] ";
         var random = new Random(5952);
