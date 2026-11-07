@@ -309,7 +309,8 @@ public sealed partial class AcmeIssuanceTests
 
         Assert.Equal(IssuanceOutcome.Issued, renewed.Outcome);
         Assert.Equal(id, renewed.CertificateId);
-        Assert.NotEqual(first.Certificate!.Sha256Fingerprint, renewed.Certificate!.Sha256Fingerprint);
+        // The fake CA serves the same leaf every time (its fingerprint is that leaf's), so the new facts are told by the serial.
+        Assert.NotEqual(first.Certificate!.SerialNumber, renewed.Certificate!.SerialNumber);
         Assert.True(renewed.Certificate.NotAfter > first.Certificate.NotAfter);
         Assert.Equal(2, h.Server.OrderCount);
         // The CA is told which certificate this order replaces (ARI), by the first certificate's AKI and serial.
@@ -586,6 +587,64 @@ public sealed partial class AcmeIssuanceTests
         Assert.Single(h.Vault.Csrs);
         Assert.Equal(AcmeOrderStatus.Valid, (await h.OrderAsync(id)).Status);
         Assert.Null(await h.Config.Db.ScalarAsync("SELECT AttachedInfo FROM AcmeOrders"));
+    }
+
+    [Fact]
+    public async Task AChainTheVaultAttachedBeforeACrashLostTheRecordIsRegisteredFromTheVaultsDescription()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var account = await h.CreateAccountAsync();
+        // The hard crash the saved facts can't cover: the vault stored the new pair, and the process died before it could say so.
+        h.Vault.AfterAttach = () => throw new IOException("the process died");
+        var crashed = await h.Issuance.RequestCertificateAsync(Http01(account.Id, "example.com"), Admin, Ct);
+        Assert.Equal(IssuanceOutcome.Failed, crashed.Outcome);
+        var id = crashed.CertificateId!.Value;
+        Assert.Equal(CertificateStatus.Failed, (await h.CertificateAsync(id)).Status);
+        h.Vault.AfterAttach = null;
+
+        var resumed = await h.NewIssuance().RenewAsync(id, Admin, Ct);
+
+        // The staged key is spent, but the vault describes the chain this very order produced: nothing is attached or ordered again.
+        Assert.Equal(IssuanceOutcome.Issued, resumed.Outcome);
+        Assert.Equal(h.Vault.Issued[0].Sha256Fingerprint, resumed.Certificate!.Sha256Fingerprint);
+        Assert.Equal(h.Vault.Issued[0].Sha256Fingerprint, (await h.CertificateAsync(id)).Sha256Fingerprint);
+        Assert.Equal(CertificateStatus.Active, (await h.CertificateAsync(id)).Status);
+        Assert.Equal(1, h.Server.OrderCount);
+        Assert.Single(h.Vault.Attached);
+        Assert.Single(h.Vault.Csrs);
+        var order = await h.OrderAsync(id);
+        Assert.Equal((AcmeOrderStatus.Valid, 0), (order.Status, order.Attempts));
+        Assert.NotNull(order.NextRenewalAt);
+        Assert.Null(await h.Config.Db.ScalarAsync("SELECT AttachedInfo FROM AcmeOrders"));
+    }
+
+    [Fact]
+    public async Task ASpentStagedKeyIsNotRepairedWhenTheVaultHoldsAnotherLeaf()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var account = await h.CreateAccountAsync();
+        h.Vault.AfterAttach = () => throw new IOException("the process died");
+        var crashed = await h.Issuance.RequestCertificateAsync(Http01(account.Id, "example.com"), Admin, Ct);
+        var id = crashed.CertificateId!.Value;
+        h.Vault.AfterAttach = null;
+        // Someone replaced the certificate in the meantime: the vault holds another leaf, not this order's.
+        using var otherKey = System.Security.Cryptography.ECDsa.Create();
+        using var other = new System.Security.Cryptography.X509Certificates.CertificateRequest("CN=other.example.com", otherKey, System.Security.Cryptography.HashAlgorithmName.SHA256)
+            .CreateSelfSigned(h.Time.GetUtcNow().AddDays(-1), h.Time.GetUtcNow().AddDays(30));
+        var otherPem = other.ExportCertificatePem();
+        var held = h.Vault.Issued[0] with
+        {
+            PublicChainPem = otherPem,
+            Sha256Fingerprint = Convert.ToHexStringLower(other.GetCertHash(System.Security.Cryptography.HashAlgorithmName.SHA256)),
+        };
+        Assert.NotEqual(h.Vault.Issued[0].Sha256Fingerprint, held.Sha256Fingerprint);
+        h.Vault.Hold(id, held);
+
+        var resumed = await h.NewIssuance().RenewAsync(id, Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Failed, resumed.Outcome);
+        Assert.NotEqual(CertificateStatus.Active, (await h.CertificateAsync(id)).Status);
+        Assert.Single(h.Vault.Attached);
     }
 
     [Fact]

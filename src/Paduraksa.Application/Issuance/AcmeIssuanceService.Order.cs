@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -349,12 +350,48 @@ public sealed partial class AcmeIssuanceService
 
         Uri certificateUrl = order.Certificate ?? throw new AcmeProtocolException("The order is valid but has no certificate URL.");
         AcmeCertificateDownload download = await attempt.Client.DownloadCertificateAsync(attempt.Ref, certificateUrl, row.PreferredChain, cancellationToken).ConfigureAwait(false);
-        CertificateInfo info = await _vault.AttachChainAsync(row.CertificateId, staged, Encoding.ASCII.GetBytes(download.PemChain), cancellationToken).ConfigureAwait(false);
+        CertificateInfo info;
+        try
+        {
+            info = await _vault.AttachChainAsync(row.CertificateId, staged, Encoding.ASCII.GetBytes(download.PemChain), cancellationToken).ConfigureAwait(false);
+        }
+        catch (StagedKeyMismatchException)
+        {
+            // The staged key is spent: either another key was staged since (a real mismatch), or this very chain was attached before a
+            // crash lost the record of it. The vault knows which: if it already serves this leaf, only the registration is missing.
+            CertificateInfo? held = await FindAttachedAsync(row.CertificateId, download.PemChain, cancellationToken).ConfigureAwait(false);
+            if (held is null)
+            {
+                throw;
+            }
+
+            info = held;
+            LogAttachRepaired(row.CertificateId);
+        }
 
         // From here the vault serves the new certificate and the staged key is spent: nothing may be left to the caller's token.
         // The public facts are saved first, so whatever happens next (a crash, a refused registration) only has registration left to do.
         await UpdateAsync(row, r => r.AttachedInfo = JsonSerializer.Serialize(info), CancellationToken.None).ConfigureAwait(false);
         return await RegisterIssuedAsync(attempt, info).ConfigureAwait(false);
+    }
+
+    /// <summary>The vault's description of the certificate it holds under <paramref name="id"/> when its leaf is the one in <paramref name="pemChain"/> (this order's: the SHA-256 of the leaf's DER is the described fingerprint), else null.</summary>
+    private async Task<CertificateInfo?> FindAttachedAsync(CertificateId id, string pemChain, CancellationToken cancellationToken)
+    {
+        if (_catalog is null || await _catalog.DescribeAsync(id, cancellationToken).ConfigureAwait(false) is not { } held)
+        {
+            return null;
+        }
+
+        try
+        {
+            string orderLeaf = Convert.ToHexStringLower(SHA256.HashData(AcmePem.LeafDer(pemChain)));
+            return string.Equals(held.Info.Sha256Fingerprint, orderLeaf, StringComparison.Ordinal) ? held.Info : null;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

@@ -68,6 +68,7 @@ public sealed partial class AcmeIssuanceService
     private readonly CertificateService _certificates;
     private readonly IAcmeClientProvider _clients;
     private readonly ICertificateIssuance _vault;
+    private readonly ICertificateCatalog? _catalog;
     private readonly IAcmeChallengeStore _challenges;
     private readonly IDnsProviderFactory? _dns;
     private readonly AcmeIssuanceOptions _options;
@@ -86,7 +87,8 @@ public sealed partial class AcmeIssuanceService
         AcmeIssuanceOptions options,
         TimeProvider time,
         ILogger<AcmeIssuanceService> logger,
-        Func<double>? random = null)
+        Func<double>? random = null,
+        ICertificateCatalog? catalog = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -102,6 +104,7 @@ public sealed partial class AcmeIssuanceService
         _certificates = certificates;
         _clients = clients;
         _vault = vault;
+        _catalog = catalog;
         _challenges = challenges;
         _dns = dns;
         _options = options;
@@ -631,6 +634,9 @@ public sealed partial class AcmeIssuanceService
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Certificate {Certificate}: renewal planned for {RenewAt:O}.")]
     private partial void LogRenewalInfo(CertificateId certificate, DateTimeOffset renewAt);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Certificate {Certificate}: the vault already holds this order's chain (a crash lost the record of attaching it); registering it.")]
+    private partial void LogAttachRepaired(CertificateId certificate);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Certificate {Certificate}: asking the CA for renewal info failed ({ErrorType}); asking again later.")]
     private partial void LogRenewalInfoFailed(CertificateId certificate, string errorType);

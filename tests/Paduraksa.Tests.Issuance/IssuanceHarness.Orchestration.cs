@@ -46,7 +46,8 @@ internal sealed partial class IssuanceHarness
         Options,
         Time,
         Loggers.CreateLogger<AcmeIssuanceService>(),
-        () => Random);
+        random: () => Random,
+        catalog: Vault);
 
     public AcmeRenewalScheduler NewScheduler(AcmeIssuanceService issuance) =>
         new(issuance, Options, Time, Loggers.CreateLogger<AcmeRenewalScheduler>());

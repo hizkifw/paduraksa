@@ -11,10 +11,11 @@ namespace Paduraksa.Tests.Issuance;
 /// vault would report, dated by the test clock. It models the vault's staging rules: attaching needs the current token for
 /// the ID, and a spent token is refused.
 /// </summary>
-internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateIssuance
+internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateIssuance, ICertificateCatalog
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<CertificateId, (StagedKeyId Key, IReadOnlyList<string> Names)> _staged = [];
+    private readonly Dictionary<CertificateId, CertificateInfo> _held = [];
     private int _serial = 0x1000;
 
     public List<(CertificateId Id, KeySpec Spec, IReadOnlyList<string> Names)> Csrs { get; } = [];
@@ -86,13 +87,39 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
                 "CN=E5",
                 serial,
                 AuthorityKeyIdentifier,
-                Convert.ToHexStringLower(SHA256.HashData(Encoding.ASCII.GetBytes(chain + serial))),
+                Convert.ToHexStringLower(SHA256.HashData(Paduraksa.Acme.AcmePem.LeafDer(chain))),
                 "ECDSA P-256",
                 ["CN=E5", "CN=ISRG Root X2"],
                 chain);
             Issued.Add(info);
+            _held[id] = info;
             AfterAttach?.Invoke();
             return ValueTask.FromResult(info);
+        }
+    }
+
+    /// <summary>Makes the vault hold <paramref name="info"/> under <paramref name="id"/>, as if another chain had been attached.</summary>
+    public void Hold(CertificateId id, CertificateInfo info)
+    {
+        lock (_gate)
+        {
+            _held[id] = info;
+        }
+    }
+
+    public ValueTask<IReadOnlyList<VaultCertificate>> ListAsync(CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            return ValueTask.FromResult<IReadOnlyList<VaultCertificate>>([.. _held.Select(h => new VaultCertificate(h.Key, false, h.Value))]);
+        }
+    }
+
+    public ValueTask<VaultCertificate?> DescribeAsync(CertificateId id, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            return ValueTask.FromResult(_held.TryGetValue(id, out var info) ? new VaultCertificate(id, false, info) : null);
         }
     }
 
