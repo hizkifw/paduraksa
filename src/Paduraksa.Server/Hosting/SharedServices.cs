@@ -110,7 +110,7 @@ internal sealed class SharedServices : IAsyncDisposable
             PlaceholderServerCertificate placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
             PlaceholderCertificates certificates = builder.Add(new PlaceholderCertificates(placeholder));
             builder.Add(new PublicListenerSetup(options.Listen, snapshots, certificates));
-            // TODO(M1): MetricsRegistry. TODO(M3): Vault capabilities, IAcmeChallengeStore.
+            // TODO(M7): MetricsRegistry. TODO(M3): Vault capabilities, IAcmeChallengeStore.
             configure?.Invoke(builder);
             builder.Freeze();
             return new SharedServices(builder, loggerFactory);

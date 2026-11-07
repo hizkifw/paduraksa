@@ -55,7 +55,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             int min = allowEphemeralPorts ? 0 : 1;
             if (port < min || port > MaxPort)
             {
-                failures.Add($"{PaduraksaOptions.SectionName}:Listen:{portName} must be between 1 and {MaxPort}, was {port}.");
+                failures.Add($"{PaduraksaOptions.SectionName}:Listen:{portName} must be between {min} and {MaxPort}, was {port}.");
             }
         }
 
