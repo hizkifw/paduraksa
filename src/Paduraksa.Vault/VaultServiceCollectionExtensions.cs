@@ -18,7 +18,7 @@ public static class VaultServiceCollectionExtensions
     /// <summary>
     /// Registers the vault capabilities (<see cref="ISecretStore"/>, <see cref="IMacKeySource"/>,
     /// <see cref="ISecretHttpHandlerFactory"/>, <see cref="IJwsSigner"/>, <see cref="ICertificateIssuance"/>,
-    /// <see cref="ICertificateImport"/>, <see cref="IServerCertificateSource"/>, <see cref="IClientCertificateSource"/>),
+    /// <see cref="ICertificateImport"/>, <see cref="ICertificateCatalog"/>, <see cref="IServerCertificateSource"/>, <see cref="IClientCertificateSource"/>),
     /// <see cref="IVaultKekRotation"/> and <see cref="IVaultLifecycle"/>. The vault keeps
     /// <c>vault.db</c> (and, if no other source is configured, <c>master.key</c>) in <paramref name="dataDirectory"/>, and finds its
     /// key-encryption key from <c>PADURAKSA_MASTER_KEY_FILE</c>, <c>PADURAKSA_MASTER_KEY</c> or that generated file (PLAN §8.3).
@@ -69,6 +69,7 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<IClientCertificateSource>(p => p.GetRequiredService<CertificateContexts>());
         services.AddSingleton<ICertificateIssuance, CertificateIssuance>();
         services.AddSingleton<ICertificateImport, CertificateImport>();
+        services.AddSingleton<ICertificateCatalog, CertificateCatalog>();
         return services;
     }
 }
