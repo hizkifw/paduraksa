@@ -13,7 +13,7 @@
 // (revision #1 of the fresh database), like any admin change, and is live before READY is printed.
 // HTTPS goes through the per-SNI certificate table: both hosts name the placeholder certificate (self-signed, in
 // memory) as their own, so the handshake takes the exact-name path with the default TLS policy, as a configured host
-// would. TODO(M3): switch to the vault's certificates when they replace PlaceholderCertificates.
+// would. The placeholder is enabled explicitly (Paduraksa:Development:PlaceholderCertificate), as a release build needs.
 //
 // Trusted proxies are off (production's default) unless --cloudflare-tunnel true: then loopback is cloudflared, so
 // CF-Connecting-IP and CF-Visitor from oha are honoured (the `cf` scenario). Tunnel mode exercises the same
@@ -67,6 +67,8 @@ Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
     ["Paduraksa:Listen:Admin"] = Get("admin", "18943"),
     ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
     ["Paduraksa:ShutdownTimeout"] = "00:00:05",
+    // The benchmark serves the in-memory placeholder certificate, which a release build only has on request.
+    ["Paduraksa:Development:PlaceholderCertificate"] = "true",
 };
 
 try

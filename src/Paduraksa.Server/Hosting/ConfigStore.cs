@@ -42,7 +42,9 @@ internal static class ConfigStore
         SnapshotPublisher publisher,
         LastKnownGoodFile lastKnownGood,
         PublicListenerSetup listeners,
-        PlaceholderCertificates certificates,
+        PlaceholderCertificates placeholder,
+        VaultCapabilities vault,
+        bool placeholderEnabled,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory)
     {
@@ -50,19 +52,29 @@ internal static class ConfigStore
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
         IConfigCompiler compiler = builder.Add<IConfigCompiler>(new ConfigCompiler(listeners.CompilerOptions));
-        ServiceProvider container = builder.Own(new ServiceCollection()
+
+        // The vault's certificates first; the placeholder (a source and a built-in inventory entry) only when it is enabled.
+        IServiceCollection services = new ServiceCollection()
             .AddPaduraksaDbContextFactory<ConfigDbContext>(Path.Combine(dataDirectory, ConfigDatabase.FileName))
             .AddSingleton(compiler)
             .AddSingleton(publisher)
             .AddSingleton(timeProvider)
             .AddSingleton(loggerFactory)
             .AddSingleton(lastKnownGood)
-            .AddSingleton<IServerCertificateSource>(certificates)
-            .AddSingleton<IBuiltInCertificates>(certificates)
+            .AddSingleton<IServerCertificateSource>(new CompositeServerCertificateSource(vault.ServerCertificates, placeholderEnabled ? placeholder : null, PlaceholderCertificates.Id))
+            .AddSingleton(vault.Issuance)
+            .AddSingleton(vault.Import)
             .AddPaduraksaConfigService()
-            .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
+            .AddPaduraksaCertificateOperations();
+        if (placeholderEnabled)
+        {
+            services.AddSingleton<IBuiltInCertificates>(placeholder);
+        }
+
+        ServiceProvider container = builder.Own(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
         builder.AddOwnedElsewhere(container.GetRequiredService<IDbContextFactory<ConfigDbContext>>());
         builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
     }
 }

@@ -29,6 +29,8 @@ internal static class CoreHost
         });
         HostSetup.ApplyCommon(builder, context, HostRole.Core);
 
+        // The vault first: the config store loads certificates through it, and a vault that cannot start must stop the process.
+        builder.Services.AddHostedService<VaultStartup>();
         builder.Services.AddHostedService<ConfigStartup>();
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Core);

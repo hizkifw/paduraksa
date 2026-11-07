@@ -54,6 +54,7 @@ internal sealed class SharedServices : IAsyncDisposable
         PublicListeners = Get<PublicListenerSetup>();
         Config = Get<ConfigService>();
         CertificateService = Get<CertificateService>();
+        CertificateOperations = Get<CertificateOperations>();
         LastKnownGood = Get<LastKnownGoodFile>();
     }
 
@@ -74,10 +75,14 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>Silences the generic hosts' error about a start that was aborted on request.</summary>
     public StartupLogFilter StartupLogFilter { get; } = new();
 
-    /// <summary>TEMPORARY (M3): the admin listener's certificate and the public default certificate until the vault exists.</summary>
+    /// <summary>TEMPORARY (M3): the admin listener's certificate, until the admin's internal-CA certificate exists. Not the public one.</summary>
     public PlaceholderServerCertificate ServerCertificate { get; }
 
-    /// <summary>TEMPORARY (M3): the placeholder's certificate source and built-in inventory entries (tests add certificates here).</summary>
+    /// <summary>
+    /// The placeholder's certificate source and built-in inventory entries (tests add certificates here). It is wired into the
+    /// process (as a source after the vault, and as the built-in inventory) only when
+    /// <see cref="Configuration.PaduraksaDevelopmentOptions.PlaceholderCertificate"/> is on; otherwise this object is inert.
+    /// </summary>
     public PlaceholderCertificates Certificates { get; }
 
     /// <summary>The public listener layout, the TLS handshake selector and the compiler options derived from it.</summary>
@@ -86,8 +91,11 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>The config write path, started by the core host (<see cref="ConfigStartup"/>); see <see cref="ConfigStore"/>.</summary>
     public ConfigService Config { get; }
 
-    /// <summary>The certificate inventory's service (PLAN §9.2): shares <see cref="Config"/>'s writer; the vault wave's flows call it.</summary>
+    /// <summary>The certificate inventory's service (PLAN §9.2): shares <see cref="Config"/>'s writer; never calls the vault.</summary>
     public CertificateService CertificateService { get; }
+
+    /// <summary>The certificate use cases that touch the vault (PLAN §9): upload, self-signed, local CA, re-issue, delete.</summary>
+    public CertificateOperations CertificateOperations { get; }
 
     /// <summary><c>&lt;data dir&gt;/last-good.json</c>, written after every successful publish.</summary>
     public LastKnownGoodFile LastKnownGood { get; }
@@ -132,11 +140,17 @@ internal sealed class SharedServices : IAsyncDisposable
             PlaceholderCertificates certificates = builder.Add(new PlaceholderCertificates(placeholder));
             PublicListenerSetup listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots));
             // Created after the publisher, so disposed before it (the service publishes with it).
-            ConfigStore.AddTo(builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, timeProvider, coreLoggers);
+            DevelopmentWarnings.Check(coreLoggers, options);
+
+            // The vault before the config store, so it is disposed after it (the store loads certificates through it).
+            VaultCapabilities vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
+            ConfigStore.AddTo(
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, options.Development.PlaceholderCertificate, timeProvider, coreLoggers);
+
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate reads the class.
             AcmeChallengeStore challenges = builder.Add(new AcmeChallengeStore());
             builder.Add<IAcmeChallengeStore>(challenges);
-            // TODO(M7): MetricsRegistry. TODO(M3): Vault capabilities.
+            // TODO(M7): MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();
             return new SharedServices(builder, loggerFactory);

@@ -20,6 +20,9 @@ internal sealed class PaduraksaOptions
 
     public PaduraksaListenOptions Listen { get; set; } = new();
 
+    /// <summary>Switches for development and tests; off in a release build.</summary>
+    public PaduraksaDevelopmentOptions Development { get; set; } = new();
+
     /// <summary>
     /// Total budget for the graceful stop of all three hosts together (public drain, then admin, then core).
     /// When it elapses, Kestrel aborts the remaining connections and the rest stops without waiting.
@@ -28,6 +31,28 @@ internal sealed class PaduraksaOptions
     /// <c>TimeoutStopSec</c> defaults to 90 s.
     /// </summary>
     public TimeSpan ShutdownTimeout { get; set; } = TimeSpan.FromSeconds(30);
+}
+
+/// <summary>
+/// Switches that exist for development and tests (<c>Paduraksa:Development</c>). They default to off in a release build, so a
+/// production process can't turn one on by accident.
+/// </summary>
+internal sealed class PaduraksaDevelopmentOptions
+{
+#if DEBUG
+    internal const bool IsDebugBuild = true;
+#else
+    internal const bool IsDebugBuild = false;
+#endif
+
+    /// <summary>
+    /// Serve an in-memory self-signed placeholder certificate (<c>PlaceholderCertificates</c>): it is the public default
+    /// certificate of a config that names none, the stand-in tests use for certificates they provide themselves, and a
+    /// built-in inventory entry. <b>On by default in a Debug build, off in a release build</b>, where a host without a vault
+    /// certificate gets none and an unknown name is rejected. Set it to <c>true</c> explicitly to run a release build
+    /// with it (the process warns at startup). The admin listener's own certificate is separate and not affected.
+    /// </summary>
+    public bool PlaceholderCertificate { get; set; } = IsDebugBuild;
 }
 
 internal sealed class PaduraksaListenOptions
