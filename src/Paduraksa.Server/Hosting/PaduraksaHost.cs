@@ -321,6 +321,14 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             throw new OptionsValidationException(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), [ex.Message]);
         }
 
+        // Before the validator reads it: a relative trust file is relative to the content root, like the data directory below.
+        if (options.Acme is { TrustedRootsFile: { Length: > 0 } trustedRoots }
+            && trustedRoots.AsSpan().IndexOfAny(Path.GetInvalidPathChars()) < 0
+            && !Path.IsPathFullyQualified(trustedRoots))
+        {
+            options.Acme.TrustedRootsFile = Path.GetFullPath(trustedRoots, contentRootPath);
+        }
+
         ValidateOptionsResult result = new PaduraksaOptionsValidator(allowEphemeralPorts).Validate(Microsoft.Extensions.Options.Options.DefaultName, options);
         if (result.Failed)
         {
@@ -433,9 +441,31 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         // admin and core still stop, just without waiting (Kestrel aborts the remaining connections).
         using CancellationTokenSource budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         budget.CancelAfter(Options.ShutdownTimeout);
+
+        // The renewal scheduler first: a certificate it is working on (an HTTP-01 validation needs the public listener to answer) gets a
+        // bounded time to finish, and nothing new starts, before the public drain closes the listener.
+        await DrainSchedulerAsync(budget.Token).ConfigureAwait(false);
         await StopHostAsync(Public, HostRole.Public, budget.Token).ConfigureAwait(false);
         await StopHostAsync(Admin, HostRole.Admin, budget.Token).ConfigureAwait(false);
         await StopHostAsync(Core, HostRole.Core, budget.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>How long the scheduler's current certificate may take to finish when the process stops (within the shutdown budget).</summary>
+    private static readonly TimeSpan SchedulerDrainGrace = TimeSpan.FromSeconds(10);
+
+    private async Task DrainSchedulerAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Shared.AcmeScheduler.DrainAsync(SchedulerDrainGrace, cancellationToken).ConfigureAwait(false);
+        }
+#pragma warning disable CA1031 // The scheduler failing to stop must not keep the hosts running; the core host stops it again.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _stopFaulted = true;
+            LogStopFailed(_logger, HostRole.Core.ToLogName(), ex);
+        }
     }
 
     private async Task StopHostAsync(IHost host, HostRole role, CancellationToken cancellationToken)

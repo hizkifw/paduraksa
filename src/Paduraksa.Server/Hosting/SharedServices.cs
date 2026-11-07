@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Core.Acme;
 using Paduraksa.Proxy.Gate;
@@ -57,6 +58,11 @@ internal sealed class SharedServices : IAsyncDisposable
         CertificateOperations = Get<CertificateOperations>();
         CertificateRecovery = Get<CertificateRecovery>();
         RecoveryCompletion = Get<CertificateRecoveryCompletion>();
+        Challenges = Get<AcmeChallengeStore>();
+        AcmeAccounts = Get<AcmeAccountService>();
+        DnsProviders = Get<DnsProviderService>();
+        AcmeIssuance = Get<AcmeIssuanceService>();
+        AcmeScheduler = Get<AcmeRenewalScheduler>();
         LastKnownGood = Get<LastKnownGoodFile>();
     }
 
@@ -104,6 +110,21 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>Completes when the startup recovery (<see cref="CertificateRecoveryStartup"/>) has finished its run.</summary>
     internal CertificateRecoveryCompletion RecoveryCompletion { get; }
+
+    /// <summary>The HTTP-01 answers: the issuance service publishes to it through <see cref="IAcmeChallengeStore"/>, the public gate reads it.</summary>
+    public AcmeChallengeStore Challenges { get; }
+
+    /// <summary>ACME accounts (PLAN §9.3); built by <see cref="IssuanceStore"/> over the vault's account keys.</summary>
+    public AcmeAccountService AcmeAccounts { get; }
+
+    /// <summary>DNS providers for DNS-01 (PLAN §9.3).</summary>
+    public DnsProviderService DnsProviders { get; }
+
+    /// <summary>ACME issuance and renewal (PLAN §9.3): request and renew certificates; the scheduler drives it.</summary>
+    public AcmeIssuanceService AcmeIssuance { get; }
+
+    /// <summary>The renewal scheduler. A hosted service of the core host only when <c>Paduraksa:Acme:Enabled</c> (see <see cref="CoreHost"/>).</summary>
+    public AcmeRenewalScheduler AcmeScheduler { get; }
 
     /// <summary><c>&lt;data dir&gt;/last-good.json</c>, written after every successful publish.</summary>
     public LastKnownGoodFile LastKnownGood { get; }
@@ -153,12 +174,14 @@ internal sealed class SharedServices : IAsyncDisposable
 
             // The vault before the config store, so it is disposed after it (the store loads certificates through it).
             VaultCapabilities vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
-            ConfigStore.AddTo(
+            ConfigStoreServices configStore = ConfigStore.AddTo(
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, options.Development.PlaceholderCertificate, timeProvider, coreLoggers);
 
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate reads the class.
             AcmeChallengeStore challenges = builder.Add(new AcmeChallengeStore());
             builder.Add<IAcmeChallengeStore>(challenges);
+            // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
+            IssuanceStore.AddTo(builder, options, configStore, vault, challenges, timeProvider, coreLoggers);
             // TODO(M7): MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();

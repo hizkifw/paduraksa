@@ -562,6 +562,9 @@ public sealed class DualHostTests
     [InlineData("Paduraksa:Listen:AdminBind", "not-an-ip")]
     [InlineData("Paduraksa:DataDirectory", " ")]
     [InlineData("Paduraksa:ShutdownTimeout", "00:00:00")]
+    [InlineData("Paduraksa:Acme:SchedulerPollInterval", "00:00:00")]
+    [InlineData("Paduraksa:Acme:SchedulerStartDelay", "-00:00:01")]
+    [InlineData("Paduraksa:Acme:TrustedRootsFile", "/no/such/roots.pem")]
     public void InvalidOptionsFailBeforeAnythingIsBuilt(string key, string value)
     {
         OptionsValidationException ex = Assert.Throws<OptionsValidationException>(

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+using Paduraksa.Application.Issuance;
+
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
@@ -34,6 +36,12 @@ internal static class CoreHost
         builder.Services.AddHostedService<ConfigStartup>();
         // Then what the vault holds that the database lost, before the web apps take their first request.
         builder.Services.AddHostedService<CertificateRecoveryStartup>();
+        if (context.Options.Acme.Enabled)
+        {
+            // Last of the ones that start things up: the vault and the config store are ready, and its start delay lets the listeners come up.
+            // It stops first, before the config store it records into.
+            builder.Services.AddHostedService(static services => services.GetRequiredService<AcmeRenewalScheduler>());
+        }
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Core);
         return builder.Build();

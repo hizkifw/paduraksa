@@ -20,6 +20,9 @@ internal sealed class PaduraksaOptions
 
     public PaduraksaListenOptions Listen { get; set; } = new();
 
+    /// <summary>ACME issuance and renewal (PLAN §9.3): the scheduler, its timing and which CAs are trusted.</summary>
+    public PaduraksaAcmeOptions Acme { get; set; } = new();
+
     /// <summary>Switches for development and tests; off in a release build.</summary>
     public PaduraksaDevelopmentOptions Development { get; set; } = new();
 
@@ -53,6 +56,44 @@ internal sealed class PaduraksaDevelopmentOptions
     /// with it (the process warns at startup). The admin listener's own certificate is separate and not affected.
     /// </summary>
     public bool PlaceholderCertificate { get; set; } = IsDebugBuild;
+
+    /// <summary>
+    /// Accept <c>http://</c> ACME URLs <b>of loopback hosts</b> (<c>AcmeClientOptions.AllowInsecureHttp</c>; any other host's <c>http://</c> URL is refused
+    /// even so). ACME runs over HTTPS (RFC 8555 §6.1), so this exists for a CA test server on this machine and is off unless set; the
+    /// process warns at startup when it is on.
+    /// </summary>
+    public bool AcmeInsecureHttp { get; set; }
+}
+
+/// <summary>
+/// ACME settings (<c>Paduraksa:Acme</c>). Accounts, DNS providers and orders live in the database; what is here is what the process
+/// needs before it can read it: whether the renewal scheduler runs, how it paces itself and which CA certificates its HTTPS
+/// connections to a CA accept.
+/// </summary>
+internal sealed class PaduraksaAcmeOptions
+{
+    /// <summary>
+    /// Run the renewal scheduler (resume unfinished orders, retry failures, renew, refresh ARI). On by default; turn it off to
+    /// pause everything ACME does on its own (an operator can still issue and renew on request). Not reloadable.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// A PEM file (at most 1 MiB) of <b>self-signed root CA certificates</b> to trust, besides the system's, for the HTTPS connection to a CA's
+    /// directory: the root of a private CA (step-ca) or of a test server (Pebble). An intermediate, a leaf or anything that is not a
+    /// CA root in the file stops the process at startup. It widens the chain check only: the name must still match and the
+    /// certificate must allow server authentication. A relative path resolves against the content root. Empty means the system's trust alone.
+    /// </summary>
+    public string? TrustedRootsFile { get; set; }
+
+    /// <summary>How long after the process starts the scheduler's first look waits, so the listeners are up before it resumes or renews anything (see <c>AcmeIssuanceOptions.SchedulerStartDelay</c>). 0 to 1 hour.</summary>
+    public TimeSpan SchedulerStartDelay { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>How often the scheduler looks for work (see <c>AcmeIssuanceOptions.SchedulerPollInterval</c>). 1 second to 1 day.</summary>
+    public TimeSpan SchedulerPollInterval { get; set; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>How long to wait after publishing DNS-01 TXT records before the CA is told to validate (see <c>AcmeIssuanceOptions.DnsPropagationDelay</c>). 0 to 1 hour.</summary>
+    public TimeSpan DnsPropagationDelay { get; set; } = TimeSpan.FromSeconds(30);
 }
 
 internal sealed class PaduraksaListenOptions

@@ -1,0 +1,142 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+using Paduraksa.Acme;
+using Paduraksa.Application.Issuance;
+using Paduraksa.Core.Acme;
+using Paduraksa.Data;
+using Paduraksa.Server.Configuration;
+
+namespace Paduraksa.Server.Hosting;
+
+/// <summary>
+/// Composes ACME issuance (PLAN §9.3) into the shared services: <c>AddPaduraksaIssuance</c> over the real vault (account keys,
+/// MAC keys, secrets, the certificate catalog and issuance), the config store and the one <see cref="IAcmeChallengeStore"/> the
+/// public gate answers from, in a container of its own that <see cref="SharedServices"/> owns, like <see cref="ConfigStore"/>.
+/// The account, DNS provider and issuance services and the renewal scheduler are shared instances.
+/// </summary>
+/// <remarks>
+/// <para><b>The scheduler</b> is not started here. It is a hosted service of the core host (<see cref="CoreHost"/>), registered after
+/// <see cref="VaultStartup"/> and <see cref="ConfigStartup"/> so the vault and the config store are up first, and its first look
+/// waits <c>Paduraksa:Acme:SchedulerStartDelay</c> for the listeners. The core host stops after both web apps, and stopping cancels a
+/// running look. With <c>Paduraksa:Acme:Enabled</c> off it is never started.</para>
+/// <para><b>CA trust.</b> One transport serves every ACME client of the process: <see cref="AcmeHttp.CreateHandler()"/> (no redirects), plus the
+/// roots of <c>Paduraksa:Acme:TrustedRootsFile</c> when set (a private CA, Pebble), which must be self-signed CA certificates (anything
+/// else stops the start with the file named). The file is read once, here. The handler is owned here and disposed after the
+/// container that holds the clients.</para>
+/// <para><b>DNS providers:</b> none are registered yet, so <c>IDnsProviderFactory</c> is absent and a DNS-01 request fails as not supported.
+/// The DNS provider registration (<c>AddPaduraksaDnsProviders</c>) goes in the chain below, before <c>AddPaduraksaIssuance</c>.</para>
+/// </remarks>
+internal static class IssuanceStore
+{
+    public static void AddTo(
+        SharedServices.Builder builder,
+        PaduraksaOptions options,
+        ConfigStoreServices configStore,
+        VaultCapabilities vault,
+        IAcmeChallengeStore challenges,
+        TimeProvider timeProvider,
+        ILoggerFactory loggerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(configStore);
+        ArgumentNullException.ThrowIfNull(vault);
+        ArgumentNullException.ThrowIfNull(challenges);
+
+        PaduraksaAcmeOptions acme = options.Acme;
+        AcmeClientOptions clientOptions = new() { AllowInsecureHttp = options.Development.AcmeInsecureHttp };
+        AcmeIssuanceOptions issuanceOptions = new()
+        {
+            SchedulerStartDelay = acme.SchedulerStartDelay,
+            SchedulerPollInterval = acme.SchedulerPollInterval,
+            DnsPropagationDelay = acme.DnsPropagationDelay,
+        };
+
+        // Created before the container, so disposed after it: the clients are done with it by then.
+        SocketsHttpHandler transport = builder.Own(CreateTransport(acme.TrustedRootsFile));
+
+        ServiceProvider container = builder.Own(new ServiceCollection()
+            .AddSingleton(loggerFactory)
+            .AddSingleton(timeProvider)
+            .AddSingleton(configStore.Contexts)
+            .AddSingleton(configStore.Config)
+            .AddSingleton(configStore.Certificates)
+            .AddSingleton(vault.Issuance)
+            .AddSingleton(vault.Catalog)
+            .AddSingleton(vault.Signer)
+            .AddSingleton(vault.MacKeys)
+            .AddSingleton(vault.Secrets)
+            .AddSingleton(vault.SecretHandlers)
+            .AddSingleton(challenges)
+            .AddSingleton(clientOptions)
+            .AddSingleton(issuanceOptions)
+            .AddSingleton<IAcmeClientProvider>(sp => new AcmeClientProvider(
+                vault.Signer,
+                vault.MacKeys,
+                clientOptions,
+                () => transport,
+                timeProvider,
+                sp.GetRequiredService<ILoggerFactory>()))
+            .AddPaduraksaIssuance()
+            .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
+
+        builder.AddOwnedElsewhere(container.GetRequiredService<AcmeAccountService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<DnsProviderService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<AcmeIssuanceService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<AcmeRenewalScheduler>());
+    }
+
+    /// <summary>The transport of every ACME client: the roots of the PEM file, read once, are copied into it and the originals disposed.</summary>
+    private static SocketsHttpHandler CreateTransport(string? file)
+    {
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            return AcmeHttp.CreateHandler();
+        }
+
+        X509Certificate2Collection roots = [];
+        try
+        {
+            try
+            {
+                roots.ImportFromPem(File.ReadAllText(file));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException or ArgumentException)
+            {
+                throw Refused(file, $"can't be read as PEM certificates: {ex.Message}");
+            }
+
+            if (roots.Count == 0)
+            {
+                throw Refused(file, "holds no certificate.");
+            }
+
+            foreach (X509Certificate2 root in roots)
+            {
+                if (!AcmeHttp.IsSelfSignedCa(root))
+                {
+                    throw Refused(file, $"holds {root.SubjectName.Name}, which is not a self-signed CA certificate; only roots may be listed (not an intermediate or a leaf).");
+                }
+            }
+
+            // The handler keeps copies, so the originals are disposed below.
+            return AcmeHttp.CreateHandler([.. roots.Cast<X509Certificate2>()]);
+        }
+        finally
+        {
+            foreach (X509Certificate2 root in roots)
+            {
+                root.Dispose();
+            }
+        }
+    }
+
+    private static OptionsValidationException Refused(string file, string reason) =>
+        new(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), [$"{PaduraksaOptions.SectionName}:Acme:TrustedRootsFile '{file}' {reason}"]);
+}

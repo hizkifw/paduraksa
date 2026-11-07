@@ -36,7 +36,7 @@ internal static class ConfigStore
     public static LastKnownGoodFile CreateLastKnownGood(string dataDirectory, ILoggerFactory loggerFactory) =>
         new(Path.Combine(dataDirectory, LastKnownGoodFile.FileName), loggerFactory);
 
-    public static void AddTo(
+    public static ConfigStoreServices AddTo(
         SharedServices.Builder builder,
         string dataDirectory,
         SnapshotPublisher publisher,
@@ -74,10 +74,17 @@ internal static class ConfigStore
         }
 
         ServiceProvider container = builder.Own(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
-        builder.AddOwnedElsewhere(container.GetRequiredService<IDbContextFactory<ConfigDbContext>>());
-        builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
-        builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
+        IDbContextFactory<ConfigDbContext> contexts = builder.AddOwnedElsewhere(container.GetRequiredService<IDbContextFactory<ConfigDbContext>>());
+        ConfigService config = builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
+        CertificateService certificates = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateRecovery>());
+        return new ConfigStoreServices(contexts, config, certificates);
     }
 }
+
+/// <summary>The config store's instances that later composition steps (ACME issuance) build on.</summary>
+/// <param name="Contexts">The config database's context factory.</param>
+/// <param name="Config">The config write path.</param>
+/// <param name="Certificates">The certificate inventory's service.</param>
+internal sealed record ConfigStoreServices(IDbContextFactory<ConfigDbContext> Contexts, ConfigService Config, CertificateService Certificates);

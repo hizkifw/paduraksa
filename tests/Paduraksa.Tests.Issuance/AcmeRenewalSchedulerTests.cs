@@ -1,7 +1,10 @@
 using System.Globalization;
 using System.Net;
 
+using Microsoft.Extensions.Logging;
+
 using Paduraksa.Acme;
+using Paduraksa.Application.Issuance;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Acme.Fakes;
@@ -279,5 +282,46 @@ public sealed class AcmeRenewalSchedulerTests
         AdvanceTo(h, failed.RetryAt!.Value);
         Assert.True(await h.Issuance.RunDueAsync(id, Ct));
         Assert.Equal(2, h.Server.OrderCount);
+    }
+
+    [Fact]
+    public async Task AbsurdPacingFromTheOptionsDoesNotEndTheLoop()
+    {
+        var (h, _) = await IssuedAsync();
+        await using var _ = h;
+        // 60 days is more than Task.Delay accepts at once: the loop pauses for at most a day instead of faulting.
+        var scheduler = new AcmeRenewalScheduler(
+            h.Issuance,
+            h.Options with { SchedulerStartDelay = TimeSpan.FromDays(60), SchedulerPollInterval = TimeSpan.FromDays(60) },
+            TimeProvider.System,
+            h.Loggers.CreateLogger<AcmeRenewalScheduler>());
+
+        await scheduler.StartAsync(Ct);
+        await Task.Delay(TimeSpan.FromMilliseconds(200), Ct);
+
+        Assert.False(scheduler.ExecuteTask!.IsCompleted);
+        await scheduler.StopAsync(Ct);
+        Assert.True(scheduler.ExecuteTask.IsCompletedSuccessfully);
+        Assert.DoesNotContain(h.Loggers.Entries, e => e.Message.Contains("look failed", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ADrainingSchedulerStartsNothingNewAndAnIdleOneStopsAtOnce()
+    {
+        var (h, id) = await IssuedAsync();
+        await using var _ = h;
+        AdvanceTo(h, (await h.OrderAsync(id)).NextRenewalAt!.Value);
+        var scheduler = new AcmeRenewalScheduler(h.Issuance, h.Options, TimeProvider.System, h.Loggers.CreateLogger<AcmeRenewalScheduler>());
+        await scheduler.StartAsync(Ct);
+
+        // Idle (in its start delay): the grace is not waited for.
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await scheduler.DrainAsync(TimeSpan.FromSeconds(30), Ct);
+
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"drained after {watch.Elapsed}");
+        Assert.True(scheduler.ExecuteTask!.IsCompletedSuccessfully);
+        // A look made now, after the drain began, leaves the due renewal alone.
+        Assert.Equal(0, await scheduler.RunOnceAsync(Ct));
+        Assert.Equal(1, h.Server.OrderCount);
     }
 }

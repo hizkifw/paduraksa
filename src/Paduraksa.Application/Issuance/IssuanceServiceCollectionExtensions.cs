@@ -21,7 +21,8 @@ public static class IssuanceServiceCollectionExtensions
     /// the <see cref="AcmeRenewalScheduler"/> hosted service, with the client provider that signs through the vault.
     /// Needs <see cref="ConfigServiceCollectionExtensions.AddPaduraksaConfigService"/>, the vault's <see cref="IJwsSigner"/>,
     /// <see cref="ICertificateIssuance"/> and <see cref="ISecretStore"/>, and an <see cref="IAcmeChallengeStore"/>. Used when
-    /// registered: <see cref="IMacKeySource"/> (external account binding), <see cref="IDnsProviderFactory"/> (DNS-01),
+    /// registered: <see cref="IMacKeySource"/> (external account binding), <see cref="IDnsProviderFactory"/> (DNS-01; without one a DNS-01
+    /// request fails as not supported), <see cref="ICertificateCatalog"/> (repairs an attach whose record a crash lost),
     /// <see cref="AcmeIssuanceOptions"/> and <see cref="AcmeClientOptions"/>, and an <see cref="IAcmeClientProvider"/> of your own.
     /// </summary>
     public static IServiceCollection AddPaduraksaIssuance(this IServiceCollection services)
@@ -67,7 +68,8 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetService<IDnsProviderFactory>(),
             sp.GetRequiredService<AcmeIssuanceOptions>(),
             sp.GetRequiredService<TimeProvider>(),
-            Logger<AcmeIssuanceService>(sp)));
+            Logger<AcmeIssuanceService>(sp),
+            catalog: sp.GetService<ICertificateCatalog>()));
         services.AddSingleton(sp => new AcmeRenewalScheduler(
             sp.GetRequiredService<AcmeIssuanceService>(),
             sp.GetRequiredService<AcmeIssuanceOptions>(),

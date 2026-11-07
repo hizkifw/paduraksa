@@ -17,12 +17,20 @@ namespace Paduraksa.Server.Hosting;
 /// <param name="Issuance">Key and chain creation, replacement and deletion.</param>
 /// <param name="Import">Upload of a certificate with its key.</param>
 /// <param name="Catalog">The vault describing the certificates it holds (public facts only).</param>
+/// <param name="Signer">Signs ACME requests with the vault-held account keys.</param>
+/// <param name="MacKeys">Opens external-account-binding MAC keys for the ACME client.</param>
+/// <param name="Secrets">Secret metadata and storage (DNS provider credentials).</param>
+/// <param name="SecretHandlers">The authenticating HTTP handlers DNS providers build their clients over.</param>
 internal sealed record VaultCapabilities(
     IVaultLifecycle Lifecycle,
     IServerCertificateSource ServerCertificates,
     ICertificateIssuance Issuance,
     ICertificateImport Import,
-    ICertificateCatalog Catalog);
+    ICertificateCatalog Catalog,
+    IJwsSigner Signer,
+    IMacKeySource MacKeys,
+    ISecretStore Secrets,
+    ISecretHttpHandlerFactory SecretHandlers);
 
 /// <summary>
 /// Composes the vault (PLAN §8) into the shared services: the one <c>AddPaduraksaVault</c> registration, over the data
@@ -47,7 +55,11 @@ internal static class VaultStore
             container.GetRequiredService<IServerCertificateSource>(),
             container.GetRequiredService<ICertificateIssuance>(),
             container.GetRequiredService<ICertificateImport>(),
-            container.GetRequiredService<ICertificateCatalog>());
+            container.GetRequiredService<ICertificateCatalog>(),
+            container.GetRequiredService<IJwsSigner>(),
+            container.GetRequiredService<IMacKeySource>(),
+            container.GetRequiredService<ISecretStore>(),
+            container.GetRequiredService<ISecretHttpHandlerFactory>());
     }
 }
 

@@ -26,6 +26,14 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
     private readonly AcmeIssuanceOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
+    private volatile bool _draining;
+    private volatile bool _working;
+
+    /// <summary>The longest the scheduler pauses at once, whatever the options say (a pause longer than <see cref="Task.Delay(TimeSpan)"/> allows would throw and end the loop).</summary>
+    internal static readonly TimeSpan MaxPause = TimeSpan.FromDays(1);
+
+    /// <summary>The pause after a pause itself failed, so the loop neither spins nor ends.</summary>
+    private static readonly TimeSpan FallbackPause = TimeSpan.FromMinutes(1);
 
     public AcmeRenewalScheduler(AcmeIssuanceService issuance, AcmeIssuanceOptions options, TimeProvider time, ILogger<AcmeRenewalScheduler> logger)
     {
@@ -46,6 +54,12 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
         foreach (AcmeOrderSummary order in await _issuance.ListOrdersAsync(cancellationToken).ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (_draining)
+            {
+                // Shutting down: the certificate being worked on was finished, no new one is started.
+                break;
+            }
+
             try
             {
                 // The listing can be minutes old by the time a certificate's turn comes: the service decides from a fresh read.
@@ -69,15 +83,45 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
         return acted;
     }
 
+    /// <summary>
+    /// Starts shutting down gracefully: no new look and no new certificate is started, and the one being worked on gets up to
+    /// <paramref name="grace"/> to finish (an ACME validation in flight needs the public listener to answer, so this runs
+    /// before it drains); after that, or when <paramref name="cancellationToken"/> fires, the work is cancelled like any stop (the order
+    /// stays as it was and resumes at the next start). Does nothing when the scheduler never started.
+    /// </summary>
+    public async Task DrainAsync(TimeSpan grace, CancellationToken cancellationToken)
+    {
+        _draining = true;
+        if (ExecuteTask is not { } running)
+        {
+            return;
+        }
+
+        if (_working)
+        {
+            try
+            {
+                await running.WaitAsync(grace, _time, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)
+            {
+                // Out of time: StopAsync cancels what is left.
+            }
+        }
+
+        await StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
         {
-            await Task.Delay(_options.SchedulerStartDelay, _time, stoppingToken).ConfigureAwait(false);
-            while (!stoppingToken.IsCancellationRequested)
+            await PauseAsync(_options.SchedulerStartDelay, stoppingToken).ConfigureAwait(false);
+            while (!stoppingToken.IsCancellationRequested && !_draining)
             {
                 try
                 {
+                    _working = true;
                     _ = await RunOnceAsync(stoppingToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -90,13 +134,40 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
                 {
                     LogLookFailed(ex.GetType().Name);
                 }
+                finally
+                {
+                    _working = false;
+                }
 
-                await Task.Delay(_options.SchedulerPollInterval, _time, stoppingToken).ConfigureAwait(false);
+                if (!_draining)
+                {
+                    await PauseAsync(_options.SchedulerPollInterval, stoppingToken).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // Shutting down.
+        }
+    }
+
+    /// <summary>Waits <paramref name="wanted"/> (kept within 0 and <see cref="MaxPause"/>); a pause that fails for any other reason waits a minute instead of ending the loop.</summary>
+    private async Task PauseAsync(TimeSpan wanted, CancellationToken stoppingToken)
+    {
+        try
+        {
+            await Task.Delay(wanted < TimeSpan.Zero ? TimeSpan.Zero : wanted > MaxPause ? MaxPause : wanted, _time, stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+#pragma warning disable CA1031 // The loop must outlive whatever a pause trips over.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogLookFailed(ex.GetType().Name);
+            await Task.Delay(FallbackPause, _time, stoppingToken).ConfigureAwait(false);
         }
     }
 

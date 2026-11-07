@@ -86,10 +86,59 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             failures.Add($"{PaduraksaOptions.SectionName}:Listen:Http3 needs a fixed Https port (TCP and UDP share it); turn it off with an OS-assigned port.");
         }
 
+        ValidateAcme(options, failures);
+
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
         ValidateProxyProtocol("HttpsProxyProtocol", listen.HttpsProxyProtocol, failures);
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateAcme(PaduraksaOptions options, List<string> failures)
+    {
+        string key = $"{PaduraksaOptions.SectionName}:Acme";
+        PaduraksaAcmeOptions acme = options.Acme;
+        if (acme is null)
+        {
+            failures.Add($"{key} must not be null.");
+            return;
+        }
+
+        Bound(acme.SchedulerStartDelay, TimeSpan.Zero, TimeSpan.FromHours(1), $"{key}:SchedulerStartDelay", failures);
+        Bound(acme.SchedulerPollInterval, TimeSpan.FromSeconds(1), TimeSpan.FromDays(1), $"{key}:SchedulerPollInterval", failures);
+        Bound(acme.DnsPropagationDelay, TimeSpan.Zero, TimeSpan.FromHours(1), $"{key}:DnsPropagationDelay", failures);
+
+        if (!string.IsNullOrWhiteSpace(acme.TrustedRootsFile))
+        {
+            // Cheap checks only; the file is read and parsed once, where it is used (IssuanceStore), which refuses what is not a root.
+            try
+            {
+                FileInfo file = new(acme.TrustedRootsFile);
+                if (!file.Exists)
+                {
+                    failures.Add($"{key}:TrustedRootsFile '{acme.TrustedRootsFile}' does not exist.");
+                }
+                else if (file.Length > MaxTrustedRootsFileBytes)
+                {
+                    failures.Add($"{key}:TrustedRootsFile '{acme.TrustedRootsFile}' is {file.Length} bytes; at most {MaxTrustedRootsFileBytes} are accepted.");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                failures.Add($"{key}:TrustedRootsFile '{acme.TrustedRootsFile}' can't be read: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>The largest trusted-roots file accepted: a bundle of a few roots is some kilobytes.</summary>
+    internal const int MaxTrustedRootsFileBytes = 1024 * 1024;
+
+    private static void Bound(TimeSpan value, TimeSpan min, TimeSpan max, string name, List<string> failures)
+    {
+        if (value < min || value > max)
+        {
+            failures.Add($"{name} must be between {min} and {max}, was {value}.");
+        }
     }
 
     private static void ValidateProxyProtocol(string name, ProxyProtocolListenOptions? options, List<string> failures)
