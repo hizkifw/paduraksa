@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Core.Ids;
 using Paduraksa.Data;
@@ -41,6 +42,14 @@ internal sealed class TestConfigDatabase : IAsyncDisposable
 
     public ConfigDbContext NewContext() => Factory.CreateDbContext();
 
+    /// <summary>A context outside the factory, with extra interceptors (e.g. to capture SQL).</summary>
+    public ConfigDbContext NewContext(params IInterceptor[] interceptors)
+    {
+        var options = new DbContextOptionsBuilder<ConfigDbContext>();
+        options.UsePaduraksaSqlite(PaduraksaSqlite.ConnectionString(DatabasePath)).AddInterceptors(interceptors);
+        return new ConfigDbContext(options.Options);
+    }
+
     /// <summary>Runs raw SQL on a separate connection (no EF, no change tracker) and returns every row.</summary>
     public async Task<List<object?[]>> QueryAsync(string sql)
     {
@@ -73,6 +82,20 @@ internal sealed class TestConfigDatabase : IAsyncDisposable
         await connection.OpenAsync(Ct);
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
+        return await command.ExecuteNonQueryAsync(Ct);
+    }
+
+    /// <summary>
+    /// <see cref="ExecuteAsync"/> with check constraints off, to plant rows the schema would refuse (damage done
+    /// outside SQLite's rules). Uses an unpooled connection, so the setting never leaks into other commands.
+    /// </summary>
+    public async Task<int> ExecuteUncheckedAsync(string sql)
+    {
+        var unpooled = new SqliteConnectionStringBuilder(PaduraksaSqlite.ConnectionString(DatabasePath)) { Pooling = false };
+        await using var connection = new SqliteConnection(unpooled.ToString());
+        await connection.OpenAsync(Ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA ignore_check_constraints = 1; {sql}";
         return await command.ExecuteNonQueryAsync(Ct);
     }
 

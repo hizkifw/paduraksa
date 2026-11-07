@@ -6,4 +6,7 @@
     <ProjectReference Include="../Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
     <ProjectReference Include="../Paduraksa.Acme/Paduraksa.Acme.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
+  </ItemGroup>
 </Project>

@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../../src/Paduraksa.Data/Paduraksa.Data.csproj" />
+    <!-- The revision store and audit log run on real SQLite here. -->
+    <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
   </ItemGroup>
 </Project>

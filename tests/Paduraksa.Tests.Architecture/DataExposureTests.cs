@@ -7,18 +7,21 @@ namespace Paduraksa.Tests.Architecture;
 /// <summary>
 /// PLAN §2: DTOs are decoupled from entities. No <c>Paduraksa.Data*</c> type may appear in the
 /// public surface (properties, fields, method/constructor parameters and returns, events, base
-/// types, interfaces, including generic arguments and arrays) of Contracts, Admin or Dashboard.
+/// types, interfaces, including generic arguments and arrays) of Contracts, Admin, Dashboard or
+/// Application.
 /// </summary>
 /// <remarks>
-/// The dependency-graph rule already forbids these layers from using Data at all; this check is
-/// the explicit DTO-isolation guard and also covers exposure via inherited/generic signatures.
+/// The dependency-graph rule already forbids Contracts, Admin and Dashboard from using Data at all;
+/// this check is the explicit DTO-isolation guard and also covers exposure via inherited/generic
+/// signatures. Application uses Data, but only internally: what Admin and Dashboard can call takes
+/// and returns DTOs, never an entity or the DbContext.
 /// </remarks>
 public sealed class DataExposureTests
 {
     private const BindingFlags VisibleMembers =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
-    public static TheoryData<string> Layers => [Layer.Contracts, Layer.Admin, Layer.Dashboard];
+    public static TheoryData<string> Layers => [Layer.Contracts, Layer.Admin, Layer.Dashboard, Layer.Application];
 
     [Theory]
     [MemberData(nameof(Layers))]
