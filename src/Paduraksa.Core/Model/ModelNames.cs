@@ -36,6 +36,24 @@ public static class ModelNames
         _ => throw Undefined(outcome),
     };
 
+    public static string ToName(this CertificateSource source) => source switch
+    {
+        CertificateSource.Acme => "acme",
+        CertificateSource.Uploaded => "uploaded",
+        CertificateSource.SelfSigned => "self_signed",
+        CertificateSource.LocalCa => "local_ca",
+        CertificateSource.LocalCaRoot => "local_ca_root",
+        _ => throw Undefined(source),
+    };
+
+    public static string ToName(this CertificateStatus status) => status switch
+    {
+        CertificateStatus.Pending => "pending",
+        CertificateStatus.Active => "active",
+        CertificateStatus.Failed => "failed",
+        _ => throw Undefined(status),
+    };
+
     /// <exception cref="FormatException"><paramref name="name"/> is not one of the names above.</exception>
     public static ActorKind ParseActorKind(string name) => name switch
     {
@@ -66,6 +84,26 @@ public static class ModelNames
         "conflict" => AuditOutcome.Conflict,
         "failed" => AuditOutcome.Failed,
         _ => throw NotAName<AuditOutcome>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static CertificateSource ParseCertificateSource(string name) => name switch
+    {
+        "acme" => CertificateSource.Acme,
+        "uploaded" => CertificateSource.Uploaded,
+        "self_signed" => CertificateSource.SelfSigned,
+        "local_ca" => CertificateSource.LocalCa,
+        "local_ca_root" => CertificateSource.LocalCaRoot,
+        _ => throw NotAName<CertificateSource>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static CertificateStatus ParseCertificateStatus(string name) => name switch
+    {
+        "pending" => CertificateStatus.Pending,
+        "active" => CertificateStatus.Active,
+        "failed" => CertificateStatus.Failed,
+        _ => throw NotAName<CertificateStatus>(name),
     };
 
     private static FormatException NotAName<T>(string? name)
