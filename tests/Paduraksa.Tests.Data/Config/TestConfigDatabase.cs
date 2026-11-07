@@ -1,0 +1,91 @@
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Paduraksa.Data;
+using Paduraksa.Data.Sqlite;
+
+namespace Paduraksa.Tests.Data.Config;
+
+/// <summary>
+/// A real config database file in its own temp directory, opened through the registered context factory (pragmas
+/// and all), deleted again on dispose.
+/// </summary>
+internal sealed class TestConfigDatabase : IAsyncDisposable
+{
+    private readonly string _directory = Directory.CreateTempSubdirectory("paduraksa-config-").FullName;
+    private readonly ServiceProvider _services;
+
+    private TestConfigDatabase()
+    {
+        _services = new ServiceCollection().AddPaduraksaDbContextFactory<ConfigDbContext>(DatabasePath).BuildServiceProvider();
+        Factory = _services.GetRequiredService<IDbContextFactory<ConfigDbContext>>();
+    }
+
+    public static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    public string DatabasePath => Path.Combine(_directory, "paduraksa.db");
+
+    public IDbContextFactory<ConfigDbContext> Factory { get; }
+
+    /// <summary>A database with the current schema.</summary>
+    public static async Task<TestConfigDatabase> CreateAsync()
+    {
+        var database = Empty();
+        await using var context = database.NewContext();
+        await context.Database.EnsureCreatedAsync(Ct);
+        return database;
+    }
+
+    /// <summary>No database file yet.</summary>
+    public static TestConfigDatabase Empty() => new();
+
+    public ConfigDbContext NewContext() => Factory.CreateDbContext();
+
+    /// <summary>Runs raw SQL on a separate connection (no EF, no change tracker) and returns every row.</summary>
+    public async Task<List<object?[]>> QueryAsync(string sql)
+    {
+        await using var connection = new SqliteConnection(PaduraksaSqlite.ConnectionString(DatabasePath));
+        await connection.OpenAsync(Ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        await using var reader = await command.ExecuteReaderAsync(Ct);
+        var rows = new List<object?[]>();
+        while (await reader.ReadAsync(Ct))
+        {
+            var row = new object?[reader.FieldCount];
+            for (var i = 0; i < row.Length; i++)
+            {
+                row[i] = reader.IsDBNull(i) ? null : reader.GetValue(i);
+            }
+
+            rows.Add(row);
+        }
+
+        return rows;
+    }
+
+    public async Task<object?> ScalarAsync(string sql) => (await QueryAsync(sql)).Single()[0];
+
+    /// <summary>Runs a raw SQL statement (tampering, constraint probes) and returns the affected row count.</summary>
+    public async Task<int> ExecuteAsync(string sql)
+    {
+        await using var connection = new SqliteConnection(PaduraksaSqlite.ConnectionString(DatabasePath));
+        await connection.OpenAsync(Ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return await command.ExecuteNonQueryAsync(Ct);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _services.DisposeAsync();
+        // Pooled connections keep the file open. Clear only this database's pool: ClearAllPools would also close
+        // connections that tests running in parallel rely on (SqliteSetupTests checks physical-connection reuse).
+        using (var connection = new SqliteConnection(PaduraksaSqlite.ConnectionString(DatabasePath)))
+        {
+            SqliteConnection.ClearPool(connection);
+        }
+
+        Directory.Delete(_directory, recursive: true);
+    }
+}

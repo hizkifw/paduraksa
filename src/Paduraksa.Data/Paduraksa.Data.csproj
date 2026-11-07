@@ -6,6 +6,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Entities are internal: only Data and Application (the stores) see row types. -->
+    <InternalsVisibleTo Include="Paduraksa.Application" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
   </ItemGroup>
 </Project>
