@@ -18,8 +18,9 @@ namespace Paduraksa.Proxy.Snapshot;
 /// Computing the view never allocates: canonical paths (the common case) are used as they are, others are rewritten
 /// into a <see langword="stackalloc"/> buffer of <see cref="StackLimit"/> characters, or a pooled array for longer
 /// paths. Kestrel's 8 KiB request-line limit bounds those.
+/// Public (the cold-path members) so config validation (Application) checks route paths with the same rules.
 /// </summary>
-internal static class RoutePath
+public static class RoutePath
 {
     /// <summary>Paths shorter than this are canonicalised on the stack (512 bytes).</summary>
     internal const int StackLimit = 256;
@@ -61,7 +62,7 @@ internal static class RoutePath
 
     /// <summary>Writes the canonical view of <paramref name="path"/> into <paramref name="destination"/> (at least
     /// <c>path.Length + 1</c> long) and returns its length.</summary>
-    public static int Canonicalize(ReadOnlySpan<char> path, Span<char> destination)
+    internal static int Canonicalize(ReadOnlySpan<char> path, Span<char> destination)
     {
         int written = 0;
         int i = 0;

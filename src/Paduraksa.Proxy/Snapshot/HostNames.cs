@@ -8,7 +8,7 @@ using Paduraksa.Proxy.Net;
 namespace Paduraksa.Proxy.Snapshot;
 
 /// <summary>The shape of a configured host name.</summary>
-internal enum HostNameKind
+public enum HostNameKind
 {
     /// <summary>A DNS name (or a canonical dotted-quad IPv4 literal), matched exactly.</summary>
     Exact,
@@ -25,6 +25,7 @@ internal enum HostNameKind
 /// dot, then the DNS rules shared with the certificate table (<see cref="DnsNames"/>: lengths, label characters,
 /// wildcard shape, punycode that decodes). IP literals are canonicalised.
 /// The runtime never converts anything: browsers send punycode, and a raw Unicode <c>Host</c> header is a miss.
+/// Public so the config document's normalisation and validation (Application) apply the very same rules.
 /// </summary>
 /// <remarks>
 /// What this adds to <see cref="DnsNames"/>, and the certificate table's <c>ServerNames</c> doesn't: surrounding
@@ -32,7 +33,7 @@ internal enum HostNameKind
 /// quad, or a bracketed IPv6 literal). The compiler leaves IP literals out of the certificate table, so every other
 /// name accepted here is also a valid server name.
 /// </remarks>
-internal static class HostNames
+public static class HostNames
 {
     private static readonly IdnMapping Idn = new();
 
@@ -55,7 +56,7 @@ internal static class HostNames
             return TryNormalizeIPv6Literal(value, out normalized, out kind, out error);
         }
 
-        if (!Ascii.IsValid(value) && !TryConvertToPunycode(name, ref value, out error))
+        if (!Ascii.IsValid(value) && (!IsConvertibleUnicode(name, value, out error) || !TryConvertToPunycode(name, ref value, out error)))
         {
             return false;
         }
@@ -79,17 +80,42 @@ internal static class HostNames
 
     /// <summary>Parses the inside of a bracketed IPv6 literal (no zone ID) into its 128-bit key with the strict, 0 B
     /// <see cref="IpParser"/>.</summary>
-    public static bool TryParseIPv6Literal(ReadOnlySpan<char> inner, out UInt128 key)
+    internal static bool TryParseIPv6Literal(ReadOnlySpan<char> inner, out UInt128 key)
     {
         bool parsed = IpParser.TryParseIPv6(inner, out IpKey address);
         key = parsed ? address.Value : UInt128.Zero;
         return parsed;
     }
 
+    // With invariant globalization IdnMapping does no UTS 46 mapping or NFC normalisation, so input that needs them
+    // would turn into punycode no browser sends (or that differs from the composed spelling): combining marks (NFD),
+    // invisible format characters (ZWJ, soft hyphen) and the halfwidth/fullwidth forms. Case is folded by the caller.
+    private static bool IsConvertibleUnicode(string? name, string value, out string? error)
+    {
+        foreach (char c in value)
+        {
+            UnicodeCategory category = CharUnicodeInfo.GetUnicodeCategory(c);
+            if (category is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark
+                or UnicodeCategory.Format
+                || c is >= '＀' and <= '￯')
+            {
+                error = $"'{name}' contains U+{(int)c:X4} (a combining mark, an invisible format character or a "
+                    + "fullwidth/halfwidth form), which can't be normalised here; write the name in its composed form or as "
+                    + "punycode ('xn--...')";
+                return false;
+            }
+        }
+
+        error = null;
+        return true;
+    }
+
     // Unicode → punycode, keeping a leading "*." label and dropping a trailing dot (IdnMapping rejects both).
+    // Lowercased first: with invariant globalization IdnMapping doesn't case-fold non-ASCII letters.
     private static bool TryConvertToPunycode(string? name, ref string value, out string? error)
     {
         error = null;
+        value = value.ToLowerInvariant();
         string dnsPart = value.EndsWith('.') ? value[..^1] : value;
         bool wildcard = dnsPart.StartsWith("*.", StringComparison.Ordinal);
         if (wildcard)
