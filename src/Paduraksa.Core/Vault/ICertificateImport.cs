@@ -26,6 +26,11 @@ public interface ICertificateImport
     /// public key matches the key is the leaf, the rest are its chain.
     /// </para>
     /// <para>
+    /// A leaf that is expired is accepted (the inventory treats a certificate outside its validity as unusable until it is
+    /// renewed); one that is a CA certificate, an RSA key under 2048 bits, or without a usable name is refused. The key derivation of an
+    /// encrypted key is capped at 600000 iterations.
+    /// </para>
+    /// <para>
     /// <paramref name="password"/> decrypts an encrypted PEM key or the PFX; pass an empty value if there is none. At most
     /// <see cref="CertificateImportLimits.MaxBytes"/> are read.
     /// </para>

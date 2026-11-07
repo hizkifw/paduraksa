@@ -44,6 +44,7 @@ public sealed class VaultContractTests
         typeof(IClientCertificateSource),
         typeof(ICertificateIssuance),
         typeof(ICertificateImport),
+        typeof(ICertificateNameRules),
         typeof(IJwsSigner),
         typeof(IMacKey),
         typeof(IMacKeySource),

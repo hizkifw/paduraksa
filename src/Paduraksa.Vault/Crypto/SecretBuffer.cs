@@ -19,6 +19,9 @@ internal sealed class SecretBuffer : IDisposable
     /// <summary>The writable view, for the code that fills the buffer.</summary>
     public Span<byte> Fill => _bytes;
 
+    /// <summary>The writable view as memory, for reading a stream straight into the buffer.</summary>
+    public Memory<byte> FillMemory => _bytes;
+
     /// <summary>A zero-filled buffer to decrypt or generate into.</summary>
     public static SecretBuffer Allocate(int length) => new(GC.AllocateArray<byte>(length, pinned: true));
 

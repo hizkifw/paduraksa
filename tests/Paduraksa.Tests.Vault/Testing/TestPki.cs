@@ -103,6 +103,13 @@ internal sealed class TestCa : IDisposable
         return signed.CopyWithPrivateKey(key);
     }
 
+    /// <summary>Signs a request exactly as built (no extensions added), valid from <paramref name="notBefore"/> (default a day ago) for <paramref name="validity"/> (default 90 days).</summary>
+    public X509Certificate2 Sign(CertificateRequest request, DateTimeOffset? notBefore = null, TimeSpan? validity = null)
+    {
+        var start = notBefore ?? DateTimeOffset.UtcNow.AddDays(-1);
+        return request.Create(Certificate.SubjectName, X509SignatureGenerator.CreateForECDsa(_key), start, start + (validity ?? TimeSpan.FromDays(90)), NewSerial());
+    }
+
     public static ECDsa NewKey() => ECDsa.Create(ECCurve.NamedCurves.nistP256);
 
     public void Dispose()

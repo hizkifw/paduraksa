@@ -29,14 +29,18 @@ public static class VaultServiceCollectionExtensions
     /// </remarks>
     /// <param name="services">The service collection.</param>
     /// <param name="dataDirectory">The data directory (the same one as the config database's).</param>
-    public static IServiceCollection AddPaduraksaVault(this IServiceCollection services, string dataDirectory)
+    /// <param name="nameRules">
+    /// Which SAN names of an uploaded certificate the certificate inventory can use; the vault refuses an upload with none. Pass the
+    /// inventory's own rule so the two can't disagree; null uses the vault's strict rule.
+    /// </param>
+    public static IServiceCollection AddPaduraksaVault(this IServiceCollection services, string dataDirectory, ICertificateNameRules? nameRules = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
-        return AddVault(services, VaultOptions.For(dataDirectory));
+        return AddVault(services, VaultOptions.For(dataDirectory), nameRules);
     }
 
     /// <summary>The registration over explicit <see cref="VaultOptions"/>: what the vault's tests substitute (environment, clock, transport).</summary>
-    internal static IServiceCollection AddVault(IServiceCollection services, VaultOptions options)
+    internal static IServiceCollection AddVault(IServiceCollection services, VaultOptions options, ICertificateNameRules? nameRules = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
@@ -58,11 +62,13 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ISecretHttpHandlerFactory, SecretHttpHandlerFactory>();
         services.AddSingleton<IJwsSigner, JwsSigner>();
 
+        services.AddSingleton(nameRules ?? StrictNameRules.Instance);
         services.AddSingleton<CertificateStore>();
         services.AddSingleton<CertificateContexts>();
         services.AddSingleton<IServerCertificateSource>(p => p.GetRequiredService<CertificateContexts>());
         services.AddSingleton<IClientCertificateSource>(p => p.GetRequiredService<CertificateContexts>());
         services.AddSingleton<ICertificateIssuance, CertificateIssuance>();
+        services.AddSingleton<ICertificateImport, CertificateImport>();
         return services;
     }
 }

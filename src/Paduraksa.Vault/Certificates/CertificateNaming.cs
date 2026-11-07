@@ -94,7 +94,7 @@ internal static class CertificateNaming
         return dot > 0 && name.AsSpan(dot + 1).Equals(san.AsSpan(2), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? NormalizeOne(string? name)
+    internal static string? NormalizeOne(string? name)
     {
         if (string.IsNullOrEmpty(name))
         {

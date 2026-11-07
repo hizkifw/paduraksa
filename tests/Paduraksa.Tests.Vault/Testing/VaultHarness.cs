@@ -28,6 +28,9 @@ internal sealed class VaultHarness : IDisposable
 
     public Func<SecretHttpTransportOptions, HttpMessageHandler>? Terminal { get; set; }
 
+    /// <summary>The inventory's name rule the vault applies to uploads; null for the vault's own strict one.</summary>
+    public ICertificateNameRules? NameRules { get; set; }
+
     public ListLogger<KekProvider> KekLog { get; } = new();
 
     public VaultHarness()
@@ -73,7 +76,7 @@ internal sealed class VaultHarness : IDisposable
             Time,
             Policy,
             Terminal ?? Paduraksa.Vault.Secrets.TerminalHandlers.CreateSockets);
-        VaultServiceCollectionExtensions.AddVault(services, options);
+        VaultServiceCollectionExtensions.AddVault(services, options, NameRules);
         services.AddSingleton<ILogger<KekProvider>>(KekLog);
         return services.BuildServiceProvider(validateScopes: true);
     }

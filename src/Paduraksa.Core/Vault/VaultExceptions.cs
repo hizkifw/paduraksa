@@ -17,6 +17,18 @@ public enum CertificateImportFailure
 
     /// <summary>No certificate in the upload matches the private key, or there is no key at all.</summary>
     NoMatchingKey = 4,
+
+    /// <summary>
+    /// The leaf has no DNS name or IP address in its subject alternative names that the inventory could use (<see cref="ICertificateNameRules"/>). Clients ignore the common name, so such a
+    /// certificate could never be selected for a host; the vault refuses it up front instead of storing a key nothing can use.
+    /// </summary>
+    NoUsableName = 5,
+
+    /// <summary>The leaf's key is RSA under 2048 bits.</summary>
+    WeakKey = 6,
+
+    /// <summary>The leaf is a CA certificate (basic constraints say so), not a server certificate.</summary>
+    CaCertificate = 7,
 }
 
 /// <summary>
