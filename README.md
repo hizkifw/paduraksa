@@ -19,12 +19,18 @@ dotnet run --project src/Paduraksa.Server --launch-profile dev
 
 Warnings are errors, and CI runs all three checks.
 
+The server keeps its state in its data directory (`Paduraksa:DataDirectory`, default `./data` next to the shipped
+`appsettings.json`, so `src/Paduraksa.Server/bin/Debug/net10.0/data/` for the `dev` profile; set
+`Paduraksa__DataDirectory` to move it): the config database `paduraksa.db` and `last-good.json`, the config that was
+last live. The server falls back to that file (degraded) when the database can't be used at startup, and restores the
+database from it when the database has no revisions (deleted or replaced). So to start over with an empty config, stop
+the server and delete both. One data directory serves one server at a time.
+
 ### Database migrations
 
 The config database schema (`ConfigDbContext` in `src/Paduraksa.Data`) comes from EF Core migrations in
-`src/Paduraksa.Data/Migrations`, applied at startup by `ConfigDatabase.InitializeAsync` (the server calls it from a
-later M2 wave on). After changing an entity or its mapping, add a
-migration with the pinned `dotnet-ef` from the local tool manifest:
+`src/Paduraksa.Data/Migrations`, applied at startup by `ConfigDatabase.InitializeAsync` (the server's startup recompile
+calls it first). After changing an entity or its mapping, add a migration with the pinned `dotnet-ef` from the local tool manifest:
 
 ```sh
 dotnet tool restore
