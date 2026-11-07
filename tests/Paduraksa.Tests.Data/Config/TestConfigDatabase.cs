@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Paduraksa.Core.Ids;
 using Paduraksa.Data;
 using Paduraksa.Data.Sqlite;
 
@@ -23,16 +24,15 @@ internal sealed class TestConfigDatabase : IAsyncDisposable
 
     public static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public string DatabasePath => Path.Combine(_directory, "paduraksa.db");
+    public string DatabasePath => Path.Combine(_directory, ConfigDatabase.FileName);
 
     public IDbContextFactory<ConfigDbContext> Factory { get; }
 
-    /// <summary>A database with the current schema.</summary>
+    /// <summary>A database migrated to the current schema, the way startup does it.</summary>
     public static async Task<TestConfigDatabase> CreateAsync()
     {
         var database = Empty();
-        await using var context = database.NewContext();
-        await context.Database.EnsureCreatedAsync(Ct);
+        await ConfigDatabase.InitializeAsync(database.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
         return database;
     }
 

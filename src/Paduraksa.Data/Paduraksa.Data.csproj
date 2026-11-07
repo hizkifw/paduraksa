@@ -4,6 +4,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!-- For `dotnet ef` (design time only; doesn't flow to referencing projects). -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
     <!-- Entities are internal: only Data and Application (the stores) see row types. -->
