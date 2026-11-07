@@ -46,12 +46,7 @@ internal static class ConfigProjection
         ArgumentNullException.ThrowIfNull(changes);
 
         await context.Database.ExecuteSqlRawAsync("PRAGMA defer_foreign_keys = ON", cancellationToken).ConfigureAwait(false);
-        ConfigRevisionId? reflected = await context.GlobalSettings
-            .Select(s => (ConfigRevisionId?)s.RevisionId)
-            .FirstOrDefaultAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        if (parent is not null && reflected == parent)
+        if (parent is not null && await TryReflectedRevisionAsync(context, cancellationToken).ConfigureAwait(false) == parent)
         {
             TouchedObjects touched = TouchedObjects.From(changes);
             await DeleteAsync(context, touched, cancellationToken).ConfigureAwait(false);
@@ -66,6 +61,27 @@ internal static class ConfigProjection
         await context.GlobalSettings.ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         context.GlobalSettings.Add(Settings(document.Settings, revision));
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>The revision the projection shows (its settings row's), or null when it has none.</summary>
+    public static Task<ConfigRevisionId?> ReflectedRevisionAsync(ConfigDbContext context, CancellationToken cancellationToken) =>
+        context.GlobalSettings
+            .Where(s => s.Key == GlobalSettingsRow.SingletonKey)
+            .Select(s => (ConfigRevisionId?)s.RevisionId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary><see cref="ReflectedRevisionAsync"/>, or null when the settings row can't be read (a damaged ID): such a
+    /// projection shows nothing usable and is rewritten whole.</summary>
+    public static async Task<ConfigRevisionId?> TryReflectedRevisionAsync(ConfigDbContext context, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ReflectedRevisionAsync(context, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     /// <summary>The settings row of <paramref name="settings"/>, reflecting <paramref name="revision"/>.</summary>

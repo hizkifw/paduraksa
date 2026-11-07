@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Compilation;
+using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Yarp;
 
@@ -15,7 +16,8 @@ public static class ConfigServiceCollectionExtensions
     /// Registers <see cref="ConfigService"/> as a singleton (the single writer), with <see cref="TimeProvider.System"/>,
     /// the allow-everything <see cref="IConfigCommandAuthorizer"/> and default <see cref="ConfigServiceOptions"/>
     /// unless those are already registered. The config database's context factory, an <see cref="IConfigCompiler"/>
-    /// and the <see cref="SnapshotPublisher"/> must be registered too.
+    /// and the <see cref="SnapshotPublisher"/> must be registered too; a <see cref="LastKnownGoodFile"/> is used when
+    /// registered.
     /// </summary>
     public static IServiceCollection AddPaduraksaConfigService(this IServiceCollection services)
     {
@@ -30,7 +32,8 @@ public static class ConfigServiceCollectionExtensions
             sp.GetRequiredService<TimeProvider>(),
             sp.GetService<ILoggerFactory>(),
             sp.GetRequiredService<IConfigCommandAuthorizer>(),
-            sp.GetRequiredService<ConfigServiceOptions>()));
+            sp.GetRequiredService<ConfigServiceOptions>(),
+            sp.GetService<LastKnownGoodFile>()));
         return services;
     }
 }

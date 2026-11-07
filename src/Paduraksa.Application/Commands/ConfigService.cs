@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
+using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Projection;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Storage;
@@ -57,6 +58,13 @@ namespace Paduraksa.Application.Commands;
 /// timeout, which bounds how long the writer lock is held) is logged. Dry runs and commands that change nothing are
 /// not audited: they change nothing, and previews (the dashboard's review sheet, MCP's <c>preview_*</c> tools) would
 /// drown the log.</para>
+/// <para><b>Startup.</b> A server runs <see cref="StartAsync"/> once before anything reads or writes config: the startup
+/// recompile, with the last-known-good fallback and the degraded states it can leave the store in (<see cref="Status"/>).
+/// While the store is unusable, commands get <see cref="ConfigCommandStatus.Unavailable"/>, unaudited. A process that
+/// never starts the service (the CLI writing to a stopped server's database) accepts commands as usual.</para>
+/// <para><b>Last-known-good.</b> With a <see cref="LastKnownGoodFile"/>, the document of every revision that goes live
+/// (the startup one and each commit's) is written to it in the background, after the publish succeeds: never under the
+/// writer lock, and never holding up the command's result.</para>
 /// <para><b>Disposal.</b> <see cref="Dispose"/> stops new commands; commands in flight finish normally.</para>
 /// </remarks>
 public sealed partial class ConfigService : IDisposable
@@ -78,6 +86,7 @@ public sealed partial class ConfigService : IDisposable
     private readonly ConfigServiceOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ConfigRevisionStore _revisions;
+    private readonly LastKnownGoodFile? _lastKnownGood;
     private readonly AuditLog _audit;
     private readonly ILogger _logger;
 
@@ -98,7 +107,8 @@ public sealed partial class ConfigService : IDisposable
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
         IConfigCommandAuthorizer? authorizer = null,
-        ConfigServiceOptions? options = null)
+        ConfigServiceOptions? options = null,
+        LastKnownGoodFile? lastKnownGood = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(compiler);
@@ -111,6 +121,7 @@ public sealed partial class ConfigService : IDisposable
         _authorizer = authorizer ?? AllowAllConfigCommands.Instance;
         _options = options ?? new ConfigServiceOptions();
         _revisions = new ConfigRevisionStore(_timeProvider);
+        _lastKnownGood = lastKnownGood;
         _audit = new AuditLog(_timeProvider, loggerFactory.CreateLogger<AuditLog>());
         _logger = loggerFactory.CreateLogger<ConfigService>();
     }
@@ -151,7 +162,10 @@ public sealed partial class ConfigService : IDisposable
         await _writer.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            execution = await ExecuteExclusiveAsync(command, origin, cancellationToken).ConfigureAwait(false);
+            // Read under the lock: startup sets it under the lock too.
+            execution = Status is { AcceptsCommands: false } unusable
+                ? new Execution(Unavailable(command, unusable))
+                : await ExecuteExclusiveAsync(command, origin, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -309,7 +323,7 @@ public sealed partial class ConfigService : IDisposable
 
         RevisionRef revision = Ref(info);
         LogCommitted(revision.Seq, info.Id, audited.Action, origin.Actor, origin.Channel, changes.Count);
-        PublishTicket ticket = new(revision, StartPublish(snapshot));
+        PublishTicket ticket = new(revision, StartPublish(snapshot), new LastKnownGoodEntry(revision, document, info.DocumentHash));
         _latestPublish = ticket;
         Changes.Publish(new ConfigCommitted(revision, changes));
         return new Execution(new ConfigCommandResult(ConfigCommandStatus.Committed, revision, changes, Version: version), ticket);
@@ -365,6 +379,7 @@ public sealed partial class ConfigService : IDisposable
             PublishOutcome outcome = Map(result, own.Revision.Id);
             if (outcome.Succeeded)
             {
+                WentLive(own);
                 return committed with { Publish = outcome };
             }
 
@@ -405,6 +420,11 @@ public sealed partial class ConfigService : IDisposable
             }
 
             PublishOutcome outcome = Map(latest, newer.Revision.Id);
+            if (outcome.Succeeded)
+            {
+                WentLive(newer); // before this returns; its own command does it too
+            }
+
             return committed with
             {
                 Status = outcome.Succeeded ? ConfigCommandStatus.Committed : ConfigCommandStatus.PublishFailed,
@@ -425,13 +445,20 @@ public sealed partial class ConfigService : IDisposable
         }
     }
 
-    /// <summary>Follows a publish that was still pending when its command returned: logs and audits a failure.</summary>
+    /// <summary>Follows a publish that was still pending when its command returned: on success, <see cref="WentLive"/>;
+    /// on failure, logs and audits it.</summary>
     private async Task AuditLatePublishAsync(PublishTicket ticket, CommandOrigin origin)
     {
         PublishResult result = await ticket.Task.ConfigureAwait(false); // the publisher completes its tasks, never faults them
-        if (result.Status is PublishStatus.Published or PublishStatus.Superseded)
+        if (result.Status == PublishStatus.Published)
         {
-            return; // superseded: the newer publish's command reports it
+            WentLive(ticket);
+            return;
+        }
+
+        if (result.Status == PublishStatus.Superseded)
+        {
+            return; // the newer publish's command reports it
         }
 
         await AuditPublishFailureAsync(ticket.Revision, Map(result, ticket.Revision.Id), origin).ConfigureAwait(false);
@@ -783,7 +810,7 @@ public sealed partial class ConfigService : IDisposable
     }
 
     /// <summary>A committed revision's queued publish.</summary>
-    private sealed record PublishTicket(RevisionRef Revision, Task<PublishResult> Task);
+    private sealed record PublishTicket(RevisionRef Revision, Task<PublishResult> Task, LastKnownGoodEntry LastKnownGood);
 
     private readonly record struct Execution(ConfigCommandResult Result, PublishTicket? Publish = null);
 }
