@@ -1,5 +1,6 @@
 using System.Globalization;
 
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
@@ -181,10 +182,13 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     /// <summary>
     /// Connects the publisher to the public app's YARP. Called once, from the endpoint setup:
     /// <paramref name="mapReverseProxy"/> must call <c>MapReverseProxy</c> (whose initial load reads
-    /// <see cref="ConfigProvider"/>) and return the <see cref="EndpointDataSource"/> it added. A candidate queued before
-    /// this point is validated and handed to that initial load, then published.
+    /// <see cref="ConfigProvider"/>) and return its convention builder and the <see cref="EndpointDataSource"/> it
+    /// added. A candidate queued before this point is validated and handed to that initial load, then published.
     /// </summary>
-    public void Attach(IConfigValidator validator, Func<EndpointDataSource> mapReverseProxy)
+    /// <returns>The convention builder <paramref name="mapReverseProxy"/> returned.</returns>
+    public ReverseProxyConventionBuilder Attach(
+        IConfigValidator validator,
+        Func<(ReverseProxyConventionBuilder Builder, EndpointDataSource Endpoints)> mapReverseProxy)
     {
         ArgumentNullException.ThrowIfNull(validator);
         ArgumentNullException.ThrowIfNull(mapReverseProxy);
@@ -215,10 +219,11 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
                 }
             }
 
+            ReverseProxyConventionBuilder builder;
             EndpointDataSource endpoints;
             try
             {
-                endpoints = mapReverseProxy();
+                (builder, endpoints) = mapReverseProxy();
             }
             catch (Exception ex)
             {
@@ -236,6 +241,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
             }
 
             StartWorkerIfNeeded();
+            return builder;
         }
     }
 

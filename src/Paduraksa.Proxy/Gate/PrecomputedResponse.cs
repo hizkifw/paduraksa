@@ -52,14 +52,14 @@ public sealed class PrecomputedResponse
     public static PrecomputedResponse Text(int statusCode, string body, bool noStore = true)
     {
         ArgumentNullException.ThrowIfNull(body);
-        ValidateStatus(statusCode, body.Length);
+        ValidateStatus(statusCode, body.Length, nameof(body));
         return new(statusCode, Encoding.UTF8.GetBytes(body), TextPlain, noStore ? NoStore : default, default, null);
     }
 
     /// <summary>A response with an arbitrary body and content type.</summary>
     public static PrecomputedResponse Create(int statusCode, ReadOnlySpan<byte> body, string? contentType, string? cacheControl = "no-store")
     {
-        ValidateStatus(statusCode, body.Length);
+        ValidateStatus(statusCode, body.Length, nameof(body));
         return new(statusCode, body.ToArray(), Values(contentType), Values(cacheControl), default, null);
     }
 
@@ -88,13 +88,14 @@ public sealed class PrecomputedResponse
     /// <summary>204, 205 and 304 can't carry a body; Kestrel fails the response if one is written.</summary>
     internal static bool ForbidsBody(int statusCode) => statusCode is 204 or 205 or 304;
 
-    private static void ValidateStatus(int statusCode, int bodyLength)
+    // bodyParameter: the public method's body parameter name, so the exception names what the caller passed.
+    private static void ValidateStatus(int statusCode, int bodyLength, string bodyParameter)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(statusCode, 200, nameof(statusCode));
         ArgumentOutOfRangeException.ThrowIfGreaterThan(statusCode, 599, nameof(statusCode));
         if (bodyLength > 0 && ForbidsBody(statusCode))
         {
-            throw new ArgumentException($"A {statusCode} response can't have a body.", nameof(bodyLength));
+            throw new ArgumentException($"A {statusCode} response can't have a body.", bodyParameter);
         }
     }
 

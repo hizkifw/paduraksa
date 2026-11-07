@@ -121,16 +121,10 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
     /// <example><c>2001:db8:1:2:3:4:5:6</c> /64 → <c>2001:db8:1:2::</c>; <c>192.0.2.77</c> /24 → <c>192.0.2.0</c>.</example>
     public IpKey MaskTo(int prefixLength)
     {
-        if (IsIPv4)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(prefixLength);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(prefixLength, 32);
-            return new IpKey(_value & PrefixMask(96 + prefixLength));
-        }
-
+        bool ipv4 = IsIPv4;
         ArgumentOutOfRangeException.ThrowIfNegative(prefixLength);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(prefixLength, 128);
-        return new IpKey(_value & PrefixMask(prefixLength));
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(prefixLength, ipv4 ? 32 : 128);
+        return new IpKey(_value & PrefixMask(ipv4 ? 96 + prefixLength : prefixLength));
     }
 
     /// <summary><see cref="MaskTo(int)"/> with a prefix per family, e.g. <c>MaskTo(32, 64)</c> for rate-limit keys

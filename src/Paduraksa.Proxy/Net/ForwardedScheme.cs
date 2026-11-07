@@ -42,8 +42,6 @@ public readonly record struct RequestScheme(bool IsHttps, SchemeSource Source)
 /// </summary>
 public static class ForwardedScheme
 {
-    public const string XForwardedProto = "X-Forwarded-Proto";
-
     public static RequestScheme Resolve(in ClientIpResolution client, IHeaderDictionary headers, TrustedProxyPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(headers);
@@ -85,7 +83,7 @@ public static class ForwardedScheme
 
     private static RequestScheme FromForwardedProto(IHeaderDictionary headers)
     {
-        StringValues values = headers[XForwardedProto];
+        StringValues values = headers[ForwardingHeaders.XForwardedProto];
         if (values.Count == 1)
         {
             ReadOnlySpan<char> value = values[0].AsSpan().Trim(" \t");

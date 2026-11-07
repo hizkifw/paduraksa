@@ -66,19 +66,17 @@ public static class ProxyHostingExtensions
 
         SnapshotPublisher publisher = endpoints.ServiceProvider.GetRequiredService<SnapshotPublisher>();
         IConfigValidator validator = endpoints.ServiceProvider.GetRequiredService<IConfigValidator>();
-        ReverseProxyConventionBuilder? builder = null;
-        publisher.Attach(validator, () =>
+        return publisher.Attach(validator, () =>
         {
-            builder = endpoints.MapReverseProxy(static proxy =>
+            ReverseProxyConventionBuilder builder = endpoints.MapReverseProxy(static proxy =>
             {
                 proxy.Use((Func<HttpContext, RequestDelegate, Task>)RejectUngatedRequests);
                 proxy.UseSessionAffinity();
                 proxy.UseLoadBalancing();
                 proxy.UsePassiveHealthChecks();
             });
-            return YarpDataSource(endpoints);
+            return (builder, YarpDataSource(endpoints));
         });
-        return builder!;
     }
 
     /// <summary>

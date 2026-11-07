@@ -37,19 +37,11 @@ namespace Paduraksa.Proxy.Yarp;
 /// </summary>
 internal static class ForwardedHeadersTransform
 {
-    public const string XForwardedFor = "X-Forwarded-For";
-    public const string XForwardedProto = "X-Forwarded-Proto";
-    public const string XForwardedHost = "X-Forwarded-Host";
-    public const string XRealIp = "X-Real-IP";
-    public const string Forwarded = "Forwarded";
-    public const string XForwardedPrefix = "X-Forwarded-Prefix";
-    public const string XForwardedPort = "X-Forwarded-Port";
-
     private const string Http = "http";
     private const string Https = "https";
 
     /// <summary>Client-supplied forwarding headers that are dropped without a replacement.</summary>
-    private static readonly string[] Dropped = [Forwarded, XForwardedPrefix, XForwardedPort];
+    private static readonly string[] Dropped = [ForwardingHeaders.Forwarded, ForwardingHeaders.XForwardedPrefix, ForwardingHeaders.XForwardedPort];
 
     public static ValueTask ApplyAsync(RequestTransformContext context)
     {
@@ -59,10 +51,10 @@ internal static class ForwardedHeadersTransform
 
         string proto = (state?.IsHttps ?? request.IsHttps) ? Https : Http;
 
-        upstream.Remove(XForwardedFor);
-        upstream.Remove(XRealIp);
-        upstream.Remove(XForwardedProto);
-        upstream.Remove(XForwardedHost);
+        upstream.Remove(ForwardingHeaders.XForwardedFor);
+        upstream.Remove(ForwardingHeaders.XRealIp);
+        upstream.Remove(ForwardingHeaders.XForwardedProto);
+        upstream.Remove(ForwardingHeaders.XForwardedHost);
         foreach (string name in Dropped)
         {
             upstream.Remove(name);
@@ -81,15 +73,15 @@ internal static class ForwardedHeadersTransform
         if (state is not null && state.ClientAddress != IpKey.Unspecified)
         {
             string client = state.FormattedClientAddress();
-            upstream.TryAddWithoutValidation(XForwardedFor, client);
-            upstream.TryAddWithoutValidation(XRealIp, client);
+            upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedFor, client);
+            upstream.TryAddWithoutValidation(ForwardingHeaders.XRealIp, client);
         }
 
-        upstream.TryAddWithoutValidation(XForwardedProto, proto);
+        upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedProto, proto);
         StringValues host = request.Headers.Host;
         if (host.Count == 1 && !string.IsNullOrEmpty(host[0]))
         {
-            upstream.TryAddWithoutValidation(XForwardedHost, host[0]);
+            upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedHost, host[0]);
         }
 
         return ValueTask.CompletedTask;

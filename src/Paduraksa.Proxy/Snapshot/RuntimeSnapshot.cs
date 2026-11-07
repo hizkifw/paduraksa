@@ -66,6 +66,12 @@ public sealed class RuntimeSnapshot
     /// </summary>
     public TrustedProxyPolicy TrustedProxies { get; init; } = TrustedProxyPolicy.Off;
 
+    /// <summary>
+    /// Whether every route slot has its YARP endpoint, so the gate can hand any route to YARP. A snapshot with no routes
+    /// needs no endpoints, so it is trivially bound, even at generation 0 (<see cref="Bootstrap"/> included, which
+    /// keeps the live snapshot bound from the start). That is also why the publisher's empty-YARP fast path can make
+    /// a candidate without YARP content live at once, before YARP exists: binding it takes no endpoints.
+    /// </summary>
     public bool IsBound => YarpEndpoints.Length == RouteIdBySlot.Length && (Generation > 0 || RouteIdBySlot.Length == 0);
 
     /// <summary>

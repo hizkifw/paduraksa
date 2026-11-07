@@ -25,7 +25,7 @@ public enum TrustedProxyMode : byte
 public sealed class TrustedProxyPolicy
 {
     /// <summary>The default forwarding header for <see cref="TrustedProxyMode.Generic"/>.</summary>
-    public const string XForwardedFor = "X-Forwarded-For";
+    public const string XForwardedFor = ForwardingHeaders.XForwardedFor;
 
     private TrustedProxyPolicy(
         TrustedProxyMode mode,
