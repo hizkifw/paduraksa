@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.12**: M0, M1 and M2 done, M3 next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.13**: M0, M1 and M2 done, M3 next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -561,7 +561,19 @@ Many homelabs sit behind Cloudflare's proxy (orange cloud) or a Cloudflare Tunne
   - **Authenticated Origin Pulls:** request a client certificate from Cloudflare and verify it against Cloudflare's origin-pull CA (shipped, replaceable) on the TCP listener (§7.2 B, per-SNI `ClientCertificateRequired`). This is the strong form of origin lockdown.
   - **`CF-Ray`** is recorded in access logs and offered as a variable on error pages, next to our request ID, so issues can be correlated with the Cloudflare dashboard.
 - **Certificates:** Cloudflare Origin CA certificates can be uploaded like any other (§9), with a hint that they're only trusted by Cloudflare. DNS-01 via the Cloudflare DNS provider (§9) works whether or not the proxy mode is on.
-- **Request simulator** (§12) takes a "via Cloudflare" toggle, so users can see which IP and country the policies would see.
+- **Request simulator** (§7.7) takes a "via Cloudflare" toggle, so users can see which IP and country the policies would see.
+
+### 7.7 Request simulator ("Why was this blocked?")
+
+Admins test their rules before or after a change by asking what a request would get, and why. **The simulator runs the real gate code over a real compiled snapshot, never a reimplementation**, so its answer can't drift from what production does.
+
+- **Input:** URL (scheme, host, port, path, query), method, headers (including the user agent and cookies), the peer IP plus how it arrives (direct, through a trusted generic proxy, via Cloudflare Proxy or Tunnel, with or without PROXY protocol), and the TLS context (the name sent in the handshake, ALPN/HTTP version, TLS version). The surfaces fill in sensible defaults, so a URL and an IP are enough.
+- **Target config:** the live snapshot, any stored revision, or a *draft*: a document or pending command compiled through the dry-run path (§6.1 steps 1–4) and never published. So "what would this change do to this request" is answerable before committing.
+- **Output:** the outcome (forward to upstream X / fixed answer / redirect / 421 / drop) plus the **trace**: client-IP resolution (which header and hop were trusted), host match (exact/wildcard/default), the TLS-policy check, each policy in order with its verdict and reason, the HTTPS redirect, route match (which route, and the matching view of the path), and the upstream (cluster and the destinations currently healthy; load balancing is random, so not which one).
+- **No cost on the hot path.** Gate steps report through a tracer passed as a **generic struct type parameter**. Production uses a no-op tracer, which the JIT removes entirely; the simulator uses a recording one. The 0 B allocation tests and the gate benchmarks guard it.
+- **Stateful and outbound policies (M6 on)** are simulated without side effects: a rate limit reports "would allow, N tokens left" without taking one; forward-auth reports "would call `<provider>`" (an explicit opt-in may make the real call); geo shows the country it resolved.
+- **Parity tests:** for generated configs and requests, the simulator's outcome must equal the real gate's (the M2 `CompiledBehaviourTests` harness is the seed). Each policy added later (M6) must add its trace step and parity cases.
+- **Surfaces:** one Application function, `SimulateAsync(target, request)`. It is exposed as `POST /api/v1/simulate` (M4), as the MCP `simulate_request` tool (M8), and in the dashboard simulator page (M5). Access-log entries link into it with the request pre-filled (M7).
 
 ---
 
@@ -699,7 +711,7 @@ All four call the **same Application services** with the same DTOs, authorizatio
 **Pages**
 1. **Overview:** traffic, error rate, p50/p95 latency, top hosts, blocked requests, cert expiries, unhealthy upstreams, recent audit events.
 2. **Hosts:** a searchable/taggable list with live sparkline, health and cert status. Host detail tabs: General · Routes · Upstream · TLS · Security (WAF) · Auth · Pages · Advanced · Metrics · History.
-3. **Request simulator / "Why was this blocked?"** Enter a URL, IP, UA and headers and see the exact decision chain (host match → each policy → route → upstream). The same function is exposed to the API/MCP, and access-log entries link straight into it.
+3. **Request simulator / "Why was this blocked?"** (§7.7) Enter a URL, IP, UA and headers and see the exact decision chain (host match → each policy → route → upstream), against the live config, an old revision or the change being reviewed. The same function is exposed to the API/MCP, and access-log entries link straight into it.
 4. **Certificates:** list, issue (wizard), upload, local CA, renewal timeline, ACME order logs.
 5. **Upstreams & health:** destinations, probe results, history.
 6. **Security:** global rule sets, rate-limit policies, geo policy, presets, blocked-request explorer.
@@ -741,9 +753,9 @@ Each milestone ends with a working, testable increment.
 | **M1 Proxy core** ✅ *(done: proxy core, end-to-end tests, benchmarks, S6 in scope, S7 baseline)* | Snapshot model + store, gate middleware, host table, client-IP resolution incl. Cloudflare `Proxy`/`Tunnel` modes with baked-in ranges (§7.6), TLS SNI selection, YARP provider, H1/H2/H3, HTTP→HTTPS redirect, default host, hard-coded test config | Benchmarks + S7 baseline; S6 continuity test (YARP health, no request errors under publishes); zero-alloc tests pass (gate incl. client-IP resolution in every trusted-proxy mode); end-to-end tests through `PaduraksaHost` (per-SNI certs + hot swap, redirect port, PROXY protocol, Cloudflare/generic client IP, upstream headers, `Alt-Svc`, H3 in Docker) |
 | **M2 Config store** ✅ *(done: config store wired into the process, startup recompile, last-known-good with degraded starts; change → live median 11–15 ms end to end)* | EF model, migrations, Application command pipeline, validation, compiler, revisions, diff, rollback, audit (hash chain), last-known-good | Change → revision → live in < 100 ms; rollback works |
 | **M3 Vault & certs** | KEK/DEK store, capabilities, upload, self-signed, local CA, ACME client (HTTP-01 → DNS-01 Cloudflare/deSEC), renewal scheduler, ARI | Pebble-based integration tests issue + renew; banned-API rules hold. Open items: decide where shared EF/SQLite infrastructure (typed-ID conventions, pragmas) lives, since Vault may reference only Core. When the placeholder certificate and its compiler wrapper go (§3, §6.4), stored documents that name no default certificate, or name the placeholder's ID (the benchmark runner), must still start: the compiler tolerates them or a migration rewrites them. |
-| **M4 Admin backend** | Admin app, local users, cookies, TOTP, roles, API tokens, REST API + OpenAPI, first-run setup-token gate | API-only end-to-end setup possible |
+| **M4 Admin backend** | Admin app, local users, cookies, TOTP, roles, API tokens, REST API + OpenAPI, first-run setup-token gate, **request simulator core** (§7.7: gate tracer, `SimulateAsync` over live/revision/draft, `POST /api/v1/simulate`, parity tests) | API-only end-to-end setup possible; the simulator explains every gate outcome M1–M3 can produce and matches the real gate in parity tests |
 | **M5 Dashboard + wizard** | Layout, hosts/certs/settings pages, review-diff flow, history, audit, wizard | New user from `docker run` to proxied host via UI only |
-| **M6 WAF** | IP/geo/rate-limit/size/path/UA policies, Cloudflare range refresh job, `CF-IPCountry` geo, origin lockdown + Authenticated Origin Pulls (§7.6), presets, error pages, robots, maintenance mode, request simulator | Policy unit tests + simulator parity tests; S6 rate-limit continuity (429 behaviour continuous across publishes) |
+| **M6 WAF** | IP/geo/rate-limit/size/path/UA policies, Cloudflare range refresh job, `CF-IPCountry` geo, origin lockdown + Authenticated Origin Pulls (§7.6), presets, error pages, robots, maintenance mode, a simulator trace step for every new policy (§7.7) | Policy unit tests + simulator parity tests; S6 rate-limit continuity (429 behaviour continuous across publishes) |
 | **M7 Observability** | Counters, histograms, `/metrics`, health checks, notifications, live tail, rollups | Dashboard overview fully live; S6 metric continuity (counters monotonic across publishes) |
 | **M8 Interop** | YAML import/export, CLI, MCP server, backup/restore, NPM importer (nice to have) | Round-trip export → import yields an identical revision hash |
 | **M9 Release v0.1** | Docker image (multi-arch), compose example, docs site, threat model doc, fuzzing (parsers, YAML, ACME responses), load tests | Tagged release |
@@ -818,3 +830,4 @@ Each milestone ends with a working, testable increment.
   - Integration: public listener layout and `Paduraksa:Listen` options (`PublicHttpsPort`, `Http3`, PROXY protocol per listener) (§3). Typed `Certificates`/`TrustedProxies` snapshot slots, certificate references through `IServerCertificateResolver`, and certificate hot swap by publishing (§6.2, §7.2 B). Client-IP resolution through the global trusted-proxy policy, ClientInfo on QUIC verified (§7.2 A/C, §7.5, §7.6). Exact upstream forwarding-header semantics, every `cf-*` header stripped unless trusted, one trusted request scheme for the redirect and `X-Forwarded-Proto` (§7.2 C/E, §7.6). Per-host TLS settings re-checked per request, 421 on a weaker coalesced connection (§7.2 B/C). S6 scoped to YARP health in M1; rate-limit and metric continuity moved to M6/M7 (§6.3, §13, §14).
 - **v0.11:** M1 done. S7 baseline recorded in `bench/results/2026-11-07-baseline.md` (§13, §14). §1 lists `Tests.Proxy` and `Bench.Runner`. §7.5 describes the as-built builder; the slim-builder note is kept as spike history.
 - **v0.12:** M2 done. The config document is the source of truth and the EF entities are its projection (§6.4). Typed IDs reach the proxy model. Canonical JSON, validation and diff work over the document. The compiler resolves the settings layers and places IP allow lists in the host and route chains (§6.4). Commands carry per-object versions that are revision numbers, and rollback is committed as a new revision. The audit log is a hash chain. Startup recompiles the latest revision, and `last-good.json` gives a degraded start or a restore (§6.1, §6.4, §11.3). The M3 open items now include the placeholder certificate (§14).
+- **v0.13:** Request simulator designed (§7.7): runs the real gate over live, stored or draft config through a zero-cost generic tracer, with parity tests. Its core moves forward to M4; M6 adds a trace step per policy (§12, §14).
