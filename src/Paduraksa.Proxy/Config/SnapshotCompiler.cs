@@ -67,7 +67,9 @@ public static class SnapshotCompiler
         }
 
         TrustedProxyPolicy trustedProxies = CompileTrustedProxies(defaults.TrustedProxies, options, errors);
-        Dictionary<UpstreamId, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], errors);
+        HashSet<UpstreamId> withoutDestinations = [];
+        Dictionary<UpstreamId, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], withoutDestinations, errors);
+        HashSet<UpstreamId> reported = [];
 
         HostTable.Builder table = new();
         HashSet<HostId> hostIds = [];
@@ -165,6 +167,13 @@ public static class SnapshotCompiler
             if (spec.Enabled)
             {
                 hosts.Add(host);
+                foreach (RouteSpec route in spec.Kind == HostKind.Proxy ? spec.Routes ?? [] : [])
+                {
+                    if (withoutDestinations.Contains(route.Upstream) && reported.Add(route.Upstream))
+                    {
+                        errors.Add(new(CompileErrorSource.Upstream(route.Upstream), "needs at least one destination: an enabled host routes to it"));
+                    }
+                }
             }
             else
             {
@@ -201,7 +210,10 @@ public static class SnapshotCompiler
         return new CompileResult(snapshot, []);
     }
 
-    private static Dictionary<UpstreamId, ClusterConfig> CompileUpstreams(IReadOnlyList<UpstreamSpec> upstreams, List<CompileError> errors)
+    private static Dictionary<UpstreamId, ClusterConfig> CompileUpstreams(
+        IReadOnlyList<UpstreamSpec> upstreams,
+        HashSet<UpstreamId> withoutDestinations,
+        List<CompileError> errors)
     {
         // Insertion-ordered by construction.
         Dictionary<UpstreamId, ClusterConfig> clusters = [];
@@ -233,7 +245,8 @@ public static class SnapshotCompiler
             Dictionary<string, DestinationId> destinationIds = new(StringComparer.OrdinalIgnoreCase);
             if (spec.Destinations is null || spec.Destinations.Count == 0)
             {
-                errors.Add(new(where, "needs at least one destination"));
+                // Only an error once an enabled host routes here (all destinations disabled for maintenance).
+                withoutDestinations.Add(spec.Id);
             }
 
             foreach (DestinationSpec destination in spec.Destinations ?? [])

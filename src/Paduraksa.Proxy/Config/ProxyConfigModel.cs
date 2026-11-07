@@ -221,6 +221,7 @@ public sealed record UpstreamSpec
 {
     public required UpstreamId Id { get; init; }
 
+    /// <summary>Empty only while no enabled host routes to the upstream (say, every destination disabled).</summary>
     public required IReadOnlyList<DestinationSpec> Destinations { get; init; }
 
     /// <summary>YARP policy name (<c>RoundRobin</c>, <c>PowerOfTwoChoices</c>, ...); <see langword="null"/> = YARP's default.</summary>

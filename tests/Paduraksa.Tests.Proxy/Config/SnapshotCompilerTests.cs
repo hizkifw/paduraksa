@@ -212,7 +212,11 @@ public sealed class SnapshotCompilerTests
             $"upstream ID '{TestIds.CaseTwin(TestIds.Upstream("u"))}' differs from '{TestIds.Upstream("u")}' only in case (YARP ignores case)"
         },
         { "empty upstream ID", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { Id = UpstreamId.Empty }] }, "the upstream ID is empty" },
-        { "upstream without destinations", new ProxyConfigModel { Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("u"), Destinations = [] }] }, "at least one destination" },
+        {
+            "routed upstream without destinations",
+            new ProxyConfigModel { Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("u"), Destinations = [] }], Hosts = [ProxyHost("a", "a.test", Route("r", "u"))] },
+            "at least one destination"
+        },
         { "bad destination address", new ProxyConfigModel { Upstreams = [Upstream("u", "ftp://a/")] }, "absolute http or https address" },
         { "duplicate destination", new ProxyConfigModel { Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("u"), Destinations = [new(TestIds.Destination("d"), "http://a/"), new(TestIds.Destination("d"), "http://b/")] }] }, "duplicate destination ID" },
         {
@@ -288,6 +292,23 @@ public sealed class SnapshotCompilerTests
 
         Assert.Empty(snapshot.Hosts.Find("a.test")!.FixedResponse!.Body);
         Assert.IsType<StaticPolicy>(snapshot.Hosts.Find("b.test")!.Policies[0]);
+    }
+
+    [Fact]
+    public void AnUpstreamWithoutDestinationsIsFineUntilAnEnabledHostRoutesToIt()
+    {
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("u"), Destinations = [] }],
+            Hosts = [ProxyHost("a", "a.test", Route("r", "u")) with { Enabled = false }],
+        };
+
+        RuntimeSnapshot snapshot = Compile(model);
+        Assert.Empty(Assert.Single(snapshot.Yarp.Clusters).Destinations!);
+
+        CompileResult routed = SnapshotCompiler.Compile(model with { Hosts = [.. model.Hosts, ProxyHost("b", "b.test", Route("s", "u")), ProxyHost("c", "c.test", Route("t", "u"))] });
+        CompileError error = Assert.Single(routed.Errors);
+        Assert.Equal(CompileErrorSource.Upstream(TestIds.Upstream("u")), error.Source);
     }
 
     [Fact]
