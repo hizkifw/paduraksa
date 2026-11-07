@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Ids;
 using Paduraksa.Data.Ids;
 
-namespace Paduraksa.Tests.Data;
+namespace Paduraksa.Tests.Data.Sample;
 
 // Sample IDs and entities standing in for the real M2 model: one of each ID kind, used as primary key,
 // foreign key, nullable property, inside a column-mapped complex type and inside a JSON complex type.

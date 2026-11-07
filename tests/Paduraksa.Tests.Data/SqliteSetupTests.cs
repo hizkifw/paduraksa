@@ -3,7 +3,8 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Data.Sqlite;
-using static Paduraksa.Tests.Data.SampleDatabase;
+using Paduraksa.Tests.Data.Sample;
+using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;
 

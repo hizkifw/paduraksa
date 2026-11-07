@@ -1,7 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
-namespace Paduraksa.Tests.Data;
+namespace Paduraksa.Tests.Data.Sample;
 
 /// <summary>
 /// A real in-memory SQLite database that lives as long as this object: the connection is kept open (an in-memory
@@ -65,12 +65,4 @@ internal sealed class SampleDatabase : IAsyncDisposable
     public async Task<object?> ScalarAsync(string sql) => (await QueryAsync(sql)).Single()[0];
 
     public async ValueTask DisposeAsync() => await Connection.DisposeAsync();
-}
-
-/// <summary>Settable clock for generators.</summary>
-internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
-{
-    public DateTimeOffset Now { get; set; } = now;
-
-    public override DateTimeOffset GetUtcNow() => Now;
 }
