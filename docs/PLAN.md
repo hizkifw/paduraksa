@@ -44,9 +44,12 @@ Paduraksa.slnx
 ├─ tests/
 │  ├─ Paduraksa.Tests.Unit
 │  ├─ Paduraksa.Tests.Data          (EF Core mapping on real SQLite: typed IDs, pragmas, seeding)
+│  ├─ Paduraksa.Tests.Proxy         (hot path: gate, client IP, TLS selection, YARP glue, zero-alloc; end-to-end through PaduraksaHost)
 │  ├─ Paduraksa.Tests.Integration   (real Kestrel, real SQLite, Pebble ACME test server in CI)
 │  └─ Paduraksa.Tests.Architecture  (dependency rules, DTO rules, typed-ID rules)
-└─ bench/Paduraksa.Benchmarks       (BenchmarkDotNet: hot-path policies, lookups, zero-alloc assertions)
+└─ bench/
+   ├─ Paduraksa.Benchmarks          (BenchmarkDotNet: hot-path policies, lookups, zero-alloc assertions)
+   └─ Paduraksa.Bench.Runner        (the real PaduraksaHost for the end-to-end baseline, `run-baseline.sh`)
 ```
 
 ### Dependency rules (enforced by architecture tests)
@@ -493,7 +496,7 @@ F. Telemetry (always on, lock-free): counters + latency histogram per host / sta
 - **Listener layout:** two `Listen` calls on :443 (dual-mode `[::]`).
   - TCP: `Http1AndHttp2`, `DisableAltSvcHeader = true`, then the connection middleware (PROXY protocol, IP gate), then `TlsHandshakeCallbackOptions`.
   - UDP: `Http3` with its own `TlsHandshakeCallbackOptions`, which also performs the stage-A gate. It's added only if `QuicListener.IsSupported`.
-- **Builder:** under `WebApplication.CreateSlimBuilder`, call `UseKestrelHttpsConfiguration()` and `UseQuic()`, otherwise H3 listeners fail at startup.
+- **Builder:** the public app runs on the generic host with `UseKestrelCore()`, which leaves out Kestrel's HTTPS configuration and the QUIC transport. `UsePublicHttpsTransports()` adds both (`UseKestrelHttpsConfiguration()` and `UseQuic()`); without them H3 listeners fail at startup. *Spike history:* S1 found this under `WebApplication.CreateSlimBuilder`, which has the same gap.
 - **Still open:** a real browser upgrading to H3 (needs a trusted cert), routable IPv6, and arm64 libmsquic. Carrying the QUIC-callback ClientInfo through to the request works: a feature set on the QUIC connection context in the callback is visible to the H3 request (`PublicHttp3Tests`, Docker).
 - **As built in M1:** `UsePublicHttpsTransports()` on the generic host's `UseKestrelCore()`, then `ListenPublicHttp` and `ListenPublicHttps` (§3). `run-quic-tests.sh` runs the QUIC tests of `Tests.Proxy` and an end-to-end H3 request through `PaduraksaHost` in Docker with libmsquic.
 - **Either way, `Alt-Svc` is emitted by Paduraksa, not Kestrel.** Kestrel's automatic header is disabled (`DisableAltSvcHeader`). Our header is precomputed per host, only for H3-eligible hosts, using the **public** HTTPS port from settings (default 443), not the bound port. That way a port-mapped deployment can't advertise the wrong port.
@@ -771,4 +774,4 @@ Each milestone ends with a working, testable increment.
 - **v0.9:** S4 outcome: typed IDs through EF Core conventions, JSON IDs as strings and never joined against column IDs in SQL, pragmas and timeouts, Int64Ordered seeding (§4, §5). S3 outcome (0 B gate, realistic Kestrel/YARP costs, generic-host pipeline instead of `WebApplication` for the public app, per-connection/per-request state mechanisms, host lookup, IP parser, allocation-test rules) (§7.1). M0 complete.
 - **v0.10:** M1 proxy core as built: snapshot model and store, gate, compiler input records, publisher state machine, route-matching semantics, public app on the generic host (§3, §6.2).
   - Integration: public listener layout and `Paduraksa:Listen` options (`PublicHttpsPort`, `Http3`, PROXY protocol per listener) (§3). Typed `Certificates`/`TrustedProxies` snapshot slots, certificate references through `IServerCertificateResolver`, and certificate hot swap by publishing (§6.2, §7.2 B). Client-IP resolution through the global trusted-proxy policy, ClientInfo on QUIC verified (§7.2 A/C, §7.5, §7.6). Exact upstream forwarding-header semantics, every `cf-*` header stripped unless trusted, one trusted request scheme for the redirect and `X-Forwarded-Proto` (§7.2 C/E, §7.6). Per-host TLS settings re-checked per request, 421 on a weaker coalesced connection (§7.2 B/C). S6 scoped to YARP health in M1; rate-limit and metric continuity moved to M6/M7 (§6.3, §13, §14).
-- **v0.11:** M1 done. S7 baseline recorded in `bench/results/2026-11-07-baseline.md` (§13, §14).
+- **v0.11:** M1 done. S7 baseline recorded in `bench/results/2026-11-07-baseline.md` (§13, §14). §1 lists `Tests.Proxy` and `Bench.Runner`. §7.5 describes the as-built builder; the slim-builder note is kept as spike history.

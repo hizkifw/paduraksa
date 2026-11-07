@@ -22,8 +22,11 @@ Warnings are errors, and CI runs all three checks.
 ## Repository layout
 
 - `src/`: the product projects (layering in [docs/PLAN.md](docs/PLAN.md) §1).
-- `tests/`: unit, integration and architecture tests.
-- `bench/`: BenchmarkDotNet benchmarks.
+- `tests/`: unit (`Paduraksa.Tests.Unit`), data (`Paduraksa.Tests.Data`), proxy hot path and end-to-end
+  (`Paduraksa.Tests.Proxy`), integration (`Paduraksa.Tests.Integration`) and architecture
+  (`Paduraksa.Tests.Architecture`) tests.
+- `bench/`: BenchmarkDotNet micro-benchmarks (`Paduraksa.Benchmarks`), the end-to-end runner
+  (`Paduraksa.Bench.Runner`) and the nginx/Caddy baseline (`run-baseline.sh`, results in `bench/results/`).
 - `spikes/`: throwaway experiments, excluded from the solution. Findings live in [docs/spikes/](docs/spikes/).
 - `docs/`: the design plan and spike write-ups.
 
