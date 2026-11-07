@@ -84,6 +84,28 @@ public sealed class CertificateCompileTests : IDisposable
         Assert.Empty(snapshot.Certificates.Entries);
     }
 
+    [Fact]
+    public void AHostWithoutHttpsTakesNoCertificateEntry()
+    {
+        RuntimeSnapshot snapshot = Compile(
+            new ProxyConfigModel
+            {
+                Hosts = [Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("a") }, Respond("bare", ["bare.test", "*.bare.test"]) with { Https = false }],
+                Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("fallback") },
+            },
+            _options with { AdvertiseHttp3 = true });
+
+        Assert.Equal(["a.test"], snapshot.Certificates.ExactNames);
+        Assert.Empty(snapshot.Certificates.WildcardParents);
+        Assert.Same(snapshot.Certificates.Default, snapshot.Certificates.Find("bare.test"));
+        CompiledHost bare = snapshot.Hosts.Find("bare.test")!;
+        Assert.False(bare.Https);
+        Assert.Equal(0, bare.AltSvc.Count);
+        CompiledHost a = snapshot.Hosts.Find("a.test")!;
+        Assert.True(a.Https);
+        Assert.Equal(1, a.AltSvc.Count);
+    }
+
     public static TheoryData<string, ProxyConfigModel, bool, string> InvalidCertificates => new()
     {
         { "unknown host certificate", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("nope") }] }, true, $"host '{TestIds.Host("a")}': certificate '{TestIds.Certificate("nope")}' doesn't exist" },
@@ -91,6 +113,8 @@ public sealed class CertificateCompileTests : IDisposable
         { "empty ID", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = CertificateId.Empty }] }, true, "can't be empty" },
         { "disabled hosts are validated too", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("nope"), Enabled = false }] }, true, "doesn't exist" },
         { "no resolver", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("a") }] }, false, "no certificate source" },
+        { "certificate without HTTPS", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Https = false, Certificate = TestIds.Certificate("a") }] }, true, $"host '{TestIds.Host("a")}': a host without HTTPS can't name a certificate" },
+        { "forced HTTPS without HTTPS", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Https = false, ForceHttps = true }] }, true, $"host '{TestIds.Host("a")}': a host without HTTPS can't force HTTPS" },
     };
 
     [Theory]

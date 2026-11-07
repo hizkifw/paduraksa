@@ -139,8 +139,16 @@ public sealed record HostSpec
     /// </summary>
     public bool Enabled { get; init; } = true;
 
-    /// <summary>Plain-HTTP requests are redirected to HTTPS before anything else.</summary>
+    /// <summary>Plain-HTTP requests are redirected to HTTPS before anything else. Needs <see cref="Https"/>.</summary>
     public bool ForceHttps { get; init; }
+
+    /// <summary>
+    /// False: the host isn't served over HTTPS (certificate binding <i>None</i>). Its names stay out of the certificate
+    /// table, so a handshake naming it is served by whatever else covers the name (another host's wildcard, the default
+    /// certificate) or rejected; either way the gate answers an HTTPS request for the host 421, on any connection. It
+    /// can't name a <see cref="Certificate"/> or force HTTPS.
+    /// </summary>
+    public bool Https { get; init; } = true;
 
     /// <summary>
     /// The certificate served for this host's names (exact and wildcard; IP literals never arrive as SNI).

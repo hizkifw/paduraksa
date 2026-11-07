@@ -16,7 +16,10 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Gate;
 
-/// <summary>Per-host TLS settings hold per request, not only per handshake: a coalesced connection that is weaker gets 421.</summary>
+/// <summary>
+/// Per-host TLS settings hold per request, not only per handshake: a coalesced connection that is weaker gets 421, and
+/// so does any HTTPS request for a host without HTTPS.
+/// </summary>
 public sealed class ConnectionTlsGateTests : IDisposable
 {
     private static readonly TlsPolicy Strict = new() { MinimumVersion = TlsMinimumVersion.Tls13 };
@@ -38,6 +41,7 @@ public sealed class ConnectionTlsGateTests : IDisposable
                 [
                     ProxyHost("lax", "lax.test", Route("lax-root", "web")),
                     ProxyHost("tcp", "tcp.test", Route("tcp-root", "web")) with { Tls = new HostTlsSpec { Http3 = false } },
+                    ProxyHost("plain", "plain.test", Route("plain-root", "web")) with { Https = false },
                 ],
                 Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("shared") },
             },
@@ -74,6 +78,9 @@ public sealed class ConnectionTlsGateTests : IDisposable
     [InlineData("tcp.test", "https", "HTTP/2", -1)]
     [InlineData("lax.test", "https", "HTTP/3", -1)]
     [InlineData("tcp.test", "http", "HTTP/1.1", -1)] // plain HTTP: no TLS to check
+    [InlineData("plain.test", "https", "HTTP/2", 421)] // no HTTPS for the host: the default (wildcard) certificate mustn't reach it
+    [InlineData("plain.test", "https", "HTTP/3", 421)]
+    [InlineData("plain.test", "http", "HTTP/1.1", -1)]
     public void TheGateAnswers421ForAWeakerConnection(string host, string scheme, string protocol, int status)
     {
         DefaultHttpContext context = TestContexts.Create(host, "/", scheme: scheme);

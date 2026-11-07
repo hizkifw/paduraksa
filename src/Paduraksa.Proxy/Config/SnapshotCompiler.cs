@@ -35,7 +35,8 @@ public sealed record CompileResult(RuntimeSnapshot? Snapshot, IReadOnlyList<Comp
 /// upstream and destination IDs that differ only in case are rejected too (distinct base62 values, one YARP ID).</para>
 /// <para>TLS: every enabled host's DNS names (exact and wildcard) go into the snapshot's <see cref="CertificateTable"/>
 /// with the host's certificate (or the default one) and its TLS settings; the default certificate serves unknown or
-/// absent SNI. Certificate IDs are resolved through <see cref="SnapshotCompilerOptions.Certificates"/>.</para>
+/// absent SNI. A host without HTTPS (<see cref="HostSpec.Https"/>) takes no entries. Certificate IDs are resolved
+/// through <see cref="SnapshotCompilerOptions.Certificates"/>.</para>
 /// </summary>
 public static class SnapshotCompiler
 {
@@ -96,8 +97,18 @@ public static class SnapshotCompiler
                 httpsRedirect ??= new HttpsRedirect(options.PublicHttpsPort);
             }
 
-            ServerCertificate? certificate = spec.Certificate is null
-                ? defaultCertificate
+            if (!spec.Https && spec.ForceHttps)
+            {
+                errors.Add(new(where, "a host without HTTPS can't force HTTPS"));
+            }
+
+            if (!spec.Https && spec.Certificate is not null)
+            {
+                errors.Add(new(where, "a host without HTTPS can't name a certificate"));
+            }
+
+            ServerCertificate? certificate = !spec.Https ? null
+                : spec.Certificate is null ? defaultCertificate
                 : ResolveCertificate(spec.Certificate, where, options.Certificates, errors);
             TlsPolicy tls = CompileTlsPolicy(spec.Tls, where, errors);
             List<string> serverNames = spec.Enabled && certificate is not null ? ServerNamesOf(spec.Names ?? []) : [];
@@ -112,6 +123,7 @@ public static class SnapshotCompiler
                 FixedResponse = fixedResponse,
                 HttpsRedirect = spec.ForceHttps ? httpsRedirect : null,
                 Tls = tls,
+                Https = spec.Https,
                 // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only
                 // host has none: its HTTPS rides on the default certificate's entry and that entry's settings).
                 AltSvc = serverNames.Count > 0 ? altSvc.ForHost(tls) : default,

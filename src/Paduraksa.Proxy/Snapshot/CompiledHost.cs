@@ -57,6 +57,12 @@ public sealed class CompiledHost
     /// </summary>
     public TlsPolicy Tls { get; init; } = TlsPolicy.Default;
 
+    /// <summary>
+    /// False: the host isn't served over HTTPS, and the gate answers its HTTPS requests 421 (a connection negotiated
+    /// for another name, or on the default certificate, must not reach it).
+    /// </summary>
+    public bool Https { get; init; } = true;
+
     /// <summary>Set when the host forces HTTPS: plain-HTTP requests get this redirect first.</summary>
     internal HttpsRedirect? HttpsRedirect { get; init; }
 
