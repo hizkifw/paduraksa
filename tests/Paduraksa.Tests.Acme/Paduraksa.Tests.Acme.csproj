@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The fake signer and MAC key need real ECDsa and HMAC, which the key-material ban list keeps out of every other project.
+         They live here, and the code under test (Paduraksa.Acme) is held to the ban like any other project. -->
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.Acme/Paduraksa.Acme.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Core/Paduraksa.Core.csproj" />
+  </ItemGroup>
+</Project>
