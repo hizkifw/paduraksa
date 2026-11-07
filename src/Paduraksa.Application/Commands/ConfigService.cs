@@ -72,9 +72,6 @@ public sealed partial class ConfigService : IDisposable
     /// <summary>Error code of a command message that is too long or not valid text.</summary>
     public const string MessageInvalidCode = "command.message.invalid";
 
-    /// <summary>Error code of a compilation that failed without saying why.</summary>
-    public const string CompileFailedCode = "compile.failed";
-
     private const string SettingsList = "settings";
     private const int MaxAuditedCodes = 20;
     private const int MaxAuditedErrorLength = 500;
@@ -258,7 +255,7 @@ public sealed partial class ConfigService : IDisposable
             {
                 IReadOnlyList<ConfigError> compileErrors = compilation.Errors.Count > 0
                     ? compilation.Errors
-                    : [new ConfigError(string.Empty, CompileFailedCode, "the config didn't compile")];
+                    : [new ConfigError(string.Empty, ConfigErrorCodes.CompileFailed, "the config didn't compile")];
                 ConfigCommandResult invalid = Invalid(plan, candidate, candidate, compileErrors, changes);
                 return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
             }

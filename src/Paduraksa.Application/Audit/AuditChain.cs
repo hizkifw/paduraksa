@@ -96,7 +96,6 @@ internal static class AuditChain
         return hash.GetHashAndReset();
     }
 
-
     private static void WriteInt64(MemoryStream buffer, byte tag, long value)
     {
         Span<byte> bytes = stackalloc byte[sizeof(long)];

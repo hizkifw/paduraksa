@@ -18,7 +18,8 @@ namespace Paduraksa.Tests.Data.Commands;
 
 /// <summary>
 /// A <see cref="ConfigService"/> on a real database file, with a real (unattached) <see cref="SnapshotPublisher"/> and
-/// a fake compiler: the real one is built elsewhere. The fake compiles every document to an empty proxy config (no
+/// a stand-in compiler (the real one is <see cref="Paduraksa.Application.Compilation.ConfigCompiler"/>), so these tests
+/// exercise the pipeline alone. The stand-in compiles every document to an empty proxy config (no
 /// YARP content, so the unattached publisher makes it live at once) labelled with the revision, unless told to fail.
 /// </summary>
 internal sealed class ConfigServiceHarness : IAsyncDisposable
@@ -156,7 +157,7 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
     private static string Describe(Paduraksa.Data.Projection.RouteRow r) =>
         $"{r.Id}|{r.HostId}|{r.UpstreamId}|{r.Position}|{r.Order}|{r.Match}|{r.Path}|{r.Settings}";
 
-    /// <summary>A stand-in for the real compiler (another workstream): an empty proxy config per document.</summary>
+    /// <summary>A stand-in compiler for the pipeline tests: an empty proxy config per document.</summary>
     public sealed class FakeCompiler : IConfigCompiler
     {
         /// <summary>Errors to report instead of compiling; null or empty: compile.</summary>
