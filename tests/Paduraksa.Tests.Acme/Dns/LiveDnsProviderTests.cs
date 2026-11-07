@@ -62,7 +62,7 @@ public sealed class LiveDnsProviderTests
         {
             if (request.RequestUri!.Scheme != Uri.UriSchemeHttps || !injection.AllowedHosts.Contains(request.RequestUri.IdnHost))
             {
-                throw new InvalidOperationException("not an allowed destination");
+                throw new SecretTransportRefusedException("not an allowed destination");
             }
 
             request.Headers.Authorization = new AuthenticationHeaderValue(injection.Scheme!, token);

@@ -23,7 +23,7 @@ namespace Paduraksa.Core.Vault;
 /// factory of the terminal handler that the Vault's own tests replace); nothing in Core accepts a transport.
 /// </para>
 /// <para>
-/// <b>What the handler refuses,</b> by throwing <see cref="InvalidOperationException"/> before anything is sent, on each
+/// <b>What the handler refuses,</b> by throwing <see cref="SecretTransportRefusedException"/> before anything is sent, on each
 /// request (so a rotation, a deletion or a changed allowlist takes effect immediately): a request that is not https; a host not in
 /// the intersection of <see cref="SecretInjection.AllowedHosts"/> and the secret's own <see cref="SecretMetadata.AllowedHosts"/>
 /// (compared with <c>RequestUri.IdnHost</c>); a secret that does not exist or is not of kind <see cref="SecretKind.DnsApiToken"/>.

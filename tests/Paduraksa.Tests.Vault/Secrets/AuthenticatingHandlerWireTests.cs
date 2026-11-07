@@ -144,7 +144,7 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
         Assert.Single(Mine());
 
         // A provider that follows it by hand goes through the same check, which refuses the other host.
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync(response.Headers.Location, Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync(response.Headers.Location, Ct));
         Assert.Single(Mine());
     }
 
@@ -155,7 +155,7 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
         using var fronted = new HttpRequestMessage(HttpMethod.Get, $"https://localhost:{_port}/zones");
         fronted.Headers.Host = "attacker.example";
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.SendAsync(fronted, Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.SendAsync(fronted, Ct));
 
         // Nothing was sent: no TLS handshake for the fronting name, no request for it.
         Assert.DoesNotContain(_serverNames.Values, name => name == "attacker.example");
@@ -177,7 +177,7 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
     {
         using var client = await Client($"localhost:{_port}");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync($"http://localhost:{_port}/x", Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync($"http://localhost:{_port}/x", Ct));
 
         Assert.Empty(Mine());
     }

@@ -57,3 +57,11 @@ public static class CertificateImportLimits
 /// again, replaced by an import or a re-issue, or deleted since. Nothing changed; start the issuance again.
 /// </summary>
 public sealed class StagedKeyMismatchException(string message) : InvalidOperationException(message);
+
+/// <summary>
+/// The vault's authenticating handler (<see cref="ISecretHttpHandlerFactory"/>) refused a request before sending anything: not https, a
+/// destination that is not allowed, a <c>Host</c> header naming another destination, or a secret that is gone or of the wrong kind. The
+/// message names the reason, never the credential. It derives from <see cref="InvalidOperationException"/>, which the handler threw before
+/// this type existed.
+/// </summary>
+public sealed class SecretTransportRefusedException(string message) : InvalidOperationException(message);

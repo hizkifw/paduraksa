@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.Logging;
+using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Acme.Dns;
 
@@ -121,7 +122,7 @@ internal sealed partial class DnsApiClient : IDisposable
             // Only the error kind goes into the message.
             throw new DnsProviderException($"{_provider} could not be reached ({ex.HttpRequestError}).", isTransient: true, ex);
         }
-        catch (InvalidOperationException ex)
+        catch (SecretTransportRefusedException ex)
         {
             // The vault's handler refuses before sending: a host the secret does not allow, a secret that is gone or not a DNS token.
             throw new DnsProviderException($"The vault refused to send the {_provider} credential: {Clean(ex.Message)}", isTransient: false, ex);

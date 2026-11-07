@@ -224,7 +224,7 @@ public sealed class DesecDnsProviderTests : IDisposable
         _handlers.TransportFailure = new HttpRequestException(HttpRequestError.NameResolutionError, "boom");
         Assert.True((await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token))).IsTransient);
 
-        _handlers.TransportFailure = new InvalidOperationException("the secret does not exist or is not a DNS API token");
+        _handlers.TransportFailure = new SecretTransportRefusedException("the secret does not exist or is not a DNS API token");
         Assert.False((await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token))).IsTransient);
     }
 

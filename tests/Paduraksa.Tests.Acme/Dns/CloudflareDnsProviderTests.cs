@@ -225,7 +225,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     [Fact]
     public async Task ARefusalByTheVaultHandlerIsPermanent()
     {
-        _handlers.TransportFailure = new InvalidOperationException("the destination 'api.cloudflare.com' is not one the secret allows");
+        _handlers.TransportFailure = new SecretTransportRefusedException("the destination 'api.cloudflare.com' is not one the secret allows");
 
         DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 

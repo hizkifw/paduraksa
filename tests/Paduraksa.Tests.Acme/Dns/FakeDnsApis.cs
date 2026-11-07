@@ -31,7 +31,7 @@ internal readonly struct NameValueCollectionView(System.Collections.Specialized.
 /// <summary>
 /// An <see cref="ISecretHttpHandlerFactory"/> that does what the vault's does as far as a provider can tell: https only, only the
 /// hosts the injection names, the credential put on the request by the handler (never by the caller), and the same
-/// <see cref="InvalidOperationException"/> when it refuses. The "API" behind it is a function.
+/// <see cref="SecretTransportRefusedException"/> when it refuses. The "API" behind it is a function.
 /// </summary>
 internal sealed class FakeSecretHandlers(Func<ApiCall, HttpResponseMessage> api) : ISecretHttpHandlerFactory
 {
@@ -70,12 +70,12 @@ internal sealed class FakeSecretHandlers(Func<ApiCall, HttpResponseMessage> api)
             Uri url = request.RequestUri!;
             if (url.Scheme != Uri.UriSchemeHttps)
             {
-                throw new InvalidOperationException("the request is not an absolute https URL");
+                throw new SecretTransportRefusedException("the request is not an absolute https URL");
             }
 
             if (!how.AllowedHosts.Contains(url.IdnHost) || url.Port != 443)
             {
-                throw new InvalidOperationException($"the destination '{url.IdnHost}' is not one the caller allowed");
+                throw new SecretTransportRefusedException($"the destination '{url.IdnHost}' is not one the caller allowed");
             }
 
             string authorization = how.Kind switch

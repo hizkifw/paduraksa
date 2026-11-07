@@ -130,9 +130,9 @@ public sealed class AuthenticatingHandlerTests : IDisposable
         var id = await PutToken("api.example.com");
         using var client = Client(id, SecretInjection.Bearer(["api.example.com"]));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("http://api.example.com/x", Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("http://api.example.com/x", Ct));
         using var relative = new HttpRequestMessage(HttpMethod.Get, new Uri("/x", UriKind.Relative));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await new HttpMessageInvoker(
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await new HttpMessageInvoker(
             _vault.Get<ISecretHttpHandlerFactory>().CreateAuthenticatingHandler(id, SecretInjection.Bearer(["api.example.com"]), SecretHttpTransportOptions.Default)).SendAsync(relative, Ct));
 
         Assert.Empty(_wire.Requests);
@@ -147,7 +147,7 @@ public sealed class AuthenticatingHandlerTests : IDisposable
         // a: the caller allows it, the secret does not. c: the secret allows it, the caller does not. d: neither.
         foreach (var host in new[] { "a", "c", "d" })
         {
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync($"https://{host}.example.com/x", Ct));
+            var ex = await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync($"https://{host}.example.com/x", Ct));
             Assert.DoesNotContain(Token, ex.Message, StringComparison.Ordinal);
         }
 
@@ -168,10 +168,10 @@ public sealed class AuthenticatingHandlerTests : IDisposable
         await client.GetAsync("https://BÜCHER.example/x", Ct);
         Assert.Equal(4, _wire.Requests.Count);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("https://api.example.com@evil.example/x", Ct));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("https://api.example.com.evil.example/x", Ct));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("https://[::1]/x", Ct));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("https://127.0.0.1/x", Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("https://api.example.com@evil.example/x", Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("https://api.example.com.evil.example/x", Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("https://[::1]/x", Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("https://127.0.0.1/x", Ct));
         Assert.Equal(4, _wire.Requests.Count);
     }
 
@@ -189,7 +189,7 @@ public sealed class AuthenticatingHandlerTests : IDisposable
         // Another port: the caller names it but the secret does not; or neither does; or only the secret does.
         foreach (var url in new[] { "https://api.example.com:9443/x", "https://api.example.com:8444/x", "https://only-secret.example:9000/x", "https://only-secret.example/x" })
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync(url, Ct));
+            await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync(url, Ct));
         }
 
         Assert.Equal(3, _wire.Requests.Count);
@@ -211,7 +211,7 @@ public sealed class AuthenticatingHandlerTests : IDisposable
         {
             using var fronted = new HttpRequestMessage(HttpMethod.Get, "https://api.example.com/x");
             fronted.Headers.Host = header;
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await invoker.SendAsync(fronted, Ct));
+            await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await invoker.SendAsync(fronted, Ct));
         }
 
         Assert.Empty(_wire.Requests);
@@ -232,7 +232,7 @@ public sealed class AuthenticatingHandlerTests : IDisposable
         foreach (var id in new[] { tsig, totp, SecretId.New() })
         {
             using var client = Client(id, SecretInjection.Bearer(["api.example.com"]));
-            await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("https://api.example.com/x", Ct));
+            await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("https://api.example.com/x", Ct));
         }
 
         Assert.Empty(_wire.Requests);
@@ -249,11 +249,11 @@ public sealed class AuthenticatingHandlerTests : IDisposable
         await client.GetAsync("https://api.example.com/2", Ct);
 
         await Store.ReplaceAsync(id, "rotated-token"u8.ToArray(), SecretStoreTests.Dns("other.example.com"), Ct);
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("https://api.example.com/3", Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("https://api.example.com/3", Ct));
         await client.GetAsync("https://other.example.com/4", Ct);
 
         await Store.DeleteAsync(id, Ct);
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("https://other.example.com/5", Ct));
+        await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("https://other.example.com/5", Ct));
 
         Assert.Equal(
             ["Bearer " + Token, "Bearer rotated-token", "Bearer rotated-token"],
@@ -269,7 +269,7 @@ public sealed class AuthenticatingHandlerTests : IDisposable
         foreach (var id in new[] { injected, binary })
         {
             using var client = Client(id, SecretInjection.Bearer(["api.example.com"]));
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync("https://api.example.com/x", Ct));
+            var ex = await Assert.ThrowsAsync<SecretTransportRefusedException>(async () => await client.GetAsync("https://api.example.com/x", Ct));
             Assert.DoesNotContain("X-Evil", ex.Message, StringComparison.Ordinal);
         }
 

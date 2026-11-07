@@ -33,7 +33,7 @@ internal sealed class SecretHttpHandlerFactory(VaultRuntime runtime, SecretReade
 /// <c>response.RequestMessage</c>), and a caller-set header of the credential's name is replaced on the clone.
 /// </para>
 /// <para>
-/// Refusals (<see cref="InvalidOperationException"/>, before any I/O to the destination): not https; a destination (normalised
+/// Refusals (<see cref="SecretTransportRefusedException"/>, before any I/O to the destination): not https; a destination (normalised
 /// <c>IdnHost</c>, plus the port unless it is 443) that is not in both <see cref="SecretInjection.AllowedHosts"/> and the
 /// secret's own allowed hosts; a <c>Host</c> header that differs from the URL's destination; a secret that is gone or is not a <see cref="SecretKind.DnsApiToken"/>; a value that cannot be a header
 /// value. Redirects are never followed, because the terminal handler is built not to, so a 3xx comes back as it is.
@@ -170,7 +170,7 @@ internal sealed class AuthenticatingHandler : HttpMessageHandler
         }
     }
 
-    private static InvalidOperationException Refused(string reason) =>
+    private static SecretTransportRefusedException Refused(string reason) =>
         new($"The authenticating handler refused the request: {reason}.");
 
     /// <summary>The header to set and its value, from the secret (the only place the value is turned into text).</summary>
