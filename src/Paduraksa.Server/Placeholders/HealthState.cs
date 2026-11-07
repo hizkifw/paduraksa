@@ -2,8 +2,9 @@ namespace Paduraksa.Server.Placeholders;
 
 /// <summary>
 /// PLACEHOLDER (M7): process-wide health flags behind <c>/healthz</c> and <c>/readyz</c> (PLAN §11.3).
-/// Today it only knows whether all listeners are bound and whether shutdown has begun.
-/// TODO(M2): readiness includes "DB reachable"; TODO(M3): "vault unlocked".
+/// Today it only knows whether all listeners are bound and whether shutdown has begun. The config store's state
+/// (degraded or not) is <c>ConfigService.Status</c>; a degraded start is still ready (see <c>AdminApp</c>).
+/// TODO(M3): readiness includes "vault unlocked".
 /// </summary>
 internal sealed class HealthState
 {

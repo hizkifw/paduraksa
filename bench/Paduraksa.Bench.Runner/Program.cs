@@ -1,4 +1,4 @@
-// End-to-end benchmark runner: the real PaduraksaHost (core + public + admin) with an in-memory proxy config.
+// End-to-end benchmark runner: the real PaduraksaHost (core + public + admin), configured through its config service.
 //
 //   dotnet run -c Release --project bench/Paduraksa.Bench.Runner -- \
 //       --upstream http://127.0.0.1:18080 [--http 18081] [--https 18443] [--admin 18943] [--cloudflare-tunnel true]
@@ -9,10 +9,11 @@
 //
 // Configuration and logging are production's: the shipped appsettings.json (copied from Paduraksa.Server) plus the
 // listener ports, a throwaway data directory (deleted on exit) and HTTP/3 off (the scenarios are TCP only; an H3
-// listener would also add Alt-Svc to every response).
+// listener would also add Alt-Svc to every response). The config goes in as one command once the host has started
+// (revision #1 of the fresh database), like any admin change, and is live before READY is printed.
 // HTTPS goes through the per-SNI certificate table: both hosts name the placeholder certificate (self-signed, in
 // memory) as their own, so the handshake takes the exact-name path with the default TLS policy, as a configured host
-// would. TODO(M2/M3): switch to whatever replaces Placeholders.StartupProxyConfig and PlaceholderCertificates.
+// would. TODO(M3): switch to the vault's certificates when they replace PlaceholderCertificates.
 //
 // Trusted proxies are off (production's default) unless --cloudflare-tunnel true: then loopback is cloudflared, so
 // CF-Connecting-IP and CF-Visitor from oha are honoured (the `cf` scenario). Tunnel mode exercises the same
@@ -25,13 +26,12 @@ using System.Runtime;
 using System.Runtime.InteropServices;
 
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Application.Commands;
 using Paduraksa.Bench.Runner;
+using Paduraksa.Contracts.Commands;
+using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
-using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Net;
-using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Server.Placeholders;
 
@@ -43,35 +43,19 @@ if (!options.TryGetValue("upstream", out string? upstream) || !Uri.TryCreate(ups
 }
 
 UpstreamId upstreamId = UpstreamId.New();
-ProxyConfigModel model = new()
-{
-    Revision = ConfigRevisionId.New(),
-    Upstreams = [new UpstreamSpec { Id = upstreamId, Destinations = [new DestinationSpec(DestinationId.New(), upstream)] }],
-    Hosts =
+CertificateBinding placeholderCertificate = new() { Mode = CertificateBindingMode.Specific, CertificateId = PlaceholderCertificates.Id };
+ConfigDocument document = new(
+    Settings: new GlobalSettings(
+        TrustedProxies: Get("cloudflare-tunnel", "false") == "true"
+            ? new TrustedProxySettings(TrustedProxyMode.CloudflareTunnel, ["127.0.0.1", "::1"])
+            : new TrustedProxySettings()),
+    Upstreams: [new UpstreamConfig(upstreamId, "bench", Destinations: [new DestinationConfig(DestinationId.New(), upstream)])],
+    Hosts:
     [
-        new HostSpec
-        {
-            Id = HostId.New(),
-            Names = ["bench.test"],
-            Certificate = PlaceholderCertificates.Id,
-            Routes = [new RouteSpec { Id = RouteId.New(), Upstream = upstreamId }],
-        },
-        new HostSpec
-        {
-            Id = HostId.New(),
-            Names = ["respond.test"],
-            Certificate = PlaceholderCertificates.Id,
-            Kind = HostKind.Respond,
-            Respond = new RespondSpec { Body = "ok\n" },
-        },
-    ],
-    Defaults = new DefaultsSpec
-    {
-        TrustedProxies = Get("cloudflare-tunnel", "false") == "true"
-            ? new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = ["127.0.0.1", "::1"] }
-            : TrustedProxySpec.Off,
-    },
-};
+        new HostConfig(HostId.New(), ["bench.test"], Certificate: placeholderCertificate, Routes: [new RouteConfig(RouteId.New(), upstreamId)]),
+        new HostConfig(
+            HostId.New(), ["respond.test"], Kind: HostKind.Respond, Certificate: placeholderCertificate, Respond: new RespondConfig(200, "ok\n")),
+    ]);
 
 string dataDirectory = Path.Combine(Path.GetTempPath(), "paduraksa-bench-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
 Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
@@ -92,13 +76,6 @@ try
         EnvironmentName = "Production",
         ContentRootPath = AppContext.BaseDirectory,
         ConfigureConfiguration = builder => builder.AddInMemoryCollection(settings),
-        ConfigureServices = (role, services) =>
-        {
-            if (role == HostRole.Core)
-            {
-                services.AddSingleton(new StartupProxyConfig(model));
-            }
-        },
     });
 
     TaskCompletionSource stop = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -112,16 +89,18 @@ try
     using PosixSignalRegistration sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnSignal);
 
     await host.StartAsync();
-    if (!host.Shared.SnapshotStore.HasPublished)
+    ConfigCommandResult configured = await host.Shared.Config.ExecuteAsync(new ReplaceConfigCommand(document, BaseRevision: null), CommandOrigin.Cli);
+    if (configured.Publish is not { Succeeded: true })
     {
-        await Console.Error.WriteLineAsync("The startup config isn't live.");
+        IEnumerable<string> errors = configured.Errors.Select(e => $"{e.Path}: {e.Message}").Concat(configured.Publish?.Errors ?? []);
+        await Console.Error.WriteLineAsync($"The config isn't live ({configured.Status}): {string.Join("; ", errors)}");
         return 1;
     }
 
     Console.WriteLine(
         $"READY public={string.Join(',', host.GetListenAddresses(HostRole.Public))} " +
         $"gc={(GCSettings.IsServerGC ? "server" : "workstation")} cpus={Environment.ProcessorCount} " +
-        $"trusted={model.Defaults.TrustedProxies.Mode} " +
+        $"trusted={document.Settings.TrustedProxies.Mode} " +
         $"DOTNET_GCDynamicAdaptationMode={Environment.GetEnvironmentVariable("DOTNET_GCDynamicAdaptationMode") ?? "(default)"} " +
         $"DOTNET_GCHeapCount={Environment.GetEnvironmentVariable("DOTNET_GCHeapCount") ?? "(default)"}");
 

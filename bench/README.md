@@ -223,5 +223,5 @@ throughput. Compare latency at the fixed rates below.
 - **Cloudflare proxy mode:** the `cf` scenario uses Tunnel mode, because the edge ranges proxy mode trusts can only be
   injected through `SnapshotCompilerOptions`, which the server builds internally. Both modes take the same resolver
   path.
-- **Placeholders:** the runner publishes its config through `Placeholders.StartupProxyConfig` and names
-  `PlaceholderCertificates.Id` as each host's certificate. Switch both when M2 and M3 replace them.
+- **Placeholders:** the runner names `PlaceholderCertificates.Id` as each host's certificate (its config goes in through
+  the config service, as one command after the start). Switch to the vault's certificates when M3 replaces it.

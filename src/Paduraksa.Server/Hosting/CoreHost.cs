@@ -1,8 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-using Paduraksa.Server.Placeholders;
-
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
@@ -31,7 +29,7 @@ internal static class CoreHost
         });
         HostSetup.ApplyCommon(builder, context, HostRole.Core);
 
-        builder.Services.AddHostedService<PlaceholderSnapshotLoader>();
+        builder.Services.AddHostedService<ConfigStartup>();
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Core);
         return builder.Build();

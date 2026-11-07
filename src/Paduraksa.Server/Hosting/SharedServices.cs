@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Application.Commands;
+using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
@@ -47,6 +49,8 @@ internal sealed class SharedServices : IAsyncDisposable
         ServerCertificate = Get<PlaceholderServerCertificate>();
         Certificates = Get<PlaceholderCertificates>();
         PublicListeners = Get<PublicListenerSetup>();
+        Config = Get<ConfigService>();
+        LastKnownGood = Get<LastKnownGoodFile>();
     }
 
     /// <summary>The one logger factory of the process. Each host sees it through a <see cref="RoleLoggerFactory"/>.</summary>
@@ -74,6 +78,12 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The public listener layout, the TLS handshake selector and the compiler options derived from it.</summary>
     public PublicListenerSetup PublicListeners { get; }
+
+    /// <summary>The config write path, started by the core host (<see cref="ConfigStartup"/>); see <see cref="ConfigStore"/>.</summary>
+    public ConfigService Config { get; }
+
+    /// <summary><c>&lt;data dir&gt;/last-good.json</c>, written after every successful publish.</summary>
+    public LastKnownGoodFile LastKnownGood { get; }
 
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
@@ -106,10 +116,16 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add<IOptionsFactory<PaduraksaOptions>>(fixedOptions);
             builder.Add(new HealthState());
             SnapshotStore snapshots = builder.Add(new SnapshotStore());
-            builder.Add(new SnapshotPublisher(snapshots, new RoleLoggerFactory(loggerFactory, HostRole.Core), timeProvider));
+            RoleLoggerFactory coreLoggers = new(loggerFactory, HostRole.Core);
+            // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
+            // last-known-good file that has stopped taking offers.
+            LastKnownGoodFile lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
+            SnapshotPublisher publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider));
             PlaceholderServerCertificate placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
             PlaceholderCertificates certificates = builder.Add(new PlaceholderCertificates(placeholder));
-            builder.Add(new PublicListenerSetup(options.Listen, snapshots, certificates));
+            PublicListenerSetup listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, certificates));
+            // Created after the publisher, so disposed before it (the service publishes with it).
+            ConfigStore.AddTo(builder, options.DataDirectory, publisher, lastKnownGood, listeners, timeProvider, coreLoggers);
             // TODO(M7): MetricsRegistry. TODO(M3): Vault capabilities, IAcmeChallengeStore.
             configure?.Invoke(builder);
             builder.Freeze();
@@ -214,6 +230,14 @@ internal sealed class SharedServices : IAsyncDisposable
         /// If it's disposable, <see cref="SharedServices"/> disposes it after every host has stopped.
         /// </summary>
         public TService Add<TService>(TService instance)
+            where TService : class =>
+            Own(AddOwnedElsewhere(instance));
+
+        /// <summary>
+        /// Registers <paramref name="instance"/> like <see cref="Add{TService}"/>, but without taking ownership: whatever
+        /// created it disposes it (a container this builder owns, say), so it is disposed exactly once.
+        /// </summary>
+        public TService AddOwnedElsewhere<TService>(TService instance)
             where TService : class
         {
             ArgumentNullException.ThrowIfNull(instance);
@@ -228,7 +252,6 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             Registrations.Add(new(typeof(TService), instance));
-            Own(instance);
             return instance;
         }
 

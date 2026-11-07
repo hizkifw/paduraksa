@@ -24,8 +24,9 @@ internal static class TestHost
         bool allowEphemeralPorts = true,
         Action<SharedServices.Builder>? configureShared = null,
         string? contentRootPath = null,
-        LogCapture? logs = null) =>
-        PaduraksaHost.Create(CreateOptions(events, settings, configureServices, allowEphemeralPorts, configureShared, contentRootPath, logs));
+        LogCapture? logs = null,
+        string? dataDirectory = null) =>
+        PaduraksaHost.Create(CreateOptions(events, settings, configureServices, allowEphemeralPorts, configureShared, contentRootPath, logs, dataDirectory));
 
     /// <summary>The options <see cref="Create"/> builds the host from (for callers that build it themselves, e.g. the CLI).</summary>
     public static PaduraksaHostOptions CreateOptions(
@@ -35,11 +36,12 @@ internal static class TestHost
         bool allowEphemeralPorts = true,
         Action<SharedServices.Builder>? configureShared = null,
         string? contentRootPath = null,
-        LogCapture? logs = null)
+        LogCapture? logs = null,
+        string? dataDirectory = null)
     {
         Dictionary<string, string?> config = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["Paduraksa:DataDirectory"] = Path.Combine(Path.GetTempPath(), "paduraksa-tests"),
+            ["Paduraksa:DataDirectory"] = dataDirectory ?? TestDataDirectories.NewPath(), // the config database and last-good.json
             ["Paduraksa:Listen:Http"] = "0",
             ["Paduraksa:Listen:Https"] = "0",
             ["Paduraksa:Listen:Http3"] = "false", // needs a fixed port; the QUIC tests pick one

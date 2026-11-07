@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Application.Commands;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Placeholders;
@@ -71,18 +72,25 @@ internal static class AdminApp
     }
 
     /// <summary>PLAN §11.3: unauthenticated, status only, never any detail.</summary>
+    /// <remarks>
+    /// A degraded start (the proxy serves the last-known-good config because the config database can't be used, PLAN
+    /// §6.1) is still <b>ready</b>: the proxy serves traffic, and taking it out of rotation would turn a config-store
+    /// problem into an outage. <c>/readyz</c> then answers 200 with the body <c>degraded</c> instead of <c>ready</c>, a
+    /// status a keyword monitor can alert on, and the cause is logged at Critical. The admin UI shows the banner (M5).
+    /// </remarks>
     private static void MapHealth(WebApplication app)
     {
         SnapshotStore snapshots = app.Services.GetRequiredService<SnapshotStore>();
         HealthState health = app.Services.GetRequiredService<HealthState>();
+        ConfigService config = app.Services.GetRequiredService<ConfigService>();
 
         // Live: the process is up and a snapshot is loaded.
         app.MapMethods("/healthz", GetAndHead, context =>
             WriteStatusAsync(context, snapshots.HasPublished, "ok\n", "unavailable\n"));
 
-        // Ready: listeners bound and not draining. TODO(M2): DB reachable. TODO(M3): vault unlocked.
+        // Ready: listeners bound, a snapshot live and not draining; degraded or not (see the remarks). TODO(M3): vault unlocked.
         app.MapMethods("/readyz", GetAndHead, context =>
-            WriteStatusAsync(context, health.IsReady && snapshots.HasPublished, "ready\n", "not ready\n"));
+            WriteStatusAsync(context, health.IsReady && snapshots.HasPublished, config.Status.IsDegraded ? "degraded\n" : "ready\n", "not ready\n"));
     }
 
     private static Task WriteStatusAsync(HttpContext context, bool healthy, string okBody, string failBody)

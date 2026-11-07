@@ -11,11 +11,14 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Contracts.Commands;
+using Paduraksa.Contracts.Config;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Server.Placeholders;
+using Paduraksa.Tests.Integration.Config;
 using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Shared;
 
@@ -81,22 +84,14 @@ public sealed class PublicProxyTests
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
-        ProxyConfigModel startup = new()
-        {
-            Revision = TestIds.Revision("startup"),
-            Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("app"), Destinations = [new(TestIds.Destination("app-1"), upstream.Address)] }],
-            Hosts = [new HostSpec { Id = TestIds.Host("app"), Names = ["app.test"], Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("app") }] }],
-        };
-        void WithStartupConfig(HostRole role, IServiceCollection services)
-        {
-            if (role == HostRole.Core)
-            {
-                services.AddSingleton(new StartupProxyConfig(startup));
-            }
-        }
+        string data = TestDataDirectories.NewPath();
+        RevisionRef startup = await ConfigTestSupport.SeedAsync(
+            data,
+            new ConfigDocument(Upstreams: [ConfigTestSupport.Upstream("app", upstream.Address)], Hosts: [ConfigTestSupport.ProxyHost("app", "app.test", "app")]),
+            ct);
 
         // The core host alone: its start returns although the publish needs YARP, which doesn't exist yet.
-        await using (PaduraksaHost coreOnly = TestHost.Create(configureServices: WithStartupConfig))
+        await using (PaduraksaHost coreOnly = TestHost.Create(dataDirectory: data))
         {
             await coreOnly.Core.StartAsync(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
             Assert.False(coreOnly.Shared.SnapshotStore.HasPublished);
@@ -104,10 +99,10 @@ public sealed class PublicProxyTests
         }
 
         // The whole process: the public app's start attaches YARP, so the config is live before any listener accepts.
-        await using PaduraksaHost host = TestHost.Create(configureServices: WithStartupConfig);
+        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
         Assert.True(host.Shared.SnapshotStore.HasPublished);
-        Assert.Equal(TestIds.Revision("startup"), host.Shared.SnapshotStore.Current.Revision);
+        Assert.Equal(startup.Id, host.Shared.SnapshotStore.Current.Revision);
         using HttpClient client = TestHost.CreateClient(host);
         using HttpResponseMessage ready = await client.GetAsync(new Uri(TestHost.Endpoint(host, HostRole.Admin, "https"), "/readyz"), ct);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
