@@ -37,6 +37,11 @@ public enum ConfigCommandStatus
     /// previous snapshot stays live. The commit stands, so the change goes live with the next successful publish or
     /// the next start.</summary>
     PublishFailed,
+
+    /// <summary>The config store is unavailable: the process started degraded, serving the last-known-good config
+    /// because the database couldn't be opened or its latest revision is corrupt (<see cref="ConfigCommandResult.Errors"/>
+    /// says why). Nothing was read or persisted; fix the database and restart.</summary>
+    Unavailable,
 }
 
 /// <summary>
