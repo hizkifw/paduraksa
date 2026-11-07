@@ -74,7 +74,7 @@ public sealed partial class CertificateService
     /// <summary>
     /// Records a certificate the vault holds: adds it, or replaces the metadata of the one with the same ID (a renewal).
     /// Names are normalised like host names; names that aren't DNS names, wildcards or IP addresses are dropped (logged),
-    /// and a certificate left with no name is invalid.
+    /// and a certificate left with no name is invalid, except the local CA root, which is a CA and has no names.
     /// </summary>
     public Task<CertificateChangeResult> RegisterAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
@@ -200,7 +200,7 @@ public sealed partial class CertificateService
             LogNamesDropped(registration.Id, rejected.Count);
         }
 
-        if (names.Count == 0)
+        if (names.Count == 0 && registration.Source != CertificateSource.LocalCaRoot)
         {
             return Rejected(origin, action, registration.Id, new ConfigError(string.Empty, CertificateErrorCodes.NamesRequired, "the certificate covers no usable name (a DNS name, a wildcard or an IP address)"));
         }
@@ -270,7 +270,7 @@ public sealed partial class CertificateService
             : LengthProblem("/label", "label", label, MaxLabelLength) ?? (IsBuiltIn(id) ? BuiltInError() : null);
         List<string> names = CertificateNames.Normalize(requested, out List<string> rejected);
         problem ??= rejected.Count > 0 ? new ConfigError("/names", CertificateErrorCodes.NameInvalid, $"'{rejected[0]}' is not a DNS name, a wildcard or an IP address")
-            : names.Count == 0 ? new ConfigError("/names", CertificateErrorCodes.NamesRequired, "a certificate needs at least one name")
+            : names.Count == 0 && source != CertificateSource.LocalCaRoot ? new ConfigError("/names", CertificateErrorCodes.NamesRequired, "a certificate needs at least one name")
             : await context.Certificates.AnyAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false)
                 ? new ConfigError(string.Empty, CertificateErrorCodes.Exists, "a certificate with this ID is already registered")
                 : null;
@@ -585,4 +585,20 @@ public static class CertificateErrorCodes
     public const string Exists = "certificate.exists";
     public const string BuiltIn = "certificate.builtIn";
     public const string TextTooLong = "certificate.text.tooLong";
+
+    // The vault flows (CertificateOperations).
+    public const string NotReplaceable = "certificate.replace.notAllowed";
+    public const string NotReissuable = "certificate.reissue.notAllowed";
+    public const string IssuanceRefused = "certificate.issue.refused";
+    public const string LocalCaMissing = "certificate.localCa.missing";
+    public const string LocalCaInUse = "certificate.localCa.inUse";
+    public const string KeyNotDeleted = "certificate.vault.keyNotDeleted";
+    public const string ImportTooLarge = "certificate.import.tooLarge";
+    public const string ImportUnreadable = "certificate.import.unreadable";
+    public const string ImportWrongPassword = "certificate.import.wrongPassword";
+    public const string ImportUnsupportedKeyFormat = "certificate.import.unsupportedKeyFormat";
+    public const string ImportNoMatchingKey = "certificate.import.noMatchingKey";
+    public const string ImportNoUsableName = "certificate.import.noUsableName";
+    public const string ImportWeakKey = "certificate.import.weakKey";
+    public const string ImportCaCertificate = "certificate.import.caCertificate";
 }
