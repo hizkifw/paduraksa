@@ -21,7 +21,7 @@ public static class ArchRules
     /// <summary>
     /// The PLAN §1 graph: types in <paramref name="layer"/> may only use solution types from the
     /// layer itself and its allowed dependencies. This single rule covers: Core depends on nothing;
-    /// Contracts/Data/Vault/Acme/Proxy only on Core; Admin and Dashboard never on Data; nothing on Server.
+    /// Contracts/Acme/Proxy only on Core; Storage on Core; Data and Vault on Core and Storage; Admin and Dashboard never on Data; nothing on Server.
     /// </summary>
     public static IArchRule LayerDependencies(string layer)
     {
@@ -33,11 +33,15 @@ public static class ArchRules
             .WithoutRequiringPositiveResults();
     }
 
-    /// <summary>The hot path cannot reach the database: no EF Core types in Proxy.</summary>
+    /// <summary>
+    /// The hot path cannot reach the database: no EF Core types, and none of the shared EF/SQLite infrastructure
+    /// (<c>Paduraksa.Storage</c>), in Proxy. (The layer graph already forbids the Storage edge; this states the intent.)
+    /// </summary>
     public static IArchRule ProxyDoesNotUseEfCore { get; } =
         Types().That().ResideInNamespaceMatching(NamespacePattern(Layer.Proxy))
             .Should().NotDependOnAny(
-                Types(true).That().ResideInNamespaceMatching(@"^Microsoft\.EntityFrameworkCore(\..+)?$"))
+                Types(true).That().ResideInNamespaceMatching(
+                    $@"^(Microsoft\.EntityFrameworkCore|Microsoft\.Data\.Sqlite)(\..+)?$|{NamespacePattern(Layer.Storage)}"))
             .Because("PLAN §1: the hot path can't reach the DB")
             .WithoutRequiringPositiveResults();
 

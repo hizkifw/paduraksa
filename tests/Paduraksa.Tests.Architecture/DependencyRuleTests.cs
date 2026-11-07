@@ -51,8 +51,12 @@ public sealed class DependencyRuleTests
     }
 
     [Fact]
-    public void SanityProxyEfRuleFlagsDbContext() =>
-        Assert.Contains("Microsoft.EntityFrameworkCore.DbContext", Failures(ArchRules.ProxyDoesNotUseEfCore), StringComparison.Ordinal);
+    public void SanityProxyEfRuleFlagsDbContextAndStorage()
+    {
+        var failures = Failures(ArchRules.ProxyDoesNotUseEfCore);
+        Assert.Contains("Microsoft.EntityFrameworkCore.DbContext", failures, StringComparison.Ordinal);
+        Assert.Contains(FakeTypeName(Layer.Storage), failures, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void SanityProxyLinqRuleFlagsTypesAndCalls()

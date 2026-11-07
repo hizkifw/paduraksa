@@ -10,6 +10,7 @@ public static class Layer
 {
     public const string Core = "Core";
     public const string Contracts = "Contracts";
+    public const string Storage = "Storage";
     public const string Data = "Data";
     public const string Vault = "Vault";
     public const string Acme = "Acme";
@@ -37,8 +38,9 @@ public static class SolutionLayers
     {
         [Layer.Core] = [],
         [Layer.Contracts] = [Layer.Core],
-        [Layer.Data] = [Layer.Core],
-        [Layer.Vault] = [Layer.Core],
+        [Layer.Storage] = [Layer.Core],
+        [Layer.Data] = [Layer.Core, Layer.Storage],
+        [Layer.Vault] = [Layer.Core, Layer.Storage],
         [Layer.Acme] = [Layer.Core],
         [Layer.Proxy] = [Layer.Core],
         [Layer.Application] = [Layer.Core, Layer.Contracts, Layer.Data, Layer.Proxy, Layer.Acme],
@@ -46,7 +48,7 @@ public static class SolutionLayers
         [Layer.Dashboard] = [Layer.Core, Layer.Application, Layer.Contracts],
         [Layer.Server] =
         [
-            Layer.Core, Layer.Contracts, Layer.Data, Layer.Vault, Layer.Acme,
+            Layer.Core, Layer.Contracts, Layer.Storage, Layer.Data, Layer.Vault, Layer.Acme,
             Layer.Proxy, Layer.Application, Layer.Admin, Layer.Dashboard,
         ],
     };

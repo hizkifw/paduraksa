@@ -11,6 +11,7 @@ using Paduraksa.Core.ArchFixtures;
 using Paduraksa.Data.ArchFixtures;
 using Paduraksa.Proxy.ArchFixtures;
 using Paduraksa.Server.ArchFixtures;
+using Paduraksa.Storage.ArchFixtures;
 using Paduraksa.Tests.Architecture.Fixtures;
 using Paduraksa.Vault.ArchFixtures;
 
@@ -21,6 +22,8 @@ public sealed class FakeDashboard
     public FakeCore? Core { get; set; }
 
     public FakeContracts? Contracts { get; set; }
+
+    public FakeStorage? Storage { get; set; }
 
     public FakeData? Data { get; set; }
 
