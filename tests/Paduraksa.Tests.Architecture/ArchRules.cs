@@ -43,10 +43,12 @@ public static class ArchRules
 
     /// <summary>Hot-path allocation discipline (PLAN §15): no LINQ in Proxy.</summary>
     /// <remarks>
-    /// TODO: further PLAN §15 hot-path bans, not yet encoded:
-    /// - <c>System.Text.RegularExpressions.Regex</c> constructed without
-    ///   <c>RegexOptions.NonBacktracking</c> (needs a call-argument check, not just a type dependency);
-    /// - no <c>Paduraksa.Data</c> type registered in a <c>System.Text.Json</c> serializer context (PLAN §2).
+    /// TODO(M4/M6): further PLAN §15 hot-path bans, not yet encoded:
+    /// - (M6, when the WAF path/UA policies bring the first regexes) <c>System.Text.RegularExpressions.Regex</c>
+    ///   constructed without <c>RegexOptions.NonBacktracking</c> (needs a call-argument check, not just a type
+    ///   dependency);
+    /// - (M4, with the Admin API's serializer contexts) no <c>Paduraksa.Data</c> type registered in a
+    ///   <c>System.Text.Json</c> serializer context (PLAN §2).
     /// </remarks>
     public static IArchRule ProxyDoesNotUseLinq { get; } =
         Types().That().ResideInNamespaceMatching(NamespacePattern(Layer.Proxy))

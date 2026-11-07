@@ -80,7 +80,7 @@ jobs:
       # dotnet format has no -c/--configuration and rejects -p:. MSBuild picks up environment
       # variables as properties, so Configuration=Release makes dotnet format's design-time build
       # use the Release outputs from the build step instead of creating a Debug tree.
-      # TODO: dotnet format doesn't check .razor files; revisit when the Dashboard grows.
+      # TODO(M5 dashboard): dotnet format doesn't check .razor files; revisit when the Dashboard grows.
       - name: Verify formatting
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         env:
