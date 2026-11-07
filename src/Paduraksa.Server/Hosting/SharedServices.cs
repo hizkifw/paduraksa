@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Proxy.Snapshot;
@@ -73,7 +74,7 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>TEMPORARY (M3): the admin listener's certificate and the public default certificate until the vault exists.</summary>
     public PlaceholderServerCertificate ServerCertificate { get; }
 
-    /// <summary>TEMPORARY (M3): resolves the config's certificate references for the snapshot compiler.</summary>
+    /// <summary>TEMPORARY (M3): the placeholder's certificate source and built-in inventory entries (tests add certificates here).</summary>
     public PlaceholderCertificates Certificates { get; }
 
     /// <summary>The public listener layout, the TLS handshake selector and the compiler options derived from it.</summary>
@@ -123,9 +124,9 @@ internal sealed class SharedServices : IAsyncDisposable
             SnapshotPublisher publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider));
             PlaceholderServerCertificate placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
             PlaceholderCertificates certificates = builder.Add(new PlaceholderCertificates(placeholder));
-            PublicListenerSetup listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, certificates));
+            PublicListenerSetup listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots));
             // Created after the publisher, so disposed before it (the service publishes with it).
-            ConfigStore.AddTo(builder, options.DataDirectory, publisher, lastKnownGood, listeners, timeProvider, coreLoggers);
+            ConfigStore.AddTo(builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, timeProvider, coreLoggers);
             // TODO(M7): MetricsRegistry. TODO(M3): Vault capabilities, IAcmeChallengeStore.
             configure?.Invoke(builder);
             builder.Freeze();

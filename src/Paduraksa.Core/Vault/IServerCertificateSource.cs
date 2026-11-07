@@ -30,8 +30,8 @@ namespace Paduraksa.Core.Vault;
 /// </list>
 /// <para>
 /// The proxy never sees this interface, and the hot path never loads anything. A certificate that cannot be loaded
-/// (<see langword="null"/>) is left out of the inventory the compiler sees, so a binding to it is a compile error rather
-/// than a failed handshake.
+/// (<see langword="null"/>) is left out of the inventory the compiler sees (and logged as a warning), so a binding to it
+/// degrades to a compile warning and the default certificate rather than a failed handshake or a failed compile.
 /// </para>
 /// <para>
 /// <b>Instance identity and lifetime.</b> For an unchanged certificate the vault returns the <i>same</i> context instance on

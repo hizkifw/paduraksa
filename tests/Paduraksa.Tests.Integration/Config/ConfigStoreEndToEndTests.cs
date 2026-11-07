@@ -206,47 +206,45 @@ public sealed class ConfigStoreEndToEndTests
     }
 
     [Fact]
-    public async Task ALatestRevisionThatDoesNotCompileStartsDegradedButAcceptsTheFix()
+    public async Task ALatestRevisionBindingAGoneCertificateStillStartsWithAWarning()
     {
-        // Revision #2 binds a certificate this process doesn't have (until M3 certificates live in memory), and its
-        // publish never reached last-good.json (as after a crash between commit and publish): the start falls back to #1.
+        // Revision #2 binds a certificate this process doesn't have (the in-memory test certificate died with the first
+        // process, as an expired or key-less one would): the start is healthy, the host degrades to the default
+        // certificate, and the problem is a warning, not a failed start.
         CancellationToken ct = TestContext.Current.CancellationToken;
         string data = TestDataDirectories.NewPath();
-        string lastGood = Path.Combine(data, LastKnownGoodFile.FileName);
-        byte[] firstLastGood;
-        CertificateBinding missing = new() { Mode = CertificateBindingMode.Specific, CertificateId = TestIds.Certificate("gone") };
+        CertificateBinding gone = new() { Mode = CertificateBindingMode.Specific, CertificateId = TestIds.Certificate("gone") };
         await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(ct);
             first.Shared.Certificates.Set(TestIds.Certificate("gone"), first.Shared.Certificates.Placeholder);
             await CommitAsync(first, new UpsertHostCommand(RespondHost("one", "one.test", "one")), ct);
-            await first.Shared.LastKnownGood.FlushAsync();
-            firstLastGood = await File.ReadAllBytesAsync(lastGood, ct);
-            await CommitAsync(first, new UpsertHostCommand(RespondHost("two", "two.test", "two") with { Certificate = missing }), ct);
+            await CommitAsync(first, new UpsertHostCommand(RespondHost("two", "two.test", "two") with { Certificate = gone }), ct);
         }
 
-        await File.WriteAllBytesAsync(lastGood, firstLastGood, ct);
         await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
         using HttpClient client = TestHost.CreateClient(host);
 
         ConfigStoreStatus status = host.Shared.Config.Status;
-        Assert.Equal(ConfigSource.LastKnownGood, status.Source);
-        Assert.Equal(1, status.Revision!.Seq);
-        Assert.True(status.AcceptsCommands);
-        Assert.Contains("doesn't compile", status.Problem, StringComparison.Ordinal);
+        Assert.Equal(ConfigSource.Database, status.Source);
+        Assert.False(status.IsDegraded);
+        Assert.Equal(2, status.Revision!.Seq);
         Assert.Equal((HttpStatusCode.OK, "one"), await GetAsync(client, host, "one.test", "/", ct));
-        Assert.Equal(HttpStatusCode.NotFound, (await GetAsync(client, host, "two.test", "/", ct)).Status);
-        Assert.Equal((HttpStatusCode.OK, "degraded\n"), await ReadyzAsync(client, host, ct));
-
-        // The database is fine, so the fix goes in like any change, and once it's live the store is healthy again.
-        HostConfig two = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single(h => h.Id == TestIds.Host("two"));
-        RevisionRef fixedRevision = await CommitAsync(host, new UpsertHostCommand(two with { Certificate = new CertificateBinding() }), ct);
-        Assert.Equal(3, fixedRevision.Seq);
-        Assert.Equal(new ConfigStoreStatus(ConfigSource.Database, fixedRevision), host.Shared.Config.Status);
         Assert.Equal((HttpStatusCode.OK, "two"), await GetAsync(client, host, "two.test", "/", ct));
-        Assert.Equal((HttpStatusCode.OK, "ready\n"), await ReadyzAsync(client, host, ct));
+        ConfigWarning warning = Assert.Single(host.Shared.Config.Warnings, w => w.Code != "certificate.auto.noCoverage"); // the other host is Auto, and nothing covers one.test
+        Assert.Equal("certificate.specific.unusable", warning.Code);
+        Assert.Equal("/hosts/1/certificate", warning.Path);
+
+        // An unrelated edit of that host isn't blocked by it; binding another host to the gone certificate is.
+        HostConfig two = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single(h => h.Id == TestIds.Host("two"));
+        ConfigCommandResult edited = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(two with { Notes = "edited" }), Origin, ct);
+        Assert.Equal(ConfigCommandStatus.Committed, edited.Status);
+        ConfigCommandResult rebound = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(RespondHost("one", "one.test", "one") with { Version = 1, Certificate = gone }), Origin, ct);
+        Assert.Equal(ConfigCommandStatus.Invalid, rebound.Status);
+        Assert.Equal("host.certificate.unusable", Assert.Single(rebound.Errors.Concat(rebound.RelatedErrors)).Code);
     }
+
 
     [Fact]
     public async Task ALostDatabaseIsRestoredFromLastGoodJson()

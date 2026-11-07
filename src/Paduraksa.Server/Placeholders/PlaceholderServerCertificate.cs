@@ -35,7 +35,7 @@ internal sealed class PlaceholderServerCertificate : IDisposable
         request.CertificateExtensions.Add(san.Build());
 
         DateTimeOffset now = timeProvider.GetUtcNow();
-        X509Certificate2 certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(30));
+        X509Certificate2 certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(365));
 
         if (OperatingSystem.IsWindows())
         {

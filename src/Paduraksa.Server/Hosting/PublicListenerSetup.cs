@@ -14,11 +14,10 @@ namespace Paduraksa.Server.Hosting;
 /// </summary>
 internal sealed class PublicListenerSetup
 {
-    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots, IServerCertificateResolver certificates)
+    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots)
     {
         ArgumentNullException.ThrowIfNull(listen);
         ArgumentNullException.ThrowIfNull(snapshots);
-        ArgumentNullException.ThrowIfNull(certificates);
 
         Http3Requested = listen.Http3;
         Http3 = listen.Http3 && PublicListeners.IsHttp3Supported;
@@ -27,7 +26,6 @@ internal sealed class PublicListenerSetup
         Selector = new TlsHandshakeSelector(snapshots, QuicClientInfoGate.Gate);
         CompilerOptions = new SnapshotCompilerOptions
         {
-            Certificates = certificates,
             PublicHttpsPort = listen.PublicHttpsPort,
             AdvertiseHttp3 = Http3,
         };

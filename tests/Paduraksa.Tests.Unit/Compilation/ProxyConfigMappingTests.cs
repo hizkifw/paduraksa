@@ -1,3 +1,4 @@
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
@@ -165,7 +166,8 @@ public sealed class ProxyConfigMappingTests
         };
 
         Assert.Empty(ConfigValidator.Validate(document));
-        MappedConfig mapped = ProxyConfigMapping.Map(document, Revision);
+        using AnyCertificate certificates = new();
+        MappedConfig mapped = ProxyConfigMapping.Map(document, Revision, certificates.InventoryFor(document));
         Assert.Empty(mapped.Errors);
         Assert.Equivalent(expected, mapped.Model, strict: true);
     }
@@ -176,7 +178,7 @@ public sealed class ProxyConfigMappingTests
         for (int seed = 0; seed < 50; seed++)
         {
             ConfigDocument document = Random(seed);
-            Assert.Equivalent(ProxyConfigMapping.Map(document, Revision).Model, ProxyConfigMapping.Map(Respelled(document, seed), Revision).Model, strict: true);
+            Assert.Equivalent(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model, ProxyConfigMapping.Map(Respelled(document, seed), Revision, CertificateInventory.Empty).Model, strict: true);
         }
     }
 
@@ -259,7 +261,7 @@ public sealed class ProxyConfigMappingTests
             profile: new HostSettings { Tls = new TlsSettings { TcpAlpn = Contract.TcpAlpn.Http11Only, MinimumVersion = Contract.TlsMinimumVersion.Tls12 }, IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) },
             host: new HostSettings { ForceHttps = false, Tls = new TlsSettings { Http3 = false } });
 
-        HostSpec host = Assert.Single(ProxyConfigMapping.Map(document, Revision).Model.Hosts);
+        HostSpec host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
 
         Assert.False(host.ForceHttps);
         Assert.Equal(new HostTlsSpec { MinimumVersion = ProxyTls.TlsMinimumVersion.Tls12, TcpAlpn = ProxyTls.TcpAlpn.Http11Only, Http3 = false }, host.Tls);
@@ -274,13 +276,13 @@ public sealed class ProxyConfigMappingTests
             profile: new HostSettings(),
             host: new HostSettings { IpAllowList = new IpAllowListSettings([]) });
 
-        Assert.Empty(Assert.Single(ProxyConfigMapping.Map(document, Revision).Model.Hosts).Policies);
+        Assert.Empty(Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts).Policies);
     }
 
     [Fact]
     public void BuiltInDefaultsApplyWhenNoLayerSetsAnything()
     {
-        HostSpec host = Assert.Single(ProxyConfigMapping.Map(Document(null, null, null), Revision).Model.Hosts);
+        HostSpec host = Assert.Single(ProxyConfigMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty).Model.Hosts);
 
         Assert.False(host.ForceHttps);
         Assert.Equal(HostTlsSpec.Default, host.Tls);
@@ -295,16 +297,18 @@ public sealed class ProxyConfigMappingTests
         ConfigDocument document = Document(new HostSettings { ForceHttps = true }, new HostSettings { ForceHttps = false }, null);
         document = document with { Hosts = [document.Hosts[0] with { ProfileId = Id<ProfileId>(99) }] };
 
-        Assert.True(Assert.Single(ProxyConfigMapping.Map(document, Revision).Model.Hosts).ForceHttps);
+        Assert.True(Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts).ForceHttps);
     }
 
     [Fact]
     public void CertificateBindings()
     {
-        static HostSpec Bound(CertificateBinding binding)
+        using AnyCertificate certificates = new();
+        HostSpec Bound(CertificateBinding binding)
         {
             ConfigDocument document = Document(null, null, null);
-            return Assert.Single(ProxyConfigMapping.Map(document with { Hosts = [document.Hosts[0] with { Certificate = binding }] }, Revision).Model.Hosts);
+            ConfigDocument bound = document with { Hosts = [document.Hosts[0] with { Certificate = binding }] };
+            return Assert.Single(ProxyConfigMapping.Map(bound, Revision, certificates.InventoryFor(bound)).Model.Hosts);
         }
 
         HostSpec auto = Bound(new CertificateBinding());
@@ -333,7 +337,7 @@ public sealed class ProxyConfigMappingTests
             ],
         };
 
-        MappedConfig mapped = ProxyConfigMapping.Map(changed, Revision);
+        MappedConfig mapped = ProxyConfigMapping.Map(changed, Revision, CertificateInventory.Empty);
 
         Assert.Equal(
             [
@@ -354,10 +358,10 @@ public sealed class ProxyConfigMappingTests
             ConfigDocument document = Valid();
             ConfigDocument changed = document with { Upstreams = [document.Upstreams[0] with { LoadBalancing = policy }] };
 
-            Assert.Equal(policy.ToString(), Assert.Single(ProxyConfigMapping.Map(changed, Revision).Model.Upstreams).LoadBalancing);
+            Assert.Equal(policy.ToString(), Assert.Single(ProxyConfigMapping.Map(changed, Revision, CertificateInventory.Empty).Model.Upstreams).LoadBalancing);
         }
 
-        Assert.Null(Assert.Single(ProxyConfigMapping.Map(Valid(), Revision).Model.Upstreams).LoadBalancing);
+        Assert.Null(Assert.Single(ProxyConfigMapping.Map(Valid(), Revision, CertificateInventory.Empty).Model.Upstreams).LoadBalancing);
     }
 
     // One proxy host with two routes ("/" and "/b") under a profile-less, default-less document.
@@ -368,7 +372,7 @@ public sealed class ProxyConfigMappingTests
         {
             Routes = [new RouteConfig(RootRoute, AppUpstream, Settings: first), new RouteConfig(ApiRoute, AppUpstream, Path: "/b", Settings: second)],
         };
-        return Assert.Single(ProxyConfigMapping.Map(document with { Hosts = [config] }, Revision).Model.Hosts);
+        return Assert.Single(ProxyConfigMapping.Map(document with { Hosts = [config] }, Revision, CertificateInventory.Empty).Model.Hosts);
     }
 
     private static ConfigDocument Document(HostSettings? defaults, HostSettings? profile, HostSettings? host) => new(

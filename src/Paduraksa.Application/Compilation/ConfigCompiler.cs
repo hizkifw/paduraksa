@@ -1,3 +1,4 @@
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -6,8 +7,9 @@ using Paduraksa.Proxy.Config;
 namespace Paduraksa.Application.Compilation;
 
 /// <summary>
-/// The <see cref="IConfigCompiler"/>: <see cref="ProxyConfigMapping.Map"/>, then <see cref="SnapshotCompiler.Compile"/>
-/// with the process's <see cref="SnapshotCompilerOptions"/> (certificates, public HTTPS port, HTTP/3 advertising).
+/// The <see cref="IConfigCompiler"/>: <see cref="ProxyConfigMapping.Map"/> (which resolves certificate bindings against
+/// the inventory), then <see cref="SnapshotCompiler.Compile"/> with the process's <see cref="SnapshotCompilerOptions"/>
+/// (public HTTPS port, HTTP/3 advertising) and the inventory's certificate resolver.
 /// </summary>
 /// <remarks>
 /// Errors (the mapping's and the compiler's) come back as <see cref="ConfigErrorCodes.CompileFailed"/>, each with the
@@ -25,17 +27,30 @@ public sealed class ConfigCompiler : IConfigCompiler
         _options = options;
     }
 
-    public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision)
+    public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory)
     {
         ArgumentNullException.ThrowIfNull(document);
-        MappedConfig mapped = ProxyConfigMapping.Map(document, revision);
-        CompileResult result = SnapshotCompiler.Compile(mapped.Model, _options);
+        ArgumentNullException.ThrowIfNull(inventory);
+        MappedConfig mapped = ProxyConfigMapping.Map(document, revision, inventory);
+
+        // The inventory's resolver (usable certificates only) replaces whatever the options carry.
+        CompileResult result = SnapshotCompiler.Compile(mapped.Model, _options with { Certificates = inventory.Resolver });
+        CompileErrorPaths paths = new(document);
         if (result.Snapshot is { } snapshot && mapped.Errors.Count == 0)
         {
-            return new ConfigCompilation(snapshot, []);
+            return new ConfigCompilation(
+                snapshot,
+                [],
+                [
+                    .. mapped.Warnings
+                        .Select(w => new ConfigWarning(paths.Of(w.Source) + w.Member, w.Code, w.Message))
+                        .Distinct(),
+                ])
+            {
+                ValidityChangesAt = inventory.NextBoundary,
+            };
         }
 
-        CompileErrorPaths paths = new(document);
         return new ConfigCompilation(
             null,
             [

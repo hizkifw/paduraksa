@@ -106,7 +106,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         // Compiled directly: the shared Compile helper would add the placeholder as the default certificate.
         CompileResult bare = SnapshotCompiler.Compile(
             App(new HostSpec { Id = TestIds.Host("b"), Names = ["b.test"], Certificate = TestIds.Certificate("b"), Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "b" } }),
-            host.Shared.PublicListeners.CompilerOptions);
+            host.Shared.PublicListeners.CompilerOptions with { Certificates = host.Shared.Certificates });
         Assert.True((await host.Shared.SnapshotPublisher.PublishAsync(bare.Snapshot!, TestContext.Current.CancellationToken)).Succeeded);
 
         Assert.Equal("b.test", await EdgeClient.ServedSubjectAsync(host, "b.test"));

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Application.Audit;
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
@@ -168,7 +169,7 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
 
         public List<ConfigRevisionId> Compiled { get; } = [];
 
-        public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision)
+        public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory)
         {
             OnCompile?.Invoke(document);
             lock (Compiled)
@@ -190,7 +191,7 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
     /// (or fails it when disposed).</summary>
     public sealed class YarpfulCompiler : IConfigCompiler
     {
-        public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision)
+        public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory)
         {
             var model = new ProxyConfigModel
             {

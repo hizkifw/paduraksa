@@ -47,6 +47,16 @@ internal static class CommandErrors
         return index < 0 ? null : $"/{list}/{index.ToString(CultureInfo.InvariantCulture)}";
     }
 
+    /// <summary>The host index of a pointer at or below <c>/hosts/{i}</c>; null for any other pointer.</summary>
+    public static int? HostIndexOf(string path)
+    {
+        string[] parts = path.Split('/', 4);
+        return parts.Length >= 3 && parts[0].Length == 0 && parts[1] == "hosts"
+            && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int index)
+            ? index
+            : null;
+    }
+
     private static bool IsAtOrBelow(string path, string prefix) =>
         path.StartsWith(prefix, StringComparison.Ordinal) && (path.Length == prefix.Length || path[prefix.Length] == '/');
 

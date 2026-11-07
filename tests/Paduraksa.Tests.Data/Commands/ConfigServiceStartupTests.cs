@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.LastKnownGood;
@@ -299,9 +300,9 @@ public sealed class ConfigServiceStartupTests
     {
         private readonly ConfigServiceHarness.FakeCompiler _inner = new();
 
-        public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revisionId)
+        public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revisionId, CertificateInventory inventory)
         {
-            var compiled = _inner.Compile(document, revisionId);
+            var compiled = _inner.Compile(document, revisionId, inventory);
             return revisionId == revision ? compiled with { Snapshot = compiled.Snapshot!.Bind(1, []) } : compiled;
         }
     }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Application.LastKnownGood;
@@ -102,16 +103,19 @@ public sealed partial class ConfigService
 
         if (database.Problem is not null)
         {
-            return StartOnLastKnownGood(database.Problem, acceptsCommands: false, lastGood, lastGoodProblem);
+            return await StartOnLastKnownGoodAsync(database.Problem, acceptsCommands: false, lastGood, lastGoodProblem, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         ConfigRevisionId revisionId = database.Latest?.Info.Id ?? ConfigRevisionId.Empty;
-        ConfigCompilation compilation = _compiler.Compile(database.Document!, revisionId);
+        ConfigCompilation compilation = await CompileWithCurrentInventoryAsync(database.Document!, revisionId, cancellationToken).ConfigureAwait(false);
         if (compilation.Snapshot is not { } snapshot)
         {
             string label = database.Latest is null ? "the empty config" : $"revision #{database.Latest.Info.Seq} ({database.Latest.Info.Id})";
-            return StartOnLastKnownGood($"{label} doesn't compile: {Summarize(compilation.Errors)}", acceptsCommands: true, lastGood, lastGoodProblem);
+            return await StartOnLastKnownGoodAsync(
+                $"{label} doesn't compile: {Summarize(compilation.Errors)}", acceptsCommands: true, lastGood, lastGoodProblem, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
+
+        ReportCertificateWarnings(compilation.Warnings);
 
         RevisionRef? revision = database.Latest is null ? null : Ref(database.Latest.Info);
         if (lastGood is not null && revision is not null && lastGood.Revision.Seq > revision.Seq)
@@ -122,7 +126,7 @@ public sealed partial class ConfigService
         LastKnownGoodEntry? entry = database.Latest is null
             ? null
             : new LastKnownGoodEntry(revision!, database.Latest.Document, database.Latest.Info.DocumentHash);
-        _startupPublish = FollowStartupPublishAsync(StartPublish(snapshot), revisionId, entry, lastGood);
+        _startupPublish = FollowStartupPublishAsync(StartPublish(snapshot, compilation), revisionId, entry, lastGood);
         return new ConfigStoreStatus(ConfigSource.Database, revision);
     }
 
@@ -181,7 +185,7 @@ public sealed partial class ConfigService
             problem = $"the database has no revisions, and restoring {source} failed ({ex.GetType().Name}: {ex.Message})";
         }
 
-        return StartOnLastKnownGood(problem, acceptsCommands: true, lastGood, lastGoodProblem: null, emptyIfUnusable: true);
+        return await StartOnLastKnownGoodAsync(problem, acceptsCommands: true, lastGood, lastGoodProblem: null, emptyIfUnusable: true, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -189,13 +193,14 @@ public sealed partial class ConfigService
     /// nothing to serve (<see cref="ConfigStartupException"/>), unless <paramref name="emptyIfUnusable"/>: then the
     /// database's empty config is served, still degraded.
     /// </summary>
-    private ConfigStoreStatus StartOnLastKnownGood(
-        string problem, bool acceptsCommands, LastKnownGoodEntry? lastGood, string? lastGoodProblem, bool emptyIfUnusable = false)
+    private async Task<ConfigStoreStatus> StartOnLastKnownGoodAsync(
+        string problem, bool acceptsCommands, LastKnownGoodEntry? lastGood, string? lastGoodProblem, bool emptyIfUnusable = false, CancellationToken cancellationToken = default)
     {
         string? unusable = lastGoodProblem ?? "there is no last-known-good file";
         if (lastGood is not null)
         {
-            ConfigCompilation fallback = _compiler.Compile(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id);
+            // The last-known-good document, against the inventory as it is now.
+            ConfigCompilation fallback = await CompileWithCurrentInventoryAsync(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id, cancellationToken).ConfigureAwait(false);
             if (fallback.Snapshot is { } snapshot)
             {
                 if (acceptsCommands)
@@ -207,19 +212,22 @@ public sealed partial class ConfigService
                     LogDegraded(lastGood.Revision.Seq, lastGood.Revision.Id, problem);
                 }
 
+                ReportCertificateWarnings(fallback.Warnings);
+
                 // Already the file's content: nothing to write, and nothing else to fall back on.
-                _startupPublish = FollowStartupPublishAsync(StartPublish(snapshot), lastGood.Revision.Id, entry: null, fallback: null);
+                _startupPublish = FollowStartupPublishAsync(StartPublish(snapshot, fallback), lastGood.Revision.Id, entry: null, fallback: null);
                 return new ConfigStoreStatus(ConfigSource.LastKnownGood, lastGood.Revision, problem, acceptsCommands);
             }
 
             unusable = $"its revision #{lastGood.Revision.Seq} ({lastGood.Revision.Id}) doesn't compile: {Summarize(fallback.Errors)}";
         }
 
-        if (emptyIfUnusable && _compiler.Compile(InitialDocument, ConfigRevisionId.Empty).Snapshot is { } empty)
+        if (emptyIfUnusable
+            && (await CompileWithCurrentInventoryAsync(InitialDocument, ConfigRevisionId.Empty, cancellationToken).ConfigureAwait(false)) is { Snapshot: { } empty } emptyCompilation)
         {
             string emptyProblem = $"{problem}; the last-known-good config can't be used either ({unusable})";
             LogDegradedOnEmpty(emptyProblem);
-            _startupPublish = FollowStartupPublishAsync(StartPublish(empty), ConfigRevisionId.Empty, entry: null, fallback: null);
+            _startupPublish = FollowStartupPublishAsync(StartPublish(empty, emptyCompilation), ConfigRevisionId.Empty, entry: null, fallback: null);
             return new ConfigStoreStatus(ConfigSource.Database, null, emptyProblem, AcceptsCommands: true);
         }
 
@@ -372,7 +380,7 @@ public sealed partial class ConfigService
                 return;
             }
 
-            ConfigCompilation compilation = _compiler.Compile(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id);
+            ConfigCompilation compilation = await CompileWithCurrentInventoryAsync(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id, CancellationToken.None).ConfigureAwait(false);
             if (compilation.Snapshot is not { } snapshot)
             {
                 LogLastKnownGoodUnusableAfterFailure(lastGood.Revision.Seq, lastGood.Revision.Id, Summarize(compilation.Errors));
@@ -381,7 +389,7 @@ public sealed partial class ConfigService
 
             LogDegradedAcceptingCommands(lastGood.Revision.Seq, lastGood.Revision.Id, problem);
             Volatile.Write(ref _status, new ConfigStoreStatus(ConfigSource.LastKnownGood, lastGood.Revision, problem, AcceptsCommands: true));
-            publish = StartPublish(snapshot);
+            publish = StartPublish(snapshot, compilation);
         }
         finally
         {
@@ -398,15 +406,181 @@ public sealed partial class ConfigService
     /// </summary>
     private void WentLive(PublishTicket ticket)
     {
-        LastKnownGoodEntry entry = ticket.LastKnownGood;
-        _lastKnownGood?.Offer(entry);
-        ConfigStoreStatus status = Status;
-        if (status.IsDegraded && status.AcceptsCommands
-            && ReferenceEquals(Interlocked.CompareExchange(ref _status, new ConfigStoreStatus(ConfigSource.Database, entry.Revision), status), status))
+        if (ticket.LastKnownGood is { } entry)
         {
-            LogRecovered(entry.Revision.Seq, entry.Revision.Id);
+            _lastKnownGood?.Offer(entry);
+        }
+
+        ConfigStoreStatus status = Status;
+        if (ticket.FromDatabase && !ticket.Revision.Id.IsEmpty && status.IsDegraded && status.AcceptsCommands
+            && ReferenceEquals(Interlocked.CompareExchange(ref _status, new ConfigStoreStatus(ConfigSource.Database, ticket.Revision), status), status))
+        {
+            LogRecovered(ticket.Revision.Seq, ticket.Revision.Id);
         }
     }
+
+    /// <summary>The live config compiled against the current inventory (see <see cref="CompileLiveAsync"/>).</summary>
+    /// <param name="Compilation">A successful compilation.</param>
+    /// <param name="Revision">The revision it is.</param>
+    /// <param name="Entry">The last-known-good entry to record once live; null when it came from that file.</param>
+    /// <param name="FromDatabase">It is the database's latest revision.</param>
+    private sealed record LiveCompile(ConfigCompilation Compilation, RevisionRef Revision, LastKnownGoodEntry? Entry, bool FromDatabase);
+
+    /// <summary>
+    /// Compiles the config that is live, against the inventory as <paramref name="context"/> sees it, for a republish
+    /// that no command asked for (a certificate change, a certificate's validity boundary passing). The live config is the
+    /// database's latest revision, except when the start is degraded on the last-known-good file, or the database has no
+    /// revision (it was lost): then it is the last-known-good document, and <b>never the empty config</b>. Null (logged)
+    /// when there is nothing to republish: no last-known-good document, or the one to compile doesn't compile.
+    /// </summary>
+    private async Task<LiveCompile?> CompileLiveAsync(ConfigDbContext context, CancellationToken cancellationToken)
+    {
+        if (Status.Source != ConfigSource.LastKnownGood)
+        {
+            StoredRevision? latest;
+            ConfigDocument document;
+            try
+            {
+                (latest, document) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogRepublishSkipped("the latest revision can't be read", $"{ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+
+            if (latest is not null)
+            {
+                CertificateInventory inventory = await _certificates.LoadAsync(context, document, cancellationToken).ConfigureAwait(false);
+                ConfigCompilation compilation = _compiler.Compile(document, latest.Info.Id, inventory);
+                if (compilation.Snapshot is null)
+                {
+                    LogRepublishSkipped($"revision #{latest.Info.Seq} doesn't compile", Summarize(compilation.Errors));
+                    return null;
+                }
+
+                RevisionRef revision = Ref(latest.Info);
+                return new LiveCompile(compilation, revision, new LastKnownGoodEntry(revision, latest.Document, latest.Info.DocumentHash), FromDatabase: true);
+            }
+        }
+
+        (LastKnownGoodEntry? lastGood, string? problem) = ReadLastKnownGood();
+        if (lastGood is null)
+        {
+            LogRepublishSkipped("there is no revision and no usable last-known-good document", problem ?? "nothing to republish");
+            return null;
+        }
+
+        ConfigDocument lastGoodDocument = CanonicalConfigJson.Canonicalize(lastGood.Parsed!);
+        ConfigCompilation fallback = _compiler.Compile(
+            lastGoodDocument, lastGood.Revision.Id, await _certificates.LoadAsync(context, lastGoodDocument, cancellationToken).ConfigureAwait(false));
+        if (fallback.Snapshot is null)
+        {
+            LogRepublishSkipped($"the last-known-good revision #{lastGood.Revision.Seq} doesn't compile", Summarize(fallback.Errors));
+            return null;
+        }
+
+        return new LiveCompile(fallback, lastGood.Revision, Entry: null, FromDatabase: false);
+    }
+
+    /// <summary>Queues a <see cref="LiveCompile"/>'s publish (under the writer lock, like every publish).</summary>
+    private PublishTicket PublishLive(LiveCompile live)
+    {
+        ReportCertificateWarnings(live.Compilation.Warnings);
+        PublishTicket ticket = new(live.Revision, StartPublish(live.Compilation.Snapshot!, live.Compilation), live.Entry, live.FromDatabase);
+        _latestPublish = ticket;
+        return ticket;
+    }
+
+    /// <summary>
+    /// A certificate's validity boundary passed (it expired or became valid): republishes the live config against the
+    /// inventory as it now is, under the writer lock, so it is ordered with every other publish (the publisher coalesces
+    /// them). Failures are logged and audited like any publish that nobody waits for.
+    /// </summary>
+    private async Task RepublishForValidityAsync()
+    {
+        try
+        {
+            PublishTicket? ticket = null;
+            await _writer.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                if (_disposed || Status is { AcceptsCommands: false })
+                {
+                    return;
+                }
+
+                var context = await _contexts.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
+                await using (context.ConfigureAwait(false))
+                {
+                    if (await CompileLiveAsync(context, CancellationToken.None).ConfigureAwait(false) is { } live)
+                    {
+                        ticket = PublishLive(live);
+                    }
+                }
+            }
+            finally
+            {
+                _writer.Release();
+            }
+
+            if (ticket is not null)
+            {
+                await AuditLatePublishAsync(ticket, CommandOrigin.System).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogValidityRepublishFailed(ex);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Not republishing: {Reason} ({Detail}). Nothing was published; the next commit or start compiles with the current certificates.")]
+    private partial void LogRepublishSkipped(string reason, string detail);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Republishing after a certificate's validity changed failed.")]
+    private partial void LogValidityRepublishFailed(Exception exception);
+
+    /// <summary>
+    /// Compiles <paramref name="document"/> against the certificate inventory as it is now, for the startup paths: a
+    /// certificate table that can't be read gives an inventory of the built-in certificates only, never an exception
+    /// (a start must not fail over certificates: hosts whose certificates are unknown degrade to the default certificate,
+    /// with warnings). Unusable certificates are warnings, not errors, here (<see cref="IntroducedUnusableBindings"/> is
+    /// for commands only).
+    /// </summary>
+    private async Task<ConfigCompilation> CompileWithCurrentInventoryAsync(ConfigDocument document, ConfigRevisionId revision, CancellationToken cancellationToken)
+    {
+        CertificateInventory inventory;
+        try
+        {
+            var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+            await using (context.ConfigureAwait(false))
+            {
+                inventory = await _certificates.LoadAsync(context, document, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogInventoryUnreadable(ex);
+            inventory = await _certificates.LoadAsync(null, document, cancellationToken).ConfigureAwait(false);
+        }
+
+        return _compiler.Compile(document, revision, inventory);
+    }
+
+    private void ReportCertificateWarnings(IReadOnlyList<ConfigWarning> warnings)
+    {
+        if (warnings.Count > 0)
+        {
+            LogCertificateWarnings(warnings.Count, string.Join("; ", warnings.Take(MaxAuditedCodes).Select(w => $"{w.Path}: {w.Message}")));
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} certificate warning(s) in the config that is going live: {Warnings}")]
+    private partial void LogCertificateWarnings(int count, string warnings);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The certificate inventory can't be read; compiling with the built-in certificates only. Hosts keep their config but lose certificates the vault would have served.")]
+    private partial void LogInventoryUnreadable(Exception exception);
 
     /// <summary>A command refused because the store is unusable; not audited (the audit log lives in that store).</summary>
     private ConfigCommandResult Unavailable(ConfigCommand command, ConfigStoreStatus status)

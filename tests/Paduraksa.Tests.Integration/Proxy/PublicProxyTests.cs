@@ -176,7 +176,7 @@ public sealed class PublicProxyTests
             model = model with { Defaults = model.Defaults with { Certificate = PlaceholderCertificates.Id } };
         }
 
-        CompileResult result = SnapshotCompiler.Compile(model, options ?? host.Shared.PublicListeners.CompilerOptions);
+        CompileResult result = SnapshotCompiler.Compile(model, (options ?? host.Shared.PublicListeners.CompilerOptions) with { Certificates = host.Shared.Certificates });
         Assert.True(result.Succeeded, string.Join("; ", result.Errors));
         return result.Snapshot!;
     }

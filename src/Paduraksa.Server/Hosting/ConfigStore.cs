@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Placeholders;
@@ -40,13 +42,14 @@ internal static class ConfigStore
         SnapshotPublisher publisher,
         LastKnownGoodFile lastKnownGood,
         PublicListenerSetup listeners,
+        PlaceholderCertificates certificates,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
-        IConfigCompiler compiler = builder.Add<IConfigCompiler>(new PlaceholderCertificateCompiler(new ConfigCompiler(listeners.CompilerOptions)));
+        IConfigCompiler compiler = builder.Add<IConfigCompiler>(new ConfigCompiler(listeners.CompilerOptions));
         ServiceProvider container = builder.Own(new ServiceCollection()
             .AddPaduraksaDbContextFactory<ConfigDbContext>(Path.Combine(dataDirectory, ConfigDatabase.FileName))
             .AddSingleton(compiler)
@@ -54,6 +57,8 @@ internal static class ConfigStore
             .AddSingleton(timeProvider)
             .AddSingleton(loggerFactory)
             .AddSingleton(lastKnownGood)
+            .AddSingleton<IServerCertificateSource>(certificates)
+            .AddSingleton<IBuiltInCertificates>(certificates)
             .AddPaduraksaConfigService()
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
         builder.AddOwnedElsewhere(container.GetRequiredService<IDbContextFactory<ConfigDbContext>>());

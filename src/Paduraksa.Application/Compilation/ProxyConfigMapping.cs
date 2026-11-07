@@ -1,3 +1,4 @@
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -32,8 +33,13 @@ namespace Paduraksa.Application.Compilation;
 /// some route admits is judged again by the route it hits. When some route is unrestricted, the host chain carries
 /// nothing: anyone may reach that route, so there is nothing to hide.</item>
 /// </list>
-/// <para><b>Certificates.</b> Binding Auto → no certificate of its own (the default one); Specific → that certificate;
-/// None → <see cref="HostSpec.Https"/> off. Unknown host behaviour, the default certificate and the trusted proxies come
+/// <para><b>Certificates (PLAN §9.2).</b> Bindings resolve against the <see cref="CertificateInventory"/>. Auto → each DNS
+/// name of the host gets the most specific valid certificate covering it (<see cref="CertificateSelection"/>), per name
+/// (<see cref="HostSpec.NameCertificates"/>); names nothing covers get no certificate of their own (the default one
+/// serves them) and are reported. Specific → that certificate when it is usable, else none of its own (reported). None →
+/// <see cref="HostSpec.Https"/> off. The default certificate is the one the settings name when usable, else the
+/// inventory's fallback. An unusable certificate never fails the mapping: it is a <see cref="MappedConfig.Warnings"/>
+/// entry, and the command pipeline decides whether it blocks a change. Unknown host behaviour and the trusted proxies come
 /// from the global settings; the default certificate's TLS settings are the global defaults' TLS.</para>
 /// <para><b>Upstreams.</b> Disabled destinations are left out. Load balancing maps to YARP's policy names.</para>
 /// <para><b>Undefined values.</b> Enums with a proxy twin are converted by value (<c>ContractEnumTests</c> pins that
@@ -44,12 +50,14 @@ namespace Paduraksa.Application.Compilation;
 public static class ProxyConfigMapping
 {
     /// <summary>The compiler input for <paramref name="document"/>, labelled with <paramref name="revision"/>.</summary>
-    public static MappedConfig Map(ConfigDocument document, ConfigRevisionId revision)
+    public static MappedConfig Map(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory)
     {
         ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(inventory);
         ConfigDocument canonical = CanonicalConfigJson.Canonicalize(document);
         GlobalSettings settings = canonical.Settings;
         List<CompileError> errors = [];
+        List<MappedWarning> warnings = [];
 
         // First one wins on a duplicate ID (invalid anyway).
         Dictionary<ProfileId, HostSettings> profiles = [];
@@ -63,7 +71,7 @@ public static class ProxyConfigMapping
         {
             HostConfig host = canonical.Hosts[i];
             HostSettings? profile = host.ProfileId is { } id ? profiles.GetValueOrDefault(id) : null;
-            hosts[i] = MapHost(host, HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings), errors);
+            hosts[i] = MapHost(host, HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings), inventory, errors, warnings);
         }
 
         ProxyConfigModel model = new()
@@ -74,15 +82,120 @@ public static class ProxyConfigMapping
             Defaults = new DefaultsSpec
             {
                 UnknownHost = (UnknownHostMode)settings.UnknownHost,
-                Certificate = settings.DefaultCertificateId,
+                Certificate = DefaultCertificate(settings.DefaultCertificateId, inventory, warnings),
                 Tls = HostSettingsLayers.Merge(HostTlsSpec.Default, settings.Defaults.Tls),
                 TrustedProxies = MapTrustedProxies(settings.TrustedProxies),
             },
         };
-        return new MappedConfig(model, errors);
+        return new MappedConfig(model, errors, warnings);
     }
 
-    private static HostSpec MapHost(HostConfig host, EffectiveHostSettings effective, List<CompileError> errors)
+    /// <summary>The default certificate: the one the settings name when it is usable, else the inventory's fallback.</summary>
+    private static CertificateId? DefaultCertificate(CertificateId? named, CertificateInventory inventory, List<MappedWarning> warnings)
+    {
+        if (named is not { } id)
+        {
+            return inventory.FallbackDefault;
+        }
+
+        // An empty ID is the compiler's to reject.
+        if (id.IsEmpty || inventory.Resolver.TryResolve(id, out _))
+        {
+            return id;
+        }
+
+        warnings.Add(new MappedWarning(
+            CompileErrorSource.Defaults,
+            "/defaultCertificateId",
+            ConfigWarningCodes.CertificateDefaultUnusable,
+            $"the default certificate {id} can't be used: {Why(id, inventory)}"
+            + (inventory.FallbackDefault is null ? "; unknown names are rejected" : "; the fallback default certificate serves instead")));
+        return inventory.FallbackDefault;
+    }
+
+    /// <summary>
+    /// Resolves a host's certificate binding against the inventory (PLAN §9.2). Auto: each DNS name gets the best valid
+    /// certificate covering it (<see cref="CertificateSelection"/>), per name, and names nothing covers get none of their
+    /// own: they ride the default certificate, or are rejected, and the host is reported without coverage. Specific: that
+    /// certificate for every name when it is usable; otherwise the host has none of its own (reported). None: no HTTPS.
+    /// </summary>
+    private static (CertificateId? Certificate, IReadOnlyDictionary<string, CertificateId>? ByName) BindCertificate(
+        HostConfig host, CertificateInventory inventory, List<MappedWarning> warnings)
+    {
+        CertificateBinding binding = host.Certificate;
+        CompileErrorSource where = CompileErrorSource.Host(host.Id);
+        switch (binding.Mode)
+        {
+            case CertificateBindingMode.Specific:
+                // An empty ID makes the compiler say a specific binding needs one.
+                if (binding.CertificateId is not { IsEmpty: false } id)
+                {
+                    return (CertificateId.Empty, null);
+                }
+
+                // A disabled host serves nothing, so its certificate only has to be valid (it is never loaded).
+                if (!inventory.TryGet(id, out InventoryCertificate? entry) || !(host.Enabled ? entry.IsUsable : entry.IsValid))
+                {
+                    warnings.Add(new MappedWarning(
+                        where,
+                        "/certificate",
+                        ConfigWarningCodes.CertificateSpecificUnusable,
+                        $"the certificate {id} can't be used: {Why(id, inventory)}; the host's names are served with the default certificate, if any"));
+                    return (null, null);
+                }
+
+                if (!host.Enabled)
+                {
+                    return (null, null);
+                }
+
+                string[] uncovered = [.. CertificateSelection.ServerNames(host.Names).Where(n => CertificateSelection.Match(entry.Names, n) == NameMatch.None)];
+                if (uncovered.Length > 0)
+                {
+                    warnings.Add(new MappedWarning(
+                        where,
+                        "/certificate",
+                        ConfigWarningCodes.CertificateSpecificNoCoverage,
+                        $"the certificate {id} doesn't cover {string.Join(", ", uncovered)}"));
+                }
+
+                return (id, null);
+            case CertificateBindingMode.Auto when host.Enabled:
+                Dictionary<string, CertificateId> byName = [];
+                List<string> uncoveredNames = [];
+                IEnumerable<InventoryCertificate> usable = inventory.Certificates.Where(c => c.IsUsable);
+                foreach (string name in CertificateSelection.ServerNames(host.Names))
+                {
+                    if (CertificateSelection.Best(usable, name) is { } best)
+                    {
+                        byName[name] = best.Id;
+                    }
+                    else
+                    {
+                        uncoveredNames.Add(name);
+                    }
+                }
+
+                if (uncoveredNames.Count > 0)
+                {
+                    warnings.Add(new MappedWarning(
+                        where,
+                        string.Empty,
+                        ConfigWarningCodes.CertificateAutoNoCoverage,
+                        $"no valid certificate covers {string.Join(", ", uncoveredNames)}; they are served with the default certificate, if any"));
+                }
+
+                return (null, byName.Count == 0 ? null : byName);
+            default:
+                return (null, null);
+        }
+    }
+
+    private static string Why(CertificateId id, CertificateInventory inventory) =>
+        inventory.TryGet(id, out InventoryCertificate? entry) ? entry.UnusableReason ?? "it isn't loaded" : "the inventory has no such certificate";
+
+    private static HostSpec MapHost(
+        HostConfig host, EffectiveHostSettings effective, CertificateInventory inventory, List<CompileError> errors, List<MappedWarning> warnings)
     {
         CompileErrorSource where = CompileErrorSource.Host(host.Id);
         IpAllowListSettings?[] routeLists = [.. host.Routes.Select(r => HostSettingsLayers.ResolveRoute(effective, r.Settings))];
@@ -123,6 +236,7 @@ public static class ProxyConfigMapping
             respond = new RespondSpec { StatusCode = fixedAnswer.StatusCode, Body = fixedAnswer.Body ?? string.Empty, ContentType = fixedAnswer.ContentType ?? string.Empty };
         }
 
+        (CertificateId? certificate, IReadOnlyDictionary<string, CertificateId>? certificatesByName) = BindCertificate(host, inventory, warnings);
         return new HostSpec
         {
             Id = host.Id,
@@ -131,8 +245,8 @@ public static class ProxyConfigMapping
             Enabled = host.Enabled,
             ForceHttps = effective.ForceHttps,
             Https = binding.Mode != CertificateBindingMode.None,
-            // An empty ID makes the compiler say a specific binding needs one.
-            Certificate = binding.Mode == CertificateBindingMode.Specific ? binding.CertificateId ?? CertificateId.Empty : null,
+            Certificate = certificate,
+            NameCertificates = certificatesByName,
             Tls = effective.Tls,
             Routes = routes,
             Policies = hostChain,
@@ -217,4 +331,12 @@ public static class ProxyConfigMapping
 /// <param name="Model">The compiler input.</param>
 /// <param name="Errors">Invalid values the model can't carry, attributed like compile errors; empty for a valid
 /// document.</param>
-public sealed record MappedConfig(ProxyConfigModel Model, IReadOnlyList<CompileError> Errors);
+/// <param name="Warnings">What maps fine but probably isn't intended (certificate coverage and usability).</param>
+public sealed record MappedConfig(ProxyConfigModel Model, IReadOnlyList<CompileError> Errors, IReadOnlyList<MappedWarning> Warnings);
+
+/// <summary>A certificate warning of <see cref="ProxyConfigMapping.Map"/>, attributed like a compile error.</summary>
+/// <param name="Source">The object it is about.</param>
+/// <param name="Member">A JSON pointer suffix below that object's path (<c>/certificate</c>); empty for the object.</param>
+/// <param name="Code">A <see cref="ConfigWarningCodes"/> code.</param>
+/// <param name="Message">The explanation.</param>
+public sealed record MappedWarning(CompileErrorSource Source, string Member, string Code, string Message);

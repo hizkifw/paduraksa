@@ -29,9 +29,7 @@ public sealed class CompiledBehaviourTests : IDisposable
     private static readonly string[] Paths = ["/", "/p1", "/P2/x", "/p3", "/zz"];
 
     private readonly AnyCertificate _certificates = new();
-    private readonly ConfigCompiler _compiler;
 
-    public CompiledBehaviourTests() => _compiler = new ConfigCompiler(new SnapshotCompilerOptions { Certificates = _certificates });
 
     public void Dispose() => _certificates.Dispose();
 
@@ -123,7 +121,7 @@ public sealed class CompiledBehaviourTests : IDisposable
 
     private GateHarness Harness(ConfigDocument document)
     {
-        ConfigCompilation compilation = _compiler.Compile(document, Revision);
+        ConfigCompilation compilation = _certificates.Compile(document, Revision);
         Assert.True(compilation.Succeeded, string.Join("; ", compilation.Errors.Select(e => $"{e.Path}: {e.Message}")));
         return new GateHarness(compilation.Snapshot!);
     }

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Audit;
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Application.LastKnownGood;
@@ -16,6 +17,7 @@ using Paduraksa.Application.Storage;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
@@ -78,6 +80,7 @@ public sealed partial class ConfigService : IDisposable
 
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly IConfigCompiler _compiler;
+    private readonly CertificateInventoryLoader _certificates;
     private readonly SnapshotPublisher _publisher;
     private readonly IConfigCommandAuthorizer _authorizer;
     private readonly ConfigServiceOptions _options;
@@ -93,6 +96,15 @@ public sealed partial class ConfigService : IDisposable
 
     // The latest commit's publish; written under the writer lock, right after it is queued.
     private volatile PublishTicket? _latestPublish;
+    private volatile IReadOnlyList<ConfigWarning> _warnings = [];
+
+    // The validity timer: one at a time, replaced whenever a newer snapshot goes live (see WentLiveWith).
+    private readonly object _liveLock = new();
+    private long _liveGeneration;
+    private ITimer? _validityTimer;
+
+    // Timer periods are limited to about 49 days; a longer wait fires early, republishes, and schedules the rest.
+    private static readonly TimeSpan MaxTimerDelay = TimeSpan.FromDays(20);
     private volatile bool _disposed;
 
     /// <summary>Internal: the context factory is a Data type, which Application's public surface never shows. Register
@@ -105,7 +117,9 @@ public sealed partial class ConfigService : IDisposable
         ILoggerFactory? loggerFactory = null,
         IConfigCommandAuthorizer? authorizer = null,
         ConfigServiceOptions? options = null,
-        LastKnownGoodFile? lastKnownGood = null)
+        LastKnownGoodFile? lastKnownGood = null,
+        IServerCertificateSource? certificateSource = null,
+        IBuiltInCertificates? builtInCertificates = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(compiler);
@@ -121,6 +135,7 @@ public sealed partial class ConfigService : IDisposable
         _lastKnownGood = lastKnownGood;
         _audit = new AuditLog(_timeProvider, loggerFactory.CreateLogger<AuditLog>());
         _logger = loggerFactory.CreateLogger<ConfigService>();
+        _certificates = new CertificateInventoryLoader(certificateSource, builtInCertificates, _timeProvider, loggerFactory.CreateLogger<CertificateInventoryLoader>());
     }
 
     /// <summary>The config before the first commit: no objects, default settings, every version 0.</summary>
@@ -173,7 +188,15 @@ public sealed partial class ConfigService : IDisposable
     }
 
     /// <summary>Stops new commands (they throw <see cref="ObjectDisposedException"/>); commands in flight finish.</summary>
-    public void Dispose() => _disposed = true;
+    public void Dispose()
+    {
+        _disposed = true;
+        lock (_liveLock)
+        {
+            _validityTimer?.Dispose();
+            _validityTimer = null;
+        }
+    }
 
     private async Task<Execution> ExecuteExclusiveAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken)
     {
@@ -250,7 +273,8 @@ public sealed partial class ConfigService : IDisposable
             }
 
             ConfigRevisionId revisionId = command.DryRun ? ConfigRevisionId.Empty : _revisions.NextId();
-            ConfigCompilation compilation = _compiler.Compile(candidate, revisionId);
+            CertificateInventory inventory = await _certificates.LoadAsync(context, candidate, cancellationToken).ConfigureAwait(false);
+            ConfigCompilation compilation = _compiler.Compile(candidate, revisionId, inventory);
             if (compilation.Snapshot is not { } snapshot)
             {
                 IReadOnlyList<ConfigError> compileErrors = compilation.Errors.Count > 0
@@ -260,12 +284,22 @@ public sealed partial class ConfigService : IDisposable
                 return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
             }
 
-            if (command.DryRun)
+            // An ordinary command may not introduce a binding to a certificate that can't be used; it may leave one that
+            // went bad. A rollback and the system's restore after a lost database put back a config that already was
+            // accepted once: like startup, they degrade with warnings (the inventory may be gone with the database).
+            bool restoring = command is RollbackConfigCommand || (command is ReplaceConfigCommand && origin.Actor.Kind == ActorKind.System);
+            if (!restoring && IntroducedUnusableBindings(current, candidate, compilation.Warnings) is { Count: > 0 } unusable)
             {
-                return new Execution(new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: changes, Version: version));
+                ConfigCommandResult invalid = Invalid(plan, candidate, candidate, unusable, changes);
+                return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
             }
 
-            return await CommitAsync(context, origin, audited, latest, candidate, changes, revisionId, snapshot, message ?? plan.DefaultMessage, version, cancellationToken)
+            if (command.DryRun)
+            {
+                return new Execution(new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: changes, Version: version, Warnings: compilation.Warnings));
+            }
+
+            return await CommitAsync(context, origin, audited, latest, candidate, changes, revisionId, compilation, message ?? plan.DefaultMessage, version, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -279,7 +313,7 @@ public sealed partial class ConfigService : IDisposable
         ConfigDocument candidate,
         IReadOnlyList<ConfigChange> changes,
         ConfigRevisionId revisionId,
-        RuntimeSnapshot snapshot,
+        ConfigCompilation compilation,
         string? message,
         long? version,
         CancellationToken cancellationToken)
@@ -320,10 +354,42 @@ public sealed partial class ConfigService : IDisposable
 
         RevisionRef revision = Ref(info);
         LogCommitted(revision.Seq, info.Id, audited.Action, origin.Actor, origin.Channel, changes.Count);
-        PublishTicket ticket = new(revision, StartPublish(snapshot), new LastKnownGoodEntry(revision, document, info.DocumentHash));
+        PublishTicket ticket = new(revision, StartPublish(compilation.Snapshot!, compilation), new LastKnownGoodEntry(revision, document, info.DocumentHash));
         _latestPublish = ticket;
         Changes.Publish(new ConfigCommitted(revision, changes));
-        return new Execution(new ConfigCommandResult(ConfigCommandStatus.Committed, revision, changes, Version: version), ticket);
+        return new Execution(new ConfigCommandResult(ConfigCommandStatus.Committed, revision, changes, Version: version, Warnings: compilation.Warnings), ticket);
+    }
+
+    /// <summary>
+    /// The errors for certificate bindings that <paramref name="candidate"/> introduces and that can't be used (PLAN §9.2):
+    /// a host whose Specific binding is new or changed, or a changed default certificate, naming a certificate that is
+    /// missing, expired, pending, failed or without a key. A binding the current config already has is left alone, so a
+    /// certificate that expired since doesn't block unrelated changes (it stays a warning).
+    /// </summary>
+    private static List<ConfigError> IntroducedUnusableBindings(ConfigDocument current, ConfigDocument candidate, IReadOnlyList<ConfigWarning> warnings)
+    {
+        List<ConfigError> errors = [];
+        foreach (ConfigWarning warning in warnings)
+        {
+            if (warning.Code == ConfigWarningCodes.CertificateDefaultUnusable)
+            {
+                if (candidate.Settings.DefaultCertificateId != current.Settings.DefaultCertificateId)
+                {
+                    errors.Add(new ConfigError(warning.Path, ConfigErrorCodes.SettingsDefaultCertificateUnusable, warning.Message));
+                }
+            }
+            else if (warning.Code == ConfigWarningCodes.CertificateSpecificUnusable
+                && CommandErrors.HostIndexOf(warning.Path) is { } index && index < candidate.Hosts.Count)
+            {
+                HostConfig host = candidate.Hosts[index];
+                if (current.Hosts.FirstOrDefault(h => h.Id == host.Id)?.Certificate != host.Certificate)
+                {
+                    errors.Add(new ConfigError(warning.Path, ConfigErrorCodes.HostCertificateUnusable, warning.Message));
+                }
+            }
+        }
+
+        return errors;
     }
 
     /// <summary>The head moved twice: a conflict naming the real head and the object's current version.</summary>
@@ -340,18 +406,69 @@ public sealed partial class ConfigService : IDisposable
         }
     }
 
-    private Task<PublishResult> StartPublish(RuntimeSnapshot snapshot)
+    /// <summary>The warnings of the snapshot that is live (startup, a commit, a certificate change): hosts without
+    /// certificate coverage, bindings to certificates that went bad. Set when a publish goes live, not when it is
+    /// queued. Empty before the first one.</summary>
+    public IReadOnlyList<ConfigWarning> Warnings => _warnings;
+
+    /// <summary>
+    /// Queues <paramref name="snapshot"/>. When the publish goes live, its warnings become <see cref="Warnings"/> and a
+    /// republish is scheduled for when the certificate inventory it was compiled against next changes with the clock
+    /// (<see cref="ConfigCompilation.ValidityChangesAt"/>), so a certificate that expires or becomes valid takes effect
+    /// without any other trigger.
+    /// </summary>
+    private Task<PublishResult> StartPublish(RuntimeSnapshot snapshot, ConfigCompilation compilation)
     {
+        Task<PublishResult> publishing;
         try
         {
-            return _publisher.PublishAsync(snapshot);
+            publishing = _publisher.PublishAsync(snapshot);
         }
         catch (ArgumentException ex)
         {
             // A bound candidate: a compiler bug. Reported like any failed publish.
             return Task.FromResult(new PublishResult(PublishStatus.Failed, 0, [ex.Message]));
         }
+
+        _ = publishing.ContinueWith(
+            task =>
+            {
+                if (task.Result.Status == PublishStatus.Published)
+                {
+                    WentLiveWith(task.Result.Generation, compilation);
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return publishing;
     }
+
+    /// <summary>A publish of generation <paramref name="generation"/> is live: record its warnings and schedule its
+    /// validity timer, unless a later generation got there first.</summary>
+    private void WentLiveWith(long generation, ConfigCompilation compilation)
+    {
+        lock (_liveLock)
+        {
+            if (generation < _liveGeneration || _disposed)
+            {
+                return;
+            }
+
+            _liveGeneration = generation;
+            _warnings = compilation.Warnings;
+            _validityTimer?.Dispose();
+            _validityTimer = null;
+            if (compilation.ValidityChangesAt is { } at)
+            {
+                TimeSpan due = at - _timeProvider.GetUtcNow();
+                due = due < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : due > MaxTimerDelay ? MaxTimerDelay : due;
+                _validityTimer = _timeProvider.CreateTimer(static state => ((ConfigService)state!).OnValidityChanged(), this, due, Timeout.InfiniteTimeSpan);
+            }
+        }
+    }
+
+    private void OnValidityChanged() => _ = RepublishForValidityAsync();
 
     private async Task<ConfigCommandResult> FinishPublishAsync(Execution execution, CommandOrigin origin)
     {
@@ -466,8 +583,8 @@ public sealed partial class ConfigService : IDisposable
         LogPublishFailed(revision.Seq, revision.Id, outcome.Status, string.Join("; ", outcome.Errors));
         AuditEntry entry = new(origin.Actor, origin.Channel, "config.publish", AuditOutcome.Failed)
         {
-            Target = revision.Id.ToString(),
-            RevisionId = revision.Id,
+            Target = revision.Id.IsEmpty ? null : revision.Id.ToString(),
+            RevisionId = revision.Id.IsEmpty ? null : revision.Id,
             Details = Json(w =>
             {
                 w.WriteString("status", DocumentNames.Of(outcome.Status));
@@ -807,7 +924,12 @@ public sealed partial class ConfigService : IDisposable
     }
 
     /// <summary>A committed revision's queued publish.</summary>
-    private sealed record PublishTicket(RevisionRef Revision, Task<PublishResult> Task, LastKnownGoodEntry LastKnownGood);
+    /// <param name="Revision">The revision it publishes (<see cref="ConfigRevisionId.Empty"/>, seq 0: the empty config).</param>
+    /// <param name="Task">The publish.</param>
+    /// <param name="LastKnownGood">The entry to record once it is live; null for the empty config.</param>
+    /// <param name="FromDatabase">The config is the database's latest revision. False for a republish of the
+    /// last-known-good document (the database can't be used): going live doesn't end a degraded start.</param>
+    private sealed record PublishTicket(RevisionRef Revision, Task<PublishResult> Task, LastKnownGoodEntry? LastKnownGood, bool FromDatabase = true);
 
     private readonly record struct Execution(ConfigCommandResult Result, PublishTicket? Publish = null);
 }

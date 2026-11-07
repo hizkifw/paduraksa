@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-
+using Microsoft.Extensions.Logging.Abstractions;
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Yarp;
 
@@ -16,8 +18,8 @@ public static class ConfigServiceCollectionExtensions
     /// Registers <see cref="ConfigService"/> as a singleton (the single writer), with <see cref="TimeProvider.System"/>,
     /// the allow-everything <see cref="IConfigCommandAuthorizer"/> and default <see cref="ConfigServiceOptions"/>
     /// unless those are already registered. The config database's context factory, an <see cref="IConfigCompiler"/>
-    /// and the <see cref="SnapshotPublisher"/> must be registered too; a <see cref="LastKnownGoodFile"/> is used when
-    /// registered.
+    /// and the <see cref="SnapshotPublisher"/> must be registered too; a <see cref="LastKnownGoodFile"/>, an
+    /// <see cref="IServerCertificateSource"/> and <see cref="IBuiltInCertificates"/> are used when registered.
     /// </summary>
     public static IServiceCollection AddPaduraksaConfigService(this IServiceCollection services)
     {
@@ -33,7 +35,9 @@ public static class ConfigServiceCollectionExtensions
             sp.GetService<ILoggerFactory>(),
             sp.GetRequiredService<IConfigCommandAuthorizer>(),
             sp.GetRequiredService<ConfigServiceOptions>(),
-            sp.GetService<LastKnownGoodFile>()));
+            sp.GetService<LastKnownGoodFile>(),
+            sp.GetService<IServerCertificateSource>(),
+            sp.GetService<IBuiltInCertificates>()));
         return services;
     }
 }

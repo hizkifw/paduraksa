@@ -14,16 +14,14 @@ public sealed class ConfigCompilerTests : IDisposable
     private static readonly ConfigRevisionId Revision = Id<ConfigRevisionId>(7);
 
     private readonly AnyCertificate _certificates = new();
-    private readonly ConfigCompiler _compiler;
 
-    public ConfigCompilerTests() => _compiler = new ConfigCompiler(new SnapshotCompilerOptions { Certificates = _certificates });
 
     public void Dispose() => _certificates.Dispose();
 
     [Fact]
     public void AValidDocumentCompilesToALabelledCandidate()
     {
-        ConfigCompilation compilation = _compiler.Compile(Valid(), Revision);
+        ConfigCompilation compilation = _certificates.Compile(Valid(), Revision);
 
         Assert.True(compilation.Succeeded);
         Assert.Empty(compilation.Errors);
@@ -57,18 +55,15 @@ public sealed class ConfigCompilerTests : IDisposable
                     Routes: [new RouteConfig(RootRoute, spare, Order: 10), new RouteConfig(ApiRoute, spare, Path: "api")]),
                 new HostConfig(AppHost, ["a.example.com"], Routes: [new RouteConfig(Id<RouteId>(3), spare)]),
             ]);
-        _certificates.Missing.Add(Id<CertificateId>(1));
-        _certificates.Missing.Add(Id<CertificateId>(9));
 
-        ConfigCompilation compilation = _compiler.Compile(document, Revision);
+        ConfigCompilation compilation = _certificates.Compile(document, Revision);
 
         Assert.False(compilation.Succeeded);
         Assert.Null(compilation.Snapshot);
         Assert.All(compilation.Errors, e => Assert.Equal(CompileFailed, e.Code));
         Assert.Equal(
-            ["/hosts/0", "/hosts/0/routes/1", "/settings", "/upstreams/1/destinations/1"],
+            ["/hosts/0/routes/1", "/upstreams/1/destinations/1"],
             compilation.Errors.Select(e => e.Path).Order(StringComparer.Ordinal).ToArray());
-        Assert.Contains(compilation.Errors, e => e.Path == "/hosts/0" && e.Message.Contains($"certificate '{Id<CertificateId>(9)}' doesn't exist", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -77,12 +72,12 @@ public sealed class ConfigCompilerTests : IDisposable
         ConfigDocument document = Valid();
         HostConfig twin = new(AppHost, ["twin.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200));
 
-        ConfigError error = Assert.Single(_compiler.Compile(document with { Hosts = [.. document.Hosts, twin] }, Revision).Errors);
+        ConfigError error = Assert.Single(_certificates.Compile(document with { Hosts = [.. document.Hosts, twin] }, Revision).Errors);
         Assert.Equal(("/hosts/3", "duplicate host ID"), (error.Path, error.Message));
 
         // Two more copies: two duplicate errors, both at the last copy, reported once.
         ConfigDocument triple = document with { Hosts = [.. document.Hosts, twin, twin with { Names = ["twin2.example.com"] }] };
-        error = Assert.Single(_compiler.Compile(triple, Revision).Errors);
+        error = Assert.Single(_certificates.Compile(triple, Revision).Errors);
         Assert.Equal(("/hosts/4", "duplicate host ID"), (error.Path, error.Message));
     }
 
@@ -98,7 +93,7 @@ public sealed class ConfigCompilerTests : IDisposable
             Hosts = [.. document.Hosts.Where(h => h.Id != RespondHost).Select(h => h with { ProfileId = null })],
         };
 
-        IReadOnlyList<ConfigError> errors = _compiler.Compile(changed, Revision).Errors;
+        IReadOnlyList<ConfigError> errors = _certificates.Compile(changed, Revision).Errors;
 
         Assert.Equal(["/hosts/0", "/hosts/1"], errors.Select(e => e.Path));
         Assert.All(errors, e => Assert.Contains("'10.0.0.1/8' isn't an IP address or CIDR", e.Message, StringComparison.Ordinal));
@@ -119,7 +114,7 @@ public sealed class ConfigCompilerTests : IDisposable
             ],
         };
 
-        ConfigCompilation compilation = _compiler.Compile(changed, Revision);
+        ConfigCompilation compilation = _certificates.Compile(changed, Revision);
 
         Assert.False(compilation.Succeeded);
         Assert.Equal(
@@ -134,7 +129,7 @@ public sealed class ConfigCompilerTests : IDisposable
         ConfigDocument changed = document with { Hosts = [.. document.Hosts.Select(h => h.Id == RespondHost ? h with { Respond = h.Respond! with { Body = null! } } : h)] };
 
         Assert.Empty(ConfigValidator.Validate(changed));
-        Assert.Empty(_compiler.Compile(changed, Revision).Errors);
+        Assert.Empty(_certificates.Compile(changed, Revision).Errors);
     }
 
     [Fact]
@@ -142,7 +137,7 @@ public sealed class ConfigCompilerTests : IDisposable
     {
         ConfigDocument document = new(Settings: new GlobalSettings(TrustedProxies: new TrustedProxySettings(TrustedProxyMode.Generic)));
 
-        Assert.Equal("/settings/trustedProxies", Assert.Single(_compiler.Compile(document, Revision).Errors).Path);
+        Assert.Equal("/settings/trustedProxies", Assert.Single(_certificates.Compile(document, Revision).Errors).Path);
     }
 
     [Fact]
@@ -155,7 +150,7 @@ public sealed class ConfigCompilerTests : IDisposable
             Hosts = [.. document.Hosts.Select(h => h.Id == RespondHost ? h with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } } : h)],
         };
 
-        ConfigError error = Assert.Single(_compiler.Compile(changed, Revision).Errors);
+        ConfigError error = Assert.Single(_certificates.Compile(changed, Revision).Errors);
         Assert.Equal(("/hosts/2", CompileFailed), (error.Path, error.Code));
         Assert.Contains("can't force HTTPS", error.Message, StringComparison.Ordinal);
     }
@@ -195,7 +190,7 @@ public sealed class ConfigCompilerTests : IDisposable
 
     private void AssertCompiles(string name, ConfigDocument document)
     {
-        ConfigCompilation compilation = _compiler.Compile(document, Revision);
+        ConfigCompilation compilation = _certificates.Compile(document, Revision);
         Assert.True(compilation.Succeeded, $"{name}: {string.Join("; ", compilation.Errors.Select(e => $"{e.Path}: {e.Message}"))}");
     }
 
