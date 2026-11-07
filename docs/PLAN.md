@@ -651,6 +651,7 @@ All four call the **same Application services** with the same DTOs, authorizatio
   ```
 - Import goes through the normal command pipeline (validate → compile → diff → one revision). Modes: `merge` and `replace`.
 - The same canonical document is what revisions store, so export = "current revision as YAML".
+- The import format above is a friendlier DTO than the document (M8): optional IDs, references by name (`profile: media`, `upstream: jellyfin`), `kind:`. Import maps it onto the strict canonical `ConfigDocument` (§6.4), assigning IDs and resolving names; only that document is stored, and export writes it back in a form that imports to the same document.
 - Later: optional **GitOps mode**, where a watched file or git repo is authoritative and the UI becomes read-only for managed objects.
 
 ---
