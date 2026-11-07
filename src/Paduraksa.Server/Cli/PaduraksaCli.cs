@@ -43,7 +43,9 @@ internal static class PaduraksaCli
         // `paduraksa` with no command == `paduraksa serve`.
         root.SetAction(ServeAsync);
 
-        // TODO(M3/M4/M8): setup-token, admin, config, vault, backup, restore, doctor, migrate.
+        root.Subcommands.Add(VaultCommands.Build());
+
+        // TODO(M3/M4/M8): setup-token, admin, config, backup, restore, doctor, migrate.
         return root;
     }
 

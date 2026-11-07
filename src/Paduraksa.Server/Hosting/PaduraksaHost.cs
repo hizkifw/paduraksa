@@ -88,12 +88,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         List<IDisposable> built = [];
         try
         {
-            configuration.SetBasePath(contentRootPath);
-            // Bootstrap config only (the real config lives in the DB from M2), so no reload-on-change watchers.
-            configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
-            configuration.AddJsonFile($"appsettings.{environmentName}.json", optional: true, reloadOnChange: false);
-            configuration.AddEnvironmentVariables();
-            hostOptions.ConfigureConfiguration?.Invoke(configuration);
+            AddConfigurationSources(configuration, hostOptions, environmentName, contentRootPath);
 
             PaduraksaOptions options = BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
             shared = SharedServices.Create(configuration, options, hostOptions.ConfigureShared, hostOptions.ConfigureLogging);
@@ -282,6 +277,35 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             _shutdownToken.Dispose();
             _abortedStartDrain.Dispose();
         }
+    }
+
+    /// <summary>
+    /// The bootstrap options alone (appsettings, environment, validated, the data directory fully qualified), without building any
+    /// host: for CLI commands that only need to know where the data is.
+    /// </summary>
+    /// <exception cref="OptionsValidationException">The <c>Paduraksa</c> settings are invalid.</exception>
+    internal static PaduraksaOptions LoadOptions(PaduraksaHostOptions? hostOptions = null)
+    {
+        hostOptions ??= new PaduraksaHostOptions();
+        string environmentName = hostOptions.EnvironmentName
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+            ?? Environments.Production;
+        string contentRootPath = Path.GetFullPath(hostOptions.ContentRootPath ?? AppContext.BaseDirectory);
+        using ConfigurationManager configuration = new();
+        AddConfigurationSources(configuration, hostOptions, environmentName, contentRootPath);
+        return BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
+    }
+
+    private static void AddConfigurationSources(ConfigurationManager configuration, PaduraksaHostOptions hostOptions, string environmentName, string contentRootPath)
+    {
+        configuration.SetBasePath(contentRootPath);
+
+        // Bootstrap config only (the real config lives in the DB from M2), so no reload-on-change watchers.
+        configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
+        configuration.AddJsonFile($"appsettings.{environmentName}.json", optional: true, reloadOnChange: false);
+        configuration.AddEnvironmentVariables();
+        hostOptions.ConfigureConfiguration?.Invoke(configuration);
     }
 
     private static PaduraksaOptions BindAndValidate(ConfigurationManager configuration, bool allowEphemeralPorts, string contentRootPath)
