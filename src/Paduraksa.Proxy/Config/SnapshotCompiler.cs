@@ -97,8 +97,7 @@ public static class SnapshotCompiler
                 ? defaultCertificate
                 : ResolveCertificate(spec.Certificate, where, options.Certificates, errors);
             TlsPolicy tls = CompileTlsPolicy(spec.Tls);
-            bool servedOverTls = spec.Enabled && certificate is not null
-                && AddServerNames(certificates, spec.Names ?? [], certificate, tls, where, errors);
+            List<string> serverNames = spec.Enabled && certificate is not null ? ServerNamesOf(spec.Names ?? []) : [];
 
             CompiledHost host = new()
             {
@@ -112,7 +111,7 @@ public static class SnapshotCompiler
                 Tls = tls,
                 // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only
                 // host has none: its HTTPS rides on the default certificate's entry and that entry's settings).
-                AltSvc = servedOverTls ? altSvc.ForHost(tls) : default,
+                AltSvc = serverNames.Count > 0 ? altSvc.ForHost(tls) : default,
             };
 
             if (spec.Names is null || spec.Names.Count == 0)
@@ -120,16 +119,22 @@ public static class SnapshotCompiler
                 errors.Add($"{where}: needs at least one name");
             }
 
+            // A disabled host's names go into a table of their own: validated like any others (duplicates within
+            // the host included), but the host serves nothing, so it may share a name with another host.
+            HostTable.Builder nameTable = spec.Enabled ? table : new HostTable.Builder();
+            bool namesValid = true;
             foreach (string name in spec.Names ?? [])
             {
-                if (spec.Enabled && !table.TryAdd(name, host, out string? nameError))
+                if (!nameTable.TryAdd(name, host, out string? nameError))
                 {
                     errors.Add($"{where}: {nameError}");
+                    namesValid = false;
                 }
-                else if (!spec.Enabled && !HostNames.TryNormalize(name, out _, out _, out nameError))
-                {
-                    errors.Add($"{where}: {nameError}");
-                }
+            }
+
+            if (namesValid && certificate is not null && serverNames.Count > 0)
+            {
+                AddServerNames(certificates, serverNames, certificate, tls, where, errors);
             }
 
             if (spec.Enabled)
@@ -607,17 +612,11 @@ public static class SnapshotCompiler
     }
 
     /// <summary>
-    /// Adds a host's DNS names to the certificate table. IP literals are left out: clients never send them as SNI (an
-    /// IP-literal URL sends none and gets the default certificate). Invalid names were already reported by the host
-    /// table, so they're skipped here. True if at least one name was added.
+    /// A host's DNS names, normalised: what goes into the certificate table. IP literals are left out: clients never
+    /// send them as SNI (an IP-literal URL sends none and gets the default certificate). Invalid names are skipped
+    /// here; the host-table pass that follows reports them.
     /// </summary>
-    private static bool AddServerNames(
-        CertificateTableBuilder certificates,
-        IReadOnlyList<string> names,
-        ServerCertificate certificate,
-        TlsPolicy tls,
-        string where,
-        List<string> errors)
+    private static List<string> ServerNamesOf(IReadOnlyList<string> names)
     {
         List<string> serverNames = new(names.Count);
         foreach (string name in names)
@@ -630,20 +629,29 @@ public static class SnapshotCompiler
             }
         }
 
-        if (serverNames.Count == 0)
-        {
-            return false;
-        }
+        return serverNames;
+    }
 
+    /// <summary>
+    /// Adds a host's server names (<see cref="ServerNamesOf"/>) to the certificate table. Runs only after the host
+    /// table accepted every one of the host's names: both tables apply the same rules (<see cref="DnsNames"/>) and
+    /// reject the same duplicates, so nothing is reported twice, and an error here means they disagree (a bug).
+    /// </summary>
+    private static void AddServerNames(
+        CertificateTableBuilder certificates,
+        List<string> serverNames,
+        ServerCertificate certificate,
+        TlsPolicy tls,
+        string where,
+        List<string> errors)
+    {
         try
         {
             certificates.Add(serverNames, certificate, tls);
-            return true;
         }
         catch (ArgumentException ex)
         {
             errors.Add($"{where}: {ex.Message}");
-            return false;
         }
     }
 

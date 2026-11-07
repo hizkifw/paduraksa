@@ -128,6 +128,11 @@ public sealed record HostSpec
 
     public HostKind Kind { get; init; } = HostKind.Proxy;
 
+    /// <summary>
+    /// False: the host is fully validated (names, routes, policies, certificate) but left out of the snapshot. Its host
+    /// and route keys are identities, so they must be unique across all hosts; its names only have to be unique within
+    /// the host, because a disabled host serves nothing (a replacement can be staged next to the live host).
+    /// </summary>
     public bool Enabled { get; init; } = true;
 
     /// <summary>Plain-HTTP requests are redirected to HTTPS before anything else.</summary>

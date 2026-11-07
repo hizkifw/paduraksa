@@ -169,6 +169,8 @@ public sealed class SnapshotCompilerTests
         { "duplicate host key", Hosts(Respond("a", "a.test"), Respond("a", "b.test")), "duplicate host key" },
         { "duplicate name across hosts", Hosts(Respond("a", "x.test"), Respond("b", "X.TEST.")), "duplicate host name 'x.test'" },
         { "invalid name", Hosts(Respond("a", "a.*.test")), "wildcard" },
+        { "single-label wildcard parent", Hosts(Respond("a", "*.localhost")), "at least two labels" },
+        { "duplicate name in a disabled host", Hosts(Respond("a", "a.test") with { Names = ["x.test", "X.test."], Enabled = false }), "duplicate host name 'x.test'" },
         { "no names", Hosts(new HostSpec { Key = "a", Names = [], Kind = HostKind.Respond, Respond = new RespondSpec() }), "at least one name" },
         { "invalid key", Hosts(Respond("a b", "a.test")), "invalid key" },
         { "dangling upstream", WithWeb(ProxyHost("a", "a.test", Route("r", "missing"))), "upstream 'missing' doesn't exist" },
@@ -220,6 +222,14 @@ public sealed class SnapshotCompilerTests
 
         Assert.Empty(snapshot.Hosts.Find("a.test")!.FixedResponse!.Body);
         Assert.IsType<StaticPolicy>(snapshot.Hosts.Find("b.test")!.Policies[0]);
+    }
+
+    [Fact]
+    public void ADisabledHostMayShareANameWithAnotherHost()
+    {
+        RuntimeSnapshot snapshot = Compile(Hosts(Respond("staged", "a.test") with { Enabled = false }, Respond("live", "A.TEST.")));
+
+        Assert.Equal("live", snapshot.Hosts.Find("a.test")!.Key);
     }
 
     [Fact]
