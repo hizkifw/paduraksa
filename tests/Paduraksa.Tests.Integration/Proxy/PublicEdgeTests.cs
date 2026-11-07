@@ -6,6 +6,7 @@ using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 
@@ -35,10 +36,10 @@ public sealed class PublicEdgeTests : IAsyncLifetime
 
     private ProxyConfigModel App(params HostSpec[] more) => new()
     {
-        Upstreams = [new UpstreamSpec { Key = "echo", Destinations = [new("echo-1", Upstream.Address)] }],
+        Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("echo"), Destinations = [new(TestIds.Destination("echo-1"), Upstream.Address)] }],
         Hosts =
         [
-            new HostSpec { Key = "app", Names = ["app.test"], Routes = [new RouteSpec { Key = "app-root", Upstream = "echo" }] },
+            new HostSpec { Id = TestIds.Host("app"), Names = ["app.test"], Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("echo") }] },
             .. more,
         ],
     };
@@ -72,13 +73,13 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     {
         using TestCertificates certificates = new();
         await using PaduraksaHost host = await StartAsync();
-        host.Shared.Certificates.Set("a", certificates.Create("a.test v1", "a.test"));
-        host.Shared.Certificates.Set("b", certificates.Create("b.test", "b.test", "*.b.test"));
-        host.Shared.Certificates.Set("fallback", certificates.Create("fallback", "fallback.test"));
+        host.Shared.Certificates.Set(TestIds.Certificate("a"), certificates.Create("a.test v1", "a.test"));
+        host.Shared.Certificates.Set(TestIds.Certificate("b"), certificates.Create("b.test", "b.test", "*.b.test"));
+        host.Shared.Certificates.Set(TestIds.Certificate("fallback"), certificates.Create("fallback", "fallback.test"));
         ProxyConfigModel model = App(
-            new HostSpec { Key = "a", Names = ["a.test"], Certificate = "a", Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "a" } },
-            new HostSpec { Key = "b", Names = ["b.test", "*.b.test"], Certificate = "b", Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "b" } });
-        model = model with { Defaults = new DefaultsSpec { Certificate = "fallback" } };
+            new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Certificate = TestIds.Certificate("a"), Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "a" } },
+            new HostSpec { Id = TestIds.Host("b"), Names = ["b.test", "*.b.test"], Certificate = TestIds.Certificate("b"), Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "b" } });
+        model = model with { Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("fallback") } };
         await PublishAsync(host, model);
 
         Assert.Equal("a.test v1", await EdgeClient.ServedSubjectAsync(host, "a.test"));
@@ -88,9 +89,9 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         Assert.Equal("fallback", await EdgeClient.ServedSubjectAsync(host, serverName: null)); // IP literal: no SNI
 
         // The certificate behind "a" is renewed: the next publish serves it to new handshakes, no listener restart.
-        host.Shared.Certificates.Set("a", certificates.Create("a.test v2", "a.test"));
+        host.Shared.Certificates.Set(TestIds.Certificate("a"), certificates.Create("a.test v2", "a.test"));
         Assert.Equal("a.test v1", await EdgeClient.ServedSubjectAsync(host, "a.test"));
-        await PublishAsync(host, model with { Revision = "renewed" });
+        await PublishAsync(host, model with { Revision = TestIds.Revision("renewed") });
         Assert.Equal("a.test v2", await EdgeClient.ServedSubjectAsync(host, "a.test"));
         Assert.Equal(0, host.Shared.PublicListeners.Selector.Counters.UnknownServerNameTcp);
     }
@@ -100,11 +101,11 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     {
         using TestCertificates certificates = new();
         await using PaduraksaHost host = await StartAsync();
-        host.Shared.Certificates.Set("b", certificates.Create("b.test", "b.test"));
+        host.Shared.Certificates.Set(TestIds.Certificate("b"), certificates.Create("b.test", "b.test"));
 
         // Compiled directly: the shared Compile helper would add the placeholder as the default certificate.
         CompileResult bare = SnapshotCompiler.Compile(
-            App(new HostSpec { Key = "b", Names = ["b.test"], Certificate = "b", Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "b" } }),
+            App(new HostSpec { Id = TestIds.Host("b"), Names = ["b.test"], Certificate = TestIds.Certificate("b"), Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "b" } }),
             host.Shared.PublicListeners.CompilerOptions);
         Assert.True((await host.Shared.SnapshotPublisher.PublishAsync(bare.Snapshot!, TestContext.Current.CancellationToken)).Succeeded);
 
@@ -123,10 +124,10 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         // No SNI (an IP-literal URL): the default entry (TLS 1.2+) negotiates; the Host names the strict host.
         await PublishAsync(host, App(new HostSpec
         {
-            Key = "strict",
+            Id = TestIds.Host("strict"),
             Names = ["127.0.0.1"],
             Tls = new HostTlsSpec { MinimumVersion = Paduraksa.Proxy.Tls.TlsMinimumVersion.Tls13 },
-            Routes = [new RouteSpec { Key = "strict-root", Upstream = "echo" }],
+            Routes = [new RouteSpec { Id = TestIds.Route("strict-root"), Upstream = TestIds.Upstream("echo") }],
         }));
 
         using HttpClient http = EdgeClient.Create(out _, client);
@@ -139,7 +140,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     public async Task PlainHttpIsRedirectedToThePublicHttpsPort()
     {
         await using PaduraksaHost host = await StartAsync(new() { ["Paduraksa:Listen:PublicHttpsPort"] = "8443" });
-        await PublishAsync(host, App(new HostSpec { Key = "secure", Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Key = "secure-root", Upstream = "echo" }] }));
+        await PublishAsync(host, App(new HostSpec { Id = TestIds.Host("secure"), Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Id = TestIds.Route("secure-root"), Upstream = TestIds.Upstream("echo") }] }));
 
         (HttpResponseMessage redirect, _) = await SendAsync(host, "http", "secure.test", path: "/a%20b?c=d");
         using (redirect)
@@ -223,10 +224,10 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         await using PaduraksaHost host = await StartAsync();
         ProxyConfigModel model = App(new HostSpec
         {
-            Key = "members",
+            Id = TestIds.Host("members"),
             Names = ["members.test"],
             Policies = [new IpAllowListPolicySpec(["198.51.100.0/24"])],
-            Routes = [new RouteSpec { Key = "members-root", Upstream = "echo" }],
+            Routes = [new RouteSpec { Id = TestIds.Route("members-root"), Upstream = TestIds.Upstream("echo") }],
         }) with
         {
             Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } },
@@ -277,7 +278,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     public async Task ATunnelOnPlainHttpDoesNotLoopTheHttpsRedirect(string cloudflared, HttpStatusCode expected)
     {
         await using PaduraksaHost host = await StartAsync();
-        await PublishAsync(host, App(new HostSpec { Key = "secure", Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Key = "secure-root", Upstream = "echo" }] }) with
+        await PublishAsync(host, App(new HostSpec { Id = TestIds.Host("secure"), Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Id = TestIds.Route("secure-root"), Upstream = TestIds.Upstream("echo") }] }) with
         {
             Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = [cloudflared, "::1"] } },
         });
@@ -362,8 +363,8 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     {
         await using PaduraksaHost host = await StartAsync(new() { ["Paduraksa:Listen:PublicHttpsPort"] = "8443" });
         ProxyConfigModel model = App(
-            new HostSpec { Key = "tcp", Names = ["tcp.test"], Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Key = "tcp-root", Upstream = "echo" }] },
-            new HostSpec { Key = "soon", Names = ["soon.test"], Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } });
+            new HostSpec { Id = TestIds.Host("tcp"), Names = ["tcp.test"], Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Id = TestIds.Route("tcp-root"), Upstream = TestIds.Upstream("echo") }] },
+            new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } });
         // No libmsquic here (or H3 off): tell the compiler the H3 listener exists, as it does in production.
         await PublishAsync(host, model, host.Shared.PublicListeners.CompilerOptions with { AdvertiseHttp3 = true });
 

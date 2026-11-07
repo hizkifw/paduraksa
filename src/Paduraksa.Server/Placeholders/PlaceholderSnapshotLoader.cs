@@ -40,7 +40,7 @@ internal sealed partial class PlaceholderSnapshotLoader(
         DefaultsSpec defaults = model.Defaults ?? new DefaultsSpec();
         if (defaults.Certificate is null)
         {
-            model = model with { Defaults = defaults with { Certificate = PlaceholderCertificates.Reference } };
+            model = model with { Defaults = defaults with { Certificate = PlaceholderCertificates.Id } };
         }
 
         CompileResult compiled = SnapshotCompiler.Compile(model, listeners.CompilerOptions);
@@ -48,7 +48,7 @@ internal sealed partial class PlaceholderSnapshotLoader(
             ?? throw new InvalidOperationException("The startup config failed to compile: " + string.Join("; ", compiled.Errors));
 
         // Deliberately not awaited (see the class remarks); the outcome is logged when it arrives.
-        _ = LogOutcomeAsync(publisher.PublishAsync(candidate, CancellationToken.None), model.Revision);
+        _ = LogOutcomeAsync(publisher.PublishAsync(candidate, CancellationToken.None), candidate.RevisionLabel);
         return Task.CompletedTask;
     }
 

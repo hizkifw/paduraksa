@@ -1,6 +1,7 @@
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Proxy.Snapshot;
 
@@ -105,8 +106,8 @@ public sealed class HostTableTests
 
         Assert.False(builder.TryAdd(second, Host("two"), out string? error));
         Assert.Contains("duplicate host name", error, StringComparison.Ordinal);
-        Assert.Contains("'one'", error, StringComparison.Ordinal);
-        Assert.Contains("'two'", error, StringComparison.Ordinal);
+        Assert.Contains($"'{TestIds.Host("one")}'", error, StringComparison.Ordinal);
+        Assert.Contains($"'{TestIds.Host("two")}'", error, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -133,14 +134,14 @@ public sealed class HostTableTests
             "HostTable.Find");
     }
 
-    internal static CompiledHost Host(string key) => new()
+    internal static CompiledHost Host(string label) => new()
     {
         Index = 0,
-        Key = key,
+        Id = TestIds.Host(label),
         Kind = HostKind.Respond,
         Routes = [],
         Policies = [],
-        FixedResponse = PrecomputedResponse.Text(200, key),
+        FixedResponse = PrecomputedResponse.Text(200, label),
     };
 
     private static HostTable Build(params (string Name, CompiledHost Host)[] entries)

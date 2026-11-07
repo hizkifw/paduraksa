@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Tls;
 
@@ -25,8 +26,8 @@ public sealed class CompiledHost
     /// <summary>Position in <see cref="RuntimeSnapshot.HostsByIndex"/>; valid for this snapshot only.</summary>
     public required int Index { get; init; }
 
-    /// <summary>Stable identity across snapshots (the host's key; <c>HostId</c> from M2).</summary>
-    public required string Key { get; init; }
+    /// <summary>Stable identity across snapshots.</summary>
+    public required HostId Id { get; init; }
 
     public required HostKind Kind { get; init; }
 

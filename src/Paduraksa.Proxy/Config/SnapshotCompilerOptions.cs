@@ -5,7 +5,7 @@ namespace Paduraksa.Proxy.Config;
 
 /// <summary>
 /// What <see cref="SnapshotCompiler"/> needs besides the config document: deployment facts (listener layout, public
-/// ports) and the seams that turn references into runtime objects. Built once per process from the server's options;
+/// ports) and the seams that turn IDs into runtime objects. Built once per process from the server's options;
 /// immutable, so tests derive variants with <c>with</c>.
 /// </summary>
 public sealed record SnapshotCompilerOptions
@@ -14,8 +14,8 @@ public sealed record SnapshotCompilerOptions
     public static SnapshotCompilerOptions Default { get; } = new();
 
     /// <summary>
-    /// Resolves the certificate references of hosts and of the default certificate. Null means no certificates can be
-    /// resolved: a config that references one fails to compile, one without them compiles to an empty TLS table.
+    /// Resolves the certificate IDs of hosts and of the default certificate. Null means no certificates can be resolved:
+    /// a config that names one fails to compile, one without them compiles to an empty TLS table.
     /// </summary>
     public IServerCertificateResolver? Certificates { get; init; }
 

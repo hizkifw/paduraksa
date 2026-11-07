@@ -209,7 +209,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
                 IReadOnlyList<string> errors = ValidateCoreAsync(validator, pending.Candidate.Yarp).GetAwaiter().GetResult();
                 if (errors.Count > 0)
                 {
-                    LogInvalid(_logger, pending.Candidate.Revision, string.Join("; ", errors));
+                    LogInvalid(_logger, pending.Candidate.RevisionLabel, string.Join("; ", errors));
                     pending.Complete(new PublishResult(PublishStatus.Invalid, 0, errors));
                     pending = null;
                 }
@@ -312,7 +312,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
             catch (Exception ex)
 #pragma warning restore CA1031
             {
-                LogPublishFailed(_logger, next.Candidate.Revision, ex);
+                LogPublishFailed(_logger, next.Candidate.RevisionLabel, ex);
                 result = PublishResult.Fail(PublishStatus.Failed, ex.Message);
             }
 
@@ -325,7 +325,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         IReadOnlyList<string> errors = await ValidateCoreAsync(attachment.Validator, candidate.Yarp).ConfigureAwait(false);
         if (errors.Count > 0)
         {
-            LogInvalid(_logger, candidate.Revision, string.Join("; ", errors));
+            LogInvalid(_logger, candidate.RevisionLabel, string.Join("; ", errors));
             return new PublishResult(PublishStatus.Invalid, 0, errors);
         }
 
@@ -347,7 +347,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         {
             if (_timeProvider.GetElapsedTime(started) >= _options.EndpointWait)
             {
-                LogEndpointsMismatch(_logger, candidate.Revision, problem!);
+                LogEndpointsMismatch(_logger, candidate.RevisionLabel, problem!);
                 return PublishResult.Fail(PublishStatus.Failed, problem!);
             }
 
@@ -403,7 +403,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     {
         YarpConfig restore = Store.Current.Yarp;
         _yarpApplied = null;
-        string revisionId = string.Create(CultureInfo.InvariantCulture, $"{Store.Current.Revision}#restore#{Interlocked.Increment(ref _attempt)}");
+        string revisionId = string.Create(CultureInfo.InvariantCulture, $"{Store.Current.RevisionLabel}#restore#{Interlocked.Increment(ref _attempt)}");
         PublishResult? failure = await ApplyToYarpAsync(restore, revisionId).ConfigureAwait(false);
         if (failure is not null)
         {
@@ -419,6 +419,13 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         if (endpoints.Length == 0)
         {
             return true;
+        }
+
+        // The compiler emits one YARP route per slot, in slot order; a hand-built candidate might not.
+        if (candidate.Yarp.Routes.Count != endpoints.Length)
+        {
+            problem = $"The candidate has {endpoints.Length} route slots but {candidate.Yarp.Routes.Count} YARP routes.";
+            return false;
         }
 
         Dictionary<string, RouteConfig> wanted = new(candidate.Yarp.Routes.Count, StringComparer.OrdinalIgnoreCase);
@@ -440,7 +447,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
 
         for (int slot = 0; slot < endpoints.Length; slot++)
         {
-            string routeId = candidate.RouteIdBySlot[slot];
+            string routeId = candidate.Yarp.Routes[slot].RouteId;
             if (!live.TryGetValue(routeId, out Endpoint? endpoint))
             {
                 problem = $"YARP has no endpoint for route '{routeId}' matching the published config.";
@@ -458,7 +465,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     {
         long generation = Store.Current.Generation + 1;
         Store.Publish(candidate.Bind(generation, endpoints));
-        LogPublished(_logger, generation, candidate.Revision, candidate.HostsByIndex.Length, candidate.RouteIdBySlot.Length);
+        LogPublished(_logger, generation, candidate.RevisionLabel, candidate.HostsByIndex.Length, candidate.RouteIdBySlot.Length);
         return PublishResult.Published(generation);
     }
 
@@ -502,7 +509,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     }
 
     private string NextRevisionId(RuntimeSnapshot candidate) =>
-        string.Create(CultureInfo.InvariantCulture, $"{candidate.Revision}#{Interlocked.Increment(ref _attempt)}");
+        string.Create(CultureInfo.InvariantCulture, $"{candidate.RevisionLabel}#{Interlocked.Increment(ref _attempt)}");
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Published snapshot generation {Generation} (revision {Revision}, {Hosts} hosts, {Routes} routes)")]
     private static partial void LogPublished(ILogger logger, long generation, string revision, int hosts, int routes);

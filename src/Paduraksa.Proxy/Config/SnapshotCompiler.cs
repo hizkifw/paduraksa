@@ -1,9 +1,9 @@
 using System.Buffers;
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -25,12 +25,14 @@ public sealed record CompileResult(RuntimeSnapshot? Snapshot, IReadOnlyList<stri
 /// Validates a <see cref="ProxyConfigModel"/> and compiles it into an unbound <see cref="RuntimeSnapshot"/> candidate
 /// plus its YARP config (PLAN §6.1 step 3–4). Cold path: it may allocate freely. It reports every error it finds
 /// rather than stopping at the first. YARP's own validator runs later, in <c>SnapshotPublisher</c>.
-/// <para>YARP config is a pure function of content: route ID = route key, cluster ID = upstream key, destination ID
-/// = destination key, each route path-only (<c>/.paduraksa/r/{key}/{**rest}</c>), never requested because the gate
-/// picks the endpoint itself.</para>
+/// <para>YARP config is a pure function of content: its route, cluster and destination IDs are the canonical strings
+/// of the <see cref="RouteId"/>, <see cref="UpstreamId"/> and <see cref="DestinationId"/> (formatted here, never on the
+/// request path), each route path-only (<c>/.paduraksa/r/{routeId}/{**rest}</c>), never requested because the gate
+/// picks the endpoint itself. IDs must be non-empty and unique; because YARP compares its IDs ignoring case, route,
+/// upstream and destination IDs that differ only in case are rejected too (distinct base62 values, one YARP ID).</para>
 /// <para>TLS: every enabled host's DNS names (exact and wildcard) go into the snapshot's <see cref="CertificateTable"/>
 /// with the host's certificate (or the default one) and its TLS settings; the default certificate serves unknown or
-/// absent SNI. References are resolved through <see cref="SnapshotCompilerOptions.Certificates"/>.</para>
+/// absent SNI. Certificate IDs are resolved through <see cref="SnapshotCompilerOptions.Certificates"/>.</para>
 /// </summary>
 public static class SnapshotCompiler
 {
@@ -39,9 +41,6 @@ public static class SnapshotCompiler
 
     /// <summary>Cookie name for session affinity.</summary>
     public const string AffinityCookieName = ".Paduraksa.Affinity";
-
-    private static readonly SearchValues<char> KeyChars =
-        SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.~-");
 
     /// <summary>Compiles <paramref name="model"/> with <paramref name="options"/> (default: <see cref="SnapshotCompilerOptions.Default"/>).</summary>
     public static CompileResult Compile(ProxyConfigModel model, SnapshotCompilerOptions? options = null)
@@ -59,32 +58,33 @@ public static class SnapshotCompiler
         }
 
         TrustedProxyPolicy trustedProxies = CompileTrustedProxies(defaults.TrustedProxies, options, errors);
-        Dictionary<string, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], errors);
+        Dictionary<UpstreamId, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], errors);
 
         HostTable.Builder table = new();
-        HashSet<string> hostKeys = new(StringComparer.OrdinalIgnoreCase);
-        HashSet<string> routeKeys = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<HostId> hostIds = [];
+        HashSet<RouteId> routeIds = [];
+        Dictionary<string, RouteId> yarpRouteIds = new(StringComparer.OrdinalIgnoreCase);
         List<CompiledHost> hosts = [];
         List<RouteConfig> yarpRoutes = [];
-        List<string> routeIdBySlot = [];
+        List<RouteId> routeIdBySlot = [];
         HttpsRedirect? httpsRedirect = null;
         AltSvcHeader altSvc = new(options.PublicHttpsPort, options.AdvertiseHttp3);
 
         foreach (HostSpec spec in model.Hosts ?? [])
         {
-            string where = $"host '{spec.Key}'";
-            if (!IsValidKey(spec.Key))
+            string where = $"host '{spec.Id}'";
+            if (spec.Id.IsEmpty)
             {
-                errors.Add($"{where}: invalid key (letters, digits and _ . ~ -, up to 128 characters)");
+                errors.Add($"{where}: the host ID is empty");
             }
-            else if (!hostKeys.Add(spec.Key))
+            else if (!hostIds.Add(spec.Id))
             {
-                errors.Add($"{where}: duplicate host key");
+                errors.Add($"{where}: duplicate host ID");
             }
 
             IRequestPolicy[] hostPolicies = CompilePolicies(spec.Policies ?? [], where, errors);
             CompiledRoute[] routes = spec.Kind == HostKind.Proxy
-                ? CompileRoutes(spec, clusters, routeKeys, yarpRoutes, routeIdBySlot, where, errors)
+                ? CompileRoutes(spec, clusters, routeIds, yarpRouteIds, yarpRoutes, routeIdBySlot, where, errors)
                 : RejectRoutes(spec, where, errors);
             PrecomputedResponse? fixedResponse = CompileFixedResponse(spec, where, errors);
 
@@ -102,7 +102,7 @@ public static class SnapshotCompiler
             CompiledHost host = new()
             {
                 Index = hosts.Count,
-                Key = spec.Key ?? string.Empty,
+                Id = spec.Id,
                 Kind = spec.Kind,
                 Routes = routes,
                 Policies = hostPolicies,
@@ -158,7 +158,7 @@ public static class SnapshotCompiler
         RuntimeSnapshot snapshot = new()
         {
             Generation = 0,
-            Revision = string.IsNullOrEmpty(model.Revision) ? "unversioned" : model.Revision,
+            Revision = model.Revision,
             Hosts = table.Build(),
             HostsByIndex = hosts.ToArray(),
             Yarp = new YarpConfig(yarpRoutes.ToArray(), clusterArray),
@@ -176,26 +176,36 @@ public static class SnapshotCompiler
         return new CompileResult(snapshot, []);
     }
 
-    private static Dictionary<string, ClusterConfig> CompileUpstreams(IReadOnlyList<UpstreamSpec> upstreams, List<string> errors)
+    private static Dictionary<UpstreamId, ClusterConfig> CompileUpstreams(IReadOnlyList<UpstreamSpec> upstreams, List<string> errors)
     {
-        // Insertion-ordered by construction; keys compared like YARP compares cluster IDs.
-        Dictionary<string, ClusterConfig> clusters = new(StringComparer.OrdinalIgnoreCase);
+        // Insertion-ordered by construction.
+        Dictionary<UpstreamId, ClusterConfig> clusters = [];
+        Dictionary<string, UpstreamId> clusterIds = new(StringComparer.OrdinalIgnoreCase);
         foreach (UpstreamSpec spec in upstreams)
         {
-            string where = $"upstream '{spec.Key}'";
-            if (!IsValidKey(spec.Key))
+            string where = $"upstream '{spec.Id}'";
+            if (spec.Id.IsEmpty)
             {
-                errors.Add($"{where}: invalid key (letters, digits and _ . ~ -, up to 128 characters)");
+                errors.Add($"{where}: the upstream ID is empty");
                 continue;
             }
 
-            if (clusters.ContainsKey(spec.Key))
+            if (clusters.ContainsKey(spec.Id))
             {
-                errors.Add($"{where}: duplicate upstream key");
+                errors.Add($"{where}: duplicate upstream ID");
                 continue;
             }
 
+            string clusterId = spec.Id.ToString();
+            if (!clusterIds.TryAdd(clusterId, spec.Id))
+            {
+                errors.Add($"{where}: {CaseCollision("upstream", clusterId, clusterIds[clusterId].ToString())}");
+                continue;
+            }
+
+            // Keyed like YARP keys destinations (ignoring case).
             Dictionary<string, DestinationConfig> destinations = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, DestinationId> destinationIds = new(StringComparer.OrdinalIgnoreCase);
             if (spec.Destinations is null || spec.Destinations.Count == 0)
             {
                 errors.Add($"{where}: needs at least one destination");
@@ -203,18 +213,26 @@ public static class SnapshotCompiler
 
             foreach (DestinationSpec destination in spec.Destinations ?? [])
             {
-                if (!IsValidKey(destination.Key))
+                string destinationId = destination.Id.ToString();
+                if (destination.Id.IsEmpty)
                 {
-                    errors.Add($"{where}: destination '{destination.Key}' has an invalid key");
+                    errors.Add($"{where}: a destination ID is empty");
                 }
                 else if (!Uri.TryCreate(destination.Address, UriKind.Absolute, out Uri? address)
                     || (address.Scheme != Uri.UriSchemeHttp && address.Scheme != Uri.UriSchemeHttps))
                 {
-                    errors.Add($"{where}: destination '{destination.Key}' needs an absolute http or https address, got '{destination.Address}'");
+                    errors.Add($"{where}: destination '{destinationId}' needs an absolute http or https address, got '{destination.Address}'");
                 }
-                else if (!destinations.TryAdd(destination.Key, new DestinationConfig { Address = destination.Address }))
+                else if (!destinationIds.TryAdd(destinationId, destination.Id))
                 {
-                    errors.Add($"{where}: duplicate destination key '{destination.Key}'");
+                    DestinationId existing = destinationIds[destinationId];
+                    errors.Add(existing == destination.Id
+                        ? $"{where}: duplicate destination ID '{destinationId}'"
+                        : $"{where}: {CaseCollision("destination", destinationId, existing.ToString())}");
+                }
+                else
+                {
+                    destinations.Add(destinationId, new DestinationConfig { Address = destination.Address });
                 }
             }
 
@@ -229,9 +247,9 @@ public static class SnapshotCompiler
                 errors.Add($"{where}: an active health check needs a path starting with '/' (no query) and a positive interval and timeout");
             }
 
-            clusters[spec.Key] = new ClusterConfig
+            clusters[spec.Id] = new ClusterConfig
             {
-                ClusterId = spec.Key,
+                ClusterId = clusterId,
                 Destinations = destinations,
                 LoadBalancingPolicy = spec.LoadBalancing,
                 SessionAffinity = spec.SessionAffinity
@@ -275,10 +293,11 @@ public static class SnapshotCompiler
 
     private static CompiledRoute[] CompileRoutes(
         HostSpec host,
-        Dictionary<string, ClusterConfig> clusters,
-        HashSet<string> routeKeys,
+        Dictionary<UpstreamId, ClusterConfig> clusters,
+        HashSet<RouteId> routeIds,
+        Dictionary<string, RouteId> yarpRouteIds,
         List<RouteConfig> yarpRoutes,
-        List<string> routeIdBySlot,
+        List<RouteId> routeIdBySlot,
         string where,
         List<string> errors)
     {
@@ -306,14 +325,19 @@ public static class SnapshotCompiler
         for (int i = 0; i < order.Length; i++)
         {
             RouteSpec spec = specs[order[i]];
-            string routeWhere = $"{where}, route '{spec.Key}'";
-            if (!IsValidKey(spec.Key))
+            string routeId = spec.Id.ToString();
+            string routeWhere = $"{where}, route '{routeId}'";
+            if (spec.Id.IsEmpty)
             {
-                errors.Add($"{routeWhere}: invalid key (letters, digits and _ . ~ -, up to 128 characters)");
+                errors.Add($"{routeWhere}: the route ID is empty");
             }
-            else if (!routeKeys.Add(spec.Key))
+            else if (!routeIds.Add(spec.Id))
             {
-                errors.Add($"{routeWhere}: duplicate route key");
+                errors.Add($"{routeWhere}: duplicate route ID");
+            }
+            else if (!yarpRouteIds.TryAdd(routeId, spec.Id))
+            {
+                errors.Add($"{routeWhere}: {CaseCollision("route", routeId, yarpRouteIds[routeId].ToString())}");
             }
 
             string path = spec.Path ?? string.Empty;
@@ -331,7 +355,12 @@ public static class SnapshotCompiler
                 errors.Add($"{routeWhere}: the path isn't canonical ('\\', '//', ';', dot segments, trailing dots or spaces); use '{canonical}'");
             }
 
-            if (spec.Upstream is null || !clusters.ContainsKey(spec.Upstream))
+            ClusterConfig? cluster = null;
+            if (spec.Upstream.IsEmpty)
+            {
+                errors.Add($"{routeWhere}: the route's upstream ID is empty");
+            }
+            else if (!clusters.TryGetValue(spec.Upstream, out cluster))
             {
                 errors.Add($"{routeWhere}: upstream '{spec.Upstream}' doesn't exist");
             }
@@ -340,16 +369,16 @@ public static class SnapshotCompiler
             IRequestPolicy[] own = CompilePolicies(spec.Policies ?? [], routeWhere, errors);
 
             int slot = routeIdBySlot.Count;
-            routeIdBySlot.Add(spec.Key ?? string.Empty);
+            routeIdBySlot.Add(spec.Id);
             yarpRoutes.Add(new RouteConfig
             {
-                RouteId = spec.Key ?? string.Empty,
-                ClusterId = spec.Upstream,
-                Match = new RouteMatch { Path = InternalRoutePrefix + spec.Key + "/{**rest}" },
+                RouteId = routeId,
+                ClusterId = cluster?.ClusterId,
+                Match = new RouteMatch { Path = InternalRoutePrefix + routeId + "/{**rest}" },
             });
             routes[i] = new CompiledRoute
             {
-                Key = spec.Key ?? string.Empty,
+                Id = spec.Id,
                 MatchKind = spec.Match,
                 Path = path,
                 Slot = slot,
@@ -571,28 +600,28 @@ public static class SnapshotCompiler
     private static readonly SearchValues<char> HeaderNameChars =
         SearchValues.Create("!#$%&'*+-.^_`|~0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
-    private static ServerCertificate? ResolveCertificate(string? reference, string where, IServerCertificateResolver? resolver, List<string> errors)
+    private static ServerCertificate? ResolveCertificate(CertificateId? id, string where, IServerCertificateResolver? resolver, List<string> errors)
     {
-        if (reference is null)
+        if (id is not { } certificateId)
         {
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(reference))
+        if (certificateId.IsEmpty)
         {
-            errors.Add($"{where}: the certificate reference can't be empty (leave it unset to use the default)");
+            errors.Add($"{where}: the certificate ID can't be empty (leave it unset to use the default)");
             return null;
         }
 
         if (resolver is null)
         {
-            errors.Add($"{where}: certificate '{reference}' can't be resolved: no certificate source is configured");
+            errors.Add($"{where}: certificate '{certificateId}' can't be resolved: no certificate source is configured");
             return null;
         }
 
-        if (!resolver.TryResolve(reference, out ServerCertificate? certificate))
+        if (!resolver.TryResolve(certificateId, out ServerCertificate? certificate))
         {
-            errors.Add($"{where}: certificate '{reference}' doesn't exist");
+            errors.Add($"{where}: certificate '{certificateId}' doesn't exist");
             return null;
         }
 
@@ -662,7 +691,11 @@ public static class SnapshotCompiler
         }
     }
 
-    private static void RemoveSlotsFrom(CompiledRoute[] routes, List<RouteConfig> yarpRoutes, List<string> routeIdBySlot)
+    /// <summary>Two distinct typed IDs whose canonical strings YARP would take for one ID.</summary>
+    private static string CaseCollision(string kind, string id, string existing) =>
+        $"{kind} ID '{id}' differs from '{existing}' only in case (YARP ignores case)";
+
+    private static void RemoveSlotsFrom(CompiledRoute[] routes, List<RouteConfig> yarpRoutes, List<RouteId> routeIdBySlot)
     {
         if (routes.Length == 0)
         {
@@ -674,7 +707,4 @@ public static class SnapshotCompiler
         routeIdBySlot.RemoveRange(first, routes.Length);
         yarpRoutes.RemoveRange(first, routes.Length);
     }
-
-    private static bool IsValidKey([NotNullWhen(true)] string? key) =>
-        key is { Length: > 0 and <= 128 } && !key.AsSpan().ContainsAnyExcept(KeyChars);
 }

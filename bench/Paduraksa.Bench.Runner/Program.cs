@@ -28,6 +28,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Bench.Runner;
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -41,24 +42,25 @@ if (!options.TryGetValue("upstream", out string? upstream) || !Uri.TryCreate(ups
     return 2;
 }
 
+UpstreamId upstreamId = UpstreamId.New();
 ProxyConfigModel model = new()
 {
-    Revision = "bench",
-    Upstreams = [new UpstreamSpec { Key = "up", Destinations = [new DestinationSpec("up-1", upstream)] }],
+    Revision = ConfigRevisionId.New(),
+    Upstreams = [new UpstreamSpec { Id = upstreamId, Destinations = [new DestinationSpec(DestinationId.New(), upstream)] }],
     Hosts =
     [
         new HostSpec
         {
-            Key = "bench",
+            Id = HostId.New(),
             Names = ["bench.test"],
-            Certificate = PlaceholderCertificates.Reference,
-            Routes = [new RouteSpec { Key = "bench-root", Upstream = "up" }],
+            Certificate = PlaceholderCertificates.Id,
+            Routes = [new RouteSpec { Id = RouteId.New(), Upstream = upstreamId }],
         },
         new HostSpec
         {
-            Key = "respond",
+            Id = HostId.New(),
             Names = ["respond.test"],
-            Certificate = PlaceholderCertificates.Reference,
+            Certificate = PlaceholderCertificates.Id,
             Kind = HostKind.Respond,
             Respond = new RespondSpec { Body = "ok\n" },
         },

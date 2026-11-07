@@ -142,7 +142,7 @@ public sealed class HostTable
 
             if (!added)
             {
-                error = $"duplicate host name '{normalized}' (hosts '{existing!.Key}' and '{host.Key}')";
+                error = $"duplicate host name '{normalized}' (hosts '{existing!.Id}' and '{host.Id}')";
             }
 
             return added;

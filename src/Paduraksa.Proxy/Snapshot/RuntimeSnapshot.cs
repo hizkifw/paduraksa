@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
@@ -25,8 +26,14 @@ public sealed class RuntimeSnapshot
     /// <summary>0 until bound; then strictly increasing per store.</summary>
     public required long Generation { get; init; }
 
-    /// <summary>Label of the config revision this was compiled from (<c>ConfigRevisionId</c> from M2).</summary>
-    public required string Revision { get; init; }
+    /// <summary>
+    /// The config revision this was compiled from; <see cref="ConfigRevisionId.Empty"/> when none (the bootstrap
+    /// snapshot, the empty startup config).
+    /// </summary>
+    public required ConfigRevisionId Revision { get; init; }
+
+    /// <summary>For logs: <see cref="Revision"/>'s string form, or <c>(none)</c> when it is empty.</summary>
+    public string RevisionLabel => Revision.IsEmpty ? "(none)" : Revision.ToString();
 
     public required HostTable Hosts { get; init; }
 
@@ -36,8 +43,11 @@ public sealed class RuntimeSnapshot
     /// <summary>The YARP routes and clusters, a pure function of content.</summary>
     public required YarpConfig Yarp { get; init; }
 
-    /// <summary>Slot → YARP route ID. <see cref="CompiledRoute.Slot"/> indexes this and <see cref="YarpEndpoints"/>.</summary>
-    public required string[] RouteIdBySlot { get; init; }
+    /// <summary>
+    /// Slot → route (whose canonical string is the YARP route ID). <see cref="CompiledRoute.Slot"/> indexes this and
+    /// <see cref="YarpEndpoints"/>; the compiler lists <see cref="YarpConfig.Routes"/> in the same order.
+    /// </summary>
+    public required RouteId[] RouteIdBySlot { get; init; }
 
     /// <summary>Slot → YARP endpoint, captured at publish step 6c. Empty until <see cref="Bind"/>.</summary>
     public required Endpoint[] YarpEndpoints { get; init; }
@@ -81,7 +91,7 @@ public sealed class RuntimeSnapshot
     public static RuntimeSnapshot Bootstrap { get; } = new()
     {
         Generation = 0,
-        Revision = "bootstrap",
+        Revision = ConfigRevisionId.Empty,
         Hosts = HostTable.Empty,
         HostsByIndex = [],
         Yarp = YarpConfig.Empty,

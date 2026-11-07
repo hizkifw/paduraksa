@@ -3,12 +3,14 @@ using System.Security.Authentication;
 
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Proxy.Tls;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -37,7 +39,7 @@ public sealed class ConnectionTlsGateTests : IDisposable
                     ProxyHost("lax", "lax.test", Route("lax-root", "web")),
                     ProxyHost("tcp", "tcp.test", Route("tcp-root", "web")) with { Tls = new HostTlsSpec { Http3 = false } },
                 ],
-                Defaults = new DefaultsSpec { Certificate = "shared" },
+                Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("shared") },
             },
             options: new SnapshotCompilerOptions { Certificates = new Single(certificate) }));
         _gate = new GateMiddleware(_store, new TrustedProxyClientAddressSource());
@@ -100,7 +102,7 @@ public sealed class ConnectionTlsGateTests : IDisposable
 
     private sealed class Single(ServerCertificate certificate) : IServerCertificateResolver
     {
-        public bool TryResolve(string reference, [NotNullWhen(true)] out ServerCertificate? resolved)
+        public bool TryResolve(CertificateId id, [NotNullWhen(true)] out ServerCertificate? resolved)
         {
             resolved = certificate;
             return true;

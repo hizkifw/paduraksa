@@ -1,3 +1,4 @@
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -6,16 +7,19 @@ namespace Paduraksa.Proxy.Config;
 
 /// <summary>
 /// The compiler's input: a plain, in-memory description of the proxy config (M1). M2 builds the same records from
-/// the EF entities / canonical config document, so nothing here knows about storage. Keys are stable identities
-/// (typed-ID strings from M2) and double as YARP route, cluster and destination IDs: letters, digits and
-/// <c>_ . ~ -</c>, at most 128 characters, unique ignoring case.
+/// the EF entities / canonical config document, so nothing here knows about storage. Objects are identified by their
+/// typed IDs (PLAN §4), which must be unique and non-empty; the route, upstream and destination IDs' canonical strings
+/// (<c>rte_…</c>, <c>ups_…</c>, <c>dst_…</c>) double as YARP route, cluster and destination IDs.
 /// </summary>
 public sealed record ProxyConfigModel
 {
     public static ProxyConfigModel Empty { get; } = new();
 
-    /// <summary>Label carried into the snapshot (<c>ConfigRevisionId</c> from M2).</summary>
-    public string Revision { get; init; } = "empty";
+    /// <summary>
+    /// The committed revision this config comes from, carried into the snapshot. <see cref="ConfigRevisionId.Empty"/>
+    /// (the default): none, as for the empty startup config, the bootstrap snapshot and tests.
+    /// </summary>
+    public ConfigRevisionId Revision { get; init; }
 
     public IReadOnlyList<HostSpec> Hosts { get; init; } = [];
 
@@ -43,11 +47,11 @@ public sealed record DefaultsSpec
     public UnknownHostMode UnknownHost { get; init; } = UnknownHostMode.NotFound;
 
     /// <summary>
-    /// Reference (resolved by <see cref="SnapshotCompilerOptions.Certificates"/>) of the certificate served when the
+    /// The certificate (resolved by <see cref="SnapshotCompilerOptions.Certificates"/>) served when the
     /// SNI matches no host, or is absent (an IP-literal URL). It is also the certificate of hosts that don't name their
     /// own. Null: such handshakes are rejected, and hosts without a certificate aren't served over HTTPS.
     /// </summary>
-    public string? Certificate { get; init; }
+    public CertificateId? Certificate { get; init; }
 
     /// <summary>TLS settings of the default certificate's entry (unknown or absent SNI).</summary>
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
@@ -121,7 +125,7 @@ public sealed record HostTlsSpec
 /// <summary>A host (PLAN §5.1). Disabled hosts are validated but left out of the snapshot.</summary>
 public sealed record HostSpec
 {
-    public required string Key { get; init; }
+    public required HostId Id { get; init; }
 
     /// <summary>Exact names, <c>*.parent</c> wildcards, or bracketed IPv6 literals; normalised by the compiler.</summary>
     public required IReadOnlyList<string> Names { get; init; }
@@ -130,7 +134,7 @@ public sealed record HostSpec
 
     /// <summary>
     /// False: the host is fully validated (names, routes, policies, certificate) but left out of the snapshot. Its host
-    /// and route keys are identities, so they must be unique across all hosts; its names only have to be unique within
+    /// and route IDs are identities, so they must be unique across all hosts; its names only have to be unique within
     /// the host, because a disabled host serves nothing (a replacement can be staged next to the live host).
     /// </summary>
     public bool Enabled { get; init; } = true;
@@ -139,11 +143,11 @@ public sealed record HostSpec
     public bool ForceHttps { get; init; }
 
     /// <summary>
-    /// Reference of the certificate served for this host's names (exact and wildcard; IP literals never arrive as SNI).
+    /// The certificate served for this host's names (exact and wildcard; IP literals never arrive as SNI).
     /// Null: the default certificate (<see cref="DefaultsSpec.Certificate"/>) with this host's TLS settings, or no HTTPS
     /// at all when there is no default either.
     /// </summary>
-    public string? Certificate { get; init; }
+    public CertificateId? Certificate { get; init; }
 
     /// <summary>The host's TLS settings.</summary>
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
@@ -164,7 +168,7 @@ public sealed record HostSpec
 /// <summary>One route of a proxy host. Regex matching comes later.</summary>
 public sealed record RouteSpec
 {
-    public required string Key { get; init; }
+    public required RouteId Id { get; init; }
 
     public RouteMatchKind Match { get; init; } = RouteMatchKind.Prefix;
 
@@ -174,8 +178,8 @@ public sealed record RouteSpec
     /// <summary>Lower runs first; equal orders keep their listed order.</summary>
     public int Order { get; init; }
 
-    /// <summary>Key of the <see cref="UpstreamSpec"/> to proxy to.</summary>
-    public required string Upstream { get; init; }
+    /// <summary>The <see cref="UpstreamSpec"/> to proxy to.</summary>
+    public required UpstreamId Upstream { get; init; }
 
     public IReadOnlyList<PolicySpec> Policies { get; init; } = [];
 }
@@ -207,7 +211,7 @@ public sealed record RespondSpec
 /// <summary>A YARP cluster.</summary>
 public sealed record UpstreamSpec
 {
-    public required string Key { get; init; }
+    public required UpstreamId Id { get; init; }
 
     public required IReadOnlyList<DestinationSpec> Destinations { get; init; }
 
@@ -245,8 +249,8 @@ public sealed record ActiveHealthSpec
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(5);
 }
 
-/// <summary>A YARP destination; the key must stay stable for health state to survive (PLAN §6.3).</summary>
-public sealed record DestinationSpec(string Key, string Address);
+/// <summary>A YARP destination; the ID must stay stable for health state to survive (PLAN §6.3).</summary>
+public sealed record DestinationSpec(DestinationId Id, string Address);
 
 /// <summary>A policy in a host or route chain. Real WAF policies arrive with M6.</summary>
 public abstract record PolicySpec;

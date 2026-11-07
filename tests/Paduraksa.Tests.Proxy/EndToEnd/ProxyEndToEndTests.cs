@@ -3,6 +3,7 @@ using System.Net;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -13,7 +14,7 @@ public sealed class ProxyEndToEndTests(TestUpstream upstream) : IClassFixture<Te
 {
     private ProxyConfigModel Config => new()
     {
-        Revision = "e2e",
+        Revision = TestIds.Revision("e2e"),
         Upstreams =
         [
             Upstream("ua", upstream.Address("a")),
@@ -26,9 +27,9 @@ public sealed class ProxyEndToEndTests(TestUpstream upstream) : IClassFixture<Te
             ProxyHost("two", "two.test", Route("two-root", "ub")) with { Names = ["two.test", "*.two.test"] },
             ProxyHost("secure", "secure.test", Route("secure-root", "ua")) with { ForceHttps = true },
             ProxyHost("guarded", "guarded.test", Route("guarded-deny", "ua", "/deny") with { Policies = [new DenyPolicySpec(451, "unavailable for legal reasons\n")] }, Route("guarded-drop", "ua", "/drop") with { Policies = [new DropPolicySpec()] }, Route("guarded-root", "ua")),
-            new HostSpec { Key = "old", Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test/base", StatusCode = 308 } },
-            new HostSpec { Key = "soon", Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "coming soon\n" } },
-            new HostSpec { Key = "empty", Names = ["empty.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204 } },
+            new HostSpec { Id = TestIds.Host("old"), Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test/base", StatusCode = 308 } },
+            new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "coming soon\n" } },
+            new HostSpec { Id = TestIds.Host("empty"), Names = ["empty.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204 } },
             ProxyHost("quiet", "quiet.test", Route("quiet-root", "ua") with { Policies = [new DenyPolicySpec(304, string.Empty)] }),
         ],
     };

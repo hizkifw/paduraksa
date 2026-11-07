@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -23,7 +25,7 @@ public sealed class GateMiddlewareTests : IDisposable
         [
             new HostSpec
             {
-                Key = "app",
+                Id = TestIds.Host("app"),
                 Names = ["app.test", "*.app.test"],
                 Policies = [new IpAllowListPolicySpec(["127.0.0.1", "10.0.0.5"])],
                 Routes =
@@ -37,11 +39,11 @@ public sealed class GateMiddlewareTests : IDisposable
             },
             ProxyHost("narrow", "narrow.test", Route("narrow-api", "api", "/api")),
             ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true },
-            new HostSpec { Key = "old", Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test", StatusCode = 308 } },
-            new HostSpec { Key = "soon", Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
+            new HostSpec { Id = TestIds.Host("old"), Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test", StatusCode = 308 } },
+            new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
             ProxyHost("locked", "locked.test", Route("locked-api", "api", "/api")) with { ForceHttps = true, Policies = [LanOnly] },
-            new HostSpec { Key = "locked-old", Names = ["locked-old.test"], Kind = HostKind.Redirect, Policies = [LanOnly], Redirect = new RedirectSpec { Target = "https://new.test" } },
-            new HostSpec { Key = "locked-soon", Names = ["locked-soon.test"], Kind = HostKind.Respond, Policies = [LanOnly], Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
+            new HostSpec { Id = TestIds.Host("locked-old"), Names = ["locked-old.test"], Kind = HostKind.Redirect, Policies = [LanOnly], Redirect = new RedirectSpec { Target = "https://new.test" } },
+            new HostSpec { Id = TestIds.Host("locked-soon"), Names = ["locked-soon.test"], Kind = HostKind.Respond, Policies = [LanOnly], Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
         ],
     };
 
@@ -65,17 +67,17 @@ public sealed class GateMiddlewareTests : IDisposable
     [InlineData("app.test", "/health", "app-health")]
     [InlineData("app.test", "/health/deep", "app-root")]
     [InlineData("secure.test", "/x", "secure-root")]
-    public void ForwardsWithTheRoutesEndpointFromTheSameSnapshot(string host, string path, string routeId)
+    public void ForwardsWithTheRoutesEndpointFromTheSameSnapshot(string host, string path, string route)
     {
         DefaultHttpContext context = TestContexts.Create(host, path, scheme: host.StartsWith("secure", StringComparison.Ordinal) ? "https" : "http");
 
         GateDecision decision = _gate.Decide(context);
 
         Assert.Equal(GateAction.Forward, decision.Action);
-        Assert.Equal(routeId, context.GetEndpoint()!.DisplayName);
+        Assert.Equal(TestIds.Route(route).ToString(), context.GetEndpoint()!.DisplayName);
         GateRequestState state = context.Features.Get<IGateFeature>()!.State;
         Assert.Same(_store.Current, state.Snapshot);
-        Assert.Equal(routeId, state.Route!.Key);
+        Assert.Equal(TestIds.Route(route), state.Route!.Id);
         Assert.Same(state.Snapshot!.YarpEndpoints[state.Route.Slot], context.GetEndpoint());
         Assert.Equal(IpKey.FromIPAddress(IPAddress.Loopback), state.ClientAddress);
     }
@@ -202,26 +204,26 @@ public sealed class GateMiddlewareTests : IDisposable
     {
         RouteProbe hostProbe = new();
         RouteProbe routeProbe = new();
-        CompiledRoute route = new() { Key = "r", MatchKind = RouteMatchKind.Prefix, Path = "/", Slot = 0, Policies = [routeProbe] };
-        CompiledHost host = new() { Index = 0, Key = "h", Kind = HostKind.Proxy, Routes = [route], Policies = [hostProbe] };
+        CompiledRoute route = new() { Id = TestIds.Route("r"), MatchKind = RouteMatchKind.Prefix, Path = "/", Slot = 0, Policies = [routeProbe] };
+        CompiledHost host = new() { Index = 0, Id = TestIds.Host("h"), Kind = HostKind.Proxy, Routes = [route], Policies = [hostProbe] };
         HostTable.Builder table = new();
         Assert.True(table.TryAdd("probe.test", host, out _));
         using SnapshotStore store = new();
         store.Publish(new RuntimeSnapshot
         {
             Generation = 0,
-            Revision = "probe",
+            Revision = TestIds.Revision("probe"),
             Hosts = table.Build(),
             HostsByIndex = [host],
             Yarp = Paduraksa.Proxy.Yarp.YarpConfig.Empty,
-            RouteIdBySlot = ["r"],
+            RouteIdBySlot = [route.Id],
             YarpEndpoints = [],
             Default = DefaultHostBehaviour.NotFound(),
-        }.Bind(1, [new Endpoint(static _ => Task.CompletedTask, null, "r")]));
+        }.Bind(1, [new Endpoint(static _ => Task.CompletedTask, null, route.Id.ToString())]));
 
         Assert.Equal(GateAction.Forward, new GateMiddleware(store, new TrustedProxyClientAddressSource()).Decide(TestContexts.Create("probe.test", "/x")).Action);
         Assert.Equal([null], hostProbe.SeenRoutes);
-        Assert.Equal(["r"], routeProbe.SeenRoutes);
+        Assert.Equal([route.Id], routeProbe.SeenRoutes);
     }
 
     [Fact]
@@ -331,7 +333,7 @@ public sealed class GateMiddlewareTests : IDisposable
             },
             "gate with non-canonical paths (stack and pooled buffers)");
         Assert.Equal(451, _gate.Decide(TestContexts.Create("app.test", "//blocked/x")).Response!.StatusCode);
-        Assert.Equal("app-api", Decided(_gate, TestContexts.Create("app.test", "/api;v=1/items")));
+        Assert.Equal(TestIds.Route("app-api").ToString(), Decided(_gate, TestContexts.Create("app.test", "/api;v=1/items")));
     }
 
     [Fact]
@@ -367,11 +369,11 @@ public sealed class GateMiddlewareTests : IDisposable
 
     private sealed class RouteProbe : IRequestPolicy
     {
-        public List<string?> SeenRoutes { get; } = [];
+        public List<RouteId?> SeenRoutes { get; } = [];
 
         public PolicyDecision Evaluate(in RequestView request)
         {
-            SeenRoutes.Add(request.State.Route?.Key);
+            SeenRoutes.Add(request.State.Route?.Id);
             return PolicyDecision.Continue;
         }
     }

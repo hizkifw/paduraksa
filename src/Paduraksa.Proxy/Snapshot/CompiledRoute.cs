@@ -1,3 +1,4 @@
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 
 namespace Paduraksa.Proxy.Snapshot;
@@ -27,8 +28,8 @@ public enum RouteMatchKind : byte
 /// </summary>
 public sealed class CompiledRoute
 {
-    /// <summary>Stable identity (the route's key; <c>RouteId</c> from M2). Also the YARP route ID.</summary>
-    public required string Key { get; init; }
+    /// <summary>Stable identity; its canonical string is the YARP route ID.</summary>
+    public required RouteId Id { get; init; }
 
     public required RouteMatchKind MatchKind { get; init; }
 

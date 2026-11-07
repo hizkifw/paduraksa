@@ -1,5 +1,6 @@
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Proxy.Snapshot;
 
@@ -40,7 +41,7 @@ public sealed class RouteMatchingTests
         CompiledHost host = new()
         {
             Index = 0,
-            Key = "h",
+            Id = TestIds.Host("h"),
             Kind = HostKind.Proxy,
             Routes = [api, exact, root],
             Policies = [],
@@ -48,7 +49,7 @@ public sealed class RouteMatchingTests
 
         Assert.Same(api, host.Match("/api/health"));
         Assert.Same(root, host.Match("/other"));
-        Assert.Null(new CompiledHost { Index = 0, Key = "e", Kind = HostKind.Proxy, Routes = [api], Policies = [] }.Match("/other"));
+        Assert.Null(new CompiledHost { Index = 0, Id = TestIds.Host("e"), Kind = HostKind.Proxy, Routes = [api], Policies = [] }.Match("/other"));
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public sealed class RouteMatchingTests
         CompiledHost host = new()
         {
             Index = 0,
-            Key = "h",
+            Id = TestIds.Host("h"),
             Kind = HostKind.Proxy,
             Routes = [Route(RouteMatchKind.Exact, "/x"), Route(RouteMatchKind.Prefix, "/api"), Route(RouteMatchKind.Prefix, "/")],
             Policies = [],
@@ -67,7 +68,7 @@ public sealed class RouteMatchingTests
 
     private static CompiledRoute Route(RouteMatchKind kind, string path) => new()
     {
-        Key = "r",
+        Id = TestIds.Route("r"),
         MatchKind = kind,
         Path = path,
         Slot = 0,

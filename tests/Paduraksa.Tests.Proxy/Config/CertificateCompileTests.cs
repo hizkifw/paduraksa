@@ -1,10 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Security;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Tls;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -27,16 +29,16 @@ public sealed class CertificateCompileTests : IDisposable
 
     public void Dispose() => _pki.Dispose();
 
-    private static ProxyConfigModel Model(string? defaultCertificate = "fallback") => new()
+    private static ProxyConfigModel Model(bool withDefault = true) => new()
     {
         Hosts =
         [
-            Respond("a", ["a.test"]) with { Certificate = "a" },
-            Respond("b", ["b.test", "*.b.test"]) with { Certificate = "b", Tls = new HostTlsSpec { Http3 = false } },
+            Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("a") },
+            Respond("b", ["b.test", "*.b.test"]) with { Certificate = TestIds.Certificate("b"), Tls = new HostTlsSpec { Http3 = false } },
             Respond("plain", ["plain.test", "192.0.2.10", "[2001:db8::10]"]) with { Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 } },
-            Respond("off", ["off.test"]) with { Certificate = "a", Enabled = false },
+            Respond("off", ["off.test"]) with { Certificate = TestIds.Certificate("a"), Enabled = false },
         ],
-        Defaults = new DefaultsSpec { Certificate = defaultCertificate },
+        Defaults = new DefaultsSpec { Certificate = withDefault ? TestIds.Certificate("fallback") : null },
     };
 
     [Fact]
@@ -65,7 +67,7 @@ public sealed class CertificateCompileTests : IDisposable
     [Fact]
     public void WithoutADefaultUnknownNamesAndCertificatelessHostsAreRejected()
     {
-        CertificateTable table = Compile(Model(defaultCertificate: null), _options).Certificates;
+        CertificateTable table = Compile(Model(withDefault: false), _options).Certificates;
 
         Assert.Null(table.Default);
         Assert.Null(table.Find("unknown.test"));
@@ -82,18 +84,18 @@ public sealed class CertificateCompileTests : IDisposable
         Assert.Empty(snapshot.Certificates.Entries);
     }
 
-    public static TheoryData<string, ProxyConfigModel, bool, string> InvalidReferences => new()
+    public static TheoryData<string, ProxyConfigModel, bool, string> InvalidCertificates => new()
     {
-        { "unknown host certificate", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = "nope" }] }, true, "host 'a': certificate 'nope' doesn't exist" },
-        { "unknown default", new ProxyConfigModel { Defaults = new DefaultsSpec { Certificate = "nope" } }, true, "defaults: certificate 'nope' doesn't exist" },
-        { "blank reference", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = " " }] }, true, "can't be empty" },
-        { "disabled hosts are validated too", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = "nope", Enabled = false }] }, true, "doesn't exist" },
-        { "no resolver", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = "a" }] }, false, "no certificate source" },
+        { "unknown host certificate", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("nope") }] }, true, $"host '{TestIds.Host("a")}': certificate '{TestIds.Certificate("nope")}' doesn't exist" },
+        { "unknown default", new ProxyConfigModel { Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("nope") } }, true, $"defaults: certificate '{TestIds.Certificate("nope")}' doesn't exist" },
+        { "empty ID", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = CertificateId.Empty }] }, true, "can't be empty" },
+        { "disabled hosts are validated too", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("nope"), Enabled = false }] }, true, "doesn't exist" },
+        { "no resolver", new ProxyConfigModel { Hosts = [Respond("a", ["a.test"]) with { Certificate = TestIds.Certificate("a") }] }, false, "no certificate source" },
     };
 
     [Theory]
-    [MemberData(nameof(InvalidReferences))]
-    public void UnresolvableReferencesFailTheCompile(string because, ProxyConfigModel model, bool withResolver, string expected)
+    [MemberData(nameof(InvalidCertificates))]
+    public void UnresolvableCertificatesFailTheCompile(string because, ProxyConfigModel model, bool withResolver, string expected)
     {
         CompileResult result = SnapshotCompiler.Compile(model, withResolver ? _options : null);
 
@@ -114,7 +116,7 @@ public sealed class CertificateCompileTests : IDisposable
         SslServerAuthenticationOptions first = selector.SelectTcp("a.test");
         Assert.Same(_certificates["a"].Context, first.ServerCertificateContext);
 
-        // A renewed certificate under the same reference goes live with the next publish (new handshakes only).
+        // A renewed certificate under the same ID goes live with the next publish (new handshakes only).
         ServerCertificate renewed = _pki.Leaf("a.test v2", "a.test");
         _certificates.Set("a", renewed);
         store.Publish(Bound(Model(), generation: 2, options: _options));
@@ -123,19 +125,19 @@ public sealed class CertificateCompileTests : IDisposable
         Assert.Equal(1, selector.Counters.UnknownServerNameTcp);
     }
 
-    private static HostSpec Respond(string key, string[] names) =>
-        new() { Key = key, Names = names, Kind = HostKind.Respond, Respond = new RespondSpec { Body = key } };
+    private static HostSpec Respond(string label, string[] names) =>
+        new() { Id = TestIds.Host(label), Names = names, Kind = HostKind.Respond, Respond = new RespondSpec { Body = label } };
 
-    /// <summary>A test certificate store: reference → certificate, replaceable.</summary>
+    /// <summary>A test certificate store: ID → certificate, replaceable; addressed by <see cref="TestIds"/> label.</summary>
     private sealed class Certificates : IServerCertificateResolver
     {
-        private readonly Dictionary<string, ServerCertificate> _byReference = new(StringComparer.Ordinal);
+        private readonly Dictionary<CertificateId, ServerCertificate> _byId = [];
 
-        public ServerCertificate this[string reference] => _byReference[reference];
+        public ServerCertificate this[string label] => _byId[TestIds.Certificate(label)];
 
-        public void Set(string reference, ServerCertificate certificate) => _byReference[reference] = certificate;
+        public void Set(string label, ServerCertificate certificate) => _byId[TestIds.Certificate(label)] = certificate;
 
-        public bool TryResolve(string reference, [NotNullWhen(true)] out ServerCertificate? certificate) =>
-            _byReference.TryGetValue(reference, out certificate);
+        public bool TryResolve(CertificateId id, [NotNullWhen(true)] out ServerCertificate? certificate) =>
+            _byId.TryGetValue(id, out certificate);
     }
 }

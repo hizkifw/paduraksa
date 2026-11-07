@@ -6,6 +6,7 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -39,7 +40,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
             [
                 new HostSpec
                 {
-                    Key = "app",
+                    Id = TestIds.Host("app"),
                     Names = ["app.test", "*.app.test"],
                     Policies = [new IpAllowListPolicySpec(["127.0.0.1"])],
                     Routes =
@@ -49,7 +50,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
                         Route("app-root", "web"),
                     ],
                 },
-                new HostSpec { Key = "soon", Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
+                new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
             ],
         };
         // h2c: one connection, a few concurrent streams. Kestrel pools streams that end gracefully, so after warm-up
@@ -91,7 +92,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
             [
                 new HostSpec
                 {
-                    Key = "app",
+                    Id = TestIds.Host("app"),
                     Names = ["app.test"],
                     Policies = [new IpAllowListPolicySpec([expectedClient])],
                     Routes = [Route("app-root", "web")],

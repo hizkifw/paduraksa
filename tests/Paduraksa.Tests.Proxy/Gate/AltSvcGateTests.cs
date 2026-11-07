@@ -2,12 +2,14 @@ using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Proxy.Tls;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -36,16 +38,18 @@ public sealed class AltSvcGateTests : IDisposable
         _pki.Dispose();
     }
 
+    private static readonly CertificateId Certificate = TestIds.Certificate("cert");
+
     private static ProxyConfigModel Model() => new()
     {
         Upstreams = [Upstream("web", "http://127.0.0.1:1/")],
         Hosts =
         [
-            ProxyHost("app", "app.test", Route("app-api", "web", "/api")) with { Certificate = "cert" },
-            ProxyHost("tcp", "tcp.test", Route("tcp-root", "web")) with { Certificate = "cert", Tls = new HostTlsSpec { Http3 = false } },
+            ProxyHost("app", "app.test", Route("app-api", "web", "/api")) with { Certificate = Certificate },
+            ProxyHost("tcp", "tcp.test", Route("tcp-root", "web")) with { Certificate = Certificate, Tls = new HostTlsSpec { Http3 = false } },
             ProxyHost("plain", "plain.test", Route("plain-root", "web")),
-            ProxyHost("literal", "192.0.2.10", Route("literal-root", "web")) with { Certificate = "cert", Names = ["192.0.2.10", "[2001:db8::10]"] },
-            new HostSpec { Key = "soon", Names = ["soon.test"], Kind = HostKind.Respond, Certificate = "cert", Respond = new RespondSpec { StatusCode = 503 } },
+            ProxyHost("literal", "192.0.2.10", Route("literal-root", "web")) with { Certificate = Certificate, Names = ["192.0.2.10", "[2001:db8::10]"] },
+            new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Certificate = Certificate, Respond = new RespondSpec { StatusCode = 503 } },
         ],
     };
 
@@ -92,7 +96,7 @@ public sealed class AltSvcGateTests : IDisposable
 
     private sealed class OneCertificate(ServerCertificate certificate) : IServerCertificateResolver
     {
-        public bool TryResolve(string reference, [NotNullWhen(true)] out ServerCertificate? resolved)
+        public bool TryResolve(CertificateId id, [NotNullWhen(true)] out ServerCertificate? resolved)
         {
             resolved = certificate;
             return true;

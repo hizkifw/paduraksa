@@ -17,6 +17,7 @@ using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Server.Placeholders;
 using Paduraksa.Tests.Integration.Hosting;
+using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Proxy;
 
@@ -39,12 +40,12 @@ public sealed class PublicProxyTests
 
         PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, new ProxyConfigModel
         {
-            Revision = "it-1",
-            Upstreams = [new UpstreamSpec { Key = "app", Destinations = [new("app-1", upstream.Address)] }],
+            Revision = TestIds.Revision("it-1"),
+            Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("app"), Destinations = [new(TestIds.Destination("app-1"), upstream.Address)] }],
             Hosts =
             [
-                new HostSpec { Key = "app", Names = ["app.test"], Routes = [new RouteSpec { Key = "app-root", Upstream = "app" }] },
-                new HostSpec { Key = "secure", Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Key = "secure-root", Upstream = "app" }] },
+                new HostSpec { Id = TestIds.Host("app"), Names = ["app.test"], Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("app") }] },
+                new HostSpec { Id = TestIds.Host("secure"), Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Id = TestIds.Route("secure-root"), Upstream = TestIds.Upstream("app") }] },
             ],
         }), ct);
         Assert.True(published.Succeeded, string.Join("; ", published.Errors));
@@ -82,9 +83,9 @@ public sealed class PublicProxyTests
         await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
         ProxyConfigModel startup = new()
         {
-            Revision = "startup",
-            Upstreams = [new UpstreamSpec { Key = "app", Destinations = [new("app-1", upstream.Address)] }],
-            Hosts = [new HostSpec { Key = "app", Names = ["app.test"], Routes = [new RouteSpec { Key = "app-root", Upstream = "app" }] }],
+            Revision = TestIds.Revision("startup"),
+            Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("app"), Destinations = [new(TestIds.Destination("app-1"), upstream.Address)] }],
+            Hosts = [new HostSpec { Id = TestIds.Host("app"), Names = ["app.test"], Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("app") }] }],
         };
         void WithStartupConfig(HostRole role, IServiceCollection services)
         {
@@ -106,7 +107,7 @@ public sealed class PublicProxyTests
         await using PaduraksaHost host = TestHost.Create(configureServices: WithStartupConfig);
         await host.StartAsync(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
         Assert.True(host.Shared.SnapshotStore.HasPublished);
-        Assert.Equal("startup", host.Shared.SnapshotStore.Current.Revision);
+        Assert.Equal(TestIds.Revision("startup"), host.Shared.SnapshotStore.Current.Revision);
         using HttpClient client = TestHost.CreateClient(host);
         using HttpResponseMessage ready = await client.GetAsync(new Uri(TestHost.Endpoint(host, HostRole.Admin, "https"), "/readyz"), ct);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
@@ -131,8 +132,8 @@ public sealed class PublicProxyTests
         Assert.Same(spy, host.Public.Services.GetRequiredService<IAuthorizationPolicyProvider>());
         PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, new ProxyConfigModel
         {
-            Upstreams = [new UpstreamSpec { Key = "app", Destinations = [new("app-1", upstream.Address)] }],
-            Hosts = [new HostSpec { Key = "app", Names = ["app.test"], Routes = [new RouteSpec { Key = "app-root", Upstream = "app" }] }],
+            Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("app"), Destinations = [new(TestIds.Destination("app-1"), upstream.Address)] }],
+            Hosts = [new HostSpec { Id = TestIds.Host("app"), Names = ["app.test"], Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("app") }] }],
         }), ct);
         Assert.True(published.Succeeded);
         using HttpClient client = TestHost.CreateClient(host);
@@ -177,7 +178,7 @@ public sealed class PublicProxyTests
     {
         if (model.Defaults.Certificate is null)
         {
-            model = model with { Defaults = model.Defaults with { Certificate = PlaceholderCertificates.Reference } };
+            model = model with { Defaults = model.Defaults with { Certificate = PlaceholderCertificates.Id } };
         }
 
         CompileResult result = SnapshotCompiler.Compile(model, options ?? host.Shared.PublicListeners.CompilerOptions);

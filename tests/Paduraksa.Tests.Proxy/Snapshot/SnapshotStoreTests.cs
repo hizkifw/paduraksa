@@ -1,8 +1,12 @@
+using System.Globalization;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.Tests.Shared;
 
 using Yarp.ReverseProxy.Configuration;
 
@@ -53,7 +57,7 @@ public sealed class SnapshotStoreTests
     public void UnboundSnapshotsAreRefused()
     {
         using SnapshotStore store = new();
-        RuntimeSnapshot unbound = Candidate(routeIds: ["r1"]);
+        RuntimeSnapshot unbound = Candidate(routes: ["r1"]);
 
         Assert.False(unbound.IsBound);
         Assert.Throws<ArgumentException>(() => store.Publish(unbound));
@@ -62,7 +66,7 @@ public sealed class SnapshotStoreTests
     [Fact]
     public void BindNeedsOneEndpointPerSlotAndKeepsTheContent()
     {
-        RuntimeSnapshot candidate = Candidate(routeIds: ["r1", "r2"]);
+        RuntimeSnapshot candidate = Candidate(routes: ["r1", "r2"]);
         Endpoint e1 = new(static _ => Task.CompletedTask, null, "r1");
         Endpoint e2 = new(static _ => Task.CompletedTask, null, "r2");
 
@@ -84,22 +88,24 @@ public sealed class SnapshotStoreTests
     {
         using SnapshotStore store = new();
         using CancellationTokenSource stop = new();
+        const int Generations = 2_000;
+        ConfigRevisionId[] revisions = [.. Enumerable.Range(0, Generations + 1).Select(g => TestIds.Revision("rev" + g.ToString(CultureInfo.InvariantCulture)))];
         long torn = 0;
         Task reader = Task.Run(() =>
         {
             while (!stop.IsCancellationRequested)
             {
                 RuntimeSnapshot s = store.Current;
-                if (s.Generation > 0 && s.Revision != "rev" + s.Generation)
+                if (s.Generation > 0 && s.Revision != revisions[s.Generation])
                 {
                     Interlocked.Increment(ref torn);
                 }
             }
         }, TestContext.Current.CancellationToken);
 
-        for (long g = 1; g <= 2_000; g++)
+        for (int g = 1; g <= Generations; g++)
         {
-            store.Publish(Candidate(revision: "rev" + g).Bind(g, []));
+            store.Publish(Candidate(revisions[g]).Bind(g, []));
         }
 
         stop.Cancel();
@@ -107,13 +113,13 @@ public sealed class SnapshotStoreTests
         Assert.Equal(0, torn);
     }
 
-    private static RuntimeSnapshot Candidate(string revision = "test", string[]? routeIds = null)
+    private static RuntimeSnapshot Candidate(ConfigRevisionId revision = default, string[]? routes = null)
     {
-        routeIds ??= [];
-        RouteConfig[] routes = new RouteConfig[routeIds.Length];
-        for (int i = 0; i < routes.Length; i++)
+        RouteId[] routeIds = [.. (routes ?? []).Select(TestIds.Route)];
+        RouteConfig[] yarpRoutes = new RouteConfig[routeIds.Length];
+        for (int i = 0; i < yarpRoutes.Length; i++)
         {
-            routes[i] = new RouteConfig { RouteId = routeIds[i], ClusterId = "c", Match = new RouteMatch { Path = "/x" } };
+            yarpRoutes[i] = new RouteConfig { RouteId = routeIds[i].ToString(), ClusterId = TestIds.Upstream("c").ToString(), Match = new RouteMatch { Path = "/x" } };
         }
 
         return new RuntimeSnapshot
@@ -122,7 +128,7 @@ public sealed class SnapshotStoreTests
             Revision = revision,
             Hosts = HostTable.Empty,
             HostsByIndex = [],
-            Yarp = new YarpConfig(routes, []),
+            Yarp = new YarpConfig(yarpRoutes, []),
             RouteIdBySlot = routeIds,
             YarpEndpoints = [],
             Default = DefaultHostBehaviour.NotFound(),

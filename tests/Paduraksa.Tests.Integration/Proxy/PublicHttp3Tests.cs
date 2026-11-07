@@ -13,6 +13,7 @@ using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 
@@ -38,15 +39,15 @@ public sealed class PublicHttp3Tests
         Assert.True(host.Shared.PublicListeners.Http3);
         Assert.Equal(3, host.GetListenAddresses(HostRole.Public).Count); // http, https (TCP), https (UDP)
 
-        host.Shared.Certificates.Set("app", certificates.Create("app.test", "app.test"));
+        host.Shared.Certificates.Set(TestIds.Certificate("app"), certificates.Create("app.test", "app.test"));
         RuntimeSnapshot snapshot = Compile(host, new ProxyConfigModel
         {
-            Upstreams = [new UpstreamSpec { Key = "echo", Destinations = [new("echo-1", upstream.Address)] }],
+            Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("echo"), Destinations = [new(TestIds.Destination("echo-1"), upstream.Address)] }],
             Hosts =
             [
-                new HostSpec { Key = "app", Names = ["app.test"], Certificate = "app", Routes = [new RouteSpec { Key = "app-root", Upstream = "echo" }] },
-                new HostSpec { Key = "tcp", Names = ["tcp.test"], Certificate = "app", Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Key = "tcp-root", Upstream = "echo" }] },
-                new HostSpec { Key = "literal", Names = ["127.0.0.1"], Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Key = "literal-root", Upstream = "echo" }] },
+                new HostSpec { Id = TestIds.Host("app"), Names = ["app.test"], Certificate = TestIds.Certificate("app"), Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("echo") }] },
+                new HostSpec { Id = TestIds.Host("tcp"), Names = ["tcp.test"], Certificate = TestIds.Certificate("app"), Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Id = TestIds.Route("tcp-root"), Upstream = TestIds.Upstream("echo") }] },
+                new HostSpec { Id = TestIds.Host("literal"), Names = ["127.0.0.1"], Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Id = TestIds.Route("literal-root"), Upstream = TestIds.Upstream("echo") }] },
             ],
         });
         PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(snapshot, ct);

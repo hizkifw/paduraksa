@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -13,7 +14,7 @@ namespace Paduraksa.Benchmarks;
 /// <summary>
 /// The shared benchmark config: ~500 hosts like spike S3's table (480 exact, 20 single-label wildcards), plus a few
 /// hosts exercising each gate path. Compiled by the real <see cref="SnapshotCompiler"/> and bound to stand-in
-/// endpoints, so no YARP is involved.
+/// endpoints, so no YARP is involved. IDs are new per run: nothing on the request path reads them.
 /// </summary>
 internal static class BenchConfig
 {
@@ -37,48 +38,49 @@ internal static class BenchConfig
 
     public static ProxyConfigModel Model()
     {
+        UpstreamId upstream = UpstreamId.New();
         List<HostSpec> hosts = [];
         for (int i = 0; i < ExactHosts; i++)
         {
-            hosts.Add(Proxy($"h{i}", $"h{i}.test"));
+            hosts.Add(Proxy($"h{i}.test"));
         }
 
         for (int i = 0; i < WildcardHosts; i++)
         {
-            hosts.Add(Proxy($"w{i}", $"*.w{i}.test"));
+            hosts.Add(Proxy($"*.w{i}.test"));
         }
 
         hosts.Add(new HostSpec
         {
-            Key = "app",
+            Id = HostId.New(),
             Names = ["app.test"],
             Routes =
             [
-                Route("app-api-v1", "/api/v1"),
-                Route("app-api-v2", "/api/v2"),
-                Route("app-auth", "/auth"),
-                Route("app-ws", "/ws"),
-                Route("app-health", "/healthz") with { Match = RouteMatchKind.Exact },
-                Route("app-static", "/static"),
-                Route("app-img", "/img"),
-                Route("app-assets", "/assets"),
-                Route("app-root", "/"),
+                Route("/api/v1"),
+                Route("/api/v2"),
+                Route("/auth"),
+                Route("/ws"),
+                Route("/healthz") with { Match = RouteMatchKind.Exact },
+                Route("/static"),
+                Route("/img"),
+                Route("/assets"),
+                Route("/"),
             ],
         });
-        hosts.Add(Proxy("secure", "secure.test") with { ForceHttps = true });
-        hosts.Add(new HostSpec { Key = "respond", Names = ["respond.test"], Kind = HostKind.Respond, Respond = new RespondSpec { Body = "ok\n" } });
-        hosts.Add(new HostSpec { Key = "moved", Names = ["moved.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test" } });
+        hosts.Add(Proxy("secure.test") with { ForceHttps = true });
+        hosts.Add(new HostSpec { Id = HostId.New(), Names = ["respond.test"], Kind = HostKind.Respond, Respond = new RespondSpec { Body = "ok\n" } });
+        hosts.Add(new HostSpec { Id = HostId.New(), Names = ["moved.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test" } });
 
         return new ProxyConfigModel
         {
-            Revision = "bench",
-            Upstreams = [new UpstreamSpec { Key = "up", Destinations = [new DestinationSpec("up-1", "http://127.0.0.1:1/")] }],
+            Revision = ConfigRevisionId.New(),
+            Upstreams = [new UpstreamSpec { Id = upstream, Destinations = [new DestinationSpec(DestinationId.New(), "http://127.0.0.1:1/")] }],
             Hosts = hosts,
         };
 
-        static HostSpec Proxy(string key, string name) => new() { Key = key, Names = [name], Routes = [Route(key + "-root", "/")] };
+        HostSpec Proxy(string name) => new() { Id = HostId.New(), Names = [name], Routes = [Route("/")] };
 
-        static RouteSpec Route(string key, string path) => new() { Key = key, Path = path, Upstream = "up" };
+        RouteSpec Route(string path) => new() { Id = RouteId.New(), Path = path, Upstream = upstream };
     }
 
     /// <summary>A <see cref="DefaultHttpContext"/> set up like Kestrel's for the gate (persistent state, a peer address).</summary>
@@ -106,7 +108,7 @@ internal static class BenchConfig
         Endpoint[] endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
         for (int i = 0; i < endpoints.Length; i++)
         {
-            endpoints[i] = new Endpoint(static _ => Task.CompletedTask, EndpointMetadataCollection.Empty, candidate.RouteIdBySlot[i]);
+            endpoints[i] = new Endpoint(static _ => Task.CompletedTask, EndpointMetadataCollection.Empty, candidate.RouteIdBySlot[i].ToString());
         }
 
         return candidate.Bind(1, endpoints);

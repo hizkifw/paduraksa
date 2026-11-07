@@ -5,11 +5,13 @@ using System.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
@@ -24,7 +26,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
 {
     private ProxyConfigModel FlipTo(string target, string revision) => new()
     {
-        Revision = revision,
+        Revision = TestIds.Revision(revision),
         Upstreams = [Upstream("ua", upstream.Address("a")), Upstream("ub", upstream.Address("b"))],
         Hosts = [ProxyHost("flip", "flip.test", Route("flip-root", target)), ProxyHost("steady", "steady.test", Route("steady-root", "ua"))],
     };
@@ -118,12 +120,45 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         PublishResult result = await server.PublishAsync(invalid);
 
         Assert.Equal(PublishStatus.Invalid, result.Status);
-        Assert.Contains(result.Errors, e => e.Contains("cluster 'ub'", StringComparison.Ordinal) && e.Contains("NoSuchPolicy", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, e => e.Contains($"cluster '{TestIds.Upstream("ub")}'", StringComparison.Ordinal) && e.Contains("NoSuchPolicy", StringComparison.Ordinal));
         Assert.Same(before, server.Store.Current);
         Assert.Equal("/a/x", await GetAsync(server, "flip.test"));
-        Assert.Equal(["ua", "ub"], server.Services.GetRequiredService<IProxyStateLookup>().GetClusters().Select(c => c.ClusterId).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            new[] { TestIds.Upstream("ua").ToString(), TestIds.Upstream("ub").ToString() }.Order(StringComparer.Ordinal),
+            server.Services.GetRequiredService<IProxyStateLookup>().GetClusters().Select(c => c.ClusterId).Order(StringComparer.Ordinal));
         Assert.Empty(await server.Publisher.ValidateAsync(TestSnapshots.Compile(FlipTo("ua", "good"))));
         Assert.NotEmpty(await server.Publisher.ValidateAsync(TestSnapshots.Compile(invalid)));
+    }
+
+    [Fact]
+    public async Task RouteAndClusterIdsThatDifferOnlyInCaseAreInvalid()
+    {
+        // The compiler rejects such IDs; a hand-built candidate still has to be stopped before YARP sees it.
+        await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ua", "good"));
+        RuntimeSnapshot before = server.Store.Current;
+        RuntimeSnapshot compiled = TestSnapshots.Compile(FlipTo("ua", "twins"));
+        RouteConfig[] routes = [.. compiled.Yarp.Routes];
+        ClusterConfig[] clusters = [.. compiled.Yarp.Clusters];
+        routes[1] = routes[1] with { RouteId = TestIds.CaseTwin(RouteId.Parse(routes[0].RouteId)).ToString() };
+        clusters[1] = clusters[1] with { ClusterId = TestIds.CaseTwin(UpstreamId.Parse(clusters[0].ClusterId)).ToString() };
+        RuntimeSnapshot twins = new()
+        {
+            Generation = 0,
+            Revision = compiled.Revision,
+            Hosts = compiled.Hosts,
+            HostsByIndex = compiled.HostsByIndex,
+            Yarp = new YarpConfig(routes, clusters),
+            RouteIdBySlot = compiled.RouteIdBySlot,
+            YarpEndpoints = [],
+            Default = compiled.Default,
+        };
+
+        PublishResult result = await server.Publisher.PublishAsync(twins, TestContext.Current.CancellationToken);
+
+        Assert.Equal(PublishStatus.Invalid, result.Status);
+        Assert.Contains(result.Errors, e => e.Contains("duplicate route ID", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, e => e.Contains("duplicate cluster ID", StringComparison.Ordinal));
+        Assert.Same(before, server.Store.Current);
     }
 
     [Fact]
@@ -205,7 +240,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ub", "early"));
 
         Assert.True(server.Publisher.IsAttached);
-        Assert.Equal("early", server.Store.Current.Revision);
+        Assert.Equal(TestIds.Revision("early"), server.Store.Current.Revision);
         Assert.Equal(1, server.Store.Current.Generation);
         Assert.Equal("/b/x", await GetAsync(server, "flip.test"));
     }
@@ -275,7 +310,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         Assert.True(results[^1].Succeeded);
         Assert.All(results, r => Assert.True(r.Status is PublishStatus.Published or PublishStatus.Superseded, r.Status.ToString()));
         Assert.Contains(results, r => r.Status == PublishStatus.Superseded);
-        Assert.Equal("burst19", server.Store.Current.Revision);
+        Assert.Equal(TestIds.Revision("burst19"), server.Store.Current.Revision);
         Assert.Equal(results[^1].Generation, server.Store.Current.Generation);
         Assert.Equal("/a/x", await GetAsync(server, "flip.test"));
     }
@@ -285,7 +320,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     {
         await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ua", "one"));
         IProxyStateLookup state = server.Services.GetRequiredService<IProxyStateLookup>();
-        HttpMessageInvoker Client(string cluster) => state.TryGetCluster(cluster, out ClusterState? c) ? c.Model.HttpClient : throw new InvalidOperationException(cluster);
+        HttpMessageInvoker Client(string cluster) => state.TryGetCluster(TestIds.Upstream(cluster).ToString(), out ClusterState? c) ? c.Model.HttpClient : throw new InvalidOperationException(cluster);
         HttpMessageInvoker original = Client("ua");
 
         Assert.True((await server.PublishAsync(FlipTo("ub", "two"))).Succeeded);
@@ -307,15 +342,15 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         {
             Upstreams =
             [
-                new UpstreamSpec { Key = "lb", LoadBalancing = "RoundRobin", Destinations = [new("lb-a", upstream.Address("a")), new("lb-b", upstream.Address("b"))] },
-                new UpstreamSpec { Key = "aff", SessionAffinity = true, Destinations = [new("aff-a", upstream.Address("a")), new("aff-b", upstream.Address("b"))] },
+                new UpstreamSpec { Id = TestIds.Upstream("lb"), LoadBalancing = "RoundRobin", Destinations = [new(TestIds.Destination("lb-a"), upstream.Address("a")), new(TestIds.Destination("lb-b"), upstream.Address("b"))] },
+                new UpstreamSpec { Id = TestIds.Upstream("aff"), SessionAffinity = true, Destinations = [new(TestIds.Destination("aff-a"), upstream.Address("a")), new(TestIds.Destination("aff-b"), upstream.Address("b"))] },
                 new UpstreamSpec
                 {
-                    Key = "ph",
+                    Id = TestIds.Upstream("ph"),
                     PassiveHealth = true,
                     LoadBalancing = "RoundRobin",
                     ReactivationPeriod = TimeSpan.FromMinutes(10),
-                    Destinations = [new("ph-good", upstream.Address("good")), new("ph-dead", $"http://127.0.0.1:{upstream.DeadPort}/")],
+                    Destinations = [new(TestIds.Destination("ph-good"), upstream.Address("good")), new(TestIds.Destination("ph-dead"), $"http://127.0.0.1:{upstream.DeadPort}/")],
                 },
             ],
             Hosts = [ProxyHost("lb", "lb.test", Route("lb", "lb")), ProxyHost("aff", "aff.test", Route("aff", "aff")), ProxyHost("ph", "ph.test", Route("ph", "ph"))],
@@ -347,8 +382,8 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
 
         // Passive health: failures against the dead destination take it out of rotation.
         IProxyStateLookup state = server.Services.GetRequiredService<IProxyStateLookup>();
-        Assert.True(state.TryGetCluster("ph", out ClusterState? cluster));
-        DestinationState dead = cluster.Destinations["ph-dead"];
+        Assert.True(state.TryGetCluster(TestIds.Upstream("ph").ToString(), out ClusterState? cluster));
+        DestinationState dead = cluster.Destinations[TestIds.Destination("ph-dead").ToString()];
         for (int i = 0; i < 40 && dead.Health.Passive != DestinationHealth.Unhealthy; i++)
         {
             using HttpResponseMessage response = await client.SendAsync(server.Request("ph.test", "/x"), ct);
@@ -370,16 +405,18 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         return body;
     }
 
-    /// <summary>Makes YARP fail (or stall) applying any config that contains a route with the given ID.</summary>
-    private sealed class ThrowingFilter(string routeId) : IProxyConfigFilter
+    /// <summary>Makes YARP fail (or stall) applying any config that contains the route labelled <paramref name="route"/>.</summary>
+    private sealed class ThrowingFilter(string route) : IProxyConfigFilter
     {
+        private readonly string _routeId = TestIds.Route(route).ToString();
+
         public TaskCompletionSource? Block { get; init; }
 
         public ValueTask<ClusterConfig> ConfigureClusterAsync(ClusterConfig cluster, CancellationToken cancel) => ValueTask.FromResult(cluster);
 
         public async ValueTask<RouteConfig> ConfigureRouteAsync(RouteConfig route, ClusterConfig? cluster, CancellationToken cancel)
         {
-            if (!string.Equals(route.RouteId, routeId, StringComparison.Ordinal))
+            if (!string.Equals(route.RouteId, _routeId, StringComparison.Ordinal))
             {
                 return route;
             }

@@ -9,6 +9,7 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
+using Paduraksa.Tests.Shared;
 
 using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Model;
@@ -50,7 +51,7 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
 
     private ProxyConfigModel Model(int variant) => new()
     {
-        Revision = "s6-" + variant.ToString(CultureInfo.InvariantCulture),
+        Revision = TestIds.Revision("s6-" + variant.ToString(CultureInfo.InvariantCulture)),
         Upstreams =
         [
             Upstream("stable", upstream.Address("s0"), upstream.Address("s1")) with { ActiveHealth = Probe, PassiveHealth = true },
@@ -191,8 +192,8 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
 
     private static DestinationHealthState Health(IProxyStateLookup yarp, string cluster, string destination)
     {
-        Assert.True(yarp.TryGetCluster(cluster, out ClusterState? state), $"cluster {cluster} is gone");
-        Assert.True(state.Destinations.TryGetValue(destination, out DestinationState? found), $"destination {destination} is gone");
+        Assert.True(yarp.TryGetCluster(TestIds.Upstream(cluster).ToString(), out ClusterState? state), $"cluster {cluster} is gone");
+        Assert.True(state.Destinations.TryGetValue(TestIds.Destination(destination).ToString(), out DestinationState? found), $"destination {destination} is gone");
         return found.Health;
     }
 
