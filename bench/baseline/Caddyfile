@@ -1,0 +1,46 @@
+# Caddy as the reverse proxy under test. Manual certificate (no ACME), no admin API, no access log (Caddy's
+# default), loopback only. X-Forwarded-* are Caddy's defaults. HTTP and HTTPS need separate site blocks (a plain-HTTP
+# server can't carry TLS connection policies), so each host appears twice.
+{
+	admin off
+	auto_https off
+	persist_config off
+	default_bind 127.0.0.1
+	servers {
+		protocols h1 h2
+	}
+}
+
+(proxied) {
+	reverse_proxy 127.0.0.1:18080 {
+		# Caddy keeps at most 32 idle upstream connections per host by default. With 64 requests in flight that
+		# churns connections (TIME_WAIT); nginx and YARP keep enough, so Caddy gets the same.
+		transport http {
+			keepalive_idle_conns_per_host 256
+		}
+	}
+}
+
+(answered) {
+	header Content-Type "text/plain; charset=utf-8"
+	respond "ok
+" 200
+}
+
+http://bench.test:18083 {
+	import proxied
+}
+
+https://bench.test:18445 {
+	tls /certs/cert.pem /certs/key.pem
+	import proxied
+}
+
+http://respond.test:18083 {
+	import answered
+}
+
+https://respond.test:18445 {
+	tls /certs/cert.pem /certs/key.pem
+	import answered
+}

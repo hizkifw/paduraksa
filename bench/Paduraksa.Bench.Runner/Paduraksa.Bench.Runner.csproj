@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Boots the real PaduraksaHost with an in-memory proxy config for the end-to-end baseline (bench/run-baseline.sh).
+    GC and PGO match src/Paduraksa.Server, so the proxy runs as it would in production.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.Server/Paduraksa.Server.csproj" />
+  </ItemGroup>
+</Project>
