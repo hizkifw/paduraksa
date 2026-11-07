@@ -32,11 +32,12 @@ public sealed class ConfigDatabaseTests
         Assert.Equal(context.Database.GetMigrations(), result.AppliedMigrations);
         Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_Initial", StringComparison.Ordinal));
         Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_Certificates", StringComparison.Ordinal));
+        Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_AcmeIssuance", StringComparison.Ordinal));
         Assert.Empty(result.ObservedKeys);
         Assert.Empty(await context.Database.GetPendingMigrationsAsync(Ct));
         var tables = await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
         Assert.Equal(
-            ["AuditEvents", "CertificateNames", "Certificates", "ConfigRevisions", "Destinations", "GlobalSettings", "HostNames", "Hosts", "Profiles", "Routes", "Upstreams", "__EFMigrationsHistory", "__EFMigrationsLock"],
+            ["AcmeAccounts", "AcmeOrders", "AuditEvents", "CertificateNames", "Certificates", "ConfigRevisions", "Destinations", "DnsProviders", "GlobalSettings", "HostNames", "Hosts", "Profiles", "Routes", "Upstreams", "__EFMigrationsHistory", "__EFMigrationsLock"],
             tables.Select(r => (string)r[0]!).Order(StringComparer.Ordinal));
         Assert.Equal("wal", await db.ScalarAsync("PRAGMA journal_mode"));
     }

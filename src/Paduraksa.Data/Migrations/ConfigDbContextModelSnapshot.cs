@@ -189,6 +189,202 @@ namespace Paduraksa.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Data.Issuance.AcmeAccountRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("AccountUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("Contacts")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DirectoryUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EabKid")
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("EabSecretId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("KeyAlgorithm")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("TermsOfServiceAgreed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DirectoryUrl");
+
+                    b.ToTable("AcmeAccounts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AcmeAccounts_KeyAlgorithm", "\"KeyAlgorithm\" IN ('ES256', 'ES384', 'RS256')");
+
+                            t.HasCheckConstraint("CK_AcmeAccounts_Status", "\"Status\" IN ('active', 'deactivated')");
+                        });
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Issuance.AcmeOrderRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<byte[]>("AccountId")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("AriCheckAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AriExplanationUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AriWindowEnd")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AriWindowStart")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AttachedInfo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("CertificateId")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("ChallengeType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Csr")
+                        .HasColumnType("BLOB");
+
+                    b.Property<byte[]>("DnsProviderId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("KeySpec")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastAttemptAt")
+                        .HasColumnType("TEXT");
+
+                    b.PrimitiveCollection<string>("Names")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NextRenewalAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OrderUrl")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreferredChain")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Profile")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RetryAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("StagedKeyId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("CertificateId")
+                        .IsUnique();
+
+                    b.HasIndex("DnsProviderId");
+
+                    b.ToTable("AcmeOrders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AcmeOrders_ChallengeType", "\"ChallengeType\" IN ('http-01', 'dns-01')");
+
+                            t.HasCheckConstraint("CK_AcmeOrders_DnsProvider", "\"ChallengeType\" <> 'dns-01' OR \"DnsProviderId\" IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_AcmeOrders_KeySpec", "\"KeySpec\" IN ('ecdsa-p256', 'ecdsa-p384', 'rsa-2048', 'rsa-3072', 'rsa-4096')");
+
+                            t.HasCheckConstraint("CK_AcmeOrders_Status", "\"Status\" IN ('pending', 'ordered', 'finalizing', 'valid', 'failed')");
+                        });
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Issuance.DnsProviderRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("CredentialSecretId")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DnsProviders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DnsProviders_Kind", "\"Kind\" IN ('cloudflare', 'desec')");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Data.Projection.DestinationRow", b =>
                 {
                     b.Property<byte[]>("Id")
@@ -488,6 +684,26 @@ namespace Paduraksa.Data.Migrations
                         .HasForeignKey("CertificateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Issuance.AcmeOrderRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Issuance.AcmeAccountRow", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Paduraksa.Data.Certificates.CertificateRow", null)
+                        .WithMany()
+                        .HasForeignKey("CertificateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Paduraksa.Data.Issuance.DnsProviderRow", null)
+                        .WithMany()
+                        .HasForeignKey("DnsProviderId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Paduraksa.Data.Projection.DestinationRow", b =>

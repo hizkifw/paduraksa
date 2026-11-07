@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Data.Audit;
 using Paduraksa.Data.Certificates;
 using Paduraksa.Data.Conversion;
+using Paduraksa.Data.Issuance;
 using Paduraksa.Data.Projection;
 using Paduraksa.Data.Revisions;
 using Paduraksa.Storage;
@@ -13,7 +15,7 @@ namespace Paduraksa.Data;
 /// <summary>
 /// The config database (<c>data/paduraksa.db</c>, PLAN §5): revisions, audit, the projection of the latest
 /// revision's config entities (<see cref="Projection.GlobalSettingsRow"/>) and the certificate inventory
-/// (<see cref="Certificates.CertificateRow"/>, operational metadata outside the config document). Entities are internal to Data and Application; nothing
+/// (<see cref="Certificates.CertificateRow"/>) with its ACME accounts, orders and DNS providers (<see cref="Issuance.AcmeOrderRow"/>), operational metadata outside the config document. Entities are internal to Data and Application; nothing
 /// outside them sees a row type. Create contexts from the registered <see cref="IDbContextFactory{TContext}"/>
 /// (<see cref="Paduraksa.Storage.Sqlite.PaduraksaSqlite.AddPaduraksaDbContextFactory{TContext}"/>); the schema comes from migrations
 /// (applied at startup by <c>ConfigDatabase.InitializeAsync</c>).
@@ -46,6 +48,12 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
 
     internal DbSet<CertificateNameRow> CertificateNames => Set<CertificateNameRow>();
 
+    internal DbSet<AcmeAccountRow> AcmeAccounts => Set<AcmeAccountRow>();
+
+    internal DbSet<AcmeOrderRow> AcmeOrders => Set<AcmeOrderRow>();
+
+    internal DbSet<DnsProviderRow> DnsProviders => Set<DnsProviderRow>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.AddTypedIdConventions();
@@ -55,6 +63,12 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         configurationBuilder.Properties<AuditOutcome>().HaveConversion<AuditOutcomeConverter>();
         configurationBuilder.Properties<CertificateSource>().HaveConversion<CertificateSourceConverter>();
         configurationBuilder.Properties<CertificateStatus>().HaveConversion<CertificateStatusConverter>();
+        configurationBuilder.Properties<AcmeAccountStatus>().HaveConversion<AcmeAccountStatusConverter>();
+        configurationBuilder.Properties<AcmeOrderStatus>().HaveConversion<AcmeOrderStatusConverter>();
+        configurationBuilder.Properties<AcmeChallengeType>().HaveConversion<AcmeChallengeTypeConverter>();
+        configurationBuilder.Properties<DnsProviderKind>().HaveConversion<DnsProviderKindConverter>();
+        configurationBuilder.Properties<JwsAlgorithm>().HaveConversion<JwsAlgorithmConverter>();
+        configurationBuilder.Properties<KeySpec>().HaveConversion<KeySpecConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -70,5 +84,8 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         modelBuilder.ApplyConfiguration<RouteRow>(new HostRowConfiguration());
         modelBuilder.ApplyConfiguration<CertificateRow>(new CertificateRowConfiguration());
         modelBuilder.ApplyConfiguration<CertificateNameRow>(new CertificateRowConfiguration());
+        modelBuilder.ApplyConfiguration(new AcmeAccountRowConfiguration());
+        modelBuilder.ApplyConfiguration(new DnsProviderRowConfiguration());
+        modelBuilder.ApplyConfiguration(new AcmeOrderRowConfiguration());
     }
 }

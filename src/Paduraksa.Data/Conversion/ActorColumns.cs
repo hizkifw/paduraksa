@@ -1,4 +1,5 @@
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Data.Conversion;
 
@@ -34,6 +35,18 @@ internal static class NameChecks
     public static string CertificateSource(string column) => In(column, Enum.GetValues<CertificateSource>().Select(s => s.ToName()));
 
     public static string CertificateStatus(string column) => In(column, Enum.GetValues<CertificateStatus>().Select(s => s.ToName()));
+
+    public static string AcmeAccountStatus(string column) => In(column, Enum.GetValues<AcmeAccountStatus>().Select(s => s.ToName()));
+
+    public static string AcmeOrderStatus(string column) => In(column, Enum.GetValues<AcmeOrderStatus>().Select(s => s.ToName()));
+
+    public static string AcmeChallengeType(string column) => In(column, Enum.GetValues<AcmeChallengeType>().Select(t => t.ToName()));
+
+    public static string DnsProviderKind(string column) => In(column, Enum.GetValues<DnsProviderKind>().Select(k => k.ToName()));
+
+    public static string JwsAlgorithm(string column) => In(column, Enum.GetValues<JwsAlgorithm>().Select(a => a.ToName()));
+
+    public static string KeySpec(string column) => In(column, Enum.GetValues<KeySpec>().Select(k => k.ToName()));
 
     private static string In(string column, IEnumerable<string> names) =>
         $"\"{column}\" IN ({string.Join(", ", names.Select(n => $"'{n}'"))})";

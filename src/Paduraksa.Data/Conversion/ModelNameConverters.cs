@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Data.Conversion;
 
@@ -20,3 +21,21 @@ internal sealed class CertificateStatusConverter()
 
 internal sealed class AuditOutcomeConverter()
     : ValueConverter<AuditOutcome, string>(value => value.ToName(), name => ModelNames.ParseAuditOutcome(name));
+
+internal sealed class AcmeAccountStatusConverter()
+    : ValueConverter<AcmeAccountStatus, string>(value => value.ToName(), name => ModelNames.ParseAcmeAccountStatus(name));
+
+internal sealed class AcmeOrderStatusConverter()
+    : ValueConverter<AcmeOrderStatus, string>(value => value.ToName(), name => ModelNames.ParseAcmeOrderStatus(name));
+
+internal sealed class AcmeChallengeTypeConverter()
+    : ValueConverter<AcmeChallengeType, string>(value => value.ToName(), name => ModelNames.ParseAcmeChallengeType(name));
+
+internal sealed class DnsProviderKindConverter()
+    : ValueConverter<DnsProviderKind, string>(value => value.ToName(), name => ModelNames.ParseDnsProviderKind(name));
+
+internal sealed class JwsAlgorithmConverter()
+    : ValueConverter<JwsAlgorithm, string>(value => value.ToName(), name => JwsAlgorithmNames.Parse(name));
+
+internal sealed class KeySpecConverter()
+    : ValueConverter<KeySpec, string>(value => value.ToName(), name => VaultNames.ParseKeySpec(name));
