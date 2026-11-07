@@ -41,6 +41,22 @@ public sealed class ConfigDatabaseTests
     }
 
     [Fact]
+    public async Task InitializeMigratesAZeroByteDatabaseFile()
+    {
+        // What a crash before SQLite's first write, or a `touch`, leaves behind: an empty database to SQLite.
+        await using var db = Empty();
+        Directory.CreateDirectory(Path.GetDirectoryName(db.DatabasePath)!);
+        await File.WriteAllBytesAsync(db.DatabasePath, [], Ct);
+
+        var result = await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
+
+        await using var context = db.NewContext();
+        Assert.Equal(context.Database.GetMigrations(), result.AppliedMigrations);
+        Assert.Empty(await context.Database.GetPendingMigrationsAsync(Ct));
+        Assert.Equal("wal", await db.ScalarAsync("PRAGMA journal_mode"));
+    }
+
+    [Fact]
     public async Task InitializeOnACurrentDatabaseAppliesNothing()
     {
         await using var db = await CreateAsync();

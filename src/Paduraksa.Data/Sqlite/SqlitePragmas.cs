@@ -30,6 +30,15 @@ internal static class SqlitePragmas
     public static readonly string Sql =
         $"PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = {(long)BusyTimeout.TotalMilliseconds};";
 
+    /// <summary>
+    /// <see cref="Sql"/> without <c>journal_mode</c>, for read-only connections: switching a database to WAL writes its
+    /// header, which a read-only connection can't do. EF opens one (<c>Mode=ReadOnly</c>) to check that the database
+    /// exists, and on a file that isn't in WAL yet (a zero-byte file: an empty database to SQLite) the full batch would
+    /// fail there, before migrations get to initialise it. The next read-write connection switches it.
+    /// </summary>
+    public static readonly string ReadOnlySql =
+        $"PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = {(long)BusyTimeout.TotalMilliseconds};";
+
     // Physical connections (native handles) that already have the pragmas. Weak, so closed handles drop out.
     private static readonly ConditionalWeakTable<sqlite3, object> Applied = [];
 
@@ -45,7 +54,7 @@ internal static class SqlitePragmas
         var command = connection.CreateCommand();
         await using (command.ConfigureAwait(false))
         {
-            command.CommandText = Sql;
+            command.CommandText = SqlFor(connection);
             await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }
 
@@ -65,13 +74,18 @@ internal static class SqlitePragmas
         }
 
         using var command = connection.CreateCommand();
-        command.CommandText = Sql;
+        command.CommandText = SqlFor(connection);
         command.ExecuteNonQuery();
         if (handle is not null)
         {
             Applied.AddOrUpdate(handle, handle);
         }
     }
+
+    private static string SqlFor(DbConnection connection) =>
+        connection is SqliteConnection sqlite && new SqliteConnectionStringBuilder(sqlite.ConnectionString).Mode == SqliteOpenMode.ReadOnly
+            ? ReadOnlySql
+            : Sql;
 
     private static sqlite3? Handle(DbConnection connection) => (connection as SqliteConnection)?.Handle;
 }

@@ -120,6 +120,31 @@ public sealed class SqliteSetupTests : IAsyncLifetime
         Assert.InRange(stopwatch.Elapsed, SqlitePragmas.BusyTimeout * 0.8, SqlitePragmas.BusyTimeout * 3);
     }
 
+    [Fact]
+    public async Task AReadOnlyConnectionGetsThePragmasThatDontWrite()
+    {
+        // A database not in WAL yet (made without the interceptor), opened read-only the way EF checks that it exists:
+        // switching to WAL would write the header and fail, so read-only connections leave the journal mode alone.
+        var path = Path.Combine(_directory, "rollback-journal.db");
+        await using (var plain = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = path, Pooling = false }.ToString()))
+        {
+            await plain.OpenAsync(Ct);
+            await using var create = plain.CreateCommand();
+            create.CommandText = "CREATE TABLE t (x INTEGER)";
+            await create.ExecuteNonQueryAsync(Ct);
+        }
+
+        var readOnly = new SqliteConnectionStringBuilder(PaduraksaSqlite.ConnectionString(path)) { Mode = SqliteOpenMode.ReadOnly, Pooling = false };
+        var options = new DbContextOptionsBuilder<SampleDbContext>();
+        options.UsePaduraksaSqlite(readOnly.ToString());
+        await using var context = new SampleDbContext(options.Options);
+        await context.Database.OpenConnectionAsync(Ct);
+
+        Assert.Equal("delete", await PragmaAsync(context, "journal_mode"));
+        Assert.Equal(1L, await PragmaAsync(context, "synchronous")); // NORMAL
+        Assert.Equal((long)SqlitePragmas.BusyTimeout.TotalMilliseconds, await PragmaAsync(context, "busy_timeout"));
+    }
+
     private static async Task<object?> PragmaAsync(DbContext context, string name)
     {
         await using var command = context.Database.GetDbConnection().CreateCommand();
