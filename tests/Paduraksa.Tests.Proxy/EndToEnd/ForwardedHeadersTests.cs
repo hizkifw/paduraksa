@@ -173,7 +173,7 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
 
     private static async Task<Dictionary<string, string>> SendAsync(ProxyConfigModel model, Action<HttpRequestMessage> configure, string pathAndQuery, SnapshotCompilerOptions? options = null)
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model, compilerOptions: options ?? LoopbackEdge, clientInfo: true);
+        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model, new() { CompilerOptions = options ?? LoopbackEdge, ClientInfo = true });
         using HttpClient client = ProxyTestServer.CreateClient();
         using HttpRequestMessage request = server.Request("app.test", pathAndQuery);
         configure(request);

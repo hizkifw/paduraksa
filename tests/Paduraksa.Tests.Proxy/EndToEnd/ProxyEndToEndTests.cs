@@ -110,7 +110,7 @@ public sealed class ProxyEndToEndTests(TestUpstream upstream) : IClassFixture<Te
         using HttpClient client = ProxyTestServer.CreateClient();
 
         // Without the gate, routing matches the internal route by itself; the proxy pipeline refuses it.
-        await using (ProxyTestServer ungated = await ProxyTestServer.StartAsync(Config, withoutGate: true))
+        await using (ProxyTestServer ungated = await ProxyTestServer.StartAsync(Config, new() { WithoutGate = true }))
         {
             using HttpResponseMessage direct = await client.SendAsync(ungated.Request("one.test", "/.paduraksa/r/one-root/x"), ct);
             Assert.Equal(HttpStatusCode.NotFound, direct.StatusCode);
@@ -130,7 +130,7 @@ public sealed class ProxyEndToEndTests(TestUpstream upstream) : IClassFixture<Te
     [InlineData("POST", HttpStatusCode.PermanentRedirect)]
     public async Task PlainHttpIsRedirectedToHttpsOnThePublicPort(string method, HttpStatusCode status)
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(Config, compilerOptions: Port8443);
+        await using ProxyTestServer server = await ProxyTestServer.StartAsync(Config, new() { CompilerOptions = Port8443 });
         using HttpClient client = ProxyTestServer.CreateClient();
 
         using HttpResponseMessage response = await client.SendAsync(server.Request("secure.test:80", "/a%20b/c?d=e", new HttpMethod(method)), TestContext.Current.CancellationToken);

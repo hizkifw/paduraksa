@@ -56,8 +56,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         // the per-stream state in IPersistentStateFeature is reused just like on an H1 keep-alive connection.
         await using ProxyTestServer server = await ProxyTestServer.StartAsync(
             model,
-            measureGate: true,
-            protocols: h2c ? HttpProtocols.Http2 : HttpProtocols.Http1);
+            new() { MeasureGate = true, Protocols = h2c ? HttpProtocols.Http2 : HttpProtocols.Http1 });
         using HttpClient client = ProxyTestServer.CreateClient(maxConnections: Connections);
 
         await SendAsync(server, client, host, path, expected, Warmup);
@@ -109,7 +108,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         };
         // Loopback stands in for Cloudflare's edge.
         SnapshotCompilerOptions options = new() { CloudflareEdgeRanges = CidrSet.Parse(["127.0.0.0/8"]) };
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model, measureGate: true, compilerOptions: options, clientInfo: true);
+        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, CompilerOptions = options, ClientInfo = true });
         using HttpClient client = ProxyTestServer.CreateClient(maxConnections: Connections);
         void WithHeader(HttpRequestMessage request) => request.Headers.TryAddWithoutValidation(header, value);
 

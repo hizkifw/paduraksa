@@ -36,14 +36,17 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         // generation routes flip.test to a known cluster, so a mismatch means a request mixed two snapshots.
         await using ProxyTestServer server = await ProxyTestServer.StartAsync(
             FlipTo("ua", "g-a"),
-            afterGate: static (context, next) =>
+            new()
             {
-                if (context.Features.Get<IGateFeature>()?.State.Snapshot is { } snapshot)
+                AfterGate = static (context, next) =>
                 {
-                    context.Response.Headers["x-gate-generation"] = snapshot.Generation.ToString(CultureInfo.InvariantCulture);
-                }
+                    if (context.Features.Get<IGateFeature>()?.State.Snapshot is { } snapshot)
+                    {
+                        context.Response.Headers["x-gate-generation"] = snapshot.Generation.ToString(CultureInfo.InvariantCulture);
+                    }
 
-                return next(context);
+                    return next(context);
+                },
             });
         ConcurrentDictionary<long, string> clusterByGeneration = new() { [server.Store.Current.Generation] = "/a/" };
         CancellationToken ct = TestContext.Current.CancellationToken;
@@ -129,7 +132,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         ThrowingFilter filter = new("boom");
         await using ProxyTestServer server = await ProxyTestServer.StartAsync(
             FlipTo("ua", "good"),
-            services: s => s.AddSingleton<IProxyConfigFilter>(filter));
+            new() { Services = s => s.AddSingleton<IProxyConfigFilter>(filter) });
         RuntimeSnapshot before = server.Store.Current;
         ProxyConfigModel exploding = FlipTo("ub", "bad") with
         {
@@ -154,8 +157,11 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         ThrowingFilter filter = new("never") { Block = new TaskCompletionSource() };
         await using ProxyTestServer server = await ProxyTestServer.StartAsync(
             FlipTo("ua", "good"),
-            services: s => s.AddSingleton<IProxyConfigFilter>(filter),
-            options: new SnapshotPublisherOptions { ApplyTimeout = TimeSpan.FromMilliseconds(200) });
+            new()
+            {
+                Services = s => s.AddSingleton<IProxyConfigFilter>(filter),
+                PublisherOptions = new SnapshotPublisherOptions { ApplyTimeout = TimeSpan.FromMilliseconds(200) },
+            });
         RuntimeSnapshot before = server.Store.Current;
 
         PublishResult result = await server.PublishAsync(FlipTo("ub", "slow") with
@@ -175,7 +181,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         ThrowingFilter filter = new("never") { Block = new TaskCompletionSource() };
         await using ProxyTestServer server = await ProxyTestServer.StartAsync(
             FlipTo("ua", "good"),
-            services: s => s.AddSingleton<IProxyConfigFilter>(filter));
+            new() { Services = s => s.AddSingleton<IProxyConfigFilter>(filter) });
         RuntimeSnapshot before = server.Store.Current;
         Task<PublishResult> stuck = server.PublishAsync(FlipTo("ub", "stuck") with
         {
@@ -223,7 +229,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         Assert.False(invalid.IsCompleted);
 
         // Attaching validates the queued candidate; an invalid one is refused and YARP starts on the live config.
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(publisher: publisher);
+        await using ProxyTestServer server = await ProxyTestServer.StartAsync(options: new() { Publisher = publisher });
         Assert.Equal(PublishStatus.Invalid, (await invalid).Status);
         Assert.Equal(1, store.Current.Generation);
 

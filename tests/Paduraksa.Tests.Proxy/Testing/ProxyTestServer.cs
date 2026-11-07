@@ -58,30 +58,24 @@ internal sealed class ProxyTestServer : IAsyncDisposable
 
     public IServiceProvider Services => _host.Services;
 
-    /// <summary>Set when started with <c>measureGate</c>: bytes allocated by <see cref="GateMiddleware.Decide"/>.</summary>
+    /// <summary>
+    /// Set when started with <see cref="ProxyTestServerOptions.MeasureGate"/>: bytes allocated by
+    /// <see cref="GateMiddleware.Decide"/>.
+    /// </summary>
     public GateStats? GateStats { get; }
 
     /// <summary>
     /// Builds and starts the server. <paramref name="initial"/> is published before YARP exists, like the startup
-    /// publish; <paramref name="afterGate"/> is a middleware placed between the gate and routing. Without the gate
-    /// (<paramref name="withoutGate"/>), routing matches YARP's internal routes by itself. <paramref name="clientInfo"/>
-    /// installs the stage-A ClientInfo connection middleware, as the public listeners do.
+    /// publish. <paramref name="options"/> defaults to <see cref="ProxyTestServerOptions.Default"/>.
     /// </summary>
-    public static async Task<ProxyTestServer> StartAsync(
-        ProxyConfigModel? initial = null,
-        Action<IServiceCollection>? services = null,
-        Func<HttpContext, RequestDelegate, Task>? afterGate = null,
-        bool measureGate = false,
-        SnapshotPublisherOptions? options = null,
-        SnapshotPublisher? publisher = null,
-        HttpProtocols protocols = HttpProtocols.Http1,
-        bool withoutGate = false,
-        SnapshotCompilerOptions? compilerOptions = null,
-        bool clientInfo = false)
+    public static async Task<ProxyTestServer> StartAsync(ProxyConfigModel? initial = null, ProxyTestServerOptions? options = null)
     {
-        publisher ??= new SnapshotPublisher(new SnapshotStore(), options: options);
+        options ??= ProxyTestServerOptions.Default;
+        SnapshotCompilerOptions? compilerOptions = options.CompilerOptions;
+        HttpProtocols protocols = options.Protocols;
+        SnapshotPublisher publisher = options.Publisher ?? new SnapshotPublisher(new SnapshotStore(), options: options.PublisherOptions);
         Task<PublishResult>? initialPublish = initial is null ? null : publisher.PublishAsync(TestSnapshots.Compile(initial, compilerOptions));
-        GateStats? stats = measureGate ? new GateStats() : null;
+        GateStats? stats = options.MeasureGate ? new GateStats() : null;
 
         IHost host = new HostBuilder()
             .ConfigureWebHost(web => web
@@ -91,7 +85,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                     kestrel.Listen(IPAddress.Loopback, 0, listen =>
                     {
                         listen.Protocols = protocols;
-                        if (clientInfo)
+                        if (options.ClientInfo)
                         {
                             listen.UseClientInfo();
                         }
@@ -105,35 +99,35 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                         o.MinimalTotalCountThreshold = 2;
                         o.DefaultFailureRateLimit = 0.3;
                     });
-                    services?.Invoke(s);
+                    options.Services?.Invoke(s);
                 })
                 .Configure(app =>
                 {
                     GateMiddleware gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
-                    if (withoutGate)
+                    if (!options.WithoutGate)
                     {
-                    }
-                    else if (stats is null)
-                    {
-                        app.Use(gate.InvokeAsync);
-                    }
-                    else
-                    {
-                        app.Use((context, next) =>
+                        if (stats is null)
                         {
-                            // Only the gate uses this dictionary: empty means a new connection (H1) or a new stream
-                            // (H2), where the gate creates its pooled state once. Those are counted apart.
-                            bool fresh = context.Features.Get<IPersistentStateFeature>()?.State.Count == 0;
-                            long before = GC.GetAllocatedBytesForCurrentThread();
-                            GateDecision decision = gate.Decide(context);
-                            stats.Record(GC.GetAllocatedBytesForCurrentThread() - before, fresh);
-                            return GateMiddleware.CompleteAsync(context, decision, next);
-                        });
+                            app.Use(gate.InvokeAsync);
+                        }
+                        else
+                        {
+                            app.Use((context, next) =>
+                            {
+                                // Only the gate uses this dictionary: empty means a new connection (H1) or a new
+                                // stream (H2), where the gate creates its pooled state once. Those are counted apart.
+                                bool fresh = context.Features.Get<IPersistentStateFeature>()?.State.Count == 0;
+                                long before = GC.GetAllocatedBytesForCurrentThread();
+                                GateDecision decision = gate.Decide(context);
+                                stats.Record(GC.GetAllocatedBytesForCurrentThread() - before, fresh);
+                                return GateMiddleware.CompleteAsync(context, decision, next);
+                            });
+                        }
                     }
 
-                    if (afterGate is not null)
+                    if (options.AfterGate is not null)
                     {
-                        app.Use(afterGate);
+                        app.Use(options.AfterGate);
                     }
 
                     app.UseRouting();
@@ -185,6 +179,39 @@ internal sealed class ProxyTestServer : IAsyncDisposable
         await Publisher.DisposeAsync();
         Store.Dispose();
     }
+}
+
+/// <summary>How <see cref="ProxyTestServer.StartAsync"/> builds the server. Every property defaults to off.</summary>
+internal sealed record ProxyTestServerOptions
+{
+    public static ProxyTestServerOptions Default { get; } = new();
+
+    /// <summary>Extra service registrations, after the proxy's own.</summary>
+    public Action<IServiceCollection>? Services { get; init; }
+
+    /// <summary>A middleware placed between the gate and routing.</summary>
+    public Func<HttpContext, RequestDelegate, Task>? AfterGate { get; init; }
+
+    /// <summary>Wraps the gate to record what <see cref="GateMiddleware.Decide"/> allocates (<see cref="ProxyTestServer.GateStats"/>).</summary>
+    public bool MeasureGate { get; init; }
+
+    /// <summary>No gate: routing matches YARP's internal routes by itself.</summary>
+    public bool WithoutGate { get; init; }
+
+    /// <summary>Installs the stage-A ClientInfo connection middleware, as the public listeners do.</summary>
+    public bool ClientInfo { get; init; }
+
+    /// <summary>The listener's protocols; <see cref="HttpProtocols.Http2"/> means cleartext HTTP/2 only.</summary>
+    public HttpProtocols Protocols { get; init; } = HttpProtocols.Http1;
+
+    /// <summary>Used for every config the server compiles.</summary>
+    public SnapshotCompilerOptions? CompilerOptions { get; init; }
+
+    /// <summary>An existing publisher to attach; otherwise a new one over a new store.</summary>
+    public SnapshotPublisher? Publisher { get; init; }
+
+    /// <summary>Options of the new publisher (ignored with <see cref="Publisher"/>).</summary>
+    public SnapshotPublisherOptions? PublisherOptions { get; init; }
 }
 
 /// <summary>
