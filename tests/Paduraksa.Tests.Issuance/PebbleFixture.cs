@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Issuance;
 
@@ -12,7 +12,7 @@ namespace Paduraksa.Tests.Issuance;
 /// </summary>
 public sealed class PebbleFixture : IAsyncLifetime
 {
-    private const string Image = "ghcr.io/letsencrypt/pebble:latest";
+    private const string Image = DockerCli.PebbleImage;
 
     private string? _container;
 
@@ -50,7 +50,7 @@ public sealed class PebbleFixture : IAsyncLifetime
         {
             // Random host ports; no random bad nonces and no authorization reuse, so a run is deterministic.
             string name = $"paduraksa-pebble-{Environment.ProcessId}-{Environment.TickCount64}";
-            (int code, string output) = await DockerAsync(
+            (int code, string output) = await DockerCli.RunAsync(
                 "run", "-d", "--rm", "--name", name, "-p", "127.0.0.1::14000",
                 "-e", "PEBBLE_VA_ALWAYS_VALID=1", "-e", "PEBBLE_VA_NOSLEEP=1", "-e", "PEBBLE_WFE_NONCEREJECT=0", "-e", "PEBBLE_AUTHZREUSE=0",
                 Image, "-config", "/test/config/pebble-config.json");
@@ -61,7 +61,7 @@ public sealed class PebbleFixture : IAsyncLifetime
             }
 
             _container = name;
-            (_, string port) = await DockerAsync("port", name, "14000/tcp");
+            (_, string port) = await DockerCli.RunAsync("port", name, "14000/tcp");
             // "127.0.0.1:32768" (and, on some hosts, a second line for IPv6)
             string hostPort = port.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0].Trim();
             Directory = new Uri($"https://127.0.0.1:{hostPort[(hostPort.LastIndexOf(':') + 1)..]}/dir", UriKind.Absolute);
@@ -77,7 +77,7 @@ public sealed class PebbleFixture : IAsyncLifetime
     {
         if (_container is not null)
         {
-            _ = await DockerAsync("rm", "-f", _container);
+            _ = await DockerCli.RunAsync("rm", "-f", _container);
         }
     }
 
@@ -110,21 +110,5 @@ public sealed class PebbleFixture : IAsyncLifetime
         }
 
         return last;
-    }
-
-    private static async Task<(int ExitCode, string Output)> DockerAsync(params string[] arguments)
-    {
-        ProcessStartInfo start = new("docker") { RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (string argument in arguments)
-        {
-            start.ArgumentList.Add(argument);
-        }
-
-        using Process process = Process.Start(start) ?? throw new InvalidOperationException("docker did not start.");
-        using CancellationTokenSource timeout = new(TimeSpan.FromMinutes(3));
-        Task<string> output = process.StandardOutput.ReadToEndAsync(timeout.Token);
-        Task<string> error = process.StandardError.ReadToEndAsync(timeout.Token);
-        await process.WaitForExitAsync(timeout.Token);
-        return (process.ExitCode, process.ExitCode == 0 ? await output : (await error) + await output);
     }
 }

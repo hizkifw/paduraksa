@@ -6,5 +6,6 @@
     <!-- The header-echo upstream and the readable test IDs, shared with the other end-to-end test project. -->
     <Compile Include="../Shared/HeaderEchoUpstreamHost.cs" Link="Shared/HeaderEchoUpstreamHost.cs" />
     <Compile Include="../Shared/TestIds.cs" Link="Shared/TestIds.cs" />
+    <Compile Include="../Shared/DockerCli.cs" Link="Shared/DockerCli.cs" />
   </ItemGroup>
 </Project>
