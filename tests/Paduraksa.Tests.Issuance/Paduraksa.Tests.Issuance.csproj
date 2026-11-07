@@ -19,6 +19,8 @@
     <Compile Include="../Paduraksa.Tests.Acme/Fakes/FakeAcmeServer.cs" LinkBase="Shared/AcmeFakes" />
     <Compile Include="../Paduraksa.Tests.Acme/Fakes/FakeVault.cs" LinkBase="Shared/AcmeFakes" />
     <Compile Include="../Paduraksa.Tests.Acme/Fakes/VirtualTimeProvider.cs" LinkBase="Shared/AcmeFakes" />
+    <!-- The in-memory Cloudflare and the fake of the vault's authenticating handler, shared with the DNS provider tests. -->
+    <Compile Include="../Paduraksa.Tests.Acme/Dns/FakeDnsApis.cs" LinkBase="Shared/AcmeFakes" />
     <!-- The config database and writer harness of Tests.Data (a real SQLite file, the real ConfigService). -->
     <Compile Include="../Paduraksa.Tests.Data/Config/TestConfigDatabase.cs" LinkBase="Shared/Data" />
     <Compile Include="../Paduraksa.Tests.Data/Commands/ConfigServiceHarness.cs" LinkBase="Shared/Data" />

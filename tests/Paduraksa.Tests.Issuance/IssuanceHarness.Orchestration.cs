@@ -24,6 +24,9 @@ internal sealed partial class IssuanceHarness
 
     public AcmeRenewalScheduler Scheduler { get; private set; } = null!;
 
+    /// <summary>The propagation check the orchestrator is given; none (the fixed delay) by default.</summary>
+    public Paduraksa.Acme.Dns.IDnsPropagationCheck? Propagation { get; set; }
+
     public AcmeIssuanceOptions Options { get; set; } = new() { DnsPropagationDelay = TimeSpan.FromSeconds(30) };
 
     /// <summary>What the services' random shares are (0.5: the middle of a window, half the jitter).</summary>
@@ -46,8 +49,9 @@ internal sealed partial class IssuanceHarness
         Options,
         Time,
         Loggers.CreateLogger<AcmeIssuanceService>(),
-        random: () => Random,
-        catalog: Vault);
+        catalog: Vault,
+        propagation: Propagation,
+        random: () => Random);
 
     public AcmeRenewalScheduler NewScheduler(AcmeIssuanceService issuance) =>
         new(issuance, Options, Time, Loggers.CreateLogger<AcmeRenewalScheduler>());

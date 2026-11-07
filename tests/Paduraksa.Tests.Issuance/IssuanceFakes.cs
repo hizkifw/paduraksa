@@ -30,6 +30,24 @@ internal sealed class TrackingSigner(IJwsSigner inner) : IJwsSigner
     }
 }
 
+/// <summary>A propagation check that answers as told and remembers what it was asked to look for.</summary>
+internal sealed class FakePropagationCheck(DnsPropagationOutcome outcome = DnsPropagationOutcome.Propagated) : IDnsPropagationCheck
+{
+    public List<IReadOnlyList<DnsChallengeRecord>> Asked { get; } = [];
+
+    public DnsPropagationOutcome Outcome { get; set; } = outcome;
+
+    public Exception? Failure { get; set; }
+
+    public bool AnyServerHadRecords { get; set; } = true;
+
+    public ValueTask<DnsPropagationResult> WaitAsync(IReadOnlyList<DnsChallengeRecord> records, CancellationToken cancellationToken)
+    {
+        Asked.Add(records);
+        return Failure is { } failure ? throw failure : ValueTask.FromResult(new DnsPropagationResult(Outcome, "fake", AnyServerHadRecords));
+    }
+}
+
 /// <summary>A DNS provider that keeps its records in memory and can be told to fail.</summary>
 internal sealed class FakeDnsProvider : IDnsProvider
 {
@@ -42,6 +60,9 @@ internal sealed class FakeDnsProvider : IDnsProvider
     public Exception? CreateFailure { get; set; }
 
     public Exception? DeleteFailure { get; set; }
+
+    /// <summary>How many deletes fail with <see cref="DeleteFailure"/> before they work again.</summary>
+    public int DeleteFailureTimes { get; set; } = int.MaxValue;
 
     public DnsCredentialCheck Check { get; set; } = new(true);
 
@@ -80,7 +101,7 @@ internal sealed class FakeDnsProvider : IDnsProvider
         lock (_gate)
         {
             Calls.Add($"delete {recordName} {value}");
-            if (DeleteFailure is { } failure)
+            if (DeleteFailure is { } failure && DeleteFailureTimes-- > 0)
             {
                 throw failure;
             }

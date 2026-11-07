@@ -6,7 +6,11 @@ namespace Paduraksa.Application.Issuance;
 /// </summary>
 public sealed record AcmeIssuanceOptions
 {
-    /// <summary>How long to wait after publishing DNS-01 TXT records before telling the CA to validate. Until the propagation check exists this is the only wait.</summary>
+    /// <summary>
+    /// How long to wait after publishing DNS-01 TXT records before telling the CA to validate, when no <c>IDnsPropagationCheck</c> is
+    /// registered or the check cannot be made (no name servers found, none answering). With a working check the wait is however
+    /// long the name servers take, bounded by the check's own timeout, and this is not used.
+    /// </summary>
     public TimeSpan DnsPropagationDelay { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>How often the scheduler looks for work.</summary>

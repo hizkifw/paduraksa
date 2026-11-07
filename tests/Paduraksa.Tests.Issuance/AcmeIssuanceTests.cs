@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Acme;
+using Paduraksa.Acme.Dns;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Issuance;
@@ -123,6 +124,110 @@ public sealed partial class AcmeIssuanceTests
         // DNS needs time to propagate before the CA is asked.
         Assert.Contains(h.Options.DnsPropagationDelay, h.Time.Delays);
         Assert.Equal(["*.example.com", "example.com"], result.Certificate!.Names);
+    }
+
+    [Theory]
+    [InlineData(DnsPropagationOutcome.Propagated, false)]
+    [InlineData(DnsPropagationOutcome.TimedOut, false)]
+    [InlineData(DnsPropagationOutcome.Unverifiable, true)]
+    public async Task ThePropagationCheckReplacesTheFixedDelayUnlessItCannotBeMade(DnsPropagationOutcome outcome, bool fixedDelay)
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var check = new FakePropagationCheck(outcome);
+        h.Propagation = check;
+        h.Options = h.Options with { DnsPropagationDelay = TimeSpan.FromSeconds(37) };
+        var issuance = h.NewIssuance();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+
+        var result = await issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com", "*.example.com"), Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Issued, result.Outcome);
+        var asked = Assert.Single(check.Asked);
+        Assert.Equal(2, asked.Count);
+        Assert.All(asked, r => Assert.Equal("_acme-challenge.example.com", r.Name));
+        Assert.Equal(fixedDelay, h.Time.Delays.Contains(h.Options.DnsPropagationDelay));
+    }
+
+    [Fact]
+    public async Task ATimeoutWithNoServerHoldingTheRecordFailsTransientAndCleansUpInsteadOfAskingTheCa()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        h.Propagation = new FakePropagationCheck(DnsPropagationOutcome.TimedOut) { AnyServerHadRecords = false };
+        var issuance = h.NewIssuance();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+        var requests = h.Server.Requests.Count;
+
+        var result = await issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com"), Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Failed, result.Outcome);
+        Assert.Contains("did not appear", result.Message, StringComparison.Ordinal);
+        Assert.Empty(h.Dns.Provider.Records);
+        Assert.DoesNotContain(h.Server.Requests.Skip(requests), r => r.Path.StartsWith("chall/", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ThrottledDnsCleanupIsRetriedWaitingAsTheProviderAsked()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+        h.Dns.Provider.DeleteFailure = new DnsProviderException("throttled", isTransient: true) { RetryAfter = TimeSpan.FromSeconds(40), IsRateLimited = true };
+        h.Dns.Provider.DeleteFailureTimes = 2;
+
+        var result = await h.Issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com"), Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Issued, result.Outcome);
+        Assert.Empty(h.Dns.Provider.Records);
+        Assert.Equal(2, h.Time.Delays.Count(d => d == TimeSpan.FromSeconds(40)));
+    }
+
+    [Fact]
+    public async Task AProviderThrottleIsARateLimitForTheRetrySchedule()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+        h.Dns.Provider.CreateFailure = new DnsProviderException("throttled", isTransient: true) { RetryAfter = TimeSpan.FromHours(3), IsRateLimited = true };
+
+        var result = await h.Issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com"), Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Failed, result.Outcome);
+        var order = await h.OrderAsync(result.CertificateId!.Value);
+        // Rate limited: the base is an hour (a transient failure would retry in minutes), and never less than what the provider asked.
+        Assert.True(order.RetryAt >= h.Time.GetUtcNow() + TimeSpan.FromHours(3) - TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task ABrokenPropagationCheckFallsBackToTheFixedDelay()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        h.Propagation = new FakePropagationCheck { Failure = new InvalidOperationException("boom") };
+        h.Options = h.Options with { DnsPropagationDelay = TimeSpan.FromSeconds(37) };
+        var issuance = h.NewIssuance();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+
+        var result = await issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com"), Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Issued, result.Outcome);
+        Assert.Contains(h.Options.DnsPropagationDelay, h.Time.Delays);
+    }
+
+    [Fact]
+    public async Task ADnsProviderRateLimitHintReachesTheRetrySchedule()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var account = await h.CreateAccountAsync();
+        var provider = await h.CreateDnsProviderAsync();
+        h.Dns.Provider.CreateFailure = new Paduraksa.Acme.Dns.DnsProviderException("rate limited", isTransient: true) { RetryAfter = TimeSpan.FromHours(2) };
+
+        var result = await h.Issuance.RequestCertificateAsync(Dns01(account.Id, provider.Id, "example.com"), Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Failed, result.Outcome);
+        var order = await h.OrderAsync(result.CertificateId!.Value);
+        Assert.True(order.RetryAt >= h.Time.GetUtcNow() + TimeSpan.FromHours(2) - TimeSpan.FromMinutes(1));
     }
 
     [Fact]

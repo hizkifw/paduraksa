@@ -194,15 +194,19 @@ public sealed partial class AcmeIssuanceService
                 }
                 else
                 {
-                    (string name, string value) = (AcmeChallenges.Dns01RecordName(authorization.Identifier), AcmeChallenges.Dns01TxtValue(keyAuthorization));
-                    records.Add((name, value));
-                    await dns.CreateTxtAsync(name, value, cancellationToken).ConfigureAwait(false);
+                    records.Add((AcmeChallenges.Dns01RecordName(authorization.Identifier), AcmeChallenges.Dns01TxtValue(keyAuthorization)));
                 }
             }
 
-            if (records.Count > 0 && _options.DnsPropagationDelay > TimeSpan.Zero)
+            if (dns is not null && records.Count > 0)
             {
-                await Task.Delay(_options.DnsPropagationDelay, _time, cancellationToken).ConfigureAwait(false);
+                // One call for the order's records: a provider that limits writes (deSEC) can send them together.
+                await dns.CreateTxtBatchAsync([.. records.Select(r => new DnsChallengeRecord(r.Name, r.Value))], cancellationToken).ConfigureAwait(false);
+            }
+
+            if (records.Count > 0)
+            {
+                await WaitForDnsAsync(row.CertificateId, records, cancellationToken).ConfigureAwait(false);
             }
 
             foreach ((AcmeAuthorization _, AcmeChallenge challenge, string _) in pending)
@@ -231,6 +235,48 @@ public sealed partial class AcmeIssuanceService
         AcmeOrder ready = await attempt.Client.WaitForOrderReadyAsync(attempt.Ref, order.Url, cancellationToken).ConfigureAwait(false);
         return ready;
     }
+
+    /// <summary>
+    /// Waits until the CA can be expected to see the published TXT records: with a propagation check, until every authoritative name
+    /// server returns them. A check that times out lets the CA try anyway (it may see them, and the CA's own verdict is the
+    /// real answer); one that cannot be made (no name servers found, nobody answering, or a failure of its own) falls back to
+    /// the fixed <see cref="AcmeIssuanceOptions.DnsPropagationDelay"/>, as does having no check at all.
+    /// </summary>
+    private async Task WaitForDnsAsync(CertificateId certificate, List<(string Name, string Value)> records, CancellationToken cancellationToken)
+    {
+        if (_propagation is not null)
+        {
+            try
+            {
+                DnsPropagationResult result = await _propagation.WaitAsync([.. records.Select(r => new DnsChallengeRecord(r.Name, r.Value))], cancellationToken).ConfigureAwait(false);
+                if (result.Outcome == DnsPropagationOutcome.TimedOut && !result.AnyServerHadRecords)
+                {
+                    // Not one authoritative server returns the record, so the CA will not see it either, and a failed validation counts against its limits.
+                    throw new IssuanceFailureException($"The DNS challenge records did not appear on the authoritative name servers in time. {IssuanceMapping.Sanitize(result.Detail)}", AcmeFailureKind.Transient);
+                }
+
+                if (result.Outcome != DnsPropagationOutcome.Unverifiable)
+                {
+                    return;
+                }
+            }
+#pragma warning disable CA1031 // A broken check must not stop an issuance that a fixed delay can still serve.
+            catch (Exception ex) when (ex is not OperationCanceledException and not IssuanceFailureException)
+#pragma warning restore CA1031
+            {
+                LogPropagationCheckFailed(certificate, ex.GetType().Name);
+            }
+        }
+
+        if (_options.DnsPropagationDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(_options.DnsPropagationDelay, _time, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static readonly TimeSpan DnsCleanupTimeout = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan DnsCleanupMaxWait = TimeSpan.FromSeconds(65);
+    private const int DnsCleanupAttempts = 3;
 
     private async Task<IDnsProvider> OpenDnsProviderAsync(AcmeOrderRow row, CancellationToken cancellationToken)
     {
@@ -261,8 +307,10 @@ public sealed partial class AcmeIssuanceService
 
     /// <summary>
     /// Removes the published challenge answers. Runs on failure and on cancellation too, and does not stop at one failing delete: a
-    /// stale TXT record is only clutter, but a stale token would keep being answered. The DNS deletes get their own 30 seconds,
-    /// independent of the caller's token (which may be the very cancellation that brought us here); a hung provider cannot hold a shutdown longer.
+    /// stale TXT record is only clutter, but a stale token would keep being answered. The DNS deletes are one batch with their own
+    /// three minutes, independent of the caller's token (which may be the very cancellation that brought us here); a hung provider
+    /// cannot hold a shutdown longer. A transient failure (a throttle, say) is tried again up to three times, waiting as long as the
+    /// provider asked, up to a minute.
     /// </summary>
     private async Task CleanUpAsync(CertificateId certificate, IDnsProvider? dns, List<string> tokens, List<(string Name, string Value)> records)
     {
@@ -276,18 +324,36 @@ public sealed partial class AcmeIssuanceService
             return;
         }
 
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30), _time);
-        foreach ((string name, string value) in records)
+        // The system clock, so that a hung provider is cut off in real time whatever the test or host clock does.
+        using CancellationTokenSource timeout = new(DnsCleanupTimeout);
+        DnsChallengeRecord[] batch = [.. records.Select(r => new DnsChallengeRecord(r.Name, r.Value))];
+        for (int attempt = 1; ; attempt++)
         {
             try
             {
-                await dns.DeleteTxtAsync(name, value, timeout.Token).ConfigureAwait(false);
+                await dns.DeleteTxtBatchAsync(batch, timeout.Token).ConfigureAwait(false);
+                return;
             }
-#pragma warning disable CA1031 // A failed cleanup must not hide the result of the issuance, nor stop the other deletes.
+            catch (DnsProviderException ex) when (ex.IsTransient && attempt < DnsCleanupAttempts && !timeout.IsCancellationRequested)
+            {
+                // Throttled or briefly unreachable: wait as asked (bounded) and delete again, which is idempotent.
+                TimeSpan wait = ex.RetryAfter is { } asked && asked > TimeSpan.Zero ? TimeSpan.FromTicks(Math.Min(asked.Ticks, DnsCleanupMaxWait.Ticks)) : TimeSpan.FromSeconds(5);
+                try
+                {
+                    await Task.Delay(wait, _time, timeout.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    LogDnsCleanupFailed(certificate, ex.GetType().Name);
+                    return;
+                }
+            }
+#pragma warning disable CA1031 // A failed cleanup must not hide the result of the issuance.
             catch (Exception ex)
 #pragma warning restore CA1031
             {
                 LogDnsCleanupFailed(certificate, ex.GetType().Name);
+                return;
             }
         }
     }

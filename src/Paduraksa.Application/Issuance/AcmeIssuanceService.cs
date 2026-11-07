@@ -71,6 +71,7 @@ public sealed partial class AcmeIssuanceService
     private readonly ICertificateCatalog? _catalog;
     private readonly IAcmeChallengeStore _challenges;
     private readonly IDnsProviderFactory? _dns;
+    private readonly IDnsPropagationCheck? _propagation;
     private readonly AcmeIssuanceOptions _options;
     private readonly TimeProvider _time;
     private readonly Func<double> _random;
@@ -87,8 +88,9 @@ public sealed partial class AcmeIssuanceService
         AcmeIssuanceOptions options,
         TimeProvider time,
         ILogger<AcmeIssuanceService> logger,
-        Func<double>? random = null,
-        ICertificateCatalog? catalog = null)
+        ICertificateCatalog? catalog = null,
+        IDnsPropagationCheck? propagation = null,
+        Func<double>? random = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -107,6 +109,7 @@ public sealed partial class AcmeIssuanceService
         _catalog = catalog;
         _challenges = challenges;
         _dns = dns;
+        _propagation = propagation;
         _options = options;
         _time = time;
         _random = random ?? Random.Shared.NextDouble;
@@ -611,7 +614,7 @@ public sealed partial class AcmeIssuanceService
     {
         AcmeException acme => (acme.Kind, acme.RetryAfter, IssuanceMapping.Sanitize(acme.Message)),
         IssuanceFailureException failure => (failure.Kind, null, failure.Message),
-        DnsProviderException dns => (dns.IsTransient ? AcmeFailureKind.Transient : AcmeFailureKind.Permanent, null, $"DNS provider: {IssuanceMapping.Sanitize(dns.Message)}"),
+        DnsProviderException dns => (dns.IsRateLimited ? AcmeFailureKind.RateLimited : dns.IsTransient ? AcmeFailureKind.Transient : AcmeFailureKind.Permanent, dns.RetryAfter, $"DNS provider: {IssuanceMapping.Sanitize(dns.Message)}"),
         StagedKeyMismatchException => (AcmeFailureKind.Transient, null, "The vault no longer holds the key staged for this order; the next attempt starts a new order."),
         HttpRequestException or TimeoutException or IOException => (AcmeFailureKind.Transient, null, $"{ex.GetType().Name}: {IssuanceMapping.Sanitize(ex.Message)}"),
         _ => (AcmeFailureKind.Permanent, null, $"{ex.GetType().Name}: {IssuanceMapping.Sanitize(ex.Message)}"),
@@ -643,6 +646,9 @@ public sealed partial class AcmeIssuanceService
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Certificate {Certificate}: {Step}.")]
     private partial void LogStep(CertificateId certificate, string step);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Certificate {Certificate}: the DNS propagation check failed ({ErrorType}); waiting the fixed delay instead.")]
+    private partial void LogPropagationCheckFailed(CertificateId certificate, string errorType);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Certificate {Certificate}: removing the DNS challenge record failed ({ErrorType}); it may stay in the zone.")]
     private partial void LogDnsCleanupFailed(CertificateId certificate, string errorType);
