@@ -563,9 +563,14 @@ public static class SnapshotCompiler
             errors.Add(new(where, "a header is only configurable in Generic mode (Cloudflare modes read CF-Connecting-IP)"));
         }
 
-        if (!cloudflare && (spec.UseTrueClientIp || spec.ForwardedForFallback))
+        if (!cloudflare && spec.UseTrueClientIp)
         {
-            errors.Add(new(where, "True-Client-IP and the X-Forwarded-For fallback only apply to the Cloudflare modes"));
+            errors.Add(new(where, "True-Client-IP only applies to the Cloudflare modes"));
+        }
+
+        if (!cloudflare && spec.ForwardedForFallback)
+        {
+            errors.Add(new(where, "the X-Forwarded-For fallback only applies to the Cloudflare modes"));
         }
 
         if (spec.TrustForwardedProto && spec.Mode != TrustedProxyMode.Generic)
