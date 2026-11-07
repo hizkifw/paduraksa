@@ -2,4 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
 </Project>
