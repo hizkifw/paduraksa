@@ -47,6 +47,8 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<IVaultLifecycle>(p => p.GetRequiredService<VaultRuntime>());
         services.AddSingleton<SecretReader>();
         services.AddSingleton<MacKeyCache>();
+        services.AddSingleton<KekRotation>();
+        services.AddSingleton<IVaultKekRotation>(p => p.GetRequiredService<KekRotation>());
 
         services.AddSingleton<ISecretStore, SecretStore>();
         services.AddSingleton<IMacKeySource, MacKeySource>();
