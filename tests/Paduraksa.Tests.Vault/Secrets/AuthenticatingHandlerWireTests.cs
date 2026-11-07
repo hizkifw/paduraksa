@@ -28,9 +28,12 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
 
     private readonly VaultHarness _vault = new();
 
-    private readonly ConcurrentQueue<(string Path, string? Authorization, string Host)> _received = new();
+    // Other things on the machine (a dev tool probing new loopback ports over HTTPS, say) can connect to this server too, so nothing
+    // is asserted about "all connections": requests carry the ID of their connection, the SNI is recorded per connection, and the
+    // assertions look only at the connections that carried a request meant for this test (Host: localhost...).
+    private readonly ConcurrentQueue<(string Path, string? Authorization, string Host, string Connection)> _received = new();
 
-    private readonly ConcurrentQueue<string?> _serverNames = new();
+    private readonly ConcurrentDictionary<string, string?> _serverNames = new();
 
     private WebApplication? _server;
 
@@ -56,16 +59,16 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
             l => l.UseHttps(new HttpsConnectionAdapterOptions
             {
                 // What the client puts in the TLS handshake (SNI) is recorded: it is the other half of "where did it go".
-                ServerCertificateSelector = (_, name) =>
+                ServerCertificateSelector = (connection, name) =>
                 {
-                    _serverNames.Enqueue(name);
+                    _serverNames[connection?.ConnectionId ?? string.Empty] = name;
                     return certificate;
                 },
             })));
         _server = builder.Build();
         _server.Run(async context =>
         {
-            _received.Enqueue((context.Request.Path.Value!, context.Request.Headers.Authorization.ToString(), context.Request.Host.Value ?? ""));
+            _received.Enqueue((context.Request.Path.Value!, context.Request.Headers.Authorization.ToString(), context.Request.Host.Value ?? "", context.Connection.Id));
             if (context.Request.Path == "/redirect")
             {
                 context.Response.StatusCode = StatusCodes.Status302Found;
@@ -97,6 +100,13 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
         _vault.Dispose();
     }
 
+    /// <summary>The requests this test sent (to <c>localhost</c>, or to the fronting name), as opposed to anything else that reached the server.</summary>
+    private List<(string Path, string? Authorization, string Host, string Connection)> Mine() =>
+        [.. _received.Where(r => r.Host.StartsWith("localhost", StringComparison.OrdinalIgnoreCase) || r.Host.StartsWith("attacker.example", StringComparison.OrdinalIgnoreCase))];
+
+    /// <summary>The SNI of the connection that carried <paramref name="request"/>.</summary>
+    private string? ServerNameOf((string Path, string? Authorization, string Host, string Connection) request) => _serverNames[request.Connection];
+
     private async Task<HttpClient> Client(params string[] hosts)
     {
         var id = await _vault.Get<ISecretStore>().PutAsync(SecretKind.DnsApiToken, Encoding.UTF8.GetBytes(Token), SecretStoreTests.Dns(hosts), Ct);
@@ -113,8 +123,9 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
         using var response = await client.SendAsync(request, Ct);
 
         Assert.Equal("ok", await response.Content.ReadAsStringAsync(Ct));
-        Assert.Equal(("/zones", $"Bearer {Token}", $"localhost:{_port}"), Assert.Single(_received));
-        Assert.Equal("localhost", Assert.Single(_serverNames));
+        var only = Assert.Single(Mine());
+        Assert.Equal(("/zones", $"Bearer {Token}", $"localhost:{_port}"), (only.Path, only.Authorization, only.Host));
+        Assert.Equal("localhost", ServerNameOf(only));
         Assert.Same(request, response.RequestMessage);
         Assert.False(request.Headers.Contains("Authorization"));
         Assert.False(response.RequestMessage!.Headers.Contains("Authorization"));
@@ -130,11 +141,11 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);
         Assert.Equal("https://evil.example/stolen", response.Headers.Location?.ToString());
-        Assert.Single(_received);
+        Assert.Single(Mine());
 
         // A provider that follows it by hand goes through the same check, which refuses the other host.
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync(response.Headers.Location, Ct));
-        Assert.Single(_received);
+        Assert.Single(Mine());
     }
 
     [Fact]
@@ -146,9 +157,9 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.SendAsync(fronted, Ct));
 
-        // Nothing was sent: no TLS handshake for any name, no request.
-        Assert.Empty(_serverNames);
-        Assert.Empty(_received);
+        // Nothing was sent: no TLS handshake for the fronting name, no request for it.
+        Assert.DoesNotContain(_serverNames.Values, name => name == "attacker.example");
+        Assert.Empty(Mine());
 
         // The honest spelling of the same destination goes out with the URL's own SNI and Host.
         using var honest = new HttpRequestMessage(HttpMethod.Get, $"https://localhost:{_port}/zones");
@@ -156,8 +167,9 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
         using var response = await client.SendAsync(honest, Ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("localhost", Assert.Single(_serverNames));
-        Assert.Equal(($"/zones", $"Bearer {Token}", $"localhost:{_port}"), Assert.Single(_received));
+        var sent = Assert.Single(Mine());
+        Assert.Equal("localhost", ServerNameOf(sent));
+        Assert.Equal(($"/zones", $"Bearer {Token}", $"localhost:{_port}"), (sent.Path, sent.Authorization, sent.Host));
     }
 
     [Fact]
@@ -167,6 +179,6 @@ public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<InvalidOperationException>(async () => await client.GetAsync($"http://localhost:{_port}/x", Ct));
 
-        Assert.Empty(_received);
+        Assert.Empty(Mine());
     }
 }
