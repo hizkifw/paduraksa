@@ -1,4 +1,5 @@
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Tests.Proxy.Snapshot;
 
@@ -12,6 +13,8 @@ public sealed class HostNamesTests
     [InlineData("*.bücher.test", "*.xn--bcher-kva.test", "Wildcard")]
     [InlineData("localhost", "localhost", "Exact")]
     [InlineData("_acme.internal", "_acme.internal", "Exact")]
+    [InlineData("123.example.com", "123.example.com", "Exact")] // numeric labels are fine, just not the last one
+    [InlineData("*.home.arpa", "*.home.arpa", "Wildcard")]
     [InlineData("192.0.2.1", "192.0.2.1", "Exact")]
     [InlineData("[2001:DB8:0:0::1]", "[2001:db8::1]", "IPv6Literal")]
     [InlineData("[::ffff:192.0.2.1]", "[::ffff:192.0.2.1]", "IPv6Literal")]
@@ -38,6 +41,13 @@ public sealed class HostNamesTests
     [InlineData("192.0.2.01")]
     [InlineData("1.2.3")]
     [InlineData("*.192.0.2.1")]
+    [InlineData("host.123")] // numeric last label, but not an IPv4 literal
+    [InlineData("a.b.c.d.0")]
+    [InlineData("*.1.2")]
+    [InlineData("*.localhost")] // a wildcard parent needs two labels, as for server names
+    [InlineData("*.com")]
+    [InlineData("*.lan.")]
+    [InlineData("*.bücher")]
     [InlineData("[2001:db8::1")]
     [InlineData("[fe80::1%eth0]")]
     [InlineData("[192.0.2.1]")]
@@ -46,6 +56,20 @@ public sealed class HostNamesTests
     {
         Assert.False(HostNames.TryNormalize(input, out _, out _, out string? error));
         Assert.False(string.IsNullOrEmpty(error));
+    }
+
+    // The certificate table gets every DNS name the host table accepts, so the two must agree (IP literals aside).
+    [Theory]
+    [InlineData("App.Example.COM.")]
+    [InlineData("*.bücher.test")]
+    [InlineData("localhost")]
+    [InlineData("_acme.internal")]
+    [InlineData("xn--zzzzzzzzzzzzzzzzzzzzzz.test")]
+    public void AcceptedDnsNamesAreValidServerNames(string input)
+    {
+        Assert.True(HostNames.TryNormalize(input, out string normalized, out _, out string? error), error);
+        string canonical = ServerNames.Normalize(normalized, out bool wildcard, out _);
+        Assert.Equal(normalized, wildcard ? "*." + canonical : canonical);
     }
 
     [Fact]

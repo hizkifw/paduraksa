@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
@@ -23,16 +22,19 @@ internal enum HostNameKind
 
 /// <summary>
 /// Compile-time host-name normalisation (PLAN §5.1 <c>HostName</c>): trimmed, lowercased, IDN → punycode, no trailing
-/// dot, ≤ 253 chars, labels 1–63 chars, wildcard only as the leftmost <c>*.</c> label. IP literals are canonicalised.
+/// dot, then the DNS rules shared with the certificate table (<see cref="DnsNames"/>: lengths, label characters,
+/// wildcard shape, punycode that decodes). IP literals are canonicalised.
 /// The runtime never converts anything: browsers send punycode, and a raw Unicode <c>Host</c> header is a miss.
 /// </summary>
+/// <remarks>
+/// What this adds to <see cref="DnsNames"/>, and the certificate table's <c>ServerNames</c> doesn't: surrounding
+/// whitespace is trimmed, Unicode names are converted to punycode, and IP literals are hosts too (a canonical dotted
+/// quad, or a bracketed IPv6 literal). The compiler leaves IP literals out of the certificate table, so every other
+/// name accepted here is also a valid server name.
+/// </remarks>
 internal static class HostNames
 {
     private static readonly IdnMapping Idn = new();
-
-    /// <summary>Characters allowed in a label (after lowercasing). <c>_</c> is accepted for internal names.</summary>
-    internal static readonly SearchValues<char> LabelChars =
-        SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_");
 
     /// <summary>Normalises <paramref name="name"/>; on failure <paramref name="error"/> says why.</summary>
     public static bool TryNormalize(string? name, out string normalized, out HostNameKind kind, out string? error)
@@ -53,56 +55,25 @@ internal static class HostNames
             return TryNormalizeIPv6Literal(value, out normalized, out kind, out error);
         }
 
-        if (value.EndsWith('.'))
+        if (!Ascii.IsValid(value) && !TryConvertToPunycode(name, ref value, out error))
         {
-            value = value[..^1];
-        }
-
-        bool wildcard = value.StartsWith("*.", StringComparison.Ordinal);
-        string dnsPart = wildcard ? value[2..] : value;
-        if (dnsPart.Contains('*', StringComparison.Ordinal))
-        {
-            error = $"'{name}': a wildcard is only allowed as the whole leftmost label ('*.example.com')";
             return false;
         }
 
-        if (!Ascii.IsValid(dnsPart))
+        if (!DnsNames.TryParse(value, out DnsName parsed, out string? problem))
         {
-            try
-            {
-                dnsPart = Idn.GetAscii(dnsPart);
-            }
-            catch (ArgumentException ex)
-            {
-                error = $"'{name}' isn't a valid internationalised domain name: {ex.Message}";
-                return false;
-            }
-        }
-
-        dnsPart = dnsPart.ToLowerInvariant();
-        if (!IsValidDnsName(dnsPart, out string? reason))
-        {
-            error = $"'{name}': {reason}";
+            error = $"'{name}': {problem}";
             return false;
         }
 
-        if (LooksNumeric(dnsPart))
+        if (parsed.IsNumeric && !IsCanonicalIPv4(parsed.Canonical))
         {
-            if (wildcard)
-            {
-                error = $"'{name}': a wildcard can't cover an IP address";
-                return false;
-            }
-
-            if (!IsCanonicalIPv4(dnsPart))
-            {
-                error = $"'{name}': an IPv4 literal must be a canonical dotted quad (e.g. 192.0.2.1)";
-                return false;
-            }
+            error = $"'{name}': an IPv4 literal must be a canonical dotted quad (e.g. 192.0.2.1)";
+            return false;
         }
 
-        kind = wildcard ? HostNameKind.Wildcard : HostNameKind.Exact;
-        normalized = wildcard ? "*." + dnsPart : dnsPart;
+        kind = parsed.IsWildcard ? HostNameKind.Wildcard : HostNameKind.Exact;
+        normalized = parsed.IsWildcard ? "*." + parsed.Canonical : parsed.Canonical;
         return true;
     }
 
@@ -113,6 +84,37 @@ internal static class HostNames
         bool parsed = IpParser.TryParseIPv6(inner, out IpKey address);
         key = parsed ? address.Value : UInt128.Zero;
         return parsed;
+    }
+
+    // Unicode → punycode, keeping a leading "*." label and dropping a trailing dot (IdnMapping rejects both).
+    private static bool TryConvertToPunycode(string? name, ref string value, out string? error)
+    {
+        error = null;
+        string dnsPart = value.EndsWith('.') ? value[..^1] : value;
+        bool wildcard = dnsPart.StartsWith("*.", StringComparison.Ordinal);
+        if (wildcard)
+        {
+            dnsPart = dnsPart[2..];
+        }
+
+        if (dnsPart.Contains('*', StringComparison.Ordinal))
+        {
+            error = $"'{name}': a wildcard ('*') is only allowed as the whole leftmost label ('*.example.com')";
+            return false;
+        }
+
+        try
+        {
+            dnsPart = Idn.GetAscii(dnsPart);
+        }
+        catch (ArgumentException ex)
+        {
+            error = $"'{name}' isn't a valid internationalised domain name: {ex.Message}";
+            return false;
+        }
+
+        value = wildcard ? "*." + dnsPart : dnsPart;
+        return true;
     }
 
     private static bool TryNormalizeIPv6Literal(string value, out string normalized, out HostNameKind kind, out string? error)
@@ -131,48 +133,6 @@ internal static class HostNames
 
         normalized = "[" + address.ToString() + "]";
         return true;
-    }
-
-    private static bool IsValidDnsName(string name, out string? reason)
-    {
-        reason = null;
-        if (name.Length is 0 or > 253)
-        {
-            reason = "a host name must be 1 to 253 characters long";
-            return false;
-        }
-
-        foreach (Range range in name.AsSpan().Split('.'))
-        {
-            ReadOnlySpan<char> label = name.AsSpan()[range];
-            if (label.Length is 0 or > 63)
-            {
-                reason = "every label must be 1 to 63 characters long";
-                return false;
-            }
-
-            if (label.ContainsAnyExcept(LabelChars))
-            {
-                reason = "only letters, digits, '-' and '_' are allowed in a label";
-                return false;
-            }
-
-            if (label[0] == '-' || label[^1] == '-')
-            {
-                reason = "a label can't start or end with '-'";
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static bool LooksNumeric(string name)
-    {
-        // The last label decides: a DNS top-level label is never all digits.
-        int dot = name.LastIndexOf('.');
-        ReadOnlySpan<char> last = dot < 0 ? name : name.AsSpan(dot + 1);
-        return !last.ContainsAnyExceptInRange('0', '9');
     }
 
     private static bool IsCanonicalIPv4(string name)

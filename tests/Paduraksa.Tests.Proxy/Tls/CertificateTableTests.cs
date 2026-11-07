@@ -80,6 +80,7 @@ public sealed class CertificateTableTests : IClassFixture<CertificateTableTests.
     [InlineData("BÜCHER.TEST.", "a")]
     [InlineData("x.xn--caf-dma.test", "wild")]
     [InlineData("x.café.test", "wild")]
+    [InlineData("bücher.café.test", "wild")] // a Unicode covered label still matches (no ASCII-label check here)
     [InlineData("xn--caf-dma.test", "default")] // the wildcard doesn't cover its parent, in either form
     [InlineData("café.test", "default")]
     [InlineData("a.b.café.test", "default")]

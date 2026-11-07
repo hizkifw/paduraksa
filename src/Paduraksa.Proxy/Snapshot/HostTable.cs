@@ -1,5 +1,7 @@
 using System.Collections.Frozen;
 
+using Paduraksa.Proxy.Net;
+
 namespace Paduraksa.Proxy.Snapshot;
 
 /// <summary>
@@ -59,9 +61,11 @@ public sealed class HostTable
 
         if (_wildcard.Count > 0)
         {
+            // Wildcard parent: everything after the first dot, so exactly one label is covered. The covered label must
+            // be a plain ASCII label too, which keeps odd Host values out of redirect Locations. (CertificateTable.Find
+            // can't check that: SslStream hands the TCP callback IDN labels decoded to Unicode.)
             int dot = host.IndexOf('.');
-            // The covered label must look like a label; this keeps odd Host values out of redirect Locations.
-            if (dot > 0 && !host[..dot].ContainsAnyExcept(HostNames.LabelChars)
+            if (dot > 0 && !host[..dot].ContainsAnyExcept(DnsNames.LabelChars)
                 && _wildcardBySpan.TryGetValue(host[(dot + 1)..], out CompiledHost? wildcard))
             {
                 return wildcard;

@@ -70,6 +70,9 @@ public sealed class CertificateTable
 
         if (_hasWildcards)
         {
+            // Wildcard parent: everything after the first dot, so exactly one label is covered. Unlike HostTable.Find,
+            // the covered label isn't checked against DnsNames.LabelChars: SslStream hands the TCP callback IDN labels
+            // decoded to Unicode (x.bücher.example), and nothing here ends up in a response.
             var dot = name.IndexOf('.');
             if (dot > 0 && _wildcard.TryGetValue(name[(dot + 1)..], out entry))
             {
