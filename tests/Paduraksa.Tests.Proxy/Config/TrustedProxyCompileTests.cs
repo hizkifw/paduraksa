@@ -74,6 +74,6 @@ public sealed class TrustedProxyCompileTests
         CompileResult result = SnapshotCompiler.Compile(With(spec));
 
         Assert.False(result.Succeeded);
-        Assert.Contains(result.Errors, e => e.StartsWith("defaults: trusted proxies", StringComparison.Ordinal) && e.Contains(expected, StringComparison.Ordinal));
+        Assert.Contains(result.Errors, e => e.Source is TrustedProxiesErrorSource && e.Message.Contains(expected, StringComparison.Ordinal));
     }
 }

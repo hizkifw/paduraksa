@@ -220,7 +220,7 @@ public sealed class SnapshotCompilerTests
             new ProxyConfigModel { Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("u"), Destinations = [new(TestIds.Destination("d"), "http://a/"), new(TestIds.CaseTwin(TestIds.Destination("d")), "http://b/")] }] },
             $"destination ID '{TestIds.CaseTwin(TestIds.Destination("d"))}' differs from '{TestIds.Destination("d")}' only in case (YARP ignores case)"
         },
-        { "empty destination ID", new ProxyConfigModel { Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("u"), Destinations = [new(DestinationId.Empty, "http://a/")] }] }, "a destination ID is empty" },
+        { "empty destination ID", new ProxyConfigModel { Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("u"), Destinations = [new(DestinationId.Empty, "http://a/")] }] }, "the destination ID is empty" },
         { "bad allow-list address", Hosts(Respond("a", "a.test") with { Policies = [new IpAllowListPolicySpec(["10.0.0.0/8", "10.0.0.1/8"])] }), "'10.0.0.1/8' isn't an IP address or CIDR (host bits" },
         { "bad deny status", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(42)] }), "deny status 42" },
         { "respond 204 with body", Hosts(new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204, Body = "x" } }), "a 204 response can't have a body" },
@@ -238,7 +238,42 @@ public sealed class SnapshotCompilerTests
 
         Assert.False(result.Succeeded, because);
         Assert.Null(result.Snapshot);
-        Assert.Contains(result.Errors, e => e.Contains(expected, StringComparison.Ordinal));
+        Assert.Contains(result.Errors, e => e.Message.Contains(expected, StringComparison.Ordinal));
+    }
+
+    public static TheoryData<string, ProxyConfigModel, CompileErrorSource> AttributedErrors => new()
+    {
+        { "host name", Hosts(Respond("a", "a.*.test")), CompileErrorSource.Host(TestIds.Host("a")) },
+        { "host policy", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(42)] }), CompileErrorSource.Host(TestIds.Host("a")) },
+        { "route path", WithWeb(ProxyHost("a", "a.test", Route("r", "web", "api"))), CompileErrorSource.Route(TestIds.Host("a"), TestIds.Route("r")) },
+        {
+            "route policy",
+            WithWeb(ProxyHost("a", "a.test", Route("r", "web") with { Policies = [new DenyPolicySpec(42)] })),
+            CompileErrorSource.Route(TestIds.Host("a"), TestIds.Route("r"))
+        },
+        { "upstream", new ProxyConfigModel { Upstreams = [Upstream("u", "http://a/") with { MaxConnectionsPerServer = 0 }] }, CompileErrorSource.Upstream(TestIds.Upstream("u")) },
+        {
+            "destination",
+            new ProxyConfigModel { Upstreams = [Upstream("u", "ftp://a/")] },
+            CompileErrorSource.Destination(TestIds.Upstream("u"), TestIds.Destination("u-d0"))
+        },
+        { "default certificate", new ProxyConfigModel { Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("c") } }, CompileErrorSource.Defaults },
+        {
+            "trusted proxies",
+            new ProxyConfigModel { Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = Paduraksa.Proxy.Net.TrustedProxyMode.Generic } } },
+            CompileErrorSource.TrustedProxies
+        },
+    };
+
+    [Theory]
+    [MemberData(nameof(AttributedErrors))]
+    public void ErrorsNameTheObjectTheyAreAbout(string because, ProxyConfigModel model, CompileErrorSource expected)
+    {
+        CompileResult result = SnapshotCompiler.Compile(model);
+
+        CompileError error = Assert.Single(result.Errors);
+        Assert.True(expected == error.Source, $"{because}: {error}");
+        Assert.StartsWith($"{expected}: ", error.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

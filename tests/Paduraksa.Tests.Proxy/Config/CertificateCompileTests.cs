@@ -100,7 +100,7 @@ public sealed class CertificateCompileTests : IDisposable
         CompileResult result = SnapshotCompiler.Compile(model, withResolver ? _options : null);
 
         Assert.False(result.Succeeded, because);
-        Assert.Contains(result.Errors, e => e.Contains(expected, StringComparison.Ordinal));
+        Assert.Contains(result.Errors, e => e.ToString().Contains(expected, StringComparison.Ordinal));
     }
 
     [Fact]

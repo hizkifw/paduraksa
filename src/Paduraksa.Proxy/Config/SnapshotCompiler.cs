@@ -15,8 +15,9 @@ using Yarp.ReverseProxy.Health;
 
 namespace Paduraksa.Proxy.Config;
 
-/// <summary>Outcome of <see cref="SnapshotCompiler.Compile"/>: an unbound candidate, or every error found.</summary>
-public sealed record CompileResult(RuntimeSnapshot? Snapshot, IReadOnlyList<string> Errors)
+/// <summary>Outcome of <see cref="SnapshotCompiler.Compile"/>: an unbound candidate, or every error found, each with the
+/// object it is about.</summary>
+public sealed record CompileResult(RuntimeSnapshot? Snapshot, IReadOnlyList<CompileError> Errors)
 {
     public bool Succeeded => Snapshot is not null;
 }
@@ -24,7 +25,9 @@ public sealed record CompileResult(RuntimeSnapshot? Snapshot, IReadOnlyList<stri
 /// <summary>
 /// Validates a <see cref="ProxyConfigModel"/> and compiles it into an unbound <see cref="RuntimeSnapshot"/> candidate
 /// plus its YARP config (PLAN §6.1 step 3–4). Cold path: it may allocate freely. It reports every error it finds
-/// rather than stopping at the first. YARP's own validator runs later, in <c>SnapshotPublisher</c>.
+/// rather than stopping at the first, each attributed to the object it is about (<see cref="CompileErrorSource"/>:
+/// a host, route, upstream, destination or the defaults, by typed ID). YARP's own validator runs later, in
+/// <c>SnapshotPublisher</c>.
 /// <para>YARP config is a pure function of content: its route, cluster and destination IDs are the canonical strings
 /// of the <see cref="RouteId"/>, <see cref="UpstreamId"/> and <see cref="DestinationId"/> (formatted here, never on the
 /// request path), each route path-only (<c>/.paduraksa/r/{routeId}/{**rest}</c>), never requested because the gate
@@ -47,14 +50,14 @@ public static class SnapshotCompiler
     {
         ArgumentNullException.ThrowIfNull(model);
         options ??= SnapshotCompilerOptions.Default;
-        List<string> errors = [];
+        List<CompileError> errors = [];
 
         DefaultsSpec defaults = model.Defaults ?? new DefaultsSpec();
         CertificateTableBuilder certificates = new();
-        ServerCertificate? defaultCertificate = ResolveCertificate(defaults.Certificate, "defaults", options.Certificates, errors);
+        ServerCertificate? defaultCertificate = ResolveCertificate(defaults.Certificate, CompileErrorSource.Defaults, options.Certificates, errors);
         if (defaultCertificate is not null)
         {
-            certificates.SetDefault(defaultCertificate, CompileTlsPolicy(defaults.Tls, "defaults", errors));
+            certificates.SetDefault(defaultCertificate, CompileTlsPolicy(defaults.Tls, CompileErrorSource.Defaults, errors));
         }
 
         TrustedProxyPolicy trustedProxies = CompileTrustedProxies(defaults.TrustedProxies, options, errors);
@@ -72,14 +75,14 @@ public static class SnapshotCompiler
 
         foreach (HostSpec spec in model.Hosts ?? [])
         {
-            string where = $"host '{spec.Id}'";
+            CompileErrorSource where = CompileErrorSource.Host(spec.Id);
             if (spec.Id.IsEmpty)
             {
-                errors.Add($"{where}: the host ID is empty");
+                errors.Add(new(where, "the host ID is empty"));
             }
             else if (!hostIds.Add(spec.Id))
             {
-                errors.Add($"{where}: duplicate host ID");
+                errors.Add(new(where, "duplicate host ID"));
             }
 
             IRequestPolicy[] hostPolicies = CompilePolicies(spec.Policies ?? [], where, errors);
@@ -116,7 +119,7 @@ public static class SnapshotCompiler
 
             if (spec.Names is null || spec.Names.Count == 0)
             {
-                errors.Add($"{where}: needs at least one name");
+                errors.Add(new(where, "needs at least one name"));
             }
 
             // A disabled host's names go into a table of their own: validated like any others (duplicates within
@@ -127,7 +130,7 @@ public static class SnapshotCompiler
             {
                 if (!nameTable.TryAdd(name, host, out string? nameError))
                 {
-                    errors.Add($"{where}: {nameError}");
+                    errors.Add(new(where, nameError!));
                     namesValid = false;
                 }
             }
@@ -176,30 +179,30 @@ public static class SnapshotCompiler
         return new CompileResult(snapshot, []);
     }
 
-    private static Dictionary<UpstreamId, ClusterConfig> CompileUpstreams(IReadOnlyList<UpstreamSpec> upstreams, List<string> errors)
+    private static Dictionary<UpstreamId, ClusterConfig> CompileUpstreams(IReadOnlyList<UpstreamSpec> upstreams, List<CompileError> errors)
     {
         // Insertion-ordered by construction.
         Dictionary<UpstreamId, ClusterConfig> clusters = [];
         Dictionary<string, UpstreamId> clusterIds = new(StringComparer.OrdinalIgnoreCase);
         foreach (UpstreamSpec spec in upstreams)
         {
-            string where = $"upstream '{spec.Id}'";
+            CompileErrorSource where = CompileErrorSource.Upstream(spec.Id);
             if (spec.Id.IsEmpty)
             {
-                errors.Add($"{where}: the upstream ID is empty");
+                errors.Add(new(where, "the upstream ID is empty"));
                 continue;
             }
 
             if (clusters.ContainsKey(spec.Id))
             {
-                errors.Add($"{where}: duplicate upstream ID");
+                errors.Add(new(where, "duplicate upstream ID"));
                 continue;
             }
 
             string clusterId = spec.Id.ToString();
             if (!clusterIds.TryAdd(clusterId, spec.Id))
             {
-                errors.Add($"{where}: {CaseCollision("upstream", clusterId, clusterIds[clusterId].ToString())}");
+                errors.Add(new(where, CaseCollision("upstream", clusterId, clusterIds[clusterId].ToString())));
                 continue;
             }
 
@@ -208,27 +211,28 @@ public static class SnapshotCompiler
             Dictionary<string, DestinationId> destinationIds = new(StringComparer.OrdinalIgnoreCase);
             if (spec.Destinations is null || spec.Destinations.Count == 0)
             {
-                errors.Add($"{where}: needs at least one destination");
+                errors.Add(new(where, "needs at least one destination"));
             }
 
             foreach (DestinationSpec destination in spec.Destinations ?? [])
             {
                 string destinationId = destination.Id.ToString();
+                CompileErrorSource destinationWhere = CompileErrorSource.Destination(spec.Id, destination.Id);
                 if (destination.Id.IsEmpty)
                 {
-                    errors.Add($"{where}: a destination ID is empty");
+                    errors.Add(new(destinationWhere, "the destination ID is empty"));
                 }
                 else if (!Uri.TryCreate(destination.Address, UriKind.Absolute, out Uri? address)
                     || (address.Scheme != Uri.UriSchemeHttp && address.Scheme != Uri.UriSchemeHttps))
                 {
-                    errors.Add($"{where}: destination '{destinationId}' needs an absolute http or https address, got '{destination.Address}'");
+                    errors.Add(new(destinationWhere, $"needs an absolute http or https address, got '{destination.Address}'"));
                 }
                 else if (!destinationIds.TryAdd(destinationId, destination.Id))
                 {
                     DestinationId existing = destinationIds[destinationId];
-                    errors.Add(existing == destination.Id
-                        ? $"{where}: duplicate destination ID '{destinationId}'"
-                        : $"{where}: {CaseCollision("destination", destinationId, existing.ToString())}");
+                    errors.Add(new(destinationWhere, existing == destination.Id
+                        ? "duplicate destination ID"
+                        : CaseCollision("destination", destinationId, existing.ToString())));
                 }
                 else
                 {
@@ -238,13 +242,13 @@ public static class SnapshotCompiler
 
             if (spec.MaxConnectionsPerServer is < 1)
             {
-                errors.Add($"{where}: MaxConnectionsPerServer must be positive");
+                errors.Add(new(where, "MaxConnectionsPerServer must be positive"));
             }
 
             if (spec.ActiveHealth is { } active
                 && (active.Path is not ['/', ..] || active.Path.Contains('?', StringComparison.Ordinal) || active.Interval <= TimeSpan.Zero || active.Timeout <= TimeSpan.Zero))
             {
-                errors.Add($"{where}: an active health check needs a path starting with '/' (no query) and a positive interval and timeout");
+                errors.Add(new(where, "an active health check needs a path starting with '/' (no query) and a positive interval and timeout"));
             }
 
             clusters[spec.Id] = new ClusterConfig
@@ -298,18 +302,18 @@ public static class SnapshotCompiler
         Dictionary<string, RouteId> yarpRouteIds,
         List<RouteConfig> yarpRoutes,
         List<RouteId> routeIdBySlot,
-        string where,
-        List<string> errors)
+        CompileErrorSource where,
+        List<CompileError> errors)
     {
         IReadOnlyList<RouteSpec> specs = host.Routes ?? [];
         if (specs.Count == 0)
         {
-            errors.Add($"{where}: a proxy host needs at least one route");
+            errors.Add(new(where, "a proxy host needs at least one route"));
         }
 
         if (host.Redirect is not null || host.Respond is not null)
         {
-            errors.Add($"{where}: a proxy host can't have a redirect or respond setting");
+            errors.Add(new(where, "a proxy host can't have a redirect or respond setting"));
         }
 
         // Stable sort by Order: equal orders keep the listed order.
@@ -326,43 +330,43 @@ public static class SnapshotCompiler
         {
             RouteSpec spec = specs[order[i]];
             string routeId = spec.Id.ToString();
-            string routeWhere = $"{where}, route '{routeId}'";
+            CompileErrorSource routeWhere = CompileErrorSource.Route(host.Id, spec.Id);
             if (spec.Id.IsEmpty)
             {
-                errors.Add($"{routeWhere}: the route ID is empty");
+                errors.Add(new(routeWhere, "the route ID is empty"));
             }
             else if (!routeIds.Add(spec.Id))
             {
-                errors.Add($"{routeWhere}: duplicate route ID");
+                errors.Add(new(routeWhere, "duplicate route ID"));
             }
             else if (!yarpRouteIds.TryAdd(routeId, spec.Id))
             {
-                errors.Add($"{routeWhere}: {CaseCollision("route", routeId, yarpRouteIds[routeId].ToString())}");
+                errors.Add(new(routeWhere, CaseCollision("route", routeId, yarpRouteIds[routeId].ToString())));
             }
 
             string path = spec.Path ?? string.Empty;
             if (path.Length == 0 || path[0] != '/' || path.Contains('?', StringComparison.Ordinal) || path.Contains('#', StringComparison.Ordinal))
             {
-                errors.Add($"{routeWhere}: the path must start with '/' and have no query or fragment, got '{path}'");
+                errors.Add(new(routeWhere, $"the path must start with '/' and have no query or fragment, got '{path}'"));
             }
             else if (path.Contains('%', StringComparison.Ordinal))
             {
-                errors.Add($"{routeWhere}: write the path decoded, without percent-encoding, got '{path}'");
+                errors.Add(new(routeWhere, $"write the path decoded, without percent-encoding, got '{path}'"));
             }
             else if (RoutePath.Canonicalize(path) is var canonical && !string.Equals(canonical, path, StringComparison.Ordinal))
             {
                 // Requests are matched on the canonical view, so a non-canonical route path could never match.
-                errors.Add($"{routeWhere}: the path isn't canonical ('\\', '//', ';', dot segments, trailing dots or spaces); use '{canonical}'");
+                errors.Add(new(routeWhere, $"the path isn't canonical ('\\', '//', ';', dot segments, trailing dots or spaces); use '{canonical}'"));
             }
 
             ClusterConfig? cluster = null;
             if (spec.Upstream.IsEmpty)
             {
-                errors.Add($"{routeWhere}: the route's upstream ID is empty");
+                errors.Add(new(routeWhere, "the route's upstream ID is empty"));
             }
             else if (!clusters.TryGetValue(spec.Upstream, out cluster))
             {
-                errors.Add($"{routeWhere}: upstream '{spec.Upstream}' doesn't exist");
+                errors.Add(new(routeWhere, $"upstream '{spec.Upstream}' doesn't exist"));
             }
 
             // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
@@ -389,48 +393,48 @@ public static class SnapshotCompiler
         return routes;
     }
 
-    private static CompiledRoute[] RejectRoutes(HostSpec host, string where, List<string> errors)
+    private static CompiledRoute[] RejectRoutes(HostSpec host, CompileErrorSource where, List<CompileError> errors)
     {
         if (host.Routes is { Count: > 0 })
         {
-            errors.Add($"{where}: only proxy hosts have routes");
+            errors.Add(new(where, "only proxy hosts have routes"));
         }
 
         return [];
     }
 
-    private static PrecomputedResponse? CompileFixedResponse(HostSpec host, string where, List<string> errors)
+    private static PrecomputedResponse? CompileFixedResponse(HostSpec host, CompileErrorSource where, List<CompileError> errors)
     {
         switch (host.Kind)
         {
             case HostKind.Redirect:
                 if (host.Respond is not null)
                 {
-                    errors.Add($"{where}: a redirect host can't have a respond setting");
+                    errors.Add(new(where, "a redirect host can't have a respond setting"));
                 }
 
                 if (host.Redirect is not { } redirect)
                 {
-                    errors.Add($"{where}: a redirect host needs a redirect target");
+                    errors.Add(new(where, "a redirect host needs a redirect target"));
                     return null;
                 }
 
                 if (!Uri.TryCreate(redirect.Target, UriKind.Absolute, out Uri? target)
                     || (target.Scheme != Uri.UriSchemeHttp && target.Scheme != Uri.UriSchemeHttps))
                 {
-                    errors.Add($"{where}: the redirect target must be an absolute http or https URL, got '{redirect.Target}'");
+                    errors.Add(new(where, $"the redirect target must be an absolute http or https URL, got '{redirect.Target}'"));
                     return null;
                 }
 
                 if (redirect.StatusCode is not (301 or 302 or 303 or 307 or 308))
                 {
-                    errors.Add($"{where}: redirect status {redirect.StatusCode} isn't one of 301, 302, 303, 307, 308");
+                    errors.Add(new(where, $"redirect status {redirect.StatusCode} isn't one of 301, 302, 303, 307, 308"));
                     return null;
                 }
 
                 if (redirect.PreservePath && (target.Query.Length > 0 || target.Fragment.Length > 0))
                 {
-                    errors.Add($"{where}: a redirect that preserves the path can't have a query or fragment in its target");
+                    errors.Add(new(where, "a redirect that preserves the path can't have a query or fragment in its target"));
                     return null;
                 }
 
@@ -441,24 +445,24 @@ public static class SnapshotCompiler
             case HostKind.Respond:
                 if (host.Redirect is not null)
                 {
-                    errors.Add($"{where}: a respond host can't have a redirect target");
+                    errors.Add(new(where, "a respond host can't have a redirect target"));
                 }
 
                 if (host.Respond is not { } respond)
                 {
-                    errors.Add($"{where}: a respond host needs a status and body");
+                    errors.Add(new(where, "a respond host needs a status and body"));
                     return null;
                 }
 
                 if (respond.StatusCode is < 200 or > 599)
                 {
-                    errors.Add($"{where}: respond status {respond.StatusCode} must be 200–599");
+                    errors.Add(new(where, $"respond status {respond.StatusCode} must be 200–599"));
                     return null;
                 }
 
                 if (PrecomputedResponse.ForbidsBody(respond.StatusCode) && !string.IsNullOrEmpty(respond.Body))
                 {
-                    errors.Add($"{where}: a {respond.StatusCode} response can't have a body");
+                    errors.Add(new(where, $"a {respond.StatusCode} response can't have a body"));
                     return null;
                 }
 
@@ -469,7 +473,7 @@ public static class SnapshotCompiler
         }
     }
 
-    private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, string where, List<string> errors)
+    private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors)
     {
         IRequestPolicy[] policies = new IRequestPolicy[specs.Count];
         for (int i = 0; i < specs.Count; i++)
@@ -480,15 +484,15 @@ public static class SnapshotCompiler
         return policies;
     }
 
-    private static IRequestPolicy CompilePolicy(PolicySpec spec, string where, List<string> errors)
+    private static IRequestPolicy CompilePolicy(PolicySpec spec, CompileErrorSource where, List<CompileError> errors)
     {
         switch (spec)
         {
             case DenyPolicySpec deny when deny.StatusCode is < 200 or > 599:
-                errors.Add($"{where}: deny status {deny.StatusCode} must be 200–599");
+                errors.Add(new(where, $"deny status {deny.StatusCode} must be 200–599"));
                 break;
             case DenyPolicySpec deny when PrecomputedResponse.ForbidsBody(deny.StatusCode) && !string.IsNullOrEmpty(deny.Body):
-                errors.Add($"{where}: a {deny.StatusCode} deny response can't have a body");
+                errors.Add(new(where, $"a {deny.StatusCode} deny response can't have a body"));
                 break;
             case DenyPolicySpec deny:
                 return new StaticPolicy(PolicyDecision.Respond(PrecomputedResponse.Text(deny.StatusCode, deny.Body ?? string.Empty)));
@@ -501,32 +505,32 @@ public static class SnapshotCompiler
                     : PolicyDecision.Respond(PrecomputedResponse.Text(StatusCodes.Status403Forbidden, "forbidden\n"));
                 return new IpAllowListPolicy(allowed, denied);
             default:
-                errors.Add($"{where}: unsupported policy {spec?.GetType().Name ?? "null"}");
+                errors.Add(new(where, $"unsupported policy {spec?.GetType().Name ?? "null"}"));
                 break;
         }
 
         return new StaticPolicy(PolicyDecision.Continue);
     }
 
-    private static TrustedProxyPolicy CompileTrustedProxies(TrustedProxySpec? spec, SnapshotCompilerOptions options, List<string> errors)
+    private static TrustedProxyPolicy CompileTrustedProxies(TrustedProxySpec? spec, SnapshotCompilerOptions options, List<CompileError> errors)
     {
         spec ??= TrustedProxySpec.Off;
-        const string Where = "defaults: trusted proxies";
+        CompileErrorSource where = CompileErrorSource.TrustedProxies;
         IReadOnlyList<string> proxies = spec.Proxies ?? [];
         bool cloudflare = spec.Mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
         if (spec.Header is not null && spec.Mode != TrustedProxyMode.Generic)
         {
-            errors.Add($"{Where}: a header is only configurable in Generic mode (Cloudflare modes read CF-Connecting-IP)");
+            errors.Add(new(where, "a header is only configurable in Generic mode (Cloudflare modes read CF-Connecting-IP)"));
         }
 
         if (!cloudflare && (spec.UseTrueClientIp || spec.ForwardedForFallback))
         {
-            errors.Add($"{Where}: True-Client-IP and the X-Forwarded-For fallback only apply to the Cloudflare modes");
+            errors.Add(new(where, "True-Client-IP and the X-Forwarded-For fallback only apply to the Cloudflare modes"));
         }
 
         if (spec.TrustForwardedProto && spec.Mode != TrustedProxyMode.Generic)
         {
-            errors.Add($"{Where}: TrustForwardedProto only applies to Generic mode (Cloudflare modes read CF-Visitor)");
+            errors.Add(new(where, "TrustForwardedProto only applies to Generic mode (Cloudflare modes read CF-Visitor)"));
         }
 
         switch (spec.Mode)
@@ -534,7 +538,7 @@ public static class SnapshotCompiler
             case TrustedProxyMode.Off:
                 if (proxies.Count > 0)
                 {
-                    errors.Add($"{Where}: proxies are listed but the mode is Off");
+                    errors.Add(new(where, "proxies are listed but the mode is Off"));
                 }
 
                 return TrustedProxyPolicy.Off;
@@ -543,11 +547,11 @@ public static class SnapshotCompiler
             case TrustedProxyMode.CloudflareTunnel:
                 if (proxies.Count == 0)
                 {
-                    errors.Add($"{Where}: {spec.Mode} mode needs at least one proxy address or CIDR");
+                    errors.Add(new(where, $"{spec.Mode} mode needs at least one proxy address or CIDR"));
                     return TrustedProxyPolicy.Off;
                 }
 
-                CidrSet peers = CompileCidrs(proxies, Where, errors);
+                CidrSet peers = CompileCidrs(proxies, where, errors);
                 if (spec.Mode == TrustedProxyMode.CloudflareTunnel)
                 {
                     return TrustedProxyPolicy.CloudflareTunnel(peers, spec.UseTrueClientIp, spec.ForwardedForFallback);
@@ -555,7 +559,7 @@ public static class SnapshotCompiler
 
                 if (spec.Header is { } header && !IsHeaderName(header))
                 {
-                    errors.Add($"{Where}: '{header}' isn't a valid header name");
+                    errors.Add(new(where, $"'{header}' isn't a valid header name"));
                     return TrustedProxyPolicy.Off;
                 }
 
@@ -564,26 +568,26 @@ public static class SnapshotCompiler
             case TrustedProxyMode.CloudflareProxy:
                 if (proxies.Count > 0)
                 {
-                    errors.Add($"{Where}: CloudflareProxy mode trusts Cloudflare's published edge ranges; list no proxies");
+                    errors.Add(new(where, "CloudflareProxy mode trusts Cloudflare's published edge ranges; list no proxies"));
                 }
 
                 return TrustedProxyPolicy.CloudflareProxy(options.CloudflareEdgeRanges, spec.UseTrueClientIp, spec.ForwardedForFallback);
 
             default:
-                errors.Add($"{Where}: unknown mode {spec.Mode}");
+                errors.Add(new(where, $"unknown mode {spec.Mode}"));
                 return TrustedProxyPolicy.Off;
         }
     }
 
     /// <summary>Addresses and CIDRs (both families) into one set; each bad entry is an error.</summary>
-    private static CidrSet CompileCidrs(IReadOnlyList<string> blocks, string where, List<string> errors)
+    private static CidrSet CompileCidrs(IReadOnlyList<string> blocks, CompileErrorSource where, List<CompileError> errors)
     {
         CidrSet.Builder builder = new();
         foreach (string block in blocks)
         {
             if (!IpNetwork.TryParse(block ?? string.Empty, out IpNetwork network, out string? error))
             {
-                errors.Add($"{where}: '{block}' isn't an IP address or CIDR ({error})");
+                errors.Add(new(where, $"'{block}' isn't an IP address or CIDR ({error})"));
                 continue;
             }
 
@@ -600,7 +604,7 @@ public static class SnapshotCompiler
     private static readonly SearchValues<char> HeaderNameChars =
         SearchValues.Create("!#$%&'*+-.^_`|~0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
-    private static ServerCertificate? ResolveCertificate(CertificateId? id, string where, IServerCertificateResolver? resolver, List<string> errors)
+    private static ServerCertificate? ResolveCertificate(CertificateId? id, CompileErrorSource where, IServerCertificateResolver? resolver, List<CompileError> errors)
     {
         if (id is not { } certificateId)
         {
@@ -609,19 +613,19 @@ public static class SnapshotCompiler
 
         if (certificateId.IsEmpty)
         {
-            errors.Add($"{where}: the certificate ID can't be empty (leave it unset to use the default)");
+            errors.Add(new(where, "the certificate ID can't be empty (leave it unset to use the default)"));
             return null;
         }
 
         if (resolver is null)
         {
-            errors.Add($"{where}: certificate '{certificateId}' can't be resolved: no certificate source is configured");
+            errors.Add(new(where, $"certificate '{certificateId}' can't be resolved: no certificate source is configured"));
             return null;
         }
 
         if (!resolver.TryResolve(certificateId, out ServerCertificate? certificate))
         {
-            errors.Add($"{where}: certificate '{certificateId}' doesn't exist");
+            errors.Add(new(where, $"certificate '{certificateId}' doesn't exist"));
             return null;
         }
 
@@ -629,13 +633,13 @@ public static class SnapshotCompiler
     }
 
     /// <summary>Equal specs give equal policies (records), so hosts with the same settings share one entry per certificate.</summary>
-    private static TlsPolicy CompileTlsPolicy(HostTlsSpec? spec, string where, List<string> errors)
+    private static TlsPolicy CompileTlsPolicy(HostTlsSpec? spec, CompileErrorSource where, List<CompileError> errors)
     {
         spec ??= HostTlsSpec.Default;
         if (!Enum.IsDefined(spec.MinimumVersion) || !Enum.IsDefined(spec.TcpAlpn))
         {
             // TlsPolicy would throw; report it like any other config error.
-            errors.Add($"{where}: unknown TLS setting (minimum version {spec.MinimumVersion}, TCP ALPN {spec.TcpAlpn})");
+            errors.Add(new(where, $"unknown TLS setting (minimum version {spec.MinimumVersion}, TCP ALPN {spec.TcpAlpn})"));
             return TlsPolicy.Default;
         }
 
@@ -678,8 +682,8 @@ public static class SnapshotCompiler
         List<string> serverNames,
         ServerCertificate certificate,
         TlsPolicy tls,
-        string where,
-        List<string> errors)
+        CompileErrorSource where,
+        List<CompileError> errors)
     {
         try
         {
@@ -687,7 +691,7 @@ public static class SnapshotCompiler
         }
         catch (ArgumentException ex)
         {
-            errors.Add($"{where}: {ex.Message}");
+            errors.Add(new(where, ex.Message));
         }
     }
 
