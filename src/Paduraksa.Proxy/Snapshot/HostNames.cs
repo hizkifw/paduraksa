@@ -4,6 +4,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
+using Paduraksa.Proxy.Net;
+
 namespace Paduraksa.Proxy.Snapshot;
 
 /// <summary>The shape of a configured host name.</summary>
@@ -104,23 +106,13 @@ internal static class HostNames
         return true;
     }
 
-    /// <summary>Parses the inside of a bracketed IPv6 literal (no zone ID) into the gate's 128-bit key.</summary>
-    /// <remarks>
-    /// Uses <see cref="IPAddress.TryParse(ReadOnlySpan{char}, out IPAddress?)"/>, which allocates (80 B). Only
-    /// requests whose <c>Host</c> is an IPv6 literal pay it. TODO(M1 integration): switch to the zero-allocation
-    /// parser from <c>Paduraksa.Proxy.Net</c>.
-    /// </remarks>
+    /// <summary>Parses the inside of a bracketed IPv6 literal (no zone ID) into its 128-bit key with the strict, 0 B
+    /// <see cref="IpParser"/>.</summary>
     public static bool TryParseIPv6Literal(ReadOnlySpan<char> inner, out UInt128 key)
     {
-        key = UInt128.Zero;
-        if (inner.IsEmpty || inner.Contains('%') || !IPAddress.TryParse(inner, out IPAddress? address)
-            || address.AddressFamily != AddressFamily.InterNetworkV6)
-        {
-            return false;
-        }
-
-        key = Gate.ClientAddressKey.From(address);
-        return true;
+        bool parsed = IpParser.TryParseIPv6(inner, out IpKey address);
+        key = parsed ? address.Value : UInt128.Zero;
+        return parsed;
     }
 
     private static bool TryNormalizeIPv6Literal(string value, out string normalized, out HostNameKind kind, out string? error)
