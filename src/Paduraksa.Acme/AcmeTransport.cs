@@ -394,7 +394,7 @@ internal sealed partial class AcmeTransport
     }
 
     /// <summary>
-    /// A URL the client may request or accept from the CA: absolute, https (http only if the options allow it) and on the
+    /// A URL the client may request or accept from the CA: absolute, https (http only for a loopback host, and only if the options allow it) and on the
     /// directory's origin or one of <see cref="AcmeClientOptions.AdditionalOrigins"/>.
     /// </summary>
     private void RequireAllowed(Uri url)
@@ -404,7 +404,7 @@ internal sealed partial class AcmeTransport
             throw new AcmeProtocolException($"{AcmeText.Url(url)} is not an absolute URL.");
         }
 
-        if (!(url.Scheme == Uri.UriSchemeHttps || (_options.AllowInsecureHttp && url.Scheme == Uri.UriSchemeHttp)))
+        if (!(url.Scheme == Uri.UriSchemeHttps || (_options.AllowInsecureHttp && url.Scheme == Uri.UriSchemeHttp && url.IsLoopback)))
         {
             throw new AcmeProtocolException($"{AcmeText.Url(url)} is not an https URL.");
         }

@@ -234,6 +234,29 @@ public sealed class AcmeTransportTests
         Assert.Equal(AcmeFailureKind.Transient, ex.Kind);
     }
 
+    [Theory]
+    [InlineData("http://127.0.0.1:14000/dir", false, false)]
+    [InlineData("http://ca.example.com/dir", true, false)]
+    [InlineData("http://192.0.2.10/dir", true, false)]
+    [InlineData("http://127.0.0.1:14000/dir", true, true)]
+    [InlineData("http://localhost:14000/dir", true, true)]
+    [InlineData("http://[::1]:14000/dir", true, true)]
+    public async Task PlainHttpIsAcceptedOnlyForALoopbackHostAndOnlyWhenAllowed(string directory, bool allowed, bool reachesTheNetwork)
+    {
+        using var h = new AcmeHarness();
+        var options = new AcmeClientOptions { AllowInsecureHttp = allowed };
+
+        // Refused up front (the directory URL is checked when the client is made), or let through to the transport, which here fails like a closed port.
+        if (!reachesTheNetwork)
+        {
+            Assert.Throws<AcmeProtocolException>(() => new AcmeClient(new Uri(directory), h.Signer, options: options, handler: new ThrowingHandler(new HttpRequestException("connection refused"))));
+            return;
+        }
+
+        using var client = new AcmeClient(new Uri(directory), h.Signer, options: options, handler: new ThrowingHandler(new HttpRequestException("connection refused")));
+        await Assert.ThrowsAsync<AcmeTransportException>(() => client.GetDirectoryAsync(Token));
+    }
+
     [Fact]
     public async Task ARequestThatTakesTooLongTimesOutAsATransientError()
     {

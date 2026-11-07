@@ -45,7 +45,7 @@ public sealed class AcmeClient : IDisposable
     /// <param name="macKeys">Opens EAB MAC keys; may be <see langword="null"/> if no account uses external account binding.</param>
     /// <param name="options">Timeouts, polling bounds and allowed origins; defaults if <see langword="null"/>.</param>
     /// <param name="handler">
-    /// The transport, <see cref="AcmeHttp.CreateHandler"/> if <see langword="null"/>. The client builds its own
+    /// The transport, <see cref="AcmeHttp.CreateHandler()"/> if <see langword="null"/>. The client builds its own
     /// <see cref="HttpClient"/> on it, so no caller-added layer wraps it. A handler passed in must not follow redirects and
     /// must not retry (a retry replays a signed body with a used nonce); it is not disposed by the client.
     /// </param>
