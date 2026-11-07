@@ -32,6 +32,8 @@ internal static class CoreHost
         // The vault first: the config store loads certificates through it, and a vault that cannot start must stop the process.
         builder.Services.AddHostedService<VaultStartup>();
         builder.Services.AddHostedService<ConfigStartup>();
+        // Then what the vault holds that the database lost, before the web apps take their first request.
+        builder.Services.AddHostedService<CertificateRecoveryStartup>();
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Core);
         return builder.Build();

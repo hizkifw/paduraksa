@@ -84,6 +84,42 @@ public sealed partial class CertificateService
     }
 
     /// <summary>
+    /// Registers a certificate the vault holds under <paramref name="registration"/> <b>only if the inventory has no row for it</b> and
+    /// the audit trail does not say it was deleted on purpose, both checked under the config writer's lock, so a registration that
+    /// races with this (a vault-first upload) is never overwritten and a certificate deleted by an operator is never resurrected
+    /// (see <see cref="CertificateRecovery"/>). Never changes an existing row, its label included.
+    /// </summary>
+    internal async Task<CertificateRecoveryStep> RegisterRecoveredAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        ArgumentNullException.ThrowIfNull(origin);
+        CertificateRecoveryStep step = CertificateRecoveryStep.Failed;
+        string target = registration.Id.ToString();
+        _ = await _config.ApplyCertificateChangeAsync(
+            origin,
+            async scope =>
+            {
+                if (await scope.Context.Certificates.AnyAsync(c => c.Id == registration.Id, cancellationToken).ConfigureAwait(false))
+                {
+                    step = CertificateRecoveryStep.AlreadyRegistered;
+                    return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged), null, false);
+                }
+
+                if (await scope.Context.AuditEvents.AnyAsync(a => a.Action == "certificate.delete" && a.Outcome == AuditOutcome.Success && a.Target == target, cancellationToken).ConfigureAwait(false))
+                {
+                    step = CertificateRecoveryStep.WasDeleted;
+                    return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged), null, false);
+                }
+
+                CertificateChangeOutcome outcome = await RegisterCoreAsync(scope, registration, origin, cancellationToken).ConfigureAwait(false);
+                step = outcome.Result.Status is CertificateChangeStatus.Committed or CertificateChangeStatus.Unchanged ? CertificateRecoveryStep.Registered : CertificateRecoveryStep.Failed;
+                return outcome;
+            },
+            cancellationToken).ConfigureAwait(false);
+        return step;
+    }
+
+    /// <summary>
     /// Records a certificate that is requested but has no chain yet (an ACME order in progress): <see cref="CertificateStatus.Pending"/>,
     /// never served. <see cref="RegisterAsync"/> with the issued chain completes it. Registering an ID that exists is invalid.
     /// </summary>
@@ -601,4 +637,20 @@ public static class CertificateErrorCodes
     public const string ImportNoUsableName = "certificate.import.noUsableName";
     public const string ImportWeakKey = "certificate.import.weakKey";
     public const string ImportCaCertificate = "certificate.import.caCertificate";
+}
+
+/// <summary>What <see cref="CertificateService.RegisterRecoveredAsync"/> found and did for one certificate.</summary>
+internal enum CertificateRecoveryStep
+{
+    /// <summary>There was no row and no delete on record: it is registered now.</summary>
+    Registered,
+
+    /// <summary>The inventory has a row already; nothing was touched.</summary>
+    AlreadyRegistered,
+
+    /// <summary>The audit trail records a successful delete of it: the database was not lost, the vault's key deletion failed. Nothing was registered.</summary>
+    WasDeleted,
+
+    /// <summary>It could not be registered (refused, or the store does not accept changes).</summary>
+    Failed,
 }

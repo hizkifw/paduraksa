@@ -16,11 +16,13 @@ namespace Paduraksa.Server.Hosting;
 /// <param name="ServerCertificates">The vault's own serving source (before any composition with the placeholder).</param>
 /// <param name="Issuance">Key and chain creation, replacement and deletion.</param>
 /// <param name="Import">Upload of a certificate with its key.</param>
+/// <param name="Catalog">The vault describing the certificates it holds (public facts only).</param>
 internal sealed record VaultCapabilities(
     IVaultLifecycle Lifecycle,
     IServerCertificateSource ServerCertificates,
     ICertificateIssuance Issuance,
-    ICertificateImport Import);
+    ICertificateImport Import,
+    ICertificateCatalog Catalog);
 
 /// <summary>
 /// Composes the vault (PLAN §8) into the shared services: the one <c>AddPaduraksaVault</c> registration, over the data
@@ -44,7 +46,8 @@ internal static class VaultStore
             lifecycle,
             container.GetRequiredService<IServerCertificateSource>(),
             container.GetRequiredService<ICertificateIssuance>(),
-            container.GetRequiredService<ICertificateImport>());
+            container.GetRequiredService<ICertificateImport>(),
+            container.GetRequiredService<ICertificateCatalog>());
     }
 }
 

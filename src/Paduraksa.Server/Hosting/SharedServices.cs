@@ -55,6 +55,8 @@ internal sealed class SharedServices : IAsyncDisposable
         Config = Get<ConfigService>();
         CertificateService = Get<CertificateService>();
         CertificateOperations = Get<CertificateOperations>();
+        CertificateRecovery = Get<CertificateRecovery>();
+        RecoveryCompletion = Get<CertificateRecoveryCompletion>();
         LastKnownGood = Get<LastKnownGoodFile>();
     }
 
@@ -97,6 +99,12 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>The certificate use cases that touch the vault (PLAN §9): upload, self-signed, local CA, re-issue, delete.</summary>
     public CertificateOperations CertificateOperations { get; }
 
+    /// <summary>Registers the certificates the vault holds that the inventory lost again (PLAN §9.2); run once at startup by <see cref="CertificateRecoveryStartup"/>.</summary>
+    public CertificateRecovery CertificateRecovery { get; }
+
+    /// <summary>Completes when the startup recovery (<see cref="CertificateRecoveryStartup"/>) has finished its run.</summary>
+    internal CertificateRecoveryCompletion RecoveryCompletion { get; }
+
     /// <summary><c>&lt;data dir&gt;/last-good.json</c>, written after every successful publish.</summary>
     public LastKnownGoodFile LastKnownGood { get; }
 
@@ -130,6 +138,7 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add<IOptionsSnapshot<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsFactory<PaduraksaOptions>>(fixedOptions);
             builder.Add(new HealthState());
+            builder.Add(new CertificateRecoveryCompletion());
             SnapshotStore snapshots = builder.Add(new SnapshotStore());
             RoleLoggerFactory coreLoggers = new(loggerFactory, HostRole.Core);
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a

@@ -64,8 +64,10 @@ internal static class ConfigStore
             .AddSingleton<IServerCertificateSource>(new CompositeServerCertificateSource(vault.ServerCertificates, placeholderEnabled ? placeholder : null, PlaceholderCertificates.Id))
             .AddSingleton(vault.Issuance)
             .AddSingleton(vault.Import)
+            .AddSingleton(vault.Catalog)
             .AddPaduraksaConfigService()
-            .AddPaduraksaCertificateOperations();
+            .AddPaduraksaCertificateOperations()
+            .AddPaduraksaCertificateRecovery();
         if (placeholderEnabled)
         {
             services.AddSingleton<IBuiltInCertificates>(placeholder);
@@ -76,5 +78,6 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<CertificateRecovery>());
     }
 }

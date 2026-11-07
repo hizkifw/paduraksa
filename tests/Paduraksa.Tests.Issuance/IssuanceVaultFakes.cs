@@ -16,6 +16,7 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
     private readonly Lock _gate = new();
     private readonly Dictionary<CertificateId, (StagedKeyId Key, IReadOnlyList<string> Names)> _staged = [];
     private readonly Dictionary<CertificateId, CertificateInfo> _held = [];
+    private readonly HashSet<CertificateId> _roots = [];
     private int _serial = 0x1000;
 
     public List<(CertificateId Id, KeySpec Spec, IReadOnlyList<string> Names)> Csrs { get; } = [];
@@ -98,12 +99,19 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
         }
     }
 
-    /// <summary>Makes the vault hold <paramref name="info"/> under <paramref name="id"/>, as if another chain had been attached.</summary>
-    public void Hold(CertificateId id, CertificateInfo info)
+    /// <summary>The IDs <see cref="DeleteAsync"/> was asked to delete, in order.</summary>
+    public List<CertificateId> Deleted { get; } = [];
+
+    /// <summary>Makes the vault hold <paramref name="info"/> under <paramref name="id"/>, as if another chain had been attached (or, with <paramref name="isLocalCaRoot"/>, the local CA root created).</summary>
+    public void Hold(CertificateId id, CertificateInfo info, bool isLocalCaRoot = false)
     {
         lock (_gate)
         {
             _held[id] = info;
+            if (isLocalCaRoot)
+            {
+                _roots.Add(id);
+            }
         }
     }
 
@@ -111,7 +119,7 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
     {
         lock (_gate)
         {
-            return ValueTask.FromResult<IReadOnlyList<VaultCertificate>>([.. _held.Select(h => new VaultCertificate(h.Key, false, h.Value))]);
+            return ValueTask.FromResult<IReadOnlyList<VaultCertificate>>([.. _held.Select(h => new VaultCertificate(h.Key, _roots.Contains(h.Key), h.Value))]);
         }
     }
 
@@ -119,7 +127,7 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
     {
         lock (_gate)
         {
-            return ValueTask.FromResult(_held.TryGetValue(id, out var info) ? new VaultCertificate(id, false, info) : null);
+            return ValueTask.FromResult(_held.TryGetValue(id, out var info) ? new VaultCertificate(id, _roots.Contains(id), info) : null);
         }
     }
 
@@ -132,5 +140,14 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
     public ValueTask<CertificateInfo> IssueFromLocalCaAsync(CertificateId id, KeySpec spec, IReadOnlyList<string> names, TimeSpan validity, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 
-    public ValueTask<bool> DeleteAsync(CertificateId id, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public ValueTask<bool> DeleteAsync(CertificateId id, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            Deleted.Add(id);
+            _staged.Remove(id);
+            _roots.Remove(id);
+            return ValueTask.FromResult(_held.Remove(id));
+        }
+    }
 }
