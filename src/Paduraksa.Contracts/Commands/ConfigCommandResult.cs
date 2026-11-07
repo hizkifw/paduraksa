@@ -66,6 +66,9 @@ public enum ConfigCommandStatus
 /// <param name="Conflict">Set exactly for <see cref="ConfigCommandStatus.Conflict"/>.</param>
 /// <param name="Version">Object commands that upsert: the object's version after the change (committed or, for a dry
 /// run, the one it would get).</param>
+/// <param name="Warnings">What compiles but probably isn't intended, against the certificate inventory as it is now: a
+/// host no certificate covers, a binding to a certificate that expired. Set for committed and dry-run commands; paths
+/// index the canonical document after the change.</param>
 public sealed record ConfigCommandResult(
     ConfigCommandStatus Status,
     RevisionRef? Revision = null,
@@ -74,8 +77,11 @@ public sealed record ConfigCommandResult(
     IReadOnlyList<ConfigError>? RelatedErrors = null,
     PublishOutcome? Publish = null,
     ConfigConflict? Conflict = null,
-    long? Version = null)
+    long? Version = null,
+    IReadOnlyList<ConfigWarning>? Warnings = null)
 {
+    public IReadOnlyList<ConfigWarning> Warnings { get; init; } = Warnings ?? [];
+
     public IReadOnlyList<ConfigChange> Changes { get; init; } = Changes ?? [];
 
     public IReadOnlyList<ConfigError> Errors { get; init; } = Errors ?? [];
