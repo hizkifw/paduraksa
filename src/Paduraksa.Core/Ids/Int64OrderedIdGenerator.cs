@@ -41,7 +41,7 @@ public sealed class Int64OrderedIdGenerator
     private static readonly long EpochUnixMilliseconds = Epoch.ToUnixTimeMilliseconds();
 
     /// <summary>Process-wide instance on <see cref="TimeProvider.System"/>, used by generated <c>New()</c>.</summary>
-    // TODO(M2): decide whether Shared should use the clock abstraction once it lands in Core.
+    // Decided in M2 (PLAN §4.2): Shared stays on the system clock; callers that need another clock make their own.
     public static Int64OrderedIdGenerator Shared { get; } = new(TimeProvider.System);
 
     private readonly TimeProvider _timeProvider;

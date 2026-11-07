@@ -111,7 +111,7 @@ Public listeners as integrated in M1 (`Hosting/PublicApp.cs`, `PublicListenerSet
 - **HTTP** (`Listen:Http`/tcp, H1) and **HTTPS** (`Listen:Https`/tcp, H1/H2): the stage-A `ClientInfo` connection middleware (PROXY protocol first when enabled on that listener), then on HTTPS the per-SNI TLS callback reading the live snapshot's certificate table (§7.2 B).
 - **HTTP/3** (`Listen:Https`/udp): added when `Listen:Http3` is on and libmsquic is present. Its TLS callback selects the certificate and attaches `ClientInfo` (§7.2 A). Without libmsquic it is off, with one Information log at startup; `Alt-Svc` is then never sent.
 - **One `TlsHandshakeSelector`** per process (shared singleton, its rejection counters are process state). The same options also derive the compiler's `SnapshotCompilerOptions` (public port, whether H3 is advertised, the certificate resolver), so listeners and snapshots can't disagree.
-- **Certificates until M3:** a placeholder `IServerCertificateResolver` knows one reference, `placeholder` (the in-memory self-signed certificate). The startup config uses it as the default certificate unless it names its own, so HTTPS answers for every host as before. (M2: every config document compiles that way, through a placeholder wrapper around the compiler; the stored document never names it.)
+- **Certificates until M3:** a placeholder `IServerCertificateResolver` knows one certificate, `PlaceholderCertificates.Id` (the in-memory self-signed certificate, with a new ID per process like the certificate itself). The startup config uses it as the default certificate unless it names its own, so HTTPS answers for every host as before. (M2: every config document compiles that way, through a placeholder wrapper around the compiler; the stored document never names it.)
 
 Options under `Paduraksa:Listen` (validated at startup, invalid → exit 3):
 
@@ -177,7 +177,7 @@ The generator emits for each:
 Base62 uses the alphabet `0-9A-Za-z` (ASCII order), **fixed width and left-padded**, so ordinal string sort equals numeric sort. Sorting IDs as strings in the UI or API gives the same order as the DB.
 
 Generator notes (M0):
-- Generated `New()` uses the process-wide generators on `TimeProvider.System`. Revisit when a clock abstraction lands.
+- Generated `New()` uses the process-wide generators on `TimeProvider.System`. Decided in M2: `Shared` stays there; `TimeProvider` *is* the clock abstraction, and code that needs a controllable clock (tests, the audit log and revision store) creates its own generator on its own `TimeProvider`.
 - Every **source-generated** `JsonSerializerContext` that serializes typed IDs must register `TypedIdJsonConverterFactory` via `[JsonSourceGenerationOptions(Converters = [typeof(TypedIdJsonConverterFactory)])]`. The STJ source generator can't see the `[JsonConverter]` attribute our generator emits, and without the factory IDs serialize as `{}`.
 - The generator is added as an analyzer to every project through `Directory.Build.props`. Prefix uniqueness is checked per compilation (PDKID004) and across all src assemblies by an architecture test.
 - EF value converters can't call static abstract members inside expression trees (CS8927). Generic converters go through a plain generic helper (`static T Wrap<T, TV>(TV v) => T.FromValue(v)`).

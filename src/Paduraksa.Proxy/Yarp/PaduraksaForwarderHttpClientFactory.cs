@@ -31,7 +31,7 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
 
     public static TimeSpan ConnectTimeout { get; } = TimeSpan.FromSeconds(10);
 
-    // TODO(M2): per-upstream PooledConnectionLifetime, connect timeout and the mTLS client certificate become upstream
+    // TODO(M3): per-upstream PooledConnectionLifetime, connect timeout and the mTLS client certificate become upstream
     // settings. They must then be part of this comparison (e.g. carried in HttpClientConfig or cluster metadata), or a
     // change to them would silently keep the old client.
     protected override bool CanReuseOldClient(ForwarderHttpClientContext context)
