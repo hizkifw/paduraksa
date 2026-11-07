@@ -68,6 +68,15 @@ internal sealed class FakeAcmeServer : HttpMessageHandler
 
     public int? RenewalInfoRetryAfterSeconds { get; set; }
 
+    /// <summary>
+    /// A CA that reuses valid authorizations (Let's Encrypt does for 30 days): a new order for an identifier that already has a valid
+    /// authorization gets that one, so it comes back already valid and needs no challenge.
+    /// </summary>
+    public bool ReuseValidAuthorizations { get; set; }
+
+    /// <summary>The first finalize finds the order already finalized by someone else (a race): the CA answers <c>orderNotReady</c> while the order is processing.</summary>
+    public bool RaceFinalizeOnce { get; set; }
+
     /// <summary>When set, <c>Link: rel="alternate"</c> points the default chain at the other one.</summary>
     public bool OfferAlternateChain { get; set; } = true;
 
@@ -146,6 +155,36 @@ internal sealed class FakeAcmeServer : HttpMessageHandler
         lock (_gate)
         {
             return _orders.Values.ElementAt(orderNumber).Replaces;
+        }
+    }
+
+    /// <summary>The path of the <paramref name="orderNumber"/>th order (<c>order/7</c>), for injecting a response to it.</summary>
+    public string OrderPath(int orderNumber)
+    {
+        lock (_gate)
+        {
+            return "order/" + _orders.Values.ElementAt(orderNumber).Id;
+        }
+    }
+
+    /// <summary>Makes the CA report the order as invalid from now on.</summary>
+    public void InvalidateOrder(int orderNumber)
+    {
+        lock (_gate)
+        {
+            _orders.Values.ElementAt(orderNumber).ForcedStatus = "invalid";
+        }
+    }
+
+    /// <summary>Deactivates every authorization of the order (as an expiry or a deactivation would).</summary>
+    public void DeactivateAuthorizationsOf(int orderNumber)
+    {
+        lock (_gate)
+        {
+            foreach (var id in _orders.Values.ElementAt(orderNumber).AuthorizationIds)
+            {
+                _authorizations[id].Deactivate();
+            }
         }
     }
 
@@ -493,6 +532,15 @@ internal sealed class FakeAcmeServer : HttpMessageHandler
         var order = new FakeOrder(id, request["identifiers"]!.AsArray().Select(i => i!.DeepClone()).ToList(), request["profile"]?.GetValue<string>(), request["replaces"]?.GetValue<string>());
         foreach (var identifier in order.Identifiers)
         {
+            var reusable = ReuseValidAuthorizations
+                ? _authorizations.Values.FirstOrDefault(a => a.Status == "valid" && a.Identifier.ToJsonString() == identifier.ToJsonString())
+                : null;
+            if (reusable is not null)
+            {
+                order.AuthorizationIds.Add(reusable.Id);
+                continue;
+            }
+
             var authzId = (++_counter).ToString(CultureInfo.InvariantCulture);
             _authorizations[authzId] = new FakeAuthorization(authzId, identifier, AuthorizationPollsBeforePass, FailValidation);
             order.AuthorizationIds.Add(authzId);
@@ -639,6 +687,13 @@ internal sealed class FakeAcmeServer : HttpMessageHandler
     private HttpResponseMessage Finalize(string path, string payload)
     {
         var order = _orders[path["finalize/".Length..]];
+        if (RaceFinalizeOnce && order.Status(_authorizations) == "ready")
+        {
+            RaceFinalizeOnce = false;
+            order.Finalized = true;
+            order.ProcessingPollsLeft = OrderPollsWhileProcessing;
+        }
+
         if (order.Status(_authorizations) != "ready")
         {
             return Problem(HttpStatusCode.Forbidden, "urn:ietf:params:acme:error:orderNotReady", "the order is not ready");
@@ -726,10 +781,13 @@ internal sealed class FakeAcmeServer : HttpMessageHandler
 
         public byte[]? Csr { get; set; }
 
+        public string? ForcedStatus { get; set; }
+
         public string Status(Dictionary<string, FakeAuthorization> authorizations) =>
-            AuthorizationIds.Any(a => authorizations[a].Status == "invalid") ? "invalid"
-            : !Finalized ? AuthorizationIds.All(a => authorizations[a].Status == "valid") ? "ready" : "pending"
-            : ProcessingPollsLeft > 0 ? "processing" : "valid";
+            ForcedStatus
+            ?? (AuthorizationIds.Any(a => authorizations[a].Status == "invalid") ? "invalid"
+                : !Finalized ? AuthorizationIds.All(a => authorizations[a].Status == "valid") ? "ready" : "pending"
+                : ProcessingPollsLeft > 0 ? "processing" : "valid");
     }
 
     private sealed class FakeAuthorization(string id, JsonNode identifier, int pollsBeforePass, bool failValidation)
