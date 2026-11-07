@@ -31,9 +31,17 @@ public sealed class KeyMaterialBanTests
         "MLDsa", "MLKem", "SlhDsa", "CompositeMLDsa",
     ];
 
+    /// <summary>
+    /// Types that are banned whole (any use, including the static <c>HashData</c>, <c>TryHashData</c> and
+    /// <c>HashDataAsync</c> overloads, which a type ban covers). All keyed hashes: a MAC with a key in hand belongs to the vault.
+    /// </summary>
     private static readonly string[] FullyBannedTypes =
     [
-        X509 + "X509CertificateLoader", Crypto + "AesGcm", Crypto + "HMACSHA256", Crypto + "HMACSHA512",
+        Crypto + "AesGcm",
+        Crypto + "HMAC", Crypto + "KeyedHashAlgorithm",
+        Crypto + "HMACMD5", Crypto + "HMACSHA1", Crypto + "HMACSHA256", Crypto + "HMACSHA384", Crypto + "HMACSHA512",
+        Crypto + "HMACSHA3_256", Crypto + "HMACSHA3_384", Crypto + "HMACSHA3_512",
+        Crypto + "Kmac128", Crypto + "Kmac256", Crypto + "KmacXof128", Crypto + "KmacXof256",
     ];
 
     private static readonly Lazy<CSharpCompilation> Framework = new(CreateCompilation);
@@ -42,6 +50,14 @@ public sealed class KeyMaterialBanTests
     private static IEnumerable<(string Type, Func<ISymbol, bool> Member)> Rules()
     {
         yield return (X509 + "X509Certificate", static m => m.Name.StartsWith("Export", StringComparison.Ordinal));
+
+        // PFX export of a collection carries the keys of its members; the PEM export is certificates only.
+        yield return (X509 + "X509Certificate2Collection", static m => m.Name is "Export" or "ExportPkcs12");
+
+        // Only the PKCS#12 loaders yield private keys. LoadCertificate* reads public certificates (it rejects a PFX
+        // and ignores the key blocks of a PEM: HasPrivateKey is false), so Acme can parse chains it receives.
+        yield return (X509 + "X509CertificateLoader", static m => m.Name.StartsWith("LoadPkcs12", StringComparison.Ordinal));
+        yield return (Crypto + "IncrementalHash", static m => m.Name == "CreateHMAC");
         yield return (X509 + "X509Certificate2", static m =>
             m.Name is "ExportPkcs12" or "CopyWithPrivateKey" or "PrivateKey"
                 or "CreateFromPem" or "CreateFromPemFile" or "CreateFromEncryptedPem" or "CreateFromEncryptedPemFile"
@@ -144,7 +160,7 @@ public sealed class KeyMaterialBanTests
 
             static class Probe
             {
-                static void Use(X509Certificate2 c, RSA rsa, ECDsa ec, DSA dsa, ECDiffieHellman dh, RSAOpenSsl openSsl, string pem, byte[] bytes)
+                static void Use(X509Certificate2 c, X509Certificate2Collection coll, RSA rsa, ECDsa ec, DSA dsa, ECDiffieHellman dh, RSAOpenSsl openSsl, string pem, byte[] bytes)
                 {
                     c.Export(X509ContentType.Pfx); // BAN
                     c.Export(X509ContentType.Pkcs12, "pw"); // BAN
@@ -161,7 +177,13 @@ public sealed class KeyMaterialBanTests
                     X509Certificate2.CreateFromPem(pem, pem); // BAN
                     X509Certificate2.CreateFromPemFile(pem); // BAN
                     X509Certificate2.CreateFromEncryptedPem(pem, pem, pem); // BAN
-                    X509CertificateLoader.LoadCertificate(bytes); // BAN
+                    X509CertificateLoader.LoadPkcs12(bytes, "pw"); // BAN
+                    X509CertificateLoader.LoadPkcs12FromFile(pem, "pw"); // BAN
+                    X509CertificateLoader.LoadPkcs12Collection(bytes, "pw"); // BAN
+                    X509CertificateLoader.LoadPkcs12CollectionFromFile(pem, "pw"); // BAN
+                    coll.Export(X509ContentType.Pfx); // BAN
+                    coll.Export(X509ContentType.Pkcs12, "pw"); // BAN
+                    coll.ExportPkcs12(Pkcs12ExportPbeParameters.Pbes2Aes256Sha256, "pw"); // BAN
                     rsa.ExportParameters(true); // BAN
                     openSsl.ExportParameters(true); // BAN
                     ec.ExportParameters(true); // BAN
@@ -177,7 +199,17 @@ public sealed class KeyMaterialBanTests
                     new AesGcm(bytes, 16).Dispose(); // BAN
                     HMACSHA256.HashData(bytes, bytes); // BAN
                     HMACSHA512.HashData(bytes, bytes); // BAN
+                    HMACSHA384.HashData(bytes, bytes); // BAN
+                    HMACSHA1.HashData(bytes, bytes); // BAN
+                    HMACMD5.TryHashData(bytes, bytes, bytes, out _); // BAN
+                    new HMACSHA3_256(bytes).Dispose(); // BAN
+                    IncrementalHash.CreateHMAC(HashAlgorithmName.SHA256, bytes).Dispose(); // BAN
 
+                    X509CertificateLoader.LoadCertificate(bytes).Dispose();
+                    X509CertificateLoader.LoadCertificateFromFile(pem).Dispose();
+                    coll.ExportCertificatePems();
+                    IncrementalHash.CreateHash(HashAlgorithmName.SHA256).Dispose();
+                    SHA256.HashData(bytes);
                     c.GetPublicKey();
                     c.ExportCertificatePem();
                     rsa.ExportSubjectPublicKeyInfo();
