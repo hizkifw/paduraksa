@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- These tests run the issuance services against the fake CA from Tests.Acme (it verifies JWS signatures and MACs with real
+         ECDsa/RSA/HMAC), a fake vault signer, and, for the Pebble tests, a stand-in issuance that makes real keys and CSRs. The code
+         under test (Data, Application, Acme) is held to the key-material ban like any other project; only this test assembly
+         may touch the primitives, which is why these tests are not part of Tests.Data. -->
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.Data/Paduraksa.Data.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Storage/Paduraksa.Storage.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The fake CA, the fake account-key signer and the virtual clock, shared with the ACME client's own tests. -->
+    <Compile Include="../Paduraksa.Tests.Acme/Fakes/FakeAcmeServer.cs" LinkBase="Shared/AcmeFakes" />
+    <Compile Include="../Paduraksa.Tests.Acme/Fakes/FakeVault.cs" LinkBase="Shared/AcmeFakes" />
+    <Compile Include="../Paduraksa.Tests.Acme/Fakes/VirtualTimeProvider.cs" LinkBase="Shared/AcmeFakes" />
+    <!-- The config database and writer harness of Tests.Data (a real SQLite file, the real ConfigService). -->
+    <Compile Include="../Paduraksa.Tests.Data/Config/TestConfigDatabase.cs" LinkBase="Shared/Data" />
+    <Compile Include="../Paduraksa.Tests.Data/Commands/ConfigServiceHarness.cs" LinkBase="Shared/Data" />
+    <Compile Include="../Paduraksa.Tests.Data/Commands/CapturingLoggerFactory.cs" LinkBase="Shared/Data" />
+  </ItemGroup>
+</Project>
