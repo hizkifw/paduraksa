@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
     <ProjectReference Include="../Paduraksa.Data/Paduraksa.Data.csproj" />
+    <ProjectReference Include="../Paduraksa.Storage/Paduraksa.Storage.csproj" />
     <ProjectReference Include="../Paduraksa.Application/Paduraksa.Application.csproj" />
     <ProjectReference Include="../Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
     <ProjectReference Include="../Paduraksa.Vault/Paduraksa.Vault.csproj" />

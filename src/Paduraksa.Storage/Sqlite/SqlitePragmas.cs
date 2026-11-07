@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using SQLitePCL;
 
-namespace Paduraksa.Data.Sqlite;
+namespace Paduraksa.Storage.Sqlite;
 
 /// <summary>
 /// The PLAN §5 settings that can't go in the connection string: <c>journal_mode=WAL</c>, <c>synchronous=NORMAL</c>

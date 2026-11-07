@@ -9,8 +9,8 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
-using Paduraksa.Data.Sqlite;
 using Paduraksa.Server.Hosting;
+using Paduraksa.Storage.Sqlite;
 using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Shared;
 

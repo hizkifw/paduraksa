@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
+    <ProjectReference Include="../Paduraksa.Storage/Paduraksa.Storage.csproj" />
   </ItemGroup>
   <!-- Trust boundary: everything internal; only capability interfaces from Core are exposed. -->
   <ItemGroup>

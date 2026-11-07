@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Paduraksa.Data.Ids;
+namespace Paduraksa.Storage.Ids;
 
 public static class TypedIdModelConfigurationBuilderExtensions
 {

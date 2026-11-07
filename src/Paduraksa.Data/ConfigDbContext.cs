@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Model;
 using Paduraksa.Data.Audit;
-using Paduraksa.Data.Ids;
+using Paduraksa.Data.Conversion;
 using Paduraksa.Data.Projection;
 using Paduraksa.Data.Revisions;
-using Paduraksa.Data.Storage;
+using Paduraksa.Storage;
+using Paduraksa.Storage.Ids;
 
 namespace Paduraksa.Data;
 
@@ -12,7 +13,7 @@ namespace Paduraksa.Data;
 /// The config database (<c>data/paduraksa.db</c>, PLAN §5): revisions, audit and the projection of the latest
 /// revision's config entities (<see cref="Projection.GlobalSettingsRow"/>). Entities are internal to Data and Application; nothing
 /// outside them sees a row type. Create contexts from the registered <see cref="IDbContextFactory{TContext}"/>
-/// (<see cref="Sqlite.PaduraksaSqlite.AddPaduraksaDbContextFactory{TContext}"/>); the schema comes from migrations
+/// (<see cref="Paduraksa.Storage.Sqlite.PaduraksaSqlite.AddPaduraksaDbContextFactory{TContext}"/>); the schema comes from migrations
 /// (applied at startup by <c>ConfigDatabase.InitializeAsync</c>).
 /// </summary>
 /// <remarks>

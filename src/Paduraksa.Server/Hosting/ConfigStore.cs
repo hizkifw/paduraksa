@@ -6,9 +6,9 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Data;
-using Paduraksa.Data.Sqlite;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Placeholders;
+using Paduraksa.Storage.Sqlite;
 
 namespace Paduraksa.Server.Hosting;
 

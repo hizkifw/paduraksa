@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Core.Model;
-using Paduraksa.Data.Sqlite;
+using Paduraksa.Storage.Sqlite;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 

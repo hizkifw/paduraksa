@@ -2,7 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Paduraksa.Core.Ids;
-using Paduraksa.Data.Ids;
+using Paduraksa.Storage.Ids;
 using Paduraksa.Tests.Data.Sample;
 using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 

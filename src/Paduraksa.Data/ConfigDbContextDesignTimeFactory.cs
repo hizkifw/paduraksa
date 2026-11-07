@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Paduraksa.Data.Sqlite;
+using Paduraksa.Storage.Sqlite;
 
 namespace Paduraksa.Data;
 

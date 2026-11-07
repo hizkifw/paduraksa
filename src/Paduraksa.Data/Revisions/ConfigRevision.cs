@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Paduraksa.Core.Model;
-using Paduraksa.Data.Storage;
+using Paduraksa.Data.Conversion;
 
 namespace Paduraksa.Data.Revisions;
 

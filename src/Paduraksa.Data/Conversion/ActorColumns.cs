@@ -1,6 +1,6 @@
 using Paduraksa.Core.Model;
 
-namespace Paduraksa.Data.Storage;
+namespace Paduraksa.Data.Conversion;
 
 /// <summary>
 /// An <see cref="Actor"/> is stored as three columns: <c>ActorKind</c> (its <see cref="ModelNames"/> name),

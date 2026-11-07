@@ -8,9 +8,9 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
-using Paduraksa.Data.Sqlite;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.Storage.Sqlite;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 

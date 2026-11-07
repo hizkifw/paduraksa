@@ -1,7 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
-namespace Paduraksa.Data.Storage;
+namespace Paduraksa.Storage;
 
 /// <summary>
 /// Stores a <see cref="DateTimeOffset"/> as fixed-width ISO 8601 UTC text with all seven fractional digits,
@@ -21,7 +21,7 @@ namespace Paduraksa.Data.Storage;
 /// can't occur in a <see cref="DateTimeOffset"/>, so the width really is fixed.
 /// </para>
 /// </remarks>
-internal sealed class UtcTimestampConverter()
+public sealed class UtcTimestampConverter()
     : ValueConverter<DateTimeOffset, string>(
         value => UtcTimestamp.Format(value),
         text => UtcTimestamp.Parse(text),

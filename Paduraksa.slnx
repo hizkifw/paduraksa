@@ -14,6 +14,7 @@
     <Project Path="src/Paduraksa.Ids.Generator/Paduraksa.Ids.Generator.csproj" />
     <Project Path="src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
     <Project Path="src/Paduraksa.Server/Paduraksa.Server.csproj" />
+    <Project Path="src/Paduraksa.Storage/Paduraksa.Storage.csproj" />
     <Project Path="src/Paduraksa.Vault/Paduraksa.Vault.csproj" />
   </Folder>
   <Folder Name="/tests/">

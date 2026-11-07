@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
+    <ProjectReference Include="../Paduraksa.Storage/Paduraksa.Storage.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />

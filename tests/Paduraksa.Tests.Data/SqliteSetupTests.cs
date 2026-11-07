@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Paduraksa.Data.Sqlite;
+using Paduraksa.Storage.Sqlite;
 using Paduraksa.Tests.Data.Sample;
 using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 

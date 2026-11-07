@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Paduraksa.Core.Model;
 
-namespace Paduraksa.Data.Storage;
+namespace Paduraksa.Data.Conversion;
 
 // The model's enums are stored by their stable names (ModelNames), never by number: the names are what the audit
 // chain hashes, and they keep the columns readable. Applied to every property of these types by convention.

@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Core.Ids;
 using Paduraksa.Data;
-using Paduraksa.Data.Sqlite;
+using Paduraksa.Storage.Sqlite;
 
 namespace Paduraksa.Tests.Data.Config;
 

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!-- Generic EF/SQLite infrastructure only: no entities, no DbContext. Internals are for the mapping tests. -->
+    <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
+  </ItemGroup>
+</Project>

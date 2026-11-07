@@ -2,9 +2,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Paduraksa.Data.Sqlite;
+namespace Paduraksa.Storage.Sqlite;
 
-/// <summary>SQLite setup shared by every Paduraksa DbContext on the config database (PLAN §5).</summary>
+/// <summary>SQLite setup shared by every Paduraksa DbContext, on both databases (config and vault, PLAN §5).</summary>
 public static class PaduraksaSqlite
 {
     /// <summary>
