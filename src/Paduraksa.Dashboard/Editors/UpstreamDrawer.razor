@@ -1,0 +1,572 @@
+@implements IDisposable
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Probes
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject IServiceProvider Services
+@inject ISnackbar Snackbar
+@inject Microsoft.Extensions.Logging.ILogger<UpstreamDrawer> Logger
+@* An upstream in a drawer (PLAN §12): name, destinations (each can be checked: a TCP connection, reachable or not), load balancing and
+   health. On its own it goes through Review changes and hands back the commit; opened from a host's form (Stage) it is checked against
+   that form's draft and handed back as it is, to be applied with the host in one revision. *@
+
+<DrawerShell Title="@Title" Overline="@(Stage ? "New upstream for this host" : _model is { IsNew: true } ? "New upstream" : "Upstream")"
+             Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Hub" Name="upstream" OnSubmit="SubmitAsync">
+    <Banner>
+        @if (_changedElsewhere is { } elsewhere)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
+                This upstream was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
+                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
+            </MudAlert>
+        }
+        @if (_deleteRefusal is { } refusal)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => _deleteRefusal = null">
+                <strong>@_storedName is still in use, so it can't be deleted.</strong> @refusal Point those routes at another upstream (or delete them) first.
+            </MudAlert>
+        }
+        @if (_failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
+                The upstream couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
+        @if (_denied)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">Your role can't read the config. An Owner can give you the Viewer role or another that can.</MudAlert>
+        }
+        else if (!_mayWrite && _model is not null)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this upstream but not change it.</MudAlert>
+        }
+    </Banner>
+    <ChildContent>
+        @if (_missing)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such upstream" Description="It may have been deleted, or the link is wrong." />
+        }
+        else if (_model is null || _document is null)
+        {
+            @if (!_failed && !_denied)
+            {
+                <div class="pdk-form" aria-busy="true">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" Height="24px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Class="mt-2" />
+                </div>
+            }
+        }
+        else
+        {
+            <div class="pdk-form" data-form="upstream">
+                @if (_attempted && _errors.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
+                        <strong>@(_errors.Count == 1 ? "One thing to fix" : $"{_errors.Count} things to fix"):</strong>
+                        <ul class="pdk-error-list">
+                            @foreach ((string path, string message) in _errors)
+                            {
+                                <li><span class="pdk-error-where">@ChangeView.Locate(path, null)</span> @message</li>
+                            }
+                        </ul>
+                    </MudAlert>
+                }
+
+                <FormSection Title="Where requests go" Description="A name hosts pick it by, and the addresses of the service." Name="destinations">
+                    <MudTextField T="string" Value="_model.Name" ValueChanged="@(value => Set(() => _model.Name = value, "/name"))" Immediate="true" DebounceInterval="250"
+                                  Label="Name" Placeholder="jellyfin" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite" AutoFocus="_model.IsNew"
+                                  Error="@(E("/name") is not null)" ErrorText="@E("/name")" data-field="name" spellcheck="false" autocomplete="off" />
+
+                    <div class="pdk-destination-list">
+                        @for (int i = 0; i < _model.Destinations.Count; i++)
+                        {
+                            int index = i;
+                            DestinationEntry destination = _model.Destinations[index];
+                            <div class="pdk-destination-row" @key="destination">
+                                <MudTextField T="string" Value="destination.Address" ValueChanged="@(value => SetAddress(destination, index, value))"
+                                              Immediate="true" DebounceInterval="250" Label="@(index == 0 ? "Address" : $"Address {index + 1}")" Placeholder="http://192.168.1.10:8096"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="!_mayWrite"
+                                              HelperText="@(index == 0 ? "An http:// or https:// address, with a port and a base path if needed." : null)"
+                                              Error="@(E($"/destinations/{index}/address") is not null)" ErrorText="@E($"/destinations/{index}/address")"
+                                              data-field="@($"destination-{index}")" spellcheck="false" autocomplete="off" />
+                                <MudSwitch T="bool" Value="destination.Enabled" ValueChanged="@(value => Set(() => destination.Enabled = value, $"/destinations/{index}/enabled"))"
+                                           Color="Color.Success" Disabled="!_mayWrite" aria-label="@($"Destination {index + 1} enabled")" />
+                                @if (_mayWrite && Probe is not null)
+                                {
+                                    <MudTooltip Text="Check that it answers" Placement="Placement.Top">
+                                        <MudIconButton Icon="@Icons.Material.Outlined.NetworkCheck" Size="Size.Small" OnClick="() => CheckAsync(destination)" Disabled="_checking.Contains(destination)"
+                                                       aria-label="@($"Check destination {index + 1}")" data-action="@($"check-{index}")" />
+                                    </MudTooltip>
+                                }
+                                @if (_model.Destinations.Count > 1 && _mayWrite)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="@(() => Set(() => _model.Destinations.Remove(destination), "/destinations"))"
+                                                   aria-label="@($"Remove destination {index + 1}")" />
+                                }
+                                @if (_probes.TryGetValue(destination, out UpstreamProbeResult? probe))
+                                {
+                                    <div class="pdk-probe-line" role="status" data-reachable="@(probe.Reachable ? "true" : "false")">
+                                        <StatusChip Tone="@(probe.Reachable ? Tone.Success : probe.Outcome == UpstreamProbeOutcome.Invalid ? Tone.Warning : Tone.Error)" Dot="true"
+                                                    Text="@ProbeWord(probe)" />
+                                        <span class="pdk-muted">@ProbeText(probe)</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        @if (FirstUnder("/destinations", exact: true) is { } destinationsError)
+                        {
+                            <div class="pdk-field-error">@destinationsError</div>
+                        }
+                        @if (_mayWrite)
+                        {
+                            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="@(() => Set(_model.AddDestination, "/destinations"))" Class="pdk-add">Add a destination</MudButton>
+                        }
+                    </div>
+                </FormSection>
+
+                <FormSection Title="Load balancing and health" Description="How requests are spread over the destinations, and when one is taken out of rotation." Name="health">
+                    <div class="pdk-field-grid">
+                        <MudSelect T="LoadBalancingPolicy?" Value="_model.LoadBalancing" ValueChanged="@(value => Set(() => _model.LoadBalancing = value, "/loadBalancing"))" Label="Load balancing"
+                                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!_mayWrite">
+                            <MudSelectItem T="LoadBalancingPolicy?" Value="null">Default (power of two choices)</MudSelectItem>
+                            <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.RoundRobin">Round robin</MudSelectItem>
+                            <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.LeastRequests">Least requests</MudSelectItem>
+                            <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.Random">Random</MudSelectItem>
+                            <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.PowerOfTwoChoices">Power of two choices (pinned)</MudSelectItem>
+                            <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.FirstAlphabetical">First alphabetical (failover)</MudSelectItem>
+                        </MudSelect>
+                        <MudSwitch T="bool" Value="_model.SessionAffinity" ValueChanged="@(value => Set(() => _model.SessionAffinity = value, "/sessionAffinity"))" Color="Color.Primary"
+                                   Label="Keep a client on the same destination (cookie)" Disabled="!_mayWrite" />
+                        <div class="pdk-span-2 pdk-health">
+                            <MudSwitch T="bool" Value="_model.ActiveHealth" ValueChanged="@(value => Set(() => _model.ActiveHealth = value, "/activeHealth"))" Color="Color.Primary"
+                                       Label="Check each destination with a request" Disabled="!_mayWrite" data-field="active-health" />
+                            @if (_model.ActiveHealth)
+                            {
+                                <div class="pdk-field-grid pdk-field-grid-3">
+                                    <MudTextField T="string" Value="_model.HealthPath" ValueChanged="@(value => Set(() => _model.HealthPath = value, "/activeHealth/path"))" Label="Path"
+                                                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="!_mayWrite"
+                                                  Error="@(E("/activeHealth/path") is not null)" ErrorText="@E("/activeHealth/path")" />
+                                    <MudNumericField T="int" Value="_model.HealthIntervalSeconds" ValueChanged="@(value => Set(() => _model.HealthIntervalSeconds = value, "/activeHealth/interval"))"
+                                                     Label="Every (seconds)" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite"
+                                                     Error="@(E("/activeHealth/interval") is not null)" ErrorText="@E("/activeHealth/interval")" />
+                                    <MudNumericField T="int" Value="_model.HealthTimeoutSeconds" ValueChanged="@(value => Set(() => _model.HealthTimeoutSeconds = value, "/activeHealth/timeout"))"
+                                                     Label="Timeout (seconds)" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite"
+                                                     Error="@(E("/activeHealth/timeout") is not null)" ErrorText="@E("/activeHealth/timeout")" />
+                                </div>
+                            }
+                            <MudSwitch T="bool" Value="_model.PassiveHealth" ValueChanged="@(value => Set(() => _model.PassiveHealth = value, "/passiveHealth"))" Color="Color.Primary"
+                                       Label="Take a destination out after failed requests" Disabled="!_mayWrite" />
+                            @if (_model.PassiveHealth)
+                            {
+                                <MudNumericField T="int?" Value="_model.ReactivationSeconds" ValueChanged="@(value => Set(() => _model.ReactivationSeconds = value, "/passiveHealth/reactivationPeriod"))"
+                                                 Label="Back in rotation after (seconds)" Placeholder="YARP's default" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite"
+                                                 Error="@(E("/passiveHealth/reactivationPeriod") is not null)" ErrorText="@E("/passiveHealth/reactivationPeriod")" />
+                            }
+                        </div>
+                    </div>
+                </FormSection>
+
+                <MudExpansionPanels Elevation="0" Outlined="true" Class="pdk-advanced">
+                    <MudExpansionPanel Text="Advanced">
+                        <TitleContent>
+                            <div class="pdk-advanced-title">
+                                <MudText Typo="Typo.subtitle1">Advanced</MudText>
+                                <MudText Typo="Typo.caption" Class="pdk-muted">A connection limit and notes.</MudText>
+                            </div>
+                        </TitleContent>
+                        <ChildContent>
+                            <div class="pdk-field-grid">
+                                <MudNumericField T="int?" Value="_model.MaxConnectionsPerServer" ValueChanged="@(value => Set(() => _model.MaxConnectionsPerServer = value, "/maxConnectionsPerServer"))"
+                                                 Label="Connections per destination" Placeholder="No limit" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite"
+                                                 Error="@(E("/maxConnectionsPerServer") is not null)" ErrorText="@E("/maxConnectionsPerServer")" />
+                                <MudTextField T="string" Value="_model.Notes" ValueChanged="@(value => Set(() => _model.Notes = value, "/notes"))" Label="Notes" Lines="2" Sizing="InputSizing.Auto"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite" Class="pdk-span-2" />
+                            </div>
+                        </ChildContent>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+
+                @if (!Stage && !_model.IsNew)
+                {
+                    <FormSection Title="Used by" Description="The hosts and routes that send requests here." Name="usage">
+                        @if (Uses.Count == 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="pdk-muted">No host sends requests here yet. Pick it for a route in a host.</MudText>
+                        }
+                        else
+                        {
+                            <ul class="pdk-list" data-section="usage-list">
+                                @foreach ((HostConfig host, RouteConfig route) in Uses)
+                                {
+                                    <li class="pdk-list-row">
+                                        <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
+                                        <span class="pdk-list-main">
+                                            <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
+                                            <span class="pdk-list-sub pdk-mono">@(route.Match == RouteMatchKind.Exact ? "= " : string.Empty)@route.Path</span>
+                                        </span>
+                                        @if (!host.Enabled)
+                                        {
+                                            <StatusChip Text="Off" />
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </FormSection>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <div class="pdk-drawer-actions">
+            @if (!Stage && _model is { IsNew: false } && _mayWrite)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="ReviewDeleteAsync" data-action="delete"
+                           Class="pdk-drawer-actions-start">Delete</MudButton>
+            }
+            @if (_mayWrite && _model is not null)
+            {
+                <MudButton Variant="Variant.Text" OnClick="Cancel" data-action="cancel">Cancel</MudButton>
+                @if (Stage)
+                {
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Check" data-action="stage">
+                        Use this upstream
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
+                        Review changes
+                    </MudButton>
+                }
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Cancel" data-action="cancel">Close</MudButton>
+            }
+        </div>
+    </Footer>
+</DrawerShell>
+
+@code {
+    private UpstreamEditModel? _model;
+    private ConfigDocument? _document;
+    private string _storedName = string.Empty;
+    private string _opened = string.Empty;
+    private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
+    private readonly HashSet<string> _touched = new(StringComparer.Ordinal);
+    private readonly Dictionary<DestinationEntry, UpstreamProbeResult> _probes = [];
+    private readonly HashSet<DestinationEntry> _checking = [];
+    private bool _attempted;
+    private bool _mayWrite;
+    private bool _missing;
+    private bool _denied;
+    private bool _failed;
+    private bool _reviewing;
+    private string? _deleteRefusal;
+    private RevisionRef? _changedElsewhere;
+    private IDisposable? _watch;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>The reachability check (the admin app registers it; without it there is no Check button).</summary>
+    private UpstreamProbe? Probe => Services.GetService(typeof(UpstreamProbe)) as UpstreamProbe;
+
+    /// <summary>The upstream to edit; null for a new one.</summary>
+    [Parameter]
+    public UpstreamId? Id { get; set; }
+
+    /// <summary>Hand the new upstream back instead of applying it (opened from a host's form, which applies it with the host).</summary>
+    [Parameter]
+    public bool Stage { get; set; }
+
+    /// <summary>With <see cref="Stage"/>: the host form's draft, which the upstream is checked against (a name another new one took).</summary>
+    [Parameter]
+    public ConfigDocument? Draft { get; set; }
+
+    /// <summary>A name to start a new upstream with.</summary>
+    [Parameter]
+    public string? SuggestedName { get; set; }
+
+    private string Title => _missing ? "Upstream not found" : _model is null ? (Id is null ? "New upstream" : "Upstream") : _model.IsNew ? "New upstream" : _storedName;
+
+    private string Subtitle => Stage
+        ? "It is applied together with the host, in one revision."
+        : _model is { IsNew: true } || Id is null ? "A service on your network that hosts send requests to." : "Its destinations, load balancing and health checks.";
+
+    private IReadOnlyList<(HostConfig Host, RouteConfig Route)> Uses =>
+        _model is null || _document is null || _model.IsNew ? [] : HostOverview.UsesOf(_document, _model.Id);
+
+    /// <summary><paramref name="basis"/>, or with a number after it when an upstream of <paramref name="document"/> is called that already.</summary>
+    public static string UniqueName(ConfigDocument document, string basis)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        string name = string.IsNullOrWhiteSpace(basis) ? "upstream" : basis.Trim().ToLowerInvariant();
+        string candidate = name;
+        for (int i = 2; document.Upstreams.Any(u => string.Equals(u.Name, candidate, StringComparison.OrdinalIgnoreCase)); i++)
+        {
+            candidate = $"{name}-{i}";
+        }
+
+        return candidate;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Stage)
+        {
+            _watch = Config.Watch(committed => InvokeAsync(() => OnCommittedAsync(committed)));
+        }
+
+        await LoadAsync();
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _changedElsewhere = null;
+        _deleteRefusal = null;
+        _attempted = false;
+        _failed = false;
+        _touched.Clear();
+        _probes.Clear();
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        try
+        {
+            _document = Stage && Draft is not null ? Draft : (await Config.GetCurrentAsync()).Document;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't load the upstream form.");
+            _failed = true;
+            return;
+        }
+
+        if (Id is { } upstreamId && !Stage)
+        {
+            if (_document.Upstreams.FirstOrDefault(u => u.Id == upstreamId) is not { } upstream)
+            {
+                _missing = true;
+                return;
+            }
+
+            _storedName = upstream.Name;
+            _model = UpstreamEditModel.From(upstream);
+        }
+        else
+        {
+            _model = UpstreamEditModel.New();
+            _model.Name = SuggestedName ?? string.Empty;
+        }
+
+        _opened = StagedChange.Fingerprint(new ConfigDocument(Upstreams: [_model.ToConfig()]));
+        Validate();
+    }
+
+    private string? E(string path) => (_attempted || _touched.Contains(path)) && _errors.TryGetValue(path, out string? message) ? message : null;
+
+    private string? FirstUnder(string prefix, bool exact) =>
+        _attempted || _touched.Contains(prefix)
+            ? _errors.Where(e => exact ? e.Key == prefix : e.Key.StartsWith(prefix, StringComparison.Ordinal)).Select(e => e.Value).FirstOrDefault()
+            : null;
+
+    private void Set(Action apply, string path)
+    {
+        apply();
+        _touched.Add(path);
+        Validate();
+        if (Level is not null && _model is not null)
+        {
+            Level.IsDirty = StagedChange.Fingerprint(new ConfigDocument(Upstreams: [_model.ToConfig()])) != _opened;
+        }
+    }
+
+    private void SetAddress(DestinationEntry destination, int index, string value)
+    {
+        _probes.Remove(destination);
+        Set(() => destination.Address = value, $"/destinations/{index}/address");
+    }
+
+    private void Validate()
+    {
+        if (_model is not null && _document is not null)
+        {
+            _errors = InlineValidation.ForUpstream(_document, _model.ToConfig());
+        }
+    }
+
+    private async Task CheckAsync(DestinationEntry destination)
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null || Probe is not { } probe)
+        {
+            return;
+        }
+
+        _checking.Add(destination);
+        try
+        {
+            await Logger.TryAsync(Snackbar, "The check couldn't run.", async () => _probes[destination] = await probe.CheckAsync(destination.Address, origin));
+        }
+        finally
+        {
+            _checking.Remove(destination);
+        }
+    }
+
+    private static string ProbeWord(UpstreamProbeResult probe) => probe.Outcome switch
+    {
+        UpstreamProbeOutcome.Reachable => "Reachable",
+        UpstreamProbeOutcome.Unreachable => "Unreachable",
+        UpstreamProbeOutcome.Denied => "Not allowed",
+        _ => "Not checked",
+    };
+
+    private static string ProbeText(UpstreamProbeResult probe) => probe.Outcome switch
+    {
+        UpstreamProbeOutcome.Reachable => "The server opened a connection to it.",
+        UpstreamProbeOutcome.Unreachable => $"No connection within {(int)UpstreamProbe.Timeout.TotalSeconds} seconds. Requests get 502 until it is up.",
+        UpstreamProbeOutcome.Denied => "Your role can't change the config.",
+        _ => probe.Message ?? "The address can't be checked.",
+    };
+
+    private async Task SubmitAsync()
+    {
+        if (_model is null || !_mayWrite || _reviewing)
+        {
+            return;
+        }
+
+        _attempted = true;
+        Validate();
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        UpstreamConfig upstream = _model.ToConfig();
+        if (Stage)
+        {
+            Level?.Close(upstream);
+            return;
+        }
+
+        await RunReviewAsync(new ReviewRequest(_model.IsNew ? $"New upstream {upstream.Name}" : $"Edit {upstream.Name}", new UpsertUpstreamCommand(upstream))
+        {
+            SuccessMessage = _model.IsNew ? $"Created {upstream.Name}" : $"Saved {upstream.Name}",
+            OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
+        });
+    }
+
+    private async Task ReviewDeleteAsync()
+    {
+        if (_model is null || _model.IsNew || !_mayWrite)
+        {
+            return;
+        }
+
+        // Refused here with the routes named, rather than by the dry run with a pointer: the service would refuse it the same way.
+        if (Uses.Count > 0)
+        {
+            _deleteRefusal = $"{string.Join(", ", Uses.Select(u => $"{ChangeView.HostTitle(u.Host)} (route {u.Route.Path})"))} {(Uses.Count == 1 ? "sends" : "send")} requests to it.";
+            Snackbar.Add($"{_storedName} is still in use and can't be deleted.", Severity.Warning);
+            return;
+        }
+
+        await RunReviewAsync(new ReviewRequest($"Delete {_storedName}", new DeleteUpstreamCommand(_model.Id, _model.Version))
+        {
+            ApplyLabel = "Delete",
+            Destructive = true,
+            SuccessMessage = $"Deleted {_storedName}",
+        });
+    }
+
+    private async Task RunReviewAsync(ReviewRequest request)
+    {
+        _reviewing = true;
+        ReviewOutcome outcome;
+        try
+        {
+            outcome = await Drawers.ReviewAsync(request);
+        }
+        finally
+        {
+            _reviewing = false;
+        }
+
+        if (outcome.Applied is { } applied)
+        {
+            Level?.Close(applied);
+        }
+        else if (outcome.Reload)
+        {
+            await ReloadAsync();
+        }
+    }
+
+    private void OnInvalid(IReadOnlyList<ConfigError> errors)
+    {
+        Dictionary<string, string> merged = new(_errors, StringComparer.Ordinal);
+        foreach ((string path, string message) in InlineValidation.Relative(errors, string.Empty))
+        {
+            merged[path] = message;
+        }
+
+        _errors = merged;
+        _attempted = true;
+    }
+
+    private async Task ReloadAsync()
+    {
+        _model = null;
+        await LoadAsync();
+        if (Level is not null)
+        {
+            Level.IsDirty = false;
+        }
+    }
+
+    private void Cancel() => Level?.RequestClose();
+
+    private async Task OnCommittedAsync(ConfigCommitted committed)
+    {
+        if (_reviewing || _model is null || _model.IsNew)
+        {
+            return;
+        }
+
+        if (committed.Changes.Any(c => (c is UpstreamChange u && u.UpstreamId == _model.Id) || (c is DestinationChange d && d.UpstreamId == _model.Id)))
+        {
+            _changedElsewhere = committed.Revision;
+        }
+
+        // Routes elsewhere may have started or stopped using it: the usage section reads the latest document.
+        try
+        {
+            _document = (await Config.GetCurrentAsync()).Document;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            // The usage section keeps what it shows; the next commit or a reload reads it again.
+            Logger.LogStoreFailure(ex, "Couldn't refresh an upstream's usage.");
+        }
+
+        StateHasChanged();
+    }
+}

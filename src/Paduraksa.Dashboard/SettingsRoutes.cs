@@ -15,8 +15,8 @@ public static class SettingsRoutes
     /// <summary>The profiles: named sets of host settings.</summary>
     public const string Profiles = "/settings/profiles";
 
-    /// <summary>The form for a new profile.</summary>
-    public const string NewProfile = "/settings/profiles/new";
+    /// <summary>The profiles with the drawer for a new profile open.</summary>
+    public const string NewProfile = Profiles + "/" + DashboardRoutes.NewSegment;
 
     /// <summary>The users and their roles.</summary>
     public const string Users = "/settings/users";
@@ -24,6 +24,6 @@ public static class SettingsRoutes
     /// <summary>The API tokens: one's own, and everyone's with <c>tokens:all</c>.</summary>
     public const string Tokens = "/settings/tokens";
 
-    /// <summary>A profile's page: <c>/settings/profiles/prof_...</c>. The page parses the segment back into a <see cref="ProfileId"/>.</summary>
+    /// <summary>A profile: <c>/settings/profiles/prof_...</c>, the profiles with its drawer open. The page parses the segment back into a <see cref="ProfileId"/>.</summary>
     public static string Profile(ProfileId id) => $"{Profiles}/{id}";
 }

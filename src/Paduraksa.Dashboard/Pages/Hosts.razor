@@ -1,20 +1,25 @@
 @attribute [Route(DashboardRoutes.Hosts)]
+@attribute [Route(DashboardRoutes.Hosts + "/{Key}")]
 @implements IDisposable
 @using Paduraksa.Contracts.Certificates
+@using Paduraksa.Dashboard.Editors
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
+@inject DrawerStack Drawers
 @inject TimeProvider Time
 @inject NavigationManager Navigation
 @inject ILogger<Hosts> Logger
+@* The hosts (PLAN §12): at a glance, each host's names, where its requests go (upstream and address), its certificate and whether it is
+   on. A host opens in a drawer; its address (/hosts/host_..., /hosts/new) is the list with that drawer open. *@
 
 <PageTitle>Hosts · Paduraksa</PageTitle>
 
-<PageHeader Title="Hosts" Overline="Traffic" Lead="Every name this instance answers for, and what it does with the requests.">
+<PageHeader Title="Hosts" Overline="Traffic" Lead="Every name this instance answers for, and where its requests go.">
     <Actions>
         @if (_mayWrite)
         {
-            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add a host</MudButton>
+            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-host">Add host</MudButton>
         }
     </Actions>
 </PageHeader>
@@ -36,14 +41,11 @@ else
     }
 
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
-        <div class="pdk-toolbar">
-            <MudTextField T="string" @bind-Value="_search" Immediate="true" Placeholder="Search names, tags, upstreams" Variant="Variant.Outlined" Margin="Margin.Dense"
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Rounded.Search" Clearable="true" Class="pdk-search" aria-label="Search hosts" />
-            @if (_rows is not null)
-            {
-                <MudText Typo="Typo.caption" Class="pdk-muted">@Count(Filtered.Count, "host", "hosts")@(Filtered.Count != _rows.Count ? $" of {_rows.Count}" : string.Empty)</MudText>
-            }
-        </div>
+        @if (_rows is not { Count: 0 })
+        {
+            <ListToolbar Search="@_search" SearchChanged="value => _search = value" Placeholder="Search names, upstreams, addresses, tags"
+                         Total="_rows?.Count" Shown="Filtered.Count" One="host" Many="hosts" />
+        }
 
         @if (_rows is null)
         {
@@ -51,64 +53,58 @@ else
             {
                 <div class="pdk-row-skeleton">
                     <MudSkeleton SkeletonType="SkeletonType.Circle" Width="10px" Height="10px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="28%" />
                     <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="12%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="18%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="22%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="14%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="10%" />
                 </div>
             }
         }
         else if (_rows.Count == 0)
         {
             <EmptyState Icon="@Icons.Material.Outlined.AddLink" Title="No hosts yet"
-                        Description="@(_upstreamCount == 0 ? "A host gives a name to a service on your network. Add the service as an upstream first, then a host for it." : "A host gives a name to a service on your network: proxy it, redirect it, or answer with a fixed page.")">
+                        Description="A host gives a name to a service on your network: proxy it to an upstream (which you can add from the host form), redirect it, or answer with a fixed page.">
                 <Action>
                     @if (_mayWrite)
                     {
-                        @if (_upstreamCount == 0)
-                        {
-                            <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add an upstream</MudButton>
-                        }
-                        else
-                        {
-                            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add a host</MudButton>
-                        }
+                        <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add host</MudButton>
                     }
                 </Action>
             </EmptyState>
         }
         else if (Filtered.Count == 0)
         {
-            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SearchOff" Title="No host matches" Description="Try another name, tag or upstream." />
+            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SearchOff" Title="No host matches" Description="Try another name, upstream, address or tag." />
         }
         else
         {
-            <MudTable T="HostRow" Items="Filtered" Hover="true" Dense="false" Elevation="0" Breakpoint="Breakpoint.Sm" Class="pdk-table" RowClass="pdk-clickable"
-                      OnRowClick="args => Open(args.Item!)">
-                <HeaderContent>
-                    <MudTh>Host</MudTh>
-                    <MudTh>Kind</MudTh>
-                    <MudTh>Goes to</MudTh>
-                    <MudTh>HTTPS</MudTh>
-                    @if (_mayReadCertificates)
-                    {
-                        <MudTh>Certificate</MudTh>
-                    }
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Host">
-                        <div class="pdk-host-cell">
-                            <span class="pdk-status-dot pdk-tone-@context.Health.Css()" title="@HealthText(context)" aria-label="@HealthText(context)" role="img"></span>
-                            <div class="pdk-list-main">
-                                <a class="pdk-row-link" href="@DashboardRoutes.Host(context.Host.Id)" @onclick:stopPropagation="true">@Primary(context.Host)</a>
-                                @if (context.Host.Names.Count > 1)
+            <div class="pdk-dt pdk-hosts-table" role="table" aria-label="Hosts">
+                <div class="pdk-dt-row pdk-dt-head" role="row">
+                    <span role="columnheader">Host</span>
+                    <span role="columnheader">Destination</span>
+                    <span role="columnheader">HTTPS</span>
+                    <span role="columnheader">Status</span>
+                </div>
+                @foreach (HostRow row in Filtered)
+                {
+                    HostConfig host = row.Host;
+                    <div class="pdk-dt-row pdk-dt-link @(host.Enabled ? null : "pdk-dt-off")" role="row" @onclick="() => Open(host)" data-host="@Primary(host)" @key="host.Id">
+                        <div role="cell" class="pdk-dt-main">
+                            <span class="pdk-status-dot pdk-tone-@row.Health.Css()" title="@HealthText(row)" aria-hidden="true"></span>
+                            <div class="pdk-dt-titles">
+                                <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)" @onclick:stopPropagation="true">@Primary(host)</a>
+                                @if (host.Names.Count > 1 || host.Tags.Count > 0)
                                 {
-                                    <span class="pdk-list-sub pdk-mono">@string.Join(", ", context.Host.Names.Skip(1))</span>
-                                }
-                                @if (context.Host.Tags.Count > 0)
-                                {
-                                    <span class="pdk-tags">
-                                        @foreach (string tag in context.Host.Tags)
+                                    <span class="pdk-dt-chips">
+                                        @foreach (string name in host.Names.Skip(1).Take(3))
+                                        {
+                                            <span class="pdk-name-chip pdk-mono">@name</span>
+                                        }
+                                        @if (host.Names.Count > 4)
+                                        {
+                                            <span class="pdk-name-chip">+@(host.Names.Count - 4)</span>
+                                        }
+                                        @foreach (string tag in host.Tags)
                                         {
                                             <span class="pdk-tag">@tag</span>
                                         }
@@ -116,46 +112,72 @@ else
                                 }
                             </div>
                         </div>
-                    </MudTd>
-                    <MudTd DataLabel="Kind">
-                        <span class="pdk-badge pdk-tone-@(context.Host.Kind == HostKind.Proxy ? "primary" : "default")">@context.Kind</span>
-                        @if (!context.Host.Enabled)
-                        {
-                            <span class="pdk-badge pdk-tone-default">Off</span>
-                        }
-                    </MudTd>
-                    <MudTd DataLabel="Goes to"><span class="pdk-target">@context.Target</span></MudTd>
-                    <MudTd DataLabel="HTTPS"><span class="pdk-muted">@context.Https</span></MudTd>
-                    @if (_mayReadCertificates)
-                    {
-                        <MudTd DataLabel="Certificate">
-                            @if (context.Certificate is { } certificate)
+                        <div role="cell" class="pdk-dt-cell" data-label="Destination">
+                            <ul class="pdk-dest-list">
+                                @foreach (HostDestination destination in row.Destinations.Take(3))
+                                {
+                                    <li class="@(destination.Missing ? "pdk-dest-missing" : null)">
+                                        @if (destination.Path is { } path && (row.Destinations.Count > 1 || path != "/"))
+                                        {
+                                            <span class="pdk-dest-path pdk-mono">@path</span>
+                                        }
+                                        <MudIcon Icon="@Icons.Material.Rounded.East" Size="Size.Small" Class="pdk-dest-arrow" />
+                                        <span class="pdk-dest-label">@destination.Label</span>
+                                        @if (destination.Detail is { } detail)
+                                        {
+                                            <span class="pdk-dest-detail pdk-mono">@detail</span>
+                                        }
+                                    </li>
+                                }
+                                @if (row.Destinations.Count > 3)
+                                {
+                                    <li class="pdk-muted">@($"and {row.Destinations.Count - 3} more routes")</li>
+                                }
+                            </ul>
+                        </div>
+                        <div role="cell" class="pdk-dt-cell" data-label="HTTPS">
+                            <div class="pdk-dt-stack">
+                                @if (row.Certificate is { } certificate)
+                                {
+                                    <StatusChip Tone="certificate.Tone" Text="@certificate.Label" Detail="@certificate.Detail" Icon="@CertificateIcon(certificate.Tone)" Name="certificate" />
+                                }
+                                <span class="pdk-dt-note">@row.Https</span>
+                            </div>
+                        </div>
+                        <div role="cell" class="pdk-dt-cell pdk-dt-status" data-label="Status" @onclick:stopPropagation="true">
+                            <StatusChip Tone="@StatusTone(row)" Dot="true" Text="@StatusText(row)" Detail="@HealthText(row)" Name="status" />
+                            @if (_mayWrite && host.Kind != HostKind.Admin)
                             {
-                                <MudTooltip Text="@certificate.Detail" Arrow="true" Placement="Placement.Top">
-                                    <span class="pdk-badge pdk-tone-@certificate.Tone.Css()">@certificate.Label</span>
-                                </MudTooltip>
+                                <MudSwitch @key="_toggles" T="bool" Value="host.Enabled" ValueChanged="_ => ToggleAsync(host)" Color="Color.Success" Size="Size.Small"
+                                           aria-label="@($"{(host.Enabled ? "Switch off" : "Switch on")} {Primary(host)}")" data-action="toggle" />
                             }
-                        </MudTd>
-                    }
-                </RowTemplate>
-            </MudTable>
+                        </div>
+                    </div>
+                }
+            </div>
         }
     </MudPaper>
 }
 
 @code {
     private IReadOnlyList<HostRow>? _rows;
-    private int _upstreamCount;
     private string? _search;
     private bool _mayWrite;
     private bool _mayReadCertificates;
     private bool _denied;
     private bool _failed;
+    private bool _loaded;
+    private int _toggles;
     private IDisposable? _watch;
+    private RoutedDrawer? _drawer;
+
+    /// <summary>The address's last segment: a host's ID, or <c>new</c>; null for the list alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
 
     private IReadOnlyList<HostRow> Filtered => _rows is null ? [] : [.. _rows.Where(row => row.Matches(_search))];
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
         // The list loads once the page is live (the first render shows its skeleton), and follows every commit from then on.
         if (!RendererInfo.IsInteractive)
@@ -163,15 +185,29 @@ else
             return;
         }
 
-        _watch = Config.Watch(_ => InvokeAsync(async () =>
+        if (!_loaded)
         {
+            _loaded = true;
+            _drawer = new RoutedDrawer(Navigation, DashboardRoutes.Hosts);
+            _watch = Config.Watch(_ => InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            }));
             await LoadAsync();
-            StateHasChanged();
-        }));
-        await LoadAsync();
+        }
+
+        if (!_denied)
+        {
+            _drawer!.Show(Key, OpenDrawer);
+        }
     }
 
-    public void Dispose() => _watch?.Dispose();
+    public void Dispose()
+    {
+        _watch?.Dispose();
+        _drawer?.Dispose();
+    }
 
     private async Task LoadAsync()
     {
@@ -194,7 +230,6 @@ else
         {
             CurrentConfig current = await Config.GetCurrentAsync();
             IReadOnlyList<CertificateSummary>? certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
-            _upstreamCount = current.Document.Upstreams.Count;
             _rows = HostOverview.Rows(current.Document, certificates, Config.LiveWarnings, Time.GetUtcNow());
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -205,7 +240,41 @@ else
         }
     }
 
-    private void Open(HostRow row) => Navigation.NavigateTo(DashboardRoutes.Host(row.Host.Id));
+    /// <summary>The drawer an address names. Blazor's router has no typed-ID constraint: the segment is parsed here, and anything that isn't a host ID is not found.</summary>
+    private DrawerLevel OpenDrawer(string key)
+    {
+        if (key == DashboardRoutes.NewSegment)
+        {
+            return Drawers.Push<HostDrawer>(width: DrawerWidth.Wide);
+        }
+
+        return HostId.TryParse(key, out HostId id)
+            ? Drawers.Push<HostDrawer>(new Dictionary<string, object?> { [nameof(HostDrawer.Id)] = id }, DrawerWidth.Wide)
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Host not found", "There is no such host", "Hosts", "Back to the hosts"), DrawerWidth.Narrow);
+    }
+
+    private void Open(HostConfig host) => Navigation.NavigateTo(DashboardRoutes.Host(host.Id));
+
+    /// <summary>The switch in the list: the host on or off, through review like every change.</summary>
+    private async Task ToggleAsync(HostConfig host)
+    {
+        if (!_mayWrite)
+        {
+            return;
+        }
+
+        string name = ChangeView.HostTitle(host);
+        bool on = !host.Enabled;
+        await Drawers.ReviewAsync(new ReviewRequest($"{(on ? "Switch on" : "Switch off")} {name}", new UpsertHostCommand(host with { Enabled = on }))
+        {
+            ApplyLabel = on ? "Switch on" : "Switch off",
+            SuccessMessage = $"{(on ? "Switched on" : "Switched off")} {name}",
+            SampleHost = host.Names.FirstOrDefault(n => !n.StartsWith('*')),
+        });
+
+        // The switches show what is stored: made again, one that was flipped and then not applied flips back.
+        _toggles++;
+    }
 
     private static string Primary(HostConfig host) => host.Names.Count > 0 ? host.Names[0] : "Unnamed host";
 
@@ -216,5 +285,19 @@ else
         _ => "Serving",
     };
 
-    private static string Count(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
+    private static string StatusText(HostRow row) => row.Health switch
+    {
+        Tone.Default => "Off",
+        Tone.Warning => "Attention",
+        _ => "Online",
+    };
+
+    private static Tone StatusTone(HostRow row) => row.Health == Tone.Warning ? Tone.Warning : row.Health == Tone.Default ? Tone.Default : Tone.Success;
+
+    private static string CertificateIcon(Tone tone) => tone switch
+    {
+        Tone.Success => Icons.Material.Rounded.Lock,
+        Tone.Default => Icons.Material.Rounded.LockOpen,
+        _ => Icons.Material.Rounded.GppMaybe,
+    };
 }

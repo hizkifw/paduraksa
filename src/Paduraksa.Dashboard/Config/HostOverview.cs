@@ -23,6 +23,13 @@ public enum Tone
 /// <param name="Detail">The longer explanation, for a tooltip.</param>
 public sealed record CertificateState(string Label, Tone Tone, string Detail);
 
+/// <summary>One line of where a host's requests go, as the hosts list shows it: a route to an upstream and its address, or a redirect.</summary>
+/// <param name="Path">The route's path (<c>/api</c>, <c>= /exact</c>); null for a host without routes.</param>
+/// <param name="Label">The upstream's name, the redirect target, the fixed status.</param>
+/// <param name="Detail">The upstream's address (the first destination, and how many more), in monospace.</param>
+/// <param name="Missing">The route's upstream isn't in the config.</param>
+public sealed record HostDestination(string? Path, string Label, string? Detail, bool Missing = false);
+
 /// <summary>One row of the hosts list.</summary>
 /// <param name="Host">The host as stored.</param>
 /// <param name="Kind">The kind, in words.</param>
@@ -31,15 +38,18 @@ public sealed record CertificateState(string Label, Tone Tone, string Detail);
 /// <param name="Target">Where requests go: the routes and their upstreams, the redirect target or the fixed status.</param>
 /// <param name="Health">The status dot.</param>
 /// <param name="Problems">What the live config warns about this host.</param>
-public sealed record HostRow(HostConfig Host, string Kind, CertificateState? Certificate, string Https, string Target, Tone Health, IReadOnlyList<string> Problems)
+/// <param name="Destinations">Where requests go, line by line.</param>
+public sealed record HostRow(
+    HostConfig Host, string Kind, CertificateState? Certificate, string Https, string Target, Tone Health, IReadOnlyList<string> Problems, IReadOnlyList<HostDestination> Destinations)
 {
-    /// <summary>Whether the row matches a search: any name, tag, upstream, kind or target containing <paramref name="term"/>.</summary>
+    /// <summary>Whether the row matches a search: any name, tag, upstream or address, kind or target containing <paramref name="term"/>.</summary>
     public bool Matches(string? term) =>
         string.IsNullOrWhiteSpace(term)
         || Host.Names.Any(n => n.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase))
         || Host.Tags.Any(t => t.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase))
         || Kind.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase)
-        || Target.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase);
+        || Target.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase)
+        || Destinations.Any(d => d.Label.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase) || d.Detail?.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase) == true);
 }
 
 /// <summary>Builds the hosts list (PLAN §12): per host its kind, certificate state, HTTPS behaviour, routes and a status dot.</summary>
@@ -72,7 +82,7 @@ public static class HostOverview
             Tone health = !host.Enabled ? Tone.Default
                 : problems.Length > 0 || certificate?.Tone is Tone.Warning or Tone.Error ? Tone.Warning
                 : Tone.Success;
-            rows.Add(new HostRow(host, KindLabel(host.Kind), certificate, HttpsOf(host, document), TargetOf(host, document), health, problems));
+            rows.Add(new HostRow(host, KindLabel(host.Kind), certificate, HttpsOf(host, document), TargetOf(host, document), health, problems, DestinationsOf(host, document)));
         }
 
         return [.. rows.OrderBy(r => r.Host.Names.Count > 0 ? r.Host.Names[0] : string.Empty, StringComparer.Ordinal)];
@@ -125,11 +135,14 @@ public static class HostOverview
     }
 
     /// <summary>A certificate's name in a picker: its label, else its first name, with when it ends.</summary>
-    public static string CertificateTitle(CertificateSummary certificate)
+    public static string CertificateTitle(CertificateSummary certificate) =>
+        $"{CertificateName(certificate)} · until {certificate.NotAfter.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}";
+
+    /// <summary>A certificate's name: its label, else its first name, else its subject.</summary>
+    public static string CertificateName(CertificateSummary certificate)
     {
         ArgumentNullException.ThrowIfNull(certificate);
-        string name = certificate.Label ?? (certificate.Names.Count > 0 ? certificate.Names[0] : certificate.Subject);
-        return $"{name} · until {certificate.NotAfter.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}";
+        return certificate.Label ?? (certificate.Names.Count > 0 ? certificate.Names[0] : certificate.Subject);
     }
 
     private static CertificateState CertificateOf(HostConfig host, IReadOnlyList<CertificateSummary> certificates, DateTimeOffset now)
@@ -223,6 +236,52 @@ public static class HostOverview
         bool? profile = host.ProfileId is { } id ? document.Profiles.FirstOrDefault(p => p.Id == id)?.Settings.ForceHttps : null;
         bool redirect = host.Settings.ForceHttps ?? profile ?? document.Settings.Defaults.ForceHttps ?? false;
         return redirect ? "HTTPS, redirects HTTP" : "HTTP and HTTPS";
+    }
+
+    /// <summary>Where <paramref name="host"/>'s requests go, a line per route (its path, the upstream, the upstream's address).</summary>
+    public static IReadOnlyList<HostDestination> DestinationsOf(HostConfig host, ConfigDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(document);
+        switch (host.Kind)
+        {
+            case HostKind.Proxy:
+                if (host.Routes.Count == 0)
+                {
+                    return [new HostDestination(null, "No routes", null, Missing: true)];
+                }
+
+                return
+                [
+                    .. host.Routes.OrderBy(r => r.Order).Select(route =>
+                    {
+                        string path = route.Match == RouteMatchKind.Exact ? $"= {route.Path}" : route.Path;
+                        return document.Upstreams.FirstOrDefault(u => u.Id == route.UpstreamId) is { } upstream
+                            ? new HostDestination(path, upstream.Name, AddressOf(upstream))
+                            : new HostDestination(path, "missing upstream", null, Missing: true);
+                    }),
+                ];
+            case HostKind.Redirect:
+                return host.Redirect is { } redirect
+                    ? [new HostDestination(null, $"Redirect {redirect.StatusCode.ToString(CultureInfo.InvariantCulture)}", redirect.Target)]
+                    : [new HostDestination(null, "Redirect", null)];
+            case HostKind.Respond:
+                return [new HostDestination(null, host.Respond is { } respond ? $"Answers {respond.StatusCode.ToString(CultureInfo.InvariantCulture)}" : "Fixed answer", host.Respond?.ContentType)];
+            default:
+                return [new HostDestination(null, "This admin", "through the proxy")];
+        }
+    }
+
+    /// <summary>An upstream's address in a word: the first destination, and how many more.</summary>
+    public static string AddressOf(UpstreamConfig upstream)
+    {
+        ArgumentNullException.ThrowIfNull(upstream);
+        return upstream.Destinations.Count switch
+        {
+            0 => "no destinations",
+            1 => upstream.Destinations[0].Address,
+            _ => $"{upstream.Destinations[0].Address} +{(upstream.Destinations.Count - 1).ToString(CultureInfo.InvariantCulture)}",
+        };
     }
 
     private static string TargetOf(HostConfig host, ConfigDocument document)

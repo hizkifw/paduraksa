@@ -1,3 +1,5 @@
+using AngleSharp.Dom;
+
 using Bunit;
 
 using Microsoft.AspNetCore.Components;
@@ -9,6 +11,7 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.Pages;
 
 namespace Paduraksa.Tests.Dashboard.Components;
@@ -34,9 +37,12 @@ public sealed class ConfigPageTests
 
         IRenderedComponent<Hosts> page = context.Render<Hosts>();
 
-        await page.WaitForStateAsync(() => page.FindAll(".pdk-table").Count == 1);
-        Assert.Contains("app.example.com", page.Find(".pdk-table").TextContent, StringComparison.Ordinal);
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-hosts-table").Count == 1);
+        string row = page.Find("[data-host='app.example.com']").TextContent;
+        Assert.Contains("app", row, StringComparison.Ordinal);
+        Assert.Contains("http://app:8080", row, StringComparison.Ordinal);
         Assert.Equal(offered, page.FindAll($"a[href='{Paduraksa.Dashboard.DashboardRoutes.NewHost}']").Count > 0);
+        Assert.Equal(offered, page.FindAll("[data-action=toggle]").Count == 1);
     }
 
     [Fact]
@@ -51,8 +57,8 @@ public sealed class ConfigPageTests
         config.Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
         await page.InvokeAsync(() => config.CommitAsync(new ConfigCommitted(new RevisionRef(ConfigRevisionId.New(), 2), [])));
 
-        await page.WaitForStateAsync(() => page.FindAll(".pdk-table").Count == 1);
-        Assert.Contains("app.example.com", page.Find(".pdk-table").TextContent, StringComparison.Ordinal);
+        await page.WaitForStateAsync(() => page.FindAll(".pdk-hosts-table").Count == 1);
+        Assert.Contains("app.example.com", page.Find(".pdk-hosts-table").TextContent, StringComparison.Ordinal);
         page.Instance.Dispose();
         Assert.Equal(0, config.WatcherCount);
     }
@@ -60,19 +66,21 @@ public sealed class ConfigPageTests
     [Theory]
     [InlineData(Role.Operator, true)]
     [InlineData(Role.Viewer, false)]
-    public async Task TheHostForm_IsReadOnlyWithoutConfigWrite(Role role, bool writable)
+    public async Task AHostsAddress_OpensItsDrawer_ReadOnlyWithoutConfigWrite(Role role, bool writable)
     {
         await using DashboardTestContext context = new();
         FakeDashboardConfig config = ConfigPages.SignIn(context, role);
         config.Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
         context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
 
-        IRenderedComponent<HostEditor> page = context.Render<HostEditor>(parameters => parameters.Add(p => p.Key, Host.Id.ToString()));
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, Host.Id.ToString()));
 
-        await page.WaitForStateAsync(() => page.FindAll(".pdk-form-grid[data-kind]").Count == 1);
-        Assert.Equal(writable, page.FindAll("[data-action=review]").Count == 1);
-        Assert.Equal(writable, page.FindAll("[data-action=delete]").Count == 1);
-        Assert.Equal(!writable, page.Markup.Contains("Read-only", StringComparison.Ordinal));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] .pdk-form[data-kind]").Count == 1);
+        Assert.Equal("app.example.com", drawers.Find(".pdk-drawer-title").TextContent);
+        Assert.Equal(writable, drawers.FindAll("[data-action=review]").Count == 1);
+        Assert.Equal(writable, drawers.FindAll("[data-action=delete]").Count == 1);
+        Assert.Equal(!writable, drawers.FindAll("[data-banner=read-only]").Count == 1);
     }
 
     [Theory]
@@ -82,10 +90,35 @@ public sealed class ConfigPageTests
     {
         await using DashboardTestContext context = new();
         ConfigPages.SignIn(context, Role.Viewer).Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
 
-        IRenderedComponent<HostEditor> page = context.Render<HostEditor>(parameters => parameters.Add(p => p.Key, key));
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, key));
 
-        await page.WaitForStateAsync(() => page.Markup.Contains("There is no such host", StringComparison.Ordinal));
+        await drawers.WaitForStateAsync(() => drawers.Markup.Contains("There is no such host", StringComparison.Ordinal));
+        Assert.Equal("Host not found", drawers.Find(".pdk-drawer-title").TextContent);
+    }
+
+    [Fact]
+    public async Task ClosingAHostsDrawer_GoesBackToTheList_AndLeavingThePageClosesIt()
+    {
+        await using DashboardTestContext context = new();
+        ConfigPages.SignIn(context, Role.Operator).Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
+        context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        NavigationManager navigation = context.Services.GetRequiredService<NavigationManager>();
+        IRenderedComponent<Hosts> page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, Host.Id.ToString()));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] .pdk-form").Count == 1);
+
+        await drawers.Find("[data-drawer=host] [data-action=cancel]").ClickAsync(new());
+
+        Assert.Empty(drawers.FindAll(".pdk-sheet"));
+        Assert.EndsWith(Paduraksa.Dashboard.DashboardRoutes.Hosts, navigation.Uri, StringComparison.Ordinal);
+
+        page.Render(parameters => parameters.Add(p => p.Key, Paduraksa.Dashboard.DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host]").Count == 1);
+        Assert.Equal("New host", drawers.Find(".pdk-drawer-title").TextContent);
+        page.Instance.Dispose();
+        Assert.Empty(context.Services.GetRequiredService<DrawerStack>().Levels);
     }
 
     [Fact]
@@ -95,16 +128,32 @@ public sealed class ConfigPageTests
         FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
         config.Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<UpstreamEditor> page = context.Render<UpstreamEditor>(parameters => parameters.Add(p => p.Key, App.Id.ToString()));
-        await page.WaitForStateAsync(() => page.FindAll("[data-action=delete]").Count == 1);
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        context.Render<Upstreams>(parameters => parameters.Add(p => p.Key, App.Id.ToString()));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-action=delete]").Count == 1);
 
-        await page.Find("[data-action=delete]").ClickAsync(new());
+        await drawers.Find("[data-action=delete]").ClickAsync(new());
 
-        string banner = page.Find("[data-banner=in-use]").TextContent;
+        string banner = drawers.Find("[data-banner=in-use]").TextContent;
         Assert.Contains("app is still in use, so it can't be deleted.", banner, StringComparison.Ordinal);
         Assert.Contains("app.example.com (route /)", banner, StringComparison.Ordinal);
         Assert.Empty(config.Executed);
-        Assert.Contains("app.example.com", page.Find("[data-section=usage]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("app.example.com", drawers.Find("[data-section=usage]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheUpstreamsList_SaysWhichHostsUseEachOne()
+    {
+        await using DashboardTestContext context = new();
+        ConfigPages.SignIn(context, Role.Viewer).Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
+
+        IRenderedComponent<Upstreams> page = context.Render<Upstreams>();
+
+        await page.WaitForStateAsync(() => page.FindAll("[data-upstream=app]").Count == 1);
+        IElement usedBy = page.Find("[data-upstream=app] [data-label='Used by'] a");
+        Assert.Equal("app.example.com", usedBy.TextContent);
+        Assert.Equal(Paduraksa.Dashboard.DashboardRoutes.Host(Host.Id), usedBy.GetAttribute("href"));
+        Assert.Empty(page.FindAll($"a[href='{Paduraksa.Dashboard.DashboardRoutes.NewUpstream}']"));
     }
 
     [Fact]

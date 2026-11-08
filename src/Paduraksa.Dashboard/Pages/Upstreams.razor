@@ -1,9 +1,15 @@
 @attribute [Route(DashboardRoutes.Upstreams)]
+@attribute [Route(DashboardRoutes.Upstreams + "/{Key}")]
 @implements IDisposable
+@using Paduraksa.Dashboard.Editors
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject NavigationManager Navigation
 @inject ILogger<Upstreams> Logger
+@* The upstreams (PLAN §12): each one's addresses, how it spreads load and checks health, and which hosts send requests to it. An
+   upstream opens in a drawer; its address (/upstreams/ups_..., /upstreams/new) is the list with that drawer open. *@
 
 <PageTitle>Upstreams · Paduraksa</PageTitle>
 
@@ -11,7 +17,7 @@
     <Actions>
         @if (_mayWrite)
         {
-            <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add an upstream</MudButton>
+            <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-upstream">Add upstream</MudButton>
         }
     </Actions>
 </PageHeader>
@@ -22,104 +28,162 @@
         <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the config" Description="An Owner can give you the Viewer role or another that can." />
     </MudPaper>
 }
-else if (_document is null)
-{
-    <div class="pdk-card-grid" aria-busy="true">
-        @for (int i = 0; i < 3; i++)
-        {
-            <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" Height="28px" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="60%" />
-            </MudPaper>
-        }
-    </div>
-}
-else if (_document.Upstreams.Count == 0)
-{
-    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-        <EmptyState Icon="@Icons.Material.Outlined.Hub" Title="No upstreams yet"
-                    Description="An upstream is a service on your network, such as http://jellyfin:8096. Add one, then give it a name with a host.">
-            <Action>
-                @if (_mayWrite)
-                {
-                    <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add an upstream</MudButton>
-                }
-            </Action>
-        </EmptyState>
-    </MudPaper>
-}
 else
 {
-    <div class="pdk-card-grid">
-        @foreach (UpstreamConfig upstream in _document.Upstreams.OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase))
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+            The upstreams couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+
+    <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
+        @if (_document is not { Upstreams.Count: 0 })
         {
-            IReadOnlyList<(HostConfig Host, RouteConfig Route)> uses = HostOverview.UsesOf(_document, upstream.Id);
-            <MudPaper Class="pdk-card pdk-upstream-card" Elevation="0" Outlined="true" data-upstream="@upstream.Name">
-                <div class="pdk-card-head">
-                    <div class="pdk-list-main">
-                        <a class="pdk-row-link pdk-card-title" href="@DashboardRoutes.Upstream(upstream.Id)">@upstream.Name</a>
-                        <span class="pdk-list-sub">@Describe(upstream)</span>
-                    </div>
-                    <span class="pdk-status-dot pdk-tone-@(upstream.Destinations.Any(d => d.Enabled) ? "success" : "warning")" aria-hidden="true"></span>
-                </div>
-                <ul class="pdk-destinations">
-                    @foreach (DestinationConfig destination in upstream.Destinations)
-                    {
-                        <li class="@(destination.Enabled ? null : "pdk-disabled")">
-                            <MudIcon Icon="@Icons.Material.Outlined.Dns" Size="Size.Small" />
-                            <span class="pdk-mono">@destination.Address</span>
-                            @if (!destination.Enabled)
-                            {
-                                <span class="pdk-badge pdk-tone-default">Off</span>
-                            }
-                        </li>
-                    }
-                </ul>
-                <div class="pdk-usage">
-                    @if (uses.Count == 0)
-                    {
-                        <span class="pdk-muted">Not used by any host yet</span>
-                    }
-                    else
-                    {
-                        <span class="pdk-muted">Used by</span>
-                        @foreach (IGrouping<HostId, (HostConfig Host, RouteConfig Route)> host in uses.GroupBy(u => u.Host.Id))
-                        {
-                            <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host.Key)">@ChangeView.HostTitle(host.First().Host)@(host.Count() > 1 || host.First().Route.Path != "/" ? $" {string.Join(", ", host.Select(u => u.Route.Path))}" : string.Empty)</a>
-                        }
-                    }
-                </div>
-            </MudPaper>
+            <ListToolbar Search="@_search" SearchChanged="value => _search = value" Placeholder="Search names, addresses, hosts"
+                         Total="_document?.Upstreams.Count" Shown="Filtered.Count" One="upstream" Many="upstreams" />
         }
-    </div>
+
+        @if (_document is null)
+        {
+            @for (int i = 0; i < 3; i++)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="10px" Height="10px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="22%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="24%" />
+                </div>
+            }
+        }
+        else if (_document.Upstreams.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.Hub" Title="No upstreams yet"
+                        Description="An upstream is a service on your network, such as http://jellyfin:8096. Add one here, or right from a host's form.">
+                <Action>
+                    @if (_mayWrite)
+                    {
+                        <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add upstream</MudButton>
+                    }
+                </Action>
+            </EmptyState>
+        }
+        else if (Filtered.Count == 0)
+        {
+            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SearchOff" Title="No upstream matches" Description="Try another name, address or host." />
+        }
+        else
+        {
+            <div class="pdk-dt pdk-upstreams-table" role="table" aria-label="Upstreams">
+                <div class="pdk-dt-row pdk-dt-head" role="row">
+                    <span role="columnheader">Upstream</span>
+                    <span role="columnheader">Destinations</span>
+                    <span role="columnheader">Used by</span>
+                </div>
+                @foreach (UpstreamConfig upstream in Filtered)
+                {
+                    IReadOnlyList<(HostConfig Host, RouteConfig Route)> uses = HostOverview.UsesOf(_document, upstream.Id);
+                    bool serving = upstream.Destinations.Any(d => d.Enabled);
+                    <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(upstream)" data-upstream="@upstream.Name" @key="upstream.Id">
+                        <div role="cell" class="pdk-dt-main">
+                            <span class="pdk-status-dot pdk-tone-@(serving ? "success" : "warning")" title="@(serving ? "Has destinations in rotation" : "No destination is switched on")" aria-hidden="true"></span>
+                            <div class="pdk-dt-titles">
+                                <a class="pdk-row-link" href="@DashboardRoutes.Upstream(upstream.Id)" @onclick:stopPropagation="true">@upstream.Name</a>
+                                <span class="pdk-dt-note">@Describe(upstream)</span>
+                            </div>
+                        </div>
+                        <div role="cell" class="pdk-dt-cell" data-label="Destinations">
+                            <ul class="pdk-dest-list">
+                                @foreach (DestinationConfig destination in upstream.Destinations.Take(3))
+                                {
+                                    <li class="@(destination.Enabled ? null : "pdk-disabled")">
+                                        <span class="pdk-dest-detail pdk-mono">@destination.Address</span>
+                                        @if (!destination.Enabled)
+                                        {
+                                            <StatusChip Text="Off" />
+                                        }
+                                    </li>
+                                }
+                                @if (upstream.Destinations.Count > 3)
+                                {
+                                    <li class="pdk-muted">@($"and {upstream.Destinations.Count - 3} more")</li>
+                                }
+                            </ul>
+                        </div>
+                        <div role="cell" class="pdk-dt-cell" data-label="Used by" @onclick:stopPropagation="true">
+                            @if (uses.Count == 0)
+                            {
+                                <span class="pdk-muted">No host yet</span>
+                            }
+                            else
+                            {
+                                <span class="pdk-dt-chips">
+                                    @foreach (IGrouping<HostId, (HostConfig Host, RouteConfig Route)> host in uses.GroupBy(u => u.Host.Id))
+                                    {
+                                        <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host.Key)">@ChangeView.HostTitle(host.First().Host)@(host.Count() > 1 || host.First().Route.Path != "/" ? $" {string.Join(", ", host.Select(u => u.Route.Path))}" : string.Empty)</a>
+                                    }
+                                </span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </MudPaper>
 }
 
 @code {
     private ConfigDocument? _document;
+    private string? _search;
     private bool _mayWrite;
     private bool _denied;
+    private bool _failed;
+    private bool _loaded;
     private IDisposable? _watch;
+    private RoutedDrawer? _drawer;
 
-    protected override async Task OnInitializedAsync()
+    /// <summary>The address's last segment: an upstream's ID, or <c>new</c>; null for the list alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
+
+    private IReadOnlyList<UpstreamConfig> Filtered =>
+        _document is null ? [] : [.. _document.Upstreams.Where(Matches).OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase)];
+
+    protected override async Task OnParametersSetAsync()
     {
         if (!RendererInfo.IsInteractive)
         {
             return;
         }
 
-        _watch = Config.Watch(_ => InvokeAsync(async () =>
+        if (!_loaded)
         {
+            _loaded = true;
+            _drawer = new RoutedDrawer(Navigation, DashboardRoutes.Upstreams);
+            _watch = Config.Watch(_ => InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            }));
             await LoadAsync();
-            StateHasChanged();
-        }));
-        await LoadAsync();
+        }
+
+        if (!_denied)
+        {
+            _drawer!.Show(Key, OpenDrawer);
+        }
     }
 
-    public void Dispose() => _watch?.Dispose();
+    public void Dispose()
+    {
+        _watch?.Dispose();
+        _drawer?.Dispose();
+    }
 
     private async Task LoadAsync()
     {
+        _failed = false;
         DashboardPrincipal? user = await Caller.CheckAsync();
         if (user is null)
         {
@@ -137,11 +201,39 @@ else
         {
             _document = (await Config.GetCurrentAsync()).Document;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
         {
-            Logger.LogWarning(ex, "Couldn't load the upstreams.");
-            throw;
+            Logger.LogStoreFailure(ex, "Couldn't load the upstreams.");
+            _failed = true;
+            _document ??= new ConfigDocument();
         }
+    }
+
+    private DrawerLevel OpenDrawer(string key)
+    {
+        if (key == DashboardRoutes.NewSegment)
+        {
+            return Drawers.Push<UpstreamDrawer>(width: DrawerWidth.Medium);
+        }
+
+        return UpstreamId.TryParse(key, out UpstreamId id)
+            ? Drawers.Push<UpstreamDrawer>(new Dictionary<string, object?> { [nameof(UpstreamDrawer.Id)] = id }, DrawerWidth.Medium)
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Upstream not found", "There is no such upstream", "Upstreams", "Back to the upstreams"), DrawerWidth.Narrow);
+    }
+
+    private void Open(UpstreamConfig upstream) => Navigation.NavigateTo(DashboardRoutes.Upstream(upstream.Id));
+
+    private bool Matches(UpstreamConfig upstream)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+        {
+            return true;
+        }
+
+        string term = _search.Trim();
+        return upstream.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || upstream.Destinations.Any(d => d.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
+            || (_document is not null && HostOverview.UsesOf(_document, upstream.Id).Any(u => u.Host.Names.Any(n => n.Contains(term, StringComparison.OrdinalIgnoreCase))));
     }
 
     /// <summary>One line about how the upstream spreads load and checks health.</summary>
