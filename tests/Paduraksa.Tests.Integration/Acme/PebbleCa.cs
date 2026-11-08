@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -166,7 +167,11 @@ internal sealed class PebbleCa : IAsyncDisposable
         int directoryPort = FreePort();
         string directory = System.IO.Directory.CreateTempSubdirectory("paduraksa-pebble-config-").FullName;
         string config = Path.Combine(directory, "pebble-config.json");
-        await File.WriteAllTextAsync(config, ConfigFor(validationPort, directoryPort, FreePort()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+        // Every port is picked per instance. Pebble's own TLS port used to be the fixed 5001, which is shared by every
+        // Pebble container on the host network: a container that outlived its test (or any other service on 5001) made
+        // the next one exit at once, and the readiness wait below then only saw "connection refused".
+        await File.WriteAllTextAsync(
+            config, ConfigFor(validationPort, directoryPort, FreePort(), FreePort()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
 
         string container = $"paduraksa-pebble-{Environment.ProcessId}-{Environment.TickCount64}-{validationPort}";
         List<string> arguments =
@@ -209,7 +214,7 @@ internal sealed class PebbleCa : IAsyncDisposable
         System.IO.Directory.Delete(_directory, recursive: true);
     }
 
-    private static string ConfigFor(int validationPort, int directoryPort, int managementPort) => $$"""
+    private static string ConfigFor(int validationPort, int directoryPort, int managementPort, int tlsPort) => $$"""
         {
           "pebble": {
             "listenAddress": "127.0.0.1:{{directoryPort}}",
@@ -217,7 +222,7 @@ internal sealed class PebbleCa : IAsyncDisposable
             "certificate": "test/certs/localhost/cert.pem",
             "privateKey": "test/certs/localhost/key.pem",
             "httpPort": {{validationPort}},
-            "tlsPort": 5001,
+            "tlsPort": {{tlsPort}},
             "ocspResponderURL": "",
             "externalAccountBindingRequired": false,
             "domainBlocklist": ["blocked-domain.example"],
@@ -230,17 +235,45 @@ internal sealed class PebbleCa : IAsyncDisposable
         }
         """;
 
-    /// <summary>Waits for the directory to answer; the handler takes any certificate, since this only asks whether Pebble is up.</summary>
+    /// <summary>
+    /// Waits for the directory to answer; the handler takes any certificate, since this only asks whether Pebble is up.
+    /// This polls an external process (a Docker container that is still starting), not a state the process under test can
+    /// signal, so the upper bound is deliberately generous (two minutes) and the failure carries Docker's own diagnostics.
+    /// </summary>
     private async Task WaitUntilServingAsync(CancellationToken cancellationToken)
     {
 #pragma warning disable CA5359 // Readiness probe of a throwaway container on a loopback port; the code under test verifies the real chain.
-        using HttpClient http = new(new SocketsHttpHandler { SslOptions = { RemoteCertificateValidationCallback = static (_, _, _, _) => true } });
+        using HttpClient http = new(new SocketsHttpHandler { SslOptions = { RemoteCertificateValidationCallback = static (_, _, _, _) => true } })
+        {
+            Timeout = TimeSpan.FromSeconds(5), // one probe cannot hang for HttpClient's default 100 s
+        };
 #pragma warning restore CA5359
         // Pebble refuses a request without a User-Agent.
         http.DefaultRequestHeaders.UserAgent.ParseAdd("Paduraksa-Tests/1.0");
+        TimeSpan timeout = TimeSpan.FromMinutes(2);
+        long started = Stopwatch.GetTimestamp();
         string last = "no answer";
-        for (int attempt = 0; attempt < 60; attempt++)
+        int attempt = 0;
+        while (Stopwatch.GetElapsedTime(started) < timeout)
         {
+            // A container that already exited (a lost port race, a bad config) will never answer: say so at once instead
+            // of polling it for the whole timeout. Cheap enough to check every other second.
+            if (attempt++ % 8 == 0)
+            {
+                (int inspectCode, string state) = await DockerCli.RunAsync("inspect", "--format", "{{.State.Status}}", _container);
+                string status = state.Trim();
+                if (inspectCode != 0)
+                {
+                    // Docker itself may be briefly busy under load; the next probes will tell whether the container is gone.
+                    last = $"docker inspect failed: {status}";
+                }
+                else if (status is "exited" or "dead")
+                {
+                    last = $"the container is {status}";
+                    break;
+                }
+            }
+
             try
             {
                 using HttpResponseMessage response = await http.GetAsync(Directory, cancellationToken);
@@ -251,14 +284,24 @@ internal sealed class PebbleCa : IAsyncDisposable
 
                 last = $"HTTP {(int)response.StatusCode}";
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                last = "the readiness request timed out";
+            }
             catch (HttpRequestException ex)
             {
                 last = ex.GetBaseException().Message;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
         }
 
-        throw new TimeoutException($"Pebble did not become ready: {last}");
+        (_, string logs) = await DockerCli.RunAsync("logs", "--tail", "40", _container);
+        throw new TimeoutException(
+            $"Pebble did not become ready within {timeout.TotalSeconds:F0} s: {last}.{Environment.NewLine}docker logs:{Environment.NewLine}{logs.Trim()}");
     }
 }
