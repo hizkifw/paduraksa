@@ -13,7 +13,12 @@ internal static class DockerCli
 
     /// <summary>Runs <c>docker</c> with <paramref name="arguments"/> (at most three minutes: a first run may pull an image). The output is standard output followed by standard error (the other way round on failure, so the error leads).</summary>
     /// <exception cref="System.ComponentModel.Win32Exception"><c>docker</c> is not installed.</exception>
-    public static async Task<(int ExitCode, string Output)> RunAsync(params string[] arguments)
+    public static Task<(int ExitCode, string Output)> RunAsync(params string[] arguments) =>
+        RunAsync(TimeSpan.FromMinutes(3), arguments);
+
+    /// <summary>Runs <c>docker</c> with <paramref name="arguments"/> and a caller-chosen timeout (an image build needs more than three minutes).</summary>
+    /// <inheritdoc cref="RunAsync(string[])"/>
+    public static async Task<(int ExitCode, string Output)> RunAsync(TimeSpan timeout, params string[] arguments)
     {
         ProcessStartInfo start = new("docker") { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string argument in arguments)
@@ -22,10 +27,10 @@ internal static class DockerCli
         }
 
         using Process process = Process.Start(start) ?? throw new InvalidOperationException("docker did not start.");
-        using CancellationTokenSource timeout = new(TimeSpan.FromMinutes(3));
-        Task<string> output = process.StandardOutput.ReadToEndAsync(timeout.Token);
-        Task<string> error = process.StandardError.ReadToEndAsync(timeout.Token);
-        await process.WaitForExitAsync(timeout.Token);
+        using CancellationTokenSource limit = new(timeout);
+        Task<string> output = process.StandardOutput.ReadToEndAsync(limit.Token);
+        Task<string> error = process.StandardError.ReadToEndAsync(limit.Token);
+        await process.WaitForExitAsync(limit.Token);
         return (process.ExitCode, process.ExitCode == 0 ? await output + await error : (await error) + await output);
     }
 }
