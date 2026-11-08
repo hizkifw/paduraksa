@@ -1,36 +1,57 @@
-@* The side navigation: only the pages the user may see; a page that is still a placeholder carries a "soon" badge. *@
+@implements IDisposable
+@inject NavigationManager Navigation
+@* The side navigation: only the pages the user may see, the area of the page that is open marked (a profile is the hosts' area, an ACME
+   account the certificates'); a page that is still a placeholder carries a "soon" badge. *@
 <nav class="pdk-nav" aria-label="Main">
-    <MudNavMenu Rounded="true" Margin="Margin.Dense" Color="Color.Primary">
-        @foreach (IGrouping<string?, NavigationEntry> group in _entries.GroupBy(entry => entry.Group))
+    @foreach (IGrouping<string?, NavigationEntry> group in _entries.GroupBy(entry => entry.Group))
+    {
+        if (group.Key is not null)
         {
-            if (group.Key is not null)
-            {
-                <div class="pdk-nav-section">@group.Key</div>
-            }
-
-            foreach (NavigationEntry entry in group)
-            {
-                <MudNavLink Href="@entry.Href" Icon="@entry.Icon" Match="@(entry.Href == DashboardRoutes.Home ? NavLinkMatch.All : NavLinkMatch.Prefix)">
-                    <span class="pdk-nav-label">@entry.Title</span>
-                    @if (!entry.Available)
-                    {
-                        <span class="pdk-soon">Soon</span>
-                    }
-                </MudNavLink>
-            }
+            <div class="pdk-nav-section">@group.Key</div>
         }
-    </MudNavMenu>
+
+        <ul class="pdk-nav-list">
+            @foreach (NavigationEntry entry in group)
+            {
+                bool active = ReferenceEquals(entry, _active);
+                <li>
+                    <a href="@entry.Href" class="pdk-nav-link @(active ? "pdk-nav-active" : null)" aria-current="@(active ? "page" : null)">
+                        <MudIcon Icon="@entry.Icon" Size="Size.Small" Class="pdk-nav-icon" />
+                        <span class="pdk-nav-label">@entry.Title</span>
+                        @if (!entry.Available)
+                        {
+                            <span class="pdk-soon">Soon</span>
+                        }
+                    </a>
+                </li>
+            }
+        </ul>
+    }
 </nav>
 
 @code {
     private IReadOnlyList<NavigationEntry> _entries = [];
+    private NavigationEntry? _active;
 
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override void OnInitialized() => Navigation.LocationChanged += OnLocationChanged;
 
     protected override async Task OnParametersSetAsync()
     {
         DashboardPrincipal? user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
         _entries = [.. DashboardNavigation.VisibleTo(permission => user?.Has(permission) == true)];
+        Mark();
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+
+    private void Mark() => _active = DashboardNavigation.ActiveFor("/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0], _entries);
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        Mark();
+        _ = InvokeAsync(StateHasChanged);
     }
 }

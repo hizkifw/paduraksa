@@ -22,6 +22,10 @@
             </div>
             <MudDivider />
             <MudMenuItem Href="@DashboardRoutes.Account" Icon="@Icons.Material.Outlined.ManageAccounts">My account</MudMenuItem>
+            @if (_user.Has(Permission.TokensOwn))
+            {
+                <MudMenuItem Href="@SettingsRoutes.Tokens" Icon="@Icons.Material.Outlined.Key">API tokens</MudMenuItem>
+            }
             <form method="post" action="@DashboardRoutes.Actions.SignOut" class="pdk-signout">
                 <AntiforgeryToken />
                 <button type="submit" class="pdk-menu-button">

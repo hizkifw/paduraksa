@@ -172,16 +172,48 @@ body {
     text-transform: uppercase;
 }
 
-.pdk-nav .mud-nav-link {
-    border-radius: 8px;
-    font-weight: 500;
+.pdk-nav-list {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0 8px;
+    list-style: none;
 }
 
-.pdk-nav .mud-nav-link-text {
+/* A navigation entry; the open page's area is marked (also for a page under it, as a profile under the hosts). */
+.pdk-nav-link {
     display: flex;
     align-items: center;
-    gap: 8px;
-    width: 100%;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--mud-palette-drawer-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 100ms ease, color 100ms ease;
+}
+
+.pdk-nav-link:hover {
+    background: color-mix(in srgb, var(--mud-palette-text-primary) 6%, transparent);
+}
+
+.pdk-nav-link:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: -2px;
+}
+
+.pdk-nav-icon.mud-icon-root {
+    color: var(--mud-palette-drawer-icon);
+}
+
+.pdk-nav-active {
+    background: color-mix(in srgb, var(--mud-palette-primary) 13%, transparent);
+    color: var(--mud-palette-primary);
+}
+
+.pdk-nav-active .pdk-nav-icon.mud-icon-root {
+    color: var(--mud-palette-primary);
 }
 
 .pdk-nav-label {
@@ -312,12 +344,58 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
 /* ---------- Pages ---------- */
 
 .pdk-page-header {
+    display: grid;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.pdk-page-header-row {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 24px;
+}
+
+.pdk-page-header-tabbed {
+    gap: 18px;
+    margin-bottom: 20px;
+}
+
+/* An area's tabs (SectionTabs): under the header, a rule under them, the open page's tab underlined. */
+.pdk-tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    scrollbar-width: none;
+}
+
+.pdk-tab {
+    flex: 0 0 auto;
+    margin-bottom: -1px;
+    padding: 8px 12px 10px;
+    border-bottom: 2px solid transparent;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.pdk-tab:hover {
+    color: var(--mud-palette-text-primary);
+}
+
+.pdk-tab:focus-visible {
+    border-radius: 6px 6px 0 0;
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: -2px;
+}
+
+.pdk-tab-active {
+    border-bottom-color: var(--mud-palette-primary);
+    color: var(--mud-palette-primary);
 }
 
 .pdk-page-header h1:focus {
@@ -507,6 +585,124 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     .pdk-home-grid {
         grid-template-columns: 1fr;
     }
+
+    /* The overview's counts two by two, so what needs the person and the hosts stay near the top. */
+    .pdk-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .pdk-stat.mud-paper {
+        min-height: 0;
+        padding: 14px;
+    }
+
+    .pdk-stat-value {
+        font-size: 1.375rem;
+    }
+
+    .pdk-stat-detail {
+        display: none;
+    }
+}
+
+/* The overview: what needs the person, the hosts and the latest changes. */
+.pdk-attention.mud-paper {
+    margin-bottom: 16px;
+}
+
+.pdk-attention .pdk-card-head {
+    margin-bottom: 6px;
+}
+
+.pdk-attention-list, .pdk-home-lines {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-attention-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 12px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-attention-item:first-child {
+    border-top: 0;
+}
+
+.pdk-attention-item .pdk-list-main {
+    flex: 1 1 280px;
+}
+
+.pdk-attention-title {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-all-good {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pdk-card-head-padded {
+    padding: 18px 20px 6px;
+}
+
+.pdk-home-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+    color: inherit;
+    text-decoration: none;
+}
+
+.pdk-home-lines li:first-child .pdk-home-line {
+    border-top: 0;
+}
+
+.pdk-home-line:hover, .pdk-home-line:focus-visible {
+    background: var(--mud-palette-table-hover);
+    outline: none;
+}
+
+.pdk-home-line .pdk-list-main {
+    min-width: 0;
+}
+
+.pdk-home-line .pdk-list-sub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The settings hub: groups of links, each an icon, a title and a line. */
+.pdk-settings-group {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.pdk-settings-group-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+}
+
+.pdk-settings-group-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 650;
 }
 
 /* ---------- Badges, tags, links ---------- */
@@ -763,6 +959,10 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-hosts-table { --pdk-dt-cols: minmax(0, 1.5fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(150px, 0.8fr); }
 .pdk-upstreams-table { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.4fr); }
 .pdk-profiles-table { --pdk-dt-cols: minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.2fr) 40px; }
+.pdk-users-table { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) 80px; }
+.pdk-users-table.pdk-users-seen { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(90px, 0.7fr) 80px; }
+.pdk-tokens-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.8fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
+.pdk-tokens-table.pdk-tokens-everyone { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.6fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
 .pdk-certs-table { --pdk-dt-cols: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr); }
 
 /* Where a host's requests go: "/api -> app  http://10.0.0.5:8080", a line per route. */
@@ -889,6 +1089,12 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
     .pdk-dt-row {
         position: relative;
+    }
+
+    .pdk-users-table .pdk-dt-actions, .pdk-tokens-table .pdk-dt-actions {
+        position: absolute;
+        top: 10px;
+        right: 8px;
     }
 
     .pdk-profiles-table .pdk-dt-actions {
@@ -1060,10 +1266,9 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     color: var(--mud-palette-text-secondary);
 }
 
-/* What a host's drawer made that goes with it. */
+/* What a host's drawer made that goes with it, each to change again. */
 .pdk-staged {
-    display: flex;
-    align-items: flex-start;
+    display: grid;
     gap: 8px;
     margin-top: 14px;
     padding: 10px 12px;
@@ -1073,9 +1278,42 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     font-size: 0.8125rem;
 }
 
+.pdk-staged-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
 .pdk-staged .mud-icon-root {
     flex: 0 0 auto;
     color: var(--mud-palette-primary);
+}
+
+.pdk-staged-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-staged-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    min-width: 0;
+}
+
+.pdk-staged-name {
+    font-weight: 600;
+}
+
+.pdk-staged-detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--mud-palette-text-secondary);
+    overflow-wrap: anywhere;
 }
 
 /* "None yet" with the way to make one, inside a form. */
@@ -1360,30 +1598,64 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     border-bottom: 1px solid var(--mud-palette-lines-default);
 }
 
-.pdk-drawer-back {
-    display: inline-flex;
+/* The trail of the levels under this one ("Hosts / New host / New upstream"), with the way back to the one just under it. */
+.pdk-drawer-trail {
+    display: flex;
     align-items: center;
-    justify-self: start;
-    gap: 2px;
-    max-width: 100%;
-    margin: -4px 0 0 -6px;
-    padding: 2px 8px 2px 2px;
-    border: 0;
-    border-radius: 6px;
-    background: none;
+    gap: 4px;
+    min-width: 0;
+    margin: -6px 0 0 -6px;
     color: var(--mud-palette-text-secondary);
-    font: inherit;
     font-size: 0.8125rem;
-    cursor: pointer;
 }
 
-.pdk-drawer-back span {
+.pdk-drawer-trail ol {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-drawer-trail li {
+    flex: 0 1 auto;
+    min-width: 2.5em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+.pdk-drawer-trail li[aria-current] {
+    flex-shrink: 0;
+    min-width: 0;
+    max-width: 60%;
+    color: var(--mud-palette-text-primary);
+}
+
+.pdk-drawer-trail li + li::before {
+    padding: 0 6px;
+    color: var(--mud-palette-lines-inputs);
+    content: "/";
+}
+
+.pdk-drawer-back {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+}
+
 .pdk-drawer-back:hover, .pdk-drawer-back:focus-visible {
+    background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent);
     color: var(--mud-palette-primary);
     outline: none;
 }

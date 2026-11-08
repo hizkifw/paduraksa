@@ -1,0 +1,40 @@
+@inject NavigationManager Navigation
+@* An area's pages as a row of tabs under the page header (the design language, PLAN §12): Hosts, Upstreams, Profiles; Certificates,
+   ACME accounts, DNS providers; the settings. Only the pages the user may see; the open page's tab is marked. Scrolls sideways on a
+   phone rather than wrap. *@
+@if (_tabs.Count > 1)
+{
+    <nav class="pdk-tabs" aria-label="@Label" data-tabs="@Area.ToString().ToLowerInvariant()">
+        @foreach (SectionTab tab in _tabs)
+        {
+            bool active = ReferenceEquals(tab, _active);
+            <a href="@tab.Href" class="pdk-tab @(active ? "pdk-tab-active" : null)" aria-current="@(active ? "page" : null)">@tab.Title</a>
+        }
+    </nav>
+}
+
+@code {
+    private IReadOnlyList<SectionTab> _tabs = [];
+    private SectionTab? _active;
+
+    [Parameter, EditorRequired]
+    public SectionArea Area { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private string Label => Area switch
+    {
+        SectionArea.Traffic => "Traffic",
+        SectionArea.Certificates => "Certificates",
+        _ => "Settings",
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        DashboardPrincipal? user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
+        _tabs = [.. DashboardNavigation.TabsOf(Area).Where(tab => tab.Requires is not { } permission || user?.Has(permission) == true)];
+        string path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
+        _active = _tabs.Where(tab => DashboardNavigation.Matches(path, tab.Href)).MaxBy(tab => tab.Href.Length);
+    }
+}

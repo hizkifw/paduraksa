@@ -1,19 +1,26 @@
 @attribute [Route(DashboardRoutes.Home)]
 @using System.Globalization
-@using Paduraksa.Application.Certificates
-@using Paduraksa.Application.Commands
 @using Paduraksa.Contracts.Certificates
 @using Paduraksa.Contracts.Commands
+@using Paduraksa.Contracts.Revisions
+@using Paduraksa.Application.Commands
 @using Microsoft.Extensions.Logging
 @inject DashboardCaller Caller
-@inject ConfigService Config
-@inject CertificateService CertificateInventory
+@inject IDashboardConfig Config
 @inject TimeProvider Time
 @inject ILogger<Home> Logger
+@* The overview (PLAN §12, page 1): first what needs the person and where to fix it (or that nothing does), then the counts, the hosts
+   with where their requests go, and the latest changes. Read once and carried from the first render into the circuit. *@
 
 <PageTitle>Overview · Paduraksa</PageTitle>
 
-<PageHeader Title="Overview" Overline="Status" Lead="What this instance is serving right now." />
+<PageHeader Title="Overview" Overline="Status" Lead="What this instance serves, and anything that needs you.">
+    <Actions>
+        <IfPermitted Permission="Permission.ConfigWrite">
+            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-host">Add host</MudButton>
+        </IfPermitted>
+    </Actions>
+</PageHeader>
 
 <Paduraksa.Dashboard.Setup.SetupChecklist />
 
@@ -25,24 +32,74 @@
     </MudAlert>
 }
 
-<div class="pdk-stats">
-    <StatCard Label="Config" Icon="@Icons.Material.Outlined.Storage" Tone="@(Status.IsDegraded ? Color.Warning : Color.Success)"
-              Detail="@(Status.IsDegraded ? "Changes are refused until the database is back" : "Changes go live as revisions")">
-        <Value>
-            <span class="pdk-status-dot pdk-tone-@(Status.IsDegraded ? "warning" : "success")" aria-hidden="true"></span>
-            @(Status.Source switch { ConfigSource.LastKnownGood => "Last-known-good", ConfigSource.Database => "Database", _ => "Starting" })
-        </Value>
-    </StatCard>
+@if (_mayReadConfig || _mayReadCertificates)
+{
+    <MudPaper Class="pdk-card pdk-attention" Elevation="0" Outlined="true" data-section="attention">
+        @if (Snapshot is null)
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" Height="28px" />
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="56px" Class="mt-2" />
+        }
+        else if (Status.IsDegraded || Snapshot.Attention.Count > 0)
+        {
+            int count = Snapshot.Attention.Count + (Status.IsDegraded ? 1 : 0);
+            <div class="pdk-card-head">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h2">@(count == 1 ? "One thing needs you" : $"{count} things need you")</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">Most serious first. Each opens where it is fixed.</MudText>
+                </div>
+            </div>
+            <ul class="pdk-attention-list">
+                @if (Status.IsDegraded)
+                {
+                    <li class="pdk-attention-item" data-tone="error">
+                        <span class="pdk-list-icon pdk-tone-error"><MudIcon Icon="@Icons.Material.Outlined.Storage" Size="Size.Small" /></span>
+                        <span class="pdk-list-main">
+                            <span class="pdk-attention-title">Running on the last-known-good config</span>
+                            <span class="pdk-list-sub">The config database can't be used, so changes are refused until it is back. @Status.Problem</span>
+                        </span>
+                    </li>
+                }
+                @foreach (AttentionItem item in Snapshot.Attention)
+                {
+                    <li class="pdk-attention-item" data-tone="@item.Tone.Css()">
+                        <span class="pdk-list-icon pdk-tone-@item.Tone.Css()">
+                            <MudIcon Icon="@(item.Tone == Tone.Error ? Icons.Material.Outlined.ErrorOutline : Icons.Material.Outlined.WarningAmber)" Size="Size.Small" />
+                        </span>
+                        <span class="pdk-list-main">
+                            <span class="pdk-attention-title">@item.Title</span>
+                            <span class="pdk-list-sub">@item.Detail</span>
+                        </span>
+                        <MudButton Href="@item.Href" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">@item.Action</MudButton>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <div class="pdk-all-good" data-state="all-good">
+                <span class="pdk-list-icon pdk-tone-success"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" /></span>
+                <span class="pdk-list-main">
+                    <span class="pdk-attention-title">Nothing needs you</span>
+                    <span class="pdk-list-sub">
+                        @(Snapshot.Hosts is 0 ? "No hosts yet: add one to give a service on your network a name." : "Every host serves, and no certificate in use ends soon. Renewals run on their own.")
+                    </span>
+                </span>
+            </div>
+        }
+    </MudPaper>
+}
 
+<div class="pdk-stats">
     @if (_mayReadConfig)
     {
-        <StatCard Label="Live revision" Icon="@Icons.Material.Outlined.History" Loading="Snapshot is null" Href="@DashboardRoutes.History" LinkText="History"
-                  Detail="@(Snapshot?.Revision is null ? "No change has been made yet" : "The latest change")">
-            <Value>@(Snapshot?.Revision is { } revision ? $"#{revision.ToString(CultureInfo.InvariantCulture)}" : "None yet")</Value>
-        </StatCard>
         <StatCard Label="Hosts" Icon="@Icons.Material.Outlined.Language" Loading="Snapshot is null" Href="@DashboardRoutes.Hosts" LinkText="Hosts"
-                  Detail="@Plural(Snapshot?.Upstreams ?? 0, "upstream", "upstreams")">
+                  Detail="@(Snapshot is { Hosts: > 0 } ? $"{Snapshot.Online} online · {Snapshot.Off} off" : "None yet")">
             <Value>@(Snapshot?.Hosts ?? 0)</Value>
+        </StatCard>
+        <StatCard Label="Upstreams" Icon="@Icons.Material.Outlined.Hub" Loading="Snapshot is null" Href="@DashboardRoutes.Upstreams" LinkText="Upstreams"
+                  Detail="The services behind the hosts">
+            <Value>@(Snapshot?.Upstreams ?? 0)</Value>
         </StatCard>
     }
 
@@ -53,89 +110,99 @@
             <Value>@(Snapshot?.Certificates ?? 0)</Value>
         </StatCard>
     }
-</div>
-
-<div class="pdk-home-grid">
-    @if (_mayReadCertificates)
-    {
-        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-            <div class="pdk-card-head">
-                <div>
-                    <MudText Typo="Typo.h6" HtmlTag="h2">Expiring soon</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">@(Snapshot?.ExpiringInUse == false ? "Certificates" : "Certificates in use") that end within @HomeSnapshot.ExpiryHorizonDays days</MudText>
-                </div>
-            </div>
-            @if (Snapshot is null)
-            {
-                @for (int i = 0; i < 3; i++)
-                {
-                    <div class="pdk-row-skeleton">
-                        <MudSkeleton SkeletonType="SkeletonType.Circle" Width="28px" Height="28px" />
-                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="55%" />
-                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
-                    </div>
-                }
-            }
-            else if (Snapshot.Expiring is not { Count: > 0 } expiring)
-            {
-                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.VerifiedUser" Title="Nothing expires soon"
-                            Description="Renewals run on their own; anything that needs you will show here." />
-            }
-            else
-            {
-                <ul class="pdk-list">
-                    @foreach (ExpiringCertificate certificate in expiring)
-                    {
-                        <li class="pdk-list-row">
-                            <span class="pdk-list-icon pdk-tone-@ExpiryTone(certificate)"><MudIcon Icon="@Icons.Material.Outlined.WorkspacePremium" Size="Size.Small" /></span>
-                            <span class="pdk-list-main">
-                                <span class="pdk-list-title">@certificate.Name</span>
-                                <span class="pdk-list-sub">@certificate.Source · @Plural(certificate.NameCount, "name", "names")</span>
-                            </span>
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@(ExpiryTone(certificate) == "error" ? Color.Error : Color.Warning)">@ExpiresIn(certificate)</MudChip>
-                        </li>
-                    }
-                </ul>
-            }
-        </MudPaper>
-    }
 
     @if (_mayReadConfig)
     {
-        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-            <div class="pdk-card-head">
+        <StatCard Label="Live revision" Icon="@Icons.Material.Outlined.History" Loading="Snapshot is null" Href="@DashboardRoutes.History" LinkText="History"
+                  Tone="@(Status.IsDegraded ? Color.Warning : Color.Primary)"
+                  Detail="@(Status.IsDegraded ? "On the last-known-good config" : Snapshot?.Revision is null ? "No change has been made yet" : "Every change is a revision")">
+            <Value>@(Snapshot?.Revision is { } revision ? $"#{revision.ToString(CultureInfo.InvariantCulture)}" : "None yet")</Value>
+        </StatCard>
+    }
+</div>
+
+@if (_mayReadConfig)
+{
+    <div class="pdk-home-grid">
+        <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="hosts">
+            <div class="pdk-card-head pdk-card-head-padded">
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">Hosts</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">The names this instance answers for</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">Where each name's requests go</MudText>
                 </div>
+                <MudButton Href="@DashboardRoutes.Hosts" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">All hosts</MudButton>
             </div>
-            @if (Snapshot is null)
+            @if (Snapshot?.Lines is null)
             {
-                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="96px" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="96px" Class="mx-5 mb-4" />
             }
-            else if (Snapshot.Hosts is 0)
+            else if (Snapshot.Lines.Count == 0)
             {
                 <EmptyState Compact="true" Icon="@Icons.Material.Outlined.AddLink" Title="No hosts yet"
-                            Description="Add a host to start proxying a name to a service on your network.">
+                            Description="A host gives a name to a service on your network. The upstream can be added from the host's form.">
                     <Action>
                         <IfPermitted Permission="Permission.ConfigWrite">
-                            <MudButton Href="@DashboardRoutes.Hosts" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add">Add a host</MudButton>
+                            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add">Add host</MudButton>
                         </IfPermitted>
                     </Action>
                 </EmptyState>
             }
             else
             {
-                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Language" Title="@($"{Plural(Snapshot.Hosts ?? 0, "host", "hosts")} configured")"
-                            Description="Live traffic and health arrive with the metrics (M9).">
-                    <Action>
-                        <MudButton Href="@DashboardRoutes.Hosts" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">See the hosts</MudButton>
-                    </Action>
-                </EmptyState>
+                <ul class="pdk-home-lines">
+                    @foreach (HostLine line in Snapshot.Lines)
+                    {
+                        <li>
+                            <a href="@line.Href" class="pdk-home-line">
+                                <span class="pdk-status-dot pdk-tone-@line.Tone.Css()" aria-hidden="true"></span>
+                                <span class="pdk-list-main">
+                                    <span class="pdk-attention-title">@line.Name</span>
+                                    <span class="pdk-list-sub pdk-mono">@line.Destination</span>
+                                </span>
+                                <StatusChip Tone="line.Tone" Dot="true" Text="@line.Status" />
+                            </a>
+                        </li>
+                    }
+                </ul>
             }
         </MudPaper>
-    }
-</div>
+
+        <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="recent">
+            <div class="pdk-card-head pdk-card-head-padded">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h2">Recent changes</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">The latest revisions; each can be rolled back</MudText>
+                </div>
+                <MudButton Href="@DashboardRoutes.History" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">History</MudButton>
+            </div>
+            @if (Snapshot?.Recent is null)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="96px" Class="mx-5 mb-4" />
+            }
+            else if (Snapshot.Recent.Count == 0)
+            {
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.History" Title="No changes yet" Description="Every change you apply shows up here, and can be undone." />
+            }
+            else
+            {
+                <ul class="pdk-home-lines">
+                    @foreach (RecentChange change in Snapshot.Recent)
+                    {
+                        <li>
+                            <a href="@change.Href" class="pdk-home-line">
+                                <span class="pdk-seq">#@change.Seq</span>
+                                <span class="pdk-list-main">
+                                    <span class="pdk-attention-title">@change.Title</span>
+                                    <span class="pdk-list-sub">@change.Who · <span title="@RevisionText.Exact(change.At)">@RevisionText.Ago(change.At, Time.GetUtcNow())</span></span>
+                                </span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+        </MudPaper>
+    </div>
+}
 
 @if (!_mayReadConfig && !_mayReadCertificates && _checked)
 {
@@ -146,6 +213,9 @@
 }
 
 @code {
+    /// <summary>How many revisions the overview lists.</summary>
+    private const int RecentChanges = 5;
+
     private bool _mayReadConfig;
     private bool _mayReadCertificates;
     private bool _checked;
@@ -186,15 +256,40 @@
 
         try
         {
+            DateTimeOffset now = Time.GetUtcNow();
             CurrentConfig? current = _mayReadConfig ? await Config.GetCurrentAsync() : null;
-            IReadOnlyList<CertificateSummary>? certificates = _mayReadCertificates ? await CertificateInventory.ListAsync() : null;
+            IReadOnlyList<CertificateSummary>? certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
+            IReadOnlyList<HostRow>? rows = current is null ? null : HostOverview.Rows(current.Document, certificates, Config.LiveWarnings, now);
+            IReadOnlyList<ExpiringCertificate>? expiring = certificates is null ? null : HomeSnapshot.ExpiringOf(certificates, current?.Document, now);
+            IReadOnlyList<RecentChange>? recent = null;
+            if (current is not null && await Config.ListRevisionsAsync(RecentChanges, null) is { } page)
+            {
+                Dictionary<UserId, string> names = [];
+                recent =
+                [
+                    .. page.Items.Take(RecentChanges).Select(entry => new RecentChange(
+                        entry.Revision.Seq,
+                        entry.Revision.Message ?? RevisionText.Summary(entry.Changes),
+                        RevisionText.Actor(entry.Revision.Actor, names, user.UserId),
+                        entry.Revision.CreatedAt,
+                        DashboardRoutes.Revision(entry.Revision.Id))),
+                ];
+            }
+
             Snapshot = new HomeSnapshot(
                 current?.Revision?.Seq,
                 current?.Document.Hosts.Count,
                 current?.Document.Upstreams.Count,
                 certificates?.Count,
-                certificates is null ? null : HomeSnapshot.ExpiringOf(certificates, current?.Document, Time.GetUtcNow()),
-                ExpiringInUse: current is not null);
+                expiring,
+                ExpiringInUse: current is not null)
+            {
+                Attention = HomeSnapshot.AttentionOf(current?.Document, rows, certificates, expiring, now),
+                Lines = rows is null ? null : HomeSnapshot.LinesOf(rows),
+                Online = rows?.Count(r => r.Health != Tone.Default) ?? 0,
+                Off = rows?.Count(r => r.Health == Tone.Default) ?? 0,
+                Recent = recent,
+            };
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -203,21 +298,4 @@
             Snapshot = new HomeSnapshot(null, null, null, null, null);
         }
     }
-
-    private string ExpiryTone(ExpiringCertificate certificate) =>
-        certificate.NotAfter - Time.GetUtcNow() <= TimeSpan.FromDays(7) ? "error" : "warning";
-
-    private string ExpiresIn(ExpiringCertificate certificate)
-    {
-        TimeSpan left = certificate.NotAfter - Time.GetUtcNow();
-        if (left <= TimeSpan.Zero)
-        {
-            return "Expired";
-        }
-
-        return left.TotalDays >= 1 ? $"In {Plural((int)left.TotalDays, "day", "days")}" : "Today";
-    }
-
-    private static string Plural(int count, string one, string many) =>
-        string.Create(CultureInfo.InvariantCulture, $"{count} {(count == 1 ? one : many)}");
 }

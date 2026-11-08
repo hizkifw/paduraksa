@@ -14,9 +14,8 @@
 
 <PageTitle>Profiles · Settings · Paduraksa</PageTitle>
 
-<PageHeader Title="Profiles" Overline="Settings" Lead="Named sets of host settings, such as an allow list for your LAN, that hosts pick instead of repeating them.">
+<PageHeader Title="Profiles" Overline="Traffic" Area="SectionArea.Traffic" Lead="Named sets of host settings, such as an allow list for your LAN, that hosts pick instead of repeating them.">
     <Actions>
-        <MudButton Href="@DashboardRoutes.Settings" Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack">Settings</MudButton>
         @if (_mayWrite)
         {
             <MudButton Href="@SettingsRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-profile">Add profile</MudButton>
