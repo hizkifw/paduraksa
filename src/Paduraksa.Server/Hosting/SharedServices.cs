@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
+using Paduraksa.Admin.Certificates;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
@@ -54,6 +55,8 @@ internal sealed class SharedServices : IAsyncDisposable
         SnapshotPublisher = Get<SnapshotPublisher>();
         ServerCertificate = Get<PlaceholderServerCertificate>();
         Certificates = Get<PlaceholderCertificates>();
+        AdminCertificate = Get<AdminCertificateService>();
+        Catalog = Get<ICertificateCatalog>();
         PublicListeners = Get<PublicListenerSetup>();
         Config = Get<ConfigService>();
         CertificateService = Get<CertificateService>();
@@ -114,7 +117,7 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>Silences the generic hosts' error about a start that was aborted on request.</summary>
     public StartupLogFilter StartupLogFilter { get; } = new();
 
-    /// <summary>TEMPORARY (M3): the admin listener's certificate, until the admin's internal-CA certificate exists. Not the public one.</summary>
+    /// <summary>The in-memory placeholder certificate. The public listener's fallback default in tests, and the admin listener's last-resort certificate until the local CA's is ready.</summary>
     public PlaceholderServerCertificate ServerCertificate { get; }
 
     /// <summary>
@@ -123,6 +126,15 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <see cref="Configuration.PaduraksaDevelopmentOptions.PlaceholderCertificate"/> is on; otherwise this object is inert.
     /// </summary>
     public PlaceholderCertificates Certificates { get; }
+
+    /// <summary>
+    /// The admin listener's certificate (PLAN §3, §10.1): the local-CA leaf the admin app serves, kept current by a background
+    /// service of the core host. Its <see cref="AdminCertificateService.ServingOptions"/> are the listener's TLS options.
+    /// </summary>
+    public AdminCertificateService AdminCertificate { get; }
+
+    /// <summary>The vault describing the certificates it holds (public facts only); the CA download endpoints read the root from it.</summary>
+    public ICertificateCatalog Catalog { get; }
 
     /// <summary>The public listener layout, the TLS handshake selector and the compiler options derived from it.</summary>
     public PublicListenerSetup PublicListeners { get; }
@@ -212,13 +224,23 @@ internal sealed class SharedServices : IAsyncDisposable
 
             // The vault before the config store, so it is disposed after it (the store loads certificates through it).
             VaultCapabilities vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
+            // The vault's own catalog is a shared instance too: the CA download endpoints read the root from it (public facts).
+            builder.AddOwnedElsewhere(vault.Catalog);
             ConfigStoreServices configStore = ConfigStore.AddTo(
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
 
             // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
             IssuanceStore.AddTo(builder, options, configStore, vault, challenges, timeProvider, coreLoggers);
+
             // The admin API stores DNS credentials and ACME binding keys through it (write-only: there is no get).
             builder.AddOwnedElsewhere(vault.Secrets);
+
+            // The admin listener's certificate (PLAN §3, §10.1): issued by the local CA, served through the vault and kept
+            // current by a background service of the core host (registered in CoreHost). The CA root it publishes feeds the
+            // download endpoints.
+            CaRootSource caRoot = builder.Add(new CaRootSource());
+            builder.Add(new AdminCertificateService(
+                certificates, vault.ServerCertificates, vault.Catalog, caRoot, configStore.Operations, configStore.Config, configStore.Setup, options, timeProvider, coreLoggers));
             // TODO(M7): MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();

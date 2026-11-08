@@ -29,6 +29,9 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
     private volatile bool _draining;
     private volatile bool _working;
 
+    /// <summary>Completes when <see cref="ExecuteAsync"/> has begun, so a host that has started can rely on the loop running.</summary>
+    private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     /// <summary>The longest the scheduler pauses at once, whatever the options say (a pause longer than <see cref="Task.Delay(TimeSpan)"/> allows would throw and end the loop).</summary>
     internal static readonly TimeSpan MaxPause = TimeSpan.FromDays(1);
 
@@ -112,8 +115,26 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
         await StopAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Starts the loop and waits until it has actually begun, so a host whose start has returned can rely on the scheduler
+    /// running (its stop cancels a loop that is in progress, not a task that never started).
+    /// </summary>
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await base.StartAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _entered.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The start was cancelled while the loop was being scheduled; the stop that follows handles it.
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _entered.TrySetResult();
         try
         {
             await PauseAsync(_options.SchedulerStartDelay, stoppingToken).ConfigureAwait(false);

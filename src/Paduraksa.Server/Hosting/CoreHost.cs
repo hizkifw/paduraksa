@@ -37,6 +37,10 @@ internal static class CoreHost
         builder.Services.AddHostedService<IdentityStartup>();
         // Then what the vault holds that the database lost, before the web apps take their first request.
         builder.Services.AddHostedService<CertificateRecoveryStartup>();
+        // The admin listener's own certificate (PLAN §3, §10.1): the startup run is awaited, so the admin port serves the
+        // local CA's certificate from its first request, and a daily loop renews it. It registers without republishing the
+        // live config, so it never waits for the public app's YARP.
+        builder.Services.AddHostedService(static services => services.GetRequiredService<AdminCertificateService>());
         if (context.Options.Acme.Enabled)
         {
             // Last of the ones that start things up: the vault and the config store are ready, and its start delay lets the listeners come up.

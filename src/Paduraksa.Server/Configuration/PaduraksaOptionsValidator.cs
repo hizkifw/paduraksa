@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Admin.Auth;
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Proxy.Net;
 
@@ -257,6 +258,38 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         {
             failures.Add($"{Key}:TotpIssuer must be 1 to 64 characters without a colon or control characters.");
         }
+
+        // The admin listener's certificate can only carry names a host name or an address can be; anything else is dropped
+        // silently, which would leave the owner with a certificate that doesn't cover the name they typed.
+        if (admin.CertificateNames.Count > AdminCertificateNames.MaxConfiguredNames)
+        {
+            failures.Add($"{Key}:{nameof(AdminOptions.CertificateNames)} lists {admin.CertificateNames.Count} names; at most {AdminCertificateNames.MaxConfiguredNames} are accepted (the process adds up to {AdminCertificateNames.AutomaticNames} of its own, and a certificate carries at most {AdminCertificateNames.MaxNames}).");
+        }
+
+        CertificateNameRules rules = new();
+        for (int i = 0; i < admin.CertificateNames.Count; i++)
+        {
+            string? name = admin.CertificateNames[i];
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                failures.Add($"{Key}:{nameof(AdminOptions.CertificateNames)} entry {i} is empty.");
+            }
+            else if (name.Contains('%'))
+            {
+                // A zone/scope id (fe80::1%eth0) belongs to the interface, not to a certificate name.
+                failures.Add($"{Key}:{nameof(AdminOptions.CertificateNames)} entry '{name}' has an IPv6 zone/scope id, which a certificate name can't carry.");
+            }
+            else if (name.StartsWith("*.", StringComparison.Ordinal))
+            {
+                failures.Add($"{Key}:{nameof(AdminOptions.CertificateNames)} entry '{name}' is a wildcard; the admin certificate covers exact names only.");
+            }
+            else if (rules.Normalize(name) is null)
+            {
+                failures.Add($"{Key}:{nameof(AdminOptions.CertificateNames)} entry '{name}' is not a DNS name or an IP address.");
+            }
+        }
+
+        Span(nameof(AdminOptions.CertificateStartupTimeout), admin.CertificateStartupTimeout, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5));
     }
 
     private static void ValidateProxyProtocol(string name, ProxyProtocolListenOptions? options, List<string> failures)

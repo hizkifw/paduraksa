@@ -1,5 +1,4 @@
 using System.Net;
-using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections;
@@ -10,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Admin;
 using Paduraksa.Admin.Auth;
+using Paduraksa.Admin.Certificates;
 using Paduraksa.Admin.Identity;
 using Paduraksa.Application.Commands;
 using Paduraksa.Proxy.Snapshot;
@@ -19,9 +19,11 @@ using Paduraksa.Server.Placeholders;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// The admin <c>WebApplication</c>: HTTPS on <c>Paduraksa:Listen:Admin</c> (default 9443).
-/// Health endpoints (PLAN §11.3), the security pipeline and identity API (<c>Paduraksa.Admin</c>: setup gate, authentication, CSRF
-/// defence, hardening), a placeholder page, the optional source allowlist and the opt-in loopback plain-HTTP listener.
+/// The admin <c>WebApplication</c>: HTTPS on <c>Paduraksa:Listen:Admin</c> (default 9443), served with a certificate the
+/// process issues from the local CA and keeps current (<see cref="AdminCertificateService"/>; PLAN §3, §10.1).
+/// Health endpoints (PLAN §11.3), the local CA root's download endpoints, the security pipeline and identity API
+/// (<c>Paduraksa.Admin</c>: setup gate, authentication, CSRF defence, hardening), a placeholder page, the optional source
+/// allowlist and the opt-in loopback plain-HTTP listener.
 /// The resource REST API (<c>/api/v1</c>, its OpenAPI document and the reference UI, PLAN §11.1).
 /// TODO(M4): /mcp, /metrics. TODO(M5): dashboard. TODO(§3.1): internal UDS listener.
 /// </summary>
@@ -52,8 +54,10 @@ internal static class AdminApp
                 $"{PaduraksaOptions.SectionName}:Listen:AdminBind must be an IP address, was '{listen.AdminBind}'.");
         }
 
-        // TODO(M3): certificate issued by the internal CA (vault).
-        X509Certificate2 certificate = context.Shared.ServerCertificate.Certificate;
+        // The local CA's certificate, ensured by the core host's AdminCertificateService before this app starts and hot-swapped
+        // per handshake on a renewal. On any failure that service keeps serving the previous certificate (the in-memory
+        // placeholder until one was ever loaded), so this listener is always up.
+        AdminCertificateService adminCertificate = context.Shared.AdminCertificate;
 
         AdminSourcePolicy sources = new(listen.AdminAllowedSources);
         builder.WebHost.UseKestrelCore().UseKestrelHttpsConfiguration();
@@ -64,7 +68,7 @@ internal static class AdminApp
             {
                 admin.Protocols = HttpProtocols.Http1AndHttp2;
                 RestrictSources(admin, sources);
-                admin.UseHttps(certificate);
+                admin.UseHttps(adminCertificate.CreateTlsOptions());
             });
 
             // PLAN §3: opt-in, loopback only. ListenLocalhost binds 127.0.0.1 and ::1 and nothing else; no setting moves it.
@@ -85,6 +89,7 @@ internal static class AdminApp
         app.UsePaduraksaAdminAuth();
         MapHealth(app);
         app.MapPaduraksaIdentityApi();
+        // The resource API, the local CA root's download endpoints among them (anonymous, open during setup).
         app.MapPaduraksaAdminApi();
         app.MapMethods("/", GetAndHead, PlaceholderPageAsync);
         return app;
@@ -131,7 +136,8 @@ internal static class AdminApp
         app.MapMethods("/healthz", GetAndHead, context =>
             WriteStatusAsync(context, snapshots.HasPublished, "ok\n", "unavailable\n"));
 
-        // Ready: listeners bound, a snapshot live and not draining; degraded or not (see the remarks). TODO(M3): vault unlocked.
+        // Ready: listeners bound, a snapshot live and not draining; degraded or not (see the remarks). The vault is implied:
+        // the core host starts it first and a vault that can't start stops the process before any listener binds (PLAN §3, §8).
         app.MapMethods("/readyz", GetAndHead, context =>
             WriteStatusAsync(context, health.IsReady && snapshots.HasPublished, config.Status.IsDegraded ? "degraded\n" : "ready\n", "not ready\n"));
     }

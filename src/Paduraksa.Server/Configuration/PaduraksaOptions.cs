@@ -154,6 +154,23 @@ internal sealed class AdminOptions
     /// </summary>
     public long MaxRequestBodyBytes { get; set; } = AdminSecurityOptions.DefaultMaxRequestBodyBytes;
 
+    /// <summary>
+    /// Extra names the admin listener's certificate covers (<c>Paduraksa:Admin:CertificateNames</c>, PLAN §3, §10.1):
+    /// DNS names and IP addresses the owner reaches the admin UI by. The process always adds <c>localhost</c>,
+    /// <c>127.0.0.1</c>, <c>::1</c>, the machine's host name and a specific <c>Paduraksa:Listen:AdminBind</c> address, so
+    /// this is only for additional names (an admin host name, say). A change re-issues the certificate under the same ID.
+    /// Wildcards are refused (the certificate is served for exact names) and so is an IPv6 zone/scope id.
+    /// </summary>
+    public IList<string> CertificateNames { get; } = new List<string>();
+
+    /// <summary>
+    /// How long the core host waits for the admin certificate at startup (<c>Paduraksa:Admin:CertificateStartupTimeout</c>,
+    /// PLAN §3): every web app, the public proxy included, binds only after it, so this bounds how long a slow vault can
+    /// delay the listeners. On timeout the certificate is prepared in the background and the admin port serves what it has
+    /// (the vault's existing certificate, else the placeholder) until it is ready. 1 second to 5 minutes.
+    /// </summary>
+    public TimeSpan CertificateStartupTimeout { get; set; } = TimeSpan.FromSeconds(10);
+
     public IdentityOptions ToIdentityOptions() => new()
     {
         MaxFailedAttempts = MaxFailedAttempts,

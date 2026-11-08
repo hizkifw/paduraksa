@@ -94,7 +94,7 @@ internal static class ConfigStore
         IDbContextFactory<ConfigDbContext> contexts = builder.AddOwnedElsewhere(container.GetRequiredService<IDbContextFactory<ConfigDbContext>>());
         ConfigService config = builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
         CertificateService certificates = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
-        builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
+        CertificateOperations operations = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
         builder.AddOwnedElsewhere(container.GetRequiredService<RequestSimulator>());
         builder.AddOwnedElsewhere(container.GetRequiredService<RevisionQueryService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<AuditQueryService>());
@@ -104,14 +104,21 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<TwoFactorService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<LoginService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<ApiTokenService>());
-        builder.AddOwnedElsewhere(container.GetRequiredService<SetupService>());
+        SetupService setup = builder.AddOwnedElsewhere(container.GetRequiredService<SetupService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<IPermissionEvaluator>());
-        return new ConfigStoreServices(contexts, config, certificates);
+        return new ConfigStoreServices(contexts, config, certificates, operations, setup);
     }
 }
 
-/// <summary>The config store's instances that later composition steps (ACME issuance) build on.</summary>
+/// <summary>The config store's instances that later composition steps (ACME issuance, the admin certificate) build on.</summary>
 /// <param name="Contexts">The config database's context factory.</param>
 /// <param name="Config">The config write path.</param>
 /// <param name="Certificates">The certificate inventory's service.</param>
-internal sealed record ConfigStoreServices(IDbContextFactory<ConfigDbContext> Contexts, ConfigService Config, CertificateService Certificates);
+/// <param name="Operations">The certificate use cases that touch the vault.</param>
+/// <param name="Setup">First-run setup: whether an Owner exists, and the one-time setup token.</param>
+internal sealed record ConfigStoreServices(
+    IDbContextFactory<ConfigDbContext> Contexts,
+    ConfigService Config,
+    CertificateService Certificates,
+    CertificateOperations Operations,
+    SetupService Setup);
