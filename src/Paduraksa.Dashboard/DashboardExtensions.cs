@@ -1,7 +1,11 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -54,13 +58,49 @@ public static class DashboardExtensions
     }
 
     /// <summary>
-    /// Maps the dashboard's pages and its circuit hub. Blazor's own <c>frame-ancestors</c> header is turned off: the admin app's
+    /// Maps the dashboard's pages and its circuit hub, and a fallback that answers an unknown page address with the styled 404. Blazor's own <c>frame-ancestors</c> header is turned off: the admin app's
     /// hardening sends the dashboard's whole CSP (<see cref="DashboardSecurity.ContentSecurityPolicy"/>), which forbids framing.
     /// </summary>
     public static RazorComponentsEndpointConventionBuilder MapPaduraksaDashboard(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        return endpoints.MapRazorComponents<App>()
+        RazorComponentsEndpointConventionBuilder components = endpoints.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode(server => server.ContentSecurityFrameAncestorsPolicy = null);
+
+        // Last in line (like MapFallback), and only a candidate for a browser's page request: everything else keeps the answer routing
+        // gives it (an API's 405 or 415, the hub's and the static files' own 404).
+        endpoints.Map(RoutePatternFactory.Parse("{*path}", defaults: null, parameterPolicies: new { path = new PageRequestConstraint() }), NotFoundAsync)
+            .WithOrder(int.MaxValue)
+            .WithDisplayName("Dashboard not found")
+            .WithMetadata(new HttpMethodMetadata([HttpMethods.Get, HttpMethods.Head]));
+        return components;
+    }
+
+    /// <summary>
+    /// An address nothing else answers, asked for by a browser: the dashboard's styled 404 (the router's not-found page in the app's
+    /// shell) for a signed-in user; anyone else is sent to sign in, as for every page.
+    /// </summary>
+    private static Task NotFoundAsync(HttpContext context) =>
+        context.User.Identity?.IsAuthenticated == true
+            ? new RazorComponentResult<App> { StatusCode = StatusCodes.Status404NotFound }.ExecuteAsync(context)
+            : context.ChallengeAsync();
+
+    /// <summary>A browser asking for a page: GET or HEAD, accepting HTML, outside the API, the circuit hub and the static files.</summary>
+    private sealed class PageRequestConstraint : IRouteConstraint
+    {
+        public bool Match(HttpContext? httpContext, IRouter? route, string routeKey, RouteValueDictionary values, RouteDirection routeDirection)
+        {
+            if (httpContext is null || routeDirection != RouteDirection.IncomingRequest)
+            {
+                return false;
+            }
+
+            PathString path = httpContext.Request.Path;
+            return (HttpMethods.IsGet(httpContext.Request.Method) || HttpMethods.IsHead(httpContext.Request.Method))
+                && !path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+                && !path.StartsWithSegments(DashboardRoutes.CircuitHub, StringComparison.OrdinalIgnoreCase)
+                && !DashboardRoutes.StaticAssetPrefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase))
+                && httpContext.Request.Headers.Accept.Any(accept => accept?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true);
+        }
     }
 }

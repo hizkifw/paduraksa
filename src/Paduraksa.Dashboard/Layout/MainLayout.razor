@@ -3,6 +3,7 @@
 @inject ThemeState Theme
 @inject DashboardOptions Options
 @inject Paduraksa.Application.Commands.ConfigService Config
+@inject NavigationManager Navigation
 
 <MudThemeProvider @ref="_themeProvider" Theme="PaduraksaTheme.Theme" IsDarkMode="Theme.IsDark" />
 <MudPopoverProvider />
@@ -40,16 +41,34 @@
             </div>
         }
         <MudContainer MaxWidth="MaxWidth.Large" Class="pdk-page">
-            @Body
+            <ErrorBoundary @ref="_errorBoundary">
+                <ChildContent>@Body</ChildContent>
+                <ErrorContent>
+                    <PageHeader Title="Something went wrong" Overline="Error" Lead="This page hit a problem it couldn't recover from. Nothing you applied is lost." />
+                    <MudPaper Class="pdk-card pdk-error-card" Elevation="0" Outlined="true" data-page="error">
+                        <EmptyState Icon="@Icons.Material.Outlined.ReportGmailerrorred" Title="The page couldn't be shown"
+                                    Description="The details are in the server log. Reloading usually helps; if it keeps happening, the log says why.">
+                            <Action>
+                                <MudButton Href="@Navigation.Uri" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Refresh">Reload</MudButton>
+                                <MudButton Href="@DashboardRoutes.Home" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="ml-2">Back to the overview</MudButton>
+                            </Action>
+                        </EmptyState>
+                    </MudPaper>
+                </ErrorContent>
+            </ErrorBoundary>
         </MudContainer>
     </MudMainContent>
 </MudLayout>
 
 @code {
     private MudThemeProvider? _themeProvider;
+    private ErrorBoundary? _errorBoundary;
     private bool _drawerOpen = true;
 
     protected override void OnInitialized() => Theme.Changed += OnThemeChanged;
+
+    /// <summary>A page that failed is shown as the error card until the person goes elsewhere: a navigation renders the next page.</summary>
+    protected override void OnParametersSet() => _errorBoundary?.Recover();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

@@ -15,6 +15,10 @@
 </head>
 <body>
     <Routes @rendermode="PageRenderMode" Preference="_preference" SystemPrefersLight="_systemPrefersLight" />
+    <div id="blazor-error-ui" role="alert">
+        The connection to the server had a problem, so this page stopped updating.
+        <a href="" class="reload">Reload</a>
+    </div>
     <script src="@Assets["_content/Paduraksa.Dashboard/paduraksa.js"]"></script>
     <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
