@@ -4,6 +4,7 @@ using Paduraksa.Core.Vault;
 using Paduraksa.Data.Audit;
 using Paduraksa.Data.Certificates;
 using Paduraksa.Data.Conversion;
+using Paduraksa.Data.Identity;
 using Paduraksa.Data.Issuance;
 using Paduraksa.Data.Projection;
 using Paduraksa.Data.Revisions;
@@ -48,6 +49,16 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
 
     internal DbSet<CertificateNameRow> CertificateNames => Set<CertificateNameRow>();
 
+    internal DbSet<UserRow> Users => Set<UserRow>();
+
+    internal DbSet<RoleAssignmentRow> RoleAssignments => Set<RoleAssignmentRow>();
+
+    internal DbSet<ApiTokenRow> ApiTokens => Set<ApiTokenRow>();
+
+    internal DbSet<SessionRow> Sessions => Set<SessionRow>();
+
+    internal DbSet<RecoveryCodeRow> RecoveryCodes => Set<RecoveryCodeRow>();
+
     internal DbSet<AcmeAccountRow> AcmeAccounts => Set<AcmeAccountRow>();
 
     internal DbSet<AcmeOrderRow> AcmeOrders => Set<AcmeOrderRow>();
@@ -63,6 +74,7 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         configurationBuilder.Properties<AuditOutcome>().HaveConversion<AuditOutcomeConverter>();
         configurationBuilder.Properties<CertificateSource>().HaveConversion<CertificateSourceConverter>();
         configurationBuilder.Properties<CertificateStatus>().HaveConversion<CertificateStatusConverter>();
+        configurationBuilder.Properties<Role>().HaveConversion<RoleConverter>();
         configurationBuilder.Properties<AcmeAccountStatus>().HaveConversion<AcmeAccountStatusConverter>();
         configurationBuilder.Properties<AcmeOrderStatus>().HaveConversion<AcmeOrderStatusConverter>();
         configurationBuilder.Properties<AcmeChallengeType>().HaveConversion<AcmeChallengeTypeConverter>();
@@ -87,5 +99,11 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
         modelBuilder.ApplyConfiguration(new AcmeAccountRowConfiguration());
         modelBuilder.ApplyConfiguration(new DnsProviderRowConfiguration());
         modelBuilder.ApplyConfiguration(new AcmeOrderRowConfiguration());
+        IdentityConfiguration identity = new();
+        modelBuilder.ApplyConfiguration<UserRow>(identity);
+        modelBuilder.ApplyConfiguration<RoleAssignmentRow>(identity);
+        modelBuilder.ApplyConfiguration<ApiTokenRow>(identity);
+        modelBuilder.ApplyConfiguration<SessionRow>(identity);
+        modelBuilder.ApplyConfiguration<RecoveryCodeRow>(identity);
     }
 }

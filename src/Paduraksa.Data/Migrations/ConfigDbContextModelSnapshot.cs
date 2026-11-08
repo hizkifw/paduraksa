@@ -189,6 +189,196 @@ namespace Paduraksa.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Data.Identity.ApiTokenRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastUsedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Scopes")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("SecretHash")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<byte[]>("UserId")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ApiTokens", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ApiTokens_Scopes", "length(\"Scopes\") > 0");
+
+                            t.HasCheckConstraint("CK_ApiTokens_SecretHash", "length(\"SecretHash\") = 32");
+                        });
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Identity.RecoveryCodeRow", b =>
+                {
+                    b.Property<byte[]>("UserId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<byte[]>("CodeHash")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("UsedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId", "CodeHash");
+
+                    b.ToTable("RecoveryCodes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RecoveryCodes_CodeHash", "length(\"CodeHash\") = 32");
+                        });
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Identity.RoleAssignmentRow", b =>
+                {
+                    b.Property<byte[]>("UserId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("Role")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId", "Role");
+
+                    b.ToTable("RoleAssignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RoleAssignments_Role", "\"Role\" IN ('owner', 'admin', 'operator', 'viewer', 'auditor')");
+                        });
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Identity.SessionRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("ClientIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExpiresAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastSeenAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RevokedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("SecondFactorCompleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("UserId")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Sessions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Sessions_TokenHash", "length(\"TokenHash\") = 32");
+                        });
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Identity.UserRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Disabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LockedUntil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("TotpEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("TotpSecretId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Users", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Users_Totp", "\"TotpEnabled\" = 0 OR \"TotpSecretId\" IS NOT NULL");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Data.Issuance.AcmeAccountRow", b =>
                 {
                     b.Property<byte[]>("Id")
@@ -682,6 +872,42 @@ namespace Paduraksa.Data.Migrations
                     b.HasOne("Paduraksa.Data.Certificates.CertificateRow", null)
                         .WithMany()
                         .HasForeignKey("CertificateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Identity.ApiTokenRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Identity.UserRow", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Identity.RecoveryCodeRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Identity.UserRow", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Identity.RoleAssignmentRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Identity.UserRow", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Paduraksa.Data.Identity.SessionRow", b =>
+                {
+                    b.HasOne("Paduraksa.Data.Identity.UserRow", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

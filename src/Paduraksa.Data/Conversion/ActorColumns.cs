@@ -36,6 +36,8 @@ internal static class NameChecks
 
     public static string CertificateStatus(string column) => In(column, Enum.GetValues<CertificateStatus>().Select(s => s.ToName()));
 
+    public static string Role(string column) => In(column, Enum.GetValues<Role>().Select(r => r.ToName()));
+
     public static string AcmeAccountStatus(string column) => In(column, Enum.GetValues<AcmeAccountStatus>().Select(s => s.ToName()));
 
     public static string AcmeOrderStatus(string column) => In(column, Enum.GetValues<AcmeOrderStatus>().Select(s => s.ToName()));

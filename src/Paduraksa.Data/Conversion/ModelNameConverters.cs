@@ -39,3 +39,6 @@ internal sealed class JwsAlgorithmConverter()
 
 internal sealed class KeySpecConverter()
     : ValueConverter<KeySpec, string>(value => value.ToName(), name => VaultNames.ParseKeySpec(name));
+
+internal sealed class RoleConverter()
+    : ValueConverter<Role, string>(value => value.ToName(), name => ModelNames.ParseRole(name));
