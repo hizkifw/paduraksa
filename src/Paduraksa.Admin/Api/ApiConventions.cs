@@ -225,6 +225,30 @@ internal static class Preconditions
         problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "dryRun must be 'true' or 'false'.");
         return false;
     }
+
+    /// <summary>
+    /// Reads <c>?force=</c> (<c>true</c> or <c>false</c>; absent is false): the explicit permission the admin host's lock-out guard
+    /// needs for a change that would remove the caller's own way in (PLAN §3.1).
+    /// </summary>
+    public static bool TryGetForce(HttpContext http, out bool force, out IResult? problem)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+        force = false;
+        problem = null;
+        StringValues values = http.Request.Query["force"];
+        if (values.Count == 0)
+        {
+            return true;
+        }
+
+        if (values.Count == 1 && bool.TryParse(values[0], out force))
+        {
+            return true;
+        }
+
+        problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "force must be 'true' or 'false'.");
+        return false;
+    }
 }
 
 /// <summary>How an <c>If-Match</c> header parsed.</summary>

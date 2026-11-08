@@ -11,8 +11,13 @@ namespace Paduraksa.Application.Commands;
 /// <param name="Actor">Who acted.</param>
 /// <param name="Channel">Where the command came in (recorded with the revision and the audit event).</param>
 /// <param name="ClientIp">The client address, for commands that came in over the network.</param>
-public sealed record CommandOrigin(Actor Actor, Channel Channel, IPAddress? ClientIp = null)
+/// <param name="AdminRequest">Set when the command arrived through the admin app's internal listener, i.e. proxied from the
+/// public listener (PLAN §3.1). The lock-out guard refuses a change that would cut this caller's own way in unless it says so.</param>
+public sealed record CommandOrigin(Actor Actor, Channel Channel, IPAddress? ClientIp = null, AdminRequestFacts? AdminRequest = null)
 {
+    /// <summary>True when the command arrived through the admin app's internal listener.</summary>
+    public bool ViaAdminProxy => AdminRequest is not null;
+
     /// <summary>Paduraksa itself.</summary>
     public static CommandOrigin System { get; } = new(Actor.System, Channel.System);
 

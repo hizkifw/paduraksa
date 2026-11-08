@@ -33,6 +33,13 @@ public abstract record ConfigCommand
     /// <summary>Run every check (authorize, apply, validate, compile) and return the diff, but persist nothing.</summary>
     public bool DryRun { get; init; }
 
+    /// <summary>
+    /// Do the change even though it cuts the caller's own way into the admin (PLAN §3.1). When a command arrives through the
+    /// admin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless
+    /// this is set (the API's <c>?force=true</c>, a command's <c>force</c>); on any other surface it has no effect.
+    /// </summary>
+    public bool Force { get; init; }
+
     /// <summary>An optional note stored with the revision (a commit message). At most 1000 characters.</summary>
     public string? Message { get; init; }
 }

@@ -126,7 +126,11 @@ public sealed record GateStep(
 public sealed record GateDestination(DestinationId Id, string Address);
 
 /// <summary>The upstream a forwarded request goes to. Load balancing picks the destination per request: never one here.</summary>
-public sealed record GateUpstream(UpstreamId Id, string? LoadBalancing, IReadOnlyList<GateDestination> Destinations);
+/// <param name="Id">The upstream; empty for the admin app, which has no user upstream.</param>
+/// <param name="LoadBalancing">The cluster's load-balancing policy name, if configured.</param>
+/// <param name="Destinations">The cluster's destinations, as configured.</param>
+/// <param name="Admin">True: the route forwards to the admin app's internal listener (<c>__admin</c>), not to a user upstream.</param>
+public sealed record GateUpstream(UpstreamId Id, string? LoadBalancing, IReadOnlyList<GateDestination> Destinations, bool Admin = false);
 
 /// <summary>The result of <see cref="GateSimulator.Run"/>.</summary>
 /// <param name="Outcome">The verdict.</param>

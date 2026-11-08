@@ -1,7 +1,10 @@
+using System.Net;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Certificates;
+using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -241,6 +244,30 @@ public sealed class CertificateServiceTests
         Assert.Equal(generation, harness.Store.Current.Generation);
         Assert.Equal(CertificateChangeStatus.NotFound, (await certificates.UpdateDetailsAsync(Id("zzz"), null, null, ConfigServiceHarness.Admin, Ct)).Status);
         Assert.Equal(CertificateErrorCodes.TextTooLong, Assert.Single((await certificates.UpdateDetailsAsync(Id("a"), new string('x', 300), null, ConfigServiceHarness.Admin, Ct)).Errors).Code);
+    }
+
+    [Fact]
+    public async Task RemovingTheLastCertificateCoveringTheAdminHostIsRefusedThroughTheProxy()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        var (_, certificates) = Create(harness);
+        await harness.RunAsync(new UpsertHostCommand(new HostConfig(HostId.New(), ["admin.example.com"], Kind: HostKind.Admin)));
+        var proxied = new CommandOrigin(Actor.Cli, Channel.Api, IPAddress.Loopback, new AdminRequestFacts("admin.example.com", Https: true, IPAddress.Loopback));
+
+        await certificates.RegisterAsync(Registration("admin", "f1", "admin.example.com"), ConfigServiceHarness.Admin, Ct);
+        var refusedDelete = await certificates.DeleteAsync(Id("admin"), proxied, Ct);
+        Assert.Equal(CertificateChangeStatus.Invalid, refusedDelete.Status);
+        Assert.Equal(CertificateErrorCodes.AdminCoverage, Assert.Single(refusedDelete.Errors).Code);
+
+        var refusedReplace = await certificates.RegisterAsync(Registration("admin", "f2", "other.example.com"), proxied, Ct);
+        Assert.Equal(CertificateChangeStatus.Invalid, refusedReplace.Status);
+        Assert.Equal(CertificateErrorCodes.AdminCoverage, Assert.Single(refusedReplace.Errors).Code);
+
+        // Another usable certificate still covers the name: the first can go.
+        await certificates.RegisterAsync(Registration("other", "f3", "admin.example.com"), ConfigServiceHarness.Admin, Ct);
+        var deleted = await certificates.DeleteAsync(Id("admin"), proxied, Ct);
+
+        Assert.Equal(CertificateChangeStatus.Committed, deleted.Status);
     }
 
     [Fact]

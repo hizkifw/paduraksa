@@ -64,6 +64,7 @@ internal sealed partial class AuditLog
         ArgumentNullException.ThrowIfNull(entry);
         StoreChecks.RequireTransaction(context, "Appending an audit event");
         Validate(entry);
+        string? details = DetailsOf(entry);
 
         var latest = await context.AuditEvents
             .OrderByDescending(e => e.Id)
@@ -88,7 +89,7 @@ internal sealed partial class AuditLog
             entry.Target,
             entry.Outcome,
             entry.ClientIp is { } ip ? (ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip).ToString() : null,
-            entry.Details,
+            details,
             entry.RevisionId,
             latest?.Hash ?? AuditChain.GenesisPrevHash,
             default);
@@ -97,6 +98,45 @@ internal sealed partial class AuditLog
         context.AuditEvents.Add(AuditMapping.ToEntity(record));
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return record;
+    }
+
+    private static string? DetailsOf(AuditEntry entry)
+    {
+        if (!entry.Force && !entry.ViaAdminProxy)
+        {
+            return entry.Details;
+        }
+
+        using MemoryStream buffer = new();
+        using (Utf8JsonWriter writer = new(buffer))
+        {
+            writer.WriteStartObject();
+            if (entry.Details is { } details)
+            {
+                using JsonDocument existing = JsonDocument.Parse(details);
+                if (existing.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (JsonProperty property in existing.RootElement.EnumerateObject())
+                    {
+                        property.WriteTo(writer);
+                    }
+                }
+            }
+
+            if (entry.Force)
+            {
+                writer.WriteBoolean("force", true);
+            }
+
+            if (entry.ViaAdminProxy)
+            {
+                writer.WriteBoolean("viaAdminProxy", true);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        return System.Text.Encoding.UTF8.GetString(buffer.ToArray());
     }
 
     private static void Validate(AuditEntry entry)

@@ -79,12 +79,14 @@ internal static class RevisionEndpoints
 
     private static async Task<IResult> RollbackAsync(HttpContext http, ConfigRevisionId id, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem) || !Preconditions.TryGetRevision(http, out ConfigRevisionId latest, out problem))
+        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
+            || !Preconditions.TryGetForce(http, out bool force, out problem)
+            || !Preconditions.TryGetRevision(http, out ConfigRevisionId latest, out problem))
         {
             return problem!;
         }
 
-        ConfigCommand command = new RollbackConfigCommand(id, latest) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http) };
+        ConfigCommand command = new RollbackConfigCommand(id, latest) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
         ConfigCommandResult result = await config.ExecuteAsync(command, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, MutationKind.Change);
     }

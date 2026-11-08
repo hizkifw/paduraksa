@@ -93,7 +93,9 @@ public static class GateSimulator
         GateDecision decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, new RecordingGateTracer(steps));
         GateOutcome outcome = OutcomeOf(decision, context, steps);
         GateUpstream? upstream = outcome.Action == GateOutcomeAction.Forward && context.Features.Get<IGateFeature>()?.State.Route is { } route
-            ? UpstreamOf(bound, route)
+            ? route.Admin
+                ? new GateUpstream(UpstreamId.Empty, null, [], Admin: true)
+                : UpstreamOf(bound, route)
             : null;
         return new GateSimulation(outcome, steps, upstream);
     }

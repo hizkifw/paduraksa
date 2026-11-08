@@ -51,8 +51,9 @@ public static class AdminAuthEndpointExtensions
     }
 
     /// <summary>
-    /// Where the request came from: the API channel, the connection's remote address (the admin listener trusts no forwarded header) and
-    /// the user agent, cut short (the services clean and truncate it again).
+    /// Where the request came from: the API channel, the request's remote address (on the internal listener the forwarded client
+    /// address the proxy resolved; elsewhere the connection's own address, since forwarded headers are ignored there) and the user
+    /// agent, cut short (the services clean and truncate it again).
     /// </summary>
     public static ClientContext GetClientContext(this HttpContext context)
     {
@@ -135,7 +136,7 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
                 return;
             }
 
-            CommandOrigin origin = new(Actor.ForToken(principal.TokenId), Channel.Api, context.GetClientAddress());
+            CommandOrigin origin = new(Actor.ForToken(principal.TokenId), Channel.Api, context.GetClientAddress(), context.GetAdminRequestFacts());
             context.SetCaller(new AdminCaller(origin, Token: principal.TokenId) { User = principal.UserId });
         }
         else if (cookiePresent)
@@ -144,7 +145,7 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
             switch (validation)
             {
                 case { Status: SessionStatus.Valid, Principal: { } principal }:
-                    CommandOrigin origin = new(Actor.ForUser(principal.UserId), Channel.Api, context.GetClientAddress());
+                    CommandOrigin origin = new(Actor.ForUser(principal.UserId), Channel.Api, context.GetClientAddress(), context.GetAdminRequestFacts());
                     context.SetCaller(new AdminCaller(origin, Session: principal.SessionId) { User = principal.UserId });
                     break;
                 case { Status: SessionStatus.SecondFactorRequired, Principal: { } partial }:

@@ -163,7 +163,9 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> PutRouteAsync(HttpContext http, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem) || !Preconditions.TryGetVersion(http, out long version, out problem))
+        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
+            || !Preconditions.TryGetForce(http, out bool force, out problem)
+            || !Preconditions.TryGetVersion(http, out long version, out problem))
         {
             return problem!;
         }
@@ -195,7 +197,7 @@ internal static class ConfigEndpoints
             routes.Add(body.Value);
         }
 
-        ConfigCommand command = new UpsertHostCommand(host with { Routes = routes, Version = version }) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http) };
+        ConfigCommand command = new UpsertHostCommand(host with { Routes = routes, Version = version }) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
         return ConfigCommandResponses.ToResult(
             http,
             await config.ExecuteAsync(command, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false),
@@ -206,7 +208,9 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> DeleteRouteAsync(HttpContext http, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem) || !Preconditions.TryGetVersion(http, out long version, out problem))
+        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
+            || !Preconditions.TryGetForce(http, out bool force, out problem)
+            || !Preconditions.TryGetVersion(http, out long version, out problem))
         {
             return problem!;
         }
@@ -221,7 +225,7 @@ internal static class ConfigEndpoints
             return NoSuchObject("route");
         }
 
-        ConfigCommand command = new UpsertHostCommand(host with { Routes = [.. host.Routes.Where(r => r.Id != routeId)], Version = version }) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http) };
+        ConfigCommand command = new UpsertHostCommand(host with { Routes = [.. host.Routes.Where(r => r.Id != routeId)], Version = version }) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
         return ConfigCommandResponses.ToResult(http, await config.ExecuteAsync(command, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Change, noContent: true);
     }
 
@@ -317,7 +321,8 @@ internal static class ConfigEndpoints
         CancellationToken ct)
         where T : class
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem))
+        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
+            || !Preconditions.TryGetForce(http, out bool force, out problem))
         {
             return problem!;
         }
@@ -341,18 +346,20 @@ internal static class ConfigEndpoints
             return rejected;
         }
 
-        ConfigCommandResult result = await config.ExecuteAsync(command(value, dryRun, message), EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+        ConfigCommandResult result = await config.ExecuteAsync(command(value, dryRun, message) with { Force = force }, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, kind, location?.Invoke(value));
     }
 
     private static async Task<IResult> DeleteAsync(HttpContext http, ConfigService config, Func<long, ConfigCommand> command, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem) || !Preconditions.TryGetVersion(http, out long version, out problem))
+        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
+            || !Preconditions.TryGetForce(http, out bool force, out problem)
+            || !Preconditions.TryGetVersion(http, out long version, out problem))
         {
             return problem!;
         }
 
-        ConfigCommand delete = command(version) with { DryRun = dryRun, Message = EndpointSupport.MessageOf(http) };
+        ConfigCommand delete = command(version) with { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
         ConfigCommandResult result = await config.ExecuteAsync(delete, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, MutationKind.Change, noContent: true);
     }

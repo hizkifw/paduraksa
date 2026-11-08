@@ -23,6 +23,23 @@ public sealed class ConfigApiTests
         await AdminApiHarness.ReadAsync(response, AdminJsonContext.Default.ConfigCommandResult, Ct);
 
     [Fact]
+    public async Task AnAdminHostIsCreatedThroughTheHostsEndpoint()
+    {
+        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        HostConfig host = new(TestIds.Host("admin-via-api"), ["admin.test"], Kind: HostKind.Admin);
+
+        using HttpResponseMessage created = await PostHostAsync(api, host);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        ConfigCommandResult result = await ResultAsync(created);
+        Assert.Equal(ConfigCommandStatus.Committed, result.Status);
+
+        using HttpResponseMessage read = await api.GetAsync($"/api/v1/hosts/{host.Id}");
+        HostConfig stored = await AdminApiHarness.ReadAsync(read, AdminJsonContext.Default.HostConfig, Ct);
+        Assert.Equal(HostKind.Admin, stored.Kind);
+        Assert.Empty(stored.Routes);
+    }
+
+    [Fact]
     public async Task AHostIsCreatedReadReplacedAndDeletedWithItsVersion()
     {
         await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);

@@ -304,6 +304,12 @@ public sealed partial class CertificateService
         List<string> oldNames = row is null ? [] : await context.CertificateNames.Where(n => n.CertificateId == registration.Id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
         bool isNew = row is null;
         ServingFacts before = row is null ? default : ServingFacts.Of(row, oldNames);
+        if (origin.ViaAdminProxy
+            && !isNew
+            && await AdminCoverageRefusalAsync(context, scope.Document, registration.Id, oldNames, names, cancellationToken).ConfigureAwait(false) is { } adminRefusal)
+        {
+            return Rejected(origin, action, registration.Id, adminRefusal);
+        }
 
         row ??= new CertificateRow { Id = registration.Id, CreatedAt = now };
         row.Source = registration.Source;
@@ -484,6 +490,64 @@ public sealed partial class CertificateService
         return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Committed, ToSummary(row, names, now)), audit, Republish: false);
     }
 
+    /// <summary>
+    /// Refuses a delete or replacement that would leave an admin host name with no usable certificate, when the command arrived
+    /// through that admin host (PLAN §3.1). The admin host's own certificate is in the inventory like any other; a caller who
+    /// removes the last one removes the TLS name the admin is reached by.
+    /// </summary>
+    private async Task<ConfigError?> AdminCoverageRefusalAsync(
+        ConfigDbContext context,
+        ConfigDocument document,
+        CertificateId id,
+        IReadOnlyList<string> oldNames,
+        IReadOnlyList<string>? newNames,
+        CancellationToken cancellationToken)
+    {
+        List<string> adminNames =
+        [
+            .. document.Hosts
+                .Where(static h => h is { Kind: HostKind.Admin, Enabled: true })
+                .SelectMany(h => CertificateSelection.ServerNames(h.Names)),
+        ];
+        if (adminNames.Count == 0)
+        {
+            return null;
+        }
+
+        List<string> losing = [.. adminNames.Where(name => CertificateSelection.Match(oldNames, name) != NameMatch.None
+            && (newNames is null || CertificateSelection.Match(newNames, name) == NameMatch.None))];
+        if (losing.Count == 0)
+        {
+            return null;
+        }
+
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        List<CertificateId> others = await context.Certificates.AsNoTracking()
+            .Where(c => c.Id != id && c.Status == CertificateStatus.Active && c.NotBefore <= now && c.NotAfter > now)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        ILookup<CertificateId, string> otherNames = (await context.CertificateNames.AsNoTracking()
+                .Where(n => others.Contains(n.CertificateId))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .ToLookup(n => n.CertificateId, n => n.Name);
+        foreach (string name in losing)
+        {
+            if (otherNames.Any(group => CertificateSelection.Match([.. group], name) != NameMatch.None))
+            {
+                continue;
+            }
+
+            return new ConfigError(
+                string.Empty,
+                CertificateErrorCodes.AdminCoverage,
+                $"the certificate is the last usable one covering the admin host's name '{name}'; keep it while the admin host exists");
+        }
+
+        return null;
+    }
+
     private async Task<CertificateChangeOutcome> DeleteCoreAsync(CertificateChangeScope scope, CertificateId id, CommandOrigin origin, CancellationToken cancellationToken)
     {
         ConfigDbContext context = scope.Context;
@@ -497,6 +561,17 @@ public sealed partial class CertificateService
         if (!await context.Certificates.AnyAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false))
         {
             return NotFound(origin, "certificate.delete", id);
+        }
+
+        IReadOnlyList<string> oldNames = await context.CertificateNames
+            .Where(n => n.CertificateId == id)
+            .Select(n => n.Name)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        if (origin.ViaAdminProxy
+            && await AdminCoverageRefusalAsync(context, scope.Document, id, oldNames, newNames: null, cancellationToken).ConfigureAwait(false) is { } adminRefusal)
+        {
+            return Rejected(origin, "certificate.delete", id, adminRefusal);
         }
 
         List<ConfigError> users = BindingsTo(scope.Document, id);
@@ -696,6 +771,7 @@ public static class CertificateErrorCodes
     public const string IssuanceRefused = "certificate.issue.refused";
     public const string LocalCaMissing = "certificate.localCa.missing";
     public const string LocalCaInUse = "certificate.localCa.inUse";
+    public const string AdminCoverage = "certificate.adminCoverage";
     public const string KeyNotDeleted = "certificate.vault.keyNotDeleted";
     public const string ImportTooLarge = "certificate.import.tooLarge";
     public const string ImportUnreadable = "certificate.import.unreadable";

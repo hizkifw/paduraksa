@@ -1,4 +1,6 @@
 using System.Data.Common;
+using System.Net;
+using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
 
@@ -19,8 +21,11 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
+using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
+
+using ContractHostKind = Paduraksa.Contracts.Config.HostKind;
 
 namespace Paduraksa.Application.Commands;
 
@@ -303,6 +308,19 @@ public sealed partial class ConfigService : IDisposable
                 return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
             }
 
+            // PLAN §3.1's lock-out guard: put the caller's own request through the real gate over the current and the candidate
+            // config. If it currently reaches the admin app but the change would stop that, the change cuts the caller off;
+            // `force` is the explicit override. A draft simulator run never commits, so it is not guarded.
+            if (!simulation && origin.ViaAdminProxy && !command.Force && origin.AdminRequest is { } requestFacts)
+            {
+                RuntimeSnapshot before = await CurrentGuardSnapshotAsync(current, inventory, cancellationToken).ConfigureAwait(false);
+                if (AdminAccessLost(current, candidate, before, snapshot, requestFacts, compilation.Warnings) is { } lockout)
+                {
+                    ConfigCommandResult refused = new(ConfigCommandStatus.Invalid, Changes: changes, Errors: [lockout]);
+                    return await RejectAsync(command, origin, audited, refused, AuditOutcome.Invalid).ConfigureAwait(false);
+                }
+            }
+
             if (command.DryRun)
             {
                 return new Execution(new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: changes, Version: version, Warnings: compilation.Warnings), Candidate: snapshot);
@@ -368,6 +386,112 @@ public sealed partial class ConfigService : IDisposable
         Changes.Publish(new ConfigCommitted(revision, changes));
         return new Execution(new ConfigCommandResult(ConfigCommandStatus.Committed, revision, changes, Version: version, Warnings: compilation.Warnings), ticket);
     }
+
+    /// <summary>
+    /// The snapshot a lock-out probe uses for the current config: the live snapshot when it already serves an admin route, else
+    /// the current document compiled with the same inventory (the test hosts publish only through their attached proxy). A
+    /// compile failure means the guard cannot prove the caller has access now, so it does not refuse.
+    /// </summary>
+    private async Task<RuntimeSnapshot> CurrentGuardSnapshotAsync(
+        ConfigDocument current, CertificateInventory inventory, CancellationToken cancellationToken)
+    {
+        RuntimeSnapshot live = _publisher.Store.Current;
+        if (live.HostsByIndex.Any(static host => host.Routes.Any(static route => route.Admin)))
+        {
+            return live;
+        }
+
+        ConfigCompilation compilation = _compiler.Compile(current, ConfigRevisionId.Empty, inventory);
+        return compilation.Snapshot ?? RuntimeSnapshot.Bootstrap;
+    }
+
+    /// <summary>
+    /// Whether the caller's own request would still reach the admin app under <paramref name="candidate"/> (PLAN §3.1). The
+    /// current and the compiled candidate are run through the real gate; only a request that currently forwards to the admin route
+    /// and would stop doing so is a lock-out, so a condition that already exists is not blamed on this change.
+    /// </summary>
+    private static ConfigError? AdminAccessLost(
+        ConfigDocument current,
+        ConfigDocument candidate,
+        RuntimeSnapshot before,
+        RuntimeSnapshot after,
+        AdminRequestFacts request,
+        IReadOnlyList<ConfigWarning> warnings)
+    {
+        HostConfig? admin = current.Hosts.FirstOrDefault(static h => h is { Kind: ContractHostKind.Admin, Enabled: true });
+        if (admin is null || !ForwardsToAdmin(before, request))
+        {
+            return null;
+        }
+
+        string path = AdminHostPath(current, candidate, admin);
+        if (!SameTrustedProxies(current.Settings.TrustedProxies, candidate.Settings.TrustedProxies))
+        {
+            return Lockout("/settings/trustedProxies", "changing the trusted proxies while the command arrives through the proxy");
+        }
+
+        HostConfig? adminAfter = candidate.Hosts.FirstOrDefault(static h => h.Kind == ContractHostKind.Admin);
+        if (adminAfter is not null
+            && CommandErrors.PathOf(candidate, "hosts", adminAfter.Id.ToString()) is { } afterPath
+            && warnings.Any(w => w.Code == ConfigWarningCodes.CertificateSpecificNoCoverage && IsAtOrBelow(w.Path, afterPath)))
+        {
+            return Lockout(path, "the admin host's certificate doesn't cover its names");
+        }
+
+        if (ForwardsToAdmin(after, request))
+        {
+            return null;
+        }
+
+        GateSimulation simulation = GateSimulator.Run(after, ProbeOf(request));
+        string why = simulation.Outcome.Action switch
+        {
+            GateOutcomeAction.Forward => "the host would forward somewhere other than the admin app",
+            GateOutcomeAction.Respond => $"the host would answer {simulation.Outcome.StatusCode} instead of forwarding to the admin app",
+            _ => "the request would be rejected before reaching the admin app",
+        };
+        return Lockout(path, why);
+    }
+
+    private static bool ForwardsToAdmin(RuntimeSnapshot snapshot, AdminRequestFacts request)
+    {
+        GateSimulation simulation = GateSimulator.Run(snapshot, ProbeOf(request));
+        return simulation.Outcome.Action == GateOutcomeAction.Forward && simulation.Upstream is { Admin: true };
+    }
+
+    private static GateProbe ProbeOf(AdminRequestFacts request) => new()
+    {
+        Https = request.Https,
+        Host = request.Host,
+        Path = "/",
+        Method = "GET",
+        ClientAddress = request.ClientIp ?? IPAddress.None,
+        HttpVersion = ProbeHttpVersion.Http11,
+        TlsVersion = request.Https ? SslProtocols.Tls13 : SslProtocols.Tls12,
+    };
+
+    private static ConfigError Lockout(string path, string why) => new(
+        path,
+        ConfigErrorCodes.HostAdminLockout,
+        $"The request that sent this command would no longer reach the admin app: {why}. "
+            + "Repeat it with force=true if that is what you mean, or make it on the admin port.");
+
+    /// <summary>The admin host's pointer in the candidate when it exists, otherwise where it was in the current document.</summary>
+    private static string AdminHostPath(ConfigDocument current, ConfigDocument candidate, HostConfig admin) =>
+        CommandErrors.PathOf(candidate, "hosts", admin.Id.ToString())
+            ?? CommandErrors.PathOf(current, "hosts", admin.Id.ToString())
+            ?? "/hosts";
+
+    private static bool SameTrustedProxies(TrustedProxySettings left, TrustedProxySettings right) =>
+        left.Mode == right.Mode
+        && string.Equals(left.Header, right.Header, StringComparison.Ordinal)
+        && left.UseTrueClientIp == right.UseTrueClientIp
+        && left.ForwardedForFallback == right.ForwardedForFallback
+        && left.TrustForwardedProto == right.TrustForwardedProto
+        && (left.Proxies ?? []).SequenceEqual(right.Proxies ?? [], StringComparer.Ordinal);
+
+    private static bool IsAtOrBelow(string path, string prefix) =>
+        path.StartsWith(prefix, StringComparison.Ordinal) && (path.Length == prefix.Length || path[prefix.Length] == '/');
 
     /// <summary>
     /// The errors for certificate bindings that <paramref name="candidate"/> introduces and that can't be used (PLAN §9.2):
@@ -594,6 +718,7 @@ public sealed partial class ConfigService : IDisposable
         {
             Target = revision.Id.IsEmpty ? null : revision.Id.ToString(),
             RevisionId = revision.Id.IsEmpty ? null : revision.Id,
+            ViaAdminProxy = origin.ViaAdminProxy,
             Details = Json(w =>
             {
                 w.WriteString("status", DocumentNames.Of(outcome.Status));
@@ -810,7 +935,7 @@ public sealed partial class ConfigService : IDisposable
     {
         static string Verb(long version) => version == 0 ? "create" : "update";
 
-        return command switch
+        Audited audited = command switch
         {
             UpsertHostCommand c => new($"config.host.{Verb(Required(c.Host).Version)}", c.Host.Id.ToString()),
             DeleteHostCommand c => new("config.host.delete", c.HostId.ToString()),
@@ -823,6 +948,7 @@ public sealed partial class ConfigService : IDisposable
             RollbackConfigCommand c => new("config.rollback", c.Target.ToString()),
             _ => throw new ArgumentException($"Unknown command {command.GetType().Name}.", nameof(command)),
         };
+        return audited with { Force = command.Force };
     }
 
     private static string? MessageProblem(string? message)
@@ -853,7 +979,13 @@ public sealed partial class ConfigService : IDisposable
         part ?? throw new ArgumentException($"The command's {typeof(T).Name} is null.", nameof(part));
 
     private static AuditEntry Entry(CommandOrigin origin, Audited audited, AuditOutcome outcome) =>
-        new(origin.Actor, origin.Channel, audited.Action, outcome) { Target = audited.Target, ClientIp = origin.ClientIp };
+        new(origin.Actor, origin.Channel, audited.Action, outcome)
+        {
+            Target = audited.Target,
+            ClientIp = origin.ClientIp,
+            Force = audited.Force,
+            ViaAdminProxy = origin.ViaAdminProxy,
+        };
 
     private static RevisionRef Ref(RevisionInfo info) => new(info.Id, info.Seq);
 
@@ -913,7 +1045,7 @@ public sealed partial class ConfigService : IDisposable
     private partial void LogPublishPending(long seq, ConfigRevisionId revision, TimeSpan wait);
 
     /// <summary>What a rejected command is audited as: its action name and target.</summary>
-    private sealed record Audited(string Action, string? Target);
+    private sealed record Audited(string Action, string? Target, bool Force = false);
 
     /// <summary>The top-level object an upsert sends: its list (or <see cref="SettingsList"/>) and ID string.</summary>
     private sealed record ObjectKey(string List, string Id);
