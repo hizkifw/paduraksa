@@ -787,7 +787,20 @@ All four call the **same Application services** with the same DTOs, authorizatio
 - Import goes through the normal command pipeline (validate → compile → diff → one revision). Modes: `merge` and `replace`.
 - The same canonical document is what revisions store, so export = "current revision as YAML".
 - The import format above is a friendlier DTO than the document (M8): optional IDs, references by name (`profile: media`, `upstream: jellyfin`), `kind:`. Import maps it onto the strict canonical `ConfigDocument` (§6.4), assigning IDs and resolving names; only that document is stored, and export writes it back in a form that imports to the same document.
-- Later: optional **GitOps mode**, where a watched file or git repo is authoritative and the UI becomes read-only for managed objects.
+- Later: **declarative mode** (§11.6), where a watched file is authoritative and the UI becomes read-only for the objects it manages.
+
+### 11.6 Declarative mode (after v0.1)
+
+For declarative deployments (Kubernetes manifests, Helm, Compose with a mounted file, NixOS, a git repo synced by Flux/Argo or `git-sync`): the desired config lives in files the deployment owns, and Paduraksa converges to them. Not a blocker for v0.1; it builds on the M8 YAML format and import pipeline.
+
+- **Source.** `Paduraksa:Declarative:Path`, a file or a directory of `*.yaml` documents merged in name order (a ConfigMap mount is a directory). Watched with a debounce; Kubernetes updates a mounted ConfigMap by swapping the `..data` symlink, so the watcher follows the directory, not the inode. Also reconciled at startup, before the listeners open, so a pod never serves stale config after a restart.
+- **Same pipeline.** A change in the files is one import (§11.5): validate → compile → diff → one revision with channel `declarative`, actor System, and the source file's SHA-256 in the message. An invalid file changes nothing: the last good revision keeps serving, the error is logged and audited, and it shows in the dashboard, in `/readyz` details and in a metric (`paduraksa_declarative_reconcile_ok`). Readiness stays green; a bad commit to the repo must not take the proxy out of rotation.
+- **Ownership.** `Mode: Exclusive`: the files are the whole config (import mode `replace`), and the API, MCP and dashboard are read-only for config. `Mode: Managed`: the files manage the objects they name. Those objects are marked `managedBy: declarative` and refused by the other channels with a clear error, while objects the files don't name stay editable. Removing an object from the files deletes it, but only if it is marked managed. The dashboard shows a lock and the source path on managed objects.
+- **Secrets stay out of the files.** Credentials are referenced, never inlined: `secretFile: /run/secrets/cloudflare-token` (a mounted Kubernetes Secret or Docker secret). The reconciler streams the file into the vault (`ISecretStore.ReplaceAsync`, keyed by a stable secret ID declared next to it) and re-imports it when it changes. The value never enters the revision document or the audit log. Certificates managed elsewhere (cert-manager, Vault PKI) are referenced the same way (`certFile`/`keyFile` on a `kubernetes.io/tls` Secret mount) and imported through `ICertificateImport`, so the trust boundary (§8) holds. The KEK comes from `PADURAKSA_MASTER_KEY_FILE` on a Secret mount.
+- **Identity and setup.** An Owner can be declared, with a password hash or a `passwordFile`, plus roles for other users and API tokens whose secrets come from files. When an Owner is declared, the setup-token gate (§12.1) is skipped. Alternatively `Admin: Disabled` runs the proxy with no admin listener at all, only health and metrics, for fully hands-off clusters.
+- **CI support.** `paduraksa config validate <path>` (offline: schema, references, compile; exit code and RFC 9457-style messages) and `paduraksa config diff <path> --against <url|data-dir>` show what a merge would change before it is applied.
+- **Kubernetes shape.** Single replica, because SQLite and the vault are single-node: a StatefulSet (or a Deployment with `Recreate`) with a PVC for `/data`, the config as a ConfigMap and the credentials as Secrets. With declarative mode the database becomes mostly a cache of the files plus state (ACME accounts and orders, the vault, audit), so losing the PVC costs reissued certificates, not config. A Helm chart and an example manifest ship with the feature. HA and multiple replicas are out of scope: they need shared state for the vault, the ACME store and rate limits.
+- **Possible later step.** A Kubernetes **Gateway API / Ingress controller** mode that derives hosts and routes from cluster resources instead of files. It is a different product surface (watching the API server, RBAC, status writes), so it isn't designed here.
 
 ---
 
@@ -853,7 +866,7 @@ Each milestone ends with a working, testable increment.
 | **M7 Observability** | Counters, histograms, `/metrics`, health checks, notifications, live tail, rollups | Dashboard overview fully live; S6 metric continuity (counters monotonic across publishes) |
 | **M8 Interop** | YAML import/export, CLI, MCP server, backup/restore, NPM importer (nice to have) | Round-trip export → import yields an identical revision hash |
 | **M9 Release v0.1** | Docker image (multi-arch), compose example, docs site, threat model doc, fuzzing (parsers, YAML, ACME responses), load tests | Tagged release |
-| **Later** | Forward-auth → native OIDC (admin + per-host) · **PoW gate** (HMAC-signed, IP-bound, expiring tokens; difficulty per host; JS worker solver; vault `IMacKey`) · bot heuristics · header rules · per-tag RBAC · L4 streams · GitOps mode · plugin model for policies · out-of-process vault |
+| **Later** | Forward-auth → native OIDC (admin + per-host) · **PoW gate** (HMAC-signed, IP-bound, expiring tokens; difficulty per host; JS worker solver; vault `IMacKey`) · bot heuristics · header rules · per-tag RBAC · L4 streams · declarative mode (§11.6: watched YAML/ConfigMap files, managed objects read-only, secrets by file reference) · plugin model for policies · out-of-process vault |
 
 ---
 
