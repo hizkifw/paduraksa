@@ -33,7 +33,7 @@
         }
         @if (_denied)
         {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">Your role can't read the config. An Owner can give you a role that can.</MudAlert>
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
         }
         else if (!_mayWrite && _model is not null)
         {

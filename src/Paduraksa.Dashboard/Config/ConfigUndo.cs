@@ -94,7 +94,7 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
                 snackbar.Add($"The undo is stored as {result.Revision} but isn't live: publishing failed. See the server log.", Severity.Error, options => options.RequireInteraction = true);
                 break;
             case ConfigCommandStatus.Denied:
-                snackbar.Add("Your role can't change the config.", Severity.Error);
+                snackbar.Add(Identity.IdentityText.CantChangeConfig, Severity.Error);
                 break;
             default:
                 string why = result.Errors.Count > 0 ? ReviewNotices.Sentence(result.Errors[0].Message) : "The config store refused it.";

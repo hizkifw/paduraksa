@@ -181,6 +181,20 @@ public sealed class ReviewDrawerTests
         Assert.Empty(drawer.FindAll(".pdk-sheet"));
     }
 
+    [Fact]
+    public async Task ARefusalForTheRole_NamesTheRolesThatMayChangeTheConfig()
+    {
+        await using DashboardTestContext context = new();
+        FakeDashboardConfig config = Arrange(context);
+        config.Results = _ => new ConfigCommandResult(ConfigCommandStatus.Denied);
+
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
+
+        await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=denied]").Count == 1);
+        Assert.Equal(Paduraksa.Dashboard.Identity.IdentityText.CantChangeConfig, drawer.Find("[data-review=denied]").TextContent.Trim());
+        Assert.Contains("Operator, Admin or Owner", Paduraksa.Dashboard.Identity.IdentityText.CantChangeConfig, StringComparison.Ordinal);
+    }
+
     private static FakeDashboardConfig Arrange(DashboardTestContext context)
     {
         FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);

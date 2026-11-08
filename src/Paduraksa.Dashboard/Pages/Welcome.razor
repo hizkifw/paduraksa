@@ -133,7 +133,7 @@
                         case WizardStep.FirstHost:
                             @if (!May(Permission.ConfigWrite))
                             {
-                                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">Your role can't change the config.</MudAlert>
+                                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">@IdentityText.CantChangeConfig</MudAlert>
                             }
                             else if (_createdHost is { } host)
                             {

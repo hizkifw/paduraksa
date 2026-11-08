@@ -48,7 +48,7 @@
 
                 case Phase.Denied:
                     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="denied">
-                        Your role can't change the config. An Owner or Admin can give you the Operator role.
+                        @IdentityText.CantChangeConfig
                     </MudAlert>
                     break;
 

@@ -13,7 +13,7 @@
 @if (_denied)
 {
     <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the config" Description="An Owner can give you a role that can." />
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
     </MudPaper>
 }
 else if (_model is null || _document is null)
