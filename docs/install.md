@@ -31,7 +31,7 @@ runtimes that do not.
 
    If you prefer to keep the compose file elsewhere, set `build.context` to your checkout (and `dockerfile` to its
    `Dockerfile`), or build the image once with `docker build -t paduraksa:local .` in the repository root and replace
-   the `build:` block with `image: paduraksa:local`. A published release image (`ghcr.io/...`, M9) is a drop-in
+   the `build:` block with `image: paduraksa:local`. A published release image (`ghcr.io/...`, M11) is a drop-in
    replacement for either.
 
    **A bind-mounted data directory** (instead of the named volume) must be owned by the container's uid 10001:
@@ -138,7 +138,7 @@ The named volume `paduraksa-data` holds everything:
 
 Back up the **data directory and the master key separately**. A copy of `vault.db` without the key is useless, and a copy
 of the key without the volume opens nothing; together they are every credential the proxy holds. `paduraksa backup`
-arrives in M8. To move or restore, stop the container and copy the whole volume.
+arrives in M10. To move or restore, stop the container and copy the whole volume.
 
 ### Upgrading
 

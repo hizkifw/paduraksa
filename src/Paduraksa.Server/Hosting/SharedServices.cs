@@ -270,7 +270,7 @@ internal sealed class SharedServices : IAsyncDisposable
             CaRootSource caRoot = builder.Add(new CaRootSource());
             builder.Add(new AdminCertificateService(
                 certificates, vault.ServerCertificates, vault.Catalog, caRoot, configStore.Operations, configStore.Config, configStore.Setup, options, timeProvider, coreLoggers));
-            // TODO(M7): MetricsRegistry.
+            // TODO(M9): MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();
             return new SharedServices(builder, loggerFactory, vault.KeyRing);

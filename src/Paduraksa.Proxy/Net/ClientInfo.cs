@@ -62,7 +62,7 @@ public sealed class ClientInfo : IClientInfoFeature
 
     public ushort TransportPort { get; }
 
-    /// <summary>Index into the snapshot's country table; 0 = unknown. Placeholder until the geo lookup (M6).</summary>
+    /// <summary>Index into the snapshot's country table; 0 = unknown. Placeholder until the geo lookup (M7).</summary>
     public ushort CountryIndex { get; }
 
     /// <summary>True when <see cref="Address"/> came from a PROXY protocol header.</summary>

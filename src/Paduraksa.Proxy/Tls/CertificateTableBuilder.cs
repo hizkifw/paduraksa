@@ -215,7 +215,7 @@ public sealed class CertificateTableBuilder
         /// which would let any unauthenticated client make the proxy fetch a URL of its choosing mid-handshake (SSRF).
         /// Revocation isn't checked either (no OCSP/CRL fetches). One policy per options object; SslStream copies it.
         /// </summary>
-        // TODO(M6): Authenticated Origin Pulls: X509ChainTrustMode.CustomRootTrust with Cloudflare's origin-pull CA.
+        // TODO(M7): Authenticated Origin Pulls: X509ChainTrustMode.CustomRootTrust with Cloudflare's origin-pull CA.
         public static X509ChainPolicy? ChainPolicy(ClientCertificatePolicy? policy) =>
             policy is null
                 ? null

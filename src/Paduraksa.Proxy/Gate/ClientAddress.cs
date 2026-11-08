@@ -25,7 +25,7 @@ public interface IClientAddressSource
 /// </summary>
 /// <remarks>
 /// The policy is global for M1. A per-host override (PLAN §5.3) needs the host first, so it would resolve after the
-/// host lookup; that arrives with the per-host settings (M2/M6). The request scheme is resolved in the same step
+/// host lookup; that arrives with the per-host settings (M2/M7). The request scheme is resolved in the same step
 /// (<see cref="ForwardedScheme"/>).
 /// </remarks>
 public sealed partial class TrustedProxyClientAddressSource : IClientAddressSource
@@ -39,7 +39,7 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
     /// <param name="logger">Gets one warning the first time Cloudflare "Flexible" SSL is seen.</param>
     public TrustedProxyClientAddressSource(ILogger<TrustedProxyClientAddressSource> logger) => _logger = logger;
 
-    /// <summary>Header fallbacks and Cloudflare plain-HTTP requests (process lifetime; read by metrics, M7).</summary>
+    /// <summary>Header fallbacks and Cloudflare plain-HTTP requests (process lifetime; read by metrics, M9).</summary>
     public ClientAddressCounters Counters { get; } = new();
 
     public ClientIpResolution Resolve(HttpContext context, RuntimeSnapshot snapshot) =>

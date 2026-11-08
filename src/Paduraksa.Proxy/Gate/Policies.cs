@@ -84,7 +84,7 @@ public interface IRequestPolicy
     PolicyDecision Evaluate(in RequestView request);
 
     /// <summary>A short, stable kind label for the request simulator's trace (<c>ipAllowList</c>). Never called on the hot
-    /// path. Each policy added later (M6) overrides it and <see cref="Explain"/>.</summary>
+    /// path. Each policy added later (M7) overrides it and <see cref="Explain"/>.</summary>
     string Name => "policy";
 
     /// <summary>Says why <paramref name="verdict"/> (what <see cref="Evaluate"/> just returned for

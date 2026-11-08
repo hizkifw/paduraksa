@@ -48,7 +48,7 @@ internal static class PaduraksaCli
         root.Subcommands.Add(IdentityCommands.BuildAdmin());
         root.Subcommands.Add(DoctorCommands.Build());
 
-        // TODO(M8): config, backup, restore, migrate. The full doctor (ports, permissions, libmsquic, DNS, clock skew) is M9.
+        // TODO(M10): config, backup, restore, migrate. The full doctor (ports, permissions, libmsquic, DNS, clock skew) is M11.
         return root;
     }
 

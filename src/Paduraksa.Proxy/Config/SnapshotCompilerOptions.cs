@@ -48,7 +48,7 @@ public sealed record SnapshotCompilerOptions
 
     /// <summary>
     /// Cloudflare's edge ranges for <see cref="TrustedProxyMode.CloudflareProxy"/>; null for the baked-in
-    /// <see cref="CloudflareIpRanges.Default"/>. The range refresh job (M6) passes its latest list here; tests use it to
+    /// <see cref="CloudflareIpRanges.Default"/>. The range refresh job (M7) passes its latest list here; tests use it to
     /// put loopback "at the edge".
     /// </summary>
     public CidrSet? CloudflareEdgeRanges { get; init; }

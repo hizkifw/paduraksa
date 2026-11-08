@@ -56,7 +56,7 @@ public sealed record DefaultsSpec
     /// <summary>TLS settings of the default certificate's entry (unknown or absent SNI).</summary>
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
 
-    /// <summary>Who may tell us the client IP (PLAN §7.6). Global in M1; a per-host override comes with M2/M6.</summary>
+    /// <summary>Who may tell us the client IP (PLAN §7.6). Global in M1; a per-host override comes with M2/M7.</summary>
     public TrustedProxySpec TrustedProxies { get; init; } = TrustedProxySpec.Off;
 }
 
@@ -99,7 +99,7 @@ public sealed record TrustedProxySpec
 
 /// <summary>
 /// The configurable part of a host's <see cref="TlsPolicy"/> (PLAN §7.2 B). Client certificates (Authenticated Origin
-/// Pulls) arrive with M6. The handshake applies the settings of the host named in the SNI; because clients reuse a
+/// Pulls) arrive with M7. The handshake applies the settings of the host named in the SNI; because clients reuse a
 /// connection for every name its certificate covers, the gate re-checks each request against its own host's settings
 /// and answers 421 Misdirected Request when the connection is weaker.
 /// </summary>
@@ -270,7 +270,7 @@ public sealed record ActiveHealthSpec
 /// <summary>A YARP destination; the ID must stay stable for health state to survive (PLAN §6.3).</summary>
 public sealed record DestinationSpec(DestinationId Id, string Address);
 
-/// <summary>A policy in a host or route chain. Real WAF policies arrive with M6.</summary>
+/// <summary>A policy in a host or route chain. Real WAF policies arrive with M7.</summary>
 public abstract record PolicySpec;
 
 /// <summary>Always answers with a fixed status and body.</summary>

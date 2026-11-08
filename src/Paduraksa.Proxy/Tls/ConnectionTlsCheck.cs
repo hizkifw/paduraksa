@@ -81,7 +81,7 @@ public static class ConnectionTlsCheck
             return TlsMismatch.TlsVersionTooLow;
         }
 
-        // TODO(M6): a required client certificate (policy.ClientCertificate) must have been validated on this
+        // TODO(M7): a required client certificate (policy.ClientCertificate) must have been validated on this
         // connection too (ITlsConnectionFeature.ClientCertificate plus the validator's verdict), else 421.
         return TlsMismatch.None;
     }

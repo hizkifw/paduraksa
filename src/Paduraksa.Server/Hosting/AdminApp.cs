@@ -36,7 +36,7 @@ namespace Paduraksa.Server.Hosting;
 /// (<c>Paduraksa.Admin.Web</c>) and its static files, all from the app itself.
 /// The internal listener (PLAN §3.1): a Unix socket (0600, in a 0700 directory) or a loopback fallback, plain HTTP, through
 /// which the public proxy forwards an admin host's requests.
-/// TODO(M8): /mcp. TODO(M7): /metrics.
+/// TODO(M10): /mcp. TODO(M9): /metrics.
 /// </summary>
 internal static partial class AdminApp
 {

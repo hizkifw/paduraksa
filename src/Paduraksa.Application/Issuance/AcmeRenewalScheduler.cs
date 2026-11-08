@@ -19,7 +19,7 @@ namespace Paduraksa.Application.Issuance;
 /// unfinished order (a restart caught it) is resumed; a failed one is retried once <c>RetryAt</c> has passed; an issued one is renewed
 /// once <c>NextRenewalAt</c> has passed, else its ARI window is refreshed once <c>AriCheckAt</c> has passed. Certificates are handled one at a time, so renewals do not
 /// hit the CA in a burst. A failure is logged and recorded on the order and the certificate (by the service); it never stops the loop.</para>
-/// <para>Notifications for failures arrive with the notification channels (M7); until then the dashboard shows the order's error.</para>
+/// <para>Notifications for failures arrive with the notification channels (M9); until then the dashboard shows the order's error.</para>
 /// </remarks>
 public sealed partial class AcmeRenewalScheduler : BackgroundService
 {

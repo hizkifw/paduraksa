@@ -17,7 +17,7 @@ namespace Paduraksa.Proxy.Net;
 /// same way, so policies, rate keys and logs agree across transports.</para>
 /// <para>No PROXY protocol on QUIC (it is a TCP framing). One <see cref="ClientInfo"/> per QUIC connection, like TCP.</para>
 /// <para><b>Nothing is acquired in M1</b>, so the documented gap (no <c>ConnectionClosed</c> after a handshake that
-/// fails past the gate, see <see cref="QuicConnectionGate"/>) can't leak anything yet. The per-IP connection cap (M6)
+/// fails past the gate, see <see cref="QuicConnectionGate"/>) can't leak anything yet. The per-IP connection cap (M7)
 /// must pair its slot with a bound that doesn't depend on that signal.</para>
 /// </remarks>
 public static class QuicClientInfoGate
@@ -30,7 +30,7 @@ public static class QuicClientInfoGate
     {
         ClientInfo info = ClientInfo.FromEndPoint(remoteEndPoint);
 
-        // SEAM (M6): the global connection-level IP deny (PLAN §7.2 A) and the per-IP connection cap go here, on
+        // SEAM (M7): the global connection-level IP deny (PLAN §7.2 A) and the per-IP connection cap go here, on
         // info.Address, reading the live snapshot's deny set. M1 has neither, so every connection is admitted.
         connection?.Features.Set<IClientInfoFeature>(info);
         return true;

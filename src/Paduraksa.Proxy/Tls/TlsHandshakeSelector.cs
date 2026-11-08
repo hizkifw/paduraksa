@@ -168,7 +168,7 @@ public readonly record struct TlsSelection(
 /// <summary>Lock-free counters of the handshakes a <see cref="TlsHandshakeSelector"/> rejected.</summary>
 public sealed class TlsHandshakeCounters
 {
-    // TODO(M7 metrics): these share a cache line; pad or stripe them if rejection floods ever show contention.
+    // TODO(M9 metrics): these share a cache line; pad or stripe them if rejection floods ever show contention.
     private long _unknownServerNameTcp;
     private long _unknownServerNameQuic;
     private long _http3Disabled;

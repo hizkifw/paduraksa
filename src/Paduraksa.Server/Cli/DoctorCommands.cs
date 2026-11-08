@@ -13,7 +13,7 @@ namespace Paduraksa.Server.Cli;
 /// <summary>
 /// <c>paduraksa doctor</c> (PLAN §11.4, §16). M5 implements <c>--liveness</c>, the one check the container's
 /// <c>HEALTHCHECK</c> can run without curl: it asks the admin listener's <c>/healthz</c> over loopback and exits 0 or 1.
-/// The full doctor (ports, permissions, libmsquic, DNS, clock skew) stays M9.
+/// The full doctor (ports, permissions, libmsquic, DNS, clock skew) stays M11.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -68,7 +68,7 @@ internal static class DoctorCommands
 
         if (!liveness)
         {
-            await error.WriteLineAsync("Only --liveness is implemented so far (the full doctor arrives in M9). Usage: paduraksa doctor --liveness").ConfigureAwait(false);
+            await error.WriteLineAsync("Only --liveness is implemented so far (the full doctor arrives in M11). Usage: paduraksa doctor --liveness").ConfigureAwait(false);
             return ExitCodes.Failure;
         }
 

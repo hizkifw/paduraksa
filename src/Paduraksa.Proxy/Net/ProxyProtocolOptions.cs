@@ -21,7 +21,7 @@ public sealed class ProxyProtocolOptions
 
     /// <summary>Socket peers allowed to send a header (the load balancers). Each new connection reads the current set
     /// once, so it can be swapped at runtime; in M1 nothing does yet (the listener config is fixed at startup), and the
-    /// swap on publish arrives with the config store (M2/M6).</summary>
+    /// swap on publish arrives with the config store (M2/M7).</summary>
     public CidrSet TrustedSources
     {
         get => Volatile.Read(ref _trustedSources);

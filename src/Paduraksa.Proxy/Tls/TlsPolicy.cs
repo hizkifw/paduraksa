@@ -60,7 +60,7 @@ public sealed record TlsPolicy
 
 /// <summary>
 /// Requests a client certificate during the handshake. The shape exists for Cloudflare Authenticated Origin Pulls
-/// (PLAN §7.6); the real validator (origin-pull CA) arrives in M6.
+/// (PLAN §7.6); the real validator (origin-pull CA) arrives in M7.
 /// </summary>
 /// <remarks>
 /// <list type="bullet">

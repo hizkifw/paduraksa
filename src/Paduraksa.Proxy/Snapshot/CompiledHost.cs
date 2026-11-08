@@ -71,7 +71,7 @@ public sealed class CompiledHost
 
     /// <summary>
     /// Placeholder for the stable metric slot (PLAN §6.3, §7.4): the same host keeps the same slot across snapshots.
-    /// -1 until the metrics registry exists (M7).
+    /// -1 until the metrics registry exists (M9).
     /// </summary>
     public int MetricSlot { get; init; } = -1;
 
