@@ -162,16 +162,18 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
             await using PaduraksaHost host = TestHost.Create(settings: Settings(port, fastScheduler: true), dataDirectory: data);
             await host.StartAsync(Ct);
 
-            // The scheduler starts with the process, after the vault and the config store, and renews on its own.
+            // The scheduler starts with the process, after the vault and the config store, and renews on its own. The
+            // deadline covers an external process (Pebble in Docker) and a whole ACME order, so it is generous; the
+            // loop itself waits on the served certificate, the real signal.
             string served = firstFingerprint;
-            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(90);
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddMinutes(3);
             while (served == firstFingerprint && DateTimeOffset.UtcNow < deadline)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(500), Ct);
                 served = Fingerprint((await VaultCertificatesEndToEndTests.HandshakeAsync(host, names[0])).Certificate);
             }
 
-            Assert.True(served != firstFingerprint, $"the scheduler had not renewed the due certificate after 90 s (order: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Status}, error: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Error})");
+            Assert.True(served != firstFingerprint, $"the scheduler had not renewed the due certificate after 3 min (order: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Status}, error: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Error})");
 
             CertificateSummary current = Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.Acme), Ct));
             Assert.Equal((id, served), (current.Id, current.Sha256Fingerprint));
