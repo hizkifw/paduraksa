@@ -1,3 +1,4 @@
+@using Paduraksa.Application.Commands
 @using Paduraksa.Contracts.Simulation
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
@@ -64,6 +65,12 @@
                 case Phase.Unavailable:
                     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="unavailable">
                         <strong>The config store can't take changes right now.</strong> @(FirstError ?? "The server is running on its last-known-good config.")
+                    </MudAlert>
+                    break;
+
+                case Phase.SignedOut:
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="signed-out">
+                        <strong>Your session has ended.</strong> Sign in again to review and apply this change.
                     </MudAlert>
                     break;
 
@@ -195,6 +202,7 @@
         NotFound,
         Denied,
         Unavailable,
+        SignedOut,
         Failed,
         Applying,
         PublishFailed,
@@ -202,6 +210,7 @@
 
     private Phase _phase;
     private ConfigCommand? _reviewed;
+    private bool _starting;
     private bool _focusPending;
     private ElementReference _heading;
     private ConfigDocument _before = new();
@@ -317,6 +326,8 @@
         DashboardPrincipal? user = await Caller.CheckAsync();
         if (user is null)
         {
+            // Never left loading: the drawer says why, and its exits work (the page is on its way to the sign-in page).
+            _phase = Phase.SignedOut;
             return;
         }
 
@@ -370,16 +381,29 @@
 
     private async Task ApplyAsync()
     {
-        if (_reviewed is not { } command || _phase != Phase.Ready)
+        if (_reviewed is not { } command || _phase != Phase.Ready || _starting)
+        {
+            return;
+        }
+
+        // Applying (which disables every exit) starts only once the origin is in hand: a session that ended leaves the drawer as it was.
+        CommandOrigin? origin;
+        _starting = true;
+        try
+        {
+            origin = await Caller.OriginAsync();
+        }
+        finally
+        {
+            _starting = false;
+        }
+
+        if (origin is null || _phase != Phase.Ready || !ReferenceEquals(_reviewed, command))
         {
             return;
         }
 
         _phase = Phase.Applying;
-        if (await Caller.OriginAsync() is not { } origin)
-        {
-            return;
-        }
 
         ConfigCommandResult result;
         try

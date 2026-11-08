@@ -145,6 +145,41 @@ public sealed class ReviewDrawerTests
         Assert.Contains("YARP rejected the cluster", text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ASessionThatEndedBeforeApply_LeavesTheDrawerWithItsExits()
+    {
+        await using DashboardTestContext context = new();
+        FakeDashboardConfig config = Arrange(context);
+        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited));
+        await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
+
+        context.Services.GetRequiredService<TestSessions>().Ended = true;
+        await drawer.Find("[data-review=apply]").ClickAsync(new());
+
+        // Nothing ran, and nothing is stuck applying: Apply and Cancel are both still there to press.
+        Assert.Single(config.Executed);
+        Assert.Empty(drawer.FindAll(".pdk-sheet-actions .mud-progress-circular"));
+        Assert.All(drawer.FindAll(".pdk-sheet-actions button"), button => Assert.False(button.HasAttribute("disabled")));
+        await drawer.FindAll(".pdk-sheet-actions button").Single(b => b.TextContent.Contains("Cancel", StringComparison.Ordinal)).ClickAsync(new());
+        Assert.Empty(drawer.FindAll(".pdk-sheet"));
+    }
+
+    [Fact]
+    public async Task ASessionThatEndedBeforeTheReview_SaysSo_InsteadOfLoadingForever()
+    {
+        await using DashboardTestContext context = new();
+        FakeDashboardConfig config = Arrange(context);
+        context.Services.GetRequiredService<TestSessions>().Ended = true;
+
+        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited));
+
+        await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=signed-out]").Count == 1);
+        Assert.Empty(config.Executed);
+        Assert.Empty(drawer.FindAll("[aria-busy=true]"));
+        await drawer.FindAll(".pdk-sheet-actions button").Single(b => b.TextContent.Contains("Back to the form", StringComparison.Ordinal)).ClickAsync(new());
+        Assert.Empty(drawer.FindAll(".pdk-sheet"));
+    }
+
     private static FakeDashboardConfig Arrange(DashboardTestContext context)
     {
         FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);

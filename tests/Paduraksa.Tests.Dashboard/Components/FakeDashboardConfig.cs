@@ -102,11 +102,13 @@ internal static class ConfigPages
     {
         FakeDashboardConfig config = new();
         session = TestUsers.Session(role);
+        TestSessions sessions = new(session.Session);
         DashboardAuthenticationStateProvider auth = new(
-            new FixedSessions(session.Session), new DashboardOptions(), TimeProvider.System, NullLogger<DashboardAuthenticationStateProvider>.Instance);
+            sessions, new DashboardOptions(), TimeProvider.System, NullLogger<DashboardAuthenticationStateProvider>.Instance);
         auth.SetAuthenticationState(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(session))));
         context.Services.AddLogging();
         context.Services.AddSingleton(TimeProvider.System);
+        context.Services.AddSingleton(sessions);
         // Factories, so the context disposes the provider (and its background re-check) with it.
         context.Services.AddSingleton(_ => auth);
         context.Services.AddSingleton<AuthenticationStateProvider>(sp => sp.GetRequiredService<DashboardAuthenticationStateProvider>());
@@ -121,13 +123,17 @@ internal static class ConfigPages
     /// <summary>The cascading authentication state of the signed-in user.</summary>
     public static Task<AuthenticationState> State(DashboardTestContext context) =>
         context.Services.GetRequiredService<AuthenticationStateProvider>().GetAuthenticationStateAsync();
+}
 
-    private sealed class FixedSessions(SessionPrincipal principal) : IDashboardSessions
-    {
-        public Task<SessionPrincipal?> CheckAsync(SessionId session, bool countAsUse, CancellationToken cancellationToken) =>
-            Task.FromResult<SessionPrincipal?>(principal);
+/// <summary>The signed-in user's session for the page tests: live until <see cref="Ended"/> is set.</summary>
+internal sealed class TestSessions(SessionPrincipal principal) : IDashboardSessions
+{
+    /// <summary>The session was revoked or expired: the next check ends it.</summary>
+    public bool Ended { get; set; }
 
-        public ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(UserId user, CancellationToken cancellationToken) =>
-            ValueTask.FromResult(RolePermissions.Of(principal.Roles));
-    }
+    public Task<SessionPrincipal?> CheckAsync(SessionId session, bool countAsUse, CancellationToken cancellationToken) =>
+        Task.FromResult<SessionPrincipal?>(Ended ? null : principal);
+
+    public ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(UserId user, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(RolePermissions.Of(principal.Roles));
 }
