@@ -120,22 +120,26 @@ public sealed partial class SetupService
     }
 
     /// <summary>
-    /// <see cref="EnsureTokenAsync"/> for server startup: also logs the token at Warning, so it appears where the operator is
-    /// looking, with how to show it again.
+    /// <see cref="EnsureTokenAsync"/> for server startup: also logs the token at Warning, as one boxed banner, so it is impossible to
+    /// miss where the operator is looking, with how to show it again.
     /// </summary>
+    /// <remarks>
+    /// <b>The one deliberate exception to "never log a credential"</b> (PLAN §2, §12.1; decided by the owner): whoever runs
+    /// <c>docker logs</c> has no other way to get the token, it is single-use, and it is worthless once an Owner exists (and then
+    /// deleted). Whoever can read the log already has a shell on the host, and with it the token file. Nothing else is ever logged,
+    /// and the banner is one message so a structured sink keeps it together.
+    /// </remarks>
     public async Task AnnounceAsync(CancellationToken cancellationToken = default)
     {
         if (await EnsureTokenAsync(cancellationToken).ConfigureAwait(false) is { } token)
         {
-            // The one deliberate exception to "never log a credential": whoever runs `docker logs` has no other way to get the token,
-            // it is single-use, and it is worthless once an Owner exists (and then deleted).
-            LogSetupToken(token, _tokenPath);
+            LogSetupToken(SetupBanner.Render(token, _tokenPath));
         }
     }
 
     /// <summary>
-    /// Creates the first Owner. Needs the setup token; refused once an Owner exists. The new user is not signed in: the admin app
-    /// sends them to the sign-in page.
+    /// Creates the first Owner. Needs the setup token; refused once an Owner exists. The endpoint that calls this signs the new
+    /// Owner in at once (they just proved the password by choosing it); this service only records the Owner and returns it.
     /// </summary>
     public async Task<SetupResult> CompleteSetupAsync(
         string setupToken, string username, string password, string? displayName, ClientContext client, CancellationToken cancellationToken = default)
@@ -171,6 +175,7 @@ public sealed partial class SetupService
                 if (await context.RoleAssignments.AnyAsync(r => r.Role == Role.Owner, cancellationToken).ConfigureAwait(false))
                 {
                     _complete = true;
+                    DeleteTokenFile();
                     return new SetupResult(SetupOutcome.AlreadyComplete);
                 }
 
@@ -265,8 +270,8 @@ public sealed partial class SetupService
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Setup is not complete: no Owner exists. Open the admin app and use this setup token to create one: {Token} (kept in {Path}; `paduraksa setup-token` shows it again).")]
-    private partial void LogSetupToken(string token, string path);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Banner}")]
+    private partial void LogSetupToken(string banner);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The setup token file {Path} was readable by other users, so it was discarded.")]
     private partial void LogTokenFileTooOpen(string path);

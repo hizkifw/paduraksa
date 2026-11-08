@@ -68,7 +68,9 @@ internal static class IdentityCommands
         RunAsync(hostOptions, error, async services =>
         {
             string? token = await services.Setup.EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
-            await output.WriteLineAsync(token is null ? "Setup is complete: there is no setup token." : $"Setup token: {token}").ConfigureAwait(false);
+            await output.WriteLineAsync(token is null
+                ? "Setup is complete: there is no setup token."
+                : SetupBanner.Render(token, services.Setup.TokenPath)).ConfigureAwait(false);
             return ExitCodes.Success;
         }, cancellationToken);
 
