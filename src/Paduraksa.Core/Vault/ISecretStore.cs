@@ -18,10 +18,10 @@ public enum SecretKind
     EabHmacKey = 1,
 
     /// <summary>
-    /// A user's TOTP shared secret (PLAN §10.1). Because there is no get, M4 needs vault-side generation: the vault
-    /// creates the secret, returns only a one-time provisioning URI (<c>otpauth://</c>, for the QR code) at enrolment and
-    /// verifies codes itself through a capability that arrives with M4. The enrolment URI is the single, deliberate place a
-    /// TOTP secret leaves the vault, once, to the user's own authenticator.
+    /// A user's TOTP shared secret (PLAN §10.1). Because there is no get, the vault generates it: the vault creates the
+    /// secret, returns only a one-time provisioning URI (<c>otpauth://</c>, for the QR code) at enrolment and verifies codes
+    /// itself through <see cref="ITotpAuthenticator"/>. The enrolment URI is the single, deliberate place a TOTP secret
+    /// leaves the vault, once, to the user's own authenticator.
     /// </summary>
     TotpSecret = 2,
 

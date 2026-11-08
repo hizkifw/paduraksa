@@ -81,7 +81,7 @@ internal sealed class SharedServices : IAsyncDisposable
         Permissions = Get<IPermissionEvaluator>();
     }
 
-    /// <summary>User management (PLAN §10.1); the admin app (M4 wave 2) builds on the identity services below.</summary>
+    /// <summary>User management (PLAN §10.1), the first of the identity services below that the admin app and the REST API use.</summary>
     public UserService Users { get; }
 
     /// <summary>Admin sessions: cookie validation, listing, revoking.</summary>
