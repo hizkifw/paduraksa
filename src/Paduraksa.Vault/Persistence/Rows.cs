@@ -228,3 +228,29 @@ internal sealed class StagedKeyRowConfiguration : IEntityTypeConfiguration<Stage
         builder.HasIndex(r => r.StagedKeyId).IsUnique();
     }
 }
+
+/// <summary>
+/// What the vault tracks about a TOTP secret beyond its sealed value (PLAN §8.2, §10.1): whether the person has proved their
+/// authenticator works, and the last time step accepted, which is the replay protection. Not secret, so in the clear; one row per
+/// <see cref="SecretKind.TotpSecret"/> secret, deleted with it.
+/// </summary>
+internal sealed class TotpStateRow
+{
+    public SecretId SecretId { get; set; }
+
+    /// <summary>False until a code from the authenticator was accepted (<see cref="Core.Vault.ITotpAuthenticator.ConfirmEnrollmentAsync"/>).</summary>
+    public bool Confirmed { get; set; }
+
+    /// <summary>The RFC 6238 time step of the last accepted code (Unix time / 30 s); null if none yet. Only ever rises.</summary>
+    public long? LastStep { get; set; }
+}
+
+internal sealed class TotpStateRowConfiguration : IEntityTypeConfiguration<TotpStateRow>
+{
+    public void Configure(EntityTypeBuilder<TotpStateRow> builder)
+    {
+        builder.ToTable("TotpStates", table => table.HasCheckConstraint("CK_TotpStates_LastStep", "\"LastStep\" IS NULL OR \"LastStep\" >= 0"));
+        builder.HasKey(r => r.SecretId);
+        builder.HasOne<SecretRow>().WithOne().HasForeignKey<TotpStateRow>(r => r.SecretId).OnDelete(DeleteBehavior.Cascade);
+    }
+}

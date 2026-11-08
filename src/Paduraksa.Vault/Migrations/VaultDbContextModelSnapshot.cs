@@ -210,6 +210,25 @@ namespace Paduraksa.Vault.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Vault.Persistence.TotpStateRow", b =>
+                {
+                    b.Property<byte[]>("SecretId")
+                        .HasColumnType("BLOB");
+
+                    b.Property<bool>("Confirmed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("LastStep")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("SecretId");
+
+                    b.ToTable("TotpStates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TotpStates_LastStep", "\"LastStep\" IS NULL OR \"LastStep\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Vault.Persistence.VaultMetaRow", b =>
                 {
                     b.Property<int>("Slot")
@@ -235,6 +254,15 @@ namespace Paduraksa.Vault.Migrations
 
                             t.HasCheckConstraint("CK_VaultMeta_Singleton", "\"Slot\" = 1");
                         });
+                });
+
+            modelBuilder.Entity("Paduraksa.Vault.Persistence.TotpStateRow", b =>
+                {
+                    b.HasOne("Paduraksa.Vault.Persistence.SecretRow", null)
+                        .WithOne()
+                        .HasForeignKey("Paduraksa.Vault.Persistence.TotpStateRow", "SecretId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

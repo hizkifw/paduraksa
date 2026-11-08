@@ -6,6 +6,7 @@ using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.Keys;
 using Paduraksa.Vault.Persistence;
 using Paduraksa.Vault.Secrets;
+using Paduraksa.Vault.Totp;
 
 namespace Paduraksa.Vault;
 
@@ -70,6 +71,7 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ICertificateIssuance, CertificateIssuance>();
         services.AddSingleton<ICertificateImport, CertificateImport>();
         services.AddSingleton<ICertificateCatalog, CertificateCatalog>();
+        services.AddSingleton<ITotpAuthenticator, TotpAuthenticator>();
         return services;
     }
 }

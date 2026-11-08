@@ -80,6 +80,11 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
                 var row = await context.Secrets.SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false)
                     ?? throw new KeyNotFoundException($"There is no secret {id}.");
 
+                if (row.Kind == SecretKind.TotpSecret)
+                {
+                    throw new ArgumentException("A TOTP secret cannot be replaced: enrol again through ITotpAuthenticator.", nameof(id));
+                }
+
                 var checkedOptions = options is null ? null : Validate(row.Kind, value.Length, options, row);
                 var now = runtime.Time.GetUtcNow();
                 var kek = runtime.Kek;
@@ -142,6 +147,11 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
         if (!Enum.IsDefined(kind))
         {
             throw new ArgumentOutOfRangeException(nameof(kind), kind, "Undefined secret kind.");
+        }
+
+        if (kind == SecretKind.TotpSecret)
+        {
+            throw new ArgumentException("A TOTP secret is created by ITotpAuthenticator, which generates it inside the vault; it cannot be supplied.", nameof(kind));
         }
 
         if (valueLength is 0 or > MaxValueBytes)

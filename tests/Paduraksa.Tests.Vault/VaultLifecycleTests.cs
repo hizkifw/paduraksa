@@ -64,7 +64,7 @@ public sealed class VaultLifecycleTests : IDisposable
     public async Task AWrongKekStopsStartupAndTheRightOneStillWorks()
     {
         var right = _vault.Variables[KekProvider.KeyVariable]!;
-        await _vault.Get<ISecretStore>().PutAsync(SecretKind.TotpSecret, "value"u8.ToArray(), new(null, null, null), Ct);
+        await _vault.Get<ISecretStore>().PutAsync(SecretKind.HmacSigningKey, "value"u8.ToArray(), new(null, MacAlgorithm.HmacSha256, null), Ct);
         _vault.Restart();
         using (var other = Kek.Generate())
         {

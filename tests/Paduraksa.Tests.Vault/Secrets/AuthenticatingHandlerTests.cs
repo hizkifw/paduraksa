@@ -227,7 +227,7 @@ public sealed class AuthenticatingHandlerTests : IDisposable
     public async Task ASecretOfAnotherKindOrNoSecretIsRefused()
     {
         var tsig = await Store.PutAsync(SecretKind.TsigKey, Encoding.UTF8.GetBytes(Token), SecretStoreTests.Mac(), Ct);
-        var totp = await Store.PutAsync(SecretKind.TotpSecret, Encoding.UTF8.GetBytes(Token), new(null, null, null), Ct);
+        var totp = await Store.PutAsync(SecretKind.HmacSigningKey, Encoding.UTF8.GetBytes(Token), new(null, MacAlgorithm.HmacSha256, null), Ct);
 
         foreach (var id in new[] { tsig, totp, SecretId.New() })
         {

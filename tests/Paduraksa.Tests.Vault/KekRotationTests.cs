@@ -69,7 +69,7 @@ public sealed class KekRotationTests : IDisposable
         Assert.Equal("dns-token", Encoding.UTF8.GetString(opened!.Current.Span));
 
         // Writes after the rotation are under the new key too.
-        await _vault.Get<ISecretStore>().PutAsync(SecretKind.TotpSecret, "x"u8.ToArray(), new(null, null, null), Ct);
+        await _vault.Get<ISecretStore>().PutAsync(SecretKind.HmacSigningKey, "x"u8.ToArray(), new(null, MacAlgorithm.HmacSha256, null), Ct);
         Assert.All(await KekIds(), id => Assert.Equal(newId, id));
     }
 
