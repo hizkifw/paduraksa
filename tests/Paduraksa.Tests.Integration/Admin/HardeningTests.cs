@@ -1,10 +1,8 @@
 using System.Globalization;
 using System.Net;
-using System.Net.Sockets;
 using System.Text;
 
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -366,7 +364,7 @@ public sealed class HardeningTests
     {
         for (int attempt = 1; ; attempt++)
         {
-            int port = FreePort();
+            int port = TestPorts.FreePort();
             Dictionary<string, string?> config = new(StringComparer.OrdinalIgnoreCase);
             foreach ((string key, string? value) in settings ?? [])
             {
@@ -378,52 +376,11 @@ public sealed class HardeningTests
             {
                 return (await AdminHarness.StartAsync(config), port);
             }
-            catch (IOException ex) when (attempt < 5 && IsAddressInUse(ex))
+            catch (IOException ex) when (attempt < 5 && TestPorts.IsAddressInUse(ex))
             {
                 // Lost the race: probe again.
             }
         }
-    }
-
-    private static bool IsAddressInUse(Exception error)
-    {
-        for (Exception? current = error; current is not null; current = current.InnerException)
-        {
-            if (current is AddressInUseException or SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse })
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static int FreePort()
-    {
-        // A port free on IPv4 loopback and, where there is IPv6, on ::1 too: the listener binds both.
-        for (int attempt = 0; attempt < 50; attempt++)
-        {
-            using TcpListener v4 = new(IPAddress.Loopback, 0);
-            v4.Start();
-            int port = ((IPEndPoint)v4.LocalEndpoint).Port;
-            if (!Socket.OSSupportsIPv6)
-            {
-                return port;
-            }
-
-            try
-            {
-                using TcpListener v6 = new(IPAddress.IPv6Loopback, port);
-                v6.Start();
-                return port;
-            }
-            catch (SocketException)
-            {
-                // Taken on ::1: try another.
-            }
-        }
-
-        throw new InvalidOperationException("No port is free on both loopback addresses.");
     }
 
     private sealed class UserIdHolder

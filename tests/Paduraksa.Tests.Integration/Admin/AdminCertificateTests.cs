@@ -232,27 +232,15 @@ public sealed class AdminCertificateTests
     public async Task TheStartupLogNamesTheAdminUrlAndTheRootFingerprint()
     {
         LogCapture logs = new();
-        Dictionary<string, string?> settings = WithNames("admin.test");
-        settings["Logging:LogLevel:Default"] = "Information";
         // A fixed port: the log line names the configured one, which is 0 (OS-assigned) in the other tests. The probe can
-        // lose a race with another test's listener, so a bind failure retries with a fresh port.
-        PaduraksaHost host;
-        int port;
-        for (int attempt = 1; ; attempt++)
+        // lose a race with another test's listener; the shared helper starts on it and retries with a fresh one.
+        (PaduraksaHost host, int port) = await TestPorts.StartOnFreePortAsync(port =>
         {
-            port = FreePort();
+            Dictionary<string, string?> settings = WithNames("admin.test");
+            settings["Logging:LogLevel:Default"] = "Information";
             settings["Paduraksa:Listen:Admin"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            host = TestHost.Create(settings: settings, logs: logs);
-            try
-            {
-                await host.StartAsync(Ct);
-                break;
-            }
-            catch (IOException ex) when (attempt < 5 && IsAddressInUse(ex))
-            {
-                await host.DisposeAsync();
-            }
-        }
+            return TestHost.Create(settings: settings, logs: logs);
+        });
 
         await using PaduraksaHost started = host;
 
@@ -264,28 +252,6 @@ public sealed class AdminCertificateTests
                 && e.Message.Contains($"https://admin.test:{port}/", StringComparison.Ordinal)
                 && e.Message.Contains(root.Sha256Fingerprint, StringComparison.Ordinal)
                 && e.Message.Contains("/api/v1/ca/root.crt", StringComparison.Ordinal));
-    }
-
-    /// <summary>A port nothing is listening on (bound and released): the admin listener keeps it, so the names are fixed.</summary>
-    private static int FreePort()
-    {
-        using Socket probe = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        probe.Bind(new IPEndPoint(IPAddress.Loopback, 0));
-        return ((IPEndPoint)probe.LocalEndPoint!).Port;
-    }
-
-    /// <summary>The start failed because another listener took the probed port first (Kestrel wraps the socket error).</summary>
-    private static bool IsAddressInUse(Exception error)
-    {
-        for (Exception? current = error; current is not null; current = current.InnerException)
-        {
-            if (current is SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse })
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     [Fact]

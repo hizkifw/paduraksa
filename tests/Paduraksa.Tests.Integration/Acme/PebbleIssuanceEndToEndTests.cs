@@ -159,8 +159,8 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
                 Assert.Equal(1, await due.ExecuteNonQueryAsync(Ct));
             }
 
-            await using PaduraksaHost host = TestHost.Create(settings: Settings(port, fastScheduler: true), dataDirectory: data);
-            await host.StartAsync(Ct);
+            await using PaduraksaHost host = await TestPorts.StartOnPortAsync(
+                port, () => TestHost.Create(settings: Settings(port, fastScheduler: true), dataDirectory: data));
 
             // The scheduler starts with the process, after the vault and the config store, and renews on its own. The
             // deadline covers an external process (Pebble in Docker) and a whole ACME order, so it is generous; the
@@ -197,7 +197,6 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
         string[] names = ["unreachable.pebble.test"];
         await using PaduraksaHost host = TestHost.Create(settings: Settings(0));
         await host.StartAsync(Ct);
-        int port = TestHost.Endpoint(host, HostRole.Public, "http").Port;
         // Pebble is told another port for validation: its challenge fetch finds nobody there.
         await using PebbleCa ca = await PebbleCa.StartAsync(PebbleCa.FreePort(), names, Ct);
         await CommitAsync(host, new UpsertHostCommand(RespondHost("unreachable", names[0], "ok")), Ct);

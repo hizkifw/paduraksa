@@ -135,8 +135,9 @@ public sealed class PebbleRoot : IAsyncLifetime
 /// validation port, and the polling hints are one second so the tests stay short. No DNS server is needed. Host networking is what
 /// works on Linux with a firewall (the bridge's gateway address is usually not reachable from a container); it is not available on
 /// Docker Desktop, where these tests fail to validate (run them on Linux, or set <c>PADURAKSA_PEBBLE=off</c>).</para>
-/// <para>Per test, so each has a CA of its own with no orders left over: the container starts in about a second, runs with <c>--rm</c> and a
-/// label naming the test process (<see cref="PebbleRoot"/> removes leftovers of a killed run), and is removed on dispose.</para>
+/// <para>Per test, so each has a CA of its own with no orders left over: the container starts in about a second, carries a label naming
+/// the test process (<see cref="PebbleRoot"/> removes leftovers of a killed run), and is removed on dispose. It is not started with
+/// <c>--rm</c>: when it exits on its own, the readiness wait can read its exit code and logs before the failure path removes it.</para>
 /// </remarks>
 internal sealed class PebbleCa : IAsyncDisposable
 {

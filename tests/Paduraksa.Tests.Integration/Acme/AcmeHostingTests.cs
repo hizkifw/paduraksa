@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Application.Issuance;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
@@ -32,7 +35,20 @@ public sealed class AcmeHostingTests
     [Fact]
     public async Task TheSchedulerRunsWithTheProcessAndStopsWithItBeforeThePublicAppDrains()
     {
-        await using PaduraksaHost host = TestHost.Create();
+        bool completedWhenPublicStopping = false;
+        await using PaduraksaHost host = TestHost.Create(configureServices: (role, services) =>
+        {
+            if (role == HostRole.Public)
+            {
+                services.AddSingleton<IHostedService>(sp =>
+                {
+                    AcmeRenewalScheduler scheduler = sp.GetRequiredService<AcmeRenewalScheduler>();
+                    return new PublicStoppingProbe(
+                        sp.GetRequiredService<IHostApplicationLifetime>(),
+                        () => completedWhenPublicStopping = scheduler.ExecuteTask?.IsCompleted == true);
+                });
+            }
+        });
         await host.StartAsync(Ct);
 
         Assert.NotNull(host.Shared.AcmeScheduler.ExecuteTask);
@@ -40,12 +56,22 @@ public sealed class AcmeHostingTests
 
         await host.StopAsync(Ct);
 
-        // StopAsync may return before a background service's task when the shutdown budget's token fires, so wait for
-        // the task itself instead of asserting the instant after the stop (under load the budget can be the first to win).
-        await host.Shared.AcmeScheduler.ExecuteTask.WaitAsync(TimeSpan.FromSeconds(10), Ct);
-
-        // Drained before the public app stopped (and so before its listener closed): it is finished by the time the hosts stopped.
+        // Recorded inside the public app's ApplicationStopping callback: the drain is before that callback, so the
+        // scheduler must already have finished there, not merely by the time StopAsync returned.
+        Assert.True(completedWhenPublicStopping, "the renewal scheduler was still running when the public app began stopping");
         Assert.True(host.Shared.AcmeScheduler.ExecuteTask.IsCompletedSuccessfully);
+    }
+
+    /// <summary>Runs an action when a host's <see cref="IHostApplicationLifetime.ApplicationStopping"/> fires.</summary>
+    private sealed class PublicStoppingProbe(IHostApplicationLifetime lifetime, Action onStopping) : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            lifetime.ApplicationStopping.Register(onStopping);
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     [Fact]

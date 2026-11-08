@@ -69,10 +69,11 @@ public sealed class AllocationTests
     }
 
     /// <summary>
-    /// Measures allocations on a thread of the test's own. <see cref="GC.GetAllocatedBytesForCurrentThread"/> counts
-    /// only its thread, but the thread-pool thread a test runs on is shared with the test framework (and with whatever it
-    /// did there before); on a busy full run that showed up as a few kilobytes in a zero-allocation assertion. The
-    /// measurement runs twice: the first time warms JIT, statics and the thread's own runtime state.
+    /// Measures allocations on a thread of the test's own and after three warm-up rounds. A full run once reported about
+    /// 7.9 KB for code with no managed allocations. The exact source of that one-off was not proven; the likely candidates
+    /// are tiered compilation/OSR and the test framework's own work on the thread-pool thread it handed the test. A
+    /// dedicated thread keeps framework work out, and the warm-ups move tiering and static initialization ahead of the
+    /// measured round. The assertion is still exactly zero: a real allocation in the measured loop still fails.
     /// </summary>
     private static long AllocatedOnDedicatedThread(Func<long> measure)
     {
@@ -83,7 +84,11 @@ public sealed class AllocationTests
             {
                 try
                 {
-                    _ = measure();
+                    for (int round = 0; round < 3; round++)
+                    {
+                        _ = measure(); // warm-up: JIT, tiering/OSR, statics, the thread's runtime state
+                    }
+
                     allocated = measure();
                 }
                 catch (Exception ex)
