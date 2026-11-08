@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 using Paduraksa.Acme;
 using Paduraksa.Acme.Dns;
@@ -114,6 +115,15 @@ public sealed partial class AcmeIssuanceService
         return null;
     }
 
+    /// <summary>
+    /// Whether the optional <c>replaces</c> hint may be dropped and the order repeated immediately: the CA says another
+    /// order already replaced it, or answers a bare <c>serverInternal</c> 500 (Pebble's ARI order lookup lags). A 503, a
+    /// 408, a bad nonce, a rate limit or any answer with <c>Retry-After</c> is left to the normal backoff.
+    /// </summary>
+    private static bool MayDropReplaces(AcmeProblemException ex) =>
+        ex.Type == AcmeProblemTypes.AlreadyReplaced
+        || (ex.Type == AcmeProblemTypes.ServerInternal && ex.Status == 500 && ex.RetryAfter is null);
+
     /// <summary>A new order for the row's names, naming the current certificate as the one it replaces (ARI) when there is one.</summary>
     private async Task<AcmeOrder> CreateOrderAsync(Attempt attempt, CancellationToken cancellationToken)
     {
@@ -129,9 +139,14 @@ public sealed partial class AcmeIssuanceService
         {
             order = await attempt.Client.CreateOrderAsync(attempt.Ref, new AcmeNewOrderRequest(identifiers, row.Profile, replaces), cancellationToken).ConfigureAwait(false);
         }
-        catch (AcmeProblemException ex) when (replaces is not null && ex.Type == AcmeProblemTypes.AlreadyReplaced)
+        catch (AcmeProblemException ex) when (replaces is not null && MayDropReplaces(ex))
         {
-            // Another order already replaces this certificate (a manual one, or ours before a restart): order without the hint.
+            // The `replaces` hint is optional in a narrow case: another order already replaces this certificate (a manual
+            // one, or ours before a restart), or the CA answered a bare serverInternal 500 while looking the old order up
+            // (Pebble's index can lag). Never retry on 503/408/badNonce/rateLimited or when the CA sent Retry-After: those
+            // are a CA outage or a limit, where an immediate second order ignores the CA's timing, doubles its load and
+            // loses the ARI renewals' exemption.
+            LogReplacesDropped(row.CertificateId, ex.Type);
             order = await attempt.Client.CreateOrderAsync(attempt.Ref, new AcmeNewOrderRequest(identifiers, row.Profile), cancellationToken).ConfigureAwait(false);
         }
 
@@ -589,4 +604,7 @@ public sealed partial class AcmeIssuanceService
             : $": {IssuanceMapping.Sanitize(problem.Type, 200)}{(problem.Detail is null ? string.Empty : $" ({IssuanceMapping.Sanitize(problem.Detail)})")}";
         return $"The CA's validation of {authorization.Identifier.Value} ended {authorization.Status.ToString().ToLowerInvariant()}{detail}";
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Certificate {Certificate}: the CA could not use the ARI replaces hint ({ProblemType}); ordering again without it.")]
+    private partial void LogReplacesDropped(CertificateId certificate, string problemType);
 }

@@ -132,6 +132,9 @@ public sealed class AcmeRenewalSchedulerTests
         var (h, id) = await IssuedAsync();
         await using var _ = h;
         AdvanceTo(h, (await h.OrderAsync(id)).NextRenewalAt!.Value);
+        // A renewal names the old certificate (replaces); a transient failure retries once without that hint, so the CA
+        // has to fail both requests for the renewal itself to fail and back off.
+        h.Server.Inject("new-order", _ => ServerError());
         h.Server.Inject("new-order", _ => ServerError());
 
         Assert.Equal(1, await h.Scheduler.RunOnceAsync(Ct));
@@ -143,6 +146,7 @@ public sealed class AcmeRenewalSchedulerTests
         Assert.Equal(0, await h.Scheduler.RunOnceAsync(Ct));
 
         AdvanceTo(h, first.RetryAt!.Value);
+        h.Server.Inject("new-order", _ => ServerError());
         h.Server.Inject("new-order", _ => ServerError());
         Assert.Equal(1, await h.Scheduler.RunOnceAsync(Ct));
         var second = await h.OrderAsync(id);
@@ -229,8 +233,9 @@ public sealed class AcmeRenewalSchedulerTests
         var account = (await h.Accounts.ListAsync(Ct)).Single();
         var second = await h.Issuance.RequestCertificateAsync(Http01(account.Id, "other.example.com"), Admin, Ct);
         Assert.Equal(IssuanceOutcome.Issued, second.Outcome);
-        // Both come due; the CA fails the first renewal it sees and serves the other.
+        // Both come due; the CA fails the first renewal it sees (both of its new-order attempts) and serves the other.
         AdvanceTo(h, (await h.Issuance.ListOrdersAsync(Ct)).Max(o => o.NextRenewalAt)!.Value);
+        h.Server.Inject("new-order", _ => ServerError());
         h.Server.Inject("new-order", _ => ServerError());
 
         Assert.Equal(2, await h.Scheduler.RunOnceAsync(Ct));
@@ -273,6 +278,7 @@ public sealed class AcmeRenewalSchedulerTests
         var (h, id) = await IssuedAsync();
         await using var harness = h;
         AdvanceTo(h, (await h.OrderAsync(id)).NextRenewalAt!.Value);
+        h.Server.Inject("new-order", _ => ServerError());
         h.Server.Inject("new-order", _ => ServerError());
         Assert.Equal(1, await h.Scheduler.RunOnceAsync(Ct));
         var failed = await h.OrderAsync(id);

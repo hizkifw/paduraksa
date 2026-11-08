@@ -628,6 +628,42 @@ public sealed partial class AcmeIssuanceTests
     }
 
     [Fact]
+    public async Task ABareServerInternal500DropsTheHintAndRepeatsTheOrder()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var account = await h.CreateAccountAsync();
+        var first = await h.Issuance.RequestCertificateAsync(Http01(account.Id, "example.com"), Admin, Ct);
+        // Pebble answers a bare 500 when it cannot find the order a `replaces` hint names; the hint is optional.
+        h.Server.Inject("new-order", _ => FakeAcmeServer.Problem(HttpStatusCode.InternalServerError, AcmeProblemTypes.ServerInternal, "could not find the replaced order"));
+
+        var renewed = await h.Issuance.RenewAsync(first.CertificateId!.Value, Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Issued, renewed.Outcome);
+        Assert.Equal(3, h.Server.To("new-order").Count());
+        Assert.Equal(2, h.Server.OrderCount);
+        Assert.Null(h.Server.ReplacesOf(1));
+    }
+
+    [Theory]
+    [InlineData(500, AcmeProblemTypes.ServerInternal, "30")] // a Retry-After turns even a 500 into a wait
+    [InlineData(503, AcmeProblemTypes.ServerInternal, null)] // an outage: the normal backoff applies
+    [InlineData(408, AcmeProblemTypes.ServerInternal, null)]
+    [InlineData(429, AcmeProblemTypes.RateLimited, "60")]
+    public async Task AReplacesHintIsNotDroppedForAnOutageABadNonceOrALimit(int status, string type, string? retryAfter)
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var account = await h.CreateAccountAsync();
+        var first = await h.Issuance.RequestCertificateAsync(Http01(account.Id, "example.com"), Admin, Ct);
+        h.Server.Inject("new-order", _ => FakeAcmeServer.Problem((HttpStatusCode)status, type, "the CA is not ready", retryAfter));
+
+        var renewed = await h.Issuance.RenewAsync(first.CertificateId!.Value, Admin, Ct);
+
+        Assert.Equal(IssuanceOutcome.Failed, renewed.Outcome);
+        Assert.Equal(2, h.Server.To("new-order").Count()); // exactly one retry was not attempted
+        Assert.Equal(1, h.Server.OrderCount);
+    }
+
+    [Fact]
     public async Task AFinalizeThatRacedWithAnotherContinuesWithTheOrderInsteadOfDroppingIt()
     {
         await using var h = await IssuanceHarness.CreateAsync(new FakeAcmeServer { RaceFinalizeOnce = true });
