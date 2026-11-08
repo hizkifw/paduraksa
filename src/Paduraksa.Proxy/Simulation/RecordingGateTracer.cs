@@ -76,18 +76,34 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
     public void AcmeChallenge(HttpContext context, bool answered)
     {
         string path = context.Request.Path.Value ?? string.Empty;
-        bool challenge = !context.Request.IsHttps && path.StartsWith(AcmeChallengeStore.PathPrefix, StringComparison.Ordinal);
-        GateStepVerdict verdict = answered ? GateStepVerdict.Stopped : challenge ? GateStepVerdict.Passed : GateStepVerdict.Skipped;
+        bool challengePath = path.StartsWith(AcmeChallengeStore.PathPrefix, StringComparison.Ordinal);
+
+        // Three outcomes (PLAN §7.2 C): answered; a challenge path nothing answered, which falls through to the pipeline like any
+        // request (say why); or no challenge path at all.
+        string? why = challengePath && !answered
+            ? context.Request.IsHttps
+                ? "the request is HTTPS, and an HTTP-01 challenge is only answered over plain HTTP"
+                : !(HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
+                    ? $"the request is a {context.Request.Method}, and only GET and HEAD are answered"
+                    : "no challenge is waiting for its token"
+            : null;
+
+        GateStepVerdict verdict = answered ? GateStepVerdict.Stopped : challengePath ? GateStepVerdict.Passed : GateStepVerdict.Skipped;
         string summary = answered
             ? "answered the ACME HTTP-01 challenge with its key authorization"
-            : challenge
-                ? "an ACME HTTP-01 challenge path, but nothing answers it (no challenge is waiting for this token, or it isn't a GET or HEAD): handled like any request"
-                : "not an ACME HTTP-01 challenge request (plain HTTP under /.well-known/acme-challenge/)";
+            : challengePath
+                ? $"an ACME HTTP-01 challenge path, but nothing answers it ({why}): handled like any request"
+                : $"not an ACME HTTP-01 challenge path (nothing under {AcmeChallengeStore.PathPrefix})";
         List<GateFact> facts = [];
-        if (challenge)
+        if (challengePath)
         {
             facts.Add(new("token", path[AcmeChallengeStore.PathPrefix.Length..]));
             facts.Add(new("method", context.Request.Method));
+        }
+
+        if (why is not null)
+        {
+            facts.Add(new("reason", why));
         }
 
         steps.Add(new GateStep(GateStepKind.AcmeChallenge, verdict, summary, facts));

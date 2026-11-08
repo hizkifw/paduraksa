@@ -405,6 +405,53 @@ public sealed class GateSimulatorTraceTests : IDisposable
     }
 
     [Fact]
+    public void TheAcmeStepSaysWhyAChallengePathWasNotAnswered()
+    {
+        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        AcmeChallengeStore challenges = new();
+        challenges.Publish("tok", "tok.key");
+
+        // HTTPS: an HTTP-01 answer is only served over plain HTTP.
+        GateStep secure = Step(
+            GateSimulator.Run(
+                snapshot,
+                new GateProbe { Https = true, Host = "app.test", Path = AcmeChallengeStore.PathPrefix + "tok", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 },
+                challenges: challenges),
+            GateStepKind.AcmeChallenge);
+        Assert.Equal(GateStepVerdict.Passed, secure.Verdict);
+        Assert.Contains("HTTPS", Fact(secure, "reason"), StringComparison.Ordinal);
+        Assert.Equal("tok", Fact(secure, "token"));
+
+        // Another method: only GET and HEAD are answered.
+        GateStep posted = Step(
+            GateSimulator.Run(
+                snapshot,
+                new GateProbe { Host = "app.test", Path = AcmeChallengeStore.PathPrefix + "tok", Method = "POST", ClientAddress = Lan },
+                challenges: challenges),
+            GateStepKind.AcmeChallenge);
+        Assert.Equal(GateStepVerdict.Passed, posted.Verdict);
+        Assert.Contains("POST", Fact(posted, "reason"), StringComparison.Ordinal);
+
+        // A token nothing published.
+        GateStep unknown = Step(
+            GateSimulator.Run(
+                snapshot,
+                new GateProbe { Host = "app.test", Path = AcmeChallengeStore.PathPrefix + "other", ClientAddress = Lan },
+                challenges: challenges),
+            GateStepKind.AcmeChallenge);
+        Assert.Equal(GateStepVerdict.Passed, unknown.Verdict);
+        Assert.Contains("no challenge is waiting", Fact(unknown, "reason"), StringComparison.Ordinal);
+
+        // Not a challenge path at all: skipped, and it doesn't claim to be one.
+        GateStep other = Step(
+            GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", Path = "/index.html", ClientAddress = Lan }, challenges: challenges),
+            GateStepKind.AcmeChallenge);
+        Assert.Equal(GateStepVerdict.Skipped, other.Verdict);
+        Assert.Contains("not an ACME HTTP-01 challenge path", other.Summary, StringComparison.Ordinal);
+        Assert.DoesNotContain(other.Facts, f => f.Name == "token");
+    }
+
+    [Fact]
     public void TheHandshakeNamesTheCertificateThatWouldBeServed()
     {
         ServerCertificate certificate = new(_pki.Leaf("named", "*.test").Context) { Id = TestIds.Certificate("named") };
