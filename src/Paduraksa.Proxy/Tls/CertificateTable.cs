@@ -55,16 +55,20 @@ public sealed class CertificateTable
     /// Finds the entry for a client's SNI: exact, then wildcard parent, then <see cref="Default"/> (may be null).
     /// An empty name (no SNI, e.g. an IP-literal URL) goes straight to the default.
     /// </summary>
-    public CertificateTableEntry? Find(ReadOnlySpan<char> serverName)
+    public CertificateTableEntry? Find(ReadOnlySpan<char> serverName) => Find(serverName, out _);
+
+    /// <summary>The same lookup, also saying which part of the table answered (for the request simulator's trace).</summary>
+    public CertificateTableEntry? Find(ReadOnlySpan<char> serverName, out CertificateMatchKind kind)
     {
         var name = ServerNames.TrimTrailingDot(serverName);
         if (name.IsEmpty)
         {
-            return Default;
+            return DefaultMatch(out kind);
         }
 
         if (_exact.TryGetValue(name, out var entry))
         {
+            kind = CertificateMatchKind.Exact;
             return entry;
         }
 
@@ -76,12 +80,35 @@ public sealed class CertificateTable
             var dot = name.IndexOf('.');
             if (dot > 0 && _wildcard.TryGetValue(name[(dot + 1)..], out entry))
             {
+                kind = CertificateMatchKind.Wildcard;
                 return entry;
             }
         }
 
+        return DefaultMatch(out kind);
+    }
+
+    private CertificateTableEntry? DefaultMatch(out CertificateMatchKind kind)
+    {
+        kind = Default is null ? CertificateMatchKind.None : CertificateMatchKind.Default;
         return Default;
     }
+}
+
+/// <summary>Which part of a <see cref="CertificateTable"/> answered an SNI.</summary>
+public enum CertificateMatchKind : byte
+{
+    /// <summary>Nothing: no name matched and the table has no default.</summary>
+    None = 0,
+
+    /// <summary>An exact name.</summary>
+    Exact,
+
+    /// <summary>A single-label wildcard parent.</summary>
+    Wildcard,
+
+    /// <summary>The default entry (unknown name, or no SNI).</summary>
+    Default,
 }
 
 /// <summary>

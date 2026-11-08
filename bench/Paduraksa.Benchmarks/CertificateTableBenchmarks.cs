@@ -10,7 +10,7 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Benchmarks;
 
 /// <summary>
-/// <see cref="CertificateTable.Find"/> (per-SNI selection on the TLS handshake) over ~500 names: exact, case-folded
+/// <see cref="CertificateTable.Find(ReadOnlySpan{char})"/> (per-SNI selection on the TLS handshake) over ~500 names: exact, case-folded
 /// with a trailing dot, single-label wildcard, the Unicode form of an IDN name (what <c>SslStream</c> hands the TCP
 /// callback), and an unknown name falling back to the default. All names share one throwaway certificate.
 /// </summary>

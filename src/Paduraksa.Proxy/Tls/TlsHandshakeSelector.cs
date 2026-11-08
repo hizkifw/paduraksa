@@ -71,14 +71,38 @@ public sealed class TlsHandshakeSelector
     /// <exception cref="TlsHandshakeRejectedException">No entry and no default.</exception>
     public SslServerAuthenticationOptions SelectTcp(string? serverName)
     {
-        var entry = _tables.Current.Find(serverName);
-        if (entry is null)
+        var selection = Select(_tables.Current, serverName, quic: false);
+        if (selection.Options is not { } options)
         {
             Counters.CountUnknownServerName(quic: false);
             throw new TlsHandshakeRejectedException(TlsRejectionReason.UnknownServerName, serverName ?? string.Empty);
         }
 
-        return entry.TcpOptions;
+        return options;
+    }
+
+    /// <summary>
+    /// The selection both transports make, without counters, exceptions or the connection gate: the entry for
+    /// <paramref name="serverName"/> and its options for the transport, or why the handshake is rejected. The handshake
+    /// callbacks and the request simulator (PLAN §7.7) both use it.
+    /// </summary>
+    public static TlsSelection Select(CertificateTable table, ReadOnlySpan<char> serverName, bool quic)
+    {
+        ArgumentNullException.ThrowIfNull(table);
+        var entry = table.Find(serverName, out var match);
+        if (entry is null)
+        {
+            return new TlsSelection(null, CertificateMatchKind.None, TlsRejectionReason.UnknownServerName, null);
+        }
+
+        if (!quic)
+        {
+            return new TlsSelection(entry, match, null, entry.TcpOptions);
+        }
+
+        return entry.QuicOptions is { } options
+            ? new TlsSelection(entry, match, null, options)
+            : new TlsSelection(entry, match, TlsRejectionReason.Http3Disabled, null);
     }
 
     /// <summary>
@@ -91,14 +115,14 @@ public sealed class TlsHandshakeSelector
     {
         // Selection first (0 B, no side effects), the gate last: once the gate has accepted (and possibly acquired a
         // per-IP slot), nothing in here rejects any more.
-        var entry = _tables.Current.Find(serverName);
-        if (entry is null)
+        var selection = Select(_tables.Current, serverName, quic: true);
+        if (selection.Rejection == TlsRejectionReason.UnknownServerName)
         {
             Counters.CountUnknownServerName(quic: true);
             throw new TlsHandshakeRejectedException(TlsRejectionReason.UnknownServerName, serverName ?? string.Empty);
         }
 
-        if (entry.QuicOptions is not { } options)
+        if (selection.Options is not { } options)
         {
             Counters.CountHttp3Disabled();
             throw new TlsHandshakeRejectedException(TlsRejectionReason.Http3Disabled, serverName ?? string.Empty);
@@ -129,6 +153,17 @@ public sealed class TlsHandshakeSelector
             connection));
     }
 }
+
+/// <summary>The outcome of <see cref="TlsHandshakeSelector.Select"/>.</summary>
+/// <param name="Entry">The table entry that answered, or null when none did.</param>
+/// <param name="Match">Which part of the table it was.</param>
+/// <param name="Rejection">Why the handshake is rejected; null when it goes on with <paramref name="Options"/>.</param>
+/// <param name="Options">The prebuilt options for the transport; null exactly when <paramref name="Rejection"/> is set.</param>
+public readonly record struct TlsSelection(
+    CertificateTableEntry? Entry,
+    CertificateMatchKind Match,
+    TlsRejectionReason? Rejection,
+    SslServerAuthenticationOptions? Options);
 
 /// <summary>Lock-free counters of the handshakes a <see cref="TlsHandshakeSelector"/> rejected.</summary>
 public sealed class TlsHandshakeCounters
