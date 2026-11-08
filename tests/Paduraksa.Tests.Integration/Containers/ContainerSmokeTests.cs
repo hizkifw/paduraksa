@@ -21,8 +21,10 @@ public sealed class ContainerSmokeTests
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [Fact]
-    public async Task TheImageStartsHealthyServesTheAdminAndPublicListenersAndStopsCleanly()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TheImageStartsHealthyServesTheAdminAndPublicListenersAndStopsCleanly(bool dropCapabilities)
     {
         Assert.SkipWhen(
             !string.Equals(Environment.GetEnvironmentVariable("PADURAKSA_CONTAINER_TESTS"), "1", StringComparison.Ordinal),
@@ -30,7 +32,7 @@ public sealed class ContainerSmokeTests
         Assert.SkipWhen(!await DockerIsAvailableAsync(), "Docker is not available.");
 
         string repository = RepositoryRoot();
-        string suffix = $"{Environment.ProcessId}-{Environment.TickCount64}";
+        string suffix = $"{Environment.ProcessId}-{Environment.TickCount64}-{(dropCapabilities ? "caps" : "default")}";
         string image = $"paduraksa-smoke:{suffix}";
         string container = $"paduraksa-smoke-{suffix}";
         string volume = $"paduraksa-smoke-{suffix}";
@@ -41,15 +43,24 @@ public sealed class ContainerSmokeTests
                 TimeSpan.FromMinutes(30), "build", "--tag", image, "--file", Path.Combine(repository, "Dockerfile"), repository);
             Assert.True(buildCode == 0, $"docker build failed ({buildCode}):\n{buildOutput}");
 
-            (int runCode, string runOutput) = await DockerCli.RunAsync(
-                "run", "--detach",
-                "--name", container,
+            List<string> run = ["run", "--detach", "--name", container];
+            if (dropCapabilities)
+            {
+                // The documented hardening path: dropping every capability requires NET_BIND_SERVICE back, or exec of the
+                // setcap'd apphost fails with EPERM.
+                run.AddRange(["--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE"]);
+            }
+
+            run.AddRange([
                 "-p", "127.0.0.1::80",
                 "-p", "127.0.0.1::443",
                 "-p", "127.0.0.1::443/udp",
                 "-p", "127.0.0.1::9443",
                 "-v", $"{volume}:/data",
-                image);
+                image,
+            ]);
+
+            (int runCode, string runOutput) = await DockerCli.RunAsync([.. run]);
             Assert.True(runCode == 0, $"docker run failed ({runCode}):\n{runOutput}");
 
             int adminPort = await HostPortAsync(container, "9443/tcp");
@@ -67,13 +78,26 @@ public sealed class ContainerSmokeTests
 
             // 3. libmsquic loaded: the server logs the positive HTTP/3 line only when QUIC is available.
             Assert.Contains("HTTP/3 is on", logs, StringComparison.Ordinal);
+            // The framework's "no XML encryptor" warning is filtered: the vault seals the admin's ring, and the public app
+            // uses an ephemeral provider that never touches the disk.
+            Assert.DoesNotContain("No XML encryptor configured", logs, StringComparison.Ordinal);
 
-            // 4. The admin setup API answers over HTTPS (the local CA is not trusted by this test, which is expected).
+            // 4. The documented way to reprint the token inside the container works while the service runs.
+            (int tokenCode, string tokenOutput) = await DockerCli.RunAsync("exec", container, "paduraksa", "setup-token");
+            Assert.True(tokenCode == 0, $"docker exec paduraksa setup-token failed ({tokenCode}): {tokenOutput}");
+            Assert.Contains(SetupBanner, tokenOutput, StringComparison.Ordinal);
+
+            // No Data Protection key XML on the disk: the admin's ring is sealed in vault.db, the public app's is in memory.
+            (int xmlCode, string xml) = await DockerCli.RunAsync("exec", container, "find", "/data", "-name", "*.xml");
+            Assert.True(xmlCode == 0, $"find /data failed: {xml}");
+            Assert.True(string.IsNullOrWhiteSpace(xml), $"a plain key file is on the data volume:\n{xml}");
+
+            // 5. The admin setup API answers over HTTPS (the local CA is not trusted by this test, which is expected).
             using HttpClient client = CreateClient();
             using HttpResponseMessage setup = await client.GetAsync(new Uri($"https://127.0.0.1:{adminPort}/api/v1/setup"), Ct);
             Assert.Equal(HttpStatusCode.OK, setup.StatusCode);
 
-            // 5. The public listeners answer: HTTP/1.x on 80 (404 with an empty config is an answer), and 443 accepts a
+            // 6. The public listeners answer: HTTP/1.x on 80 (404 with an empty config is an answer), and 443 accepts a
             //    connection (a fresh install has no public certificate yet, so a TLS request would fail by design).
             using HttpResponseMessage publicHttp = await client.GetAsync(new Uri($"http://127.0.0.1:{httpPort}/"), Ct);
             Assert.True((int)publicHttp.StatusCode is >= 200 and < 600, $"port 80 answered {(int)publicHttp.StatusCode}.");
@@ -83,7 +107,7 @@ public sealed class ContainerSmokeTests
                 Assert.True(tls.Connected, "port 443 did not accept a connection.");
             }
 
-            // 6. A clean stop: SIGTERM, the ordered drain, exit code 0, inside the 35-second grace period.
+            // 7. A clean stop: SIGTERM, the ordered drain, exit code 0, inside the 35-second grace period.
             Stopwatch stopwatch = Stopwatch.StartNew();
             (int stopCode, string stopOutput) = await DockerCli.RunAsync("stop", "--time", "35", container);
             stopwatch.Stop();
