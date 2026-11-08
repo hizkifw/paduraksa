@@ -322,6 +322,52 @@ public sealed class AdminThroughProxyTests
     }
 
     [Fact]
+    public async Task TheDashboardAndItsCircuitWorkThroughTheProxy()
+    {
+        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+
+        // The page, as a browser on the public name opens it: the dashboard's policy, and HSTS for the public HTTPS name.
+        using (HttpResponseMessage page = await harness.SendAsync(
+            HttpMethod.Get, "/", cookie: harness.SessionHeader, headers: new Dictionary<string, string> { ["Accept"] = "text/html" }))
+        {
+            Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+            Assert.Equal(Paduraksa.Dashboard.DashboardSecurity.ContentSecurityPolicy, string.Join(",", page.Headers.GetValues("Content-Security-Policy")));
+            Assert.True(page.Headers.Contains("Strict-Transport-Security"));
+        }
+
+        // The circuit: negotiate, then the WebSocket upgrade, both through the public listener and the hop-checked internal one.
+        string connectionToken;
+        using (HttpResponseMessage negotiate = await harness.SendAsync(
+            HttpMethod.Post, "/_blazor/negotiate?negotiateVersion=1", cookie: harness.SessionHeader, fetchSite: "same-origin"))
+        {
+            Assert.Equal(HttpStatusCode.OK, negotiate.StatusCode);
+            using JsonDocument body = JsonDocument.Parse(await negotiate.Content.ReadAsStringAsync(Ct));
+            connectionToken = body.RootElement.GetProperty("connectionToken").GetString()!;
+        }
+
+        string key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+        string upgraded = await UpgradeAsync(harness, $"/_blazor?id={Uri.EscapeDataString(connectionToken)}", key, harness.SessionHeader);
+        Assert.StartsWith("HTTP/1.1 101", upgraded, StringComparison.Ordinal);
+
+        // Without the session the hub refuses the upgrade.
+        string refused = await UpgradeAsync(harness, $"/_blazor?id={Uri.EscapeDataString(connectionToken)}", key);
+        Assert.StartsWith("HTTP/1.1 401", refused, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheSetupPageIsNotServedThroughTheProxy()
+    {
+        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+
+        foreach ((HttpMethod method, string path) in new[] { (HttpMethod.Get, "/setup"), (HttpMethod.Post, "/auth/setup") })
+        {
+            using HttpResponseMessage response = await harness.SendAsync(method, path, fetchSite: "same-origin");
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            Assert.Contains("\"code\":\"setup.viaProxy\"", await response.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task TheLockoutGuardRefusesThroughTheProxyAndForceAllows()
     {
         await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
@@ -423,7 +469,7 @@ public sealed class AdminThroughProxyTests
         return (status, headers, body);
     }
 
-    private static async Task<string> UpgradeAsync(AdminProxyHarness harness, string path, string key)
+    private static async Task<string> UpgradeAsync(AdminProxyHarness harness, string path, string key, string? cookie = null)
     {
         Uri endpoint = TestHost.Endpoint(harness.Host, HostRole.Public, "https");
         using TcpClient tcp = new();
@@ -438,7 +484,9 @@ public sealed class AdminThroughProxyTests
             },
             Ct).WaitAsync(TimeSpan.FromSeconds(10), Ct);
         string request = $"GET {path} HTTP/1.1\r\nHost: {AdminProxyHarness.AdminHost}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-            + $"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: https://{AdminProxyHarness.AdminHost}\r\n\r\n";
+            + $"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: https://{AdminProxyHarness.AdminHost}\r\n"
+            + (cookie is null ? string.Empty : $"Cookie: {cookie}\r\n")
+            + "\r\n";
         await tls.WriteAsync(Encoding.ASCII.GetBytes(request), Ct);
         using StreamReader reader = new(tls, Encoding.ASCII);
         StringBuilder head = new();

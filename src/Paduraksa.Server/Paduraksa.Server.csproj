@@ -4,6 +4,9 @@
     <AssemblyName>paduraksa</AssemblyName>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <TieredPGO>true</TieredPGO>
+    <!-- The dashboard's components live in Paduraksa.Dashboard, so the SDK can't tell this app needs Blazor's own script
+         (_framework/blazor.web.js); ask for the framework's web assets explicitly. -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Paduraksa.Core/Paduraksa.Core.csproj" />
@@ -21,5 +24,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Integration" />
     <InternalsVisibleTo Include="Paduraksa.Bench.Runner" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />
   </ItemGroup>
 </Project>

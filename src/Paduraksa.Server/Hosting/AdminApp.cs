@@ -13,8 +13,10 @@ using Paduraksa.Admin;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Certificates;
 using Paduraksa.Admin.Identity;
+using Paduraksa.Admin.Web;
 using Paduraksa.Application.Commands;
 using Paduraksa.Core.Hosting;
+using Paduraksa.Dashboard;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Placeholders;
@@ -25,19 +27,34 @@ namespace Paduraksa.Server.Hosting;
 /// The admin <c>WebApplication</c>: HTTPS on <c>Paduraksa:Listen:Admin</c> (default 9443), served with a certificate the
 /// process issues from the local CA and keeps current (<see cref="AdminCertificateService"/>; PLAN §3, §10.1).
 /// Health endpoints (PLAN §11.3), the local CA root's download endpoints, the security pipeline and identity API
-/// (<c>Paduraksa.Admin</c>: setup gate, authentication, CSRF defence, hardening), a placeholder page, the optional source
-/// allowlist and the opt-in loopback plain-HTTP listener.
+/// (<c>Paduraksa.Admin</c>: setup gate, authentication, CSRF defence, hardening), the optional source allowlist and the opt-in
+/// loopback plain-HTTP listener.
 /// The resource REST API (<c>/api/v1</c>, its OpenAPI document and the reference UI, PLAN §11.1).
+/// The dashboard (PLAN §12) at <c>/</c>: <c>Paduraksa.Dashboard</c>'s Blazor components, the sign-in forms behind its pages
+/// (<c>Paduraksa.Admin.Web</c>) and its static files, all from the app itself.
 /// The internal listener (PLAN §3.1): a Unix socket (0600, in a 0700 directory) or a loopback fallback, plain HTTP, through
 /// which the public proxy forwards an admin host's requests.
-/// TODO(M8): /mcp. TODO(M7): /metrics. TODO(M5): dashboard.
+/// TODO(M8): /mcp. TODO(M7): /metrics.
 /// </summary>
 internal static partial class AdminApp
 {
     private static readonly string[] GetAndHead = [HttpMethods.Get, HttpMethods.Head];
 
-    private static readonly byte[] PlaceholderPageBody =
-        "<!doctype html><html><head><title>Paduraksa</title></head><body><h1>Paduraksa admin</h1><p>Placeholder: the dashboard arrives in M5.</p></body></html>"u8.ToArray();
+    /// <summary>The dashboard's paths, as the admin app's sign-in forms and pipeline hooks need them (the dashboard owns the names).</summary>
+    internal static AdminWebOptions DashboardWeb { get; } = new()
+    {
+        HomePage = DashboardRoutes.Home,
+        SignInPage = DashboardRoutes.SignIn,
+        SecondFactorPage = DashboardRoutes.SignInVerify,
+        SetupPage = DashboardRoutes.Setup,
+        SignInAction = DashboardRoutes.Actions.SignIn,
+        SecondFactorAction = DashboardRoutes.Actions.SecondFactor,
+        SignOutAction = DashboardRoutes.Actions.SignOut,
+        SetupAction = DashboardRoutes.Actions.Setup,
+        CircuitHubPath = DashboardRoutes.CircuitHub,
+        StaticAssetPathPrefixes = DashboardRoutes.StaticAssetPrefixes,
+        ContentSecurityPolicy = DashboardSecurity.ContentSecurityPolicy,
+    };
 
     public static WebApplication Build(HostContext context)
     {
@@ -113,6 +130,15 @@ internal static partial class AdminApp
         builder.Services.AddSingleton(sources);
         builder.Services.AddPaduraksaAdminAuth(context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp, [.. listen.AdminAllowedSources]));
         builder.Services.AddPaduraksaAdminApi();
+        builder.Services.AddPaduraksaAdminWeb(DashboardWeb);
+        builder.Services.AddPaduraksaDashboard(new DashboardOptions
+        {
+            InstanceName = context.Options.Admin.InstanceName ?? Environment.MachineName,
+            MinPasswordLength = context.Options.Admin.MinPasswordLength,
+            SessionRecheckInterval = context.Options.Admin.SessionRecheckInterval,
+        });
+        DashboardDataProtection.AddDashboardDataProtection(builder.Services); // TODO(M5): vault key ring
+        DashboardAssets.Use(builder);
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Admin);
         HostSetup.PinListenerConfiguration(builder);
@@ -121,11 +147,14 @@ internal static partial class AdminApp
         app.Lifetime.ApplicationStarted.Register(() => CompleteInternalListener(internalListener, internalListenOptions, logger));
         app.UsePaduraksaAdminApi();
         app.UsePaduraksaAdminAuth();
+        app.UsePaduraksaAdminWeb();
         MapHealth(app);
         app.MapPaduraksaIdentityApi();
         // The resource API, the local CA root's download endpoints among them (anonymous, open during setup).
         app.MapPaduraksaAdminApi();
-        app.MapMethods("/", GetAndHead, PlaceholderPageAsync);
+        app.MapPaduraksaAdminWeb();
+        DashboardAssets.Map(app);
+        app.MapPaduraksaDashboard();
         return app;
     }
 
@@ -242,17 +271,6 @@ internal static partial class AdminApp
         return HttpMethods.IsHead(context.Request.Method)
             ? Task.CompletedTask
             : response.WriteAsync(healthy ? okBody : failBody, context.RequestAborted);
-    }
-
-    // TODO(M5): replaced by the Blazor dashboard.
-    private static Task PlaceholderPageAsync(HttpContext context)
-    {
-        HttpResponse response = context.Response;
-        response.ContentType = "text/html; charset=utf-8";
-        response.ContentLength = PlaceholderPageBody.Length;
-        return HttpMethods.IsHead(context.Request.Method)
-            ? Task.CompletedTask
-            : response.Body.WriteAsync(PlaceholderPageBody, context.RequestAborted).AsTask();
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "The admin internal listener is the Unix socket {Path}")]

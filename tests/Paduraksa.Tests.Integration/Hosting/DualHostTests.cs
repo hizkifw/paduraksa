@@ -22,7 +22,7 @@ public sealed class DualHostTests
     private const string NoHostConfigured = "no host configured\n";
 
     [Fact]
-    public async Task AdminServesHealthEndpointsAndPlaceholderPage()
+    public async Task AdminServesHealthEndpointsAndTheDashboard()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         await using PaduraksaHost host = TestHost.Create();
@@ -49,17 +49,12 @@ public sealed class DualHostTests
         SetupResult owner = await host.Shared.Setup.CompleteSetupAsync(token, "owner", "correct horse battery staple", null, new ClientContext(Channel.System), ct);
         Assert.Equal(SetupOutcome.Succeeded, owner.Outcome);
 
+        // The dashboard: an anonymous browser lands on its sign-in page.
         using HttpResponseMessage page = await client.GetAsync(admin, ct);
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Equal("/signin", page.RequestMessage?.RequestUri?.AbsolutePath);
         Assert.Equal("text/html", page.Content.Headers.ContentType?.MediaType);
-        byte[] body = await page.Content.ReadAsByteArrayAsync(ct);
-        Assert.Equal(body.Length, page.Content.Headers.ContentLength);
-
-        using HttpRequestMessage pageHead = new(HttpMethod.Head, admin);
-        using HttpResponseMessage pageHeadResponse = await client.SendAsync(pageHead, ct);
-        Assert.Equal(HttpStatusCode.OK, pageHeadResponse.StatusCode);
-        Assert.Equal("text/html", pageHeadResponse.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(body.Length, pageHeadResponse.Content.Headers.ContentLength);
+        Assert.Contains("action=\"/auth/signin\"", await page.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
     }
 
     [Fact]

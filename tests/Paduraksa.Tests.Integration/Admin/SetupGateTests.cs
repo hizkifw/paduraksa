@@ -68,9 +68,11 @@ public sealed class SetupGateTests
             Assert.Contains("vault:manage", me.Json.GetProperty("permissions").EnumerateArray().Select(p => p.GetString()));
         }
 
+        // The dashboard is open too: an anonymous browser is sent to its sign-in page.
         using (AdminResponse page = await h.GetAsync("/"))
         {
-            Assert.Equal(HttpStatusCode.OK, page.Status);
+            Assert.Equal(HttpStatusCode.Found, page.Status);
+            Assert.Equal("/signin", page.Headers.Location?.OriginalString);
         }
 
         using (AdminResponse status = await h.GetAsync("/api/v1/setup"))
