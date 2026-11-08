@@ -95,10 +95,13 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
 /// <summary>Sets a bUnit context up for the config pages: a signed-in user in a role, the fake config, a live (interactive) renderer.</summary>
 internal static class ConfigPages
 {
-    public static FakeDashboardConfig SignIn(DashboardTestContext context, Role role)
+    public static FakeDashboardConfig SignIn(DashboardTestContext context, Role role) => SignIn(context, role, out _);
+
+    /// <summary>As <see cref="SignIn(DashboardTestContext, Role)"/>, and hands back the signed-in session.</summary>
+    public static FakeDashboardConfig SignIn(DashboardTestContext context, Role role, out SessionIdentity session)
     {
         FakeDashboardConfig config = new();
-        SessionIdentity session = TestUsers.Session(role);
+        session = TestUsers.Session(role);
         DashboardAuthenticationStateProvider auth = new(
             new FixedSessions(session.Session), new DashboardOptions(), TimeProvider.System, NullLogger<DashboardAuthenticationStateProvider>.Instance);
         auth.SetAuthenticationState(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(session))));
