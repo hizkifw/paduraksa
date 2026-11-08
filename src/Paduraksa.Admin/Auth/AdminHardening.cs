@@ -6,8 +6,10 @@ namespace Paduraksa.Admin.Auth;
 
 /// <summary>
 /// Security headers on every admin response (PLAN §10.1): <c>nosniff</c>, no referrer, no framing, a CSP of
-/// <c>default-src 'none'; frame-ancestors 'none'</c>, <c>no-store</c> on <c>/api/</c>, and HSTS where the request came in over TLS (not for a loopback host name).
-/// Headers are added when the response starts, and a response that set its own CSP (the docs page, the dashboard) keeps it.
+/// <c>default-src 'none'; frame-ancestors 'none'</c> (an HTML page outside <c>/api</c> gets <see cref="AdminPipelineHooks.HtmlContentSecurityPolicy"/>, the
+/// dashboard's, when one is set), <c>no-store</c> on <c>/api/</c>, on HTML pages and under <see cref="AdminPipelineHooks.AuthenticatedPathPrefixes"/>, and HSTS
+/// where the request came in over TLS (not for a loopback host name). Headers are added when the response starts, and a response that set its own CSP (the docs
+/// page) keeps it.
 /// </summary>
 internal sealed class AdminSecurityHeadersMiddleware(RequestDelegate next, AdminPipelineHooks hooks)
 {
@@ -24,12 +26,16 @@ internal sealed class AdminSecurityHeadersMiddleware(RequestDelegate next, Admin
             headers.XContentTypeOptions = "nosniff";
             headers["Referrer-Policy"] = "no-referrer";
             headers.XFrameOptions = "DENY";
-            if (!headers.ContainsKey("Content-Security-Policy") && !IsCspExempt(http.Request.Path, hookList))
+            PathString path = http.Request.Path;
+            bool api = path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase);
+            bool page = !api && IsHtml(http.Response.ContentType);
+            if (!headers.ContainsKey("Content-Security-Policy") && !IsCspExempt(path, hookList))
             {
-                headers.ContentSecurityPolicy = ApiContentSecurityPolicy;
+                headers.ContentSecurityPolicy = page && hookList.HtmlContentSecurityPolicy is { } dashboard ? dashboard : ApiContentSecurityPolicy;
             }
 
-            if (http.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+            // A dashboard page holds the signed-in user's data; the static files beside it keep their own (fingerprinted) caching.
+            if (api || page || StartsWithAny(path, hookList.AuthenticatedPathPrefixes))
             {
                 headers.CacheControl = "no-store";
             }
@@ -48,8 +54,13 @@ internal sealed class AdminSecurityHeadersMiddleware(RequestDelegate next, Admin
     private static bool IsLoopbackHost(string host) =>
         host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || host == "127.0.0.1" || host == "[::1]";
 
-    private static bool IsCspExempt(PathString path, AdminPipelineHooks hooks) =>
-        hooks.CspExemptPathPrefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
+    private static bool IsCspExempt(PathString path, AdminPipelineHooks hooks) => StartsWithAny(path, hooks.CspExemptPathPrefixes);
+
+    private static bool StartsWithAny(PathString path, IList<string> prefixes) =>
+        prefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsHtml(string? contentType) =>
+        contentType is not null && contentType.StartsWith("text/html", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Endpoint metadata raising (or lowering) the request body limit of one endpoint.</summary>

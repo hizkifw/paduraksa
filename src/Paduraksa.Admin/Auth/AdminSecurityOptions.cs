@@ -65,4 +65,35 @@ public sealed class AdminPipelineHooks
     /// list is for responses that cannot (static files).
     /// </summary>
     public IList<string> CspExemptPathPrefixes { get; } = [];
+
+    /// <summary>
+    /// The browser's setup surface besides <c>/api/v1/setup</c> (exact paths, case-insensitive): the setup page and the form it posts to.
+    /// Like the API's setup endpoint they are open while setup is incomplete and refused on the internal admin listener (PLAN §3.1).
+    /// </summary>
+    public IList<string> SetupPaths { get; } = [];
+
+    /// <summary>
+    /// Where a browser navigating to a page outside <c>/api</c> is sent (a 302) while setup is incomplete, instead of the gate's 503
+    /// problem; null keeps the 503 for everything. Only <c>GET</c>/<c>HEAD</c> requests that accept <c>text/html</c> are redirected.
+    /// </summary>
+    public string? SetupPagePath { get; set; }
+
+    /// <summary>
+    /// Path prefixes outside <c>/api</c> that need a signed-in session (the dashboard's circuit hub): without one the answer is a bare
+    /// 401. Other paths outside <c>/api</c> are authenticated when they carry a session cookie and served anonymously otherwise; the
+    /// endpoint (or its authorization metadata) decides.
+    /// </summary>
+    public IList<string> AuthenticatedPathPrefixes { get; } = [];
+
+    /// <summary>
+    /// Path prefixes where <b>every</b> request, whatever its method, must pass the same-origin check of
+    /// <see cref="AdminCsrfMiddleware"/> (the circuit hub: its WebSocket handshake is a <c>GET</c>).
+    /// </summary>
+    public IList<string> SameOriginPathPrefixes { get; } = [];
+
+    /// <summary>
+    /// The CSP for HTML documents served outside <c>/api</c> (the dashboard) that set none themselves; null gives them the strict API
+    /// one. HTML documents and the <see cref="AuthenticatedPathPrefixes"/> are also sent <c>Cache-Control: no-store</c>.
+    /// </summary>
+    public string? HtmlContentSecurityPolicy { get; set; }
 }

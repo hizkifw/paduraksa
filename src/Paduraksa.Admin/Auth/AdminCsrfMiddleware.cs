@@ -10,9 +10,28 @@ namespace Paduraksa.Admin.Auth;
 /// <param name="ContentTypes">Media types, e.g. <c>application/x-pem-file</c>.</param>
 public sealed record AdminContentTypesMetadata(IReadOnlyList<string> ContentTypes);
 
-/// <summary>Content types an endpoint takes from the dashboard.</summary>
+/// <summary>Endpoint metadata: an endpoint outside <c>/api</c> (a dashboard form) that gets the same cross-site check as the API's unsafe methods.</summary>
+public sealed class AdminSameOriginMetadata
+{
+    public static AdminSameOriginMetadata Instance { get; } = new();
+
+    private AdminSameOriginMetadata()
+    {
+    }
+}
+
+/// <summary>Content types an endpoint takes from the dashboard, and the cross-site check for endpoints outside <c>/api</c>.</summary>
 public static class AdminCsrfExtensions
 {
+    /// <summary>Puts an endpoint outside <c>/api</c> (a form post) under <see cref="AdminCsrfMiddleware"/>'s check for unsafe methods.</summary>
+    public static TBuilder RequireSameOrigin<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.WithMetadata(AdminSameOriginMetadata.Instance);
+        return builder;
+    }
+
     /// <summary>Lets cookie-authenticated requests to the endpoints send these media types as well as JSON (see <see cref="AdminCsrfMiddleware"/>).</summary>
     public static TBuilder AcceptsAdminContentTypes<TBuilder>(this TBuilder builder, params string[] contentTypes)
         where TBuilder : IEndpointConventionBuilder
@@ -37,19 +56,29 @@ public static class AdminCsrfExtensions
 /// endpoint listed with <see cref="AdminCsrfExtensions.AcceptsAdminContentTypes"/>: a cross-site form cannot send JSON without a
 /// preflight.</item>
 /// </list>
+/// The same applies to an unsafe method on an endpoint marked <see cref="AdminCsrfExtensions.RequireSameOrigin"/> (the dashboard's sign-in
+/// forms, which also carry an antiforgery token), and to every request, whatever its method, under
+/// <see cref="AdminPipelineHooks.SameOriginPathPrefixes"/> (the circuit hub, whose WebSocket handshake is a <c>GET</c>; the body rule does not
+/// apply there).
 /// </summary>
-internal sealed class AdminCsrfMiddleware(RequestDelegate next)
+internal sealed class AdminCsrfMiddleware(RequestDelegate next, AdminPipelineHooks hooks)
 {
     public async Task InvokeAsync(HttpContext context)
     {
         HttpRequest request = context.Request;
-        if (!request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) || IsSafe(request.Method) || request.Headers.Authorization.Count > 0)
+        bool everyMethod = hooks.SameOriginPathPrefixes.Any(prefix => request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
+        bool covered = everyMethod
+            || (!IsSafe(request.Method)
+                && request.Headers.Authorization.Count == 0
+                && (request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+                    || context.GetEndpoint()?.Metadata.GetMetadata<AdminSameOriginMetadata>() is not null));
+        if (!covered)
         {
             await next(context).ConfigureAwait(false);
             return;
         }
 
-        string? refusal = Check(context);
+        string? refusal = Check(context, checkBody: !everyMethod);
         if (refusal is not null)
         {
             await AdminProblems.Forbidden("Cross-site request refused", refusal, ApiCodes.Csrf.Refused).ExecuteAsync(context).ConfigureAwait(false);
@@ -59,7 +88,7 @@ internal sealed class AdminCsrfMiddleware(RequestDelegate next)
         await next(context).ConfigureAwait(false);
     }
 
-    private static string? Check(HttpContext context)
+    private static string? Check(HttpContext context, bool checkBody)
     {
         HttpRequest request = context.Request;
         bool hasCookie = AdminSessionCookie.Read(request).Present;
@@ -85,7 +114,7 @@ internal sealed class AdminCsrfMiddleware(RequestDelegate next)
             return "A request with a session cookie must say where it comes from (Sec-Fetch-Site or Origin).";
         }
 
-        if (hasCookie && HasBody(request) && !HasAllowedContentType(context))
+        if (checkBody && hasCookie && HasBody(request) && !HasAllowedContentType(context))
         {
             return "A request with a body must be application/json.";
         }

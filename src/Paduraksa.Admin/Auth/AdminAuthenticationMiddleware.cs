@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Claims;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -96,16 +97,29 @@ public static class AdminAuthEndpointExtensions
 /// sign in, so a cookie that does not validate is ignored there (a bad bearer token still is not).</para>
 /// <para>A session that still owes its second factor sets no caller; it is available as <see cref="PartialSession"/> to the endpoints that
 /// accept it, and every other endpoint sees an anonymous request.</para>
+/// <para><b>Outside <c>/api</c></b> (the dashboard, its sign-in forms and its circuit hub) only the session cookie counts, and it is
+/// lenient: a valid full session sets the caller (channel <see cref="Channel.Dashboard"/>), a partial one the <see cref="PartialSession"/>,
+/// and anything else leaves the request anonymous for the endpoint (or its authorization metadata) to decide. A bearer token is never
+/// a dashboard credential. Under <see cref="AdminPipelineHooks.AuthenticatedPathPrefixes"/> (the circuit hub) a request without a
+/// signed-in caller is a bare 401.</para>
+/// <para>A signed-in session also becomes the request's <see cref="HttpContext.User"/> (a <see cref="SessionIdentity"/>), which is what
+/// the dashboard's authorization and the circuits it opens read.</para>
 /// </remarks>
-internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, SessionService sessions, ApiTokenService tokens)
+internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, SessionService sessions, ApiTokenService tokens, AdminPipelineHooks hooks)
 {
     private const string BearerScheme = "Bearer";
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) || context.GetCaller() is not null)
+        if (context.GetCaller() is not null)
         {
             await next(context).ConfigureAwait(false);
+            return;
+        }
+
+        if (!context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+        {
+            await AuthenticateBrowserAsync(context).ConfigureAwait(false);
             return;
         }
 
@@ -149,8 +163,7 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
             switch (validation)
             {
                 case { Status: SessionStatus.Valid, Principal: { } principal }:
-                    CommandOrigin origin = new(Actor.ForUser(principal.UserId), Channel.Api, context.GetClientAddress(), context.GetAdminRequestFacts());
-                    context.SetCaller(new AdminCaller(origin, Session: principal.SessionId) { User = principal.UserId });
+                    SignIn(context, principal, Channel.Api);
                     break;
                 case { Status: SessionStatus.SecondFactorRequired, Principal: { } partial }:
                     context.Features.Set<IPartialSessionFeature>(new PartialSessionFeature(new PartialSession(partial)));
@@ -168,6 +181,42 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
         }
 
         await next(context).ConfigureAwait(false);
+    }
+
+    /// <summary>The dashboard side: the session cookie only, never refused here (see the remarks).</summary>
+    private async Task AuthenticateBrowserAsync(HttpContext context)
+    {
+        (bool cookiePresent, bool cookieAmbiguous, string? cookie) = AdminSessionCookie.Read(context.Request);
+        if (cookiePresent && !cookieAmbiguous)
+        {
+            SessionValidation validation = await sessions.ValidateAsync(cookie, context.RequestAborted).ConfigureAwait(false);
+            switch (validation)
+            {
+                case { Status: SessionStatus.Valid, Principal: { } principal }:
+                    SignIn(context, principal, Channel.Dashboard);
+                    break;
+                case { Status: SessionStatus.SecondFactorRequired, Principal: { } partial }:
+                    context.Features.Set<IPartialSessionFeature>(new PartialSessionFeature(new PartialSession(partial)));
+                    break;
+            }
+        }
+
+        if (context.GetCaller() is null
+            && hooks.AuthenticatedPathPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
+        await next(context).ConfigureAwait(false);
+    }
+
+    /// <summary>Sets the caller of a valid full session, and the request's user to its <see cref="SessionIdentity"/>.</summary>
+    private static void SignIn(HttpContext context, SessionPrincipal principal, Channel channel)
+    {
+        SessionIdentity identity = new(principal, context.GetClientAddress(), context.GetAdminRequestFacts());
+        context.SetCaller(new AdminCaller(identity.OriginFor(channel), Session: principal.SessionId) { User = principal.UserId });
+        context.User = new ClaimsPrincipal(identity);
     }
 
     private static bool TryReadBearer(string? header, out string? token)
