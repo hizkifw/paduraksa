@@ -4,10 +4,12 @@ using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.Proxy.Yarp;
 
 namespace Paduraksa.Proxy.Simulation;
 
@@ -199,6 +201,20 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             return;
         }
 
+        if (route.Admin)
+        {
+            // The admin host's implicit route has no user route ID and takes every path (PLAN §3.1).
+            facts.Add(new("admin", "yes"));
+            facts.Add(new("match", TraceNames.Of(route.MatchKind)));
+            steps.Add(new GateStep(
+                GateStepKind.RouteMatch,
+                GateStepVerdict.Passed,
+                $"the admin route takes '{canonical}': every path is forwarded to the admin app",
+                facts,
+                host.Id));
+            return;
+        }
+
         facts.Add(new("route", route.Id.ToString()));
         facts.Add(new("routePath", route.Path));
         facts.Add(new("match", TraceNames.Of(route.MatchKind)));
@@ -215,6 +231,22 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
     public void Forward(RuntimeSnapshot snapshot, CompiledRoute route, bool endpointPresent)
     {
         List<GateFact> facts = [new("slot", route.Slot.ToString(System.Globalization.CultureInfo.InvariantCulture)), new("endpoint", Flag(endpointPresent))];
+        if (route.Admin)
+        {
+            facts.Add(new("cluster", YarpConfig.AdminClusterId));
+            facts.Add(new("target", "admin"));
+            steps.Add(new GateStep(
+                GateStepKind.Upstream,
+                endpointPresent ? GateStepVerdict.Passed : GateStepVerdict.Stopped,
+                endpointPresent
+                    ? "forwarded to the admin app through its internal listener"
+                    : "the admin route has no YARP endpoint in this snapshot: 503",
+                facts,
+                null,
+                RouteId.Empty));
+            return;
+        }
+
         string? cluster = GateSimulator.ClusterOf(snapshot, route);
         if (cluster is not null)
         {

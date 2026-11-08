@@ -38,7 +38,7 @@ public sealed class SimulatorParityTests : IDisposable
     private static readonly string[] Hosts =
     [
         "app.test", "APP.test:8080", "x.app.test", "a.b.app.test", "secure.test", "old.test", "soon.test", "strict.test", "h1.test",
-        "noh3.test", "plain.test", "locked.test", "unknown.test", "[::1]", string.Empty,
+        "noh3.test", "plain.test", "locked.test", "unknown.test", "admin.test", "[::1]", string.Empty,
     ];
 
     private static readonly string[] Paths = ["/", "/api/x", "/health", "/health/x", "/blocked", "/drop", "/API/../api", "/%2Fapi", "/nothing", "/a;b/api"];
@@ -222,6 +222,32 @@ public sealed class SimulatorParityTests : IDisposable
         (true, ProbeHttpVersion.Http3, SslProtocols.Tls13),
     ];
 
+    [Fact]
+    public void AnAdminHostTracesAsForwardedToTheAdminApp()
+    {
+        using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
+
+        GateSimulation run = GateSimulator.Run(fixture.Snapshot, new GateProbe
+        {
+            Https = true,
+            Host = "admin.test",
+            Path = "/api/v1/auth/me",
+            ClientAddress = Lan,
+            ServerName = "admin.test",
+        });
+
+        Assert.Equal(GateOutcomeAction.Forward, run.Outcome.Action);
+        Assert.NotNull(run.Upstream);
+        Assert.True(run.Upstream!.Admin);
+        Assert.Equal(UpstreamId.Empty, run.Upstream.Id);
+        GateStep upstream = Assert.Single(run.Steps, step => step.Kind == GateStepKind.Upstream);
+        Assert.Equal(GateStepVerdict.Passed, upstream.Verdict);
+        Assert.Contains("admin app", upstream.Summary, StringComparison.Ordinal);
+        Assert.Contains(upstream.Facts, fact => fact is { Name: "target", Value: "admin" });
+        GateStep route = Assert.Single(run.Steps, step => step.Kind == GateStepKind.RouteMatch);
+        Assert.Contains("admin route", route.Summary, StringComparison.Ordinal);
+    }
+
     private static ProxyConfigModel Model(DefaultsSpec defaults) => new()
     {
         Upstreams = [Upstream("web", "http://127.0.0.1:1/"), Upstream("api", "http://127.0.0.1:2/", "http://127.0.0.1:3/")],
@@ -252,6 +278,7 @@ public sealed class SimulatorParityTests : IDisposable
             ProxyHost("locked", "locked.test", Route("locked-api", "api", "/api")) with { ForceHttps = true, Policies = [new IpAllowListPolicySpec(["10.0.0.5"])] },
             ProxyHost("ipv6", "[::1]", Route("ipv6-root", "web")),
             ProxyHost("lax", "lax.test", Route("lax-root", "web")),
+            new HostSpec { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, ForceHttps = true },
         ],
     };
 
@@ -282,7 +309,7 @@ public sealed class SimulatorParityTests : IDisposable
         {
             Challenges.Publish("tok-en_1", "tok-en_1.thumbprint");
             ServerCertificate shared = pki.Leaf("shared", "*.test", "*.app.test", "app.test");
-            Snapshot = Bound(model, options: new SnapshotCompilerOptions { Certificates = new Single(shared), PublicHttpsPort = 8443 });
+            Snapshot = Bound(model, options: new SnapshotCompilerOptions { Certificates = new Single(shared), PublicHttpsPort = 8443, AdminUpstream = true });
             _store.Publish(Snapshot);
             _gate = new GateMiddleware(_store, new TrustedProxyClientAddressSource(), Challenges);
             _handshakes = new TlsHandshakeSelector(_store);
