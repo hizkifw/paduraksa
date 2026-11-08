@@ -1309,6 +1309,11 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     font-weight: 600;
 }
 
+.pdk-staged-unused .pdk-staged-name, .pdk-staged-unused .pdk-staged-detail {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
 .pdk-staged-detail {
     flex: 1 1 auto;
     min-width: 0;

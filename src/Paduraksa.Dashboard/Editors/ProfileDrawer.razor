@@ -7,7 +7,7 @@
 @* A profile in a drawer (PLAN §5.3, §12): a name, notes and the host settings it sets, each "Inherit" otherwise. On its own it goes
    through Review changes; opened from a host's form (Stage) it is handed back, to be applied with the host in one revision. *@
 
-<DrawerShell Title="@Title" Overline="@(Stage ? "New profile for this host" : _model is { IsNew: true } ? "New profile" : "Profile")"
+<DrawerShell Title="@Title" Overline="@(Stage ? (Staged is null ? "New profile for this host" : "New profile, not applied yet") : _model is { IsNew: true } ? "New profile" : "Profile")"
              Subtitle="Settings that every host with this profile inherits, on top of the global defaults. A host can still set its own."
              Icon="@Icons.Material.Outlined.Badge" Name="profile" OnSubmit="SubmitAsync">
     <Banner>

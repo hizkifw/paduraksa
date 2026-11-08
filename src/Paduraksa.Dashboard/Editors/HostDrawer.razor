@@ -79,16 +79,21 @@
                 <div class="pdk-staged" data-section="staged">
                     <div class="pdk-staged-head">
                         <MudIcon Icon="@Icons.Material.Outlined.Layers" Size="Size.Small" />
-                        <span>Made here, applied with this host in one revision. Cancel the host and they go too.</span>
+                        <span>Made here, applied with this host in one revision when it uses them. Cancel the host and they go too.</span>
                     </div>
                     <ul class="pdk-staged-list">
                         @foreach (UpstreamConfig upstream in _staged)
                         {
-                            <li data-staged="@upstream.Name">
+                            bool used = _model.Kind == HostKind.Proxy && _model.Routes.Any(r => r.UpstreamId == upstream.Id);
+                            <li data-staged="@upstream.Name" data-used="@(used ? "true" : "false")" class="@(used ? null : "pdk-staged-unused")">
                                 <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
                                 <span class="pdk-staged-name">@upstream.Name</span>
                                 <span class="pdk-staged-detail pdk-mono">@HostOverview.AddressOf(upstream)</span>
-                                @if (_stagedErrors.ContainsKey(upstream.Id))
+                                @if (!used)
+                                {
+                                    <StatusChip Text="Won't be created: no route uses it" Name="staged-unused" />
+                                }
+                                @if (_stagedUpstreamErrors.ContainsKey(upstream.Id))
                                 {
                                     <StatusChip Tone="Tone.Error" Dot="true" Text="Needs a fix" Name="staged-error" />
                                 }
@@ -101,11 +106,16 @@
                         }
                         @foreach (ProfileConfig profile in _stagedProfiles)
                         {
-                            <li data-staged="@profile.Name">
+                            bool picked = _model.ProfileId == profile.Id;
+                            <li data-staged="@profile.Name" data-used="@(picked ? "true" : "false")" class="@(picked ? null : "pdk-staged-unused")">
                                 <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
                                 <span class="pdk-staged-name">@profile.Name</span>
                                 <span class="pdk-staged-detail">profile</span>
-                                @if (_stagedErrors.ContainsKey(profile.Id))
+                                @if (!picked)
+                                {
+                                    <StatusChip Text="Won't be created: the host doesn't pick it" Name="staged-unused" />
+                                }
+                                @if (_stagedProfileErrors.ContainsKey(profile.Id))
                                 {
                                     <StatusChip Tone="Tone.Error" Dot="true" Text="Needs a fix" Name="staged-error" />
                                 }
@@ -152,7 +162,8 @@
     private readonly List<ProfileConfig> _stagedProfiles = [];
 
     // The dry run's errors about a staged object (relative to it), shown at its fields when it is opened again.
-    private readonly Dictionary<object, IReadOnlyDictionary<string, string>> _stagedErrors = [];
+    private readonly Dictionary<UpstreamId, IReadOnlyDictionary<string, string>> _stagedUpstreamErrors = [];
+    private readonly Dictionary<ProfileId, IReadOnlyDictionary<string, string>> _stagedProfileErrors = [];
     private ConfigDocument? _reviewed;
     private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
     private IReadOnlyDictionary<string, string> _serverErrors = new Dictionary<string, string>();
@@ -257,7 +268,8 @@
 
         _staged.Clear();
         _stagedProfiles.Clear();
-        _stagedErrors.Clear();
+        _stagedUpstreamErrors.Clear();
+        _stagedProfileErrors.Clear();
         _opened = Fingerprint();
         Validate();
     }
@@ -492,7 +504,7 @@
         {
             if (_staged.Any(u => u.Id == document.Upstreams[i].Id) && InlineValidation.Relative(errors, $"/upstreams/{i}") is { Count: > 0 } found)
             {
-                _stagedErrors[document.Upstreams[i].Id] = found;
+                _stagedUpstreamErrors[document.Upstreams[i].Id] = found;
             }
         }
 
@@ -500,7 +512,7 @@
         {
             if (_stagedProfiles.Any(p => p.Id == document.Profiles[i].Id) && InlineValidation.Relative(errors, $"/profiles/{i}") is { Count: > 0 } found)
             {
-                _stagedErrors[document.Profiles[i].Id] = found;
+                _stagedProfileErrors[document.Profiles[i].Id] = found;
             }
         }
     }
@@ -513,13 +525,13 @@
                 [nameof(UpstreamDrawer.Stage)] = true,
                 [nameof(UpstreamDrawer.Draft)] = Draft,
                 [nameof(UpstreamDrawer.Staged)] = staged,
-                [nameof(UpstreamDrawer.Errors)] = _stagedErrors.GetValueOrDefault(staged.Id),
+                [nameof(UpstreamDrawer.Errors)] = _stagedUpstreamErrors.GetValueOrDefault(staged.Id),
             },
             DrawerWidth.Medium);
         if (result.As<UpstreamConfig>() is { } edited && _staged.FindIndex(u => u.Id == staged.Id) is >= 0 and var index)
         {
             _staged[index] = edited;
-            _stagedErrors.Remove(staged.Id);
+            _stagedUpstreamErrors.Remove(staged.Id);
             Changed();
         }
     }
@@ -532,13 +544,13 @@
                 [nameof(ProfileDrawer.Stage)] = true,
                 [nameof(ProfileDrawer.Draft)] = Draft,
                 [nameof(ProfileDrawer.Staged)] = staged,
-                [nameof(ProfileDrawer.Errors)] = _stagedErrors.GetValueOrDefault(staged.Id),
+                [nameof(ProfileDrawer.Errors)] = _stagedProfileErrors.GetValueOrDefault(staged.Id),
             },
             DrawerWidth.Medium);
         if (result.As<ProfileConfig>() is { } edited && _stagedProfiles.FindIndex(p => p.Id == staged.Id) is >= 0 and var index)
         {
             _stagedProfiles[index] = edited;
-            _stagedErrors.Remove(staged.Id);
+            _stagedProfileErrors.Remove(staged.Id);
             Changed();
         }
     }

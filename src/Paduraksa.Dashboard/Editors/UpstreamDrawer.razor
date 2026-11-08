@@ -11,7 +11,7 @@
    health. On its own it goes through Review changes and hands back the commit; opened from a host's form (Stage) it is checked against
    that form's draft and handed back as it is, to be applied with the host in one revision. *@
 
-<DrawerShell Title="@Title" Overline="@(Stage ? "New upstream for this host" : _model is { IsNew: true } ? "New upstream" : "Upstream")"
+<DrawerShell Title="@Title" Overline="@(Stage ? (Staged is null ? "New upstream for this host" : "New upstream, not applied yet") : _model is { IsNew: true } ? "New upstream" : "Upstream")"
              Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Hub" Name="upstream" OnSubmit="SubmitAsync">
     <Banner>
         @if (_changedElsewhere is { } elsewhere)

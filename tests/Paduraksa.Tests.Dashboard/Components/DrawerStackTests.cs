@@ -190,6 +190,7 @@ public sealed class DrawerStackTests
         Task editing = drawers.Find("[data-staged=app] [data-action=edit-staged]").ClickAsync(new());
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=upstream] input[data-field=name]").Count == 1);
         Assert.Equal("app", drawers.Find("[data-drawer=upstream] input[data-field=name]").GetAttribute("value"));
+        Assert.Equal("New upstream, not applied yet", drawers.Find("[data-drawer=upstream] .pdk-drawer-overline").TextContent);
         await TypeAsync(drawers, "[data-drawer=upstream] input[data-field=name]", "app-backend");
         await drawers.Find("form[data-drawer=upstream]").SubmitAsync();
         await editing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
@@ -229,6 +230,31 @@ public sealed class DrawerStackTests
         Assert.Equal(["app.home.test", "New certificate", "Add an ACME account"], host.FindAll(".pdk-sheet[data-top] [data-drawer=trail] li").Select(li => li.TextContent));
         Assert.Equal("Back to New certificate", host.Find(".pdk-sheet[data-top] [data-drawer-action=back]").GetAttribute("aria-label"));
         Assert.Empty(host.FindAll(".pdk-sheet[data-level='0'] [data-drawer=trail]"));
+    }
+
+    [Fact]
+    public async Task AStagedUpstreamNoRouteUses_SaysItWontBeCreated()
+    {
+        await using DashboardTestContext context = new();
+        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument();
+        context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        await MakeUpstreamAsync(drawers, "app", "http://10.0.0.7:8080");
+        Assert.Equal("true", drawers.Find("[data-staged=app]").GetAttribute("data-used"));
+
+        // The route goes elsewhere: the staged upstream stays listed, but says it won't be created with the host.
+        HostForm form = drawers.FindComponent<HostForm>().Instance;
+        await drawers.InvokeAsync(() =>
+        {
+            form.Model.Routes[0].UpstreamId = null;
+            return form.OnChanged.InvokeAsync();
+        });
+
+        Assert.Equal("false", drawers.Find("[data-staged=app]").GetAttribute("data-used"));
+        Assert.Contains("Won't be created: no route uses it", drawers.Find("[data-staged=app] [data-chip=staged-unused]").TextContent, StringComparison.Ordinal);
     }
 
     [Fact]
