@@ -109,7 +109,8 @@ public sealed class HostSettingsModel
 
         if (settings.IpAllowList is { } allow)
         {
-            parts.Add(allow.Addresses.Count == 0 ? "No allow list" : $"Allow list: {allow.Addresses.Count} {(allow.Addresses.Count == 1 ? "entry" : "entries")}");
+            // Set but empty is not "no list": it overrides whatever list the layer below sets, so every client is let through again.
+            parts.Add(allow.Addresses.Count == 0 ? "Allow list: none (overrides the inherited one)" : $"Allow list: {allow.Addresses.Count} {(allow.Addresses.Count == 1 ? "entry" : "entries")}");
         }
 
         return parts;

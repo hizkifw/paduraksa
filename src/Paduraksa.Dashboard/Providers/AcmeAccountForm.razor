@@ -137,6 +137,11 @@
 
     private async Task SubmitAsync()
     {
+        if (_busy)
+        {
+            return;
+        }
+
         _errors = [];
         string? directory = Preset?.DirectoryUrl ?? _directory?.Trim();
         _directoryError = Uri.TryCreate(directory, UriKind.Absolute, out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps ? null : "Enter the CA's https:// directory URL.";
@@ -144,7 +149,7 @@
         _emailError = email is null || (email.Contains('@', StringComparison.Ordinal) && !email.Contains(' ', StringComparison.Ordinal)) ? null : "That doesn't look like an email address.";
         _tosError = _agreed ? null : "The CA requires you to agree to its terms.";
         bool eab = _useEab;
-        _eabError = eab && (string.IsNullOrWhiteSpace(_eabKid) || string.IsNullOrEmpty(_eabHmac)) ? "Enter both the key ID and the HMAC key, or turn EAB off." : null;
+        _eabError = eab && (string.IsNullOrWhiteSpace(_eabKid) || string.IsNullOrWhiteSpace(_eabHmac)) ? "Enter both the key ID and the HMAC key, or turn EAB off." : null;
         if (_directoryError is not null || _emailError is not null || _tosError is not null || _eabError is not null)
         {
             return;

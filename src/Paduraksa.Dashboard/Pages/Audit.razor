@@ -133,7 +133,7 @@ else
                 @if (intact.HeadHash is { } hash)
                 {
                     <MudTooltip Text="Keep a copy of the latest hash elsewhere: it shows if the newest events are ever removed." Arrow="true">
-                        <span class="pdk-chain-hash pdk-mono">@hash[..16]...</span>
+                        <span class="pdk-chain-hash pdk-mono">@(hash.Length > 16 ? $"{hash[..16]}..." : hash)</span>
                     </MudTooltip>
                 }
             }
@@ -196,7 +196,7 @@ else
                 {
                     bool open = _expanded.Contains(e.Id);
                     string? link = AuditText.LinkOf(e.Target);
-                    <li class="pdk-audit-row @(open ? "pdk-open" : null)" data-event="@e.Id" data-action="@e.Action" data-outcome="@e.Outcome.ToName()">
+                    <li @key="e.Id" class="pdk-audit-row @(open ? "pdk-open" : null)" data-event="@e.Id" data-action="@e.Action" data-outcome="@e.Outcome.ToName()">
                         <button type="button" class="pdk-audit-summary" @onclick="() => Toggle(e.Id)" aria-expanded="@(open ? "true" : "false")">
                             <span class="pdk-audit-time" title="@RevisionText.Exact(e.Timestamp)">@RevisionText.Ago(e.Timestamp, _now)</span>
                             <span class="pdk-audit-what">

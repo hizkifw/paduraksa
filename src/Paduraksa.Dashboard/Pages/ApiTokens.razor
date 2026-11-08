@@ -192,7 +192,7 @@
                     </MudToggleGroup>
                     @if (_form.Lifetime == TokenLifetime.Custom)
                     {
-                        <MudTextField T="string" @bind-Value="_form.CustomDate" InputType="InputType.Date" Label="Last day" Variant="Variant.Outlined" Margin="Margin.Dense"
+                        <MudTextField T="string" @bind-Value="_form.CustomDate" InputType="InputType.Date" Label="Last day (UTC)" Variant="Variant.Outlined" Margin="Margin.Dense"
                                       Error="@(_form.Attempted && ExpiryError is not null)" ErrorText="@ExpiryError" data-field="token-date" />
                     }
                     else

@@ -113,6 +113,11 @@
 
     private async Task UploadAsync()
     {
+        if (_busy)
+        {
+            return;
+        }
+
         _errors = [];
         if (_file is null)
         {

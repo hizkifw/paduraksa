@@ -94,9 +94,11 @@
     {
         get
         {
-            string query = _uri is { } uri && uri.IndexOf("secret=", StringComparison.Ordinal) is var i and >= 0 ? uri[(i + 7)..] : string.Empty;
-            int end = query.IndexOf('&', StringComparison.Ordinal);
-            string secret = Uri.UnescapeDataString(end >= 0 ? query[..end] : query);
+            // The provisioning URI's secret parameter, read as a query (not by searching the text, where "secret=" could sit elsewhere).
+            string secret = Uri.TryCreate(_uri, UriKind.Absolute, out Uri? uri)
+                && Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("secret", out Microsoft.Extensions.Primitives.StringValues value)
+                    ? value.ToString()
+                    : string.Empty;
             return string.Join(' ', secret.Chunk(4).Select(chunk => new string(chunk)));
         }
     }

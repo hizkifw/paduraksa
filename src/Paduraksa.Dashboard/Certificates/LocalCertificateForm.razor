@@ -92,6 +92,11 @@
 
     private async Task SubmitAsync()
     {
+        if (_busy)
+        {
+            return;
+        }
+
         _errors = [];
         IReadOnlyList<string> names = NameList.Parse(_names);
         _namesError = NameList.Problem(names);

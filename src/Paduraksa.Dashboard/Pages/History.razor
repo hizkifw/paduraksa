@@ -72,7 +72,7 @@ else
                 {
                     RevisionSummary revision = entry.Revision;
                     bool selected = revision.Id == _selected?.Revision.Id;
-                    <li class="pdk-timeline-item @(selected ? "pdk-selected" : null)" data-seq="@revision.Seq">
+                    <li @key="revision.Id" class="pdk-timeline-item @(selected ? "pdk-selected" : null)" data-seq="@revision.Seq">
                         <a href="@DashboardRoutes.Revision(revision.Id)" class="pdk-timeline-link" aria-current="@(selected ? "true" : null)">
                             <span class="pdk-seq">#@revision.Seq</span>
                             <span class="pdk-timeline-text">

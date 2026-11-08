@@ -303,7 +303,7 @@ else
             return;
         }
 
-        if (committed.Changes.Any(c => c is HostChange h && h.HostId == _model.Id || c is RouteChange r && r.HostId == _model.Id))
+        if (committed.Changes.Any(c => (c is HostChange h && h.HostId == _model.Id) || (c is RouteChange r && r.HostId == _model.Id)))
         {
             _changedElsewhere = committed.Revision;
             StateHasChanged();

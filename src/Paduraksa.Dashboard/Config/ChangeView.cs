@@ -35,7 +35,8 @@ public sealed record FieldChange(string Path, string Label, string? Before, stri
 /// <param name="What">What it is.</param>
 /// <param name="Title">How to call it: a host's first name, a route's path, an upstream's name.</param>
 /// <param name="Fields">The fields, in document order.</param>
-public sealed record ObjectChange(ConfigChangeKind? Kind, ChangedObject What, string Title, IReadOnlyList<FieldChange> Fields);
+/// <param name="Key">The object's ID (<c>settings</c>, <c>document</c> for those two), to keep its place in a list that changes.</param>
+public sealed record ObjectChange(ConfigChangeKind? Kind, ChangedObject What, string Title, IReadOnlyList<FieldChange> Fields, string Key = "");
 
 /// <summary>A top-level object's change with its routes' or destinations' changes under it: one card of the diff.</summary>
 /// <param name="Head">The object itself.</param>
@@ -67,8 +68,8 @@ public static class ChangeView
         {
             (string? parentKey, ObjectChange? parent) = change switch
             {
-                RouteChange route => (route.HostId.ToString(), (ObjectChange?)Untouched(ChangedObject.Host, names.Host(route.HostId))),
-                DestinationChange destination => (destination.UpstreamId.ToString(), Untouched(ChangedObject.Upstream, names.Upstream(destination.UpstreamId))),
+                RouteChange route => (route.HostId.ToString(), (ObjectChange?)Untouched(ChangedObject.Host, names.Host(route.HostId), route.HostId.ToString())),
+                DestinationChange destination => (destination.UpstreamId.ToString(), Untouched(ChangedObject.Upstream, names.Upstream(destination.UpstreamId), destination.UpstreamId.ToString())),
                 _ => (null, null),
             };
 
@@ -249,12 +250,14 @@ public static class ChangeView
         _ => label,
     };
 
-    private static ObjectChange Untouched(ChangedObject kind, string title) => new(null, kind, title, []);
+    private static ObjectChange Untouched(ChangedObject kind, string title, string key) => new(null, kind, title, [], key);
 
     private static string KeyOf(ConfigChange change) => change switch
     {
         HostChange c => c.HostId.ToString(),
+        RouteChange c => c.RouteId.ToString(),
         UpstreamChange c => c.UpstreamId.ToString(),
+        DestinationChange c => c.DestinationId.ToString(),
         ProfileChange c => c.ProfileId.ToString(),
         SettingsChange => "settings",
         _ => "document",
@@ -297,7 +300,7 @@ public static class ChangeView
             foreach (string field in change.Fields)
             {
                 string relative = field.StartsWith(change.Path, StringComparison.Ordinal) ? field[change.Path.Length..] : field;
-                if (relative.Length == 0 || skip.Contains(relative.TrimStart('/'), StringComparer.Ordinal) && relative != "/routes")
+                if (relative.Length == 0 || (skip.Contains(relative.TrimStart('/'), StringComparer.Ordinal) && relative != "/routes"))
                 {
                     continue;
                 }
@@ -326,7 +329,7 @@ public static class ChangeView
             }
         }
 
-        return new ObjectChange(change.Kind, kind, title, fields);
+        return new ObjectChange(change.Kind, kind, title, fields, KeyOf(change));
     }
 
     private static string LabelOf(string relative)

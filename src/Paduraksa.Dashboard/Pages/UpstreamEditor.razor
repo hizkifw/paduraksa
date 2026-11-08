@@ -420,7 +420,7 @@ else
             return;
         }
 
-        if (committed.Changes.Any(c => c is UpstreamChange u && u.UpstreamId == _model.Id || c is DestinationChange d && d.UpstreamId == _model.Id))
+        if (committed.Changes.Any(c => (c is UpstreamChange u && u.UpstreamId == _model.Id) || (c is DestinationChange d && d.UpstreamId == _model.Id)))
         {
             _changedElsewhere = committed.Revision;
         }

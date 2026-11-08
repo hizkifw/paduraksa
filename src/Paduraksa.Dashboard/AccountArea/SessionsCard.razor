@@ -52,7 +52,7 @@
         <ul class="pdk-list" data-section="sessions">
             @foreach (SessionSummary session in _sessions)
             {
-                <li class="pdk-list-row pdk-session-row" data-session="@session.Id" data-current="@(session.Current ? "true" : "false")">
+                <li @key="session.Id" class="pdk-list-row pdk-session-row" data-session="@session.Id" data-current="@(session.Current ? "true" : "false")">
                     <span class="pdk-list-icon pdk-tone-@(session.Current ? "success" : "default")">
                         <MudIcon Icon="@(IsPhone(session.UserAgent) ? Icons.Material.Outlined.PhoneAndroid : Icons.Material.Outlined.Computer)" Size="Size.Small" />
                     </span>

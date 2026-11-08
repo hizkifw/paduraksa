@@ -7,14 +7,14 @@
 else
 {
     <div class="pdk-diff" role="list" aria-label="Changes">
-        @foreach (ChangeGroup group in Groups)
+        @foreach ((ChangeGroup group, string groupKey) in Keyed(Groups, g => g.Head.Key))
         {
-            <section class="pdk-diff-group pdk-diff-@KindCss(group.Head.Kind)" role="listitem">
+            <section @key="groupKey" class="pdk-diff-group pdk-diff-@KindCss(group.Head.Kind)" role="listitem">
                 @Header(group.Head)
                 @Fields(group.Head)
-                @foreach (ObjectChange child in group.Children)
+                @foreach ((ObjectChange child, string childKey) in Keyed(group.Children, c => c.Key))
                 {
-                    <div class="pdk-diff-child pdk-diff-@KindCss(child.Kind)">
+                    <div @key="childKey" class="pdk-diff-child pdk-diff-@KindCss(child.Kind)">
                         @Header(child)
                         @Fields(child)
                     </div>
@@ -34,6 +34,19 @@ else
 
     [Parameter]
     public string? EmptyDescription { get; set; }
+
+    /// <summary>Each item with its key: the object's ID, made unique should the same object head two groups (siblings' keys must differ).</summary>
+    private static IEnumerable<(T Item, string Key)> Keyed<T>(IEnumerable<T> items, Func<T, string> keyOf)
+    {
+        Dictionary<string, int> seen = new(StringComparer.Ordinal);
+        foreach (T item in items)
+        {
+            string key = keyOf(item);
+            int earlier = seen.GetValueOrDefault(key);
+            seen[key] = earlier + 1;
+            yield return (item, earlier == 0 ? key : $"{key}#{earlier}");
+        }
+    }
 
     private static string KindCss(ConfigChangeKind? kind) => kind switch
     {

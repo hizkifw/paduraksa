@@ -88,6 +88,11 @@
 
     private async Task SubmitAsync()
     {
+        if (_busy)
+        {
+            return;
+        }
+
         _errors = [];
         string label = RotateFor?.Label ?? (string.IsNullOrWhiteSpace(_label) ? $"{ProviderDisplay.KindLabel(_kind)}" : _label.Trim());
         _labelError = null;
