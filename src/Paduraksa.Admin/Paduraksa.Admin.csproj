@@ -1,10 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Typed IDs bind through their generated TryParse(string?, IFormatProvider?, out T) (IParsable<T>); under `dotnet format` the analyzer doesn't see the source-generated member. -->
+    <NoWarn>$(NoWarn);ASP0020</NoWarn>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Paduraksa.Application/Paduraksa.Application.csproj" />
     <ProjectReference Include="../Paduraksa.Contracts/Paduraksa.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Scalar.AspNetCore" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
+    <InternalsVisibleTo Include="Paduraksa.Tests.Integration" />
   </ItemGroup>
 </Project>

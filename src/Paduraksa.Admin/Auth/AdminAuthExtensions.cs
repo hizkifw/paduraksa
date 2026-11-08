@@ -7,6 +7,16 @@ using Paduraksa.Contracts.Identity;
 
 namespace Paduraksa.Admin.Auth;
 
+/// <summary>Endpoint metadata: the endpoint needs a signed-in caller but no particular permission (the services check those). For the API description and tests.</summary>
+public sealed class AdminAuthenticatedMetadata
+{
+    public static AdminAuthenticatedMetadata Instance { get; } = new();
+
+    private AdminAuthenticatedMetadata()
+    {
+    }
+}
+
 /// <summary>Wires the admin app's security pipeline: hardening, the setup gate, authentication and CSRF defence.</summary>
 public static class AdminAuthExtensions
 {
@@ -51,6 +61,7 @@ public static class AdminAuthExtensions
         where TBuilder : IEndpointConventionBuilder
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.WithMetadata(AdminAuthenticatedMetadata.Instance);
         builder.AddEndpointFilter(static (invocation, next) => invocation.HttpContext.GetCaller() is null
             ? ValueTask.FromResult<object?>(AdminProblems.Unauthorized(invocation.HttpContext, "Sign in, or send a bearer token.", "authentication_required"))
             : next(invocation));

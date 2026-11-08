@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Admin;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Identity;
 using Paduraksa.Application.Commands;
@@ -21,6 +22,7 @@ namespace Paduraksa.Server.Hosting;
 /// The admin <c>WebApplication</c>: HTTPS on <c>Paduraksa:Listen:Admin</c> (default 9443).
 /// Health endpoints (PLAN §11.3), the security pipeline and identity API (<c>Paduraksa.Admin</c>: setup gate, authentication, CSRF
 /// defence, hardening), a placeholder page, the optional source allowlist and the opt-in loopback plain-HTTP listener.
+/// The resource REST API (<c>/api/v1</c>, its OpenAPI document and the reference UI, PLAN §11.1).
 /// TODO(M4): /mcp, /metrics. TODO(M5): dashboard. TODO(§3.1): internal UDS listener.
 /// </summary>
 internal static class AdminApp
@@ -73,14 +75,17 @@ internal static class AdminApp
         });
         builder.Services.AddRoutingCore();
         builder.Services.AddPaduraksaAdminAuth(context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp));
+        builder.Services.AddPaduraksaAdminApi();
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Admin);
         HostSetup.PinListenerConfiguration(builder);
 
         WebApplication app = builder.Build();
+        app.UsePaduraksaAdminApi();
         app.UsePaduraksaAdminAuth();
         MapHealth(app);
         app.MapPaduraksaIdentityApi();
+        app.MapPaduraksaAdminApi();
         app.MapMethods("/", GetAndHead, PlaceholderPageAsync);
         return app;
     }
