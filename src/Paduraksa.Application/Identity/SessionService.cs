@@ -102,34 +102,60 @@ public sealed class SessionService
         await using (context.ConfigureAwait(false))
         {
             var session = await context.Sessions.AsNoTracking().SingleOrDefaultAsync(s => s.TokenHash == hash, cancellationToken).ConfigureAwait(false);
-            var now = _time.GetUtcNow();
-            if (session is null || !IsLive(session, now))
-            {
-                return new SessionValidation(SessionStatus.Invalid);
-            }
-
-            var user = await context.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == session.UserId, cancellationToken).ConfigureAwait(false);
-            if (user is null || user.Disabled)
-            {
-                return new SessionValidation(SessionStatus.Invalid);
-            }
-
-            var roles = await context.RoleAssignments.AsNoTracking().Where(r => r.UserId == user.Id).Select(r => r.Role).ToListAsync(cancellationToken).ConfigureAwait(false);
-            var principal = new SessionPrincipal(user.Id, session.Id, user.Username, user.DisplayName, [.. roles.Order()]);
-            if (!session.SecondFactorCompleted)
-            {
-                return new SessionValidation(SessionStatus.SecondFactorRequired, principal);
-            }
-
-            if (now - session.LastSeenAt >= _options.TouchInterval)
-            {
-                var id = session.Id;
-                await context.Sessions.Where(s => s.Id == id && s.RevokedAt == null)
-                    .ExecuteUpdateAsync(u => u.SetProperty(s => s.LastSeenAt, now), cancellationToken).ConfigureAwait(false);
-            }
-
-            return new SessionValidation(SessionStatus.Valid, principal);
+            return await CheckRowAsync(context, session, countAsUse: true, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Re-checks a session that was already authenticated by its cookie, by its ID: for a long-lived connection (a dashboard
+    /// circuit) that holds no cookie of its own. Ending the session, its expiry (absolute or idle), and disabling or deleting
+    /// its user all make it <see cref="SessionStatus.Invalid"/>; the roles in the principal are read afresh.
+    /// </summary>
+    /// <param name="id">The session the connection authenticated with.</param>
+    /// <param name="countAsUse">
+    /// True when the check is made for something the person did (it keeps an idle session alive, like a request with the cookie);
+    /// false for a background re-check, so an open but unattended page still idles out.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the check.</param>
+    public async Task<SessionValidation> CheckAsync(SessionId id, bool countAsUse, CancellationToken cancellationToken = default)
+    {
+        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (context.ConfigureAwait(false))
+        {
+            var session = await context.Sessions.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false);
+            return await CheckRowAsync(context, session, countAsUse, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<SessionValidation> CheckRowAsync(ConfigDbContext context, SessionRow? session, bool countAsUse, CancellationToken cancellationToken)
+    {
+        var now = _time.GetUtcNow();
+        if (session is null || !IsLive(session, now))
+        {
+            return new SessionValidation(SessionStatus.Invalid);
+        }
+
+        var user = await context.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == session.UserId, cancellationToken).ConfigureAwait(false);
+        if (user is null || user.Disabled)
+        {
+            return new SessionValidation(SessionStatus.Invalid);
+        }
+
+        var roles = await context.RoleAssignments.AsNoTracking().Where(r => r.UserId == user.Id).Select(r => r.Role).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var principal = new SessionPrincipal(user.Id, session.Id, user.Username, user.DisplayName, [.. roles.Order()]);
+        if (!session.SecondFactorCompleted)
+        {
+            return new SessionValidation(SessionStatus.SecondFactorRequired, principal);
+        }
+
+        if (countAsUse && now - session.LastSeenAt >= _options.TouchInterval)
+        {
+            var id = session.Id;
+            await context.Sessions.Where(s => s.Id == id && s.RevokedAt == null)
+                .ExecuteUpdateAsync(u => u.SetProperty(s => s.LastSeenAt, now), cancellationToken).ConfigureAwait(false);
+        }
+
+        return new SessionValidation(SessionStatus.Valid, principal);
     }
 
     /// <summary>
