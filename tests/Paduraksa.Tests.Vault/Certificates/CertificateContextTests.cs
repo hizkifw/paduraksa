@@ -156,7 +156,10 @@ public sealed class CertificateContextTests : IDisposable
         using var newKek = Kek.Generate();
         var result = await _vault.Get<IVaultKekRotation>().RotateKekAsync(newKek.Encode().AsMemory(), Ct);
 
-        Assert.Equal(2, result.KeysRewrapped);
+        Assert.Equal(1, result.CertificateKeys);
+        Assert.Equal(1, result.StagedKeys);
+        Assert.Equal(0, result.AccountKeys);
+        Assert.Equal(2, result.Keys);
 
         // Restart under the new key: the certificate is still served, and the staged key still takes its chain.
         _vault.Variables[Paduraksa.Vault.Crypto.KekProvider.KeyVariable] = newKek.Encode();

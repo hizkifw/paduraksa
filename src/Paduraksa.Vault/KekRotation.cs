@@ -9,10 +9,13 @@ using Paduraksa.Vault.Secrets;
 
 namespace Paduraksa.Vault;
 
-/// <summary>What <see cref="KekRotation.RotateAsync"/> re-wrapped.</summary>
+/// <summary>What <see cref="KekRotation.RotateAsync"/> re-wrapped, per kind of value.</summary>
 /// <param name="Secrets">Secret values re-wrapped (a MAC secret's previous value counts too).</param>
-/// <param name="AccountKeys">Account keys, certificate keys, staged certificate keys and Data Protection key-ring elements re-wrapped.</param>
-internal sealed record KekRotated(int Secrets, int AccountKeys);
+/// <param name="AccountKeys">ACME account keys re-wrapped.</param>
+/// <param name="CertificateKeys">Certificate keys re-wrapped (the local CA root's included).</param>
+/// <param name="StagedKeys">Keys staged for a certificate chain re-wrapped.</param>
+/// <param name="DataProtectionKeys">Data Protection key-ring elements re-wrapped.</param>
+internal sealed record KekRotated(int Secrets, int AccountKeys, int CertificateKeys, int StagedKeys, int DataProtectionKeys);
 
 /// <summary>
 /// KEK rotation (PLAN §8.3, <see cref="IVaultKekRotation"/>): re-wraps every DEK in the database under a new KEK. Nothing is
@@ -56,7 +59,7 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
         try
         {
             var rotated = await RotateAsync(newKek, cancellationToken).ConfigureAwait(false);
-            return new KekRotationResult(rotated.Secrets, rotated.AccountKeys);
+            return new KekRotationResult(rotated.Secrets, rotated.AccountKeys, rotated.CertificateKeys, rotated.StagedKeys, rotated.DataProtectionKeys);
         }
         catch
         {
@@ -107,24 +110,26 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                     accountKeys++;
                 }
 
-                // Certificate keys, and the keys staged for a chain, count with the account keys.
+                var certificateKeys = 0;
                 foreach (var row in await context.CertificateKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
                 {
                     row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.ContextOf(row.Id, row.IsLocalCaRoot, row.Version));
-                    accountKeys++;
+                    certificateKeys++;
                 }
 
+                var stagedKeys = 0;
                 foreach (var row in await context.StagedKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
                 {
                     row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.StagedContextOf(row.CertificateId, row.StagedKeyId, row.Names));
-                    accountKeys++;
+                    stagedKeys++;
                 }
 
                 // The admin app's Data Protection key ring (PLAN §8.1): its elements are keys like any other.
+                var dataProtectionKeys = 0;
                 foreach (var row in await context.DataProtectionKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
                 {
                     row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, DataProtectionKeyStore.ContextOf(row));
-                    accountKeys++;
+                    dataProtectionKeys++;
                 }
 
                 var meta = await context.Meta.SingleAsync(cancellationToken).ConfigureAwait(false);
@@ -137,7 +142,7 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                 await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 runtime.ReplaceKek(newKek);
                 await CheckpointAsync(context).ConfigureAwait(false);
-                return new KekRotated(secrets, accountKeys);
+                return new KekRotated(secrets, accountKeys, certificateKeys, stagedKeys, dataProtectionKeys);
             }
         }
     }

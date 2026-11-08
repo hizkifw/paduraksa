@@ -58,7 +58,7 @@ public sealed class KekRotationTests : IDisposable
 
         var rotated = await _vault.Get<KekRotation>().RotateAsync(newKek, Ct);
 
-        Assert.Equal(new KekRotated(3, 1), rotated);
+        Assert.Equal(new KekRotated(3, 1, 0, 0, 0), rotated);
         Assert.All(await KekIds(), id => Assert.Equal(newId, id));
         var tag = new byte[32];
         key!.Sign(Data, tag);
@@ -151,7 +151,7 @@ public sealed class KekRotationTests : IDisposable
 
         var result = await rotation.RotateKekAsync(newKek.Encode().AsMemory(), Ct);
 
-        Assert.Equal(new KekRotationResult(3, 1), result);
+        Assert.Equal(new KekRotationResult(3, 1, 0, 0, 0), result);
         var key = await _vault.Get<IMacKeySource>().OpenAsync(mac, SecretKind.HmacSigningKey, Ct);
         Assert.True(key!.Verify(Data, HMACSHA256.HashData(KeyB, Data)));
         Assert.All(await KekIds(), id => Assert.Equal(newKek.Id, id));
@@ -214,6 +214,6 @@ public sealed class KekRotationTests : IDisposable
     {
         using var newKek = Kek.Generate();
 
-        Assert.Equal(new KekRotated(0, 0), await _vault.Get<KekRotation>().RotateAsync(newKek, Ct));
+        Assert.Equal(new KekRotated(0, 0, 0, 0, 0), await _vault.Get<KekRotation>().RotateAsync(newKek, Ct));
     }
 }

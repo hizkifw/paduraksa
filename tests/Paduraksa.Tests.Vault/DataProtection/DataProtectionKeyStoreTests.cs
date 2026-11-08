@@ -134,7 +134,7 @@ public sealed class DataProtectionKeyStoreTests : IDisposable
 
         var rotated = await _vault.Get<KekRotation>().RotateAsync(newKek, Ct);
 
-        Assert.Equal(1, rotated.AccountKeys);
+        Assert.Equal(1, rotated.DataProtectionKeys);
         await using (var context = await _vault.Get<IDbContextFactory<VaultDbContext>>().CreateDbContextAsync(Ct))
         {
             var row = await context.DataProtectionKeys.AsNoTracking().SingleAsync(Ct);

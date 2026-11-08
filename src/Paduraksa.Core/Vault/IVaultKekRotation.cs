@@ -1,9 +1,16 @@
 namespace Paduraksa.Core.Vault;
 
-/// <summary>What a KEK rotation re-wrapped.</summary>
-/// <param name="SecretsRewrapped">Secret values re-wrapped (a MAC secret's previous value counts as one more).</param>
-/// <param name="KeysRewrapped">Keys re-wrapped: ACME account keys, certificate keys and the keys staged for a chain.</param>
-public sealed record KekRotationResult(int SecretsRewrapped, int KeysRewrapped);
+/// <summary>What a KEK rotation re-wrapped, counted per kind of value.</summary>
+/// <param name="Secrets">Secret values re-wrapped (a MAC secret's previous value counts as one more).</param>
+/// <param name="AccountKeys">ACME account keys re-wrapped.</param>
+/// <param name="CertificateKeys">Certificate keys re-wrapped (the local CA root's included).</param>
+/// <param name="StagedKeys">Keys staged for a certificate chain re-wrapped.</param>
+/// <param name="DataProtectionKeys">Data Protection key-ring elements re-wrapped.</param>
+public sealed record KekRotationResult(int Secrets, int AccountKeys, int CertificateKeys, int StagedKeys, int DataProtectionKeys)
+{
+    /// <summary>Every key re-wrapped, of all kinds together (the secrets are not keys and are not counted here).</summary>
+    public int Keys => AccountKeys + CertificateKeys + StagedKeys + DataProtectionKeys;
+}
 
 /// <summary>
 /// Replaces the vault's key-encryption key (PLAN §8.3): the entry point of <c>paduraksa vault rotate-kek</c>.
