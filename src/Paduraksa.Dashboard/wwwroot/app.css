@@ -205,8 +205,17 @@ body {
 
 .pdk-page.mud-container {
     padding-top: 32px;
-    /* Room below the last card, so it can always be scrolled clear of a toast in the bottom-right corner. */
-    padding-bottom: 120px;
+    padding-bottom: 48px;
+}
+
+/* While a toast is up (an Undo stays 12 seconds), a page gets room below its last card for a stack of two, so the end of a list can
+   always be scrolled clear of the bottom-right corner. An editor keeps its bar at the bottom instead, and the toasts move above the bar. */
+body:has(.mud-snackbar):not(:has(.pdk-editor-bar:not(.pdk-editor-bar-inline))) .pdk-page.mud-container {
+    padding-bottom: 200px;
+}
+
+body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
+    padding-bottom: 16px;
 }
 
 .pdk-banner {
@@ -1478,6 +1487,11 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
         left: 8px;
         max-width: none;
     }
+}
+
+/* An editor's sticky Cancel / Review bar is pinned to the bottom of the window (and ends the page): the toasts sit above it. */
+body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bottom-right {
+    bottom: 92px;
 }
 
 /* ---------- Errors ---------- */
