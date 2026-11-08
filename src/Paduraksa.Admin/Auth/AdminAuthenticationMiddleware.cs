@@ -56,7 +56,10 @@ public static class AdminAuthEndpointExtensions
     /// address the proxy resolved; elsewhere the connection's own address, since forwarded headers are ignored there) and the user
     /// agent, cut short (the services clean and truncate it again).
     /// </summary>
-    public static ClientContext GetClientContext(this HttpContext context)
+    public static ClientContext GetClientContext(this HttpContext context) => context.GetClientContext(Channel.Api);
+
+    /// <summary>Where the request came from, through <paramref name="channel"/> (the dashboard's sign-in forms are <see cref="Channel.Dashboard"/>).</summary>
+    public static ClientContext GetClientContext(this HttpContext context, Channel channel)
     {
         ArgumentNullException.ThrowIfNull(context);
         string? userAgent = context.Request.Headers.UserAgent.ToString();
@@ -65,7 +68,7 @@ public static class AdminAuthEndpointExtensions
             userAgent = userAgent[..MaxUserAgentInput];
         }
 
-        return new ClientContext(Channel.Api, context.GetClientAddress(), userAgent);
+        return new ClientContext(channel, context.GetClientAddress(), userAgent);
     }
 
     /// <summary>The connection's remote address, IPv4-mapped IPv6 addresses shown as IPv4.</summary>

@@ -31,74 +31,35 @@ internal static class SignInEndpoints
 
     private static async Task<IResult> CompleteSetupAsync(SetupRequest request, HttpContext http, SetupService setup, LoginService login, AdminThrottle throttle)
     {
-        if (IdentityApi.Throttle(http, throttle, AdminThrottleScope.Setup, request.Username) is { } limited)
+        SignInAttempt<SetupResult> attempt = await SignInFlow.SetupAsync(http, setup, login, throttle, request, Channel.Api).ConfigureAwait(false);
+        if (HeldBack(http, attempt.HeldBack, attempt.RetryAfter) is { } heldBack)
         {
-            return limited;
+            return heldBack;
         }
 
-        return await IdentityApi.WithPasswordCheckAsync(http, throttle, async () =>
+        SetupResult result = attempt.Result!;
+        return result switch
         {
-            ClientContext client = http.GetClientContext();
-            SetupResult result = await setup.CompleteSetupAsync(request.SetupToken, request.Username, request.Password, request.DisplayName, client, http.RequestAborted).ConfigureAwait(false);
-            switch (result)
-            {
-                case { Outcome: SetupOutcome.Succeeded, Owner: { } owner }:
-                    // The new Owner is signed in at once: they just proved the password by choosing it.
-                    LoginResult signedIn = await login.LoginAsync(request.Username, request.Password, client, http.RequestAborted).ConfigureAwait(false);
-                    SessionStarted? session = IdentityApi.StartSession(http, signedIn);
-                    return Results.Created("/api/v1/auth/me", new SetupCompleted(owner, session));
-                case { Outcome: SetupOutcome.AlreadyComplete }:
-                    return ApiProblems.Problem(StatusCodes.Status409Conflict, "An Owner already exists; sign in instead.", code: ApiCodes.Setup.Complete, title: "Setup is complete");
-                case { Outcome: SetupOutcome.InvalidToken }:
-                    throttle.RecordFailure(AdminThrottleScope.Setup, request.Username);
-                    return AdminProblems.Forbidden("Invalid setup token", "The setup token is wrong. Read it from the server log, or run `paduraksa setup-token`.", ApiCodes.Setup.InvalidToken);
-                case { Outcome: SetupOutcome.Invalid }:
-                    return AdminProblems.Invalid(result.Problem);
-                default:
-                    return ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The operation ended in a state this endpoint doesn't know.");
-            }
-        }).ConfigureAwait(false);
+            { Outcome: SetupOutcome.Succeeded, Owner: { } owner } => Results.Created("/api/v1/auth/me", new SetupCompleted(owner, attempt.Session)),
+            { Outcome: SetupOutcome.AlreadyComplete } =>
+                ApiProblems.Problem(StatusCodes.Status409Conflict, "An Owner already exists; sign in instead.", code: ApiCodes.Setup.Complete, title: "Setup is complete"),
+            { Outcome: SetupOutcome.InvalidToken } =>
+                AdminProblems.Forbidden("Invalid setup token", "The setup token is wrong. Read it from the server log, or run `paduraksa setup-token`.", ApiCodes.Setup.InvalidToken),
+            { Outcome: SetupOutcome.Invalid } => AdminProblems.Invalid(result.Problem),
+            _ => ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The operation ended in a state this endpoint doesn't know."),
+        };
     }
 
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext http, LoginService login, AdminThrottle throttle)
     {
-        if (IdentityApi.Throttle(http, throttle, AdminThrottleScope.Login, request.Username) is { } limited)
-        {
-            return limited;
-        }
-
-        return await IdentityApi.WithPasswordCheckAsync(http, throttle, async () =>
-        {
-            LoginResult result = await login.LoginAsync(request.Username, request.Password, http.GetClientContext(), http.RequestAborted).ConfigureAwait(false);
-            if (result.Session is null)
-            {
-                throttle.RecordFailure(AdminThrottleScope.Login, request.Username);
-            }
-
-            return Outcome(http, result);
-        }).ConfigureAwait(false);
+        SignInAttempt<LoginResult> attempt = await SignInFlow.LoginAsync(http, login, throttle, request.Username, request.Password, Channel.Api).ConfigureAwait(false);
+        return HeldBack(http, attempt.HeldBack, attempt.RetryAfter) ?? Outcome(http, attempt);
     }
 
     private static async Task<IResult> SecondFactorAsync(SecondFactorRequest request, HttpContext http, LoginService login, AdminThrottle throttle)
     {
-        // Throttled per user (the partial session's), not per typed value: a code guess is the thing being limited.
-        string? subject = http.GetPartialSession()?.Principal.UserId.ToString();
-        if (IdentityApi.Throttle(http, throttle, AdminThrottleScope.SecondFactor, subject) is { } limited)
-        {
-            return limited;
-        }
-
-        return await IdentityApi.WithPasswordCheckAsync(http, throttle, async () =>
-        {
-            string? cookie = AdminSessionCookie.Read(http.Request).Value;
-            LoginResult result = await login.CompleteSecondFactorAsync(cookie, request.Code, request.RecoveryCode, http.GetClientContext(), http.RequestAborted).ConfigureAwait(false);
-            if (result.Status == LoginStatus.InvalidCode)
-            {
-                throttle.RecordFailure(AdminThrottleScope.SecondFactor, subject);
-            }
-
-            return Outcome(http, result);
-        }).ConfigureAwait(false);
+        SignInAttempt<LoginResult> attempt = await SignInFlow.SecondFactorAsync(http, login, throttle, request.Code, request.RecoveryCode, Channel.Api).ConfigureAwait(false);
+        return HeldBack(http, attempt.HeldBack, attempt.RetryAfter) ?? Outcome(http, attempt);
     }
 
     private static async Task<IResult> LogoutAsync(HttpContext http, SessionService sessions)
@@ -138,24 +99,20 @@ internal static class SignInEndpoints
             caller.Token));
     }
 
-    /// <summary>The wire form of a sign-in step. A refused step is always a generic 401 (never which part was wrong).</summary>
-    private static IResult Outcome(HttpContext http, LoginResult result)
+    /// <summary>The 429 (with <c>Retry-After</c>) or 503 of a step that never ran; null when it ran.</summary>
+    private static IResult? HeldBack(HttpContext http, SignInHeldBack heldBack, TimeSpan retryAfter) => heldBack switch
     {
-        switch (result.Status)
-        {
-            case LoginStatus.Succeeded or LoginStatus.SecondFactorRequired when result.Session is not null:
-                return Results.Ok(IdentityApi.StartSession(http, result));
-            case LoginStatus.InvalidCode:
-                return AdminProblems.Unauthorized(http, "The code is not valid.", ApiCodes.Auth.InvalidCode, challenge: false);
-            case LoginStatus.SessionExpired:
-                if (http.GetPartialSession() is not null)
-                {
-                    AdminSessionCookie.Clear(http.Response);
-                }
+        SignInHeldBack.RateLimited => AdminProblems.TooManyRequests(http, retryAfter),
+        SignInHeldBack.Busy => AdminProblems.Busy(http),
+        _ => null,
+    };
 
-                return AdminProblems.Unauthorized(http, "The sign-in expired. Start again with your password.", ApiCodes.Auth.SessionExpired, challenge: false);
-            default:
-                return AdminProblems.Unauthorized(http, "The username or password is wrong.", ApiCodes.Auth.InvalidCredentials, challenge: false);
-        }
-    }
+    /// <summary>The wire form of a sign-in step. A refused step is always a generic 401 (never which part was wrong).</summary>
+    private static IResult Outcome(HttpContext http, SignInAttempt<LoginResult> attempt) => attempt.Result!.Status switch
+    {
+        LoginStatus.Succeeded or LoginStatus.SecondFactorRequired when attempt.Session is not null => Results.Ok(attempt.Session),
+        LoginStatus.InvalidCode => AdminProblems.Unauthorized(http, "The code is not valid.", ApiCodes.Auth.InvalidCode, challenge: false),
+        LoginStatus.SessionExpired => AdminProblems.Unauthorized(http, "The sign-in expired. Start again with your password.", ApiCodes.Auth.SessionExpired, challenge: false),
+        _ => AdminProblems.Unauthorized(http, "The username or password is wrong.", ApiCodes.Auth.InvalidCredentials, challenge: false),
+    };
 }

@@ -29,10 +29,6 @@ public static class IdentityApi
         return endpoints;
     }
 
-    /// <summary>Takes an attempt from the client's budget and checks the subject's failures; a refusal is the 429 problem with <c>Retry-After</c>.</summary>
-    internal static IResult? Throttle(HttpContext http, AdminThrottle throttle, AdminThrottleScope scope, string? subject) =>
-        throttle.TryEnter(scope, http.GetClientAddress(), subject) is { } retryAfter ? AdminProblems.TooManyRequests(http, retryAfter) : null;
-
     /// <summary>Runs <paramref name="run"/>, which derives a password, in one of the limited derivation slots; when none frees up in time it is a 503 and nothing is derived.</summary>
     internal static async Task<IResult> WithPasswordCheckAsync(HttpContext http, AdminThrottle throttle, Func<Task<IResult>> run)
     {
