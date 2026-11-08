@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Routing;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
-using Paduraksa.Core.Ids;
 
 namespace Paduraksa.Admin.Identity;
 
@@ -32,7 +31,7 @@ public static class IdentityApi
 
     /// <summary>Takes an attempt from the client's budget and checks the subject's failures; a refusal is the 429 problem with <c>Retry-After</c>.</summary>
     internal static IResult? Throttle(HttpContext http, AdminThrottle throttle, AdminThrottleScope scope, string? subject) =>
-        throttle.TryEnter(scope, http.GetClientAddress(), subject) is { } retryAfter ? AdminProblems.TooManyRequests(retryAfter, http) : null;
+        throttle.TryEnter(scope, http.GetClientAddress(), subject) is { } retryAfter ? AdminProblems.TooManyRequests(http, retryAfter) : null;
 
     /// <summary>Runs <paramref name="run"/>, which derives a password, in one of the limited derivation slots; when none frees up in time it is a 503 and nothing is derived.</summary>
     internal static async Task<IResult> WithPasswordCheckAsync(HttpContext http, AdminThrottle throttle, Func<Task<IResult>> run)
@@ -51,18 +50,5 @@ public static class IdentityApi
 
         AdminSessionCookie.Set(http.Response, grant.CookieValue, grant.ExpiresAt);
         return new SessionStarted(grant.Id, result.Status == LoginStatus.SecondFactorRequired, grant.ExpiresAt);
-    }
-
-    /// <summary>Reads a typed ID from a route value or query; false for a value of another shape (which names nothing).</summary>
-    internal static bool TryParseId<TId>(string? text, out TId id)
-        where TId : struct, ITypedId<TId>
-    {
-        if (text is not null && TId.TryParse(text.AsSpan(), out id))
-        {
-            return true;
-        }
-
-        id = default;
-        return false;
     }
 }

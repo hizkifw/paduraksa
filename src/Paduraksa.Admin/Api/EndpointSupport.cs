@@ -10,7 +10,12 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Admin.Api;
 
-/// <summary>What every resource group of the API shares.</summary>
+/// <summary>
+/// What every resource group of the API shares. A resource endpoint writes through <see cref="Json{T}"/> with its own
+/// <see cref="System.Text.Json.Serialization.Metadata.JsonTypeInfo{T}"/> from <c>AdminJsonContext</c>, so the body is exactly that
+/// contract; the identity endpoints answer through the host's JSON options instead (<c>IdentityJsonContext.AddTo</c>), because their
+/// DTOs and the problem bodies the auth pipeline shares with them are registered there and no typed helper exists per endpoint.
+/// </summary>
 internal static class EndpointSupport
 {
     /// <summary>The origin of the authenticated caller. Only valid behind <c>RequirePermission</c>, which has answered an anonymous request by now.</summary>
@@ -80,9 +85,9 @@ internal static class ConfigCommandResponses
                 status,
                 "The change is stored (see revision) but could not go live: the previous config still serves, and nothing retries the publish until the next change or a restart. "
                     + "Use the new ETag (version) for the next change; repeating this request with the old If-Match is a 412.",
-                errors: [.. (result.Publish?.Errors ?? []).Select(message => new ConfigError(string.Empty, "publish.failed", message))],
+                errors: [.. (result.Publish?.Errors ?? []).Select(message => new ConfigError(string.Empty, ApiCodes.Config.PublishFailed, message))],
                 warnings: result.Warnings,
-                code: "publish_failed",
+                code: ApiCodes.Config.PublishFailed,
                 revision: result.Revision,
                 version: result.Version);
         }

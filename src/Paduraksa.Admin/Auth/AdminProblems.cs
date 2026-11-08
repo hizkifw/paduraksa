@@ -30,20 +30,21 @@ internal static class AdminProblems
     public static IResult Busy(HttpContext http)
     {
         http.Response.Headers.RetryAfter = "1";
-        return ApiProblems.Problem(StatusCodes.Status503ServiceUnavailable, "Too many password checks are running. Try again in a moment.", code: "busy", title: "Busy");
+        return ApiProblems.Problem(StatusCodes.Status503ServiceUnavailable, "Too many password checks are running. Try again in a moment.", code: ApiCodes.Auth.Busy, title: "Busy");
     }
 
     /// <summary>A token cannot manage tokens or sessions (it could mint itself a longer life, or end the session that is watching it).</summary>
     public static IResult TokenNotAllowed() =>
-        Forbidden("Signed-in session required", "API tokens can't manage tokens or sessions; use a signed-in session.", "session_required");
+        Forbidden("Signed-in session required", "API tokens can't manage tokens or sessions; use a signed-in session.", ApiCodes.Auth.SessionRequired);
 
     public static IResult Forbidden(string title, string? detail = null, string? code = null) =>
         ApiProblems.Problem(StatusCodes.Status403Forbidden, detail, code: code, title: title);
 
-    public static IResult TooManyRequests(TimeSpan retryAfter, HttpContext context)
+    public static IResult TooManyRequests(HttpContext context, TimeSpan retryAfter)
     {
+        ArgumentNullException.ThrowIfNull(context);
         context.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        return ApiProblems.Problem(StatusCodes.Status429TooManyRequests, "Too many attempts. Wait before trying again.", code: "rate_limited", title: "Too many attempts");
+        return ApiProblems.Problem(StatusCodes.Status429TooManyRequests, "Too many attempts. Wait before trying again.", code: ApiCodes.Auth.RateLimited, title: "Too many attempts");
     }
 
     /// <summary>A malformed or missing body or parameter (the JSON binder's own failures are 400s too).</summary>
@@ -56,7 +57,7 @@ internal static class AdminProblems
 
     /// <summary>The input was refused; the service's message is safe to show.</summary>
     public static IResult Invalid(string? problem) =>
-        ApiProblems.Invalid([new ConfigError(string.Empty, "identity.refused", problem ?? "The request was refused.")]);
+        ApiProblems.Invalid([new ConfigError(string.Empty, ApiCodes.Identity.Refused, problem ?? "The request was refused.")]);
 
     /// <summary>
     /// The failure statuses every identity operation shares: denied 403, not found 404, invalid 422, conflict 409 (a clash, or the last
@@ -65,12 +66,12 @@ internal static class AdminProblems
     public static IResult? OfFailure(IdentityStatus status, string what, string? problem = null) => status switch
     {
         IdentityStatus.Succeeded => null,
-        IdentityStatus.Denied => Forbidden("Permission required", "You do not have permission to do this."),
+        IdentityStatus.Denied => Forbidden("Permission required", "You do not have permission to do this.", ApiCodes.Auth.PermissionRequired),
         IdentityStatus.NotFound => NotFound(what),
         IdentityStatus.Invalid => Invalid(problem),
-        IdentityStatus.Conflict => ApiProblems.Problem(StatusCodes.Status409Conflict, problem ?? "This clashes with something that exists.", code: "conflict"),
-        IdentityStatus.LastOwner => ApiProblems.Problem(StatusCodes.Status409Conflict, "That would leave no enabled Owner.", code: "last_owner"),
-        IdentityStatus.InvalidCredentials => ApiProblems.Invalid([new ConfigError("/password", "identity.password.wrong", "The password is wrong.")]),
+        IdentityStatus.Conflict => ApiProblems.Problem(StatusCodes.Status409Conflict, problem ?? "This clashes with something that exists.", code: ApiCodes.Identity.Conflict),
+        IdentityStatus.LastOwner => ApiProblems.Problem(StatusCodes.Status409Conflict, "That would leave no enabled Owner.", code: ApiCodes.Identity.LastOwner),
+        IdentityStatus.InvalidCredentials => ApiProblems.Invalid([new ConfigError("/password", ApiCodes.Identity.PasswordWrong, "The password is wrong.")]),
         _ => ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The operation ended in a state this endpoint doesn't know."),
     };
 }

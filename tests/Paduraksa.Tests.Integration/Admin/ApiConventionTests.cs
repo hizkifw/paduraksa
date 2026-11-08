@@ -335,7 +335,7 @@ public sealed class ApiConventionTests
         Assert.True(
             idSchema["$ref"]?.GetValue<string>().EndsWith("/HostId", StringComparison.Ordinal) == true || idSchema["pattern"]?.GetValue<string>() == "^host_[0-9A-Za-z]{22}$",
             "the path parameter is described as a HostId: " + idSchema.ToJsonString());
-        Assert.Contains("publish_failed", paths["/api/v1/hosts/{id}"]!["put"]!["responses"]!["500"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Contains("config.publishFailed", paths["/api/v1/hosts/{id}"]!["put"]!["responses"]!["500"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
         Assert.Contains("If-Match", document["info"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
         Assert.DoesNotContain("PRIVATE KEY", text, StringComparison.Ordinal);
     }
@@ -396,7 +396,7 @@ public sealed class ApiConventionTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Equal(401, problem.Status);
-        Assert.Equal("authentication_required", problem.Code);
+        Assert.Equal("auth.required", problem.Code);
     }
 
     [Fact]

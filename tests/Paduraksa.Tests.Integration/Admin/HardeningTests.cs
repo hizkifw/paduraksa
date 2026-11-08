@@ -94,7 +94,7 @@ public sealed class HardeningTests
         {
             Assert.Equal(HttpStatusCode.Unauthorized, requireAuth.Status); // the permission requirement's 401 has the same shape and challenge
             Assert.Equal("Bearer", requireAuth.Header("WWW-Authenticate"));
-            Assert.Equal("authentication_required", requireAuth.Json.GetProperty("code").GetString());
+            Assert.Equal("auth.required", requireAuth.Json.GetProperty("code").GetString());
         }
     }
 

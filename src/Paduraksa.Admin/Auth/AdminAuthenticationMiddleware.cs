@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Core.Model;
@@ -111,13 +112,13 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
 
         if (cookieAmbiguous || authorization.Count > 1)
         {
-            await RefuseAsync(context, "Send exactly one credential: one session cookie or one bearer token.", "ambiguous_credentials", "invalid_request").ConfigureAwait(false);
+            await RefuseAsync(context, "Send exactly one credential: one session cookie or one bearer token.", ApiCodes.Auth.AmbiguousCredentials, "invalid_request").ConfigureAwait(false);
             return;
         }
 
         if (cookiePresent && authorization.Count > 0)
         {
-            await RefuseAsync(context, "Send exactly one credential: a session cookie or a bearer token, not both.", "ambiguous_credentials", "invalid_request").ConfigureAwait(false);
+            await RefuseAsync(context, "Send exactly one credential: a session cookie or a bearer token, not both.", ApiCodes.Auth.AmbiguousCredentials, "invalid_request").ConfigureAwait(false);
             return;
         }
 
@@ -125,14 +126,14 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
         {
             if (!TryReadBearer(authorization[0], out string? token))
             {
-                await RefuseAsync(context, "The Authorization header must be 'Bearer <token>'.", "invalid_authorization", "invalid_request").ConfigureAwait(false);
+                await RefuseAsync(context, "The Authorization header must be 'Bearer <token>'.", ApiCodes.Auth.InvalidAuthorization, "invalid_request").ConfigureAwait(false);
                 return;
             }
 
             ApiTokenVerification verified = await tokens.VerifyAsync(token, context.RequestAborted).ConfigureAwait(false);
             if (verified.Principal is not { } principal)
             {
-                await RefuseAsync(context, "The API token is not valid.", "invalid_token", "invalid_token").ConfigureAwait(false);
+                await RefuseAsync(context, "The API token is not valid.", ApiCodes.Auth.InvalidToken, "invalid_token").ConfigureAwait(false);
                 return;
             }
 
@@ -155,7 +156,7 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
                     if (!anonymousAllowed)
                     {
                         AdminSessionCookie.Clear(context.Response);
-                        await RefuseAsync(context, "The session is not valid or has ended. Sign in again.", "invalid_session", null).ConfigureAwait(false);
+                        await RefuseAsync(context, "The session is not valid or has ended. Sign in again.", ApiCodes.Auth.InvalidSession, null).ConfigureAwait(false);
                         return;
                     }
 

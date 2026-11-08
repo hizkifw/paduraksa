@@ -126,7 +126,7 @@ public sealed class SignInTests
         using (AdminResponse wrong = await h.PostAsync("/api/v1/auth/second-factor", """{"code":"000000","recoveryCode":null}""", partial))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, wrong.Status);
-            Assert.Equal("invalid_code", wrong.Json.GetProperty("code").GetString());
+            Assert.Equal("auth.invalidCode", wrong.Json.GetProperty("code").GetString());
         }
 
         // The next step's code (the confirmation used the current one, and a step is single-use); the window allows one ahead.
@@ -245,7 +245,7 @@ public sealed class SignInTests
         using (AdminResponse both = await h.GetAsync("/api/v1/auth/me", cookie, secret))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, both.Status);
-            Assert.Equal("ambiguous_credentials", both.Json.GetProperty("code").GetString());
+            Assert.Equal("auth.ambiguousCredentials", both.Json.GetProperty("code").GetString());
             Assert.Equal("Bearer error=\"invalid_request\"", both.Header("WWW-Authenticate"));
         }
 
@@ -329,7 +329,7 @@ public sealed class SignInTests
         using AdminResponse limited = await h.PostAsync("/api/v1/auth/login", Body.Login("VICTIM", "wrong password 4"));
         Assert.Equal(HttpStatusCode.TooManyRequests, limited.Status);
         Assert.True(int.Parse(limited.Header("Retry-After")!, System.Globalization.CultureInfo.InvariantCulture) >= 1);
-        Assert.Equal("rate_limited", limited.Json.GetProperty("code").GetString());
+        Assert.Equal("auth.rateLimited", limited.Json.GetProperty("code").GetString());
 
         using AdminResponse someoneElse = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password));
         Assert.Equal(HttpStatusCode.OK, someoneElse.Status);

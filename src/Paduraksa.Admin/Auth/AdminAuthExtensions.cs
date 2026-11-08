@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Contracts.Identity;
 
 namespace Paduraksa.Admin.Auth;
@@ -71,7 +72,7 @@ public static class AdminAuthExtensions
         ArgumentNullException.ThrowIfNull(builder);
         builder.WithMetadata(AdminAuthenticatedMetadata.Instance);
         builder.AddEndpointFilter(static (invocation, next) => invocation.HttpContext.GetCaller() is null
-            ? ValueTask.FromResult<object?>(AdminProblems.Unauthorized(invocation.HttpContext, "Sign in, or send a bearer token.", "authentication_required"))
+            ? ValueTask.FromResult<object?>(AdminProblems.Unauthorized(invocation.HttpContext, "Sign in, or send a bearer token.", ApiCodes.Auth.Required))
             : next(invocation));
         return builder;
     }

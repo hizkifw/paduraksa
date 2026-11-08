@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Application.Commands;
 using Paduraksa.Core.Hosting;
 
@@ -100,7 +101,7 @@ internal sealed class AdminForwardedHeadersMiddleware(RequestDelegate next, Admi
             await AdminProblems.Forbidden(
                 "Internal admin hop refused",
                 "The request isn't from this process's proxy: the internal hop header is missing or invalid.",
-                "admin.internal_hop").ExecuteAsync(context).ConfigureAwait(false);
+                ApiCodes.Admin.InternalHop).ExecuteAsync(context).ConfigureAwait(false);
             return;
         }
 
@@ -115,7 +116,7 @@ internal sealed class AdminForwardedHeadersMiddleware(RequestDelegate next, Admi
             await AdminProblems.Forbidden(
                 "Source not allowed",
                 "The forwarded client address isn't in Paduraksa:Listen:AdminAllowedSources.",
-                "admin.source.denied").ExecuteAsync(context).ConfigureAwait(false);
+                ApiCodes.Admin.SourceDenied).ExecuteAsync(context).ConfigureAwait(false);
             return;
         }
 

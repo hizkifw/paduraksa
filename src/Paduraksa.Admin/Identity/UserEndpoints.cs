@@ -19,9 +19,9 @@ internal static class UserEndpoints
         users.MapPost(string.Empty, CreateAsync).RequirePermission(Permission.UsersWrite).WithName("CreateUser");
 
         // A user may read themselves without users:read; the service decides, so only a caller is required here.
-        users.MapGet("{id}", GetAsync).RequireAuthenticated().WithName("GetUser");
-        users.MapPatch("{id}", UpdateAsync).RequirePermission(Permission.UsersWrite).WithName("UpdateUser");
-        users.MapDelete("{id}", DeleteAsync).RequirePermission(Permission.UsersWrite).WithName("DeleteUser");
+        users.MapGet("{id:UserId}", GetAsync).RequireAuthenticated().WithName("GetUser");
+        users.MapPatch("{id:UserId}", UpdateAsync).RequirePermission(Permission.UsersWrite).WithName("UpdateUser");
+        users.MapDelete("{id:UserId}", DeleteAsync).RequirePermission(Permission.UsersWrite).WithName("DeleteUser");
     }
 
     private static async Task<IResult> ListAsync(HttpContext http, UserService users)
@@ -30,14 +30,9 @@ internal static class UserEndpoints
         return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Users);
     }
 
-    private static async Task<IResult> GetAsync(string id, HttpContext http, UserService users)
+    private static async Task<IResult> GetAsync(UserId id, HttpContext http, UserService users)
     {
-        if (!IdentityApi.TryParseId(id, out UserId userId))
-        {
-            return AdminProblems.NotFound("user");
-        }
-
-        UserResult result = await users.GetAsync(http.GetCaller()!.Origin, userId, http.RequestAborted).ConfigureAwait(false);
+        UserResult result = await users.GetAsync(http.GetCaller()!.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.Ok(result.User);
     }
 
@@ -48,30 +43,20 @@ internal static class UserEndpoints
     }
 
     /// <summary>Changes the display name, roles and enabled state in one service call: all of it applies, or none.</summary>
-    private static async Task<IResult> UpdateAsync(string id, UpdateUserRequest request, HttpContext http, UserService users)
+    private static async Task<IResult> UpdateAsync(UserId id, UpdateUserRequest request, HttpContext http, UserService users)
     {
-        if (!IdentityApi.TryParseId(id, out UserId userId))
-        {
-            return AdminProblems.NotFound("user");
-        }
-
         if (request.DisplayName is null && request.Roles is null && request.Disabled is null)
         {
             return AdminProblems.Invalid("Nothing to change: give a displayName, roles or disabled.");
         }
 
-        UserResult result = await users.UpdateAsync(http.GetCaller()!.Origin, userId, request, http.RequestAborted).ConfigureAwait(false);
+        UserResult result = await users.UpdateAsync(http.GetCaller()!.Origin, id, request, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.Ok(result.User);
     }
 
-    private static async Task<IResult> DeleteAsync(string id, HttpContext http, UserService users)
+    private static async Task<IResult> DeleteAsync(UserId id, HttpContext http, UserService users)
     {
-        if (!IdentityApi.TryParseId(id, out UserId userId))
-        {
-            return AdminProblems.NotFound("user");
-        }
-
-        IdentityResult result = await users.DeleteAsync(http.GetCaller()!.Origin, userId, http.RequestAborted).ConfigureAwait(false);
+        IdentityResult result = await users.DeleteAsync(http.GetCaller()!.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.NoContent();
     }
 }

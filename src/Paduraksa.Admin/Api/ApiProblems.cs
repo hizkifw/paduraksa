@@ -65,6 +65,9 @@ public static class ApiProblems
         long? version = null)
     {
         ArgumentNullException.ThrowIfNull(http);
+        // Every 403 names a code: a client can tell a missing permission from a CSRF or internal-hop refusal without reading the
+        // sentence (PLAN §11.1).
+        code ??= status == StatusCodes.Status403Forbidden ? ApiCodes.Auth.PermissionRequired : null;
         return new ApiProblem(
             TypeOf(status),
             title ?? TitleOf(status),

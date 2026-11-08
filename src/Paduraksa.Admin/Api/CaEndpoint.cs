@@ -36,8 +36,6 @@ internal static class CaEndpoint
     public const string PathPrefix = "/api/v1" + Prefix;
 
     /// <summary>The problem's code when the process has no local CA yet.</summary>
-    public const string NoRootCode = "ca.notFound";
-
     private const string PemContentType = "application/x-pem-file";
     private const string DerContentType = "application/x-x509-ca-cert";
 
@@ -83,5 +81,5 @@ internal static class CaEndpoint
             StatusCodes.Status404NotFound,
             "The internal CA root does not exist yet; it is created when the server starts.",
             instance: http.Request.Path,
-            code: NoRootCode).ExecuteAsync(http);
+            code: ApiCodes.Ca.NotFound).ExecuteAsync(http);
 }

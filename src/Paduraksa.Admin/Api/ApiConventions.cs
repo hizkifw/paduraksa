@@ -33,7 +33,7 @@ public static class ApiEndpointConventions
     /// <summary>The most a simulate request may be: a draft document can be a whole config.</summary>
     public const long SimulateBodyLimit = 1024 * 1024;
 
-    /// <summary>Marks an endpoint whose change can be stored and still fail to go live: 500, code <c>publish_failed</c> (documented in the API description).</summary>
+    /// <summary>Marks an endpoint whose change can be stored and still fail to go live: 500, code <c>config.publishFailed</c> (documented in the API description).</summary>
     public static TBuilder MayFailToPublish<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder
     {
@@ -194,6 +194,9 @@ internal static class Preconditions
         }
 
         // One quoted tag: not '*', not a list, not an unquoted token (the tags this API issues are always quoted).
+        // The longest tag this API issues is a quoted typed ID: a prefix of up to 4 characters, '_' and 22 base62 characters
+        // (27, so 29 with its quotes); a version is at most 20 digits quoted. 66 accepts both with room to spare and keeps an
+        // absurd header from being parsed at all.
         if (value.Length < 3 || value[0] != '"' || value[^1] != '"' || value.Length > 66)
         {
             return (IfMatchState.Unsupported, null);

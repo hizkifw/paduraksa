@@ -79,7 +79,7 @@ internal static class AdminOpenApi
                 + "Config objects (hosts, routes, upstreams, profiles, the settings) and rollbacks take optimistic concurrency: a read carries an ETag (an object's version, or the latest revision's ID), "
                 + "and a change sends it back as one quoted tag in If-Match. Without it the answer is 428; a stale or weak tag is 412 (the problem's conflict says what is current); "
                 + "an unquoted tag, a list or '*' is 400. Creating with POST needs none. Changes to config objects also take ?dryRun=true, which returns the plan and commits nothing. "
-                + "A change that was stored but could not go live is 500 with code publish_failed, the stored revision and the new ETag. "
+                + "A change that was stored but could not go live is 500 with code config.publishFailed, the stored revision and the new ETag. "
                 + "Each operation names the permission it needs (x-required-permission).",
         };
         document.Servers = [];
@@ -149,7 +149,7 @@ internal static class AdminOpenApi
                 context,
                 "500",
                 metadata.OfType<PublishFailureMetadata>().Any()
-                    ? "Either an unexpected error (the trace ID finds it in the server log), or code publish_failed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves."
+                    ? "Either an unexpected error (the trace ID finds it in the server log), or code config.publishFailed: the change was stored (revision, and the new version in version and the ETag header) but could not go live; the previous config still serves."
                     : "An unexpected error; the trace ID in the problem finds it in the server log.");
         }
         else if (authenticated)
@@ -246,12 +246,31 @@ internal static class AdminOpenApi
     }
 }
 
-/// <summary>The generated document, serialized once: the endpoints don't change while the app runs, and generating it walks every schema.</summary>
+/// <summary>
+/// The generated document, serialized once: the endpoints don't change while the app runs, and generating it walks every schema. A
+/// generation that fails is not kept: the next request starts it again, so one transient failure doesn't leave the description
+/// unavailable for the life of the process.
+/// </summary>
 internal sealed class OpenApiDocumentCache(IServiceProvider services)
 {
-    private readonly Lazy<Task<byte[]>> _document = new(() => GenerateAsync(services), LazyThreadSafetyMode.ExecutionAndPublication);
+    private readonly Lock _gate = new();
+    private Lazy<Task<byte[]>>? _document;
 
-    public Task<byte[]> GetAsync(CancellationToken cancellationToken) => _document.Value.WaitAsync(cancellationToken);
+    public Task<byte[]> GetAsync(CancellationToken cancellationToken)
+    {
+        Lazy<Task<byte[]>> document;
+        lock (_gate)
+        {
+            if (_document is null || (_document.IsValueCreated && _document.Value.IsFaulted))
+            {
+                _document = new(() => GenerateAsync(services), LazyThreadSafetyMode.ExecutionAndPublication);
+            }
+
+            document = _document;
+        }
+
+        return document.Value.WaitAsync(cancellationToken);
+    }
 
     private static async Task<byte[]> GenerateAsync(IServiceProvider services)
     {

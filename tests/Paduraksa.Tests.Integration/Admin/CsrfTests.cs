@@ -36,7 +36,7 @@ public sealed class CsrfTests
         using AdminResponse response = await h.SendAsync(HttpMethod.Post, Path, Wrong, cookie, headers: new Dictionary<string, string> { ["Sec-Fetch-Site"] = site });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.Status);
-        Assert.Equal("csrf", response.Json.GetProperty("code").GetString());
+        Assert.Equal("csrf.refused", response.Json.GetProperty("code").GetString());
     }
 
     [Theory]

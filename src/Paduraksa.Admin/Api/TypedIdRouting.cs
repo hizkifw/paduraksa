@@ -19,8 +19,7 @@ public sealed class TypedIdRouteConstraint<TId> : IRouteConstraint
         ArgumentNullException.ThrowIfNull(values);
         return values.TryGetValue(routeKey, out object? value)
             && value is string text
-            && TId.TryParse(text, null, out TId id)
-            && !id.IsEmpty;
+            && TypedIdRouting.TryParse(text, out TId _);
     }
 }
 
@@ -39,6 +38,22 @@ internal static class TypedIdRouting
         Add<ConfigRevisionId>(options);
         Add<AcmeAccountId>(options);
         Add<DnsProviderId>(options);
+        Add<UserId>(options);
+        Add<SessionId>(options);
+        Add<ApiTokenId>(options);
+    }
+
+    /// <summary>A typed ID from a string: the route constraint and the identity endpoints' optional query filters use this, so both refuse the empty ID too.</summary>
+    public static bool TryParse<TId>(string? text, out TId id)
+        where TId : struct, ITypedId<TId>
+    {
+        if (text is not null && TId.TryParse(text, null, out id))
+        {
+            return !id.IsEmpty;
+        }
+
+        id = default;
+        return false;
     }
 
     private static void Add<TId>(RouteOptions options)

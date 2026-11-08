@@ -143,7 +143,7 @@ public sealed class UserEndpointTests
         using (AdminResponse disable = await h.SendAsync(HttpMethod.Patch, "/api/v1/users/" + ownerId, """{"disabled":true}""", owner))
         {
             Assert.Equal(HttpStatusCode.Conflict, disable.Status);
-            Assert.Equal("last_owner", disable.Json.GetProperty("code").GetString());
+            Assert.Equal("identity.lastOwner", disable.Json.GetProperty("code").GetString());
         }
 
         using (AdminResponse demote = await h.SendAsync(HttpMethod.Patch, "/api/v1/users/" + ownerId, """{"roles":["viewer"]}""", owner))
@@ -222,7 +222,7 @@ public sealed class UserEndpointTests
         {
             using AdminResponse refused = await h.SendAsync(HttpMethod.Patch, "/api/v1/users/" + ownerId, body, owner);
             Assert.Equal(HttpStatusCode.Conflict, refused.Status);
-            Assert.Equal("last_owner", refused.Json.GetProperty("code").GetString());
+            Assert.Equal("identity.lastOwner", refused.Json.GetProperty("code").GetString());
         }
 
         using (AdminResponse unchanged = await h.GetAsync("/api/v1/users/" + ownerId, owner))

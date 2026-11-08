@@ -32,7 +32,7 @@ internal sealed partial class AdminSetupGateMiddleware(RequestDelegate next, Set
             await AdminProblems.Forbidden(
                 "Setup is not available through the proxy",
                 "First-run setup is only served on the admin port or the loopback plain-HTTP fallback listener.",
-                "setup_via_proxy").ExecuteAsync(context).ConfigureAwait(false);
+                ApiCodes.Setup.ViaProxy).ExecuteAsync(context).ConfigureAwait(false);
             return;
         }
 
@@ -53,7 +53,7 @@ internal sealed partial class AdminSetupGateMiddleware(RequestDelegate next, Set
             await ApiProblems.Problem(
                 StatusCodes.Status503ServiceUnavailable,
                 "The admin app cannot tell whether first-run setup is complete (the config store is unavailable).",
-                code: "setup_unavailable",
+                code: ApiCodes.Setup.Unavailable,
                 title: "Setup state unavailable").ExecuteAsync(context).ConfigureAwait(false);
             return;
         }
@@ -68,7 +68,7 @@ internal sealed partial class AdminSetupGateMiddleware(RequestDelegate next, Set
             StatusCodes.Status503ServiceUnavailable,
             "First-run setup is not complete. POST the setup token (from the server log, or `paduraksa setup-token`) with the first Owner's username and password to " + SetupPath + ".",
             instance: SetupPath,
-            code: "setup_required",
+            code: ApiCodes.Setup.Required,
             title: "Setup required").ExecuteAsync(context).ConfigureAwait(false);
     }
 

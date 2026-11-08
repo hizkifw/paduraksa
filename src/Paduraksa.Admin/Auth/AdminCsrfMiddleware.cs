@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 
+using Paduraksa.Admin.Api;
+
 namespace Paduraksa.Admin.Auth;
 
 /// <summary>Endpoint metadata: content types, besides JSON, a cookie-authenticated request may send a body in (a PEM upload, a YAML import).</summary>
@@ -50,7 +52,7 @@ internal sealed class AdminCsrfMiddleware(RequestDelegate next)
         string? refusal = Check(context);
         if (refusal is not null)
         {
-            await AdminProblems.Forbidden("Cross-site request refused", refusal, "csrf").ExecuteAsync(context).ConfigureAwait(false);
+            await AdminProblems.Forbidden("Cross-site request refused", refusal, ApiCodes.Csrf.Refused).ExecuteAsync(context).ConfigureAwait(false);
             return;
         }
 

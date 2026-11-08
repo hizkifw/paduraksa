@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
@@ -25,12 +26,12 @@ internal static class AccountEndpoints
         RouteGroupBuilder sessions = api.MapGroup("sessions").RequireAuthenticated().RequireSessionCaller();
         sessions.MapGet(string.Empty, ListSessionsAsync).WithName("ListSessions");
         sessions.MapPost("revoke-others", RevokeOtherSessionsAsync).WithName("RevokeOtherSessions");
-        sessions.MapDelete("{id}", RevokeSessionAsync).WithName("RevokeSession");
+        sessions.MapDelete("{id:SessionId}", RevokeSessionAsync).WithName("RevokeSession");
 
         RouteGroupBuilder tokens = api.MapGroup("tokens").RequireAuthenticated().RequireSessionCaller();
         tokens.MapGet(string.Empty, ListTokensAsync).WithName("ListTokens");
         tokens.MapPost(string.Empty, IssueTokenAsync).WithName("IssueToken");
-        tokens.MapDelete("{id}", RevokeTokenAsync).WithName("RevokeToken");
+        tokens.MapDelete("{id:ApiTokenId}", RevokeTokenAsync).WithName("RevokeToken");
     }
 
     /// <summary>
@@ -93,25 +94,17 @@ internal static class AccountEndpoints
         return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Sessions);
     }
 
-    private static async Task<IResult> RevokeSessionAsync(string id, HttpContext http, SessionService sessions)
+    private static async Task<IResult> RevokeSessionAsync(SessionId id, HttpContext http, SessionService sessions)
     {
-        if (!IdentityApi.TryParseId(id, out SessionId sessionId))
-        {
-            return AdminProblems.NotFound("session");
-        }
-
-        IdentityResult result = await sessions.RevokeAsync(http.GetCaller()!.Origin, sessionId, http.RequestAborted).ConfigureAwait(false);
+        IdentityResult result = await sessions.RevokeAsync(http.GetCaller()!.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "session", result.Problem) ?? Results.NoContent();
     }
 
     private static async Task<IResult> RevokeOtherSessionsAsync(HttpContext http, SessionService sessions)
     {
+        // RequireSessionCaller has answered a token caller with its 403 already, so the session to keep is always here.
         AdminCaller caller = http.GetCaller()!;
-        if (caller.Session is not { } keep)
-        {
-            return AdminProblems.Invalid("Ending the other sessions needs a signed-in session to keep; a token has none.");
-        }
-
+        SessionId keep = caller.Session!.Value;
         IdentityResult result = await sessions.RevokeOthersAsync(caller.Origin, keep, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "session", result.Problem) ?? Results.NoContent();
     }
@@ -122,7 +115,7 @@ internal static class AccountEndpoints
         UserId? owner = null;
         if (userId is not null)
         {
-            if (!IdentityApi.TryParseId(userId, out UserId parsed))
+            if (!TypedIdRouting.TryParse(userId, out UserId parsed))
             {
                 return AdminProblems.NotFound("user");
             }
@@ -141,14 +134,9 @@ internal static class AccountEndpoints
             ?? Results.Created($"/api/v1/tokens/{result.Issued!.Summary.Id}", result.Issued);
     }
 
-    private static async Task<IResult> RevokeTokenAsync(string id, HttpContext http, ApiTokenService tokens)
+    private static async Task<IResult> RevokeTokenAsync(ApiTokenId id, HttpContext http, ApiTokenService tokens)
     {
-        if (!IdentityApi.TryParseId(id, out ApiTokenId tokenId))
-        {
-            return AdminProblems.NotFound("token");
-        }
-
-        ApiTokenResult result = await tokens.RevokeAsync(http.GetCaller()!.Origin, tokenId, http.RequestAborted).ConfigureAwait(false);
+        ApiTokenResult result = await tokens.RevokeAsync(http.GetCaller()!.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "token", result.Problem) ?? Results.NoContent();
     }
 
@@ -157,7 +145,7 @@ internal static class AccountEndpoints
     {
         if (requested is not null)
         {
-            return IdentityApi.TryParseId(requested, out owner);
+            return TypedIdRouting.TryParse(requested, out owner);
         }
 
         owner = caller.User ?? default;

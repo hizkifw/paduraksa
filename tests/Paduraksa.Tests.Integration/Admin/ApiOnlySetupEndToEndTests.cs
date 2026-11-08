@@ -57,7 +57,7 @@ public sealed class ApiOnlySetupEndToEndTests
         using (AdminResponse refused = await h.GetAsync("/api/v1/hosts"))
         {
             Assert.Equal(HttpStatusCode.ServiceUnavailable, refused.Status);
-            Assert.Equal("setup_required", refused.Json.GetProperty("code").GetString());
+            Assert.Equal("setup.required", refused.Json.GetProperty("code").GetString());
         }
 
         string caFingerprint;

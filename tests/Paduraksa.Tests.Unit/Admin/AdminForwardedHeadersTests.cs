@@ -95,7 +95,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
         Assert.Equal(StatusCodes.Status403Forbidden, context.HttpContext.Response.StatusCode);
         Assert.Null(context.HttpContext.Connection.RemoteIpAddress);
         Assert.NotEqual("evil.test", context.HttpContext.Request.Host.Value);
-        Assert.Contains("admin.internal_hop", context.Body, StringComparison.Ordinal);
+        Assert.Contains("admin.internalHop", context.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
 
         Assert.False(context.NextCalled);
         Assert.Equal(StatusCodes.Status403Forbidden, context.HttpContext.Response.StatusCode);
-        Assert.Contains("admin.source.denied", context.Body, StringComparison.Ordinal);
+        Assert.Contains("admin.sourceDenied", context.Body, StringComparison.Ordinal);
     }
 
     [Fact]

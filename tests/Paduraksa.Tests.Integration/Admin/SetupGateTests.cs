@@ -30,7 +30,7 @@ public sealed class SetupGateTests
         {
             using AdminResponse gated = await h.GetAsync(path);
             Assert.Equal(HttpStatusCode.ServiceUnavailable, gated.Status);
-            Assert.Equal("setup_required", gated.Json.GetProperty("code").GetString());
+            Assert.Equal("setup.required", gated.Json.GetProperty("code").GetString());
             Assert.Contains("/api/v1/setup", gated.Body, StringComparison.Ordinal);
         }
 

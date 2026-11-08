@@ -62,7 +62,7 @@ public sealed class AdminThroughProxyTests
         Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
         using (JsonDocument problem = JsonDocument.Parse(await foreign.Content.ReadAsStringAsync(Ct)))
         {
-            Assert.Equal("csrf", problem.RootElement.GetProperty("code").GetString());
+            Assert.Equal("csrf.refused", problem.RootElement.GetProperty("code").GetString());
         }
 
         using HttpResponseMessage sameOrigin = await harness.SendAsync(
@@ -193,7 +193,7 @@ public sealed class AdminThroughProxyTests
             HttpMethod.Get, "/api/v1/auth/me", origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.Unauthorized, admin.StatusCode);
         using JsonDocument problem = JsonDocument.Parse(await admin.Content.ReadAsStringAsync(Ct));
-        Assert.Equal("authentication_required", problem.RootElement.GetProperty("code").GetString());
+        Assert.Equal("auth.required", problem.RootElement.GetProperty("code").GetString());
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public sealed class AdminThroughProxyTests
             listener, "GET", "/healthz", secret: null, xff: "203.0.113.9", proto: "https");
 
         Assert.Equal(HttpStatusCode.Forbidden, (HttpStatusCode)status);
-        Assert.Contains("\"code\":\"admin.internal_hop\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"code\":\"admin.internalHop\"", body, StringComparison.Ordinal);
         Assert.DoesNotContain("Strict-Transport-Security", headers, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -227,14 +227,14 @@ public sealed class AdminThroughProxyTests
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
         using (JsonDocument problem = JsonDocument.Parse(await denied.Content.ReadAsStringAsync(Ct)))
         {
-            Assert.Equal("admin.source.denied", problem.RootElement.GetProperty("code").GetString());
+            Assert.Equal("admin.sourceDenied", problem.RootElement.GetProperty("code").GetString());
         }
 
         // A missing X-Forwarded-For is unknown, not loopback: the same restricted list refuses it.
         (int status, _, string body) = await InternalAsync(
             harness.Host.Shared.AdminInternal, "GET", "/healthz", secret: harness.Host.Shared.AdminInternal.Secret, xff: null, proto: "https");
         Assert.Equal(HttpStatusCode.Forbidden, (HttpStatusCode)status);
-        Assert.Contains("\"code\":\"admin.source.denied\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"code\":\"admin.sourceDenied\"", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public sealed class AdminThroughProxyTests
             HttpMethod.Get, "/api/v1/setup", origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.Forbidden, get.StatusCode);
         using JsonDocument problem = JsonDocument.Parse(await get.Content.ReadAsStringAsync(Ct));
-        Assert.Equal("setup_via_proxy", problem.RootElement.GetProperty("code").GetString());
+        Assert.Equal("setup.viaProxy", problem.RootElement.GetProperty("code").GetString());
 
         using HttpResponseMessage post = await harness.SendAsync(
             HttpMethod.Post,
@@ -272,7 +272,7 @@ public sealed class AdminThroughProxyTests
             origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.Forbidden, post.StatusCode);
         using JsonDocument postProblem = JsonDocument.Parse(await post.Content.ReadAsStringAsync(Ct));
-        Assert.Equal("setup_via_proxy", postProblem.RootElement.GetProperty("code").GetString());
+        Assert.Equal("setup.viaProxy", postProblem.RootElement.GetProperty("code").GetString());
     }
 
     [Fact]
@@ -300,7 +300,7 @@ public sealed class AdminThroughProxyTests
         (int status, _, string body) = await InternalAsync(
             listener, "GET", "/healthz", secret: null, xff: "203.0.113.9", proto: "https");
         Assert.Equal(HttpStatusCode.Forbidden, (HttpStatusCode)status);
-        Assert.Contains("\"code\":\"admin.internal_hop\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"code\":\"admin.internalHop\"", body, StringComparison.Ordinal);
     }
 
     [Fact]

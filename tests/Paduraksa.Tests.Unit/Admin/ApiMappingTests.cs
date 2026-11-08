@@ -145,10 +145,10 @@ public sealed class ApiMappingTests
         Assert.Equal("\"5\"", http.Response.Headers.ETag.ToString());
         http.Response.Body.Position = 0;
         ApiProblem problem = JsonSerializer.Deserialize(http.Response.Body, AdminJsonContext.Default.ApiProblem)!;
-        Assert.Equal("publish_failed", problem.Code);
+        Assert.Equal("config.publishFailed", problem.Code);
         Assert.Equal(revision, problem.Revision!.Id);
         Assert.Equal(5, problem.Version);
-        Assert.Equal("publish.failed", Assert.Single(problem.Errors!).Code);
+        Assert.Equal("config.publishFailed", Assert.Single(problem.Errors!).Code);
     }
 
     [Fact]

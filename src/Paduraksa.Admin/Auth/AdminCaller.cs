@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Core.Model;
@@ -67,13 +68,13 @@ public static class AdminCallerExtensions
             HttpContext http = invocation.HttpContext;
             if (http.GetCaller() is not { } caller)
             {
-                return AdminProblems.Unauthorized(http, "Sign in, or send a bearer token.", "authentication_required");
+                return AdminProblems.Unauthorized(http, "Sign in, or send a bearer token.", ApiCodes.Auth.Required);
             }
 
             IPermissionEvaluator permissions = http.RequestServices.GetRequiredService<IPermissionEvaluator>();
             if (!await permissions.IsAllowedAsync(caller.Origin, permission, http.RequestAborted).ConfigureAwait(false))
             {
-                return AdminProblems.Forbidden("Permission required", $"This needs the '{permission.ToName()}' permission.", "permission_required");
+                return AdminProblems.Forbidden("Permission required", $"This needs the '{permission.ToName()}' permission.", ApiCodes.Auth.PermissionRequired);
             }
 
             return await next(invocation).ConfigureAwait(false);

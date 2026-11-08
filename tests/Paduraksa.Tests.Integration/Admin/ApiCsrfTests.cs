@@ -29,7 +29,7 @@ public sealed class ApiCsrfTests
             using HttpResponseMessage refused = await api.SendWithCookieAsync(HttpMethod.Post, "/api/v1/certificates", cookie, site, origin, ResourceApiTests.Upload(pem));
             ApiProblem problem = await AdminApiHarness.ProblemAsync(refused, Ct);
             Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
-            Assert.Equal("csrf", problem.Code);
+            Assert.Equal("csrf.refused", problem.Code);
         }
 
         // Nothing was uploaded: the inventory holds only what the process itself made at startup (the local CA root and the
@@ -62,7 +62,7 @@ public sealed class ApiCsrfTests
             {
                 using HttpResponseMessage refused = await api.SendWithCookieAsync(method, path, cookie, site, origin);
                 Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
-                Assert.Equal("csrf", (await AdminApiHarness.ProblemAsync(refused, Ct)).Code);
+                Assert.Equal("csrf.refused", (await AdminApiHarness.ProblemAsync(refused, Ct)).Code);
             }
         }
 
@@ -83,7 +83,7 @@ public sealed class ApiCsrfTests
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         using HttpResponseMessage forbiddenForViewer = await api.SendWithCookieAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", cookie, "same-origin", null, AdminApiHarness.JsonBody("""{"names":["viewer.test"]}"""));
         Assert.Equal(HttpStatusCode.Forbidden, forbiddenForViewer.StatusCode);
-        Assert.NotEqual("csrf", (await AdminApiHarness.ProblemAsync(forbiddenForViewer, Ct)).Code);
+        Assert.NotEqual("csrf.refused", (await AdminApiHarness.ProblemAsync(forbiddenForViewer, Ct)).Code);
         // Creating the local CA is the process's own work at startup now (the admin certificate is issued from it), so the
         // bearer token proves its exemption on a certificate operation that is still the caller's.
         using HttpResponseMessage bearer = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", content: AdminApiHarness.JsonBody("""{"names":["bearer.test"]}"""));

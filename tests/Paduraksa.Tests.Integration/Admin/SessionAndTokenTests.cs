@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 
+using Paduraksa.Core.Model;
+
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>Sessions (list, revoke, revoke others) and API tokens (scope narrowing, revocation, admin-wide listing).</summary>
@@ -141,13 +143,13 @@ public sealed class SessionAndTokenTests
             (HttpMethod.Post, "/api/v1/tokens"),
             (HttpMethod.Delete, "/api/v1/tokens/" + id),
             (HttpMethod.Get, "/api/v1/sessions"),
-            (HttpMethod.Delete, "/api/v1/sessions/ses_0000000000000000000000"),
+            (HttpMethod.Delete, "/api/v1/sessions/" + SessionId.New()),
             (HttpMethod.Post, "/api/v1/sessions/revoke-others"),
         })
         {
             using AdminResponse refused = await h.SendAsync(method, path, method == HttpMethod.Post && path.EndsWith("tokens", StringComparison.Ordinal) ? """{"name":"x","scopes":["config:read"],"expiresAt":null}""" : null, bearer: secret);
             Assert.Equal(HttpStatusCode.Forbidden, refused.Status);
-            Assert.Equal("session_required", refused.Json.GetProperty("code").GetString());
+            Assert.Equal("auth.sessionRequired", refused.Json.GetProperty("code").GetString());
             Assert.Contains("use a signed-in session", refused.Json.GetProperty("detail").GetString(), StringComparison.Ordinal);
         }
 
