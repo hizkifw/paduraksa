@@ -114,6 +114,9 @@ public enum CertificateChangeStatus
 
     /// <summary>The config store is unavailable (a degraded start); nothing was read or changed.</summary>
     Unavailable,
+
+    /// <summary>The origin may not change certificates (it lacks the permission); nothing was changed. Audited.</summary>
+    Denied,
 }
 
 /// <summary>The outcome of a certificate change (register, status change, delete).</summary>

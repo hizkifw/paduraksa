@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-
 using Paduraksa.Acme.Dns;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
@@ -30,6 +30,7 @@ public sealed partial class DnsProviderService
     private readonly IDnsProviderFactory? _providers;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
+    private readonly IPermissionEvaluator? _permissions;
 
     internal DnsProviderService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -37,7 +38,8 @@ public sealed partial class DnsProviderService
         ISecretStore secrets,
         IDnsProviderFactory? providers,
         TimeProvider time,
-        ILogger<DnsProviderService> logger)
+        ILogger<DnsProviderService> logger,
+        IPermissionEvaluator? permissions = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -48,6 +50,7 @@ public sealed partial class DnsProviderService
         _config = config;
         _secrets = secrets;
         _providers = providers;
+        _permissions = permissions;
         _time = time;
         _logger = logger;
     }
@@ -57,6 +60,10 @@ public sealed partial class DnsProviderService
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.ProvidersWrite, "acme.dns_provider.create", null, cancellationToken).ConfigureAwait(false))
+        {
+            return new DnsProviderResult(IssuanceChangeStatus.Denied);
+        }
 
         string label = (request.Label ?? string.Empty).Trim();
         ConfigError? problem = !Enum.IsDefined(request.Kind) ? new ConfigError("/kind", IssuanceErrorCodes.KindUndefined, $"unknown DNS provider kind {request.Kind}")
@@ -112,6 +119,11 @@ public sealed partial class DnsProviderService
     public async Task<DnsProviderResult> DeleteAsync(DnsProviderId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.ProvidersWrite, "acme.dns_provider.delete", id.ToString(), cancellationToken).ConfigureAwait(false))
+        {
+            return new DnsProviderResult(IssuanceChangeStatus.Denied);
+        }
+
         DnsProviderResult result = await _config.ApplyOperationalChangeAsync(
             async context =>
             {

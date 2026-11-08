@@ -639,7 +639,7 @@ public sealed partial class ConfigService : IDisposable
     /// caller's cancellation, and logging rather than throwing when the database refuses, so the outcome still reaches
     /// the caller. A fresh context from the factory, so it also works for a publish that completes later.
     /// </summary>
-    private async Task TryAppendAuditAsync(AuditEntry entry)
+    internal async Task TryAppendAuditAsync(AuditEntry entry)
     {
         try
         {

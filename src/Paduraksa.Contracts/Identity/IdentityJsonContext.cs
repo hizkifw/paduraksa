@@ -7,13 +7,13 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Identity;
 
 /// <summary>
-/// The source-generated JSON contract of the identity DTOs: camelCase properties, nulls omitted, typed IDs as their string form,
+/// The source-generated JSON contract of the identity DTOs: camelCase properties, nulls written (a response always has every member, and a nullable member without a default is required on read), typed IDs as their string form,
 /// roles and permissions as their stable names (<c>owner</c>, <c>config:write</c>). Reading is strict: unknown properties and
 /// missing required members are errors.
 /// </summary>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
-    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    DefaultIgnoreCondition = JsonIgnoreCondition.Never,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
     AllowDuplicateProperties = false,
     RespectNullableAnnotations = true,

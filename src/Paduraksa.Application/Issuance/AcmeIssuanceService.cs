@@ -1,14 +1,13 @@
 using System.Collections.Concurrent;
 using System.Net;
-
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-
 using Paduraksa.Acme;
 using Paduraksa.Acme.Dns;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
@@ -76,6 +75,7 @@ public sealed partial class AcmeIssuanceService
     private readonly TimeProvider _time;
     private readonly Func<double> _random;
     private readonly ILogger _logger;
+    private readonly IPermissionEvaluator? _permissions;
 
     internal AcmeIssuanceService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -90,7 +90,8 @@ public sealed partial class AcmeIssuanceService
         ILogger<AcmeIssuanceService> logger,
         ICertificateCatalog? catalog = null,
         IDnsPropagationCheck? propagation = null,
-        Func<double>? random = null)
+        Func<double>? random = null,
+        IPermissionEvaluator? permissions = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -113,6 +114,7 @@ public sealed partial class AcmeIssuanceService
         _options = options;
         _time = time;
         _random = random ?? Random.Shared.NextDouble;
+        _permissions = permissions;
         _logger = logger;
     }
 
@@ -125,6 +127,10 @@ public sealed partial class AcmeIssuanceService
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.CertificatesWrite, "acme.order.request", null, cancellationToken).ConfigureAwait(false))
+        {
+            return new IssuanceResult(IssuanceOutcome.Forbidden);
+        }
 
         (List<string> names, ConfigError? problem) = await ValidateAsync(request, cancellationToken).ConfigureAwait(false);
         if (problem is not null)
@@ -184,6 +190,11 @@ public sealed partial class AcmeIssuanceService
     public async Task<IssuanceResult> RenewAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.CertificatesWrite, "acme.order.renew", id.ToString(), cancellationToken).ConfigureAwait(false))
+        {
+            return new IssuanceResult(IssuanceOutcome.Forbidden, id);
+        }
+
         return await RunAsync(id, origin, cancellationToken).ConfigureAwait(false);
     }
 

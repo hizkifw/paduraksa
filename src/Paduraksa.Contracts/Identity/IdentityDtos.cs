@@ -39,7 +39,7 @@ public sealed record CreateUserRequest(string Username, string? DisplayName, str
 /// <summary>Changes a user; a null member stays as it is.</summary>
 /// <param name="DisplayName">The new display name.</param>
 /// <param name="Roles">The complete new set of roles (not a delta); at least one when given.</param>
-public sealed record UpdateUserRequest(string? DisplayName, IReadOnlyList<Role>? Roles);
+public sealed record UpdateUserRequest(string? DisplayName = null, IReadOnlyList<Role>? Roles = null);
 
 /// <summary>Changes the signed-in user's own password.</summary>
 /// <param name="CurrentPassword">Proves the person at the keyboard knows it.</param>
@@ -60,7 +60,7 @@ public sealed record LoginRequest(string Username, string Password)
 /// <summary>The second step: exactly one of a TOTP code or a recovery code.</summary>
 /// <param name="Code">The six digits from the authenticator.</param>
 /// <param name="RecoveryCode">A single-use recovery code.</param>
-public sealed record SecondFactorRequest(string? Code, string? RecoveryCode)
+public sealed record SecondFactorRequest(string? Code = null, string? RecoveryCode = null)
 {
     public override string ToString() => $"{nameof(SecondFactorRequest)} {{ *** }}";
 }
@@ -107,7 +107,7 @@ public sealed record ApiTokenSummary(
 /// <param name="Name">1 to 128 characters.</param>
 /// <param name="Scopes">At least one, each a permission the user holds.</param>
 /// <param name="ExpiresAt">In the future, or null for a token that never expires.</param>
-public sealed record IssueApiTokenRequest(string Name, IReadOnlyList<Permission> Scopes, DateTimeOffset? ExpiresAt);
+public sealed record IssueApiTokenRequest(string Name, IReadOnlyList<Permission> Scopes, DateTimeOffset? ExpiresAt = null);
 
 /// <summary>A newly issued token: the only time its secret is shown.</summary>
 /// <param name="Summary">The token's public facts.</param>

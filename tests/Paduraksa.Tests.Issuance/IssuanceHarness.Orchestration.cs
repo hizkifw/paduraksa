@@ -51,7 +51,17 @@ internal sealed partial class IssuanceHarness
         Loggers.CreateLogger<AcmeIssuanceService>(),
         catalog: Vault,
         propagation: Propagation,
-        random: () => Random);
+        random: () => Random,
+        permissions: Permissions);
+
+    /// <summary>The permission check the services made here are given; null (the default) allows everything.</summary>
+    public Paduraksa.Application.Identity.IPermissionEvaluator? Permissions { get; set; }
+
+    public AcmeAccountService NewAccounts() => new(
+        _config.Db.Factory, _config.Service, NewClients(), Signer, null, Time, Loggers.CreateLogger<AcmeAccountService>(), Permissions);
+
+    public DnsProviderService NewDnsProviders() => new(
+        _config.Db.Factory, _config.Service, Secrets, Dns, Time, Loggers.CreateLogger<DnsProviderService>(), Permissions);
 
     public AcmeRenewalScheduler NewScheduler(AcmeIssuanceService issuance) =>
         new(issuance, Options, Time, Loggers.CreateLogger<AcmeRenewalScheduler>());

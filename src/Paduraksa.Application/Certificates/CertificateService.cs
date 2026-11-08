@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Config;
+using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -52,13 +53,15 @@ public sealed partial class CertificateService
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
     private readonly IBuiltInCertificates? _builtIns;
+    private readonly IPermissionEvaluator? _permissions;
 
     internal CertificateService(
         IDbContextFactory<ConfigDbContext> contexts,
         ConfigService config,
         TimeProvider timeProvider,
         ILogger<CertificateService> logger,
-        IBuiltInCertificates? builtIns = null)
+        IBuiltInCertificates? builtIns = null,
+        IPermissionEvaluator? permissions = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -68,6 +71,7 @@ public sealed partial class CertificateService
         _config = config;
         _timeProvider = timeProvider;
         _builtIns = builtIns;
+        _permissions = permissions;
         _logger = logger;
     }
 
@@ -76,11 +80,16 @@ public sealed partial class CertificateService
     /// Names are normalised like host names; names that aren't DNS names, wildcards or IP addresses are dropped (logged),
     /// and a certificate left with no name is invalid, except the local CA root, which is a CA and has no names.
     /// </summary>
-    public Task<CertificateChangeResult> RegisterAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
+    public async Task<CertificateChangeResult> RegisterAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(origin);
-        return _config.ApplyCertificateChangeAsync(origin, scope => RegisterCoreAsync(scope, registration, origin, cancellationToken), cancellationToken);
+        if (await DeniedAsync(origin, "certificate.add", registration.Id, cancellationToken).ConfigureAwait(false) is { } denied)
+        {
+            return denied;
+        }
+
+        return await _config.ApplyCertificateChangeAsync(origin, scope => RegisterCoreAsync(scope, registration, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -123,12 +132,17 @@ public sealed partial class CertificateService
     /// Records a certificate that is requested but has no chain yet (an ACME order in progress): <see cref="CertificateStatus.Pending"/>,
     /// never served. <see cref="RegisterAsync"/> with the issued chain completes it. Registering an ID that exists is invalid.
     /// </summary>
-    public Task<CertificateChangeResult> RegisterPendingAsync(
+    public async Task<CertificateChangeResult> RegisterPendingAsync(
         CertificateId id, CertificateSource source, IReadOnlyList<string> names, string? label, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(names);
         ArgumentNullException.ThrowIfNull(origin);
-        return _config.ApplyCertificateChangeAsync(origin, scope => RegisterPendingCoreAsync(scope, id, source, names, label, origin, cancellationToken), cancellationToken);
+        if (await DeniedAsync(origin, "certificate.add", id, cancellationToken).ConfigureAwait(false) is { } denied)
+        {
+            return denied;
+        }
+
+        return await _config.ApplyCertificateChangeAsync(origin, scope => RegisterPendingCoreAsync(scope, id, source, names, label, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -136,25 +150,49 @@ public sealed partial class CertificateService
     /// failed and nothing usable came of it (the scheduler's next wave), or back to <see cref="CertificateStatus.Active"/>.
     /// A certificate that has no chain can't become active.
     /// </summary>
-    public Task<CertificateChangeResult> SetStatusAsync(CertificateId id, CertificateStatus status, string? message, CommandOrigin origin, CancellationToken cancellationToken = default)
+    public async Task<CertificateChangeResult> SetStatusAsync(CertificateId id, CertificateStatus status, string? message, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        return _config.ApplyCertificateChangeAsync(origin, scope => SetStatusCoreAsync(scope, id, status, message, origin, cancellationToken), cancellationToken);
+        if (await DeniedAsync(origin, "certificate.update", id, cancellationToken).ConfigureAwait(false) is { } denied)
+        {
+            return denied;
+        }
+
+        return await _config.ApplyCertificateChangeAsync(origin, scope => SetStatusCoreAsync(scope, id, status, message, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Replaces a certificate's label and notes (null clears). Doesn't affect serving: nothing is published.</summary>
-    public Task<CertificateChangeResult> UpdateDetailsAsync(CertificateId id, string? label, string? notes, CommandOrigin origin, CancellationToken cancellationToken = default)
+    public async Task<CertificateChangeResult> UpdateDetailsAsync(CertificateId id, string? label, string? notes, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        return _config.ApplyCertificateChangeAsync(origin, scope => UpdateDetailsCoreAsync(scope, id, label, notes, origin, cancellationToken), cancellationToken);
+        if (await DeniedAsync(origin, "certificate.update", id, cancellationToken).ConfigureAwait(false) is { } denied)
+        {
+            return denied;
+        }
+
+        return await _config.ApplyCertificateChangeAsync(origin, scope => UpdateDetailsCoreAsync(scope, id, label, notes, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Deletes a certificate's metadata, unless the latest revision still binds to it (see the remarks).</summary>
-    public Task<CertificateChangeResult> DeleteAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default)
+    public async Task<CertificateChangeResult> DeleteAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        return _config.ApplyCertificateChangeAsync(origin, scope => DeleteCoreAsync(scope, id, origin, cancellationToken), cancellationToken);
+        if (await DeniedAsync(origin, "certificate.delete", id, cancellationToken).ConfigureAwait(false) is { } denied)
+        {
+            return denied;
+        }
+
+        return await _config.ApplyCertificateChangeAsync(origin, scope => DeleteCoreAsync(scope, id, origin, cancellationToken), cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// The refusal for an origin without <see cref="Permission.CertificatesWrite"/> (audited as <see cref="AuditOutcome.Denied"/>), or
+    /// null if it may go on. Always null without an <see cref="IPermissionEvaluator"/> (tests).
+    /// </summary>
+    private async Task<CertificateChangeResult?> DeniedAsync(CommandOrigin origin, string action, CertificateId id, CancellationToken cancellationToken) =>
+        await PermissionGate.MayAsync(_permissions, _config, origin, Permission.CertificatesWrite, action, id.IsEmpty ? null : id.ToString(), cancellationToken).ConfigureAwait(false)
+            ? null
+            : new CertificateChangeResult(CertificateChangeStatus.Denied);
 
     /// <summary>The certificates matching <paramref name="query"/> (all when null), newest first.</summary>
     public async Task<IReadOnlyList<CertificateSummary>> ListAsync(CertificateQuery? query = null, CancellationToken cancellationToken = default)

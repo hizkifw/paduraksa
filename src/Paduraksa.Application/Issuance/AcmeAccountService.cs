@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-
 using Paduraksa.Acme;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Config;
+using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
@@ -36,6 +36,7 @@ public sealed partial class AcmeAccountService
     private readonly IMacKeySource? _macKeys;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
+    private readonly IPermissionEvaluator? _permissions;
 
     internal AcmeAccountService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -44,7 +45,8 @@ public sealed partial class AcmeAccountService
         IJwsSigner signer,
         IMacKeySource? macKeys,
         TimeProvider time,
-        ILogger<AcmeAccountService> logger)
+        ILogger<AcmeAccountService> logger,
+        IPermissionEvaluator? permissions = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -57,6 +59,7 @@ public sealed partial class AcmeAccountService
         _clients = clients;
         _signer = signer;
         _macKeys = macKeys;
+        _permissions = permissions;
         _time = time;
         _logger = logger;
     }
@@ -72,6 +75,10 @@ public sealed partial class AcmeAccountService
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.ProvidersWrite, "acme.account.create", null, cancellationToken).ConfigureAwait(false))
+        {
+            return new AcmeAccountResult(IssuanceChangeStatus.Denied);
+        }
 
         if (await ValidateAsync(request, cancellationToken).ConfigureAwait(false) is { } problem)
         {
@@ -160,6 +167,10 @@ public sealed partial class AcmeAccountService
     public async Task<AcmeAccountResult> DeactivateAsync(AcmeAccountId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.ProvidersWrite, "acme.account.deactivate", id.ToString(), cancellationToken).ConfigureAwait(false))
+        {
+            return new AcmeAccountResult(IssuanceChangeStatus.Denied);
+        }
 
         AcmeAccountRow? row;
         bool inUse;

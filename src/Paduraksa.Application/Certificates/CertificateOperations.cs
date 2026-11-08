@@ -317,6 +317,8 @@ public sealed partial class CertificateOperations
                 return await DeleteOrphanKeyAsync(id, cancellationToken).ConfigureAwait(false);
             case CertificateChangeStatus.Unavailable:
                 return new CertificateOperationResult(CertificateOperationStatus.Unavailable);
+            case CertificateChangeStatus.Denied:
+                return Forbidden();
             case CertificateChangeStatus.Unchanged:
             case CertificateChangeStatus.Invalid:
             default:
@@ -447,7 +449,9 @@ public sealed partial class CertificateOperations
         {
             try
             {
-                await _certificates.DeleteAsync(id, origin, CancellationToken.None).ConfigureAwait(false);
+                // The system takes it back, not the caller: a rollback must not depend on the caller's permission (they may have lost
+                // it since the operation began, and a refused rollback would leave a pending row). The channel and address are kept.
+                await _certificates.DeleteAsync(id, new CommandOrigin(Actor.System, origin.Channel, origin.ClientIp), CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -503,6 +507,7 @@ public sealed partial class CertificateOperations
     {
         CertificateChangeStatus.Unavailable => new CertificateOperationResult(CertificateOperationStatus.Unavailable),
         CertificateChangeStatus.NotFound => new CertificateOperationResult(CertificateOperationStatus.NotFound),
+        CertificateChangeStatus.Denied => Forbidden(),
         _ => new CertificateOperationResult(CertificateOperationStatus.Invalid, Errors: change.Errors),
     };
 

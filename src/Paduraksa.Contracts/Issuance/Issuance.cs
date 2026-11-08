@@ -25,6 +25,9 @@ public enum IssuanceChangeStatus
 
     /// <summary>The config store is unavailable (a degraded start); nothing was read or changed.</summary>
     Unavailable,
+
+    /// <summary>The origin lacks the permission (<c>providers:write</c>); nothing changed. Audited.</summary>
+    Denied,
 }
 
 /// <summary>Registers an account with a CA (<c>AcmeAccountService.CreateAsync</c>).</summary>
@@ -146,6 +149,9 @@ public enum IssuanceOutcome
 
     /// <summary>The config store is unavailable (a degraded start); nothing was started.</summary>
     Unavailable,
+
+    /// <summary>The origin lacks <c>certificates:write</c>; nothing was started (no order, no key, no pending certificate). Audited.</summary>
+    Forbidden,
 }
 
 /// <summary>The outcome of an issuance, renewal or resume.</summary>

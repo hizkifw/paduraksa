@@ -3,11 +3,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using Paduraksa.Acme;
 using Paduraksa.Acme.Dns;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Identity;
 using Paduraksa.Core.Acme;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
@@ -51,14 +51,16 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<IJwsSigner>(),
             sp.GetService<IMacKeySource>(),
             sp.GetRequiredService<TimeProvider>(),
-            Logger<AcmeAccountService>(sp)));
+            Logger<AcmeAccountService>(sp),
+            sp.GetService<IPermissionEvaluator>()));
         services.TryAddSingleton(sp => new DnsProviderService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),
             sp.GetRequiredService<ISecretStore>(),
             sp.GetService<IDnsProviderFactory>(),
             sp.GetRequiredService<TimeProvider>(),
-            Logger<DnsProviderService>(sp)));
+            Logger<DnsProviderService>(sp),
+            sp.GetService<IPermissionEvaluator>()));
         services.TryAddSingleton(sp => new AcmeIssuanceService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),
@@ -71,7 +73,8 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<TimeProvider>(),
             Logger<AcmeIssuanceService>(sp),
             catalog: sp.GetService<ICertificateCatalog>(),
-            propagation: sp.GetService<IDnsPropagationCheck>()));
+            propagation: sp.GetService<IDnsPropagationCheck>(),
+            permissions: sp.GetService<IPermissionEvaluator>()));
         services.AddSingleton(sp => new AcmeRenewalScheduler(
             sp.GetRequiredService<AcmeIssuanceService>(),
             sp.GetRequiredService<AcmeIssuanceOptions>(),
