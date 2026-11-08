@@ -42,7 +42,14 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
     /// <summary>Header fallbacks and Cloudflare plain-HTTP requests (process lifetime; read by metrics, M7).</summary>
     public ClientAddressCounters Counters { get; } = new();
 
-    public ClientIpResolution Resolve(HttpContext context, RuntimeSnapshot snapshot)
+    public ClientIpResolution Resolve(HttpContext context, RuntimeSnapshot snapshot) =>
+        ResolveCore(context, snapshot, Counters, _logger);
+
+    /// <summary>
+    /// The resolution itself. <paramref name="counters"/> null: count nothing and log nothing, which is how the request
+    /// simulator resolves (PLAN §7.7): the same code, no side effects.
+    /// </summary>
+    internal static ClientIpResolution ResolveCore(HttpContext context, RuntimeSnapshot snapshot, ClientAddressCounters? counters, ILogger? logger)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(snapshot);
@@ -64,14 +71,14 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
         ClientIpResolution resolution = ClientIpResolver.Resolve(peer, peerSource, headers, snapshot.TrustedProxies);
         if (resolution.IsFallback)
         {
-            Counters.CountFallback(resolution.Outcome);
+            counters?.CountFallback(resolution.Outcome);
         }
 
         RequestScheme scheme = ForwardedScheme.Resolve(in resolution, headers, snapshot.TrustedProxies);
         if (scheme is { Source: SchemeSource.CfVisitor, IsHttps: false } && !context.Request.IsHttps
-            && Counters.CountCloudflarePlainHttp() == 1 && _logger is not null)
+            && counters?.CountCloudflarePlainHttp() == 1 && logger is not null)
         {
-            LogCloudflarePlainHttp(_logger);
+            LogCloudflarePlainHttp(logger);
         }
 
         return resolution with { Scheme = scheme };

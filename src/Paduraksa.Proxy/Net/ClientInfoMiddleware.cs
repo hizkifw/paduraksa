@@ -43,7 +43,7 @@ public sealed class ClientInfoMiddleware
             return _next(connection);
         }
 
-        if (!options.TrustedSources.Contains(peer))
+        if (ProxyProtocolAdmission.Check(options, peer, headerSent: true) == ConnectionAdmission.UntrustedSource)
         {
             options.Counters.CountUntrustedSource();
             // Exceptions are allocated per abort (a cold path): a shared instance would carry one connection's
@@ -78,6 +78,47 @@ public sealed class ClientInfoMiddleware
             : new ClientInfo(peer, peerPort, ConnectionAddressSource.ProxyProtocolUnspecified, peer, peerPort);
         connection.Features.Set<IClientInfoFeature>(info);
         await _next(connection).ConfigureAwait(false);
+    }
+}
+
+/// <summary>Whether a TCP listener lets a connection in, before any byte is read (PLAN §7.2 A).</summary>
+public enum ConnectionAdmission : byte
+{
+    /// <summary>The connection goes on (to the header, when the listener requires one).</summary>
+    Accepted = 0,
+
+    /// <summary>The listener has no PROXY protocol, so a header the peer sends is read as a broken HTTP request.</summary>
+    HeaderUnexpected,
+
+    /// <summary>The listener requires the header and the peer sends none: the connection is dropped.</summary>
+    HeaderMissing,
+
+    /// <summary>The listener requires the header and the socket peer isn't one of its trusted sources: dropped unread.</summary>
+    UntrustedSource,
+}
+
+/// <summary>
+/// The listener's admission decision, in one place: <see cref="ClientInfoMiddleware"/> asks it for every connection, and the
+/// request simulator (PLAN §7.7) asks it for a simulated one.
+/// </summary>
+public static class ProxyProtocolAdmission
+{
+    /// <param name="options">The listener's PROXY protocol settings; null: it has none.</param>
+    /// <param name="socketPeer">The socket's remote address (the load balancer when a header is sent).</param>
+    /// <param name="headerSent">The peer starts with a PROXY protocol header.</param>
+    public static ConnectionAdmission Check(ProxyProtocolOptions? options, IpKey socketPeer, bool headerSent)
+    {
+        if (options is null)
+        {
+            return headerSent ? ConnectionAdmission.HeaderUnexpected : ConnectionAdmission.Accepted;
+        }
+
+        if (!options.TrustedSources.Contains(socketPeer))
+        {
+            return ConnectionAdmission.UntrustedSource;
+        }
+
+        return headerSent ? ConnectionAdmission.Accepted : ConnectionAdmission.HeaderMissing;
     }
 }
 

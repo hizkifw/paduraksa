@@ -1,6 +1,8 @@
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 
+using Paduraksa.Core.Model;
+
 namespace Paduraksa.Proxy.Tls;
 
 /// <summary>
@@ -21,6 +23,12 @@ public sealed class ServerCertificate
     }
 
     public SslStreamCertificateContext Context { get; }
+
+    /// <summary>
+    /// The inventory ID of the certificate, when whoever loaded it knows it (the config service's loader does); empty
+    /// otherwise. Only reporting reads it (the request simulator's trace): the table keys on the context instance.
+    /// </summary>
+    public CertificateId Id { get; init; }
 
     public X509Certificate2 Leaf => Context.TargetCertificate;
 
