@@ -158,7 +158,7 @@ public sealed partial class ConfigService : IDisposable
         await using (context.ConfigureAwait(false))
         {
             (StoredRevision? latest, ConfigDocument document) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
-            return new CurrentConfig(latest is null ? null : Ref(latest.Info), document);
+            return new CurrentConfig(document, latest is null ? null : Ref(latest.Info));
         }
     }
 
@@ -410,7 +410,7 @@ public sealed partial class ConfigService : IDisposable
             (StoredRevision? latest, ConfigDocument current) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
             ConfigCommandResult conflict = new(
                 ConfigCommandStatus.Conflict,
-                Conflict: new ConfigConflict(latest is null ? null : Ref(latest.Info), CurrentVersionOf(command, current), []));
+                Conflict: new ConfigConflict([], latest is null ? null : Ref(latest.Info), CurrentVersionOf(command, current)));
             return await RejectAsync(command, origin, audited, conflict, AuditOutcome.Conflict).ConfigureAwait(false);
         }
     }
@@ -750,7 +750,7 @@ public sealed partial class ConfigService : IDisposable
             sinceBase = ConfigDiff.Compare(baseDocument, current);
         }
 
-        ConfigCommandResult conflict = new(ConfigCommandStatus.Conflict, Conflict: new ConfigConflict(head, null, sinceBase));
+        ConfigCommandResult conflict = new(ConfigCommandStatus.Conflict, Conflict: new ConfigConflict(sinceBase, head));
         return Plan.Stop(conflict, AuditOutcome.Conflict, document) with { IsObjectCommand = false };
     }
 
@@ -773,7 +773,7 @@ public sealed partial class ConfigService : IDisposable
     }
 
     private static ConfigCommandResult Conflict(RevisionRef? head, long currentVersion) =>
-        new(ConfigCommandStatus.Conflict, Conflict: new ConfigConflict(head, currentVersion, []));
+        new(ConfigCommandStatus.Conflict, Conflict: new ConfigConflict([], head, currentVersion));
 
     /// <summary>
     /// An invalid result. Whole-document commands report <paramref name="errors"/> as they are. Object commands split

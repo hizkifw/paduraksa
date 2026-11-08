@@ -133,8 +133,15 @@ internal sealed class FakeSecretStore : ISecretStore
 {
     private readonly Dictionary<SecretId, SecretMetadata> _secrets = [];
 
+    /// <summary>The secrets it holds now.</summary>
+    public int Count => _secrets.Count;
+
+    /// <summary>How many it was ever given.</summary>
+    public int Puts { get; private set; }
+
     public ValueTask<SecretId> PutAsync(SecretKind kind, ReadOnlyMemory<byte> value, SecretOptions options, CancellationToken cancellationToken)
     {
+        Puts++;
         SecretId id = SecretId.New();
         DateTimeOffset now = DateTimeOffset.UtcNow;
         _secrets[id] = new SecretMetadata(id, kind, options.Label, options.MacAlgorithm, options.AllowedHosts ?? [], now, now, 1);

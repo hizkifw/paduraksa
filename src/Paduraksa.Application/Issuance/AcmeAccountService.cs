@@ -37,6 +37,7 @@ public sealed partial class AcmeAccountService
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly IPermissionEvaluator? _permissions;
+    private readonly ISecretStore? _secrets;
 
     internal AcmeAccountService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -46,7 +47,8 @@ public sealed partial class AcmeAccountService
         IMacKeySource? macKeys,
         TimeProvider time,
         ILogger<AcmeAccountService> logger,
-        IPermissionEvaluator? permissions = null)
+        IPermissionEvaluator? permissions = null,
+        ISecretStore? secrets = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -60,6 +62,7 @@ public sealed partial class AcmeAccountService
         _signer = signer;
         _macKeys = macKeys;
         _permissions = permissions;
+        _secrets = secrets;
         _time = time;
         _logger = logger;
     }
@@ -159,6 +162,77 @@ public sealed partial class AcmeAccountService
             throw;
         }
     }
+
+    /// <summary>The longest external-account-binding key accepted, in bytes (CAs issue 32 to 64).</summary>
+    public const int MaxEabKeyLength = 1024;
+
+    /// <summary>
+    /// The one-step "register an account" of the surfaces, for a CA with external account binding: authorizes, validates everything about the
+    /// request that doesn't need the key, stores <paramref name="eabHmacKey"/> in the vault (an <see cref="SecretKind.EabHmacKey"/>, HMAC-SHA-256) and registers the
+    /// account with the secret's ID. When the account isn't created (invalid, denied, refused by the CA, unavailable) the secret is deleted again, so nothing is left
+    /// behind, and nothing is stored for a request that was invalid or not allowed. With no key (<paramref name="eabHmacKey"/> empty) it is
+    /// <see cref="CreateAsync"/>; <see cref="CreateAcmeAccountRequest.EabKid"/> goes with the key, and <see cref="CreateAcmeAccountRequest.EabSecretId"/> is ignored.
+    /// </summary>
+    public async Task<AcmeAccountResult> CreateWithEabAsync(CreateAcmeAccountRequest request, ReadOnlyMemory<byte> eabHmacKey, CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.ProvidersWrite, "acme.account.create", null, cancellationToken).ConfigureAwait(false))
+        {
+            return new AcmeAccountResult(IssuanceChangeStatus.Denied);
+        }
+
+        bool hasKey = !eabHmacKey.IsEmpty;
+        request = request with { EabSecretId = null };
+        ConfigError? problem = ValidateFields(request, hasKey)
+            ?? (eabHmacKey.Length > MaxEabKeyLength ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.TextTooLong, $"the binding key is limited to {MaxEabKeyLength} bytes") : null)
+            ?? (hasKey && _secrets is null ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.EabSecretMissing, "this server has no vault to keep a binding key in") : null);
+        if (problem is not null)
+        {
+            return new AcmeAccountResult(IssuanceChangeStatus.Invalid, Errors: [problem]);
+        }
+
+        if (!hasKey)
+        {
+            return await CreateAsync(request, origin, cancellationToken).ConfigureAwait(false);
+        }
+
+        SecretId secret = await _secrets!.PutAsync(
+            SecretKind.EabHmacKey,
+            eabHmacKey,
+            new SecretOptions(string.IsNullOrWhiteSpace(request.Label) ? "EAB key" : $"EAB key: {request.Label.Trim()}", MacAlgorithm.HmacSha256, null),
+            cancellationToken).ConfigureAwait(false);
+        try
+        {
+            AcmeAccountResult result = await CreateAsync(request with { EabSecretId = secret }, origin, cancellationToken).ConfigureAwait(false);
+            if (result.Status != IssuanceChangeStatus.Committed)
+            {
+                await DeleteSecretQuietlyAsync(secret).ConfigureAwait(false);
+            }
+
+            return result;
+        }
+        catch
+        {
+            await DeleteSecretQuietlyAsync(secret).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task DeleteSecretQuietlyAsync(SecretId secret)
+    {
+        try
+        {
+            _ = await _secrets!.DeleteAsync(secret, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or IOException)
+        {
+            LogEabSecretNotDeleted(secret, ex.GetType().Name);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The vault secret {Secret} of an ACME account that was not created could not be deleted ({Problem}); delete it with the vault command.")]
+    private partial void LogEabSecretNotDeleted(SecretId secret, string problem);
 
     /// <summary>
     /// Deactivates the account at the CA (RFC 8555 §7.3.6: final) and records it, then deletes its key from the vault.
@@ -263,6 +337,20 @@ public sealed partial class AcmeAccountService
 
     private async Task<ConfigError?> ValidateAsync(CreateAcmeAccountRequest request, CancellationToken cancellationToken)
     {
+        if (ValidateFields(request, request.EabSecretId is not null) is { } problem)
+        {
+            return problem;
+        }
+
+        return request.EabSecretId is { } secret
+            && (_macKeys is null || await _macKeys.OpenAsync(secret, SecretKind.EabHmacKey, cancellationToken).ConfigureAwait(false) is null)
+            ? new ConfigError("/eabSecretId", IssuanceErrorCodes.EabSecretMissing, "the secret does not exist or is not an EAB HMAC key")
+            : null;
+    }
+
+    /// <summary>Everything about the request that needs no secret: <paramref name="hasEabSecret"/> says whether the binding's key is there.</summary>
+    private static ConfigError? ValidateFields(CreateAcmeAccountRequest request, bool hasEabSecret)
+    {
         if (request.Contacts is null)
         {
             return new ConfigError("/contacts", ConfigErrorCodes.ValueNull, "the contacts are missing (use an empty list for none)");
@@ -288,15 +376,9 @@ public sealed partial class AcmeAccountService
             return new ConfigError("/label", IssuanceErrorCodes.TextTooLong, $"the label is limited to {MaxLabelLength} characters");
         }
 
-        if ((request.EabKid is null) != (request.EabSecretId is null) || request.EabKid is { Length: 0 })
+        if ((request.EabKid is null) == hasEabSecret || request.EabKid is { Length: 0 })
         {
             return new ConfigError("/eabKid", IssuanceErrorCodes.EabIncomplete, "external account binding needs both the key identifier and the secret");
-        }
-
-        if (request.EabSecretId is { } secret
-            && (_macKeys is null || await _macKeys.OpenAsync(secret, SecretKind.EabHmacKey, cancellationToken).ConfigureAwait(false) is null))
-        {
-            return new ConfigError("/eabSecretId", IssuanceErrorCodes.EabSecretMissing, "the secret does not exist or is not an EAB HMAC key");
         }
 
         return null;

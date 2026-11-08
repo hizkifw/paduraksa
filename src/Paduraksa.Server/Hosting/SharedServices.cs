@@ -12,6 +12,7 @@ using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
@@ -216,6 +217,8 @@ internal sealed class SharedServices : IAsyncDisposable
 
             // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
             IssuanceStore.AddTo(builder, options, configStore, vault, challenges, timeProvider, coreLoggers);
+            // The admin API stores DNS credentials and ACME binding keys through it (write-only: there is no get).
+            builder.AddOwnedElsewhere(vault.Secrets);
             // TODO(M7): MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();

@@ -92,6 +92,68 @@ public sealed class AcmeAccountServiceTests
         Assert.Equal(h.Signer.Created[1], Assert.Single(h.Signer.Deleted));
     }
 
+    private static AcmeAccountService WithSecrets(IssuanceHarness h, IMacKeySource macKeys) => new(
+        h.Config.Db.Factory,
+        h.Config.Service,
+        new AcmeClientProvider(h.Signer, macKeys, new AcmeClientOptions { RequestTimeout = TimeSpan.FromDays(1) }, () => h.Hook, h.Time),
+        h.Signer,
+        macKeys,
+        h.Time,
+        NullLogger<AcmeAccountService>.Instance,
+        permissions: null,
+        secrets: h.Secrets);
+
+    private sealed class AnyEabKeys(IMacKey key) : IMacKeySource
+    {
+        public ValueTask<IMacKey?> OpenAsync(SecretId requested, SecretKind expected, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(expected == SecretKind.EabHmacKey ? key : null);
+    }
+
+    [Fact]
+    public async Task CreateWithEabStoresNothingForARequestThatCannotWork()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        AcmeAccountService accounts = WithSecrets(h, new AnyEabKeys(new FakeMacKey(new byte[32])));
+        byte[] key = [1, 2, 3, 4];
+
+        (CreateAcmeAccountRequest Request, byte[] Key, string Code)[] cases =
+        [
+            (Request("http://acme.test/directory") with { EabKid = "kid" }, key, IssuanceErrorCodes.DirectoryInvalid), // a valid binding does not excuse a bad directory
+            (Request() with { EabKid = "kid" }, [], IssuanceErrorCodes.EabIncomplete),
+            (Request(), key, IssuanceErrorCodes.EabIncomplete),
+            (Request() with { EabKid = "kid" }, new byte[AcmeAccountService.MaxEabKeyLength + 1], IssuanceErrorCodes.TextTooLong),
+        ];
+        foreach ((CreateAcmeAccountRequest request, byte[] bytes, string code) in cases)
+        {
+            var result = await accounts.CreateWithEabAsync(request, bytes, Admin, Ct);
+
+            Assert.Equal(IssuanceChangeStatus.Invalid, result.Status);
+            Assert.Equal(code, Assert.Single(result.Errors).Code);
+        }
+
+        Assert.Equal(0, h.Secrets.Puts);
+        Assert.Empty(h.Signer.Created);
+    }
+
+    [Fact]
+    public async Task CreateWithEabKeepsTheKeyInTheVaultWhenTheAccountIsCreatedAndDeletesItWhenTheCaRefuses()
+    {
+        var server = new FakeAcmeServer { ExternalAccountRequired = true };
+        await using var h = await IssuanceHarness.CreateAsync(server);
+
+        var accepted = await WithSecrets(h, new AnyEabKeys(new FakeMacKey(server.EabSecret))).CreateWithEabAsync(Request() with { EabKid = "kid-1" }, new byte[] { 9, 9, 9 }, Admin, Ct);
+        Assert.Equal(IssuanceChangeStatus.Committed, accepted.Status);
+        SecretMetadata stored = (await h.Secrets.DescribeAsync(accepted.Account!.EabSecretId!.Value, Ct))!;
+        Assert.Equal(SecretKind.EabHmacKey, stored.Kind);
+        Assert.Equal(MacAlgorithm.HmacSha256, stored.MacAlgorithm);
+
+        // A binding the CA rejects: the account isn't created and the secret stored for it is gone again.
+        var refused = await WithSecrets(h, new AnyEabKeys(new FakeMacKey(new byte[32]))).CreateWithEabAsync(Request() with { EabKid = "kid-2" }, new byte[] { 1, 2, 3 }, Admin, Ct);
+        Assert.Equal(IssuanceChangeStatus.Failed, refused.Status);
+        Assert.Equal(2, h.Secrets.Puts);
+        Assert.Equal(1, h.Secrets.Count);
+    }
+
     [Fact]
     public async Task RequestsThatCannotWorkAreRefusedBeforeAnyKeyIsMade()
     {

@@ -108,7 +108,7 @@ public sealed record RevisionRef(ConfigRevisionId Id, long Seq)
 /// <param name="ChangedSinceBase">Whole-document commands: what changed from the base revision to the latest (empty
 /// when the base revision is unknown). Object commands: empty; <see cref="ConfigCommandResult.Changes"/> holds what the
 /// command would change on top of the current config.</param>
-public sealed record ConfigConflict(RevisionRef? CurrentRevision, long? CurrentVersion, IReadOnlyList<ConfigChange> ChangedSinceBase);
+public sealed record ConfigConflict(IReadOnlyList<ConfigChange> ChangedSinceBase, RevisionRef? CurrentRevision = null, long? CurrentVersion = null);
 
 /// <summary>
 /// How the snapshot publish after a commit went (PLAN §6.1 step 6). The publisher only publishes the latest snapshot:
@@ -151,7 +151,7 @@ public enum PublishOutcomeStatus
 /// <summary>The current config, as an editor starts from it.</summary>
 /// <param name="Revision">The latest revision; null while there is none (the empty config).</param>
 /// <param name="Document">Its canonical document, versions included.</param>
-public sealed record CurrentConfig(RevisionRef? Revision, ConfigDocument Document);
+public sealed record CurrentConfig(ConfigDocument Document, RevisionRef? Revision = null);
 
 /// <summary>A change notification (PLAN §6.1 step 7): a revision was committed.</summary>
 /// <param name="Revision">The new revision.</param>

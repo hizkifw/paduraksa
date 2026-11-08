@@ -167,7 +167,7 @@ public sealed class AcmeHostingTests
                 Ct);
         }
 
-        DnsProviderTestResult result = await host.Shared.DnsProviders.TestAsync(id, Ct);
+        DnsProviderTestResult result = await host.Shared.DnsProviders.TestAsync(id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct);
 
         Assert.True(result.Found);
         Assert.False(result.Valid);

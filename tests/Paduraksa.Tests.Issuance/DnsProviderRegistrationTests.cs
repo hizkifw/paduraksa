@@ -70,17 +70,17 @@ public sealed class DnsProviderRegistrationTests
         DnsProviderService service = new(h.Config.Db.Factory, h.Config.Service, h.Secrets, provider.GetRequiredService<IDnsProviderFactory>(), h.Time, NullLogger<DnsProviderService>.Instance);
         var row = await h.CreateDnsProviderAsync();
 
-        Assert.Equal(new Paduraksa.Contracts.Issuance.DnsProviderTestResult(true, true), await service.TestAsync(row.Id, Ct));
+        Assert.Equal(new Paduraksa.Contracts.Issuance.DnsProviderTestResult(true, true), await service.TestAsync(row.Id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct));
 
         cloudflare.Intercept = _ => FakeCloudflare.Error(System.Net.HttpStatusCode.Forbidden, 9109, "Unauthorized to access requested resource");
-        var refused = await service.TestAsync(row.Id, Ct);
+        var refused = await service.TestAsync(row.Id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct);
         Assert.False(refused.Valid);
         Assert.Contains("9109", refused.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(FakeSecretHandlers.Token, refused.Message, StringComparison.Ordinal);
 
         // A provider outage is a failed test with the reason, not an exception.
         cloudflare.Intercept = _ => FakeSecretHandlers.Empty(System.Net.HttpStatusCode.BadGateway);
-        var outage = await service.TestAsync(row.Id, Ct);
+        var outage = await service.TestAsync(row.Id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct);
         Assert.False(outage.Valid);
         Assert.Contains("502", outage.Message, StringComparison.Ordinal);
     }

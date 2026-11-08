@@ -43,7 +43,7 @@ public sealed partial class ConfigJsonContext : JsonSerializerContext;
 /// undefined value, which only a hand-built (and invalid) document has, is written as its number so that serializing
 /// and diffing never throw, and reading such bytes back fails.
 /// </summary>
-internal sealed class ConfigEnumConverter<TEnum> : JsonConverter<TEnum>
+public sealed class ConfigEnumConverter<TEnum> : JsonConverter<TEnum>
     where TEnum : struct, Enum
 {
     private static readonly FrozenDictionary<string, TEnum> ByName =

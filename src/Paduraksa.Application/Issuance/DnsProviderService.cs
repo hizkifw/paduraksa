@@ -176,8 +176,33 @@ public sealed partial class DnsProviderService
         }
     }
 
-    /// <summary>"Test credentials": asks the provider to check its credential with a read-only call. A bad credential is a result, not an exception.</summary>
-    public async Task<DnsProviderTestResult> TestAsync(DnsProviderId id, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// "Test credentials": asks the provider to check its credential with a read-only call, for an origin holding <c>providers:write</c> (the call
+    /// uses the credential, so it is not a read). A bad credential is a result, not an exception. The test is audited as
+    /// <c>acme.dns_provider.test</c> with its verdict, never the credential or what the provider said.
+    /// </summary>
+    public async Task<DnsProviderTestResult> TestAsync(DnsProviderId id, CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.ProvidersWrite, "acme.dns_provider.test", id.ToString(), cancellationToken).ConfigureAwait(false))
+        {
+            return new DnsProviderTestResult(Found: false, Valid: false) { Denied = true };
+        }
+
+        DnsProviderTestResult result = await TestCoreAsync(id, cancellationToken).ConfigureAwait(false);
+        if (result.Found)
+        {
+            AuditEntry entry = IssuanceMapping.Entry(origin, "acme.dns_provider.test", id, result.Valid ? AuditOutcome.Success : AuditOutcome.Failed) with
+            {
+                Details = IssuanceMapping.Json(w => w.WriteBoolean("valid", result.Valid)),
+            };
+            await _config.TryAppendAuditAsync(entry).ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    private async Task<DnsProviderTestResult> TestCoreAsync(DnsProviderId id, CancellationToken cancellationToken)
     {
         DnsProviderSummary? provider = await GetAsync(id, cancellationToken).ConfigureAwait(false);
         if (provider is null)

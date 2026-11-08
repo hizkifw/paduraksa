@@ -66,7 +66,6 @@ public sealed record CertificateSummary(
     CertificateId Id,
     CertificateSource Source,
     CertificateStatus Status,
-    string? StatusMessage,
     CertificateValidity Validity,
     IReadOnlyList<string> Names,
     DateTimeOffset NotBefore,
@@ -74,13 +73,14 @@ public sealed record CertificateSummary(
     string Subject,
     string Issuer,
     string SerialNumber,
-    string? AuthorityKeyIdentifier,
     string Sha256Fingerprint,
     string KeyAlgorithm,
-    string? Label,
-    string? Notes,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? StatusMessage = null,
+    string? AuthorityKeyIdentifier = null,
+    string? Label = null,
+    string? Notes = null);
 
 /// <summary>A certificate with its public chain, for the detail view and the chain download.</summary>
 /// <param name="Summary">The listing fields.</param>

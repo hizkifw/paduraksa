@@ -2,11 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Application.Audit;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
@@ -94,6 +96,8 @@ internal static class ConfigStore
         CertificateService certificates = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
         builder.AddOwnedElsewhere(container.GetRequiredService<RequestSimulator>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<RevisionQueryService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<AuditQueryService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateRecovery>());
         builder.AddOwnedElsewhere(container.GetRequiredService<UserService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<SessionService>());

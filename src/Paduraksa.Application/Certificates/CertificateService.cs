@@ -576,24 +576,24 @@ public sealed partial class CertificateService
     }
 
     private static CertificateSummary ToSummary(CertificateRow row, IReadOnlyList<string> names, DateTimeOffset now) => new(
-        row.Id,
-        row.Source,
-        row.Status,
-        row.StatusMessage,
-        row.Status == CertificateStatus.Pending || now < row.NotBefore ? CertificateValidity.NotYetValid : now > row.NotAfter ? CertificateValidity.Expired : CertificateValidity.Valid,
-        [.. names.Order(StringComparer.Ordinal)],
-        row.NotBefore,
-        row.NotAfter,
-        row.Subject,
-        row.Issuer,
-        row.SerialNumber,
-        row.AuthorityKeyIdentifier,
-        row.Sha256Fingerprint,
-        row.KeyAlgorithm,
-        row.Label,
-        row.Notes,
-        row.CreatedAt,
-        row.UpdatedAt);
+        Id: row.Id,
+        Source: row.Source,
+        Status: row.Status,
+        Validity: row.Status == CertificateStatus.Pending || now < row.NotBefore ? CertificateValidity.NotYetValid : now > row.NotAfter ? CertificateValidity.Expired : CertificateValidity.Valid,
+        Names: [.. names.Order(StringComparer.Ordinal)],
+        NotBefore: row.NotBefore,
+        NotAfter: row.NotAfter,
+        Subject: row.Subject,
+        Issuer: row.Issuer,
+        SerialNumber: row.SerialNumber,
+        Sha256Fingerprint: row.Sha256Fingerprint,
+        KeyAlgorithm: row.KeyAlgorithm,
+        CreatedAt: row.CreatedAt,
+        UpdatedAt: row.UpdatedAt,
+        StatusMessage: row.StatusMessage,
+        AuthorityKeyIdentifier: row.AuthorityKeyIdentifier,
+        Label: row.Label,
+        Notes: row.Notes);
 
     private static AuditEntry Entry(CommandOrigin origin, string action, CertificateId id, AuditOutcome outcome) =>
         new(origin.Actor, origin.Channel, action, outcome) { Target = id.ToString(), ClientIp = origin.ClientIp };

@@ -55,12 +55,12 @@ public sealed record AcmeAccountSummary(
     AcmeAccountStatus Status,
     string AccountUrl,
     JwsAlgorithm KeyAlgorithm,
-    string? EabKid,
-    SecretId? EabSecretId,
     bool TermsOfServiceAgreed,
-    string? Label,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? EabKid = null,
+    SecretId? EabSecretId = null,
+    string? Label = null);
 
 /// <summary>The outcome of an account change.</summary>
 /// <param name="Status">How it ended.</param>
@@ -107,7 +107,16 @@ public sealed record DnsProviderResult(
 /// <param name="Found">The provider exists.</param>
 /// <param name="Valid">The provider accepted the credential.</param>
 /// <param name="Message">Why not, for an operator.</param>
-public sealed record DnsProviderTestResult(bool Found, bool Valid, string? Message = null);
+public sealed record DnsProviderTestResult(bool Found, bool Valid, string? Message = null)
+{
+    /// <summary>The origin may not test credentials (it lacks <c>providers:write</c>); nothing was asked of the provider.</summary>
+    public bool Denied { get; init; }
+}
+
+/// <summary>What the API answers to "Test credentials": the verdict. (Whether the provider exists is the HTTP status.)</summary>
+/// <param name="Valid">The provider accepted the credential.</param>
+/// <param name="Message">Why not, for an operator.</param>
+public sealed record DnsProviderTestOutcome(bool Valid, string? Message = null);
 
 /// <summary>Asks for a certificate from an ACME CA (<c>AcmeIssuanceService.RequestCertificateAsync</c>).</summary>
 /// <param name="Names">DNS names (wildcards as <c>*.parent</c>) and IP addresses; at least one. HTTP-01 cannot prove a wildcard, DNS-01 cannot prove an IP address.</param>
@@ -177,19 +186,19 @@ public sealed record AcmeOrderSummary(
     AcmeAccountId AccountId,
     AcmeOrderStatus Status,
     AcmeChallengeType ChallengeType,
-    DnsProviderId? DnsProviderId,
     KeySpec KeySpec,
     IReadOnlyList<string> Names,
-    string? Profile,
-    string? PreferredChain,
-    string? Error,
     int Attempts,
-    DateTimeOffset? LastAttemptAt,
-    DateTimeOffset? RetryAt,
-    DateTimeOffset? NextRenewalAt,
-    DateTimeOffset? AriWindowStart,
-    DateTimeOffset? AriWindowEnd,
-    string? AriExplanationUrl,
-    DateTimeOffset? AriCheckAt,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    DnsProviderId? DnsProviderId = null,
+    string? Profile = null,
+    string? PreferredChain = null,
+    string? Error = null,
+    DateTimeOffset? LastAttemptAt = null,
+    DateTimeOffset? RetryAt = null,
+    DateTimeOffset? NextRenewalAt = null,
+    DateTimeOffset? AriWindowStart = null,
+    DateTimeOffset? AriWindowEnd = null,
+    string? AriExplanationUrl = null,
+    DateTimeOffset? AriCheckAt = null);

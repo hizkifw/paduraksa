@@ -75,7 +75,7 @@ public sealed record UpdateSettingsCommand(GlobalSettings Settings) : ConfigComm
 /// <param name="Document">The config as it should be.</param>
 /// <param name="BaseRevision">The revision the document was based on: must be the latest. Null only while there is
 /// no revision yet.</param>
-public sealed record ReplaceConfigCommand(ConfigDocument Document, ConfigRevisionId? BaseRevision) : ConfigCommand;
+public sealed record ReplaceConfigCommand(ConfigDocument Document, ConfigRevisionId? BaseRevision = null) : ConfigCommand;
 
 /// <summary>
 /// Restores the config of an earlier revision as a <b>new</b> revision (PLAN §6.1); history is never rewritten. The

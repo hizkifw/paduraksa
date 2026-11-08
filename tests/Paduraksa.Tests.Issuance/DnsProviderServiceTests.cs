@@ -62,12 +62,43 @@ public sealed class DnsProviderServiceTests
         await using var h = await IssuanceHarness.CreateAsync();
         var provider = await h.CreateDnsProviderAsync();
 
-        Assert.Equal(new DnsProviderTestResult(true, true), await h.DnsProviders.TestAsync(provider.Id, Ct));
+        Assert.Equal(new DnsProviderTestResult(true, true), await h.DnsProviders.TestAsync(provider.Id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct));
 
         h.Dns.Provider.Check = new DnsCredentialCheck(false, "the token was revoked");
-        Assert.Equal(new DnsProviderTestResult(true, false, "the token was revoked"), await h.DnsProviders.TestAsync(provider.Id, Ct));
+        Assert.Equal(new DnsProviderTestResult(true, false, "the token was revoked"), await h.DnsProviders.TestAsync(provider.Id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct));
 
-        Assert.Equal(new DnsProviderTestResult(false, false), await h.DnsProviders.TestAsync(DnsProviderId.New(), Ct));
+        Assert.Equal(new DnsProviderTestResult(false, false), await h.DnsProviders.TestAsync(DnsProviderId.New(), Paduraksa.Application.Commands.CommandOrigin.Cli, Ct));
         Assert.Equal(provider.CredentialSecretId, h.Dns.Created[0].Credential);
+    }
+
+    [Fact]
+    public async Task TestCredentialsNeedsProvidersWriteAndIsAuditedWithItsVerdictOnly()
+    {
+        await using var h = await IssuanceHarness.CreateAsync();
+        var provider = await h.CreateDnsProviderAsync();
+        var denying = new DnsProviderService(h.Config.Db.Factory, h.Config.Service, h.Secrets, h.Dns, h.Time, Microsoft.Extensions.Logging.Abstractions.NullLogger<DnsProviderService>.Instance, new DenyPermissions());
+
+        var refused = await denying.TestAsync(provider.Id, Admin, Ct);
+
+        Assert.True(refused.Denied);
+        Assert.Empty(h.Dns.Created); // the provider was never asked
+        Assert.Equal(Paduraksa.Core.Model.AuditOutcome.Denied, Assert.Single(await h.AuditAsync("acme.dns_provider.test")).Outcome);
+
+        h.Dns.Provider.Check = new DnsCredentialCheck(false, "the token was revoked");
+        await h.DnsProviders.TestAsync(provider.Id, Admin, Ct);
+        var failed = (await h.AuditAsync("acme.dns_provider.test")).Last();
+        Assert.Equal(Paduraksa.Core.Model.AuditOutcome.Failed, failed.Outcome);
+        Assert.Equal(provider.Id.ToString(), failed.Target);
+        Assert.DoesNotContain("revoked", failed.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain(provider.CredentialSecretId.ToString(), failed.Details ?? string.Empty, StringComparison.Ordinal);
+    }
+
+    private sealed class DenyPermissions : Paduraksa.Application.Identity.IPermissionEvaluator
+    {
+        public ValueTask<IReadOnlySet<Paduraksa.Core.Model.Permission>> GetPermissionsAsync(Paduraksa.Core.Model.Actor actor, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlySet<Paduraksa.Core.Model.Permission>>(new HashSet<Paduraksa.Core.Model.Permission>());
+
+        public ValueTask<bool> IsAllowedAsync(Paduraksa.Application.Commands.CommandOrigin origin, Paduraksa.Core.Model.Permission permission, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(false);
     }
 }

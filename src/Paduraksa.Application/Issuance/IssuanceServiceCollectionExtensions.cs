@@ -52,7 +52,8 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetService<IMacKeySource>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<AcmeAccountService>(sp),
-            sp.GetService<IPermissionEvaluator>()));
+            sp.GetService<IPermissionEvaluator>(),
+            sp.GetService<ISecretStore>()));
         services.TryAddSingleton(sp => new DnsProviderService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),
