@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 
@@ -16,6 +18,16 @@ namespace Paduraksa.Contracts.Commands;
 /// <para><b>Whole-document commands</b> (<see cref="ReplaceConfigCommand"/>, <see cref="RollbackConfigCommand"/>)
 /// name the revision they were based on, which must still be the latest.</para>
 /// </remarks>
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "command")]
+[JsonDerivedType(typeof(UpsertHostCommand), "upsertHost")]
+[JsonDerivedType(typeof(DeleteHostCommand), "deleteHost")]
+[JsonDerivedType(typeof(UpsertUpstreamCommand), "upsertUpstream")]
+[JsonDerivedType(typeof(DeleteUpstreamCommand), "deleteUpstream")]
+[JsonDerivedType(typeof(UpsertProfileCommand), "upsertProfile")]
+[JsonDerivedType(typeof(DeleteProfileCommand), "deleteProfile")]
+[JsonDerivedType(typeof(UpdateSettingsCommand), "updateSettings")]
+[JsonDerivedType(typeof(ReplaceConfigCommand), "replaceConfig")]
+[JsonDerivedType(typeof(RollbackConfigCommand), "rollbackConfig")]
 public abstract record ConfigCommand
 {
     /// <summary>Run every check (authorize, apply, validate, compile) and return the diff, but persist nothing.</summary>
