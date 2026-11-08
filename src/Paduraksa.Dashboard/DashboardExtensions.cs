@@ -54,6 +54,8 @@ public static class DashboardExtensions
         services.TryAddScoped<IDashboardConfig, DashboardConfig>();
         services.AddScoped<ConfigUndo>();
         services.AddScoped<ReviewedDraft>();
+        services.AddScoped<Providers.ProviderActions>();
+        services.TryAddSingleton<Application.Probes.UpstreamProbe>();
         return services;
     }
 

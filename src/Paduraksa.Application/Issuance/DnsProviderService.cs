@@ -24,6 +24,9 @@ public sealed partial class DnsProviderService
     /// <summary>The longest label.</summary>
     public const int MaxLabelLength = 256;
 
+    /// <summary>The one API host a <paramref name="kind"/> provider's credential is ever sent to (the vault enforces it), for the surfaces to say so.</summary>
+    public static string ApiHostOf(DnsProviderKind kind) => DnsProviderHosts.ApiHostOf(kind);
+
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly ConfigService _config;
     private readonly ISecretStore _secrets;

@@ -1,0 +1,31 @@
+@* The dialog around the ACME account form. *@
+@inject ProviderActions Actions
+@inject ISnackbar Snackbar
+
+<MudDialog Class="pdk-dialog" ContentClass="pdk-dialog-content">
+    <TitleContent>
+        <div class="pdk-dialog-title">
+            <span class="pdk-dialog-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" /></span>
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">Add an ACME account</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">The vault makes the account key; the CA registers it now.</MudText>
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <AcmeAccountForm Submit="SubmitAsync" Created="Created" OnCancel="() => Dialog?.Cancel()" />
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance? Dialog { get; set; }
+
+    private Task<AcmeAccountResult?> SubmitAsync(AcmeAccountSubmission submission) => Actions.CreateAccountAsync(submission);
+
+    private void Created(AcmeAccountSummary account)
+    {
+        Snackbar.Add($"Registered with {ProviderDisplay.CaName(account.DirectoryUrl)}.", Severity.Success);
+        Dialog?.Close(DialogResult.Ok(account));
+    }
+}

@@ -25,7 +25,7 @@ public static class DashboardNavigation
         new("Simulator", DashboardRoutes.Simulator, Icons.Material.Outlined.Science, "Insight", Permission.Simulate, true),
         new("History", DashboardRoutes.History, Icons.Material.Outlined.History, "Insight", Permission.ConfigRead, true),
         new("Audit", DashboardRoutes.Audit, Icons.Material.Outlined.FactCheck, "Insight", Permission.AuditRead, false),
-        new("Settings", DashboardRoutes.Settings, Icons.Material.Outlined.Settings, "System", null, false),
+        new("Settings", DashboardRoutes.Settings, Icons.Material.Outlined.Settings, "System", null, true),
     ];
 
     /// <summary>The entries <paramref name="mayView"/> allows, in order.</summary>

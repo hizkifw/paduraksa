@@ -1,0 +1,195 @@
+@attribute [Authorize]
+@attribute [Route(SettingsRoutes.AcmeAccounts)]
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Issuance
+@using Paduraksa.Contracts.Issuance
+@using Paduraksa.Dashboard.Certificates
+@using Paduraksa.Dashboard.Providers
+@inject AcmeAccountService Accounts
+@inject AcmeIssuanceService Issuance
+@inject ProviderActions Actions
+@inject ConfigService Config
+@inject DashboardCaller Caller
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject ILogger<AcmeAccounts> Logger
+
+<PageTitle>ACME accounts · Paduraksa</PageTitle>
+
+<PageHeader Title="ACME accounts" Overline="Settings" Lead="Your accounts with ACME certificate authorities. The account key is made and kept in the vault.">
+    <Actions>
+        @if (_mayWrite)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync" Class="pdk-add-account">Add account</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_failed)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">The accounts couldn't be read. The details are in the server log.</MudAlert>
+}
+
+@if (_accounts is null)
+{
+    <div class="pdk-provider-list">
+        @for (int i = 0; i < 2; i++)
+        {
+            <MudPaper Class="pdk-card pdk-provider" Elevation="0" Outlined="true">
+                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="34px" Height="34px" />
+                <div><MudSkeleton Width="40%" /><MudSkeleton Width="60%" /></div>
+            </MudPaper>
+        }
+    </div>
+}
+else if (_accounts.Count == 0)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Badge" Title="No ACME accounts yet"
+                    Description="An account is how a CA such as Let's Encrypt knows who orders certificates. Add one to request certificates from it.">
+            <Action>
+                @if (_mayWrite)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAsync">Add account</MudButton>
+                }
+            </Action>
+        </EmptyState>
+    </MudPaper>
+}
+else
+{
+    <div class="pdk-provider-list">
+        @foreach (AcmeAccountSummary account in _accounts)
+        {
+            bool active = account.Status == AcmeAccountStatus.Active;
+            <MudPaper Class="pdk-card pdk-provider pdk-acme-row" Elevation="0" Outlined="true">
+                <span class="pdk-stat-icon pdk-tone-@(active ? "primary" : "default")"><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" /></span>
+                <div class="pdk-provider-main">
+                    <span class="pdk-provider-title">
+                        @(account.Label ?? (account.Contacts.Count > 0 ? ProviderDisplay.Contact(account.Contacts[0]) : "Account"))
+                        <span class="pdk-pill pdk-tone-@(active ? "success" : "default")">@(active ? "Active" : "Deactivated")</span>
+                        @if (ProviderDisplay.IsStaging(account.DirectoryUrl))
+                        {
+                            <span class="pdk-pill pdk-tone-warning">Staging</span>
+                        }
+                        @if (account.EabKid is not null)
+                        {
+                            <span class="pdk-pill pdk-tone-info" title="Bound with an EAB key ID; the key itself stays in the vault">EAB</span>
+                        }
+                    </span>
+                    <span class="pdk-provider-sub">
+                        @ProviderDisplay.CaName(account.DirectoryUrl)
+                        @if (account.Contacts.Count > 0)
+                        {
+                            <span> · @string.Join(", ", account.Contacts.Select(ProviderDisplay.Contact))</span>
+                        }
+                        <span> · @account.KeyAlgorithm · added @CertificateDisplay.Date(account.CreatedAt)</span>
+                        @if (_inUse.GetValueOrDefault(account.Id) is > 0 and var count)
+                        {
+                            <span> · @CertificateDisplay.Plural(count, "certificate", "certificates")</span>
+                        }
+                    </span>
+                </div>
+                <div class="pdk-provider-actions">
+                    @if (_mayWrite && active)
+                    {
+                        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Outlined.DeleteOutline"
+                                   OnClick="() => DeactivateAsync(account)" Class="pdk-account-delete">Deactivate</MudButton>
+                    }
+                </div>
+            </MudPaper>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<AcmeAccountSummary>? _accounts;
+    private Dictionary<AcmeAccountId, int> _inUse = [];
+    private bool _mayWrite;
+    private bool _failed;
+    private LiveUpdates? _live;
+
+    protected override async Task OnInitializedAsync()
+    {
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ProvidersWrite);
+        await LoadAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive && _live is null)
+        {
+            _live = LiveUpdates.Start(Config, InvokeAsync, RefreshAsync, false, "acme.account.", "certificate.");
+        }
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _failed = false;
+            _accounts = [.. (await Accounts.ListAsync()).OrderBy(a => a.Status).ThenByDescending(a => a.CreatedAt)];
+            _inUse = (await Issuance.ListOrdersAsync()).GroupBy(o => o.AccountId).ToDictionary(g => g.Key, g => g.Count());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the ACME accounts.");
+            _failed = true;
+            _accounts ??= [];
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task AddAsync()
+    {
+        IDialogReference dialog = await Dialogs.ShowAsync<AcmeAccountDialog>("Add an ACME account", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false });
+        await dialog.Result;
+        await LoadAsync();
+    }
+
+    private async Task DeactivateAsync(AcmeAccountSummary account)
+    {
+        bool confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            "Deactivate this account?",
+            $"The account at {ProviderDisplay.CaName(account.DirectoryUrl)} is deactivated for good (the CA can't undo it) and its key is deleted from the vault.",
+            "Deactivate",
+            detail: "Certificates ordered with it must be moved to another account first.");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        AcmeAccountResult? result = await Actions.DeactivateAccountAsync(account.Id);
+        if (result is null)
+        {
+            return;
+        }
+
+        if (result.Status == IssuanceChangeStatus.Committed)
+        {
+            Snackbar.Add("The account is deactivated.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result.Status, result.Errors, result.Message, "ACME accounts")), Severity.Error);
+        }
+
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,175 @@
+@* Register an account with an ACME CA: a preset (Let's Encrypt, its staging, CAs with external account binding) or any directory URL,
+   a contact email, the CA's terms (required) and, for CAs that need it, the binding's key ID and HMAC key. The HMAC key is write-only:
+   the field is emptied as the form is sent and the key is never shown again. *@
+
+<div class="pdk-form-stack">
+    <MudSelect T="string" Value="_preset" ValueChanged="ChoosePreset" Label="Certificate authority" Variant="Variant.Outlined" Margin="Margin.Dense"
+               Disabled="_busy" Class="pdk-acme-preset">
+        @foreach (AcmeCaPreset preset in ProviderDisplay.Presets)
+        {
+            <MudSelectItem T="string" Value="preset.Key">@preset.Name</MudSelectItem>
+        }
+        <MudSelectItem T="string" Value="CustomPreset">Another CA (directory URL)</MudSelectItem>
+    </MudSelect>
+    @if (Preset is { } chosen)
+    {
+        <MudText Typo="Typo.caption" Class="pdk-muted pdk-preset-note">@chosen.Note</MudText>
+    }
+    else
+    {
+        <MudTextField T="string" @bind-Value="_directory" Label="Directory URL" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_busy"
+                      Placeholder="https://acme.example.com/directory" Error="_directoryError is not null" ErrorText="@_directoryError" Class="pdk-acme-directory" />
+    }
+
+    <MudTextField T="string" @bind-Value="_email" Label="Contact email" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Email"
+                  HelperText="Optional, but the CA uses it to warn you about expiring certificates and policy changes." Disabled="_busy"
+                  Error="_emailError is not null" ErrorText="@_emailError" Class="pdk-acme-email" />
+    <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Optional"
+                  MaxLength="AcmeAccountService.MaxLabelLength" Disabled="_busy" />
+
+    <MudSwitch T="bool" Value="_useEab" ValueChanged="v => _useEab = v" Color="Color.Primary" Disabled="@(_busy || Preset?.NeedsEab == true)"
+               Label="External account binding (EAB)" Class="pdk-acme-eab-toggle" />
+    @if (_useEab)
+    {
+        <div class="pdk-field-pair">
+            <MudTextField T="string" @bind-Value="_eabKid" Label="EAB key ID" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_busy"
+                          Error="_eabError is not null" Class="pdk-acme-eab-kid" autocomplete="off" />
+            <MudTextField T="string" @bind-Value="_eabHmac" Label="EAB HMAC key" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Password"
+                          Disabled="_busy" Error="_eabError is not null" Class="pdk-acme-eab-hmac" autocomplete="off" />
+        </div>
+        <div class="pdk-secret-note">
+            <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" />
+            <span>@(_eabError ?? "Both come from your account at the CA. The HMAC key goes straight into the vault and is never shown again.")</span>
+        </div>
+    }
+
+    <MudCheckBox T="bool" @bind-Value="_agreed" Color="Color.Primary" Disabled="_busy" Class="pdk-acme-tos">
+        I have read and agree to the CA's
+        @if (TermsUrl is { } terms)
+        {
+            <a href="@terms" target="_blank" rel="noopener noreferrer" class="pdk-link">terms of service</a>
+        }
+        else
+        {
+            <span>terms of service</span>
+        }
+    </MudCheckBox>
+    @if (_tosError is not null)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Error" Class="pdk-field-error pdk-acme-tos-error">@_tosError</MudText>
+    }
+
+    @if (_errors.Count > 0)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert">
+            @foreach (string error in _errors)
+            {
+                <div>@error</div>
+            }
+        </MudAlert>
+    }
+
+    <div class="pdk-form-actions">
+        @if (OnCancel.HasDelegate)
+        {
+            <MudButton Variant="Variant.Text" OnClick="OnCancel" Disabled="_busy">@CancelText</MudButton>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="_busy" Class="pdk-acme-account-submit">
+            @if (_busy)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                <span>Registering with the CA...</span>
+            }
+            else
+            {
+                <span>@SubmitText</span>
+            }
+        </MudButton>
+    </div>
+</div>
+
+@code {
+    private const string CustomPreset = "custom";
+
+    private string _preset = ProviderDisplay.Presets[0].Key;
+    private string? _directory;
+    private string? _email;
+    private string? _label;
+    private bool _agreed;
+    private bool _useEab;
+    private string? _eabKid;
+    private string? _eabHmac;
+    private string? _directoryError;
+    private string? _emailError;
+    private string? _eabError;
+    private string? _tosError;
+    private bool _busy;
+    private List<string> _errors = [];
+
+    /// <summary>Registers the account (the page wires it to <c>AcmeAccountService.CreateWithEabAsync</c>).</summary>
+    [Parameter, EditorRequired]
+    public Func<AcmeAccountSubmission, Task<AcmeAccountResult?>> Submit { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<AcmeAccountSummary> Created { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public string SubmitText { get; set; } = "Register account";
+
+    [Parameter]
+    public string CancelText { get; set; } = "Cancel";
+
+    private AcmeCaPreset? Preset => ProviderDisplay.Presets.FirstOrDefault(p => p.Key == _preset);
+
+    private string? TermsUrl => Preset?.TermsUrl;
+
+    private void ChoosePreset(string key)
+    {
+        _preset = key;
+        _useEab = Preset?.NeedsEab ?? _useEab;
+        _agreed = false;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _errors = [];
+        string? directory = Preset?.DirectoryUrl ?? _directory?.Trim();
+        _directoryError = Uri.TryCreate(directory, UriKind.Absolute, out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps ? null : "Enter the CA's https:// directory URL.";
+        string? email = string.IsNullOrWhiteSpace(_email) ? null : _email.Trim();
+        _emailError = email is null || (email.Contains('@', StringComparison.Ordinal) && !email.Contains(' ', StringComparison.Ordinal)) ? null : "That doesn't look like an email address.";
+        _tosError = _agreed ? null : "The CA requires you to agree to its terms.";
+        bool eab = _useEab;
+        _eabError = eab && (string.IsNullOrWhiteSpace(_eabKid) || string.IsNullOrEmpty(_eabHmac)) ? "Enter both the key ID and the HMAC key, or turn EAB off." : null;
+        if (_directoryError is not null || _emailError is not null || _tosError is not null || _eabError is not null)
+        {
+            return;
+        }
+
+        // The HMAC key leaves the component's state before anything is awaited.
+        char[] hmac = eab ? (_eabHmac ?? string.Empty).ToCharArray() : [];
+        _eabHmac = null;
+        _busy = true;
+        AcmeAccountResult? result;
+        try
+        {
+            result = await Submit(new AcmeAccountSubmission(directory!, email, _agreed, eab ? _eabKid!.Trim() : null, hmac, string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));
+        }
+        finally
+        {
+            Array.Clear(hmac);
+            _busy = false;
+        }
+
+        if (result is { Status: IssuanceChangeStatus.Committed, Account: { } account })
+        {
+            await Created.InvokeAsync(account);
+        }
+        else if (result is not null)
+        {
+            _errors = [.. CertificateMessages.Errors(result.Status, result.Errors, result.Message, "ACME accounts")];
+        }
+    }
+}

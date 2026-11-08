@@ -1,6 +1,63 @@
+@attribute [Authorize]
 @attribute [Route(DashboardRoutes.Settings)]
 
 <PageTitle>Settings · Paduraksa</PageTitle>
 
-<ComingSoon Title="Settings" Overline="System" Icon="@Icons.Material.Outlined.Settings"
-            Description="Global defaults, ACME accounts and DNS providers, users and roles, API tokens, and your own account: password, two-step verification and sessions." />
+<PageHeader Title="Settings" Overline="System" Lead="How this instance gets certificates, and (soon) who may use it." />
+
+<div class="pdk-settings-grid">
+    @foreach (SettingsTile tile in Tiles)
+    {
+        @if (tile.Requires is { } permission && !_user.Has(permission))
+        {
+            continue;
+        }
+
+        @if (tile.Href is { } href)
+        {
+            <a href="@href" class="pdk-settings-link">
+            <MudPaper Class="pdk-card pdk-settings-tile" Elevation="0" Outlined="true">
+                <div class="pdk-settings-tile-head">
+                    <span class="pdk-stat-icon pdk-tone-primary"><MudIcon Icon="@tile.Icon" Size="Size.Small" /></span>
+                    <MudIcon Icon="@Icons.Material.Rounded.ArrowForward" Size="Size.Small" Class="pdk-muted" />
+                </div>
+                <MudText Typo="Typo.subtitle1" HtmlTag="h2"><strong>@tile.Title</strong></MudText>
+                <MudText Typo="Typo.body2" Class="pdk-muted">@tile.Description</MudText>
+            </MudPaper>
+            </a>
+        }
+        else
+        {
+            <MudPaper Class="pdk-card pdk-settings-tile" Elevation="0" Outlined="true">
+                <div class="pdk-settings-tile-head">
+                    <span class="pdk-stat-icon pdk-tone-default"><MudIcon Icon="@tile.Icon" Size="Size.Small" /></span>
+                    <span class="pdk-soon">Soon</span>
+                </div>
+                <MudText Typo="Typo.subtitle1" HtmlTag="h2" Class="pdk-muted"><strong>@tile.Title</strong></MudText>
+                <MudText Typo="Typo.body2" Class="pdk-muted">@tile.Description</MudText>
+            </MudPaper>
+        }
+    }
+</div>
+
+@code {
+    private System.Security.Claims.ClaimsPrincipal? _user;
+
+    private sealed record SettingsTile(string Title, string Description, string Icon, string? Href, Permission? Requires);
+
+    private static readonly SettingsTile[] Tiles =
+    [
+        new("ACME accounts", "Your accounts with Let's Encrypt and other ACME CAs, which certificates are ordered with.", Icons.Material.Outlined.Badge, SettingsRoutes.AcmeAccounts, Permission.ProvidersRead),
+        new("DNS providers", "Cloudflare and deSEC credentials for DNS-01, which wildcard certificates need. Test them here.", Icons.Material.Outlined.Dns, SettingsRoutes.DnsProviders, Permission.ProvidersRead),
+        new("My account", "Your password, two-step verification and sessions.", Icons.Material.Outlined.ManageAccounts, null, null),
+        new("Users and roles", "Who may sign in, and what each of them may do.", Icons.Material.Outlined.Group, null, Permission.UsersRead),
+        new("API tokens", "Bearer tokens for scripts, the CLI and MCP.", Icons.Material.Outlined.Key, null, null),
+        new("Global defaults", "Settings every host inherits unless it overrides them.", Icons.Material.Outlined.Tune, null, Permission.ConfigRead),
+    ];
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync() =>
+        _user = AuthenticationState is null ? null : (await AuthenticationState).User;
+}

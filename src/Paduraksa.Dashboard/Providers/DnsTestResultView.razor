@@ -1,0 +1,57 @@
+@* What "Test credentials" found: the provider accepted the token, or why not (its own words, without the token). *@
+@if (Testing)
+{
+    <div class="pdk-test-result pdk-tone-info pdk-test-running" role="status">
+        <MudProgressCircular Indeterminate="true" Size="Size.Small" />
+        <span><strong>Testing...</strong>Asking @ProviderName to check the token with a read-only call.</span>
+    </div>
+}
+else if (Result is { } result)
+{
+    @if (result.Denied)
+    {
+        <div class="pdk-test-result pdk-tone-warning pdk-test-denied" role="status">
+            <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" />
+            <span><strong>Not allowed</strong>Your role can't test DNS provider credentials.</span>
+        </div>
+    }
+    else if (!result.Found)
+    {
+        <div class="pdk-test-result pdk-tone-warning" role="status">
+            <MudIcon Icon="@Icons.Material.Outlined.HelpOutline" Size="Size.Small" />
+            <span><strong>Gone</strong>The provider no longer exists.</span>
+        </div>
+    }
+    else if (result.Valid)
+    {
+        <div class="pdk-test-result pdk-tone-success pdk-test-ok" role="status">
+            <MudIcon Icon="@Icons.Material.Rounded.CheckCircle" Size="Size.Small" />
+            <span><strong>Credentials work</strong>@ProviderName accepted the token@(At is { } at ? $" ({CertificateDisplay.DateTime(at)})" : null).</span>
+        </div>
+    }
+    else
+    {
+        <div class="pdk-test-result pdk-tone-error pdk-test-failed" role="alert">
+            <MudIcon Icon="@Icons.Material.Rounded.ErrorOutline" Size="Size.Small" />
+            <span>
+                <strong>The token didn't work</strong>
+                @(result.Message is { Length: > 0 } message ? CertificateMessages.Sentence(message) : $"{ProviderName} refused it.")
+                Check its permissions, or replace it.
+            </span>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public DnsProviderTestResult? Result { get; set; }
+
+    [Parameter]
+    public bool Testing { get; set; }
+
+    [Parameter]
+    public string ProviderName { get; set; } = "The provider";
+
+    [Parameter]
+    public DateTimeOffset? At { get; set; }
+}
