@@ -235,6 +235,10 @@ public sealed class MacKeyTests : IDisposable
         var keys = new[] { KeyA, KeyB, KeyC };
         var valid = keys.Select(k => Convert.ToHexString(Tag(MacAlgorithm.HmacSha256, k, Data))).ToHashSet(StringComparer.Ordinal);
         using var stop = new CancellationTokenSource();
+        // Every signer must have run at least once before the replacements finish, or "everyone worked" only measures
+        // the thread pool's scheduling: on a loaded CI runner three of four signers had not started before the 30
+        // replacements were done and the loop was cancelled.
+        using var running = new CountdownEvent(4);
 
         var signers = Enumerable.Range(0, 4).Select(_ => Task.Run(
             () =>
@@ -246,12 +250,17 @@ public sealed class MacKeyTests : IDisposable
                     key.Sign(Data, tag);
                     Assert.Contains(Convert.ToHexString(tag), valid);
                     count++;
+                    if (count == 1)
+                    {
+                        running.Signal();
+                    }
                 }
 
                 return count;
             },
             Ct)).ToList();
 
+        Assert.True(running.Wait(TimeSpan.FromSeconds(10), Ct), "the signing workers never started");
         for (var i = 0; i < 30; i++)
         {
             await Store.ReplaceAsync(id, keys[(i + 1) % 3], null, Ct);
@@ -294,6 +303,10 @@ public sealed class MacKeyTests : IDisposable
         var forged = Tag(MacAlgorithm.HmacSha256, new byte[32], Data);
         var cache = _vault.Get<MacKeyCache>();
         using var stop = new CancellationTokenSource();
+        // Prove every worker is alive before the invalidation storm starts. An invalidation advances the epoch and a
+        // refresh that started in an older epoch is thrown away, so a tight invalidate loop can starve all four workers
+        // for seconds: "everyone worked" would then measure scheduling, not the race (a CI run failed that way).
+        using var running = new CountdownEvent(4);
 
         var users = Enumerable.Range(0, 4).Select(_ => Task.Run(
             () =>
@@ -306,11 +319,17 @@ public sealed class MacKeyTests : IDisposable
                     Assert.Contains(Convert.ToHexString(tag), valid);
                     Assert.False(key.Verify(Data, forged));
                     count++;
+                    if (count == 1)
+                    {
+                        running.Signal();
+                    }
                 }
 
                 return count;
             },
             Ct)).ToList();
+
+        Assert.True(running.Wait(TimeSpan.FromSeconds(10), Ct), "the signing workers never started");
         var invalidator = Task.Run(
             () =>
             {
