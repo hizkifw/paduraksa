@@ -205,7 +205,8 @@ body {
 
 .pdk-page.mud-container {
     padding-top: 32px;
-    padding-bottom: 56px;
+    /* Room below the last card, so it can always be scrolled clear of a toast in the bottom-right corner. */
+    padding-bottom: 120px;
 }
 
 .pdk-banner {
@@ -897,7 +898,10 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     z-index: 1601;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
     width: min(640px, 100vw);
+    max-width: 100vw;
+    overflow: hidden;
     border-left: 1px solid var(--mud-palette-lines-default);
     background: var(--mud-palette-surface);
     box-shadow: -30px 0 80px -40px rgba(0, 0, 0, 0.6);
@@ -906,6 +910,10 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 .pdk-sheet:focus {
     outline: none;
+}
+
+.pdk-sheet > * {
+    min-width: 0;
 }
 
 .pdk-sheet-head {
@@ -929,6 +937,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-sheet-body {
     flex: 1 1 auto;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: 14px;
     overflow-y: auto;
@@ -937,16 +946,25 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 .pdk-sheet-foot {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
     padding: 14px 24px 18px;
     border-top: 1px solid var(--mud-palette-lines-default);
     background: var(--mud-palette-background-gray);
 }
 
+/* The actions wrap onto a second line rather than run off the edge, whatever the width and the labels. */
 .pdk-sheet-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
+    min-width: 0;
+}
+
+.pdk-sheet-actions .mud-button-root {
+    flex: 0 0 auto;
+    max-width: 100%;
 }
 
 .pdk-review-note {
@@ -1005,8 +1023,8 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 }
 
 @keyframes pdk-slide-in {
-    from { transform: translateX(32px); }
-    to { transform: none; }
+    from { opacity: 0.6; transform: translateX(24px); }
+    to { opacity: 1; transform: none; }
 }
 
 @keyframes pdk-fade {
@@ -1431,6 +1449,35 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     margin: 0;
     padding: 1px 7px;
     overflow-wrap: anywhere;
+}
+
+/* ---------- Toasts ---------- */
+
+/* Bottom-right, never wider than a column of the page, with room around them; the review drawer and dialogs sit above them. */
+.mud-snackbar-location-bottom-right {
+    right: 20px;
+    bottom: 20px;
+    left: auto;
+    max-width: min(420px, calc(100vw - 40px));
+}
+
+.mud-snackbar-location-bottom-right .mud-snackbar {
+    min-width: 0;
+    max-width: 100%;
+    margin-top: 10px;
+}
+
+.mud-snackbar .mud-snackbar-content-message {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+    .mud-snackbar-location-bottom-right {
+        right: 8px;
+        bottom: 8px;
+        left: 8px;
+        max-width: none;
+    }
 }
 
 /* ---------- Errors ---------- */

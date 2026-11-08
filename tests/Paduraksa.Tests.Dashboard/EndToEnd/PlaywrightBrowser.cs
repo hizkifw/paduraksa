@@ -69,7 +69,13 @@ internal static class PlaywrightBrowser
         }
 
         Directory.CreateDirectory(directory);
-        await page.ScreenshotAsync(new PageScreenshotOptions { Path = Path.Combine(directory, $"paduraksa-dashboard-{name}.png"), FullPage = fullPage });
+        // Finite animations (the drawer sliding in, a dialog appearing) are taken at their end, so a shot shows where things settle.
+        await page.ScreenshotAsync(new PageScreenshotOptions
+        {
+            Path = Path.Combine(directory, $"paduraksa-dashboard-{name}.png"),
+            FullPage = fullPage,
+            Animations = ScreenshotAnimations.Disabled,
+        });
     }
 
     private static bool IsMissingBrowser(PlaywrightException ex) =>
