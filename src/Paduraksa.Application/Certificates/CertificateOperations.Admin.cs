@@ -145,7 +145,7 @@ public sealed partial class CertificateOperations
     /// operator: the row alone would otherwise look healthy forever, every re-issue would fail for want of a root, and every
     /// way out of it (deleting the root, deleting the admin certificate, re-issuing it by hand) is refused.
     /// </remarks>
-    // TODO(M5): nothing renews the local CA root. The vault caps a leaf at the root's remaining validity, so in the root's
+    // TODO: nothing renews the local CA root (open in PLAN §9.1). The vault caps a leaf at the root's remaining validity, so in the root's
     // last 90 days every re-issued admin leaf gets shorter until the root expires (then the placeholder serves and the
     // download still offers an expired root). Rotating the root needs a plan for the leaves issued under the old one; it is
     // listed as open in PLAN §9.1.

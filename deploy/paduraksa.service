@@ -20,8 +20,9 @@ WorkingDirectory=/opt/paduraksa
 ExecStart=/opt/paduraksa/paduraksa serve
 Restart=on-failure
 RestartSec=5s
-# Exit 3 is invalid configuration: restarting would only repeat it.
-RestartPreventExitStatus=3
+# Exit 2 (startup failed: a port taken, nothing to serve) and 3 (invalid configuration) are deterministic: restarting
+# would only repeat them.
+RestartPreventExitStatus=2 3
 # Kestrel's shared drain budget is 30 s; give it room before systemd kills the process.
 TimeoutStopSec=40s
 
@@ -41,6 +42,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
+# Already writable through StateDirectory; listed so the one writable path is visible here.
 ReadWritePaths=/var/lib/paduraksa
 
 [Install]

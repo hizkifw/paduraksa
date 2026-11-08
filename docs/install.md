@@ -236,7 +236,7 @@ still ready, worth an alert). See PLAN §11.3.
    The unit runs the app as `paduraksa`, gives it only `CAP_NET_BIND_SERVICE` (for 80/443), and passes the master key
    through systemd's `LoadCredential` (`PADURAKSA_MASTER_KEY_FILE=%d/master.key`), so the key is readable only by the
    service and is never in the data directory. `TimeoutStopSec=40s` matches the 30-second drain;
-   `RestartPreventExitStatus=3` stops a restart loop on an invalid configuration.
+   `RestartPreventExitStatus=2 3` stops a restart loop when startup fails (exit 2) or the configuration is invalid (exit 3).
 
 4. Finish setup exactly as in the Docker steps: read the setup token from the journal, trust the CA root from
    `https://<host>:9443/api/v1/ca/root.pem` (PEM; save it as `paduraksa.crt` for `update-ca-certificates`) or
