@@ -90,6 +90,11 @@ public sealed class AuditQueryService
                 query = query.Where(e => e.Target == target);
             }
 
+            if (filter.Outcome is { } outcome)
+            {
+                query = query.Where(e => e.Outcome == outcome);
+            }
+
             // One more than asked: whether it exists says whether older events remain.
             List<AuditEvent> rows = await query.OrderByDescending(e => e.Id).Take(limit + 1).ToListAsync(cancellationToken).ConfigureAwait(false);
             bool more = rows.Count > limit;

@@ -34,7 +34,14 @@ public sealed record AuditEventSummary(
 /// <param name="Actor">One actor: <c>system</c>, <c>cli</c>, a user ID or an API token ID.</param>
 /// <param name="Action">An action name, or a prefix ending in <c>*</c> (<c>config.*</c>).</param>
 /// <param name="Target">The typed-ID string of what was acted on.</param>
-public sealed record AuditFilter(DateTimeOffset? From = null, DateTimeOffset? To = null, string? Actor = null, string? Action = null, string? Target = null);
+/// <param name="Outcome">How the action ended.</param>
+public sealed record AuditFilter(
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null,
+    string? Actor = null,
+    string? Action = null,
+    string? Target = null,
+    AuditOutcome? Outcome = null);
 
 /// <summary>A page of audit events, newest first, before the API turns the continuation into a cursor.</summary>
 /// <param name="Items">The page.</param>

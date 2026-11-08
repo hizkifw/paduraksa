@@ -22,7 +22,7 @@ internal static class AuditEndpoints
     {
         RouteGroupBuilder audit = api.MapGroup("/audit").WithTags("Audit");
         audit.MapGet("/", QueryAsync).WithName("QueryAudit").WithSummary("Query the audit log")
-            .WithDescription("Newest first. Filters (all optional, all must match): from (inclusive) and to (exclusive) as ISO 8601 times, actor ('system', 'cli', a user ID or a token ID), action (exact, or a prefix ending in '*'), target (a typed ID). Pagination: limit (1 to 200) and cursor.")
+            .WithDescription("Newest first. Filters (all optional, all must match): from (inclusive) and to (exclusive) as ISO 8601 times, actor ('system', 'cli', a user ID or a token ID), action (exact, or a prefix ending in '*'), target (a typed ID), outcome (success, denied, invalid, conflict or failed). Pagination: limit (1 to 200) and cursor.")
             .Produces<Page<AuditEventSummary>>().ProducesApiProblems(400).RequirePermission(Permission.AuditRead);
         audit.MapGet("/verify", VerifyAsync).WithName("VerifyAudit").WithSummary("Check the audit log's hash chain")
             .WithDescription("Walks the whole chain and reports the first event that doesn't verify. Keep headHash somewhere else to detect the removal of the newest events.")
@@ -77,7 +77,12 @@ internal static class AuditEndpoints
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "target must be a typed ID such as host_...");
         }
 
-        AuditPage page = await audit.QueryAsync(new AuditFilter(from, to, actor, action, target), limit, after, ct).ConfigureAwait(false);
+        if (!TryGetOutcome(http, out AuditOutcome? outcome))
+        {
+            return ApiProblems.Problem(StatusCodes.Status400BadRequest, "outcome must be success, denied, invalid, conflict or failed.");
+        }
+
+        AuditPage page = await audit.QueryAsync(new AuditFilter(from, to, actor, action, target, outcome), limit, after, ct).ConfigureAwait(false);
         return EndpointSupport.Json(
             new Page<AuditEventSummary>(page.Items, page.Next is { } next ? Pagination.Encode(next) : null),
             AdminJsonContext.Default.PageAuditEventSummary);
@@ -92,6 +97,28 @@ internal static class AuditEndpoints
         string text = http.Request.Query[name].ToString();
         value = text.Length == 0 ? null : text;
         return text.Length <= MaxFilterLength;
+    }
+
+    /// <summary>The outcome filter by its name (<c>success</c>, <c>denied</c>, ...); null when absent, false for anything else.</summary>
+    private static bool TryGetOutcome(HttpContext http, out AuditOutcome? outcome)
+    {
+        outcome = null;
+        string text = http.Request.Query["outcome"].ToString();
+        if (text.Length == 0)
+        {
+            return true;
+        }
+
+        foreach (AuditOutcome candidate in Enum.GetValues<AuditOutcome>())
+        {
+            if (string.Equals(candidate.ToName(), text, StringComparison.Ordinal))
+            {
+                outcome = candidate;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsActionFilter(string action)

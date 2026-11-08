@@ -321,6 +321,10 @@ public sealed class ResourceApiTests
         Assert.Empty((await QueryAsync($"?actor={api.UserOf("admin")}&action=config.*")).Items); // the actor is the token that made the change, not its owner
         Assert.Empty((await QueryAsync("?to=2000-01-01T00:00:00Z")).Items);
         Assert.Equal(all.Items.Count, (await QueryAsync("?from=2000-01-01T00:00:00Z")).Items.Count);
+        Page<AuditEventSummary> succeeded = await QueryAsync("?outcome=success");
+        Assert.Equal(all.Items.Count(e => e.Outcome == AuditOutcome.Success), succeeded.Items.Count);
+        Assert.All(succeeded.Items, e => Assert.Equal(AuditOutcome.Success, e.Outcome));
+        Assert.All((await QueryAsync("?outcome=denied")).Items, e => Assert.Equal(AuditOutcome.Denied, e.Outcome));
         AuditEventSummary one = byAdmin.Items[0];
         Assert.Contains(one.Id, (await QueryAsync($"?target={one.Target}")).Items.Select(e => e.Id));
 
@@ -337,7 +341,7 @@ public sealed class ResourceApiTests
         Assert.Equal(all.Items.Select(e => e.Id), seen);
         Assert.Equal(seen.OrderByDescending(i => i), seen);
 
-        foreach (string bad in new[] { "?from=yesterday", "?actor=nobody", "?action=A.B", "?action=a*b", "?target=%27%3B--", "?cursor=zzz", "?actor=" + new string('a', 200), "?action=" + new string('a', 200), "?target=" + new string('a', 200), "?from=2026-11-08", "?from=2026-11-09T00:00:00Z&to=2026-11-08T00:00:00Z" })
+        foreach (string bad in new[] { "?from=yesterday", "?actor=nobody", "?action=A.B", "?action=a*b", "?target=%27%3B--", "?cursor=zzz", "?actor=" + new string('a', 200), "?action=" + new string('a', 200), "?target=" + new string('a', 200), "?from=2026-11-08", "?from=2026-11-09T00:00:00Z&to=2026-11-08T00:00:00Z", "?outcome=Success", "?outcome=ok" })
         {
             using HttpResponseMessage rejected = await api.GetAsync("/api/v1/audit" + bad, "auditor");
             Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
