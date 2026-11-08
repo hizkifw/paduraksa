@@ -1,0 +1,40 @@
+@* A QR code drawn as inline SVG from QrCode: dark modules on white with the standard's quiet zone, whatever the palette (a scanner
+   needs the contrast). Nothing is fetched: the text stays on the page that shows it. *@
+<svg class="pdk-qr" viewBox="0 0 @_extent @_extent" width="@Size" height="@Size" role="img" aria-label="@Label" shape-rendering="crispEdges"
+     xmlns="http://www.w3.org/2000/svg">
+    <rect width="@_extent" height="@_extent" fill="#ffffff" />
+    <path d="@_path" fill="#0b0f13" />
+</svg>
+
+@code {
+    private const int QuietZone = 4;
+
+    private string _path = string.Empty;
+    private int _extent;
+    private string? _encoded;
+
+    /// <summary>What the code carries.</summary>
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>The accessible name.</summary>
+    [Parameter]
+    public string Label { get; set; } = "QR code";
+
+    /// <summary>The rendered width and height in CSS pixels.</summary>
+    [Parameter]
+    public int Size { get; set; } = 196;
+
+    protected override void OnParametersSet()
+    {
+        if (string.Equals(_encoded, Text, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        QrCode code = QrCode.Encode(Text);
+        _path = code.ToSvgPath(QuietZone);
+        _extent = code.Size + (2 * QuietZone);
+        _encoded = Text;
+    }
+}
