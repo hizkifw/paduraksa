@@ -73,7 +73,7 @@ public static class AdminCallerExtensions
             IPermissionEvaluator permissions = http.RequestServices.GetRequiredService<IPermissionEvaluator>();
             if (!await permissions.IsAllowedAsync(caller.Origin, permission, http.RequestAborted).ConfigureAwait(false))
             {
-                return Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: "Permission required", detail: $"This needs the '{permission.ToName()}' permission.");
+                return AdminProblems.Forbidden("Permission required", $"This needs the '{permission.ToName()}' permission.", "permission_required");
             }
 
             return await next(invocation).ConfigureAwait(false);

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Application.Identity;
+using Paduraksa.Contracts.Config;
 
 namespace Paduraksa.Admin.Auth;
 
@@ -21,18 +23,14 @@ internal static class AdminProblems
             http.Response.Headers.WWWAuthenticate = bearerError is null ? "Bearer" : $"Bearer error=\"{bearerError}\"";
         }
 
-        return Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Authentication required", detail: detail, extensions: Code(code));
+        return ApiProblems.Problem(StatusCodes.Status401Unauthorized, detail, code: code);
     }
 
     /// <summary>The server is busy deriving passwords: nothing was tried, try again shortly.</summary>
     public static IResult Busy(HttpContext http)
     {
         http.Response.Headers.RetryAfter = "1";
-        return Results.Problem(
-            statusCode: StatusCodes.Status503ServiceUnavailable,
-            title: "Busy",
-            detail: "Too many password checks are running. Try again in a moment.",
-            extensions: Code("busy"));
+        return ApiProblems.Problem(StatusCodes.Status503ServiceUnavailable, "Too many password checks are running. Try again in a moment.", code: "busy", title: "Busy");
     }
 
     /// <summary>A token cannot manage tokens or sessions (it could mint itself a longer life, or end the session that is watching it).</summary>
@@ -40,32 +38,25 @@ internal static class AdminProblems
         Forbidden("Signed-in session required", "API tokens can't manage tokens or sessions; use a signed-in session.", "session_required");
 
     public static IResult Forbidden(string title, string? detail = null, string? code = null) =>
-        Results.Problem(statusCode: StatusCodes.Status403Forbidden, title: title, detail: detail, extensions: code is null ? null : Code(code));
+        ApiProblems.Problem(StatusCodes.Status403Forbidden, detail, code: code, title: title);
 
     public static IResult TooManyRequests(TimeSpan retryAfter, HttpContext context)
     {
         context.Response.Headers.RetryAfter = ((int)retryAfter.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
-        return Results.Problem(
-            statusCode: StatusCodes.Status429TooManyRequests,
-            title: "Too many attempts",
-            detail: "Too many attempts. Wait before trying again.",
-            extensions: Code("rate_limited"));
+        return ApiProblems.Problem(StatusCodes.Status429TooManyRequests, "Too many attempts. Wait before trying again.", code: "rate_limited", title: "Too many attempts");
     }
 
     /// <summary>A malformed or missing body or parameter (the JSON binder's own failures are 400s too).</summary>
     public static IResult BadRequest(string detail) =>
-        Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "Bad request", detail: detail);
+        ApiProblems.Problem(StatusCodes.Status400BadRequest, detail);
 
     /// <summary>An ID in the path that is not one of the expected kind: nothing by that name can exist.</summary>
     public static IResult NotFound(string what) =>
-        Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "Not found", detail: $"No such {what}.");
+        ApiProblems.Problem(StatusCodes.Status404NotFound, $"No such {what}.");
 
     /// <summary>The input was refused; the service's message is safe to show.</summary>
     public static IResult Invalid(string? problem) =>
-        Results.ValidationProblem(
-            new Dictionary<string, string[]> { ["request"] = [problem ?? "The request was refused."] },
-            statusCode: StatusCodes.Status422UnprocessableEntity,
-            title: "The request was refused");
+        ApiProblems.Invalid([new ConfigError(string.Empty, "identity.refused", problem ?? "The request was refused.")]);
 
     /// <summary>
     /// The failure statuses every identity operation shares: denied 403, not found 404, invalid 422, conflict 409 (a clash, or the last
@@ -77,14 +68,9 @@ internal static class AdminProblems
         IdentityStatus.Denied => Forbidden("Permission required", "You do not have permission to do this."),
         IdentityStatus.NotFound => NotFound(what),
         IdentityStatus.Invalid => Invalid(problem),
-        IdentityStatus.Conflict => Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Conflict", detail: problem ?? "This clashes with something that exists.", extensions: Code("conflict")),
-        IdentityStatus.LastOwner => Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Conflict", detail: "That would leave no enabled Owner.", extensions: Code("last_owner")),
-        IdentityStatus.InvalidCredentials => Results.ValidationProblem(
-            new Dictionary<string, string[]> { ["password"] = ["The password is wrong."] },
-            statusCode: StatusCodes.Status422UnprocessableEntity,
-            title: "The request was refused"),
-        _ => Results.Problem(statusCode: StatusCodes.Status500InternalServerError, title: "Unexpected result"),
+        IdentityStatus.Conflict => ApiProblems.Problem(StatusCodes.Status409Conflict, problem ?? "This clashes with something that exists.", code: "conflict"),
+        IdentityStatus.LastOwner => ApiProblems.Problem(StatusCodes.Status409Conflict, "That would leave no enabled Owner.", code: "last_owner"),
+        IdentityStatus.InvalidCredentials => ApiProblems.Invalid([new ConfigError("/password", "identity.password.wrong", "The password is wrong.")]),
+        _ => ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The operation ended in a state this endpoint doesn't know."),
     };
-
-    private static Dictionary<string, object?> Code(string code) => new() { ["code"] = code };
 }

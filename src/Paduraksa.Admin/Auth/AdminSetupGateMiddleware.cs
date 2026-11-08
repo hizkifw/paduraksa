@@ -3,6 +3,7 @@ using System.Data.Common;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Application.Identity;
 
 namespace Paduraksa.Admin.Auth;
@@ -36,11 +37,11 @@ internal sealed partial class AdminSetupGateMiddleware(RequestDelegate next, Set
         catch (Exception ex) when (ex is DbException or InvalidOperationException)
         {
             LogUnavailable(_logger, ex);
-            await Results.Problem(
-                statusCode: StatusCodes.Status503ServiceUnavailable,
-                title: "Setup state unavailable",
-                detail: "The admin app cannot tell whether first-run setup is complete (the config store is unavailable).",
-                extensions: new Dictionary<string, object?> { ["code"] = "setup_unavailable" }).ExecuteAsync(context).ConfigureAwait(false);
+            await ApiProblems.Problem(
+                StatusCodes.Status503ServiceUnavailable,
+                "The admin app cannot tell whether first-run setup is complete (the config store is unavailable).",
+                code: "setup_unavailable",
+                title: "Setup state unavailable").ExecuteAsync(context).ConfigureAwait(false);
             return;
         }
 
@@ -50,11 +51,12 @@ internal sealed partial class AdminSetupGateMiddleware(RequestDelegate next, Set
             return;
         }
 
-        await Results.Problem(
-            statusCode: StatusCodes.Status503ServiceUnavailable,
-            title: "Setup required",
-            detail: "First-run setup is not complete. POST the setup token (from the server log, or `paduraksa setup-token`) with the first Owner's username and password to " + SetupPath + ".",
-            extensions: new Dictionary<string, object?> { ["code"] = "setup_required", ["setup"] = SetupPath }).ExecuteAsync(context).ConfigureAwait(false);
+        await ApiProblems.Problem(
+            StatusCodes.Status503ServiceUnavailable,
+            "First-run setup is not complete. POST the setup token (from the server log, or `paduraksa setup-token`) with the first Owner's username and password to " + SetupPath + ".",
+            instance: SetupPath,
+            code: "setup_required",
+            title: "Setup required").ExecuteAsync(context).ConfigureAwait(false);
     }
 
     private bool IsAlwaysOpen(PathString path) =>

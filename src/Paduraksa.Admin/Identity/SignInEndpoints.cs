@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
+using Paduraksa.Admin.Api;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
@@ -47,14 +48,14 @@ internal static class SignInEndpoints
                     SessionStarted? session = IdentityApi.StartSession(http, signedIn);
                     return Results.Created("/api/v1/auth/me", new SetupCompleted(owner, session));
                 case { Outcome: SetupOutcome.AlreadyComplete }:
-                    return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "Setup is complete", detail: "An Owner already exists; sign in instead.", extensions: new Dictionary<string, object?> { ["code"] = "setup_complete" });
+                    return ApiProblems.Problem(StatusCodes.Status409Conflict, "An Owner already exists; sign in instead.", code: "setup_complete", title: "Setup is complete");
                 case { Outcome: SetupOutcome.InvalidToken }:
                     throttle.RecordFailure(AdminThrottleScope.Setup, request.Username);
                     return AdminProblems.Forbidden("Invalid setup token", "The setup token is wrong. Read it from the server log, or run `paduraksa setup-token`.", "invalid_setup_token");
                 case { Outcome: SetupOutcome.Invalid }:
                     return AdminProblems.Invalid(result.Problem);
                 default:
-                    return Results.Problem(statusCode: StatusCodes.Status500InternalServerError, title: "Unexpected result");
+                    return ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The operation ended in a state this endpoint doesn't know.");
             }
         }).ConfigureAwait(false);
     }

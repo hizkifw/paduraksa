@@ -7,6 +7,8 @@ namespace Paduraksa.Tests.Integration.Admin;
 /// <summary>Signing in: both steps, lockout, logout, the cookie, and what a partial session may reach.</summary>
 public sealed class SignInTests
 {
+    private static string WithoutTrace(string body) => System.Text.RegularExpressions.Regex.Replace(body, "\"traceId\":\"[^\"]*\"", string.Empty);
+
     private static readonly Dictionary<string, string?> RoomyLimits = new()
     {
         ["Paduraksa:Admin:RateLimit:PermitsPerIp"] = "1000",
@@ -50,7 +52,7 @@ public sealed class SignInTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, wrong.Status);
         Assert.Equal(HttpStatusCode.Unauthorized, unknown.Status);
-        Assert.Equal(wrong.Body, unknown.Body);
+        Assert.Equal(WithoutTrace(wrong.Body), WithoutTrace(unknown.Body)); // the trace ID names the request, not the account
         Assert.Null(wrong.SessionCookie);
         Assert.DoesNotContain("not the password", wrong.Body, StringComparison.Ordinal);
     }
@@ -66,13 +68,13 @@ public sealed class SignInTests
         {
             using AdminResponse failed = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", "wrong password number " + i));
             Assert.Equal(HttpStatusCode.Unauthorized, failed.Status);
-            generic = failed.Body;
+            generic = WithoutTrace(failed.Body);
         }
 
         using AdminResponse locked = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password));
 
         Assert.Equal(HttpStatusCode.Unauthorized, locked.Status);
-        Assert.Equal(generic, locked.Body);
+        Assert.Equal(generic, WithoutTrace(locked.Body));
         Assert.Null(locked.SessionCookie);
         Assert.NotEmpty(await h.AuditAsync("auth.lockout"));
     }

@@ -104,11 +104,11 @@ public sealed class SetupGateTests
             ?? throw new InvalidOperationException("No hooks registered.");
         hooks.SetupAllowedPathPrefixes.Add("/extra-docs");
 
-        // Nothing is mapped there, so open means a 404 from routing instead of the gate's 503.
-        foreach (string path in new[] { "/openapi/v1.json", "/api/docs", "/api/docs/index.html", "/extra-docs/x" })
+        // Open means anything but the gate's 503: a 404 where nothing is mapped, the real page (or its redirect) where the API's docs are.
+        foreach (string path in new[] { "/openapi/v1.json", "/api/v1/openapi.json", "/api/docs", "/api/docs/index.html", "/extra-docs/x" })
         {
             using AdminResponse response = await h.GetAsync(path);
-            Assert.Equal(HttpStatusCode.NotFound, response.Status);
+            Assert.NotEqual(HttpStatusCode.ServiceUnavailable, response.Status);
         }
 
         using AdminResponse near = await h.GetAsync("/api/docsX");
