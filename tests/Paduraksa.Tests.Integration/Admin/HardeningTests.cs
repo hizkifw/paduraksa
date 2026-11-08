@@ -1,8 +1,10 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -170,12 +172,11 @@ public sealed class HardeningTests
     [Fact]
     public async Task TheLoopbackListenerIsNotSubjectToTheAllowlist()
     {
-        int port = FreePort();
-        await using AdminHarness h = await AdminHarness.StartAsync(new Dictionary<string, string?>
+        (AdminHarness started, int port) = await StartWithLoopbackListenerAsync(new Dictionary<string, string?>
         {
             ["Paduraksa:Listen:AdminAllowedSources:0"] = "203.0.113.0/24",
-            ["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
         });
+        await using AdminHarness h = started;
         using HttpClient http = new(new SocketsHttpHandler { UseCookies = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
         using HttpResponseMessage response = await http.GetAsync("/healthz", AdminHarness.Ct);
@@ -186,8 +187,8 @@ public sealed class HardeningTests
     [Fact]
     public async Task TheLoopbackListenerAnswersOnlyToALoopbackHostName()
     {
-        int port = FreePort();
-        await using AdminHarness h = await AdminHarness.StartAsync(new Dictionary<string, string?> { ["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+        (AdminHarness started, int port) = await StartWithLoopbackListenerAsync();
+        await using AdminHarness h = started;
         using HttpClient http = new(new SocketsHttpHandler { UseCookies = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
         foreach ((string host, HttpStatusCode expected) in new[]
@@ -216,8 +217,8 @@ public sealed class HardeningTests
     [Fact]
     public async Task TheLoopbackFallbackListenerServesTheSameAppOverPlainHttp()
     {
-        int port = FreePort();
-        await using AdminHarness h = await AdminHarness.StartAsync(new Dictionary<string, string?> { ["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+        (AdminHarness started, int port) = await StartWithLoopbackListenerAsync();
+        await using AdminHarness h = started;
         string token = await h.SetupTokenAsync();
         using HttpClient http = new(new SocketsHttpHandler { UseCookies = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
@@ -354,6 +355,47 @@ public sealed class HardeningTests
 
         PaduraksaOptions impatient = new() { Admin = { CertificateStartupTimeout = TimeSpan.FromHours(1) } };
         Assert.Contains(new PaduraksaOptionsValidator().Validate(null, impatient).Failures!, f => f.Contains("CertificateStartupTimeout", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Starts a host with the optional loopback listener on a fixed port. That listener treats 0 as "off", so the OS
+    /// cannot pick the port itself; the test probes one and retries with another when another test's host takes it between
+    /// the probe and Kestrel's bind. (The listener would otherwise bind an ephemeral port and the test could read it back.)
+    /// </summary>
+    private static async Task<(AdminHarness Harness, int Port)> StartWithLoopbackListenerAsync(Dictionary<string, string?>? settings = null)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            int port = FreePort();
+            Dictionary<string, string?> config = new(StringComparer.OrdinalIgnoreCase);
+            foreach ((string key, string? value) in settings ?? [])
+            {
+                config[key] = value;
+            }
+
+            config["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(CultureInfo.InvariantCulture);
+            try
+            {
+                return (await AdminHarness.StartAsync(config), port);
+            }
+            catch (IOException ex) when (attempt < 5 && IsAddressInUse(ex))
+            {
+                // Lost the race: probe again.
+            }
+        }
+    }
+
+    private static bool IsAddressInUse(Exception error)
+    {
+        for (Exception? current = error; current is not null; current = current.InnerException)
+        {
+            if (current is AddressInUseException or SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int FreePort()

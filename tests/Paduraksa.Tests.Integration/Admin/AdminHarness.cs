@@ -85,7 +85,17 @@ internal sealed class AdminHarness : IAsyncDisposable
         }
 
         PaduraksaHost host = TestHost.Create(settings: config, configureServices: configureServices, logs: logs);
-        await host.StartAsync(Ct);
+        try
+        {
+            await host.StartAsync(Ct);
+        }
+        catch
+        {
+            // A test that retries after a lost port race must not leak the half-started host (its vault, database and hosts).
+            await host.DisposeAsync();
+            throw;
+        }
+
         // The hardening tests reach the admin by a LAN name or a made-up one over a loopback connection, so the client
         // must not insist the certificate covers that name (it is still pinned or chain-checked to the local CA).
         HttpClient http = TestHost.CreateAdminClient(host, static handler =>

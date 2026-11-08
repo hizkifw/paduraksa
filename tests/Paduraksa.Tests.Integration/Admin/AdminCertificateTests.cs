@@ -234,15 +234,30 @@ public sealed class AdminCertificateTests
         LogCapture logs = new();
         Dictionary<string, string?> settings = WithNames("admin.test");
         settings["Logging:LogLevel:Default"] = "Information";
-        // A fixed port: the log line names the configured one, which is 0 (OS-assigned) in the other tests.
-        int port = FreePort();
-        settings["Paduraksa:Listen:Admin"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        // A fixed port: the log line names the configured one, which is 0 (OS-assigned) in the other tests. The probe can
+        // lose a race with another test's listener, so a bind failure retries with a fresh port.
+        PaduraksaHost host;
+        int port;
+        for (int attempt = 1; ; attempt++)
+        {
+            port = FreePort();
+            settings["Paduraksa:Listen:Admin"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            host = TestHost.Create(settings: settings, logs: logs);
+            try
+            {
+                await host.StartAsync(Ct);
+                break;
+            }
+            catch (IOException ex) when (attempt < 5 && IsAddressInUse(ex))
+            {
+                await host.DisposeAsync();
+            }
+        }
 
-        await using PaduraksaHost host = TestHost.Create(settings: settings, logs: logs);
-        await host.StartAsync(Ct);
+        await using PaduraksaHost started = host;
 
-        CertificateSummary root = await RootSummaryAsync(host);
-        Assert.Equal(port, TestHost.Endpoint(host, HostRole.Admin, "https").Port);
+        CertificateSummary root = await RootSummaryAsync(started);
+        Assert.Equal(port, TestHost.Endpoint(started, HostRole.Admin, "https").Port);
         Assert.Contains(
             logs.Entries,
             e => e.Level == LogLevel.Information
@@ -257,6 +272,20 @@ public sealed class AdminCertificateTests
         using Socket probe = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         probe.Bind(new IPEndPoint(IPAddress.Loopback, 0));
         return ((IPEndPoint)probe.LocalEndPoint!).Port;
+    }
+
+    /// <summary>The start failed because another listener took the probed port first (Kestrel wraps the socket error).</summary>
+    private static bool IsAddressInUse(Exception error)
+    {
+        for (Exception? current = error; current is not null; current = current.InnerException)
+        {
+            if (current is SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     [Fact]
