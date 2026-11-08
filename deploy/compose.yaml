@@ -7,11 +7,12 @@
 # serves H1/H2 over 443/tcp.
 services:
   paduraksa:
-    # Use the published image, or build this checkout with `build: { context: .., dockerfile: Dockerfile }`.
-    image: ghcr.io/paduraksa/paduraksa:latest
-    # build:
-    #   context: ..
-    #   dockerfile: Dockerfile
+    # Built from this checkout: run `docker compose up -d --build` in deploy/, with the repository one directory up. Once
+    # a release image is published (M9), replace these two lines with `image: ghcr.io/paduraksa/paduraksa:latest`.
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: paduraksa:local
     container_name: paduraksa
     restart: unless-stopped
     stop_grace_period: 35s

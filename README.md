@@ -29,11 +29,11 @@ the server and delete both. One data directory serves one server at a time.
 ## Install
 
 Docker is the supported deployment: the [`Dockerfile`](Dockerfile) builds a non-root, Ubuntu Noble image with
-libmsquic for HTTP/3, and [`deploy/compose.yaml`](deploy/compose.yaml) is a one-node example.
+libmsquic for HTTP/3, and [`deploy/compose.yaml`](deploy/compose.yaml) is a one-node example that builds it.
 
 ```sh
-cp deploy/compose.yaml /srv/paduraksa/ && cd /srv/paduraksa
-docker compose up -d
+cd deploy
+docker compose up -d --build
 docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"   # the one-time setup token
 ```
 
