@@ -67,7 +67,7 @@ public static class AdminCallerExtensions
             HttpContext http = invocation.HttpContext;
             if (http.GetCaller() is not { } caller)
             {
-                return Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Authentication required");
+                return AdminProblems.Unauthorized(http, "Sign in, or send a bearer token.", "authentication_required");
             }
 
             IPermissionEvaluator permissions = http.RequestServices.GetRequiredService<IPermissionEvaluator>();
