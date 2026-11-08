@@ -40,6 +40,9 @@
     [Inject]
     private TimeProvider Time { get; set; } = default!;
 
+    [Inject]
+    private Microsoft.Extensions.Logging.ILogger<AcmeRunPanel> Logger { get; set; } = default!;
+
     /// <summary>Whether the run is still going.</summary>
     public bool Running { get; private set; }
 
@@ -56,9 +59,17 @@
         // Only the elapsed time line ticks; the steps arrive as the service reports them.
         _ticker = new Timer(_ => _ = Tick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
         IssuanceResult result;
+        string? failure = null;
         try
         {
             result = await Start(new Reporter(this));
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            // Thrown before the service could answer (the store busy as the run was set up): said here, not by the page's error boundary.
+            Logger.LogStoreFailure(ex, "An ACME run failed before it could report how it ended.");
+            failure = StoreFailures.Message("The run didn't get going.");
+            result = new IssuanceResult(IssuanceOutcome.Unavailable);
         }
         finally
         {
@@ -72,7 +83,11 @@
             return;
         }
 
-        if (result.Outcome is not (IssuanceOutcome.Issued or IssuanceOutcome.Failed))
+        if (failure is not null)
+        {
+            _errors = [failure];
+        }
+        else if (result.Outcome is not (IssuanceOutcome.Issued or IssuanceOutcome.Failed))
         {
             _errors = [.. CertificateMessages.Errors(result)];
         }
@@ -109,22 +124,32 @@
 
     private void Add(AcmeOrderProgress report)
     {
-        if (_disposed)
+        if (!_disposed)
         {
-            return;
+            _ = AddAsync(report);
         }
+    }
 
-        _ = InvokeAsync(() =>
+    private async Task AddAsync(AcmeOrderProgress report)
+    {
+        try
         {
-            if (_disposed)
+            await InvokeAsync(() =>
             {
-                return;
-            }
+                if (_disposed)
+                {
+                    return;
+                }
 
-            _reports.Add(report);
-            _now = Time.GetUtcNow();
-            StateHasChanged();
-        });
+                _reports.Add(report);
+                _now = Time.GetUtcNow();
+                StateHasChanged();
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit went away.
+        }
     }
 
     /// <summary>Passes the service's reports to the component; never throws back into the issuance.</summary>

@@ -1,5 +1,7 @@
 using Bunit;
 
+using Microsoft.Extensions.DependencyInjection;
+
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Certificates;
@@ -38,6 +40,25 @@ public sealed class OrderProgressTests
         Assert.Equal(states, view.FindAll(".pdk-step-item").Select(step => step.GetAttribute("data-state")));
         Assert.DoesNotContain("propagation", view.Markup, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(reached == AcmeProgressStage.Issued, view.FindAll(".pdk-progress-done").Count == 1);
+    }
+
+    [Fact]
+    public async Task ARunThatThrowsBeforeItReports_IsShownInThePanel_AndEnds()
+    {
+        await using DashboardTestContext context = new();
+        context.Services.AddLogging();
+        context.Services.AddSingleton(TimeProvider.System);
+        IssuanceResult? finished = null;
+
+        IRenderedComponent<AcmeRunPanel> panel = context.Render<AcmeRunPanel>(parameters => parameters
+            .Add(p => p.Start, _ => Task.FromException<IssuanceResult>(new InvalidOperationException("database is locked")))
+            .Add(p => p.ChallengeType, AcmeChallengeType.Http01)
+            .Add(p => p.Finished, result => finished = result));
+
+        await panel.WaitForStateAsync(() => finished is not null);
+        Assert.False(panel.Instance.Running);
+        Assert.Equal(IssuanceOutcome.Unavailable, finished!.Outcome);
+        Assert.Contains("The run didn't get going. Try again", panel.Find(".pdk-form-alert").TextContent, StringComparison.Ordinal);
     }
 
     [Fact]

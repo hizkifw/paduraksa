@@ -49,7 +49,7 @@
     @if (_mayReadCertificates)
     {
         <StatCard Label="Certificates" Icon="@Icons.Material.Outlined.WorkspacePremium" Loading="Snapshot is null" Href="@DashboardRoutes.Certificates" LinkText="Certificates"
-                  Tone="@(ExpiringCount > 0 ? Color.Warning : Color.Primary)" Detail="@(ExpiringCount > 0 ? $"{Plural(ExpiringCount, "expires", "expire")} within {HomeSnapshot.ExpiryHorizonDays} days" : "None expire soon")">
+                  Tone="@(ExpiringCount > 0 ? Color.Warning : Color.Primary)" Detail="@ExpiringDetail">
             <Value>@(Snapshot?.Certificates ?? 0)</Value>
         </StatCard>
     }
@@ -62,7 +62,7 @@
             <div class="pdk-card-head">
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">Expiring soon</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">Certificates in use that end within @HomeSnapshot.ExpiryHorizonDays days</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">@(Snapshot?.ExpiringInUse == false ? "Certificates" : "Certificates in use") that end within @HomeSnapshot.ExpiryHorizonDays days</MudText>
                 </div>
             </div>
             @if (Snapshot is null)
@@ -159,6 +159,10 @@
 
     private int ExpiringCount => Snapshot?.Expiring?.Count ?? 0;
 
+    private string ExpiringDetail => ExpiringCount == 0
+        ? (Snapshot?.ExpiringInUse == true ? "None in use expire soon" : "None expire soon")
+        : $"{ExpiringCount.ToString(CultureInfo.InvariantCulture)}{(Snapshot?.ExpiringInUse == true ? " in use" : string.Empty)} {(ExpiringCount == 1 ? "expires" : "expire")} within {HomeSnapshot.ExpiryHorizonDays} days";
+
     protected override Task OnInitializedAsync() => LoadAsync(force: false);
 
     private Task ReloadAsync() => LoadAsync(force: true);
@@ -189,7 +193,8 @@
                 current?.Document.Hosts.Count,
                 current?.Document.Upstreams.Count,
                 certificates?.Count,
-                certificates is null ? null : HomeSnapshot.ExpiringOf(certificates, Time.GetUtcNow()));
+                certificates is null ? null : HomeSnapshot.ExpiringOf(certificates, current?.Document, Time.GetUtcNow()),
+                ExpiringInUse: current is not null);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
