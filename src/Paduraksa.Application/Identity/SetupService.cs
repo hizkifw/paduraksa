@@ -120,20 +120,29 @@ public sealed partial class SetupService
     }
 
     /// <summary>
-    /// <see cref="EnsureTokenAsync"/> for server startup: also logs the token at Warning, as one boxed banner, so it is impossible to
-    /// miss where the operator is looking, with how to show it again.
+    /// <see cref="EnsureTokenAsync"/> for server startup: logs the token at Warning as one line (any log sink keeps it), and writes
+    /// the boxed banner to <paramref name="console"/> so it is impossible to miss where the operator is looking. The banner bypasses
+    /// the logger on purpose: the console logger is single-line (a newline in a message becomes a space), which would flatten the box.
     /// </summary>
     /// <remarks>
     /// <b>The one deliberate exception to "never log a credential"</b> (PLAN §2, §12.1; decided by the owner): whoever runs
     /// <c>docker logs</c> has no other way to get the token, it is single-use, and it is worthless once an Owner exists (and then
-    /// deleted). Whoever can read the log already has a shell on the host, and with it the token file. Nothing else is ever logged,
-    /// and the banner is one message so a structured sink keeps it together.
+    /// deleted). Whoever can read the log already has a shell on the host, and with it the token file. Nothing else is ever logged.
     /// </remarks>
-    public async Task AnnounceAsync(CancellationToken cancellationToken = default)
+    /// <param name="console">Where the banner goes (the process's standard output at startup, which <c>docker logs</c> captures);
+    /// <c>null</c> logs the line only.</param>
+    /// <param name="cancellationToken">Cancels the check.</param>
+    public async Task AnnounceAsync(TextWriter? console, CancellationToken cancellationToken = default)
     {
         if (await EnsureTokenAsync(cancellationToken).ConfigureAwait(false) is { } token)
         {
-            LogSetupToken(SetupBanner.Render(token, _tokenPath));
+            LogSetupToken(token, _tokenPath);
+            if (console is not null)
+            {
+                // One write, so the box isn't interleaved with other output.
+                await console.WriteAsync(Environment.NewLine + SetupBanner.Render(token, _tokenPath) + Environment.NewLine).ConfigureAwait(false);
+                await console.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
         }
     }
 
@@ -270,8 +279,8 @@ public sealed partial class SetupService
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "{Banner}")]
-    private partial void LogSetupToken(string banner);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "First-run setup is not complete. Setup token: {Token} (also in {Path}; reprint it with `paduraksa setup-token`).")]
+    private partial void LogSetupToken(string token, string path);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The setup token file {Path} was readable by other users, so it was discarded.")]
     private partial void LogTokenFileTooOpen(string path);

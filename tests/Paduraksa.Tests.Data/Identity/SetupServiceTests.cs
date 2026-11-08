@@ -151,13 +151,29 @@ public sealed class SetupServiceTests
     }
 
     [Fact]
+    public async Task AnIncompleteSetupPrintsTheBannerWholeToTheConsole()
+    {
+        await using var h = await CreateAsync();
+        using StringWriter console = new();
+
+        await h.Setup.AnnounceAsync(console, Ct);
+
+        string token = (await File.ReadAllTextAsync(TokenFile(h), Ct)).Trim();
+        string printed = console.ToString();
+        Assert.Contains("Paduraksa first-run setup", printed, StringComparison.Ordinal);
+        Assert.Contains(token, printed, StringComparison.Ordinal);
+        // The box keeps its line breaks: one line per row, not one flattened line.
+        Assert.True(printed.Split('\n').Length > 5);
+    }
+
+    [Fact]
     public async Task AStaleTokenFileIsRemovedOnceSetupIsComplete()
     {
         await using var h = await CreateAsync();
         await h.CreateUserAsync("owner", Role.Owner);
         await File.WriteAllTextAsync(TokenFile(h), "leftover", Ct);
 
-        await h.Setup.AnnounceAsync(Ct);
+        await h.Setup.AnnounceAsync(console: null, Ct);
 
         Assert.False(File.Exists(TokenFile(h)));
         Assert.Equal(IdentityStatus.Succeeded, (await h.Users.GetAsync(CommandOrigin.Cli, (await h.Users.ListAsync(CommandOrigin.Cli, Ct)).Users[0].Id, Ct)).Status);
