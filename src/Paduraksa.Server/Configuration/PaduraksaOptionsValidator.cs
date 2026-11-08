@@ -105,12 +105,26 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             failures.Add($"{PaduraksaOptions.SectionName}:Listen:Http3 needs a fixed Https port (TCP and UDP share it); turn it off with an OS-assigned port.");
         }
 
+        ValidateCertificates(options, failures);
         ValidateAcme(options, failures);
 
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
         ValidateProxyProtocol("HttpsProxyProtocol", listen.HttpsProxyProtocol, failures);
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateCertificates(PaduraksaOptions options, List<string> failures)
+    {
+        string key = $"{PaduraksaOptions.SectionName}:Certificates";
+        PaduraksaCertificateOptions certificates = options.Certificates;
+        if (certificates is null)
+        {
+            failures.Add($"{key} must not be null.");
+            return;
+        }
+
+        Bound(certificates.RecoveryStartupTimeout, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5), $"{key}:RecoveryStartupTimeout", failures);
     }
 
     private static void ValidateAcme(PaduraksaOptions options, List<string> failures)

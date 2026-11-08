@@ -1,3 +1,5 @@
+using Paduraksa.Application.Hosting;
+
 namespace Paduraksa.Application.Issuance;
 
 /// <summary>

@@ -28,7 +28,7 @@ public sealed class CertificateRecoveryEndToEndTests
 
     private static string Fingerprint(X509Certificate2 certificate) => Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256));
 
-    /// <summary>The recovery runs while the web apps start: waits for its one run to finish (every registration has gone live by then) and returns what it did.</summary>
+    /// <summary>The recovery's completed one run (an awaited start step): its result, or an exception when it was skipped or failed.</summary>
     private static async Task<CertificateRecoveryResult> RecoveredAsync(PaduraksaHost host) =>
         await host.Shared.RecoveryCompletion.Finished.WaitAsync(TimeSpan.FromSeconds(30), Ct)
             ?? throw new InvalidOperationException("The startup recovery did not run to the end.");
@@ -90,6 +90,40 @@ public sealed class CertificateRecoveryEndToEndTests
         CertificateOperationResult again = await host.Shared.CertificateOperations.EnsureLocalCaAsync(new LocalCaRequest(), Origin, Ct);
         Assert.Equal(root.Id, again.Certificate!.Id);
         Assert.Equal(CertificateOperationStatus.Unchanged, again.Status);
+    }
+
+    [Fact]
+    public async Task TheFirstRequestAfterALostDatabaseIsServedTheVaultHeldCertificate()
+    {
+        string data = TestDataDirectories.NewPath();
+        CertificateSummary leaf;
+        await using (PaduraksaHost first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
+        {
+            await first.StartAsync(Ct);
+            leaf = (await first.Shared.CertificateOperations.IssueFromLocalCaAsync(new LocalCaLeafRequest(["first.test"]), Origin, Ct)).Certificate!;
+            HostConfig bound = RespondHost("f", "first.test", "ok") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = leaf.Id } };
+            await CommitAsync(first, new UpsertHostCommand(bound), Ct);
+        }
+
+        SqliteConnection.ClearAllPools();
+        foreach (string file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
+        {
+            File.Delete(file);
+        }
+
+        // A generous bound so the awaited step cannot time out and continue in the background on a loaded machine: this
+        // test is precisely about the recovery having finished before StartAsync returns.
+        Dictionary<string, string?> settings = new(NoPlaceholder, StringComparer.OrdinalIgnoreCase)
+        {
+            ["Paduraksa:Certificates:RecoveryStartupTimeout"] = "00:01:00",
+        };
+        await using PaduraksaHost host = TestHost.Create(settings: settings, dataDirectory: data);
+        await host.StartAsync(Ct);
+
+        // No wait for RecoveryCompletion: the recovery is an awaited start step, and the publish it queues is part of the
+        // first snapshot. The very first HTTPS request must already get the vault-held leaf, not the default or a rejection.
+        Assert.True(host.Shared.RecoveryCompletion.Finished.IsCompleted, "the recovery should complete before the start returns");
+        Assert.Equal(leaf.Sha256Fingerprint, Fingerprint((await VaultCertificatesEndToEndTests.HandshakeAsync(host, "first.test")).Certificate));
     }
 
     [Fact]

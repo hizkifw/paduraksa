@@ -25,7 +25,8 @@ public sealed record CertificateRecoveryResult(IReadOnlyList<CertificateId> Reco
 /// Gets back the certificates the config database lost (PLAN §9.2): the database was deleted or restored from an older backup while
 /// the vault still holds the keys, so restored Specific bindings would degrade for want of a row. The vault describes what it holds
 /// (<see cref="ICertificateCatalog"/>, public data only) and every certificate with no row is registered again through
-/// <see cref="CertificateService.RegisterRecoveredAsync"/>, which audits it (as the system) and republishes the live config.
+/// <see cref="CertificateService.RegisterRecoveredAsync"/> without republishing per certificate: the startup step publishes the live
+/// config once after the run, so the first snapshot includes what came back.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -87,6 +88,9 @@ public sealed partial class CertificateRecovery
         List<CertificateId> failed = [];
         foreach (VaultCertificate certificate in held.OrderByDescending(c => c.IsLocalCaRoot))
         {
+            // A stop is observed between certificates, never inside one: the registration transaction runs with
+            // CancellationToken.None so an abort cannot cancel a commit partway through (and EF log it at Error).
+            cancellationToken.ThrowIfCancellationRequested();
             if (certificate.Id == AdminCertificate.Id)
             {
                 // The process's own admin certificate (PLAN §3, §10.1): the core host's AdminCertificateService owns its row
@@ -99,7 +103,8 @@ public sealed partial class CertificateRecovery
                 : roots.Any(root => IsSignedBy(certificate.Info, root.Info)) ? CertificateSource.LocalCa
                 : CertificateSource.Uploaded;
             CertificateRecoveryStep step = await _certificates.RegisterRecoveredAsync(
-                new CertificateRegistration(certificate.Id, source, certificate.Info, CertificateStatus.Active, Label), CommandOrigin.System, cancellationToken).ConfigureAwait(false);
+                new CertificateRegistration(certificate.Id, source, certificate.Info, CertificateStatus.Active, Label),
+                CommandOrigin.System, republish: false, CancellationToken.None).ConfigureAwait(false);
             switch (step)
             {
                 case CertificateRecoveryStep.Registered:
@@ -107,7 +112,7 @@ public sealed partial class CertificateRecovery
                     LogRecovered(certificate.Id, source);
                     break;
                 case CertificateRecoveryStep.WasDeleted:
-                    if (await TryDeleteKeyAsync(certificate.Id, cancellationToken).ConfigureAwait(false))
+                    if (await TryDeleteKeyAsync(certificate.Id, CancellationToken.None).ConfigureAwait(false))
                     {
                         deleted.Add(certificate.Id);
                     }

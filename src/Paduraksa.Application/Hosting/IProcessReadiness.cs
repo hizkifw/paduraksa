@@ -1,4 +1,4 @@
-namespace Paduraksa.Application.Issuance;
+namespace Paduraksa.Application.Hosting;
 
 /// <summary>
 /// A signal the process gives background work that needs its listeners: completed once every listener is bound, so the

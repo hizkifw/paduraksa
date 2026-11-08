@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Application.Hosting;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 

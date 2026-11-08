@@ -27,6 +27,9 @@ internal sealed class PaduraksaOptions
     /// <summary>Sign-in, lockout, session and password settings (<c>Paduraksa:Admin</c>, PLAN §10.1).</summary>
     public AdminOptions Admin { get; set; } = new();
 
+    /// <summary>Certificate startup work (PLAN §9.2): how long the vault/inventory recovery may delay the core host.</summary>
+    public PaduraksaCertificateOptions Certificates { get; set; } = new();
+
     /// <summary>ACME issuance and renewal (PLAN §9.3): the scheduler, its timing and which CAs are trusted.</summary>
     public PaduraksaAcmeOptions Acme { get; set; } = new();
 
@@ -70,6 +73,19 @@ internal sealed class PaduraksaDevelopmentOptions
     /// process warns at startup when it is on.
     /// </summary>
     public bool AcmeInsecureHttp { get; set; }
+}
+
+/// <summary>
+/// Certificate startup settings (<c>Paduraksa:Certificates</c>). The inventory itself lives in the database; only the bounds of
+/// startup work that touches the vault before the web apps serve are here.
+/// </summary>
+internal sealed class PaduraksaCertificateOptions
+{
+    /// <summary>
+    /// How long the core host waits for the startup certificate recovery (registering what the vault holds after a lost database)
+    /// before it continues in the background (1 second to 5 minutes; default 10 seconds). The recovery never stops the process.
+    /// </summary>
+    public TimeSpan RecoveryStartupTimeout { get; set; } = TimeSpan.FromSeconds(10);
 }
 
 /// <summary>

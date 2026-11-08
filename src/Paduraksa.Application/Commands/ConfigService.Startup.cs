@@ -535,8 +535,55 @@ public sealed partial class ConfigService
         }
     }
 
+    /// <summary>
+    /// Recompiles the live config against the current inventory and <b>queues</b> its publish without waiting for it, for a
+    /// startup step that changed the inventory before the web apps serve (<see cref="CertificateRecovery"/>). The publish is
+    /// ordered with every other one and completes while the public app starts, so the first snapshot includes what changed;
+    /// nothing here waits for YARP, which does not exist yet.
+    /// </summary>
+    public async Task RepublishLiveAsync()
+    {
+        try
+        {
+            PublishTicket? ticket = null;
+            await _writer.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                if (_disposed || Status is { AcceptsCommands: false })
+                {
+                    return;
+                }
+
+                var context = await _contexts.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
+                await using (context.ConfigureAwait(false))
+                {
+                    if (await CompileLiveAsync(context, CancellationToken.None).ConfigureAwait(false) is { } live)
+                    {
+                        ticket = PublishLive(live);
+                    }
+                }
+            }
+            finally
+            {
+                _writer.Release();
+            }
+
+            if (ticket is not null)
+            {
+                _ = AuditLatePublishAsync(ticket, CommandOrigin.System);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            LogRecoveryRepublishFailed(ex);
+        }
+    }
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Not republishing: {Reason} ({Detail}). Nothing was published; the next commit or start compiles with the current certificates.")]
     private partial void LogRepublishSkipped(string reason, string detail);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Republishing after the startup certificate recovery failed.")]
+    private partial void LogRecoveryRepublishFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Republishing after a certificate's validity changed failed.")]
     private partial void LogValidityRepublishFailed(Exception exception);

@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
+using Paduraksa.Server.Placeholders;
 
 namespace Paduraksa.Server.Hosting;
 
@@ -30,12 +32,16 @@ internal static class CoreHost
             ContentRootPath = context.ContentRootPath,
         });
         HostSetup.ApplyCommon(builder, context, HostRole.Core);
+        // Background work that needs the listeners (the renewal scheduler) waits on the same signal.
+        builder.Services.AddSingleton<IProcessReadiness>(static services => services.GetRequiredService<HealthState>());
 
         // The vault first: the config store loads certificates through it, and a vault that cannot start must stop the process.
         builder.Services.AddHostedService<VaultStartup>();
         builder.Services.AddHostedService<ConfigStartup>();
         builder.Services.AddHostedService<IdentityStartup>();
-        // Then what the vault holds that the database lost, before the web apps take their first request.
+        // Then what the vault holds that the database lost, before the web apps take their first request: it is an awaited
+        // start step (bounded by Paduraksa:Certificates:RecoveryStartupTimeout), registers quietly and queues one publish,
+        // so the first snapshot the listeners serve already includes the recovered certificates.
         builder.Services.AddHostedService<CertificateRecoveryStartup>();
         // The admin listener's own certificate (PLAN §3, §10.1): the startup run is awaited, so the admin port serves the
         // local CA's certificate from its first request, and a daily loop renews it. It registers without republishing the
@@ -43,8 +49,9 @@ internal static class CoreHost
         builder.Services.AddHostedService(static services => services.GetRequiredService<AdminCertificateService>());
         if (context.Options.Acme.Enabled)
         {
-            // Last of the ones that start things up: the vault and the config store are ready, and its start delay lets the listeners come up.
-            // It stops first, before the config store it records into.
+            // Last of the ones that start things up: the vault and the config store are ready. Its first look waits
+            // SchedulerStartDelay and then IProcessReadiness (every listener bound), so an HTTP-01 validation never runs
+            // before the public listener can answer it. It stops first, before the config store it records into.
             builder.Services.AddHostedService(static services => services.GetRequiredService<AcmeRenewalScheduler>());
         }
 

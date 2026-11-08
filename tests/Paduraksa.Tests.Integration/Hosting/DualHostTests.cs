@@ -288,7 +288,8 @@ public sealed class DualHostTests
         Assert.Equal("Core:stop", log[^1]);
 
         // A requested abort isn't an error: no "Hosting failed to start" from the generic host, nothing else either.
-        Assert.DoesNotContain(logs.Entries, static e => e.Level >= LogLevel.Error);
+        LogEntry? error = logs.Entries.FirstOrDefault(static e => e.Level >= LogLevel.Error);
+        Assert.True(error is null, $"a requested abort logged an error: {error} {error?.Exception}");
     }
 
     [Fact]

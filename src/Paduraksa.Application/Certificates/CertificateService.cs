@@ -118,7 +118,8 @@ public sealed partial class CertificateService
     /// races with this (a vault-first upload) is never overwritten and a certificate deleted by an operator is never resurrected
     /// (see <see cref="CertificateRecovery"/>). Never changes an existing row, its label included.
     /// </summary>
-    internal async Task<CertificateRecoveryStep> RegisterRecoveredAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
+    internal async Task<CertificateRecoveryStep> RegisterRecoveredAsync(
+        CertificateRegistration registration, CommandOrigin origin, bool republish = true, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(origin);
@@ -142,7 +143,7 @@ public sealed partial class CertificateService
 
                 CertificateChangeOutcome outcome = await RegisterCoreAsync(scope, registration, origin, cancellationToken).ConfigureAwait(false);
                 step = outcome.Result.Status is CertificateChangeStatus.Committed or CertificateChangeStatus.Unchanged ? CertificateRecoveryStep.Registered : CertificateRecoveryStep.Failed;
-                return outcome;
+                return outcome with { Republish = republish && outcome.Republish };
             },
             cancellationToken).ConfigureAwait(false);
         return step;

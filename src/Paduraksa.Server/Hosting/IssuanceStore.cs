@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Acme;
+using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Core.Acme;
 using Paduraksa.Data;
