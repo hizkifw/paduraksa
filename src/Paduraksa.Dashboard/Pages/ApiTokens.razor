@@ -10,18 +10,18 @@
 @inject TimeProvider Time
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
+@inject DrawerStack Drawers
 @inject ILogger<ApiTokens> Logger
-@* Settings: API tokens (PLAN §10.1, §11.1). One's own, and everyone's with tokens:all. A new token's secret is shown once, in the dialog
-   that issued it, and dropped from the page's state as the dialog closes. *@
+@* Settings: API tokens (PLAN §10.1, §11.1). One's own, and everyone's with tokens:all. A new token is made in a drawer (TokenDrawer),
+   which shows its secret once and drops it as it closes; the page never holds it. *@
 
 <PageTitle>API tokens · Settings · Paduraksa</PageTitle>
 
-<PageHeader Title="API tokens" Overline="Settings" Lead="Credentials for scripts and tools that use the REST API as you, with only the scopes you give them.">
+<PageHeader Title="API tokens" Overline="Settings" Area="SectionArea.Settings" Lead="Credentials for scripts and tools that use the REST API as you, with only the scopes you give them.">
     <Actions>
-        <MudButton Href="@DashboardRoutes.Settings" Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack">Settings</MudButton>
         @if (_mayIssue)
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="OpenCreate" data-action="add-token">Create a token</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="CreateAsync" data-action="add-token">Create token</MudButton>
         }
     </Actions>
 </PageHeader>
@@ -72,194 +72,76 @@
             <Action>
                 @if (_mayIssue)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="OpenCreate">Create a token</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="CreateAsync">Create token</MudButton>
                 }
             </Action>
         </EmptyState>
     }
     else
     {
-        <MudTable T="TokenRow" Items="Shown" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm" Class="pdk-table pdk-tokens-table">
-            <HeaderContent>
-                <MudTh>Name</MudTh>
+        <div class="pdk-dt pdk-tokens-table @(_everyone ? "pdk-tokens-everyone" : null)" role="table" aria-label="API tokens">
+            <div class="pdk-dt-row pdk-dt-head" role="row">
+                <span role="columnheader">Token</span>
                 @if (_everyone)
                 {
-                    <MudTh>Owner</MudTh>
+                    <span role="columnheader">Owner</span>
                 }
-                <MudTh>Scopes</MudTh>
-                <MudTh>Last used</MudTh>
-                <MudTh>Expires</MudTh>
-                <MudTh>Status</MudTh>
-                <MudTh><span class="pdk-visually-hidden">Actions</span></MudTh>
-            </HeaderContent>
-            <RowTemplate>
-                @{
-                    (string label, Tone tone) = IdentityText.State(context.Token, _now);
-                }
-                <MudTd DataLabel="Name">
-                    <div class="pdk-list-main" data-token="@context.Token.Name">
-                        <span class="pdk-list-title">@context.Token.Name</span>
-                        <span class="pdk-list-sub" title="@RevisionText.Exact(context.Token.CreatedAt)">Created @RevisionText.Ago(context.Token.CreatedAt, _now)</span>
+                <span role="columnheader">Scopes</span>
+                <span role="columnheader">Last used</span>
+                <span role="columnheader">Expires</span>
+                <span role="columnheader">Status</span>
+                <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
+            </div>
+            @foreach (TokenRow row in Shown)
+            {
+                (string label, Tone tone) = IdentityText.State(row.Token, _now);
+                <div class="pdk-dt-row" role="row" @key="row.Token.Id">
+                    <div class="pdk-dt-main" role="cell">
+                        <span class="pdk-list-icon pdk-tone-@tone.Css()"><MudIcon Icon="@Icons.Material.Outlined.Key" Size="Size.Small" /></span>
+                        <span class="pdk-dt-titles" data-token="@row.Token.Name">
+                            <span class="pdk-list-title">@row.Token.Name</span>
+                            <span class="pdk-dt-note" title="@RevisionText.Exact(row.Token.CreatedAt)">Created @RevisionText.Ago(row.Token.CreatedAt, _now)</span>
+                        </span>
                     </div>
-                </MudTd>
-                @if (_everyone)
-                {
-                    <MudTd DataLabel="Owner">@context.Owner</MudTd>
-                }
-                <MudTd DataLabel="Scopes">
-                    <span class="pdk-tags">
-                        @foreach (Permission scope in context.Token.Scopes.Take(3))
+                    @if (_everyone)
+                    {
+                        <span role="cell" class="pdk-dt-cell" data-label="Owner">@row.Owner</span>
+                    }
+                    <span role="cell" class="pdk-dt-cell" data-label="Scopes">
+                        <span class="pdk-dt-chips">
+                            @foreach (Permission scope in row.Token.Scopes.Take(3))
+                            {
+                                <span class="pdk-tag pdk-mono">@scope.ToName()</span>
+                            }
+                            @if (row.Token.Scopes.Count > 3)
+                            {
+                                <span class="pdk-tag" title="@string.Join(", ", row.Token.Scopes.Skip(3).Select(s => s.ToName()))">+@(row.Token.Scopes.Count - 3)</span>
+                            }
+                        </span>
+                    </span>
+                    <span role="cell" class="pdk-dt-cell" data-label="Last used">
+                        @if (row.Token.LastUsedAt is { } used)
                         {
-                            <span class="pdk-tag pdk-mono">@scope.ToName()</span>
+                            <span title="@RevisionText.Exact(used)">@RevisionText.Ago(used, _now)</span>
                         }
-                        @if (context.Token.Scopes.Count > 3)
+                        else
                         {
-                            <MudTooltip Text="@string.Join(", ", context.Token.Scopes.Skip(3).Select(s => s.ToName()))" Arrow="true">
-                                <span class="pdk-tag">+@(context.Token.Scopes.Count - 3)</span>
-                            </MudTooltip>
+                            <span class="pdk-muted">Never</span>
                         }
                     </span>
-                </MudTd>
-                <MudTd DataLabel="Last used">
-                    @if (context.Token.LastUsedAt is { } used)
-                    {
-                        <span title="@RevisionText.Exact(used)">@RevisionText.Ago(used, _now)</span>
-                    }
-                    else
-                    {
-                        <span class="pdk-muted">Never</span>
-                    }
-                </MudTd>
-                <MudTd DataLabel="Expires"><span class="@(context.Token.ExpiresAt is null ? "pdk-muted" : null)">@IdentityText.Until(context.Token.ExpiresAt, _now)</span></MudTd>
-                <MudTd DataLabel="Status"><span class="pdk-badge pdk-tone-@tone.Css()" data-status="@label.ToLowerInvariant()">@label</span></MudTd>
-                <MudTd Class="pdk-row-actions">
-                    @if (!context.Token.Revoked && (context.Mine || _mayAll))
-                    {
-                        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => AskRevokeAsync(context)" data-action="revoke">Revoke</MudButton>
-                    }
-                </MudTd>
-            </RowTemplate>
-        </MudTable>
+                    <span role="cell" class="pdk-dt-cell" data-label="Expires"><span class="@(row.Token.ExpiresAt is null ? "pdk-muted" : null)">@IdentityText.Until(row.Token.ExpiresAt, _now)</span></span>
+                    <span role="cell" class="pdk-dt-cell" data-label="Status"><StatusChip Tone="tone" Dot="true" Text="@label" Name="status" /></span>
+                    <span role="cell" class="pdk-dt-cell pdk-dt-actions">
+                        @if (!row.Token.Revoked && (row.Mine || _mayAll))
+                        {
+                            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => AskRevokeAsync(row)" data-action="revoke">Revoke</MudButton>
+                        }
+                    </span>
+                </div>
+            }
+        </div>
     }
 </MudPaper>
-
-<MudDialog Visible="_form is not null || _issued is not null" VisibleChanged="OnDialogVisibleChanged" Options="@(_issued is null ? FormOptions : SecretOptions)"
-           Class="pdk-dialog pdk-token-dialog" ContentClass="pdk-dialog-content">
-    <TitleContent>
-        <div class="pdk-dialog-title">
-            <span class="pdk-dialog-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Key" Size="Size.Small" /></span>
-            <div>
-                <MudText Typo="Typo.h6" HtmlTag="h2">@(_issued is null ? "Create an API token" : "Your new token")</MudText>
-                <MudText Typo="Typo.caption" Class="pdk-muted">@(_issued is null ? "A credential for the REST API that acts as you." : "Shown once. Copy it before you close this.")</MudText>
-            </div>
-        </div>
-    </TitleContent>
-
-    <DialogContent>
-        @if (_issued is { } issued)
-        {
-            <div class="pdk-once" role="alert" data-notice="once">
-                <MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" />
-                <span><strong>Copy it now: you won't see it again.</strong> Paduraksa keeps only a hash of it. If it gets lost, revoke it and create another.</span>
-            </div>
-            <SecretValue Value="@issued.Token" Label="@issued.Summary.Name" Name="token" />
-            <MudText Typo="Typo.body2" Class="pdk-muted">
-                Send it as <span class="pdk-mono">Authorization: Bearer</span> followed by the token.
-                It acts as you with @(issued.Summary.Scopes.Count == 1 ? "its one scope" : $"its {issued.Summary.Scopes.Count} scopes"), and never with more than your roles allow.
-            </MudText>
-        }
-        else if (_form is not null)
-        {
-            @if (_formError is { } formError)
-            {
-                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-form="error">@formError</MudAlert>
-            }
-            <form id="pdk-token-form" class="pdk-modal-form" @onsubmit="IssueAsync" @onsubmit:preventDefault="true" novalidate>
-                <MudTextField T="string" @bind-Value="_form.Name" Label="Name" Placeholder="Backup script on nas" Variant="Variant.Outlined" Margin="Margin.Dense"
-                              Immediate="true" AutoFocus="true" MaxLength="128" HelperText="What it is for, so you know what breaks when you revoke it."
-                              Error="@(_form.Attempted && string.IsNullOrWhiteSpace(_form.Name))" ErrorText="A token needs a name." data-field="token-name" />
-
-                <div class="pdk-token-expiry">
-                    <span class="pdk-label-text">Expires</span>
-                    <MudToggleGroup T="TokenLifetime" @bind-Value="_form.Lifetime" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
-                                    Outlined="true" Size="Size.Small" aria-label="Expires" data-field="lifetime">
-                        <MudToggleItem Value="TokenLifetime.Week" Text="7 days" />
-                        <MudToggleItem Value="TokenLifetime.Month" Text="30 days" />
-                        <MudToggleItem Value="TokenLifetime.Quarter" Text="90 days" />
-                        <MudToggleItem Value="TokenLifetime.Year" Text="1 year" />
-                        <MudToggleItem Value="TokenLifetime.Never" Text="Never" />
-                        <MudToggleItem Value="TokenLifetime.Custom" Text="Date" />
-                    </MudToggleGroup>
-                    @if (_form.Lifetime == TokenLifetime.Custom)
-                    {
-                        <MudTextField T="string" @bind-Value="_form.CustomDate" InputType="InputType.Date" Label="Last day (UTC)" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                      Error="@(_form.Attempted && ExpiryError is not null)" ErrorText="@ExpiryError" data-field="token-date" />
-                    }
-                    else
-                    {
-                        <MudText Typo="Typo.caption" Class="pdk-muted">@ExpiryText</MudText>
-                    }
-                </div>
-
-                <fieldset class="pdk-scope-picker">
-                    <legend>
-                        Scopes
-                        <span class="pdk-scope-presets">
-                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectReadOnly" data-preset="read">Read-only</MudButton>
-                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectEverything" data-preset="all">All you can</MudButton>
-                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => _form.Scopes.Clear()" data-preset="none">None</MudButton>
-                        </span>
-                    </legend>
-                    <p class="pdk-scope-hint">
-                        <MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" />
-                        A token never exceeds its owner: only what your roles allow is offered, and if your roles shrink, the token's scopes shrink with them.
-                        Tokens can't manage tokens or sessions.
-                    </p>
-                    <div class="pdk-scope-areas">
-                        @foreach ((string area, IReadOnlyList<Permission> scopes) in Offered)
-                        {
-                            <div class="pdk-scope-area" data-area="@area">
-                                <span class="pdk-scope-area-name">@area</span>
-                                @foreach (Permission scope in scopes)
-                                {
-                                    <label class="pdk-scope-option @(_form.Scopes.Contains(scope) ? "pdk-selected" : null)" data-scope="@scope.ToName()">
-                                        <MudCheckBox T="bool" Value="_form.Scopes.Contains(scope)" ValueChanged="@(value => ToggleScope(scope, value))" Color="Color.Primary" Dense="true" />
-                                        <span class="pdk-role-text">
-                                            <span class="pdk-role-name pdk-mono">@scope.ToName()</span>
-                                            <span class="pdk-role-help">@IdentityText.Describe(scope)</span>
-                                        </span>
-                                    </label>
-                                }
-                            </div>
-                        }
-                    </div>
-                    @if (_form.Attempted && _form.Scopes.Count == 0)
-                    {
-                        <div class="pdk-field-error">Pick at least one scope.</div>
-                    }
-                </fieldset>
-            </form>
-        }
-    </DialogContent>
-    <DialogActions>
-        @if (_issued is not null)
-        {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CloseCreate" data-action="done">I've copied it</MudButton>
-        }
-        else
-        {
-            <MudButton Variant="Variant.Text" OnClick="CloseCreate" Disabled="_saving">Cancel</MudButton>
-            <MudButton ButtonType="ButtonType.Submit" form="pdk-token-form" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" data-action="issue">
-                @if (_saving)
-                {
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                }
-                Create token
-            </MudButton>
-        }
-    </DialogActions>
-</MudDialog>
-
 
 @code {
     private IReadOnlyList<TokenRow>? _rows;
@@ -269,55 +151,14 @@
     private bool _mayAll;
     private bool _everyone;
     private bool _showRevoked;
-    private TokenForm? _form;
-    private IssuedApiToken? _issued;
-    private string? _formError;
-    private bool _saving;
     private bool _failed;
     private IDisposable? _watch;
-
-    /// <summary>How long a new token lives.</summary>
-    internal enum TokenLifetime
-    {
-        Week,
-        Month,
-        Quarter,
-        Year,
-        Never,
-        Custom,
-    }
 
     /// <summary>One row: the token, whose it is, and whether it is the caller's.</summary>
     internal sealed record TokenRow(ApiTokenSummary Token, string Owner, bool Mine);
 
     private IReadOnlyList<TokenRow> Shown =>
         _rows is null ? [] : [.. _rows.Where(r => _showRevoked || IdentityText.State(r.Token, _now).Label == "Active")];
-
-    private IEnumerable<(string Area, IReadOnlyList<Permission> Scopes)> Offered =>
-        IdentityText.ScopeAreas
-            .Select(area => (area.Area, (IReadOnlyList<Permission>)[.. area.Scopes.Where(_held.Contains)]))
-            .Where(area => area.Item2.Count > 0);
-
-    private DateTimeOffset? ExpiresAt => _form?.Lifetime switch
-    {
-        TokenLifetime.Week => _now.AddDays(7),
-        TokenLifetime.Month => _now.AddDays(30),
-        TokenLifetime.Quarter => _now.AddDays(90),
-        TokenLifetime.Year => _now.AddYears(1),
-        TokenLifetime.Custom when DateOnly.TryParseExact(_form.CustomDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly day) =>
-            new DateTimeOffset(day.ToDateTime(new TimeOnly(23, 59, 59)), TimeSpan.Zero),
-        _ => null,
-    };
-
-    private string? ExpiryError =>
-        _form?.Lifetime != TokenLifetime.Custom ? null
-        : ExpiresAt is not { } end ? "Pick a date."
-        : end <= _now ? "Pick a day in the future."
-        : null;
-
-    private string ExpiryText => ExpiresAt is { } end
-        ? $"Stops working on {end.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}."
-        : "Works until you revoke it. An expiry limits the harm of a token that leaks.";
 
     protected override async Task OnInitializedAsync()
     {
@@ -334,11 +175,7 @@
         await LoadAsync();
     }
 
-    public void Dispose()
-    {
-        _watch?.Dispose();
-        _issued = null;
-    }
+    public void Dispose() => _watch?.Dispose();
 
     private async Task LoadAsync()
     {
@@ -387,122 +224,11 @@
         await LoadAsync();
     }
 
-    private void OpenCreate()
+    /// <summary>Makes a token in a drawer, which shows its secret once; the list is read again when it closes.</summary>
+    private async Task CreateAsync()
     {
-        _issued = null;
-        _formError = null;
-        _now = Time.GetUtcNow();
-        _form = new TokenForm();
-        foreach (Permission scope in Offered.SelectMany(a => a.Scopes).Where(IdentityText.IsRead))
-        {
-            _form.Scopes.Add(scope);
-        }
-    }
-
-    /// <summary>Closes the dialog; the secret, if one was shown, is dropped here and can't be shown again.</summary>
-    private void CloseCreate()
-    {
-        if (_saving)
-        {
-            return;
-        }
-
-        _issued = null;
-        _form = null;
-        _formError = null;
-    }
-
-    private void ToggleScope(Permission scope, bool on)
-    {
-        if (_form is null)
-        {
-            return;
-        }
-
-        if (on)
-        {
-            _form.Scopes.Add(scope);
-        }
-        else
-        {
-            _form.Scopes.Remove(scope);
-        }
-    }
-
-    private void SelectReadOnly()
-    {
-        _form?.Scopes.Clear();
-        foreach (Permission scope in Offered.SelectMany(a => a.Scopes).Where(IdentityText.IsRead))
-        {
-            _form?.Scopes.Add(scope);
-        }
-    }
-
-    private void SelectEverything()
-    {
-        foreach (Permission scope in Offered.SelectMany(a => a.Scopes))
-        {
-            _form?.Scopes.Add(scope);
-        }
-    }
-
-    private async Task IssueAsync()
-    {
-        if (_form is not { } form || _saving)
-        {
-            return;
-        }
-
-        form.Attempted = true;
-        _now = Time.GetUtcNow();
-        if (string.IsNullOrWhiteSpace(form.Name) || form.Scopes.Count == 0 || ExpiryError is not null)
-        {
-            return;
-        }
-
-        _saving = true;
-        _formError = null;
-        try
-        {
-            if (await Caller.OriginAsync() is not { } origin)
-            {
-                return;
-            }
-
-            Permission[] scopes = [.. form.Scopes.Order()];
-            ApiTokenResult result = await Identity.IssueTokenAsync(origin, new IssueApiTokenRequest(form.Name.Trim(), scopes, ExpiresAt));
-            if (result is { Succeeded: true, Issued: { } issued })
-            {
-                _issued = issued;
-                _form = null;
-                await LoadAsync();
-                return;
-            }
-
-            _formError = IdentityText.Refusal(result.Status, result.Problem);
-        }
-        catch (Exception ex) when (StoreFailures.Survivable(ex))
-        {
-            Logger.LogStoreFailure(ex, "Couldn't create an API token.");
-            _formError = StoreFailures.Message("The token couldn't be created.");
-        }
-        finally
-        {
-            _saving = false;
-        }
-    }
-
-    private static readonly DialogOptions FormOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = true };
-
-    // The secret can't be shown again: a stray click beside the dialog mustn't close it.
-    private static readonly DialogOptions SecretOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false };
-
-    private void OnDialogVisibleChanged(bool visible)
-    {
-        if (!visible)
-        {
-            CloseCreate();
-        }
+        await Drawers.OpenAsync<TokenDrawer>(TokenDrawer.For(_held), DrawerWidth.Medium);
+        await LoadAsync();
     }
 
     private async Task AskRevokeAsync(TokenRow row)
@@ -535,19 +261,5 @@
         {
             Snackbar.Add($"Couldn't revoke {row.Token.Name}. {IdentityText.Refusal(result.Status, result.Problem)}", Severity.Error);
         }
-    }
-
-    /// <summary>The new token's form.</summary>
-    private sealed class TokenForm
-    {
-        public string Name { get; set; } = string.Empty;
-
-        public TokenLifetime Lifetime { get; set; } = TokenLifetime.Quarter;
-
-        public string? CustomDate { get; set; }
-
-        public HashSet<Permission> Scopes { get; } = [];
-
-        public bool Attempted { get; set; }
     }
 }

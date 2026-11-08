@@ -1,0 +1,282 @@
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Identity
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+@inject DashboardOptions Options
+@inject ISnackbar Snackbar
+@inject Microsoft.Extensions.Logging.ILogger<UserDrawer> Logger
+@* A user in a drawer (PLAN §10.1): add one (username, display name, initial password, roles), or change one's name, roles and whether
+   they may sign in, sent as one update of only what changed. The service decides, the last-Owner guard included; its refusal shows here.
+   The initial password lives only in this drawer and is cleared as it is sent. *@
+
+<DrawerShell Title="@(IsNew ? "Add a user" : User!.DisplayName)" Overline="@(IsNew ? "New user" : "User")"
+             Subtitle="@(IsNew ? "They sign in with this username and password." : "Name, roles and whether they can sign in.")"
+             Icon="@Icons.Material.Outlined.Group" Name="user" OnSubmit="SaveAsync">
+    <Banner>
+        @if (_error is { } error)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-refusal="@_errorKind">@error</MudAlert>
+        }
+        @if (!IsNew && User!.Id == Me)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true">This is you. Disabling yourself signs you out.</MudAlert>
+        }
+    </Banner>
+    <ChildContent>
+        <div class="pdk-form" data-form="user">
+            <FormSection Title="Who" Description="@(IsNew ? "The name they sign in with, and how they show up." : "Their username can't be changed.")" Name="who">
+                <div class="pdk-field-grid">
+                    <MudTextField T="string" Value="_username" ValueChanged="SetUsername" Label="Username" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!IsNew"
+                                  Immediate="true" AutoFocus="IsNew" Class="pdk-mono-input" spellcheck="false" autocomplete="off"
+                                  HelperText="@(IsNew ? "3 to 64 letters, digits and . _ - @ +" : null)"
+                                  Error="@(IsNew && Shown("username") && UsernameError is not null)" ErrorText="@UsernameError"
+                                  OnBlur="@(() => Touch("username"))" data-field="username" />
+                    <MudTextField T="string" Value="_displayName" ValueChanged="SetDisplayName" Label="Display name" Placeholder="@_username" Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" MaxLength="UserService.MaxDisplayNameLength" Immediate="true" AutoFocus="!IsNew" data-field="display-name" />
+                    @if (IsNew)
+                    {
+                        <MudTextField T="string" Value="_password" ValueChanged="SetPassword" Label="Initial password" InputType="InputType.Password" Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" Immediate="true" Class="pdk-span-2" autocomplete="new-password"
+                                      HelperText="@($"At least {Options.MinPasswordLength} characters. Hand it over safely; they can change it under My account.")"
+                                      Error="@(Shown("password") && PasswordError is not null)" ErrorText="@PasswordError"
+                                      OnBlur="@(() => Touch("password"))" data-field="password" />
+                    }
+                </div>
+            </FormSection>
+
+            <FormSection Title="Roles" Description="What they may do. Several roles allow what any of them allows." Name="roles">
+                <div class="pdk-role-picker">
+                    @foreach (Role role in IdentityText.Roles)
+                    {
+                        <label class="pdk-role-option @(_roles.Contains(role) ? "pdk-selected" : null)" data-role="@role.ToName()">
+                            <MudCheckBox T="bool" Value="_roles.Contains(role)" ValueChanged="@(value => ToggleRole(role, value))" Color="Color.Primary" Dense="true" />
+                            <span class="pdk-role-text">
+                                <span class="pdk-role-name">@IdentityText.Name(role)</span>
+                                <span class="pdk-role-help">@IdentityText.Describe(role)</span>
+                            </span>
+                        </label>
+                    }
+                    @if (Shown("roles") && _roles.Count == 0)
+                    {
+                        <div class="pdk-field-error">Pick at least one role.</div>
+                    }
+                </div>
+            </FormSection>
+
+            @if (!IsNew)
+            {
+                <FormSection Title="Sign-in" Description="A disabled user can't sign in; their sessions end and their tokens stop working." Name="enabled">
+                    <MudSwitch T="bool" Value="_enabled" ValueChanged="SetEnabled" Color="Color.Success"
+                               Label="@(_enabled ? "Enabled: can sign in" : "Disabled: can't sign in")" data-field="enabled" />
+                </FormSection>
+            }
+        </div>
+    </ChildContent>
+    <Footer>
+        <div class="pdk-drawer-actions">
+            <MudButton Variant="Variant.Text" OnClick="() => Level?.RequestClose()" Disabled="_saving">Cancel</MudButton>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" data-action="save-user">
+                @if (_saving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                @(IsNew ? "Add user" : "Save")
+            </MudButton>
+        </div>
+    </Footer>
+</DrawerShell>
+
+@code {
+    private string _username = string.Empty;
+    private string? _displayName;
+    private string _password = string.Empty;
+    private readonly HashSet<Role> _roles = [];
+    private bool _enabled = true;
+    private bool _attempted;
+    private readonly HashSet<string> _touched = new(StringComparer.Ordinal);
+    private string? _error;
+    private string? _errorKind;
+    private bool _saving;
+    private string _opened = string.Empty;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>The user to change; null to add one.</summary>
+    [Parameter]
+    public UserSummary? User { get; set; }
+
+    /// <summary>The signed-in user (editing oneself says what disabling does).</summary>
+    [Parameter]
+    public UserId? Me { get; set; }
+
+    private bool IsNew => User is null;
+
+    private string? UsernameError => UsernameProblem(_username);
+
+    private string? PasswordError =>
+        string.IsNullOrEmpty(_password) ? "An initial password is needed."
+        : _password.EnumerateRunes().Count() < Options.MinPasswordLength ? $"At least {Options.MinPasswordLength} characters."
+        : null;
+
+    /// <summary>Why a username isn't one the service takes, or null (the same rule: 3 to 64 of ASCII letters, digits and . _ - @ +).</summary>
+    internal static string? UsernameProblem(string? username)
+    {
+        string name = username?.Trim() ?? string.Empty;
+        if (name.Length is < 3 or > 64)
+        {
+            return "3 to 64 characters.";
+        }
+
+        return name.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-' or '@' or '+')
+            ? null
+            : "Only letters, digits and . _ - @ +";
+    }
+
+    protected override void OnInitialized()
+    {
+        if (User is { } user)
+        {
+            _username = user.Username;
+            _displayName = user.DisplayName;
+            _enabled = !user.Disabled;
+            _roles.UnionWith(user.Roles);
+        }
+        else
+        {
+            _roles.Add(Role.Viewer);
+        }
+
+        _opened = Snapshot();
+    }
+
+    /// <summary>The form as it stands, to tell whether it holds changes (typing a field back to what it was holds none).</summary>
+    private string Snapshot() =>
+        string.Join('\n', _username, _displayName ?? string.Empty, _password, string.Join(',', _roles.Order()), _enabled ? "on" : "off");
+
+    private bool Shown(string field) => _attempted || _touched.Contains(field);
+
+    private void Touch(string field) => _touched.Add(field);
+
+    private void Dirty()
+    {
+        if (Level is not null)
+        {
+            Level.IsDirty = Snapshot() != _opened;
+        }
+    }
+
+    private void SetUsername(string value)
+    {
+        _username = value;
+        Dirty();
+    }
+
+    private void SetDisplayName(string value)
+    {
+        _displayName = value;
+        Dirty();
+    }
+
+    private void SetPassword(string value)
+    {
+        _password = value;
+        Dirty();
+    }
+
+    private void SetEnabled(bool value)
+    {
+        _enabled = value;
+        Dirty();
+    }
+
+    private void ToggleRole(Role role, bool on)
+    {
+        _touched.Add("roles");
+        if (on)
+        {
+            _roles.Add(role);
+        }
+        else
+        {
+            _roles.Remove(role);
+        }
+
+        Dirty();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving)
+        {
+            return;
+        }
+
+        _attempted = true;
+        if ((IsNew && (UsernameError is not null || PasswordError is not null)) || _roles.Count == 0)
+        {
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        _errorKind = null;
+        try
+        {
+            if (await Caller.OriginAsync() is not { } origin)
+            {
+                return;
+            }
+
+            Role[] roles = [.. IdentityText.Roles.Where(_roles.Contains)];
+            UserResult result;
+            if (User is not { } user)
+            {
+                string password = _password;
+                _password = string.Empty;
+                result = await Identity.CreateUserAsync(origin, new CreateUserRequest(_username.Trim(), NullIfEmpty(_displayName), password, roles));
+            }
+            else
+            {
+                string? displayName = NullIfEmpty(_displayName);
+                UpdateUserRequest request = new(
+                    displayName is not null && displayName != user.DisplayName ? displayName : null,
+                    roles.Order().SequenceEqual(user.Roles.Order()) ? null : roles,
+                    _enabled != !user.Disabled ? !_enabled : null);
+                if (request is { DisplayName: null, Roles: null, Disabled: null })
+                {
+                    Level?.Close();
+                    return;
+                }
+
+                result = await Identity.UpdateUserAsync(origin, user.Id, request);
+            }
+
+            if (result.Succeeded)
+            {
+                Snackbar.Add(IsNew ? $"Added {result.User?.Username}." : $"Saved {_username}.", Severity.Success);
+                Level?.Close(result.User);
+                return;
+            }
+
+            _errorKind = result.Status == IdentityStatus.LastOwner ? "last-owner" : result.Status.ToString().ToLowerInvariant();
+            _error = IdentityText.Refusal(result.Status, result.Problem);
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't save a user.");
+            _errorKind = "failed";
+            _error = StoreFailures.Message("The user couldn't be saved.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string? NullIfEmpty(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+
+    /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
+    public static IReadOnlyDictionary<string, object?> For(UserSummary? user, UserId? me) =>
+        new Dictionary<string, object?> { [nameof(User)] = user, [nameof(Me)] = me };
+}

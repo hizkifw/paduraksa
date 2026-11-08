@@ -11,6 +11,7 @@ using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.AccountArea;
+using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.Pages;
 
 namespace Paduraksa.Tests.Dashboard.Components;
@@ -71,23 +72,27 @@ public sealed class AccountAndAuditTests
     {
         await using DashboardTestContext context = new();
         (FakeDashboardIdentity identity, _, _, _) = IdentityPages.SignIn(context, Role.Viewer);
-        IRenderedComponent<MudDialogProvider> dialogs = context.Render<MudDialogProvider>();
         context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
         IRenderedComponent<TwoFactorCard> card = context.Render<TwoFactorCard>(parameters => parameters.Add(p => p.Enabled, true));
 
-        await card.Find("[data-action=regenerate]").ClickAsync(new());
+        Task opening = card.Find("[data-action=regenerate]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=confirm-password]").Count == 1);
         await dialogs.Find("input[data-field=confirm-password]").ChangeAsync(new() { Value = FakeDashboardIdentity.Password });
         await dialogs.Find("[data-action=confirm-password]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll(".pdk-recovery-codes li").Count == 10);
         Assert.Contains(identity.RecoveryCodes[0], dialogs.Markup, StringComparison.Ordinal);
 
+        // Only "I have saved them" closes the drawer now.
+        await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
+        Assert.Equal(10, dialogs.FindAll(".pdk-recovery-codes li").Count);
         await dialogs.Find("[data-action=codes-saved]").ClickAsync(new());
+        await opening.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
 
-        await dialogs.WaitForStateAsync(() => dialogs.FindAll(".pdk-recovery-codes").Count == 0);
+        Assert.Empty(dialogs.FindAll(".pdk-recovery-codes"));
         Assert.DoesNotContain(identity.RecoveryCodes[0], dialogs.Markup, StringComparison.Ordinal);
         // Seeing them again means making new ones, behind the password again.
-        await card.Find("[data-action=regenerate]").ClickAsync(new());
+        _ = card.Find("[data-action=regenerate]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=confirm-password]").Count == 1);
         Assert.Empty(dialogs.FindAll(".pdk-recovery-codes"));
     }
@@ -164,6 +169,7 @@ public sealed class AccountAndAuditTests
         audit.Events.Add(Event(2, "config.host.delete", AuditOutcome.Denied, target: HostId.New().ToString()));
         audit.Verification = new AuditVerification(true, 2, audit.Events[1].Id, new string('a', 64));
         context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
         IRenderedComponent<Audit> page = context.Render<Audit>();
 
         await page.WaitForStateAsync(() => page.FindAll("[data-event]").Count == 2 && page.Find("[data-section=chain]").GetAttribute("data-chain") == "intact");
@@ -171,11 +177,17 @@ public sealed class AccountAndAuditTests
         Assert.Contains("Signed in", page.Markup, StringComparison.Ordinal);
         Assert.NotNull(audit.Queries[0].From);
 
-        // A row opens to its details, pretty-printed, and a target with a page links to it.
-        await page.Find("[data-event] button").ClickAsync(new());
-        Assert.Single(page.FindAll("a[href^='/hosts/host_']"));
-        await page.Find("[data-action='auth.login'] button").ClickAsync(new());
-        Assert.Contains("\"method\": \"password\"", page.Find("[data-action='auth.login'] pre").TextContent, StringComparison.Ordinal);
+        // A row opens its details in a drawer, pretty-printed, and a target with a page links to it.
+        _ = page.Find("[data-event] button").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=audit-event]").Count == 1);
+        Assert.Single(drawers.FindAll("a[href^='/hosts/host_']"));
+        Assert.Equal("Denied", drawers.Find("[data-chip=outcome]").TextContent.Trim());
+        await drawers.InvokeAsync(drawers.Instance.EscapeAsync);
+        Assert.Empty(drawers.FindAll(".pdk-sheet"));
+        _ = page.Find("[data-action='auth.login'] button").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=audit-event] pre").Count == 1);
+        Assert.Contains("\"method\": \"password\"", drawers.Find("[data-drawer=audit-event] pre").TextContent, StringComparison.Ordinal);
+        await drawers.InvokeAsync(drawers.Instance.EscapeAsync);
 
         await page.Find("[data-field=range] button:last-of-type").ClickAsync(new());
         await page.InvokeAsync(() => SetOutcome(page, AuditOutcome.Denied));

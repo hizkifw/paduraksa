@@ -4,6 +4,8 @@ using AngleSharp.Dom;
 
 using Bunit;
 
+using Microsoft.Extensions.DependencyInjection;
+
 using MudBlazor;
 
 using Paduraksa.Application.Identity;
@@ -11,6 +13,7 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.Pages;
 
 namespace Paduraksa.Tests.Dashboard.Components;
@@ -22,16 +25,17 @@ namespace Paduraksa.Tests.Dashboard.Components;
 public sealed class SettingsPagesTests
 {
     [Fact]
-    public async Task ANewToken_ShowsItsSecretOnce_AndForgetsItWhenTheDialogCloses()
+    public async Task ANewToken_ShowsItsSecretOnce_InItsDrawer_AndForgetsItWhenTheDrawerCloses()
     {
         await using DashboardTestContext context = new();
         (FakeDashboardIdentity identity, _, _, _) = IdentityPages.SignIn(context, Role.Operator);
-        IRenderedComponent<MudDialogProvider> dialogs = context.Render<MudDialogProvider>();
         context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
         IRenderedComponent<ApiTokens> page = context.Render<ApiTokens>();
         await page.WaitForStateAsync(() => page.Markup.Contains("No API tokens yet", StringComparison.Ordinal));
 
-        await page.Find("[data-action=add-token]").ClickAsync(new());
+        // The drawer holds the page's click until it closes.
+        Task creating = page.Find("[data-action=add-token]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-scope]").Count > 0);
         // Only what an Operator holds is offered, and never the token or session permissions.
         string[] offered = [.. dialogs.FindAll("[data-scope]").Select(e => e.GetAttribute("data-scope")!)];
@@ -41,9 +45,13 @@ public sealed class SettingsPagesTests
         Assert.Contains("never exceeds its owner", dialogs.Markup, StringComparison.Ordinal);
 
         await dialogs.Find("input[data-field=token-name]").InputAsync(new() { Value = "backup script" });
-        await dialogs.Find("form#pdk-token-form").SubmitAsync();
+        await dialogs.Find("form[data-drawer=token]").SubmitAsync();
 
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-secret=token]").Count == 1);
+        // Only "I've copied it" closes it now: no close button, and Escape does nothing.
+        Assert.Empty(dialogs.FindAll("[data-drawer-action=close]"));
+        await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
+        Assert.Single(dialogs.FindAll("[data-secret=token]"));
         Assert.Contains(FakeDashboardIdentity.TokenSecret, dialogs.Find("[data-secret=token]").TextContent, StringComparison.Ordinal);
         Assert.Contains("you won't see it again", dialogs.Find("[data-notice=once]").TextContent, StringComparison.OrdinalIgnoreCase);
         IssueApiTokenRequest request = Assert.Single(identity.Issued);
@@ -51,12 +59,14 @@ public sealed class SettingsPagesTests
         Assert.All(request.Scopes, scope => Assert.True(Paduraksa.Dashboard.Identity.IdentityText.IsRead(scope)));
         Assert.NotNull(request.ExpiresAt);
 
+        Paduraksa.Dashboard.AccountArea.TokenDrawer drawer = dialogs.FindComponent<Paduraksa.Dashboard.AccountArea.TokenDrawer>().Instance;
         await dialogs.Find("[data-action=done]").ClickAsync(new());
+        await creating.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
 
-        await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-secret=token]").Count == 0);
+        Assert.Empty(dialogs.FindAll(".pdk-sheet"));
         Assert.DoesNotContain(FakeDashboardIdentity.TokenSecret, dialogs.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain(FakeDashboardIdentity.TokenSecret, page.Markup, StringComparison.Ordinal);
-        Assert.Null(Field(page.Instance, "_issued"));
+        Assert.Null(Field(drawer, "_issued"));
         await page.WaitForStateAsync(() => page.FindAll("[data-token='backup script']").Count == 1);
     }
 
@@ -77,7 +87,7 @@ public sealed class SettingsPagesTests
         await page.InvokeAsync(() => page.FindComponent<MudToggleGroup<bool>>().Instance.ValueChanged.InvokeAsync(true));
 
         await page.WaitForStateAsync(() => page.FindAll("[data-token=graces]").Count == 1);
-        Assert.Contains("Grace Hopper", page.Find("[data-token=graces]").Closest("tr")!.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Grace Hopper", page.Find("[data-token=graces]").Closest("[role=row]")!.TextContent, StringComparison.Ordinal);
         Assert.Single(identity.Calls, call => call == "list all tokens");
     }
 
@@ -87,16 +97,16 @@ public sealed class SettingsPagesTests
         await using DashboardTestContext context = new();
         (FakeDashboardIdentity identity, _, _, DashboardPrincipalRef me) = SignInOwner(context);
         identity.UpdateStatus = IdentityStatus.LastOwner;
-        IRenderedComponent<MudDialogProvider> dialogs = context.Render<MudDialogProvider>();
         context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
         IRenderedComponent<Users> page = context.Render<Users>();
         await page.WaitForStateAsync(() => page.FindAll("[data-action=edit]").Count == 1);
 
-        await page.Find("[data-action=edit]").ClickAsync(new());
+        _ = page.Find("[data-action=edit]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-role]").Count == 5);
         await dialogs.Find("[data-role=owner] input").ChangeAsync(new() { Value = false });
         await dialogs.Find("[data-role=admin] input").ChangeAsync(new() { Value = true });
-        await dialogs.Find("form#pdk-user-form").SubmitAsync();
+        await dialogs.Find("form[data-drawer=user]").SubmitAsync();
 
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-refusal=last-owner]").Count == 1);
         Assert.Contains("at least one enabled Owner", dialogs.Find("[data-refusal=last-owner]").TextContent, StringComparison.Ordinal);
@@ -108,33 +118,56 @@ public sealed class SettingsPagesTests
     }
 
     [Fact]
+    public async Task AUserDrawer_TypedBackToWhatItWas_HoldsNoChange()
+    {
+        await using DashboardTestContext context = new();
+        SignInOwner(context);
+        context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
+        IRenderedComponent<Users> page = context.Render<Users>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-action=edit]").Count == 1);
+        Task editing = page.Find("[data-action=edit]").ClickAsync(new());
+        await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=display-name]").Count == 1);
+        string name = dialogs.Find("input[data-field=display-name]").GetAttribute("value")!;
+
+        await dialogs.Find("input[data-field=display-name]").InputAsync(new() { Value = "Someone else" });
+        await dialogs.Find("input[data-field=display-name]").InputAsync(new() { Value = name });
+        await dialogs.InvokeAsync(dialogs.Instance.EscapeAsync);
+
+        Assert.Empty(dialogs.FindAll("[data-drawer=discard]"));
+        await editing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        Assert.Empty(dialogs.FindAll(".pdk-sheet"));
+    }
+
+    [Fact]
     public async Task AddingAUser_ChecksTheFormFirst_AndSendsTheRoles()
     {
         await using DashboardTestContext context = new();
         (FakeDashboardIdentity identity, _, _, _) = SignInOwner(context);
-        IRenderedComponent<MudDialogProvider> dialogs = context.Render<MudDialogProvider>();
         context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
         IRenderedComponent<Users> page = context.Render<Users>();
         await page.WaitForStateAsync(() => page.FindAll("[data-action=add-user]").Count == 1);
         Assert.Contains("Reads the config and certificates and runs the simulator", page.Find("[data-section=roles]").TextContent, StringComparison.Ordinal);
 
-        await page.Find("[data-action=add-user]").ClickAsync(new());
+        Task adding = page.Find("[data-action=add-user]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=username]").Count == 1);
         await dialogs.Find("input[data-field=username]").InputAsync(new() { Value = "bo" });
         await dialogs.Find("input[data-field=password]").InputAsync(new() { Value = "short" });
-        await dialogs.Find("form#pdk-user-form").SubmitAsync();
+        await dialogs.Find("form[data-drawer=user]").SubmitAsync();
         Assert.Empty(identity.Created);
         Assert.Contains("3 to 64 characters.", dialogs.Markup, StringComparison.Ordinal);
         Assert.Contains("At least 12 characters.", dialogs.Markup, StringComparison.Ordinal);
 
         await dialogs.Find("input[data-field=username]").InputAsync(new() { Value = "viewer" });
         await dialogs.Find("input[data-field=password]").InputAsync(new() { Value = "a long enough password" });
-        await dialogs.Find("form#pdk-user-form").SubmitAsync();
+        await dialogs.Find("form[data-drawer=user]").SubmitAsync();
 
         CreateUserRequest created = Assert.Single(identity.Created);
         Assert.Equal("viewer", created.Username);
         Assert.Equal([Role.Viewer], created.Roles);
-        await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=password]").Count == 0);
+        await adding.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        Assert.Empty(dialogs.FindAll(".pdk-sheet"));
         await page.WaitForStateAsync(() => page.FindAll("[data-user=viewer]").Count == 1);
     }
 

@@ -149,10 +149,13 @@ public sealed class SettingsEndToEndTests
         await Expect(page.Locator("[data-action='config.settings.update']")).ToBeVisibleAsync();
         await page.ClickAsync("[data-action=verify]");
         await Expect(page.Locator("[data-section=chain]")).ToHaveAttributeAsync("data-chain", "intact", new() { Timeout = 15_000 });
-        await page.Locator("[data-action='token.issue'] button").ClickAsync();
-        await Expect(page.Locator("[data-action='token.issue'] pre")).ToContainTextAsync("e2e script");
-        Assert.DoesNotContain(token, await page.ContentAsync(), StringComparison.Ordinal);
         await PlaywrightBrowser.ScreenshotAsync(page, "audit");
+        await page.Locator("[data-action='token.issue'] button").ClickAsync();
+        await Expect(page.Locator(".pdk-sheet [data-drawer=audit-event] pre")).ToContainTextAsync("e2e script");
+        Assert.DoesNotContain(token, await page.ContentAsync(), StringComparison.Ordinal);
+        await PlaywrightBrowser.ScreenshotAsync(page, "audit-event", fullPage: false);
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0);
 
         // My account: two-step verification, then the other session ended.
         await page.ClickAsync(".pdk-user-chip");

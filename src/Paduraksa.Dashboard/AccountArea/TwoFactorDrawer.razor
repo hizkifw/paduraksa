@@ -1,0 +1,166 @@
+@implements IDisposable
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Identity
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+@inject ISnackbar Snackbar
+@inject Microsoft.Extensions.Logging.ILogger<TwoFactorDrawer> Logger
+@* My account's two-step verification, in a drawer: set up an authenticator (the same enrolment as the first-run wizard), or new recovery
+   codes, or turn it off, each behind the current password. The password and the codes live only in this drawer; once new codes show,
+   only "I have saved them" closes it. Hands back true when the second factor changed. *@
+
+<DrawerShell Title="@Title" Overline="Two-step verification" Subtitle="@Caption" Icon="@Icons.Material.Outlined.PhonelinkLock"
+             IconTone="@(Step == TwoFactorStep.Disable ? Tone.Error : Tone.Primary)" Name="two-factor" Closable="_codes is null">
+    @switch (Step)
+    {
+        case TwoFactorStep.Enrol:
+            <TwoStepEnrollment Enabled="EnrolledAsync" />
+            break;
+        case TwoFactorStep.Regenerate when _codes is not null:
+            <div class="pdk-form-stack">
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">New recovery codes made; the old ones no longer work.</MudAlert>
+                <MudText Typo="Typo.body2"><strong>They are shown only now.</strong> Keep them somewhere safe, away from your authenticator.</MudText>
+                <RecoveryCodesView Codes="_codes" Username="@Username" />
+                <div class="pdk-form-actions">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CodesSaved" data-action="codes-saved">I have saved them</MudButton>
+                </div>
+            </div>
+            break;
+        default:
+            <form class="pdk-form-stack" @onsubmit="ConfirmPasswordAsync" @onsubmit:preventDefault="true" novalidate>
+                <MudText Typo="Typo.body2">
+                    @(Step == TwoFactorStep.Disable
+                        ? "Signing in will ask for your password only. Your recovery codes stop working."
+                        : "Your current recovery codes stop working, and ten new ones are shown once.")
+                </MudText>
+                <MudTextField T="string" @bind-Value="_password" Label="Your password" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              autocomplete="current-password" AutoFocus="true" Error="_error is not null" ErrorText="@_error" Disabled="_busy" data-field="confirm-password" />
+                <div class="pdk-form-actions">
+                    <MudButton Variant="Variant.Text" OnClick="() => Level?.RequestClose()" Disabled="_busy">Cancel</MudButton>
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="@(Step == TwoFactorStep.Disable ? Color.Error : Color.Primary)" Disabled="_busy"
+                               data-action="confirm-password">
+                        @(Step == TwoFactorStep.Disable ? "Turn off" : "Make new codes")
+                    </MudButton>
+                </div>
+            </form>
+            break;
+    }
+</DrawerShell>
+
+@code {
+    private string? _password;
+    private string? _error;
+    private bool _busy;
+    private IReadOnlyList<string>? _codes;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    [Parameter, EditorRequired]
+    public TwoFactorStep Step { get; set; }
+
+    [Parameter]
+    public string? Username { get; set; }
+
+    private string Title => Step switch
+    {
+        TwoFactorStep.Enrol => "Set up an authenticator",
+        TwoFactorStep.Regenerate => "New recovery codes",
+        _ => "Turn off two-step verification",
+    };
+
+    private string Caption => Step == TwoFactorStep.Enrol ? "Password, then the QR code, then a code from the app." : "Your password first.";
+
+    /// <summary>The password and the codes go with the drawer.</summary>
+    public void Dispose()
+    {
+        _password = null;
+        _codes = null;
+    }
+
+    private async Task EnrolledAsync()
+    {
+        Snackbar.Add("Two-step verification is on.", Severity.Success);
+        Level?.Close(true);
+        await Task.CompletedTask;
+    }
+
+    private void CodesSaved()
+    {
+        _codes = null;
+        Level?.Close(true);
+    }
+
+    private async Task ConfirmPasswordAsync()
+    {
+        string password = _password ?? string.Empty;
+        _password = null;
+        _error = null;
+        if (password.Length == 0)
+        {
+            _error = "Enter your password.";
+            return;
+        }
+
+        if (await Caller.OriginAsync() is not { } origin)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (Step == TwoFactorStep.Regenerate)
+            {
+                RecoveryCodesResult? result = await Identity.RegenerateRecoveryCodesAsync(origin, password);
+                if (result is { Status: IdentityStatus.Succeeded, Codes: { } codes })
+                {
+                    _codes = codes.Codes;
+                    if (Level is not null)
+                    {
+                        // They can't be shown again: only "I have saved them" closes the drawer now.
+                        Level.Busy = true;
+                    }
+                }
+                else
+                {
+                    _error = Refusal(result?.Status);
+                }
+            }
+            else
+            {
+                IdentityResult? result = await Identity.DisableTotpAsync(origin, password);
+                if (result is { Succeeded: true })
+                {
+                    Snackbar.Add("Two-step verification is off.", Severity.Info);
+                    Level?.Close(true);
+                }
+                else
+                {
+                    _error = Refusal(result?.Status, result?.Problem);
+                }
+            }
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't change two-step verification.");
+            _error = StoreFailures.Message("That didn't go through.");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string Refusal(IdentityStatus? status, string? problem = null) => status switch
+    {
+        null => IdentityText.Busy,
+        IdentityStatus.InvalidCredentials => "That password isn't right. Too many wrong tries lock the account for a while.",
+        IdentityStatus.Conflict => "Two-step verification isn't on any more. Reload the page.",
+        { } other => IdentityText.Refusal(other, problem),
+    };
+
+    /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
+    public static IReadOnlyDictionary<string, object?> For(TwoFactorStep step, string? username) =>
+        new Dictionary<string, object?> { [nameof(Step)] = step, [nameof(Username)] = username };
+}

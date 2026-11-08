@@ -9,18 +9,18 @@
 @inject TimeProvider Time
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
+@inject DrawerStack Drawers
 @inject Microsoft.Extensions.Logging.ILogger<Users> Logger
-@* Settings: users and roles (PLAN §10.1). The list for users:read; adding, changing and deleting for users:write (the Owner). The
-   services decide, the last-Owner guard included; its refusal is shown where the change was asked for. *@
+@* Settings: users and roles (PLAN §10.1). The list for users:read; adding and changing (in a drawer) and deleting for users:write (the
+   Owner). The services decide, the last-Owner guard included; its refusal is shown where the change was asked for. *@
 
 <PageTitle>Users and roles · Settings · Paduraksa</PageTitle>
 
-<PageHeader Title="Users and roles" Overline="Settings" Lead="Who can sign in, and what each of them may do.">
+<PageHeader Title="Users and roles" Overline="Settings" Area="SectionArea.Settings" Lead="Who can sign in, and what each of them may do.">
     <Actions>
-        <MudButton Href="@DashboardRoutes.Settings" Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack">Settings</MudButton>
         @if (_mayWrite)
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.PersonAdd" OnClick="OpenCreate" data-action="add-user">Add a user</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.PersonAdd" OnClick="() => OpenAsync(null)" data-action="add-user">Add user</MudButton>
         }
     </Actions>
 </PageHeader>
@@ -66,95 +66,90 @@ else
         }
         else
         {
-            <MudTable T="UserSummary" Items="_users" Hover="true" Elevation="0" Breakpoint="Breakpoint.Sm" Class="pdk-table pdk-users-table">
-                <HeaderContent>
-                    <MudTh>User</MudTh>
-                    <MudTh>Roles</MudTh>
-                    <MudTh>Status</MudTh>
-                    <MudTh>Two-step</MudTh>
+            <div class="pdk-dt pdk-users-table @(_lastSeen is null ? null : "pdk-users-seen")" role="table" aria-label="Users">
+                <div class="pdk-dt-row pdk-dt-head" role="row">
+                    <span role="columnheader">User</span>
+                    <span role="columnheader">Roles</span>
+                    <span role="columnheader">Status</span>
+                    <span role="columnheader">Two-step</span>
                     @if (_lastSeen is not null)
                     {
-                        <MudTh>Last seen</MudTh>
+                        <span role="columnheader">Last seen</span>
                     }
-                    @if (_mayWrite)
-                    {
-                        <MudTh><span class="pdk-visually-hidden">Actions</span></MudTh>
-                    }
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="User">
-                        <div class="pdk-user-cell" data-user="@context.Username">
-                            <MudAvatar Size="Size.Small" Color="@(context.Disabled ? Color.Default : Color.Primary)" Variant="Variant.Outlined" Class="pdk-avatar">@UserMenu.Initials(context.DisplayName)</MudAvatar>
-                            <div class="pdk-list-main">
+                    <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
+                </div>
+                @foreach (UserSummary user in _users)
+                {
+                    <div class="pdk-dt-row @(_mayWrite ? "pdk-dt-link" : null) @(user.Disabled ? "pdk-dt-off" : null)" role="row" @key="user.Id"
+                         @onclick="@(_mayWrite ? () => OpenAsync(user) : () => Task.CompletedTask)">
+                        <div class="pdk-dt-main" role="cell" data-user="@user.Username">
+                            <MudAvatar Size="Size.Small" Color="@(user.Disabled ? Color.Default : Color.Primary)" Variant="Variant.Outlined" Class="pdk-avatar">@UserMenu.Initials(user.DisplayName)</MudAvatar>
+                            <span class="pdk-dt-titles">
                                 <span class="pdk-list-title">
-                                    @context.DisplayName
-                                    @if (context.Id == _me)
+                                    @user.DisplayName
+                                    @if (user.Id == _me)
                                     {
-                                        <span class="pdk-badge pdk-tone-primary">You</span>
+                                        <StatusChip Tone="Tone.Primary" Text="You" />
                                     }
                                 </span>
-                                <span class="pdk-list-sub pdk-mono">@context.Username</span>
-                            </div>
+                                <span class="pdk-dt-note pdk-mono">@user.Username</span>
+                            </span>
                         </div>
-                    </MudTd>
-                    <MudTd DataLabel="Roles">
-                        <span class="pdk-tags">
-                            @foreach (Role role in context.Roles)
-                            {
-                                <MudTooltip Text="@IdentityText.Describe(role)" Arrow="true" Placement="Placement.Top">
-                                    <span class="pdk-badge pdk-tone-@(role == Role.Owner ? "primary" : "default")">@IdentityText.Name(role)</span>
-                                </MudTooltip>
-                            }
+                        <span role="cell" class="pdk-dt-cell" data-label="Roles">
+                            <span class="pdk-dt-chips">
+                                @foreach (Role role in user.Roles)
+                                {
+                                    <StatusChip Tone="@(role == Role.Owner ? Tone.Primary : Tone.Default)" Text="@IdentityText.Name(role)" Detail="@IdentityText.Describe(role)" />
+                                }
+                            </span>
                         </span>
-                    </MudTd>
-                    <MudTd DataLabel="Status">
-                        @if (context.Disabled)
-                        {
-                            <span class="pdk-badge pdk-tone-default" data-status="disabled">Disabled</span>
-                        }
-                        else if (context.Locked)
-                        {
-                            <MudTooltip Text="Too many failed sign-ins: refused for a while. Enabling the user again clears it." Arrow="true">
-                                <span class="pdk-badge pdk-tone-warning" data-status="locked">Locked</span>
-                            </MudTooltip>
-                        }
-                        else
-                        {
-                            <span class="pdk-badge pdk-tone-success" data-status="enabled">Enabled</span>
-                        }
-                    </MudTd>
-                    <MudTd DataLabel="Two-step">
-                        @if (context.TwoFactorEnabled)
-                        {
-                            <span class="pdk-badge pdk-tone-success" data-two-factor="on"><MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Small" Style="font-size: 0.85rem" /> On</span>
-                        }
-                        else
-                        {
-                            <span class="pdk-badge pdk-tone-warning" data-two-factor="off">Off</span>
-                        }
-                    </MudTd>
-                    @if (_lastSeen is not null)
-                    {
-                        <MudTd DataLabel="Last seen">
-                            @if (_lastSeen.TryGetValue(context.Id, out DateTimeOffset seen))
+                        <span role="cell" class="pdk-dt-cell" data-label="Status">
+                            @if (user.Disabled)
                             {
-                                <span title="@RevisionText.Exact(seen)">@RevisionText.Ago(seen, _now)</span>
+                                <StatusChip Dot="true" Text="Disabled" Name="status" Class="pdk-status-disabled" />
+                            }
+                            else if (user.Locked)
+                            {
+                                <StatusChip Tone="Tone.Warning" Dot="true" Text="Locked" Detail="Too many failed sign-ins: refused for a while. Enabling the user again clears it." Name="status" />
                             }
                             else
                             {
-                                <span class="pdk-muted">Not signed in</span>
+                                <StatusChip Tone="Tone.Success" Dot="true" Text="Enabled" Name="status" />
                             }
-                        </MudTd>
-                    }
-                    @if (_mayWrite)
-                    {
-                        <MudTd Class="pdk-row-actions">
-                            <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => OpenEdit(context)" aria-label="@($"Edit {context.Username}")" data-action="edit" />
-                            <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => AskDeleteAsync(context)" aria-label="@($"Delete {context.Username}")" data-action="delete" />
-                        </MudTd>
-                    }
-                </RowTemplate>
-            </MudTable>
+                        </span>
+                        <span role="cell" class="pdk-dt-cell" data-label="Two-step">
+                            @if (user.TwoFactorEnabled)
+                            {
+                                <StatusChip Tone="Tone.Success" Icon="@Icons.Material.Rounded.Lock" Text="On" Name="two-factor" />
+                            }
+                            else
+                            {
+                                <StatusChip Tone="Tone.Warning" Text="Off" Name="two-factor" />
+                            }
+                        </span>
+                        @if (_lastSeen is not null)
+                        {
+                            <span role="cell" class="pdk-dt-cell" data-label="Last seen">
+                                @if (_lastSeen.TryGetValue(user.Id, out DateTimeOffset seen))
+                                {
+                                    <span title="@RevisionText.Exact(seen)">@RevisionText.Ago(seen, _now)</span>
+                                }
+                                else
+                                {
+                                    <span class="pdk-muted">Not signed in</span>
+                                }
+                            </span>
+                        }
+                        <span role="cell" class="pdk-dt-cell pdk-dt-actions" @onclick:stopPropagation="true">
+                            @if (_mayWrite)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Outlined.Edit" Size="Size.Small" OnClick="() => OpenAsync(user)" aria-label="@($"Edit {user.Username}")" data-action="edit" />
+                                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => AskDeleteAsync(user)" aria-label="@($"Delete {user.Username}")" data-action="delete" />
+                            }
+                        </span>
+                    </div>
+                }
+            </div>
         }
     </MudPaper>
 
@@ -172,84 +167,6 @@ else
         <MudText Typo="Typo.caption" Class="pdk-muted">A user with several roles may do what any of them allows.</MudText>
     </MudPaper>
 
-    <MudDialog Visible="_form is not null" VisibleChanged="OnFormVisibleChanged" Options="FormOptions" Class="pdk-dialog pdk-user-dialog" ContentClass="pdk-dialog-content">
-    <TitleContent>
-        <div class="pdk-dialog-title">
-            <span class="pdk-dialog-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Group" Size="Size.Small" /></span>
-            <div>
-                <MudText Typo="Typo.h6" HtmlTag="h2">@(_form?.IsNew == true ? "Add a user" : $"Edit {_form?.Username}")</MudText>
-                <MudText Typo="Typo.caption" Class="pdk-muted">@(_form?.IsNew == true ? "They sign in with this username and password." : "Name, roles and whether they can sign in.")</MudText>
-            </div>
-        </div>
-    </TitleContent>
-
-        <DialogContent>
-            @if (_form is not null)
-            {
-                @if (_formError is { } formError)
-                {
-                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-refusal="@_formErrorKind">@formError</MudAlert>
-                }
-                @if (!_form.IsNew && _form.Id == _me)
-                {
-                    <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true">This is you. Disabling yourself signs you out.</MudAlert>
-                }
-                <form id="pdk-user-form" class="pdk-modal-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" novalidate>
-                    <div class="pdk-field-grid">
-                        <MudTextField T="string" @bind-Value="_form.Username" Label="Username" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_form.IsNew"
-                                      Immediate="true" AutoFocus="_form.IsNew" Class="pdk-mono-input" spellcheck="false" autocomplete="off"
-                                      HelperText="@(_form.IsNew ? "3 to 64 letters, digits and . _ - @ +" : "Can't be changed.")"
-                                      Error="@(_form.IsNew && Shown("username") && UsernameError is not null)" ErrorText="@UsernameError"
-                                      OnBlur="@(() => _form.Touched.Add("username"))" data-field="username" />
-                        <MudTextField T="string" @bind-Value="_form.DisplayName" Label="Display name" Placeholder="@_form.Username" Variant="Variant.Outlined" Margin="Margin.Dense"
-                                      MaxLength="UserService.MaxDisplayNameLength" Immediate="true" AutoFocus="!_form.IsNew" data-field="display-name" />
-                        @if (_form.IsNew)
-                        {
-                            <MudTextField T="string" @bind-Value="_form.Password" Label="Initial password" InputType="InputType.Password" Variant="Variant.Outlined"
-                                          Margin="Margin.Dense" Immediate="true" Class="pdk-span-2" autocomplete="new-password"
-                                          HelperText="@($"At least {Options.MinPasswordLength} characters. Hand it over safely; they can change it under My account.")"
-                                          Error="@(Shown("password") && PasswordError is not null)" ErrorText="@PasswordError"
-                                          OnBlur="@(() => _form.Touched.Add("password"))" data-field="password" />
-                        }
-                    </div>
-
-                    <fieldset class="pdk-role-picker" aria-describedby="pdk-roles-help">
-                        <legend>Roles</legend>
-                        @foreach (Role role in IdentityText.Roles)
-                        {
-                            <label class="pdk-role-option @(_form.Roles.Contains(role) ? "pdk-selected" : null)" data-role="@role.ToName()">
-                                <MudCheckBox T="bool" Value="_form.Roles.Contains(role)" ValueChanged="@(value => ToggleRole(role, value))" Color="Color.Primary" Dense="true" />
-                                <span class="pdk-role-text">
-                                    <span class="pdk-role-name">@IdentityText.Name(role)</span>
-                                    <span class="pdk-role-help">@IdentityText.Describe(role)</span>
-                                </span>
-                            </label>
-                        }
-                        @if (Shown("roles") && _form.Roles.Count == 0)
-                        {
-                            <div class="pdk-field-error" id="pdk-roles-help">Pick at least one role.</div>
-                        }
-                    </fieldset>
-
-                    @if (!_form.IsNew)
-                    {
-                        <MudSwitch T="bool" @bind-Value="_form.Enabled" Color="Color.Success" Label="@(_form.Enabled ? "Enabled: can sign in" : "Disabled: can't sign in; sessions end and tokens stop working")"
-                                   data-field="enabled" />
-                    }
-                </form>
-            }
-        </DialogContent>
-        <DialogActions>
-            <MudButton Variant="Variant.Text" OnClick="CloseForm" Disabled="_saving">Cancel</MudButton>
-            <MudButton ButtonType="ButtonType.Submit" form="pdk-user-form" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" data-action="save-user">
-                @if (_saving)
-                {
-                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                }
-                @(_form?.IsNew == true ? "Add user" : "Save")
-            </MudButton>
-        </DialogActions>
-    </MudDialog>
 
 }
 
@@ -261,21 +178,9 @@ else
     private DateTimeOffset _now;
     private UserId? _me;
     private bool _mayWrite;
-    private UserForm? _form;
-    private string? _formError;
-    private string? _formErrorKind;
-    private bool _saving;
     private string? _refusal;
     private string? _refusalKind;
     private IDisposable? _watch;
-
-    private string? UsernameError => _form is null ? null : UsernameProblem(_form.Username);
-
-    private string? PasswordError =>
-        _form is null ? null
-        : string.IsNullOrEmpty(_form.Password) ? "An initial password is needed."
-        : _form.Password.EnumerateRunes().Count() < Options.MinPasswordLength ? $"At least {Options.MinPasswordLength} characters."
-        : null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -343,153 +248,14 @@ else
         }
     }
 
-    /// <summary>Why a username isn't one the service takes, or null (the same rule: 3 to 64 of ASCII letters, digits and . _ - @ +).</summary>
-    internal static string? UsernameProblem(string? username)
+    /// <summary>Adds a user, or changes one, in a drawer; the list follows the identity feed (and is read again for this circuit).</summary>
+    private async Task OpenAsync(UserSummary? user)
     {
-        string name = username?.Trim() ?? string.Empty;
-        if (name.Length is < 3 or > 64)
+        DrawerResult result = await Drawers.OpenAsync<UserDrawer>(UserDrawer.For(user, _me), DrawerWidth.Medium);
+        if (!result.Canceled)
         {
-            return "3 to 64 characters.";
-        }
-
-        return name.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-' or '@' or '+')
-            ? null
-            : "Only letters, digits and . _ - @ +";
-    }
-
-    private bool Shown(string field) => _form is not null && (_form.Attempted || _form.Touched.Contains(field));
-
-    private void OpenCreate()
-    {
-        _formError = null;
-        _formErrorKind = null;
-        _form = new UserForm { IsNew = true, Roles = { Role.Viewer } };
-    }
-
-    private void OpenEdit(UserSummary user)
-    {
-        _formError = null;
-        _formErrorKind = null;
-        _form = new UserForm
-        {
-            IsNew = false,
-            Id = user.Id,
-            Username = user.Username,
-            DisplayName = user.DisplayName,
-            Enabled = !user.Disabled,
-            OriginalDisplayName = user.DisplayName,
-            OriginalRoles = [.. user.Roles],
-            OriginalEnabled = !user.Disabled,
-        };
-        _form.Roles.UnionWith(user.Roles);
-    }
-
-    private void CloseForm()
-    {
-        if (_saving)
-        {
-            return;
-        }
-
-        // The initial password goes with the form.
-        _form = null;
-        _formError = null;
-    }
-
-    private void ToggleRole(Role role, bool on)
-    {
-        if (_form is null)
-        {
-            return;
-        }
-
-        _form.Touched.Add("roles");
-        if (on)
-        {
-            _form.Roles.Add(role);
-        }
-        else
-        {
-            _form.Roles.Remove(role);
-        }
-    }
-
-    private async Task SaveAsync()
-    {
-        if (_form is not { } form || _saving)
-        {
-            return;
-        }
-
-        form.Attempted = true;
-        if ((form.IsNew && (UsernameError is not null || PasswordError is not null)) || form.Roles.Count == 0)
-        {
-            return;
-        }
-
-        _saving = true;
-        _formError = null;
-        _formErrorKind = null;
-        try
-        {
-            if (await Caller.OriginAsync() is not { } origin)
-            {
-                return;
-            }
-
-            Role[] roles = [.. IdentityText.Roles.Where(form.Roles.Contains)];
-            UserResult result;
-            if (form.IsNew)
-            {
-                result = await Identity.CreateUserAsync(origin, new CreateUserRequest(form.Username.Trim(), NullIfEmpty(form.DisplayName), form.Password, roles));
-                form.Password = string.Empty;
-            }
-            else
-            {
-                string? displayName = NullIfEmpty(form.DisplayName);
-                UpdateUserRequest request = new(
-                    displayName is not null && displayName != form.OriginalDisplayName ? displayName : null,
-                    roles.Order().SequenceEqual(form.OriginalRoles.Order()) ? null : roles,
-                    form.Enabled != form.OriginalEnabled ? !form.Enabled : null);
-                if (request is { DisplayName: null, Roles: null, Disabled: null })
-                {
-                    _form = null;
-                    return;
-                }
-
-                result = await Identity.UpdateUserAsync(origin, form.Id!.Value, request);
-            }
-
-            if (result.Succeeded)
-            {
-                Snackbar.Add(form.IsNew ? $"Added {result.User?.Username}." : $"Saved {form.Username}.", Severity.Success);
-                _form = null;
-                await LoadAsync();
-                return;
-            }
-
-            _formErrorKind = result.Status == IdentityStatus.LastOwner ? "last-owner" : result.Status.ToString().ToLowerInvariant();
-            _formError = IdentityText.Refusal(result.Status, result.Problem);
-        }
-        catch (Exception ex) when (StoreFailures.Survivable(ex))
-        {
-            Logger.LogStoreFailure(ex, "Couldn't save a user.");
-            _formErrorKind = "failed";
-            _formError = StoreFailures.Message("The user couldn't be saved.");
-        }
-        finally
-        {
-            _saving = false;
-        }
-    }
-
-    private static readonly DialogOptions FormOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false };
-
-    private void OnFormVisibleChanged(bool visible)
-    {
-        if (!visible)
-        {
-            CloseForm();
+            _refusal = null;
+            await LoadAsync();
         }
     }
 
@@ -526,35 +292,5 @@ else
             ? $"{user.Username} is the last enabled Owner, so they can't be deleted. Make someone else an Owner first."
             : $"Couldn't delete {user.Username}. {IdentityText.Refusal(result.Status, result.Problem)}";
         Snackbar.Add($"{user.Username} wasn't deleted.", Severity.Warning);
-    }
-
-    private static string? NullIfEmpty(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
-
-    /// <summary>The add or edit form's state; the initial password is cleared when the form closes or is sent.</summary>
-    private sealed class UserForm
-    {
-        public bool IsNew { get; init; }
-
-        public UserId? Id { get; init; }
-
-        public string Username { get; set; } = string.Empty;
-
-        public string? DisplayName { get; set; }
-
-        public string Password { get; set; } = string.Empty;
-
-        public HashSet<Role> Roles { get; } = [];
-
-        public bool Enabled { get; set; } = true;
-
-        public string? OriginalDisplayName { get; init; }
-
-        public IReadOnlyList<Role> OriginalRoles { get; init; } = [];
-
-        public bool OriginalEnabled { get; init; } = true;
-
-        public bool Attempted { get; set; }
-
-        public HashSet<string> Touched { get; } = new(StringComparer.Ordinal);
     }
 }

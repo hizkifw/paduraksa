@@ -12,6 +12,7 @@
 @inject IDashboardIdentity Identity
 @inject DashboardCaller Caller
 @inject DashboardBrowser Browser
+@inject DrawerStack Drawers
 @inject TimeProvider Time
 @inject ISnackbar Snackbar
 @inject ILogger<Audit> Logger
@@ -194,10 +195,8 @@ else
             <ul class="pdk-audit-list" aria-label="Audit events">
                 @foreach (AuditEventSummary e in _events)
                 {
-                    bool open = _expanded.Contains(e.Id);
-                    string? link = AuditText.LinkOf(e.Target);
-                    <li @key="e.Id" class="pdk-audit-row @(open ? "pdk-open" : null)" data-event="@e.Id" data-action="@e.Action" data-outcome="@e.Outcome.ToName()">
-                        <button type="button" class="pdk-audit-summary" @onclick="() => Toggle(e.Id)" aria-expanded="@(open ? "true" : "false")">
+                    <li @key="e.Id" class="pdk-audit-row" data-event="@e.Id" data-action="@e.Action" data-outcome="@e.Outcome.ToName()">
+                        <button type="button" class="pdk-audit-summary" @onclick="() => OpenAsync(e)" aria-haspopup="dialog">
                             <span class="pdk-audit-time" title="@RevisionText.Exact(e.Timestamp)">@RevisionText.Ago(e.Timestamp, _now)</span>
                             <span class="pdk-audit-what">
                                 <span class="pdk-audit-title">@AuditText.Describe(e.Action)</span>
@@ -208,50 +207,8 @@ else
                                 @AuditText.Actor(e.Actor, _me, _users, _tokens)
                             </span>
                             <span class="pdk-badge pdk-tone-@AuditText.ToneOf(e.Outcome).Css()">@AuditText.Name(e.Outcome)</span>
-                            <MudIcon Icon="@(open ? Icons.Material.Rounded.ExpandLess : Icons.Material.Rounded.ExpandMore)" Size="Size.Small" Class="pdk-audit-chevron" />
+                            <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Size="Size.Small" Class="pdk-audit-chevron" />
                         </button>
-                        @if (open)
-                        {
-                            <div class="pdk-audit-detail" data-detail="@e.Id">
-                                <dl class="pdk-facts">
-                                    <div class="pdk-fact"><dt>When</dt><dd>@RevisionText.Exact(e.Timestamp)</dd></div>
-                                    <div class="pdk-fact"><dt>Channel</dt><dd>@RevisionText.Channel(e.Channel)</dd></div>
-                                    @if (e.ClientIp is { } ip)
-                                    {
-                                        <div class="pdk-fact"><dt>Client</dt><dd class="pdk-mono">@ip</dd></div>
-                                    }
-                                    @if (e.Target is { } target)
-                                    {
-                                        <div class="pdk-fact">
-                                            <dt>Target</dt>
-                                            <dd class="pdk-mono">
-                                                @if (link is not null)
-                                                {
-                                                    <a href="@link" class="pdk-row-link">@target</a>
-                                                }
-                                                else
-                                                {
-                                                    @target
-                                                }
-                                            </dd>
-                                        </div>
-                                    }
-                                    @if (e.RevisionId is { } revision)
-                                    {
-                                        <div class="pdk-fact"><dt>Revision</dt><dd><a href="@DashboardRoutes.Revision(revision)" class="pdk-row-link pdk-mono">@revision</a></dd></div>
-                                    }
-                                    <div class="pdk-fact"><dt>Event</dt><dd class="pdk-mono">@e.Id</dd></div>
-                                </dl>
-                                @if (e.Details is { } details)
-                                {
-                                    <pre class="pdk-json" data-details="@e.Id">@AuditText.Pretty(details)</pre>
-                                }
-                                else
-                                {
-                                    <MudText Typo="Typo.caption" Class="pdk-muted">No further details.</MudText>
-                                }
-                            </div>
-                        }
                     </li>
                 }
             </ul>
@@ -279,7 +236,6 @@ else
     private IReadOnlyDictionary<ApiTokenId, string> _tokens = new Dictionary<ApiTokenId, string>();
     private List<AuditEventSummary>? _events;
     private AuditEventId? _after;
-    private readonly HashSet<AuditEventId> _expanded = [];
     private DateTimeOffset _now;
     private bool _loadingOlder;
     private bool _failed;
@@ -475,7 +431,6 @@ else
         try
         {
             AuditPage page = await AuditLog.QueryAsync(filter, PageSize, null);
-            _expanded.Clear();
             _events = [.. page.Items];
             _after = page.Next;
         }
@@ -525,13 +480,9 @@ else
         StateHasChanged();
     }
 
-    private void Toggle(AuditEventId id)
-    {
-        if (!_expanded.Remove(id))
-        {
-            _expanded.Add(id);
-        }
-    }
+    /// <summary>An event's details, in a drawer.</summary>
+    private Task OpenAsync(AuditEventSummary auditEvent) =>
+        Drawers.OpenAsync<AuditEventDrawer>(AuditEventDrawer.For(auditEvent, AuditText.Actor(auditEvent.Actor, _me, _users, _tokens)), DrawerWidth.Medium);
 
     private async Task VerifyAsync()
     {

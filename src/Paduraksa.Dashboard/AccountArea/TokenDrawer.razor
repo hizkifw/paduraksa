@@ -1,0 +1,264 @@
+@implements IDisposable
+@using System.Globalization
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Identity
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+@inject TimeProvider Time
+@inject Microsoft.Extensions.Logging.ILogger<TokenDrawer> Logger
+@* A new API token, in a drawer (PLAN §10.1, §11.1): name, expiry and scopes (only what the owner holds, never the token or session
+   permissions). Its secret is shown once, here: the drawer then closes only through "I've copied it" (not Escape or a click beside it),
+   and the secret goes with the drawer. *@
+
+<DrawerShell Title="@(_issued is null ? "Create an API token" : "Your new token")" Overline="API token"
+             Subtitle="@(_issued is null ? "A credential for the REST API that acts as you." : "Shown once. Copy it before you close this.")"
+             Icon="@Icons.Material.Outlined.Key" Name="token" OnSubmit="IssueAsync" Closable="_issued is null">
+    <Banner>
+        @if (_error is { } error)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-form="error">@error</MudAlert>
+        }
+    </Banner>
+    <ChildContent>
+        @if (_issued is { } issued)
+        {
+            <div class="pdk-once" role="alert" data-notice="once">
+                <MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" />
+                <span><strong>Copy it now: you won't see it again.</strong> Paduraksa keeps only a hash of it. If it gets lost, revoke it and create another.</span>
+            </div>
+            <SecretValue Value="@issued.Token" Label="@issued.Summary.Name" Name="token" />
+            <MudText Typo="Typo.body2" Class="pdk-muted">
+                Send it as <span class="pdk-mono">Authorization: Bearer</span> followed by the token.
+                It acts as you with @(issued.Summary.Scopes.Count == 1 ? "its one scope" : $"its {issued.Summary.Scopes.Count} scopes"), and never with more than your roles allow.
+            </MudText>
+        }
+        else
+        {
+            <div class="pdk-form" data-form="token">
+                <FormSection Title="Name" Description="What it is for, so you know what breaks when you revoke it." Name="name">
+                    <MudTextField T="string" @bind-Value="_name" Label="Name" Placeholder="Backup script on nas" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Immediate="true" AutoFocus="true" MaxLength="128"
+                                  Error="@(_attempted && string.IsNullOrWhiteSpace(_name))" ErrorText="A token needs a name." data-field="token-name" />
+                </FormSection>
+
+                <FormSection Title="Expires" Description="@ExpiryText" Name="expiry">
+                    <MudToggleGroup T="TokenLifetime" @bind-Value="_lifetime" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
+                                    Outlined="true" Size="Size.Small" aria-label="Expires" data-field="lifetime" Class="pdk-wrap-toggle">
+                        <MudToggleItem Value="TokenLifetime.Week" Text="7 days" />
+                        <MudToggleItem Value="TokenLifetime.Month" Text="30 days" />
+                        <MudToggleItem Value="TokenLifetime.Quarter" Text="90 days" />
+                        <MudToggleItem Value="TokenLifetime.Year" Text="1 year" />
+                        <MudToggleItem Value="TokenLifetime.Never" Text="Never" />
+                        <MudToggleItem Value="TokenLifetime.Custom" Text="Date" />
+                    </MudToggleGroup>
+                    @if (_lifetime == TokenLifetime.Custom)
+                    {
+                        <MudTextField T="string" @bind-Value="_customDate" InputType="InputType.Date" Label="Last day (UTC)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                      Error="@(_attempted && ExpiryError is not null)" ErrorText="@ExpiryError" data-field="token-date" />
+                    }
+                </FormSection>
+
+                <FormSection Title="Scopes" Name="scopes">
+                    <DescriptionContent>
+                        A token never exceeds its owner: only what your roles allow is offered, and if your roles shrink, the token's scopes shrink with them.
+                        Tokens can't manage tokens or sessions.
+                    </DescriptionContent>
+                    <Aside>
+                        <span class="pdk-scope-presets">
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectReadOnly" data-preset="read">Read-only</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="SelectEverything" data-preset="all">All you can</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => _scopes.Clear()" data-preset="none">None</MudButton>
+                        </span>
+                    </Aside>
+                    <ChildContent>
+                        <div class="pdk-scope-areas">
+                            @foreach ((string area, IReadOnlyList<Permission> scopes) in Offered)
+                            {
+                                <div class="pdk-scope-area" data-area="@area">
+                                    <span class="pdk-scope-area-name">@area</span>
+                                    @foreach (Permission scope in scopes)
+                                    {
+                                        <label class="pdk-scope-option @(_scopes.Contains(scope) ? "pdk-selected" : null)" data-scope="@scope.ToName()">
+                                            <MudCheckBox T="bool" Value="_scopes.Contains(scope)" ValueChanged="@(value => ToggleScope(scope, value))" Color="Color.Primary" Dense="true" />
+                                            <span class="pdk-role-text">
+                                                <span class="pdk-role-name pdk-mono">@scope.ToName()</span>
+                                                <span class="pdk-role-help">@IdentityText.Describe(scope)</span>
+                                            </span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        @if (_attempted && _scopes.Count == 0)
+                        {
+                            <div class="pdk-field-error">Pick at least one scope.</div>
+                        }
+                    </ChildContent>
+                </FormSection>
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <div class="pdk-drawer-actions">
+            @if (_issued is not null)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Done" data-action="done">I've copied it</MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Text" OnClick="() => Level?.RequestClose()" Disabled="_saving">Cancel</MudButton>
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" data-action="issue">
+                    @if (_saving)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Create token
+                </MudButton>
+            }
+        </div>
+    </Footer>
+</DrawerShell>
+
+@code {
+    private string _name = string.Empty;
+    private TokenLifetime _lifetime = TokenLifetime.Quarter;
+    private string? _customDate;
+    private readonly HashSet<Permission> _scopes = [];
+    private bool _attempted;
+    private bool _saving;
+    private string? _error;
+    private IssuedApiToken? _issued;
+    private DateTimeOffset _now;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>What the owner holds: the scopes offered.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlySet<Permission> Held { get; set; } = new HashSet<Permission>();
+
+    /// <summary>How long a new token lives.</summary>
+    internal enum TokenLifetime
+    {
+        Week,
+        Month,
+        Quarter,
+        Year,
+        Never,
+        Custom,
+    }
+
+    private IEnumerable<(string Area, IReadOnlyList<Permission> Scopes)> Offered =>
+        IdentityText.ScopeAreas
+            .Select(area => (area.Area, (IReadOnlyList<Permission>)[.. area.Scopes.Where(Held.Contains)]))
+            .Where(area => area.Item2.Count > 0);
+
+    private DateTimeOffset? ExpiresAt => _lifetime switch
+    {
+        TokenLifetime.Week => _now.AddDays(7),
+        TokenLifetime.Month => _now.AddDays(30),
+        TokenLifetime.Quarter => _now.AddDays(90),
+        TokenLifetime.Year => _now.AddYears(1),
+        TokenLifetime.Custom when DateOnly.TryParseExact(_customDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly day) =>
+            new DateTimeOffset(day.ToDateTime(new TimeOnly(23, 59, 59)), TimeSpan.Zero),
+        _ => null,
+    };
+
+    private string? ExpiryError =>
+        _lifetime != TokenLifetime.Custom ? null
+        : ExpiresAt is not { } end ? "Pick a date."
+        : end <= _now ? "Pick a day in the future."
+        : null;
+
+    private string ExpiryText => ExpiresAt is { } end
+        ? $"Stops working on {end.ToString("d MMM yyyy", CultureInfo.InvariantCulture)}."
+        : "Works until you revoke it. An expiry limits the harm of a token that leaks.";
+
+    protected override void OnInitialized()
+    {
+        _now = Time.GetUtcNow();
+        SelectReadOnly();
+    }
+
+    /// <summary>The secret goes with the drawer, however it goes.</summary>
+    public void Dispose() => _issued = null;
+
+    private void ToggleScope(Permission scope, bool on)
+    {
+        if (on)
+        {
+            _scopes.Add(scope);
+        }
+        else
+        {
+            _scopes.Remove(scope);
+        }
+    }
+
+    private void SelectReadOnly()
+    {
+        _scopes.Clear();
+        _scopes.UnionWith(Offered.SelectMany(a => a.Scopes).Where(IdentityText.IsRead));
+    }
+
+    private void SelectEverything() => _scopes.UnionWith(Offered.SelectMany(a => a.Scopes));
+
+    private async Task IssueAsync()
+    {
+        if (_saving || _issued is not null)
+        {
+            return;
+        }
+
+        _attempted = true;
+        _now = Time.GetUtcNow();
+        if (string.IsNullOrWhiteSpace(_name) || _scopes.Count == 0 || ExpiryError is not null)
+        {
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (await Caller.OriginAsync() is not { } origin)
+            {
+                return;
+            }
+
+            ApiTokenResult result = await Identity.IssueTokenAsync(origin, new IssueApiTokenRequest(_name.Trim(), [.. _scopes.Order()], ExpiresAt));
+            if (result is { Succeeded: true, Issued: { } issued })
+            {
+                _issued = issued;
+                if (Level is not null)
+                {
+                    // Only "I've copied it" closes it now: the secret can't be shown again.
+                    Level.Busy = true;
+                }
+
+                return;
+            }
+
+            _error = IdentityText.Refusal(result.Status, result.Problem);
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't create an API token.");
+            _error = StoreFailures.Message("The token couldn't be created.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Done()
+    {
+        ApiTokenSummary? summary = _issued?.Summary;
+        _issued = null;
+        Level?.Close(summary);
+    }
+
+    /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
+    public static IReadOnlyDictionary<string, object?> For(IReadOnlySet<Permission> held) => new Dictionary<string, object?> { [nameof(Held)] = held };
+}
