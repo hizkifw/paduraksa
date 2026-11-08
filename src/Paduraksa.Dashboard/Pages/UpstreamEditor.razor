@@ -5,6 +5,7 @@
 @inject DashboardCaller Caller
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject Microsoft.Extensions.Logging.ILogger<UpstreamEditor> Logger
 
 <PageTitle>@(_model is { IsNew: false } ? _storedName : "New upstream") · Upstreams · Paduraksa</PageTitle>
 
@@ -430,7 +431,19 @@ else
 
     private async Task RefreshUsageAsync()
     {
-        _document = (await Config.GetCurrentAsync()).Document;
-        await InvokeAsync(StateHasChanged);
+        try
+        {
+            _document = (await Config.GetCurrentAsync()).Document;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit went away.
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            // The usage panel keeps what it shows; the next commit or a reload reads it again.
+            Logger.LogStoreFailure(ex, "Couldn't refresh an upstream's usage.");
+        }
     }
 }

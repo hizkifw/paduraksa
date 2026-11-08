@@ -51,6 +51,14 @@ else
         </MudAlert>
     }
 
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-alert="load-failed">
+            The host couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+
     @if (!_mayWrite && _model is not null)
     {
         <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="mb-4">Read-only: your role can see this host but not change it.</MudAlert>
@@ -58,15 +66,18 @@ else
 
     @if (_model is null || _current is null)
     {
-        <div class="pdk-form-grid" aria-busy="true">
-            @for (int i = 0; i < 3; i++)
-            {
-                <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" Height="28px" />
-                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="48px" Class="mt-3" />
-                </MudPaper>
-            }
-        </div>
+        @if (!_failed)
+        {
+            <div class="pdk-form-grid" aria-busy="true">
+                @for (int i = 0; i < 3; i++)
+                {
+                    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" Height="28px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="48px" Class="mt-3" />
+                    </MudPaper>
+                }
+            </div>
+        }
     }
     else
     {
@@ -100,6 +111,7 @@ else
     private bool _maySimulate;
     private bool _notFound;
     private bool _denied;
+    private bool _failed;
     private bool _reviewing;
     private bool _applying;
     private ConfigCommand? _command;
@@ -143,6 +155,7 @@ else
     private async Task LoadAsync()
     {
         _notFound = false;
+        _failed = false;
         _changedElsewhere = null;
         _attempted = false;
         _serverErrors = new Dictionary<string, string>();
@@ -178,10 +191,12 @@ else
             _current = await Config.GetCurrentAsync();
             _certificates = user.Has(Permission.CertificatesRead) ? await Config.ListCertificatesAsync() : null;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
         {
-            Logger.LogWarning(ex, "Couldn't load the host form.");
-            throw;
+            // The form keeps what it shows (edits included); the alert offers another try.
+            Logger.LogStoreFailure(ex, "Couldn't load the host form.");
+            _failed = true;
+            return;
         }
 
         if (id is { } hostId)

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace Paduraksa.Dashboard.Identity;
 
 /// <summary>
@@ -5,7 +7,7 @@ namespace Paduraksa.Dashboard.Identity;
 /// revoked, a session ended), so lists follow without a timer. One per process. Changes made through the API or the CLI are not seen
 /// here; a page shows them on its next load.
 /// </summary>
-public sealed class IdentityChangeFeed
+public sealed partial class IdentityChangeFeed(ILogger<IdentityChangeFeed> logger)
 {
     private readonly Lock _gate = new();
     private Func<Task>[] _watchers = [];
@@ -31,7 +33,7 @@ public sealed class IdentityChangeFeed
         }
     }
 
-    private static async Task RunAsync(Func<Task> watcher)
+    private async Task RunAsync(Func<Task> watcher)
     {
         try
         {
@@ -40,6 +42,7 @@ public sealed class IdentityChangeFeed
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // A page that failed to refresh keeps what it shows; its next load reads afresh.
+            LogRefreshFailed(logger, ex);
         }
     }
 
@@ -50,6 +53,9 @@ public sealed class IdentityChangeFeed
             _watchers = [.. _watchers.Where(w => !ReferenceEquals(w, onChanged))];
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A dashboard page couldn't follow an identity change.")]
+    private static partial void LogRefreshFailed(ILogger logger, Exception exception);
 
     private sealed class Subscription(IdentityChangeFeed feed, Func<Task> onChanged) : IDisposable
     {
