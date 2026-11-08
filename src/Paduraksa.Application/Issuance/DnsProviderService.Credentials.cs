@@ -51,13 +51,13 @@ public sealed partial class DnsProviderService
         }
         catch
         {
-            await DeleteSecretQuietlyAsync(secret).ConfigureAwait(false);
+            await SecretCleanup.TryDeleteAsync(_secrets, secret, _logger, cancellationToken).ConfigureAwait(false);
             throw;
         }
 
         if (result.Status != IssuanceChangeStatus.Committed)
         {
-            await DeleteSecretQuietlyAsync(secret).ConfigureAwait(false);
+            await SecretCleanup.TryDeleteAsync(_secrets, secret, _logger, cancellationToken).ConfigureAwait(false);
         }
 
         return result;
@@ -112,11 +112,11 @@ public sealed partial class DnsProviderService
     public async Task<DnsProviderResult> DeleteWithCredentialAsync(DnsProviderId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        DnsProviderSummary? provider = await GetAsync(id, cancellationToken).ConfigureAwait(false);
+        SecretId? credential = (await FindRowAsync(id, cancellationToken).ConfigureAwait(false))?.CredentialSecretId;
         DnsProviderResult result = await DeleteAsync(id, origin, cancellationToken).ConfigureAwait(false);
-        if (result.Status == IssuanceChangeStatus.Committed && provider is not null)
+        if (result.Status == IssuanceChangeStatus.Committed && credential is { } secret)
         {
-            await DeleteSecretQuietlyAsync(provider.CredentialSecretId).ConfigureAwait(false);
+            await SecretCleanup.TryDeleteAsync(_secrets, secret, _logger, cancellationToken).ConfigureAwait(false);
         }
 
         return result;
@@ -127,18 +127,4 @@ public sealed partial class DnsProviderService
         : credential.Length > MaxCredentialLength ? new ConfigError("/credential", IssuanceErrorCodes.TextTooLong, $"the credential is limited to {MaxCredentialLength} bytes")
         : null;
 
-    private async Task DeleteSecretQuietlyAsync(SecretId secret)
-    {
-        try
-        {
-            _ = await _secrets.DeleteAsync(secret, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            LogSecretNotDeleted(secret, ex.GetType().Name);
-        }
-    }
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "The vault secret {Secret} of a DNS provider could not be deleted ({Problem}); delete it with the vault command.")]
-    private partial void LogSecretNotDeleted(SecretId secret, string problem);
 }

@@ -47,7 +47,10 @@ public sealed record CreateAcmeAccountRequest(
     SecretId? EabSecretId = null,
     string? Label = null);
 
-/// <summary>An ACME account as listed. No key material: the key lives in the vault under <paramref name="Id"/>.</summary>
+/// <summary>
+/// An ACME account as listed. No key material and no vault reference: the account key and the external-account-binding secret stay in the
+/// vault, named only by the internal row.
+/// </summary>
 public sealed record AcmeAccountSummary(
     AcmeAccountId Id,
     string DirectoryUrl,
@@ -59,7 +62,6 @@ public sealed record AcmeAccountSummary(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     string? EabKid = null,
-    SecretId? EabSecretId = null,
     string? Label = null);
 
 /// <summary>The outcome of an account change.</summary>
@@ -82,12 +84,11 @@ public sealed record AcmeAccountResult(
 /// <param name="CredentialSecretId">The vault secret holding the credential (<c>SecretKind.DnsApiToken</c>, stored with the hosts it may be sent to).</param>
 public sealed record CreateDnsProviderRequest(DnsProviderKind Kind, string Label, SecretId CredentialSecretId);
 
-/// <summary>A DNS provider as listed. No credential: only the vault secret's ID.</summary>
+/// <summary>A DNS provider as listed. No credential and no vault reference: the credential is named only by the internal row.</summary>
 public sealed record DnsProviderSummary(
     DnsProviderId Id,
     DnsProviderKind Kind,
     string Label,
-    SecretId CredentialSecretId,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 

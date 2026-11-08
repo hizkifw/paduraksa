@@ -207,32 +207,17 @@ public sealed partial class AcmeAccountService
             AcmeAccountResult result = await CreateAsync(request with { EabSecretId = secret }, origin, cancellationToken).ConfigureAwait(false);
             if (result.Status != IssuanceChangeStatus.Committed)
             {
-                await DeleteSecretQuietlyAsync(secret).ConfigureAwait(false);
+                await SecretCleanup.TryDeleteAsync(_secrets!, secret, _logger, cancellationToken).ConfigureAwait(false);
             }
 
             return result;
         }
         catch
         {
-            await DeleteSecretQuietlyAsync(secret).ConfigureAwait(false);
+            await SecretCleanup.TryDeleteAsync(_secrets!, secret, _logger, cancellationToken).ConfigureAwait(false);
             throw;
         }
     }
-
-    private async Task DeleteSecretQuietlyAsync(SecretId secret)
-    {
-        try
-        {
-            _ = await _secrets!.DeleteAsync(secret, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is KeyNotFoundException or InvalidOperationException or IOException)
-        {
-            LogEabSecretNotDeleted(secret, ex.GetType().Name);
-        }
-    }
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "The vault secret {Secret} of an ACME account that was not created could not be deleted ({Problem}); delete it with the vault command.")]
-    private partial void LogEabSecretNotDeleted(SecretId secret, string problem);
 
     /// <summary>
     /// Deactivates the account at the CA (RFC 8555 §7.3.6: final) and records it, then deletes its key from the vault.

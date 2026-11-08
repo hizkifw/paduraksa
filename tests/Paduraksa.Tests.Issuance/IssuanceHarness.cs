@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Acme;
@@ -85,6 +86,20 @@ internal sealed partial class IssuanceHarness : IAsyncDisposable
         var result = await DnsProviders.CreateAsync(new CreateDnsProviderRequest(DnsProviderKind.Cloudflare, "Cloudflare", secret), Admin, Ct);
         Assert.Equal(IssuanceChangeStatus.Committed, result.Status);
         return result.Provider!;
+    }
+
+    /// <summary>The provider's credential, read from its row: the reference is internal and never part of a summary.</summary>
+    public async Task<SecretId> CredentialOfAsync(DnsProviderId id)
+    {
+        await using var context = await _config.Db.Factory.CreateDbContextAsync(Ct);
+        return (await context.DnsProviders.AsNoTracking().SingleAsync(p => p.Id == id, Ct)).CredentialSecretId;
+    }
+
+    /// <summary>The account's external-account-binding secret, read from its row (never part of a summary).</summary>
+    public async Task<SecretId?> EabSecretOfAsync(AcmeAccountId id)
+    {
+        await using var context = await _config.Db.Factory.CreateDbContextAsync(Ct);
+        return (await context.AcmeAccounts.AsNoTracking().SingleAsync(a => a.Id == id, Ct)).EabSecretId;
     }
 
     public async Task<List<AuditRecord>> AuditAsync(string action) =>

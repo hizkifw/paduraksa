@@ -22,7 +22,8 @@ public sealed class DnsProviderServiceTests
 
         Assert.Equal(IssuanceChangeStatus.Committed, result.Status);
         var provider = result.Provider!;
-        Assert.Equal((DnsProviderKind.DeSec, "deSEC main", secret), (provider.Kind, provider.Label, provider.CredentialSecretId));
+        Assert.Equal((DnsProviderKind.DeSec, "deSEC main"), (provider.Kind, provider.Label));
+        Assert.Equal(secret, await h.CredentialOfAsync(provider.Id));
         var audit = Assert.Single(await h.AuditAsync("acme.dns_provider.create"));
         Assert.Equal((AuditOutcome.Success, provider.Id.ToString()), (audit.Outcome, audit.Target));
         Assert.Equal(provider.Id, Assert.Single(await h.DnsProviders.ListAsync(Ct)).Id);
@@ -68,7 +69,7 @@ public sealed class DnsProviderServiceTests
         Assert.Equal(new DnsProviderTestResult(true, false, "the token was revoked"), await h.DnsProviders.TestAsync(provider.Id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct));
 
         Assert.Equal(new DnsProviderTestResult(false, false), await h.DnsProviders.TestAsync(DnsProviderId.New(), Paduraksa.Application.Commands.CommandOrigin.Cli, Ct));
-        Assert.Equal(provider.CredentialSecretId, h.Dns.Created[0].Credential);
+        Assert.Equal(await h.CredentialOfAsync(provider.Id), h.Dns.Created[0].Credential);
     }
 
     [Fact]
@@ -90,7 +91,7 @@ public sealed class DnsProviderServiceTests
         Assert.Equal(Paduraksa.Core.Model.AuditOutcome.Failed, failed.Outcome);
         Assert.Equal(provider.Id.ToString(), failed.Target);
         Assert.DoesNotContain("revoked", failed.Details, StringComparison.Ordinal);
-        Assert.DoesNotContain(provider.CredentialSecretId.ToString(), failed.Details ?? string.Empty, StringComparison.Ordinal);
+        Assert.DoesNotContain((await h.CredentialOfAsync(provider.Id)).ToString(), failed.Details ?? string.Empty, StringComparison.Ordinal);
     }
 
     private sealed class DenyPermissions : Paduraksa.Application.Identity.IPermissionEvaluator

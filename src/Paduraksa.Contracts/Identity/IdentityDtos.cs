@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+
+using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Identity;
@@ -118,7 +121,7 @@ public sealed record IssuedApiToken(ApiTokenSummary Summary, string Token)
     public override string ToString() => $"{nameof(IssuedApiToken)} {{ Id = {Summary.Id}, Token = *** }}";
 }
 
-/// <summary>The start of a TOTP enrollment.</summary>
+/// <summary>The start of a TOTP enrolment.</summary>
 /// <param name="ProvisioningUri">The <c>otpauth://</c> URI for the QR code: shown once, not stored.</param>
 public sealed record TotpEnrollmentStarted(Uri ProvisioningUri)
 {
@@ -164,7 +167,7 @@ public sealed record PasswordConfirmation(string Password)
     public override string ToString() => $"{nameof(PasswordConfirmation)} {{ *** }}";
 }
 
-/// <summary>A code from the authenticator, to confirm an enrollment.</summary>
+/// <summary>A code from the authenticator, to confirm an enrolment.</summary>
 /// <param name="Code">The six digits.</param>
 public sealed record TotpConfirmation(string Code)
 {
@@ -174,12 +177,26 @@ public sealed record TotpConfirmation(string Code)
 /// <summary>Who the admin API thinks the caller is.</summary>
 /// <param name="User">The user (for a token, the one it acts as).</param>
 /// <param name="Permissions">What the caller may do right now, in a fixed order: for a token, its scopes narrowed to what its user holds.</param>
-/// <param name="AuthKind">How the caller authenticated: <c>session</c> or <c>token</c>.</param>
-/// <param name="SessionId">The session, for <c>session</c>.</param>
-/// <param name="TokenId">The token, for <c>token</c>.</param>
+/// <param name="AuthKind">How the caller authenticated: <see cref="Identity.AuthKind.Session"/> or <see cref="Identity.AuthKind.Token"/>.</param>
+/// <param name="SessionId">The session, for <see cref="Identity.AuthKind.Session"/>.</param>
+/// <param name="TokenId">The token, for <see cref="Identity.AuthKind.Token"/>.</param>
 public sealed record CurrentCaller(
     UserSummary User,
     IReadOnlyList<Permission> Permissions,
-    string AuthKind,
+    AuthKind AuthKind,
     SessionId? SessionId = null,
     ApiTokenId? TokenId = null);
+
+/// <summary>How the caller of an admin request authenticated, as the wire says it: <c>session</c>, <c>token</c> or <c>unspecified</c>.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<AuthKind>))]
+public enum AuthKind
+{
+    /// <summary>Neither: a caller a surface assembled without one of the two credentials.</summary>
+    Unspecified = 0,
+
+    /// <summary>The session cookie.</summary>
+    Session = 1,
+
+    /// <summary>A bearer API token.</summary>
+    Token = 2,
+}

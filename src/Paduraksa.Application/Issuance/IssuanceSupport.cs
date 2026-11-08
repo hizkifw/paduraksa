@@ -38,7 +38,7 @@ public static class IssuanceErrorCodes
     public const string KeySpecUndefined = "acme.order.keySpec.undefined";
 }
 
-/// <summary>Row-to-DTO mapping and small helpers shared by the issuance services.</summary>
+/// <summary>Row-to-DTO mapping and small helpers shared by the issuance services. A secret's vault reference stays on the row and is never mapped onto a summary.</summary>
 internal static class IssuanceMapping
 {
     public static AcmeAccountSummary ToSummary(AcmeAccountRow row) => new(
@@ -52,10 +52,9 @@ internal static class IssuanceMapping
         CreatedAt: row.CreatedAt,
         UpdatedAt: row.UpdatedAt,
         EabKid: row.EabKid,
-        EabSecretId: row.EabSecretId,
         Label: row.Label);
 
-    public static DnsProviderSummary ToSummary(DnsProviderRow row) => new(row.Id, row.Kind, row.Label, row.CredentialSecretId, row.CreatedAt, row.UpdatedAt);
+    public static DnsProviderSummary ToSummary(DnsProviderRow row) => new(row.Id, row.Kind, row.Label, row.CreatedAt, row.UpdatedAt);
 
     public static AcmeOrderSummary ToSummary(AcmeOrderRow row) => new(
         CertificateId: row.CertificateId,

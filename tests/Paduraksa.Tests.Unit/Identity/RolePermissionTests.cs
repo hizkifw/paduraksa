@@ -3,6 +3,7 @@ using System.Text.Json;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Tests.Unit.Identity;
 
@@ -145,5 +146,45 @@ public sealed class RolePermissionTests
         Assert.DoesNotContain("SECRET", token.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("abcd", new RecoveryCodes(["abcd-efgh"]).ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("secret", new TotpEnrollmentStarted(new Uri("otpauth://totp/x?secret=ABC")).ToString(), StringComparison.OrdinalIgnoreCase);
+
+        // The issuance bodies carry the external-account-binding key and DNS credentials: a stray log line must not print one.
+        Assert.DoesNotContain(
+            "SECRET",
+            new Paduraksa.Contracts.Issuance.CreateAcmeAccountBody("https://ca.test/dir", true, EabKid: "kid", EabHmacKey: "SECRET").ToString(),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "SECRET",
+            new Paduraksa.Contracts.Issuance.CreateDnsProviderBody(Paduraksa.Core.Model.DnsProviderKind.Cloudflare, "cf", "SECRET").ToString(),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "SECRET",
+            new Paduraksa.Contracts.Issuance.RotateDnsCredentialBody("SECRET").ToString(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoIssuanceSummaryCarriesAVaultSecretReference()
+    {
+        // The reference stays on the internal row: a vault SecretId must never reach a response.
+        Assert.DoesNotContain(
+            typeof(Paduraksa.Contracts.Issuance.AcmeAccountSummary).GetProperties(),
+            p => p.PropertyType == typeof(SecretId) || p.PropertyType == typeof(SecretId?));
+        Assert.DoesNotContain(
+            typeof(Paduraksa.Contracts.Issuance.DnsProviderSummary).GetProperties(),
+            p => p.PropertyType == typeof(SecretId) || p.PropertyType == typeof(SecretId?));
+    }
+
+    [Fact]
+    public void TheAuthKindIsAnEnumWithThreeStableWireNames()
+    {
+        // It used to be a raw string; the enum pins the three words and serializes them by name like every other wire enum.
+        Assert.Equal(["session", "token", "unspecified"], Enum.GetValues<AuthKind>().Select(kind => kind.ToString().ToLowerInvariant()).Order(StringComparer.Ordinal));
+
+        JsonSerializerOptions options = IdentityJsonContext.Default.Options;
+        Assert.Equal("\"session\"", JsonSerializer.Serialize(AuthKind.Session, options));
+        Assert.Equal("\"token\"", JsonSerializer.Serialize(AuthKind.Token, options));
+        Assert.Equal("\"unspecified\"", JsonSerializer.Serialize(AuthKind.Unspecified, options));
+        Assert.Equal(AuthKind.Token, JsonSerializer.Deserialize<AuthKind>("\"token\"", options));
+        Assert.ThrowsAny<JsonException>(() => JsonSerializer.Deserialize<AuthKind>("\"unknown\"", options));
     }
 }

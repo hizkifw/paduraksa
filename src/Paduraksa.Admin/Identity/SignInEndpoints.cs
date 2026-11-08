@@ -48,10 +48,10 @@ internal static class SignInEndpoints
                     SessionStarted? session = IdentityApi.StartSession(http, signedIn);
                     return Results.Created("/api/v1/auth/me", new SetupCompleted(owner, session));
                 case { Outcome: SetupOutcome.AlreadyComplete }:
-                    return ApiProblems.Problem(StatusCodes.Status409Conflict, "An Owner already exists; sign in instead.", code: "setup_complete", title: "Setup is complete");
+                    return ApiProblems.Problem(StatusCodes.Status409Conflict, "An Owner already exists; sign in instead.", code: ApiCodes.Setup.Complete, title: "Setup is complete");
                 case { Outcome: SetupOutcome.InvalidToken }:
                     throttle.RecordFailure(AdminThrottleScope.Setup, request.Username);
-                    return AdminProblems.Forbidden("Invalid setup token", "The setup token is wrong. Read it from the server log, or run `paduraksa setup-token`.", "invalid_setup_token");
+                    return AdminProblems.Forbidden("Invalid setup token", "The setup token is wrong. Read it from the server log, or run `paduraksa setup-token`.", ApiCodes.Setup.InvalidToken);
                 case { Outcome: SetupOutcome.Invalid }:
                     return AdminProblems.Invalid(result.Problem);
                 default:
@@ -118,7 +118,7 @@ internal static class SignInEndpoints
         AdminCaller caller = http.GetCaller()!;
         if (caller.User is not { } userId)
         {
-            return AdminProblems.Unauthorized(http, "The caller is not a user.", "authentication_required");
+            return AdminProblems.Unauthorized(http, "The caller is not a user.", ApiCodes.Auth.Required);
         }
 
         // A caller reads its own user whatever its token's scopes are: the service lets a user read themselves, so a token asks as its owner.
@@ -126,14 +126,14 @@ internal static class SignInEndpoints
         UserResult user = await users.GetAsync(self, userId, http.RequestAborted).ConfigureAwait(false);
         if (user.User is null)
         {
-            return AdminProblems.Unauthorized(http, "The user no longer exists.", "invalid_session");
+            return AdminProblems.Unauthorized(http, "The user no longer exists.", ApiCodes.Auth.InvalidSession);
         }
 
         IReadOnlySet<Permission> granted = await permissions.GetPermissionsAsync(caller.Origin.Actor, http.RequestAborted).ConfigureAwait(false);
         return Results.Ok(new CurrentCaller(
             user.User,
             [.. granted.Order()],
-            caller.Token is not null ? "token" : caller.Session is not null ? "session" : "unspecified",
+            caller.Token is not null ? AuthKind.Token : caller.Session is not null ? AuthKind.Session : AuthKind.Unspecified,
             caller.Session,
             caller.Token));
     }
@@ -146,16 +146,16 @@ internal static class SignInEndpoints
             case LoginStatus.Succeeded or LoginStatus.SecondFactorRequired when result.Session is not null:
                 return Results.Ok(IdentityApi.StartSession(http, result));
             case LoginStatus.InvalidCode:
-                return AdminProblems.Unauthorized(http, "The code is not valid.", "invalid_code", challenge: false);
+                return AdminProblems.Unauthorized(http, "The code is not valid.", ApiCodes.Auth.InvalidCode, challenge: false);
             case LoginStatus.SessionExpired:
                 if (http.GetPartialSession() is not null)
                 {
                     AdminSessionCookie.Clear(http.Response);
                 }
 
-                return AdminProblems.Unauthorized(http, "The sign-in expired. Start again with your password.", "session_expired", challenge: false);
+                return AdminProblems.Unauthorized(http, "The sign-in expired. Start again with your password.", ApiCodes.Auth.SessionExpired, challenge: false);
             default:
-                return AdminProblems.Unauthorized(http, "The username or password is wrong.", "invalid_credentials", challenge: false);
+                return AdminProblems.Unauthorized(http, "The username or password is wrong.", ApiCodes.Auth.InvalidCredentials, challenge: false);
         }
     }
 }

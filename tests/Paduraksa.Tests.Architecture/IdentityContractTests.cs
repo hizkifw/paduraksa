@@ -34,7 +34,7 @@ public sealed partial class IdentityContractTests
     public void IdentityDtosAreSealedRecords()
     {
         var types = LoadAssembly(Layer.Contracts).GetExportedTypes()
-            .Where(t => t.Namespace == IdentityNamespace && !t.IsSubclassOf(typeof(System.Text.Json.Serialization.JsonSerializerContext)));
+            .Where(t => t.Namespace == IdentityNamespace && !t.IsSubclassOf(typeof(System.Text.Json.Serialization.JsonSerializerContext)) && !t.IsEnum);
 
         Assert.All(types, t => Assert.True(t.IsSealed && t.GetMethod("<Clone>$") is not null, $"{t.Name} is not a sealed record"));
     }

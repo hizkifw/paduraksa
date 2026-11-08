@@ -18,14 +18,23 @@ public sealed record CreateAcmeAccountBody(
     JwsAlgorithm Algorithm = JwsAlgorithm.ES256,
     string? EabKid = null,
     string? EabHmacKey = null,
-    string? Label = null);
+    string? Label = null)
+{
+    public override string ToString() => $"{nameof(CreateAcmeAccountBody)} {{ DirectoryUrl = {DirectoryUrl}, EabKid = {EabKid}, EabHmacKey = *** }}";
+}
 
 /// <summary>Adds a DNS provider over the API. The credential goes in here and is stored in the vault: it is never returned.</summary>
 /// <param name="Kind">Which service.</param>
 /// <param name="Label">A display name (required).</param>
 /// <param name="Credential">The provider's API token.</param>
-public sealed record CreateDnsProviderBody(DnsProviderKind Kind, string Label, string Credential);
+public sealed record CreateDnsProviderBody(DnsProviderKind Kind, string Label, string Credential)
+{
+    public override string ToString() => $"{nameof(CreateDnsProviderBody)} {{ Kind = {Kind}, Label = {Label}, Credential = *** }}";
+}
 
 /// <summary>Replaces a DNS provider's credential, keeping the provider (and everything that uses it).</summary>
 /// <param name="Credential">The new API token.</param>
-public sealed record RotateDnsCredentialBody(string Credential);
+public sealed record RotateDnsCredentialBody(string Credential)
+{
+    public override string ToString() => $"{nameof(RotateDnsCredentialBody)} {{ Credential = *** }}";
+}

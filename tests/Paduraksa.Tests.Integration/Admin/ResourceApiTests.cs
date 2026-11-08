@@ -252,7 +252,7 @@ public sealed class ResourceApiTests
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         DnsProviderSummary provider = System.Text.Json.JsonSerializer.Deserialize(bodies[0], AdminJsonContext.Default.DnsProviderSummary)!;
         Assert.Equal(DnsProviderKind.Cloudflare, provider.Kind);
-        Assert.False(provider.CredentialSecretId.IsEmpty);
+        Assert.DoesNotContain("credentialSecretId", bodies[0], StringComparison.Ordinal);
 
         using HttpResponseMessage list = await api.GetAsync("/api/v1/dns-providers");
         bodies.Add(await list.Content.ReadAsStringAsync(Ct));
@@ -261,7 +261,7 @@ public sealed class ResourceApiTests
         using HttpResponseMessage rotated = await api.SendAsync(HttpMethod.Put, $"/api/v1/dns-providers/{provider.Id}", content: Json($$"""{"credential":"{{RotatedToken}}"}"""));
         bodies.Add(await rotated.Content.ReadAsStringAsync(Ct));
         Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
-        Assert.Equal(provider.CredentialSecretId, System.Text.Json.JsonSerializer.Deserialize(bodies[^1], AdminJsonContext.Default.DnsProviderSummary)!.CredentialSecretId);
+        Assert.Equal(provider.Id, System.Text.Json.JsonSerializer.Deserialize(bodies[^1], AdminJsonContext.Default.DnsProviderSummary)!.Id);
 
         using HttpResponseMessage audit = await api.GetAsync("/api/v1/audit?action=acme.*");
         string auditBody = await audit.Content.ReadAsStringAsync(Ct);
@@ -274,6 +274,8 @@ public sealed class ResourceApiTests
         {
             Assert.DoesNotContain(DnsToken, body, StringComparison.Ordinal);
             Assert.DoesNotContain(RotatedToken, body, StringComparison.Ordinal);
+            Assert.DoesNotContain("credentialSecretId", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("sec_", body, StringComparison.Ordinal);
         }
 
         using HttpResponseMessage bad = await api.SendAsync(HttpMethod.Post, "/api/v1/dns-providers", content: Json($$"""{"kind":"{{kind}}","label":"  ","credential":"{{DnsToken}}"}"""));

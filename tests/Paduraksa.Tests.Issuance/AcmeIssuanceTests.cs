@@ -120,7 +120,7 @@ public sealed partial class AcmeIssuanceTests
         Assert.NotEqual(seen[0].Value, seen[1].Value);
         Assert.Empty(h.Dns.Provider.Records);
         Assert.Equal(["create", "create", "delete", "delete"], h.Dns.Provider.Calls.Select(c => c.Split(' ')[0]));
-        Assert.Equal((DnsProviderKind.Cloudflare, provider.CredentialSecretId), Assert.Single(h.Dns.Created));
+        Assert.Equal((DnsProviderKind.Cloudflare, await h.CredentialOfAsync(provider.Id)), Assert.Single(h.Dns.Created));
         // DNS needs time to propagate before the CA is asked.
         Assert.Contains(h.Options.DnsPropagationDelay, h.Time.Delays);
         Assert.Equal(["*.example.com", "example.com"], result.Certificate!.Names);

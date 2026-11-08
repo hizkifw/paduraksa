@@ -166,13 +166,16 @@ public sealed partial class DnsProviderService
     }
 
     /// <summary>One provider; null when there is none.</summary>
-    public async Task<DnsProviderSummary?> GetAsync(DnsProviderId id, CancellationToken cancellationToken = default)
+    public async Task<DnsProviderSummary?> GetAsync(DnsProviderId id, CancellationToken cancellationToken = default) =>
+        await FindRowAsync(id, cancellationToken).ConfigureAwait(false) is { } row ? IssuanceMapping.ToSummary(row) : null;
+
+    /// <summary>The provider's row, which (unlike the summary) names its credential in the vault: for the flows that use it, never for a response.</summary>
+    private async Task<DnsProviderRow?> FindRowAsync(DnsProviderId id, CancellationToken cancellationToken)
     {
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            DnsProviderRow? row = await context.DnsProviders.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false);
-            return row is null ? null : IssuanceMapping.ToSummary(row);
+            return await context.DnsProviders.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -204,7 +207,7 @@ public sealed partial class DnsProviderService
 
     private async Task<DnsProviderTestResult> TestCoreAsync(DnsProviderId id, CancellationToken cancellationToken)
     {
-        DnsProviderSummary? provider = await GetAsync(id, cancellationToken).ConfigureAwait(false);
+        DnsProviderRow? provider = await FindRowAsync(id, cancellationToken).ConfigureAwait(false);
         if (provider is null)
         {
             return new DnsProviderTestResult(Found: false, Valid: false);

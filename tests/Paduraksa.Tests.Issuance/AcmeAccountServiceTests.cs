@@ -82,7 +82,8 @@ public sealed class AcmeAccountServiceTests
         var bound = await accounts.CreateAsync(Request() with { EabKid = "kid-1", EabSecretId = secret }, Admin, Ct);
 
         Assert.Equal(IssuanceChangeStatus.Committed, bound.Status);
-        Assert.Equal(("kid-1", secret), (bound.Account!.EabKid, bound.Account.EabSecretId));
+        Assert.Equal("kid-1", bound.Account!.EabKid);
+        Assert.Equal(secret, await h.EabSecretOfAsync(bound.Account.Id));
         Assert.NotNull(h.Server.To("new-account").Last().PayloadJson!["externalAccountBinding"]);
 
         // The CA that needs a binding refuses an account without one, and the key made for the try is deleted.
@@ -143,7 +144,7 @@ public sealed class AcmeAccountServiceTests
 
         var accepted = await WithSecrets(h, new AnyEabKeys(new FakeMacKey(server.EabSecret))).CreateWithEabAsync(Request() with { EabKid = "kid-1" }, new byte[] { 9, 9, 9 }, Admin, Ct);
         Assert.Equal(IssuanceChangeStatus.Committed, accepted.Status);
-        SecretMetadata stored = (await h.Secrets.DescribeAsync(accepted.Account!.EabSecretId!.Value, Ct))!;
+        SecretMetadata stored = (await h.Secrets.DescribeAsync((await h.EabSecretOfAsync(accepted.Account!.Id))!.Value, Ct))!;
         Assert.Equal(SecretKind.EabHmacKey, stored.Kind);
         Assert.Equal(MacAlgorithm.HmacSha256, stored.MacAlgorithm);
 
