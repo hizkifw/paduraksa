@@ -1,0 +1,338 @@
+@attribute [Route(SettingsRoutes.Defaults)]
+@implements IDisposable
+@using Paduraksa.Contracts.Certificates
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@* Settings: the global defaults (PLAN §5.1, §5.3, §7.6). The bottom layer of host settings, what a request for an unknown name gets, the
+   default certificate and the trusted proxies, edited together and applied through the review drawer. *@
+
+<PageTitle>Global defaults · Settings · Paduraksa</PageTitle>
+
+<PageHeader Title="Global defaults" Overline="Settings" Lead="What every host starts from unless its profile or the host itself says otherwise, what an unknown name gets, and who may tell Paduraksa a client's address.">
+    <Actions>
+        <MudButton Href="@DashboardRoutes.Settings" Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack">Settings</MudButton>
+    </Actions>
+</PageHeader>
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the config" Description="An Owner can give you a role that can." />
+    </MudPaper>
+}
+else if (_model is null || _document is null)
+{
+    <div class="pdk-form-grid" aria-busy="true">
+        @for (int i = 0; i < 3; i++)
+        {
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" Height="28px" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80px" Class="mt-3" />
+            </MudPaper>
+        }
+    </div>
+}
+else
+{
+    @if (_changedElsewhere is { } elsewhere)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4" data-banner="changed">
+            The global settings were changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
+            <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
+        </MudAlert>
+    }
+
+    <form class="pdk-editor" @onsubmit="Review" @onsubmit:preventDefault="true" novalidate data-form="defaults">
+        @if (_attempted && _errors.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
+                <strong>@(_errors.Count == 1 ? "One thing to fix" : $"{_errors.Count} things to fix"):</strong>
+                <ul class="pdk-error-list">
+                    @foreach ((string path, string message) in _errors)
+                    {
+                        <li><span class="pdk-error-where">@ChangeView.Locate("/settings" + path, null)</span> @message</li>
+                    }
+                </ul>
+            </MudAlert>
+        }
+
+        <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+            <div class="pdk-card-head">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h3">HTTPS and TLS</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">Every host inherits these unless its profile or the host itself sets its own.</MudText>
+                </div>
+            </div>
+            <HostSettingsFields Model="_model.Defaults" Inherited="HostSettingsModel.BuiltIn" InheritedFrom="the built-in defaults" InheritWord="Built-in default"
+                                PathPrefix="/defaults" Errors="_errors" ShowAll="_attempted" Touched="_touched" ReadOnly="!_mayWrite" OnChanged="Touch" />
+        </MudPaper>
+
+        <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+            <div class="pdk-card-head">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h3">Unknown names</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">What a request gets when no enabled host answers for its name, and the certificate for a handshake that names none.</MudText>
+                </div>
+            </div>
+            <div class="pdk-setting-list">
+                <div class="pdk-setting pdk-setting-wide">
+                    <div class="pdk-setting-text">
+                        <span class="pdk-setting-title">A request for a name no host answers</span>
+                        <span class="pdk-setting-help">Closing the connection tells a scanner the least; a 404 is the friendliest to a person who mistyped.</span>
+                    </div>
+                    <MudRadioGroup T="UnknownHostBehaviour" Value="_model.UnknownHost" ValueChanged="@(value => Set(() => _model.UnknownHost = value, "/unknownHost"))"
+                                   Disabled="!_mayWrite" Class="pdk-choice-group" data-field="unknown-host">
+                        <MudRadio T="UnknownHostBehaviour" Value="UnknownHostBehaviour.NotFound" Color="Color.Primary">404 Not Found</MudRadio>
+                        <MudRadio T="UnknownHostBehaviour" Value="UnknownHostBehaviour.MisdirectedRequest" Color="Color.Primary">421 Misdirected Request</MudRadio>
+                        <MudRadio T="UnknownHostBehaviour" Value="UnknownHostBehaviour.Close" Color="Color.Primary">Close the connection</MudRadio>
+                    </MudRadioGroup>
+                </div>
+                <div class="pdk-setting">
+                    <div class="pdk-setting-text">
+                        <span class="pdk-setting-title">Default certificate</span>
+                        <span class="pdk-setting-help">Served when the handshake names no host, and to a host whose names no certificate covers. None refuses such handshakes.</span>
+                    </div>
+                    @if (_certificates is null)
+                    {
+                        <MudTextField T="string" Value="@(_model.DefaultCertificateId?.ToString() ?? "None")" Label="Default certificate" ReadOnly="true"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-setting-control pdk-mono-input"
+                                      HelperText="Your role can't read the certificates." />
+                    }
+                    else
+                    {
+                        <MudSelect T="CertificateId?" Value="_model.DefaultCertificateId" ValueChanged="@(value => Set(() => _model.DefaultCertificateId = value, "/defaultCertificateId"))"
+                                   Label="Default certificate" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!_mayWrite" ToStringFunc="CertificateName"
+                                   Class="pdk-setting-control" Error="@(E("/defaultCertificateId") is not null)" ErrorText="@E("/defaultCertificateId")" data-field="default-certificate">
+                            <MudSelectItem T="CertificateId?" Value="null">None</MudSelectItem>
+                            @foreach (CertificateSummary certificate in _certificates.Where(c => HostOverview.IsUsable(c) || c.Id == _model.DefaultCertificateId))
+                            {
+                                <MudSelectItem T="CertificateId?" Value="certificate.Id">@CertificateName(certificate.Id)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    }
+                </div>
+            </div>
+        </MudPaper>
+
+        <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+            <div class="pdk-card-head">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h3">Client addresses</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">Who may tell Paduraksa the real client's address. Anyone else connecting is the client, whatever headers they send.</MudText>
+                </div>
+            </div>
+            <div class="pdk-choice-cards" role="radiogroup" aria-label="Trusted proxies" data-field="proxy-mode">
+                @foreach ((TrustedProxyMode mode, string title, string help, string icon) in ProxyModes)
+                {
+                    bool selected = _model.ProxyMode == mode;
+                    <button type="button" class="pdk-choice-card @(selected ? "pdk-selected" : null)" role="radio" aria-checked="@(selected ? "true" : "false")"
+                            disabled="@(!_mayWrite)" @onclick="@(() => Set(() => _model.ProxyMode = mode, "/trustedProxies"))" data-mode="@mode.ToString().ToLowerInvariant()">
+                        <MudIcon Icon="@icon" Size="Size.Small" Class="pdk-choice-icon" />
+                        <span class="pdk-choice-title">@title</span>
+                        <span class="pdk-choice-help">@help</span>
+                    </button>
+                }
+            </div>
+
+            @if (_model.ModeTakesProxies)
+            {
+                <MudTextField T="string" Value="_model.Proxies" ValueChanged="@(value => Set(() => _model.Proxies = value, "/trustedProxies/proxies"))"
+                              Label="@(_model.ProxyMode == TrustedProxyMode.CloudflareTunnel ? "Where cloudflared connects from" : "Trusted proxies")"
+                              Placeholder="@(_model.ProxyMode == TrustedProxyMode.CloudflareTunnel ? "127.0.0.1, 172.18.0.0/16" : "192.168.1.2, 10.0.0.0/8")"
+                              Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input mt-3" ReadOnly="!_mayWrite"
+                              HelperText="Addresses or networks, one per line." Error="@(E("/trustedProxies/proxies") is not null)" ErrorText="@E("/trustedProxies/proxies")"
+                              data-field="proxies" />
+            }
+
+            @if (_model.ProxyMode == TrustedProxyMode.Generic)
+            {
+                <div class="pdk-field-grid mt-1">
+                    <MudTextField T="string" Value="_model.Header" ValueChanged="@(value => Set(() => _model.Header = value, "/trustedProxies/header"))" Label="Client address header"
+                                  Placeholder="X-Forwarded-For" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="!_mayWrite"
+                                  HelperText="Read right to left, past the trusted proxies." Error="@(E("/trustedProxies/header") is not null)" ErrorText="@E("/trustedProxies/header")" />
+                    <MudSwitch T="bool" Value="_model.TrustForwardedProto" ValueChanged="@(value => Set(() => _model.TrustForwardedProto = value, "/trustedProxies/trustForwardedProto"))"
+                               Color="Color.Primary" Label="Take the scheme from X-Forwarded-Proto" Disabled="!_mayWrite" Class="pdk-switch-cell" />
+                </div>
+            }
+            else if (_model.ProxyMode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel)
+            {
+                <div class="pdk-switch-stack mt-2">
+                    <MudSwitch T="bool" Value="_model.UseTrueClientIp" ValueChanged="@(value => Set(() => _model.UseTrueClientIp = value, "/trustedProxies/useTrueClientIp"))"
+                               Color="Color.Primary" Label="Also accept True-Client-IP when CF-Connecting-IP is missing" Disabled="!_mayWrite" />
+                    <MudSwitch T="bool" Value="_model.ForwardedForFallback" ValueChanged="@(value => Set(() => _model.ForwardedForFallback = value, "/trustedProxies/forwardedForFallback"))"
+                               Color="Color.Primary" Label="Fall back to X-Forwarded-For" Disabled="!_mayWrite" />
+                </div>
+            }
+        </MudPaper>
+
+        @if (_mayWrite)
+        {
+            <div class="pdk-editor-bar">
+                @if (_touched.Count > 0)
+                {
+                    <MudButton Variant="Variant.Text" OnClick="ReloadAsync" data-action="discard">Discard changes</MudButton>
+                }
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">Review changes</MudButton>
+            </div>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can't change the config.</MudAlert>
+        }
+    </form>
+
+    <ReviewDrawer @bind-Open="_reviewing" Title="Global defaults" Command="_command" SuccessMessage="Saved the global defaults"
+                  OnApplied="OnAppliedAsync" OnInvalid="OnInvalid" OnReload="ReloadAsync" />
+}
+
+@code {
+    private bool _denied;
+    private static readonly (TrustedProxyMode Mode, string Title, string Help, string Icon)[] ProxyModes =
+    [
+        (TrustedProxyMode.Off, "Direct", "Clients connect straight to Paduraksa. The connection's address is the client's.", Icons.Material.Outlined.Lan),
+        (TrustedProxyMode.Generic, "Behind a proxy", "A load balancer or another proxy you list passes the client in a header.", Icons.Material.Outlined.AltRoute),
+        (TrustedProxyMode.CloudflareProxy, "Cloudflare proxy", "Cloudflare's edge connects (orange cloud). Its published ranges are trusted.", Icons.Material.Outlined.Cloud),
+        (TrustedProxyMode.CloudflareTunnel, "Cloudflare Tunnel", "A local cloudflared connects. List where it connects from.", Icons.Material.Outlined.Route),
+    ];
+
+    private ConfigDocument? _document;
+    private GlobalSettingsEditModel? _model;
+    private IReadOnlyList<CertificateSummary>? _certificates;
+    private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
+    private readonly HashSet<string> _touched = new(StringComparer.Ordinal);
+    private bool _attempted;
+    private bool _mayWrite;
+    private bool _reviewing;
+    private ConfigCommand? _command;
+    private RevisionRef? _changedElsewhere;
+    private IDisposable? _watch;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _watch = Config.Watch(committed => InvokeAsync(() => OnCommittedAsync(committed)));
+        await LoadAsync();
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _changedElsewhere = null;
+        _attempted = false;
+        _touched.Clear();
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        _document = (await Config.GetCurrentAsync()).Document;
+        _certificates = user.Has(Permission.CertificatesRead) ? await Config.ListCertificatesAsync() : null;
+        _model = GlobalSettingsEditModel.From(_document.Settings);
+        Validate();
+    }
+
+    private string? E(string path) => (_attempted || _touched.Contains(path)) && _errors.TryGetValue(path, out string? message) ? message : null;
+
+    private void Set(Action apply, string path)
+    {
+        apply();
+        Touch(path);
+    }
+
+    private void Touch(string path)
+    {
+        _touched.Add(path);
+        Validate();
+    }
+
+    private void Validate()
+    {
+        if (_model is not null && _document is not null)
+        {
+            _errors = InlineValidation.ForSettings(_document, _model.ToSettings());
+        }
+    }
+
+    private string CertificateName(CertificateId? id)
+    {
+        if (id is not { } value)
+        {
+            return "None";
+        }
+
+        CertificateSummary? certificate = _certificates?.FirstOrDefault(c => c.Id == value);
+        return certificate is null ? value.ToString()
+            : $"{(string.IsNullOrWhiteSpace(certificate.Label) ? string.Join(", ", certificate.Names.Take(2)) : certificate.Label)}{(HostOverview.IsUsable(certificate) ? string.Empty : " (not usable)")}";
+    }
+
+    private void Review()
+    {
+        if (_model is null || !_mayWrite)
+        {
+            return;
+        }
+
+        _attempted = true;
+        Validate();
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        _command = new UpdateSettingsCommand(_model.ToSettings());
+        _reviewing = true;
+    }
+
+    private void OnInvalid(IReadOnlyList<ConfigError> errors)
+    {
+        Dictionary<string, string> merged = new(_errors, StringComparer.Ordinal);
+        // An object command's errors come relative to the object: here, the settings.
+        foreach ((string path, string message) in InlineValidation.Relative(errors, string.Empty))
+        {
+            merged[path] = message;
+        }
+
+        _errors = merged;
+        _attempted = true;
+    }
+
+    private Task OnAppliedAsync(ConfigCommandResult result) => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _model = null;
+        await LoadAsync();
+    }
+
+    private async Task OnCommittedAsync(ConfigCommitted committed)
+    {
+        if (_reviewing || _model is null || !committed.Changes.Any(c => c is SettingsChange))
+        {
+            return;
+        }
+
+        if (_touched.Count == 0)
+        {
+            await ReloadAsync();
+        }
+        else
+        {
+            _changedElsewhere = committed.Revision;
+        }
+
+        StateHasChanged();
+    }
+}

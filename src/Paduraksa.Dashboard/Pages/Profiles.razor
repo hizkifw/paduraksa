@@ -1,0 +1,188 @@
+@attribute [Route(SettingsRoutes.Profiles)]
+@implements IDisposable
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject ISnackbar Snackbar
+@* Settings: profiles (PLAN §5.1). Each card says what the profile sets and which hosts use it; one in use can't be deleted. *@
+
+<PageTitle>Profiles · Settings · Paduraksa</PageTitle>
+
+<PageHeader Title="Profiles" Overline="Settings" Lead="Named sets of host settings, such as an allow list for your LAN, that hosts pick instead of repeating them.">
+    <Actions>
+        <MudButton Href="@DashboardRoutes.Settings" Variant="Variant.Text" StartIcon="@Icons.Material.Rounded.ArrowBack">Settings</MudButton>
+        @if (_mayWrite)
+        {
+            <MudButton Href="@SettingsRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-profile">Add a profile</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the config" Description="An Owner can give you a role that can." />
+    </MudPaper>
+}
+else
+{
+    @if (_deleteRefusal is { } refusal)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => _deleteRefusal = null">
+            @refusal
+        </MudAlert>
+    }
+
+    @if (_document is null)
+    {
+        <div class="pdk-card-grid" aria-busy="true">
+            @for (int i = 0; i < 2; i++)
+            {
+                <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" Height="28px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="60%" />
+                </MudPaper>
+            }
+        </div>
+    }
+    else if (_document.Profiles.Count == 0)
+    {
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+            <EmptyState Icon="@Icons.Material.Outlined.Badge" Title="No profiles yet"
+                        Description="A profile is a named set of settings, such as an allow list for your LAN, that any number of hosts can pick.">
+                <Action>
+                    @if (_mayWrite)
+                    {
+                        <MudButton Href="@SettingsRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add a profile</MudButton>
+                    }
+                </Action>
+            </EmptyState>
+        </MudPaper>
+    }
+    else
+    {
+        <div class="pdk-card-grid">
+            @foreach (ProfileConfig profile in _document.Profiles.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                IReadOnlyList<HostConfig> hosts = ProfileEditModel.HostsUsing(_document, profile.Id);
+                IReadOnlyList<string> sets = HostSettingsModel.Summary(profile.Settings);
+                <MudPaper Class="pdk-card pdk-profile-card" Elevation="0" Outlined="true" data-profile="@profile.Name">
+                    <div class="pdk-card-head">
+                        <div class="pdk-list-main">
+                            <a class="pdk-row-link pdk-card-title" href="@SettingsRoutes.Profile(profile.Id)">@profile.Name</a>
+                            @if (!string.IsNullOrWhiteSpace(profile.Notes))
+                            {
+                                <span class="pdk-list-sub">@profile.Notes</span>
+                            }
+                        </div>
+                        @if (_mayWrite)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => ReviewDelete(profile)"
+                                           aria-label="@($"Delete {profile.Name}")" data-action="delete" />
+                        }
+                    </div>
+                    <div class="pdk-tags">
+                        @if (sets.Count == 0)
+                        {
+                            <span class="pdk-muted pdk-small">Sets nothing yet: hosts with it inherit the global defaults.</span>
+                        }
+                        @foreach (string part in sets)
+                        {
+                            <span class="pdk-badge pdk-tone-primary">@part</span>
+                        }
+                    </div>
+                    <div class="pdk-usage">
+                        @if (hosts.Count == 0)
+                        {
+                            <span class="pdk-muted">No host uses it yet</span>
+                        }
+                        else
+                        {
+                            <span class="pdk-muted">Used by</span>
+                            @foreach (HostConfig host in hosts)
+                            {
+                                <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
+                            }
+                        }
+                    </div>
+                </MudPaper>
+            }
+        </div>
+    }
+}
+
+<ReviewDrawer @bind-Open="_reviewing" Title="@_reviewTitle" Command="_command" ApplyLabel="Delete" Destructive="true" SuccessMessage="@_successMessage"
+              OnApplied="OnAppliedAsync" OnReload="LoadAsync" />
+
+@code {
+    private bool _denied;
+    private ConfigDocument? _document;
+    private bool _mayWrite;
+    private bool _reviewing;
+    private ConfigCommand? _command;
+    private string _reviewTitle = string.Empty;
+    private string _successMessage = string.Empty;
+    private string? _deleteRefusal;
+    private IDisposable? _watch;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _watch = Config.Watch(_ => InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }));
+        await LoadAsync();
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        _document = (await Config.GetCurrentAsync()).Document;
+    }
+
+    private void ReviewDelete(ProfileConfig profile)
+    {
+        if (_document is null || !_mayWrite)
+        {
+            return;
+        }
+
+        // Refused here with the hosts named, rather than by the dry run with a pointer: the validator would refuse it the same way.
+        IReadOnlyList<HostConfig> hosts = ProfileEditModel.HostsUsing(_document, profile.Id);
+        if (hosts.Count > 0)
+        {
+            _deleteRefusal = $"{profile.Name} is still used by {string.Join(", ", hosts.Select(ChangeView.HostTitle))}, so it can't be deleted. "
+                + "Pick another profile (or none) for those hosts first.";
+            Snackbar.Add($"{profile.Name} is in use and can't be deleted.", Severity.Warning);
+            return;
+        }
+
+        _deleteRefusal = null;
+        _command = new DeleteProfileCommand(profile.Id, profile.Version);
+        _reviewTitle = $"Delete profile {profile.Name}";
+        _successMessage = $"Deleted the profile {profile.Name}";
+        _reviewing = true;
+    }
+
+    private Task OnAppliedAsync(ConfigCommandResult result) => LoadAsync();
+}

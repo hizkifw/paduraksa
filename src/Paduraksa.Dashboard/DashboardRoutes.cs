@@ -30,6 +30,9 @@ public static class DashboardRoutes
 
     public const string Settings = "/settings";
 
+    /// <summary>The signed-in user's own account: profile, password, two-step verification and sessions.</summary>
+    public const string Account = "/account";
+
     /// <summary>The form for a new host.</summary>
     public const string NewHost = "/hosts/new";
 

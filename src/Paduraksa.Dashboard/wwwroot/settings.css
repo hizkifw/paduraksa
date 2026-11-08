@@ -1,0 +1,716 @@
+/*
+ * The settings pages (global defaults, profiles, users and roles, API tokens), My account and the audit log. Built on the theme's
+ * variables like app.css; phone widths at the end.
+ */
+
+.pdk-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.pdk-small {
+    font-size: 0.8125rem;
+}
+
+/* ---------- Secrets shown once ---------- */
+
+.pdk-secret {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.pdk-secret-label {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.pdk-secret-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.pdk-secret-value {
+    flex: 1 1 260px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px dashed color-mix(in srgb, var(--mud-palette-primary) 55%, var(--mud-palette-lines-default));
+    border-radius: var(--pdk-radius);
+    background: color-mix(in srgb, var(--mud-palette-primary) 7%, var(--mud-palette-background-gray));
+    color: var(--mud-palette-text-primary);
+    font-family: var(--pdk-mono);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    user-select: all;
+    white-space: pre-wrap;
+}
+
+.pdk-secret-value:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.pdk-secret-multiline .pdk-secret-value {
+    columns: 2;
+    column-gap: 24px;
+    font-size: 0.875rem;
+    line-height: 1.9;
+}
+
+.pdk-once {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--mud-palette-warning) 40%, transparent);
+    border-radius: var(--pdk-radius);
+    background: color-mix(in srgb, var(--mud-palette-warning) 9%, transparent);
+    font-size: 0.875rem;
+}
+
+.pdk-once .mud-icon-root {
+    flex: 0 0 auto;
+    color: var(--mud-palette-warning);
+}
+
+/* ---------- A list of settings: what it is on the left, the control on the right ---------- */
+
+.pdk-setting-list {
+    display: grid;
+}
+
+.pdk-setting {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+    align-items: center;
+    gap: 8px 24px;
+    padding: 14px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-setting:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.pdk-setting-wide {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.pdk-setting-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pdk-setting-title {
+    font-weight: 600;
+}
+
+.pdk-setting-help {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-setting-control.mud-input-control, .pdk-setting-control {
+    margin: 0 !important;
+    min-width: 0;
+}
+
+.pdk-choice-group .mud-radio-group, .pdk-choice-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+}
+
+.pdk-choice-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+}
+
+.pdk-choice-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-content: start;
+    gap: 4px 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.pdk-choice-card:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 50%, var(--mud-palette-lines-default));
+}
+
+.pdk-choice-card:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.pdk-choice-card:disabled {
+    cursor: default;
+}
+
+.pdk-choice-card.pdk-selected {
+    border-color: var(--mud-palette-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 9%, transparent);
+    box-shadow: inset 0 0 0 1px var(--mud-palette-primary);
+}
+
+.pdk-choice-icon {
+    grid-row: 1 / span 2;
+    margin-top: 2px;
+    color: var(--mud-palette-primary);
+}
+
+.pdk-choice-title {
+    font-weight: 600;
+}
+
+.pdk-choice-help {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-switch-stack {
+    display: grid;
+    gap: 2px;
+}
+
+.pdk-switch-cell {
+    align-self: center;
+}
+
+/* ---------- Profiles ---------- */
+
+.pdk-profile-card.mud-paper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pdk-profile-card .pdk-card-head {
+    margin-bottom: 0;
+}
+
+/* ---------- Users, roles and tokens ---------- */
+
+.pdk-user-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.pdk-user-cell .pdk-list-title {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.pdk-row-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.pdk-role-list {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-role-list li {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr);
+    align-items: baseline;
+    gap: 12px;
+    font-size: 0.875rem;
+}
+
+.pdk-role-list .pdk-badge {
+    justify-self: start;
+}
+
+.pdk-modal-form {
+    display: grid;
+    gap: 14px;
+}
+
+.pdk-role-picker, .pdk-scope-picker {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.pdk-role-picker legend, .pdk-scope-picker legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 6px;
+    padding: 0;
+    font-weight: 600;
+}
+
+.pdk-role-option, .pdk-scope-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 4px 10px 4px 2px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    cursor: pointer;
+    transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.pdk-role-option.pdk-selected, .pdk-scope-option.pdk-selected {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 60%, transparent);
+    background: color-mix(in srgb, var(--mud-palette-primary) 7%, transparent);
+}
+
+.pdk-role-option .mud-checkbox, .pdk-scope-option .mud-checkbox {
+    margin: 0;
+}
+
+.pdk-role-text {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+    padding-top: 7px;
+}
+
+.pdk-role-name {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.pdk-role-help {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-token-expiry {
+    display: grid;
+    gap: 6px;
+}
+
+.pdk-token-expiry .mud-toggle-group {
+    flex-wrap: wrap;
+    justify-self: start;
+    max-width: 100%;
+}
+
+.pdk-label-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.pdk-scope-presets {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    font-weight: 400;
+}
+
+.pdk-scope-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 6px;
+    padding: 10px 12px;
+    border-radius: var(--pdk-radius);
+    background: color-mix(in srgb, var(--mud-palette-info) 9%, transparent);
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-scope-hint .mud-icon-root {
+    flex: 0 0 auto;
+    color: var(--mud-palette-info);
+}
+
+.pdk-scope-areas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.pdk-scope-area {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+}
+
+.pdk-scope-area-name {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* ---------- My account ---------- */
+
+.pdk-account-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 16px;
+}
+
+.pdk-account-column {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+
+.pdk-account-card .pdk-card-head {
+    flex-wrap: wrap;
+}
+
+.pdk-account-card .pdk-card-head .mud-button-root {
+    white-space: nowrap;
+}
+
+.pdk-account-profile {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.pdk-account-avatar.mud-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.pdk-account-profile .pdk-tags {
+    margin-top: 6px;
+}
+
+.pdk-form-actions-start {
+    justify-content: flex-start;
+}
+
+.pdk-password-form {
+    display: grid;
+    gap: 6px;
+}
+
+.pdk-strength {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 2px 2px 6px;
+    font-size: 0.75rem;
+    --pdk-strength: var(--mud-palette-error);
+}
+
+.pdk-strength-2 { --pdk-strength: var(--mud-palette-warning); }
+.pdk-strength-3 { --pdk-strength: var(--mud-palette-info); }
+.pdk-strength-4 { --pdk-strength: var(--mud-palette-success); }
+
+.pdk-strength-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 28px);
+    gap: 4px;
+}
+
+.pdk-strength-bar span {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--mud-palette-lines-default);
+}
+
+.pdk-strength-1 .pdk-strength-bar span:nth-child(-n + 1),
+.pdk-strength-2 .pdk-strength-bar span:nth-child(-n + 2),
+.pdk-strength-3 .pdk-strength-bar span:nth-child(-n + 3),
+.pdk-strength-4 .pdk-strength-bar span {
+    background: var(--pdk-strength);
+}
+
+.pdk-strength-label {
+    color: var(--pdk-strength);
+    font-weight: 600;
+}
+
+.pdk-session-row .pdk-list-sub {
+    overflow-wrap: anywhere;
+}
+
+.pdk-recovery {
+    display: grid;
+    gap: 10px;
+}
+
+.pdk-recovery-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* ---------- Audit ---------- */
+
+.pdk-audit-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: stretch;
+    gap: 16px;
+}
+
+.pdk-audit-filters .pdk-card-head {
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.pdk-range.mud-toggle-group {
+    flex-wrap: wrap;
+    max-width: 100%;
+}
+
+.pdk-audit-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 4px 12px;
+    margin-top: 8px;
+}
+
+.pdk-chain.mud-paper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-color: color-mix(in srgb, var(--pdk-tone) 40%, var(--mud-palette-lines-default));
+    background: linear-gradient(160deg, color-mix(in srgb, var(--pdk-tone) 10%, var(--mud-palette-surface)), var(--mud-palette-surface) 70%);
+}
+
+.pdk-chain-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pdk-chain-verdict {
+    color: var(--pdk-tone);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.pdk-chain-hash {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-chain-button.mud-button-root {
+    align-self: flex-start;
+    margin-top: auto;
+}
+
+.pdk-audit-new {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    background: color-mix(in srgb, var(--mud-palette-info) 8%, transparent);
+    font-size: 0.875rem;
+}
+
+.pdk-audit-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-audit-row {
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-audit-row:first-child {
+    border-top: 0;
+}
+
+.pdk-audit-summary {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr) minmax(0, 220px) auto 24px;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 16px 11px 20px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pdk-audit-summary:hover {
+    background: var(--mud-palette-action-default-hover);
+}
+
+.pdk-audit-summary:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: -2px;
+}
+
+.pdk-audit-time {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    white-space: nowrap;
+}
+
+.pdk-audit-what {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    min-width: 0;
+}
+
+.pdk-audit-title {
+    font-weight: 500;
+}
+
+.pdk-audit-actor {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-audit-actor .mud-icon-root {
+    flex: 0 0 auto;
+}
+
+.pdk-audit-chevron {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-audit-row.pdk-open .pdk-audit-summary {
+    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+}
+
+.pdk-audit-detail {
+    display: grid;
+    gap: 10px;
+    padding: 4px 20px 16px 128px;
+}
+
+.pdk-audit-detail .pdk-facts {
+    margin: 0;
+}
+
+.pdk-json {
+    max-height: 320px;
+    margin: 0;
+    overflow: auto;
+    padding: 12px 14px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    background: var(--mud-palette-background-gray);
+    font-family: var(--pdk-mono);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.pdk-load-more {
+    display: flex;
+    justify-content: center;
+    padding: 8px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 960px) {
+    .pdk-account-grid, .pdk-audit-top {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .pdk-setting {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pdk-audit-summary {
+        grid-template-columns: minmax(0, 1fr) auto 20px;
+        gap: 4px 10px;
+        padding-left: 14px;
+    }
+
+    .pdk-audit-time {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .pdk-audit-what {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .pdk-audit-actor {
+        grid-column: 1 / -1;
+        grid-row: 3;
+    }
+
+    .pdk-audit-summary > .pdk-badge {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .pdk-audit-chevron {
+        grid-column: 3;
+        grid-row: 1;
+    }
+
+    .pdk-audit-detail {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .pdk-role-list li {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .pdk-account-profile {
+        align-items: flex-start;
+    }
+}

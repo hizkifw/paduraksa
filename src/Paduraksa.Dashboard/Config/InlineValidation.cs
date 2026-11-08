@@ -28,6 +28,23 @@ public static class InlineValidation
         return Relative(ConfigValidator.Validate(document), $"/upstreams/{document.Upstreams.Count - 1}");
     }
 
+    /// <summary>The errors of <paramref name="settings"/> in place of <paramref name="current"/>'s, relative to the settings (<c>/trustedProxies/proxies</c>).</summary>
+    public static IReadOnlyDictionary<string, string> ForSettings(ConfigDocument current, GlobalSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(settings);
+        return Relative(ConfigValidator.Validate(current with { Settings = settings }), "/settings");
+    }
+
+    /// <summary>The errors of <paramref name="profile"/> in <paramref name="current"/>, relative to the profile (<c>/name</c>, <c>/settings/ipAllowList</c>).</summary>
+    public static IReadOnlyDictionary<string, string> ForProfile(ConfigDocument current, ProfileConfig profile)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(profile);
+        ConfigDocument document = current with { Profiles = [.. current.Profiles.Where(p => p.Id != profile.Id), profile] };
+        return Relative(ConfigValidator.Validate(document), $"/profiles/{document.Profiles.Count - 1}");
+    }
+
     /// <summary>The first message per path of <paramref name="errors"/> that point into <paramref name="prefix"/>, relative to it, as sentences.</summary>
     public static IReadOnlyDictionary<string, string> Relative(IEnumerable<ConfigError> errors, string prefix)
     {

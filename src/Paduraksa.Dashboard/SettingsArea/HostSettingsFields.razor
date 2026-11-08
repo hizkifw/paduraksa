@@ -1,0 +1,143 @@
+@* The fields of one layer of host settings (PLAN §5.3), shared by the global defaults and the profiles: each can be left to inherit, and
+   says what it would inherit. Paths are relative to the layer (/forceHttps, /tls, /ipAllowList), under PathPrefix. *@
+<div class="pdk-setting-list">
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">HTTPS redirect</span>
+            <span class="pdk-setting-help">Send plain-HTTP requests to HTTPS before anything else. A host without a certificate can't redirect.</span>
+        </div>
+        <MudSelect T="bool?" Value="Model.ForceHttps" ValueChanged="@(value => SetAsync(() => Model.ForceHttps = value, "/forceHttps"))" Label="HTTPS redirect"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
+                   Error="@(E("/forceHttps") is not null)" ErrorText="@E("/forceHttps")" data-field="force-https">
+            <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.ForceHttps == true ? "redirect" : "don't redirect")</MudSelectItem>
+            <MudSelectItem T="bool?" Value="true">Redirect to HTTPS</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Don't redirect</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">Minimum TLS version</span>
+            <span class="pdk-setting-help">The oldest TLS a client may use over TCP. HTTP/3 always uses TLS 1.3.</span>
+        </div>
+        <MudSelect T="TlsMinimumVersion?" Value="Model.MinimumTls" ValueChanged="@(value => SetAsync(() => Model.MinimumTls = value, "/tls"))" Label="Minimum TLS version"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control" data-field="minimum-tls">
+            <MudSelectItem T="TlsMinimumVersion?" Value="null">@InheritOption(HostSettingsModel.TlsText(Inherited.Tls?.MinimumVersion ?? TlsMinimumVersion.Tls12))</MudSelectItem>
+            <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls12">TLS 1.2</MudSelectItem>
+            <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls13">TLS 1.3</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">Protocols over TCP</span>
+            <span class="pdk-setting-help">What is offered in the TLS handshake. HTTP/1.1 only helps an old client or a picky upstream.</span>
+        </div>
+        <MudSelect T="TcpAlpn?" Value="Model.TcpAlpn" ValueChanged="@(value => SetAsync(() => Model.TcpAlpn = value, "/tls"))" Label="Protocols over TCP"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control" data-field="tcp-alpn">
+            <MudSelectItem T="TcpAlpn?" Value="null">@InheritOption(HostSettingsModel.AlpnText(Inherited.Tls?.TcpAlpn ?? TcpAlpn.Http2AndHttp11))</MudSelectItem>
+            <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http2AndHttp11">HTTP/2 and HTTP/1.1</MudSelectItem>
+            <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http11Only">HTTP/1.1 only</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">HTTP/3</span>
+            <span class="pdk-setting-help">Serve over QUIC as well, when the HTTP/3 listener is on. Browsers find it through Alt-Svc.</span>
+        </div>
+        <MudSelect T="bool?" Value="Model.Http3" ValueChanged="@(value => SetAsync(() => Model.Http3 = value, "/tls"))" Label="HTTP/3"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control" data-field="http3">
+            <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.Tls?.Http3 == false ? "off" : "on")</MudSelectItem>
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    <div class="pdk-setting pdk-setting-wide">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">IP allow list</span>
+            <span class="pdk-setting-help">
+                Only these addresses and networks get through; others get a 403.
+                @if (!Model.AllowListSet)
+                {
+                    <text> Now: @(Inherited.IpAllowList is { Addresses.Count: > 0 } inherited ? $"inherits {inherited.Addresses.Count} {(inherited.Addresses.Count == 1 ? "entry" : "entries")} from {InheritedFrom}" : "no restriction").</text>
+                }
+            </span>
+        </div>
+        <div class="pdk-setting-control pdk-allow">
+            <MudSwitch T="bool" Value="Model.AllowListSet" ValueChanged="@(value => SetAsync(() => Model.AllowListSet = value, "/ipAllowList"))" Color="Color.Primary"
+                       Label="@(Model.AllowListSet ? "Set here" : "Inherit")" Disabled="ReadOnly" data-field="allow-list-set" />
+            @if (Model.AllowListSet)
+            {
+                <MudTextField T="string" Value="Model.AllowList" ValueChanged="@(value => SetAsync(() => Model.AllowList = value, "/ipAllowList"))" Label="Addresses and networks"
+                              Placeholder="192.168.1.0/24, 10.0.0.5" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="ReadOnly"
+                              HelperText="One per line. Empty lifts an inherited list." Error="@(FirstUnder("/ipAllowList") is not null)" ErrorText="@FirstUnder("/ipAllowList")"
+                              data-field="allow-list" />
+                <MudSwitch T="bool" Value="Model.DropDenied" ValueChanged="@(value => SetAsync(() => Model.DropDenied = value, "/ipAllowList"))" Color="Color.Primary"
+                           Label="Drop refused requests without an answer" Disabled="ReadOnly" />
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public HostSettingsModel Model { get; set; } = default!;
+
+    /// <summary>What this layer would inherit, resolved (the global defaults over the built-in ones, for a profile).</summary>
+    [Parameter, EditorRequired]
+    public HostSettings Inherited { get; set; } = HostSettingsModel.BuiltIn;
+
+    /// <summary>Where the inherited values come from, in words ("the global defaults", "the built-in defaults").</summary>
+    [Parameter]
+    public string InheritedFrom { get; set; } = "the built-in defaults";
+
+    /// <summary>The words of the "inherit" choice: "Inherit" or "Built-in default".</summary>
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    /// <summary>The layer's path in the errors (<c>/defaults</c>, <c>/settings</c>).</summary>
+    [Parameter]
+    public string PathPrefix { get; set; } = string.Empty;
+
+    /// <summary>The errors by path; only those under <see cref="PathPrefix"/> are shown here.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, string> Errors { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>Whether every error shows (after a review attempt), or only those of touched fields.</summary>
+    [Parameter]
+    public bool ShowAll { get; set; }
+
+    [Parameter]
+    public IReadOnlySet<string> Touched { get; set; } = new HashSet<string>();
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    /// <summary>A field changed; its path (with the prefix).</summary>
+    [Parameter]
+    public EventCallback<string> OnChanged { get; set; }
+
+    private string InheritOption(string value) => $"{InheritWord} ({value})";
+
+    private string? E(string path)
+    {
+        string full = PathPrefix + path;
+        return (ShowAll || Touched.Contains(full)) && Errors.TryGetValue(full, out string? message) ? message : null;
+    }
+
+    private string? FirstUnder(string path)
+    {
+        string full = PathPrefix + path;
+        return ShowAll || Touched.Contains(full)
+            ? Errors.Where(e => e.Key == full || e.Key.StartsWith(full + "/", StringComparison.Ordinal)).Select(e => e.Value).FirstOrDefault()
+            : null;
+    }
+
+    private Task SetAsync(Action apply, string path)
+    {
+        apply();
+        return OnChanged.InvokeAsync(PathPrefix + path);
+    }
+}
