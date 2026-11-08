@@ -1,6 +1,582 @@
 @attribute [Route(DashboardRoutes.Audit)]
+@implements IDisposable
+@using System.Buffers
+@using System.Globalization
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Audit
+@using Paduraksa.Contracts.Identity
+@inject IDashboardAudit AuditLog
+@inject IDashboardConfig Config
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+@inject DashboardBrowser Browser
+@inject TimeProvider Time
+@inject ISnackbar Snackbar
+@inject ILogger<Audit> Logger
 
 <PageTitle>Audit · Paduraksa</PageTitle>
 
-<ComingSoon Title="Audit" Overline="Insight" Icon="@Icons.Material.Outlined.FactCheck"
-            Description="A filterable record of every change and sign-in, chained so tampering shows." />
+<PageHeader Title="Audit" Overline="Insight" Lead="Every change and sign-in, newest first. Each event is chained to the one before it, so an edited or deleted row shows.">
+    <Actions>
+        @if (_mayRead)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.FileDownload" OnClick="ExportAsync" Disabled="_exporting"
+                       data-action="export">
+                @if (_exporting)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                }
+                Export JSON Lines
+            </MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the audit log" Description="An Owner can give you the Auditor role." />
+    </MudPaper>
+}
+else
+{
+    <div class="pdk-audit-top">
+        <MudPaper Class="pdk-card pdk-audit-filters" Elevation="0" Outlined="true" data-section="filters">
+            <div class="pdk-card-head">
+                <MudText Typo="Typo.subtitle2" HtmlTag="h2">Filter</MudText>
+                @if (Filtered)
+                {
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearAsync" data-action="clear-filters">Clear filters</MudButton>
+                }
+            </div>
+            <MudToggleGroup T="AuditRange" Value="_range" ValueChanged="SetRangeAsync" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
+                            Outlined="true" Size="Size.Small" Class="pdk-range" aria-label="Time range" data-field="range">
+                <MudToggleItem Value="AuditRange.Hour" Text="1 hour" />
+                <MudToggleItem Value="AuditRange.Day" Text="24 hours" />
+                <MudToggleItem Value="AuditRange.Week" Text="7 days" />
+                <MudToggleItem Value="AuditRange.Month" Text="30 days" />
+                <MudToggleItem Value="AuditRange.All" Text="All" />
+                <MudToggleItem Value="AuditRange.Custom" Text="Custom" />
+            </MudToggleGroup>
+            <div class="pdk-audit-fields">
+                @if (_range == AuditRange.Custom)
+                {
+                    <MudTextField T="string" Value="_from" ValueChanged="@(value => SetAsync(() => _from = value))" InputType="InputType.DateTimeLocal" Label="From (UTC)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" data-field="from" />
+                    <MudTextField T="string" Value="_to" ValueChanged="@(value => SetAsync(() => _to = value))" InputType="InputType.DateTimeLocal" Label="Until (UTC)"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Error="@(RangeError is not null)" ErrorText="@RangeError" data-field="to" />
+                }
+                <MudSelect T="string" Value="_actor" ValueChanged="@(value => SetAsync(() => _actor = value))" Label="Who" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Dense="true" ToStringFunc="ActorLabel" data-field="actor">
+                    <MudSelectItem T="string" Value="@((string?)null)">Anyone</MudSelectItem>
+                    @if (_me is { } me)
+                    {
+                        <MudSelectItem T="string" Value="@me.ToString()">You</MudSelectItem>
+                    }
+                    @foreach ((UserId id, string name) in _users.Where(u => u.Key != _me).OrderBy(u => u.Value, StringComparer.OrdinalIgnoreCase))
+                    {
+                        <MudSelectItem T="string" Value="@id.ToString()">@name</MudSelectItem>
+                    }
+                    @foreach ((ApiTokenId id, string name) in _tokens.OrderBy(t => t.Value, StringComparer.OrdinalIgnoreCase))
+                    {
+                        <MudSelectItem T="string" Value="@id.ToString()">Token "@name"</MudSelectItem>
+                    }
+                    <MudSelectItem T="string" Value="@("system")">Paduraksa (system)</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("cli")">The CLI</MudSelectItem>
+                </MudSelect>
+                <MudTextField T="string" Value="_action" ValueChanged="@(value => SetAsync(() => _action = value))" Label="Action" Placeholder="config.*"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true"
+                              Error="@(ActionError is not null)" ErrorText="@ActionError" list="pdk-audit-actions" spellcheck="false" data-field="action" />
+                <datalist id="pdk-audit-actions">
+                    @foreach (string suggestion in AuditText.Suggestions)
+                    {
+                        <option value="@suggestion"></option>
+                    }
+                </datalist>
+                <MudTextField T="string" Value="_target" ValueChanged="@(value => SetAsync(() => _target = value))" Label="Target" Placeholder="host_..."
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true"
+                              Error="@(TargetError is not null)" ErrorText="@TargetError" spellcheck="false" data-field="target" />
+                <MudSelect T="AuditOutcome?" Value="_outcome" ValueChanged="@(value => SetAsync(() => _outcome = value))" Label="Outcome" Variant="Variant.Outlined"
+                           Margin="Margin.Dense" Dense="true" data-field="outcome">
+                    <MudSelectItem T="AuditOutcome?" Value="null">Any outcome</MudSelectItem>
+                    @foreach (AuditOutcome outcome in Enum.GetValues<AuditOutcome>())
+                    {
+                        <MudSelectItem T="AuditOutcome?" Value="outcome">@AuditText.Name(outcome)</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        </MudPaper>
+
+        <MudPaper Class="@($"pdk-card pdk-chain pdk-tone-{ChainTone.Css()}")" Elevation="0" Outlined="true" data-section="chain" data-chain="@ChainState">
+            <div class="pdk-chain-head">
+                <span class="pdk-stat-icon pdk-tone-@ChainTone.Css()">
+                    <MudIcon Icon="@(_verification is { Intact: false } ? Icons.Material.Outlined.LinkOff : Icons.Material.Outlined.Link)" Size="Size.Small" />
+                </span>
+                <div class="pdk-list-main">
+                    <MudText Typo="Typo.subtitle2" HtmlTag="h2">Hash chain</MudText>
+                    <span class="pdk-list-sub">@(_verifiedAt is { } at ? $"Checked {RevisionText.Ago(at, Time.GetUtcNow())}" : "Not checked yet")</span>
+                </div>
+            </div>
+            @if (_verifying)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="70%" Height="28px" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="90%" />
+            }
+            else if (_verification is { Intact: true } intact)
+            {
+                <div class="pdk-chain-verdict">Intact</div>
+                <MudText Typo="Typo.body2" Class="pdk-muted">
+                    All @intact.VerifiedEvents.ToString("N0", CultureInfo.InvariantCulture) @(intact.VerifiedEvents == 1 ? "event verifies" : "events verify"), each against the one before.
+                </MudText>
+                @if (intact.HeadHash is { } hash)
+                {
+                    <MudTooltip Text="Keep a copy of the latest hash elsewhere: it shows if the newest events are ever removed." Arrow="true">
+                        <span class="pdk-chain-hash pdk-mono">@hash[..16]...</span>
+                    </MudTooltip>
+                }
+            }
+            else if (_verification is { Break: { } broken } failed)
+            {
+                <div class="pdk-chain-verdict" role="alert">Broken</div>
+                <MudText Typo="Typo.body2">@broken.Description</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">
+                    First bad event <span class="pdk-mono" data-break="@broken.EventId">@broken.EventId</span>; the @failed.VerifiedEvents.ToString("N0", CultureInfo.InvariantCulture) before it verify.
+                </MudText>
+            }
+            else if (_verifyFailed)
+            {
+                <MudText Typo="Typo.body2">The chain couldn't be read. The details are in the server log.</MudText>
+            }
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Verified" OnClick="VerifyAsync"
+                       Disabled="_verifying" Class="pdk-chain-button" data-action="verify">Verify now</MudButton>
+        </MudPaper>
+    </div>
+
+    <MudPaper Class="pdk-card pdk-table-card mt-4" Elevation="0" Outlined="true" data-section="events">
+        @if (_newEvents && _after is not null)
+        {
+            <div class="pdk-audit-new">
+                <span>New events have been recorded since this list was loaded.</span>
+                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="ReloadAsync">Show them</MudButton>
+            </div>
+        }
+        @if (_events is null)
+        {
+            @for (int i = 0; i < 6; i++)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="12%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="10%" />
+                </div>
+            }
+        }
+        else if (_events.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.FactCheck" Title="@(Filtered ? "No event matches" : "Nothing recorded yet")"
+                        Description="@(Filtered ? "Widen the time range or clear a filter." : "Sign-ins and changes show up here as they happen.")" />
+        }
+        else
+        {
+            <ul class="pdk-audit-list" aria-label="Audit events">
+                @foreach (AuditEventSummary e in _events)
+                {
+                    bool open = _expanded.Contains(e.Id);
+                    string? link = AuditText.LinkOf(e.Target);
+                    <li class="pdk-audit-row @(open ? "pdk-open" : null)" data-event="@e.Id" data-action="@e.Action" data-outcome="@e.Outcome.ToName()">
+                        <button type="button" class="pdk-audit-summary" @onclick="() => Toggle(e.Id)" aria-expanded="@(open ? "true" : "false")">
+                            <span class="pdk-audit-time" title="@RevisionText.Exact(e.Timestamp)">@RevisionText.Ago(e.Timestamp, _now)</span>
+                            <span class="pdk-audit-what">
+                                <span class="pdk-audit-title">@AuditText.Describe(e.Action)</span>
+                                <span class="pdk-badge pdk-tone-@AuditText.AreaTone(e.Action).Css() pdk-mono">@e.Action</span>
+                            </span>
+                            <span class="pdk-audit-actor">
+                                <MudIcon Icon="@(e.Actor.Kind == ActorKind.Token ? Icons.Material.Outlined.Key : e.Actor.Kind == ActorKind.User ? Icons.Material.Outlined.Person : Icons.Material.Outlined.Memory)" Size="Size.Small" />
+                                @AuditText.Actor(e.Actor, _me, _users, _tokens)
+                            </span>
+                            <span class="pdk-badge pdk-tone-@AuditText.ToneOf(e.Outcome).Css()">@AuditText.Name(e.Outcome)</span>
+                            <MudIcon Icon="@(open ? Icons.Material.Rounded.ExpandLess : Icons.Material.Rounded.ExpandMore)" Size="Size.Small" Class="pdk-audit-chevron" />
+                        </button>
+                        @if (open)
+                        {
+                            <div class="pdk-audit-detail" data-detail="@e.Id">
+                                <dl class="pdk-facts">
+                                    <div class="pdk-fact"><dt>When</dt><dd>@RevisionText.Exact(e.Timestamp)</dd></div>
+                                    <div class="pdk-fact"><dt>Channel</dt><dd>@RevisionText.Channel(e.Channel)</dd></div>
+                                    @if (e.ClientIp is { } ip)
+                                    {
+                                        <div class="pdk-fact"><dt>Client</dt><dd class="pdk-mono">@ip</dd></div>
+                                    }
+                                    @if (e.Target is { } target)
+                                    {
+                                        <div class="pdk-fact">
+                                            <dt>Target</dt>
+                                            <dd class="pdk-mono">
+                                                @if (link is not null)
+                                                {
+                                                    <a href="@link" class="pdk-row-link">@target</a>
+                                                }
+                                                else
+                                                {
+                                                    @target
+                                                }
+                                            </dd>
+                                        </div>
+                                    }
+                                    @if (e.RevisionId is { } revision)
+                                    {
+                                        <div class="pdk-fact"><dt>Revision</dt><dd><a href="@DashboardRoutes.Revision(revision)" class="pdk-row-link pdk-mono">@revision</a></dd></div>
+                                    }
+                                    <div class="pdk-fact"><dt>Event</dt><dd class="pdk-mono">@e.Id</dd></div>
+                                </dl>
+                                @if (e.Details is { } details)
+                                {
+                                    <pre class="pdk-json" data-details="@e.Id">@AuditText.Pretty(details)</pre>
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.caption" Class="pdk-muted">No further details.</MudText>
+                                }
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+            @if (_after is not null)
+            {
+                <div class="pdk-load-more">
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="LoadOlderAsync" Disabled="_loadingOlder" data-action="older">Load older events</MudButton>
+                </div>
+            }
+        }
+    </MudPaper>
+}
+
+@code {
+    /// <summary>Events per page.</summary>
+    internal const int PageSize = 50;
+
+    /// <summary>The most events one export writes.</summary>
+    internal const int ExportLimit = 100_000;
+
+    private bool _denied;
+    private bool _mayRead;
+    private UserId? _me;
+    private IReadOnlyDictionary<UserId, string> _users = new Dictionary<UserId, string>();
+    private IReadOnlyDictionary<ApiTokenId, string> _tokens = new Dictionary<ApiTokenId, string>();
+    private List<AuditEventSummary>? _events;
+    private AuditEventId? _after;
+    private readonly HashSet<AuditEventId> _expanded = [];
+    private DateTimeOffset _now;
+    private bool _loadingOlder;
+    private bool _newEvents;
+    private bool _exporting;
+    private AuditVerification? _verification;
+    private DateTimeOffset? _verifiedAt;
+    private bool _verifying;
+    private bool _verifyFailed;
+    private AuditRange _range = AuditRange.Week;
+    private string? _from;
+    private string? _to;
+    private string? _actor;
+    private string? _action;
+    private string? _target;
+    private AuditOutcome? _outcome;
+    private IDisposable? _configWatch;
+    private IDisposable? _identityWatch;
+
+    /// <summary>The time-range presets.</summary>
+    internal enum AuditRange
+    {
+        Hour,
+        Day,
+        Week,
+        Month,
+        All,
+        Custom,
+    }
+
+    private bool Filtered => _range != AuditRange.Week || _actor is not null || !string.IsNullOrWhiteSpace(_action) || !string.IsNullOrWhiteSpace(_target) || _outcome is not null;
+
+    private string ChainState => _verification is null ? "unknown" : _verification.Intact ? "intact" : "broken";
+
+    private Tone ChainTone => _verification is null ? Tone.Default : _verification.Intact ? Tone.Success : Tone.Error;
+
+    private string? ActionError =>
+        string.IsNullOrWhiteSpace(_action) ? null
+        : _action.Trim().Length > 128 ? "At most 128 characters."
+        : (_action.Trim().EndsWith('*') ? _action.Trim()[..^1] : _action.Trim()).All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '_' or '.')
+            ? null
+            : "A dotted name such as config.host.delete, or a prefix ending in * (auth.*).";
+
+    private string? TargetError =>
+        string.IsNullOrWhiteSpace(_target) ? null
+        : _target.Trim().Length <= 128 && _target.Trim().All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '_')
+            ? null
+            : "A typed ID such as host_...";
+
+    private string? RangeError => ParseLocal(_from) is { } from && ParseLocal(_to) is { } to && from > to ? "Until must be after From." : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.AuditRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayRead = true;
+        _me = user.Session.Session.UserId;
+        await LoadNamesAsync(user);
+        _configWatch = Config.Watch(_ => InvokeAsync(OnNewEventsAsync));
+        _identityWatch = Identity.Watch(() => InvokeAsync(OnNewEventsAsync));
+        await ReloadAsync();
+        await VerifyAsync();
+    }
+
+    public void Dispose()
+    {
+        _configWatch?.Dispose();
+        _identityWatch?.Dispose();
+    }
+
+    /// <summary>The names the page may read, to say who acted: users with users:read, one's own tokens, everyone's with tokens:all.</summary>
+    private async Task LoadNamesAsync(DashboardPrincipal user)
+    {
+        CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
+        Dictionary<UserId, string> users = [];
+        Dictionary<ApiTokenId, string> tokens = [];
+        try
+        {
+            if (user.Has(Permission.UsersRead))
+            {
+                foreach (UserSummary listed in (await Identity.ListUsersAsync(origin)).Users)
+                {
+                    users[listed.Id] = listed.DisplayName;
+                    if (user.Has(Permission.TokensAll))
+                    {
+                        foreach (ApiTokenSummary token in (await Identity.ListTokensAsync(origin, listed.Id)).Tokens)
+                        {
+                            tokens[token.Id] = token.Name;
+                        }
+                    }
+                }
+            }
+
+            if (!user.Has(Permission.TokensAll) && user.Has(Permission.TokensOwn))
+            {
+                foreach (ApiTokenSummary token in (await Identity.ListTokensAsync(origin)).Tokens)
+                {
+                    tokens[token.Id] = token.Name;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Names are a nicety: without them the actors show by ID.
+            Logger.LogWarning(ex, "Couldn't read the names for the audit page.");
+        }
+
+        _users = users;
+        _tokens = tokens;
+    }
+
+    private string ActorLabel(string? actor) => actor switch
+    {
+        null => "Anyone",
+        "system" => "Paduraksa (system)",
+        "cli" => "The CLI",
+        _ when UserId.TryParse(actor, out UserId user) => user == _me ? "You" : _users.GetValueOrDefault(user, actor),
+        _ when ApiTokenId.TryParse(actor, out ApiTokenId token) && _tokens.TryGetValue(token, out string? name) => $"Token \"{name}\"",
+        _ => actor,
+    };
+
+    /// <summary>The filter as the query takes it; null while a field is invalid (the list keeps what it shows).</summary>
+    internal AuditFilter? Filter()
+    {
+        if (ActionError is not null || TargetError is not null || RangeError is not null)
+        {
+            return null;
+        }
+
+        DateTimeOffset now = Time.GetUtcNow();
+        (DateTimeOffset? from, DateTimeOffset? to) = _range switch
+        {
+            AuditRange.Hour => (now.AddHours(-1), (DateTimeOffset?)null),
+            AuditRange.Day => (now.AddDays(-1), null),
+            AuditRange.Week => (now.AddDays(-7), null),
+            AuditRange.Month => (now.AddDays(-30), null),
+            AuditRange.Custom => (ParseLocal(_from), ParseLocal(_to)),
+            _ => (null, null),
+        };
+        return new AuditFilter(
+            from,
+            to,
+            _actor,
+            string.IsNullOrWhiteSpace(_action) ? null : _action.Trim(),
+            string.IsNullOrWhiteSpace(_target) ? null : _target.Trim(),
+            _outcome);
+    }
+
+    /// <summary>A <c>datetime-local</c> value, read as UTC (the page shows UTC throughout, so every admin reads the same).</summary>
+    private static DateTimeOffset? ParseLocal(string? value) =>
+        DateTime.TryParseExact(value, ["yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss"], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTime parsed)
+            ? new DateTimeOffset(parsed, TimeSpan.Zero)
+            : null;
+
+    private async Task SetAsync(Action apply)
+    {
+        apply();
+        await ReloadAsync();
+    }
+
+    private async Task SetRangeAsync(AuditRange range)
+    {
+        _range = range;
+        await ReloadAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        _range = AuditRange.Week;
+        _from = _to = _actor = _action = _target = null;
+        _outcome = null;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (!_mayRead || Filter() is not { } filter || await Caller.CheckAsync() is null)
+        {
+            return;
+        }
+
+        _now = Time.GetUtcNow();
+        _newEvents = false;
+        _expanded.Clear();
+        AuditPage page = await AuditLog.QueryAsync(filter, PageSize, null);
+        _events = [.. page.Items];
+        _after = page.Next;
+    }
+
+    private async Task LoadOlderAsync()
+    {
+        if (_after is not { } after || Filter() is not { } filter)
+        {
+            return;
+        }
+
+        _loadingOlder = true;
+        try
+        {
+            AuditPage page = await AuditLog.QueryAsync(filter, PageSize, after);
+            _events?.AddRange(page.Items);
+            _after = page.Next;
+        }
+        finally
+        {
+            _loadingOlder = false;
+        }
+    }
+
+    /// <summary>A change was recorded: the first page follows on its own; once older pages are loaded the reader decides.</summary>
+    private async Task OnNewEventsAsync()
+    {
+        if (_after is null || _events is { Count: <= PageSize })
+        {
+            await ReloadAsync();
+        }
+        else
+        {
+            _newEvents = true;
+        }
+
+        StateHasChanged();
+    }
+
+    private void Toggle(AuditEventId id)
+    {
+        if (!_expanded.Remove(id))
+        {
+            _expanded.Add(id);
+        }
+    }
+
+    private async Task VerifyAsync()
+    {
+        _verifying = true;
+        _verifyFailed = false;
+        StateHasChanged();
+        try
+        {
+            _verification = await AuditLog.VerifyAsync();
+            _verifiedAt = Time.GetUtcNow();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't verify the audit chain.");
+            _verification = null;
+            _verifyFailed = true;
+        }
+        finally
+        {
+            _verifying = false;
+        }
+    }
+
+    /// <summary>Saves every event the current filter matches (up to <see cref="ExportLimit"/>) as JSON Lines, newest first.</summary>
+    private async Task ExportAsync()
+    {
+        if (Filter() is not { } filter || await Caller.CheckAsync() is not { } user || !user.Has(Permission.AuditRead))
+        {
+            return;
+        }
+
+        _exporting = true;
+        try
+        {
+            ArrayBufferWriter<byte> output = new();
+            int written = 0;
+            AuditEventId? after = null;
+            do
+            {
+                AuditPage page = await AuditLog.QueryAsync(filter, AuditQueryPage, after);
+                foreach (AuditEventSummary e in page.Items.Take(ExportLimit - written))
+                {
+                    AuditText.WriteLine(output, e);
+                    written++;
+                }
+
+                after = page.Next;
+            }
+            while (after is not null && written < ExportLimit);
+
+            string name = $"paduraksa-audit-{Time.GetUtcNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.jsonl";
+            using MemoryStream content = new(output.WrittenMemory.ToArray());
+            if (await Browser.DownloadAsync(name, "application/x-ndjson", content))
+            {
+                Snackbar.Add($"Exported {written.ToString("N0", CultureInfo.InvariantCulture)} {(written == 1 ? "event" : "events")}{(written >= ExportLimit ? " (the most one export holds)" : string.Empty)}.", Severity.Success);
+            }
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private const int AuditQueryPage = 500;
+}
