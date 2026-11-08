@@ -1,0 +1,56 @@
+@* The signed-in user: initials in the top bar; name, username and roles in the menu, with sign-out (a form post: the cookie is cleared on an ordinary HTTP response). *@
+@if (_user is not null)
+{
+    <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" PopoverClass="pdk-user-popover" aria-label="Account">
+        <ActivatorContent Context="menu">
+            <button type="button" class="pdk-user-chip" title="@_user.DisplayName" aria-haspopup="menu" @onclick="menu.ToggleAsync">
+                <MudAvatar Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled" Class="pdk-avatar">@Initials(_user.DisplayName)</MudAvatar>
+                <span class="pdk-user-name">@_user.DisplayName</span>
+                <MudIcon Icon="@Icons.Material.Rounded.ExpandMore" Size="Size.Small" />
+            </button>
+        </ActivatorContent>
+        <ChildContent>
+            <div class="pdk-user-card">
+                <MudText Typo="Typo.subtitle1">@_user.DisplayName</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted pdk-mono">@_user.Session.Session.Username</MudText>
+                <div class="pdk-user-roles">
+                    @foreach (Role role in _user.Session.Session.Roles)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">@role.ToName()</MudChip>
+                    }
+                </div>
+            </div>
+            <MudDivider />
+            <MudMenuItem Href="@DashboardRoutes.Settings" Icon="@Icons.Material.Outlined.ManageAccounts">My account</MudMenuItem>
+            <form method="post" action="@DashboardRoutes.Actions.SignOut" class="pdk-signout">
+                <AntiforgeryToken />
+                <button type="submit" class="pdk-menu-button">
+                    <MudIcon Icon="@Icons.Material.Outlined.Logout" Size="Size.Small" />
+                    <span>Sign out</span>
+                </button>
+            </form>
+        </ChildContent>
+    </MudMenu>
+}
+
+@code {
+    private DashboardPrincipal? _user;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync() =>
+        _user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
+
+    /// <summary>Up to two initials of a name ("Ada Lovelace" is "AL", "owner" is "O").</summary>
+    internal static string Initials(string name)
+    {
+        string[] words = name.Split([' ', '.', '_', '-', '@'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return words.Length switch
+        {
+            0 => "?",
+            1 => words[0][..1].ToUpperInvariant(),
+            _ => string.Concat(words[0][..1], words[^1][..1]).ToUpperInvariant(),
+        };
+    }
+}

@@ -1,0 +1,33 @@
+@* The convention for "nothing here yet": an icon in a soft disc, one line that says what is missing, one that says what to do, and at most one action. *@
+<div class="pdk-empty @(Compact ? "pdk-empty-compact" : null)" role="status">
+    <div class="pdk-empty-icon">
+        <MudIcon Icon="@Icon" Size="@(Compact ? Size.Medium : Size.Large)" />
+    </div>
+    <MudText Typo="@(Compact ? Typo.subtitle2 : Typo.h6)" HtmlTag="p">@Title</MudText>
+    @if (Description is not null)
+    {
+        <MudText Typo="Typo.body2" Class="pdk-muted pdk-empty-text">@Description</MudText>
+    }
+    @if (Action is not null)
+    {
+        <div class="pdk-empty-action">@Action</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string Icon { get; set; } = Icons.Material.Outlined.Inbox;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public RenderFragment? Action { get; set; }
+
+    /// <summary>A smaller variant for inside a card.</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+}

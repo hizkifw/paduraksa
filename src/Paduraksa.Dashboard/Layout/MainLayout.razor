@@ -1,0 +1,73 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject ThemeState Theme
+@inject DashboardOptions Options
+@inject Paduraksa.Application.Commands.ConfigService Config
+
+<MudThemeProvider @ref="_themeProvider" Theme="PaduraksaTheme.Theme" IsDarkMode="Theme.IsDark" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout Class="pdk-shell" data-circuit="@(RendererInfo.IsInteractive ? "live" : "prerendered")">
+    <MudAppBar Elevation="0" Class="pdk-appbar" Gutters="true">
+        <MudIconButton Icon="@Icons.Material.Rounded.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer"
+                       aria-label="Toggle navigation" aria-expanded="@(_drawerOpen ? "true" : "false")" />
+        <a href="@DashboardRoutes.Home" class="pdk-brand" aria-label="Paduraksa overview">
+            <BrandMark Size="26" Class="pdk-brand-mark" />
+            <span class="pdk-brand-name">Paduraksa</span>
+        </a>
+        @if (!string.IsNullOrWhiteSpace(Options.InstanceName))
+        {
+            <span class="pdk-instance" title="Instance">@Options.InstanceName</span>
+        }
+        <MudSpacer />
+        <ThemeToggle />
+        <UserMenu />
+    </MudAppBar>
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md"
+               Elevation="0" Class="pdk-drawer">
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent Class="pdk-main">
+        @if (Config.Status.IsDegraded)
+        {
+            <div class="pdk-banner" role="alert">
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Text" Dense="true" Class="pdk-banner-alert">
+                    <strong>Running on the last-known-good config.</strong>
+                    The config database can't be used, so changes are refused until it is back. @Config.Status.Problem
+                </MudAlert>
+            </div>
+        }
+        <MudContainer MaxWidth="MaxWidth.Large" Class="pdk-page">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private MudThemeProvider? _themeProvider;
+    private bool _drawerOpen = true;
+
+    protected override void OnInitialized() => Theme.Changed += OnThemeChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // No choice of their own: follow the system's setting, now and when it changes.
+        if (firstRender && Theme.Preference == ThemePreference.System && _themeProvider is not null)
+        {
+            Theme.SetSystemPreference(!await _themeProvider.GetSystemDarkModeAsync());
+            await _themeProvider.WatchSystemDarkModeAsync(dark =>
+            {
+                Theme.SetSystemPreference(!dark);
+                return Task.CompletedTask;
+            });
+        }
+    }
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void OnThemeChanged() => _ = InvokeAsync(StateHasChanged);
+}

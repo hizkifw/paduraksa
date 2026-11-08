@@ -1,0 +1,12 @@
+@attribute [Route("/not-found")]
+
+<PageTitle>Not found · Paduraksa</PageTitle>
+
+<PageHeader Title="Page not found" Lead="There is nothing at this address." />
+<MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+    <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="This page doesn't exist" Description="It may have moved, or the link is wrong.">
+        <Action>
+            <MudButton Href="@DashboardRoutes.Home" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">Back to the overview</MudButton>
+        </Action>
+    </EmptyState>
+</MudPaper>

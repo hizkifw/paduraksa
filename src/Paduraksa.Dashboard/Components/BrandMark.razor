@@ -1,0 +1,13 @@
+@* The mark: a split gate (candi bentar), two stepped towers with the way through between them. *@
+<svg class="pdk-mark @Class" viewBox="0 0 32 32" width="@Size" height="@Size" role="img" aria-label="Paduraksa" focusable="false">
+    <path fill="currentColor" d="M4 27V19h2v-5h2V9h2V5h4v22zM28 27V19h-2v-5h-2V9h-2V5h-4v22z" />
+    <rect fill="currentColor" opacity="0.45" x="2" y="28" width="28" height="2" rx="1" />
+</svg>
+
+@code {
+    [Parameter]
+    public int Size { get; set; } = 28;
+
+    [Parameter]
+    public string? Class { get; set; }
+}

@@ -1,0 +1,27 @@
+@inject ThemeState Theme
+
+<Router AppAssembly="typeof(Routes).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+            <NotAuthorized>
+                <RedirectToSignIn />
+            </NotAuthorized>
+            <Authorizing>
+                <div class="pdk-boot" aria-busy="true"></div>
+            </Authorizing>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>
+
+@code {
+    /// <summary>The person's palette choice, from the request's cookie.</summary>
+    [Parameter]
+    public ThemePreference Preference { get; set; }
+
+    /// <summary>The system's light or dark setting, as the page's script last recorded it.</summary>
+    [Parameter]
+    public bool SystemPrefersLight { get; set; }
+
+    protected override void OnInitialized() => Theme.Initialize(Preference, SystemPrefersLight);
+}

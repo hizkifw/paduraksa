@@ -1,0 +1,32 @@
+@* A page's title row: an overline, the title (the page's one h1, which navigation focuses), a lead and the page's actions. *@
+<header class="pdk-page-header">
+    <div class="pdk-page-header-text">
+        @if (Overline is not null)
+        {
+            <MudText Typo="Typo.overline" Color="Color.Primary">@Overline</MudText>
+        }
+        <MudText Typo="Typo.h4" HtmlTag="h1" tabindex="-1">@Title</MudText>
+        @if (Lead is not null)
+        {
+            <MudText Typo="Typo.body2" Class="pdk-muted pdk-page-lead">@Lead</MudText>
+        }
+    </div>
+    @if (Actions is not null)
+    {
+        <div class="pdk-page-header-actions">@Actions</div>
+    }
+</header>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Overline { get; set; }
+
+    [Parameter]
+    public string? Lead { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+}

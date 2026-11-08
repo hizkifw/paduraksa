@@ -1,0 +1,26 @@
+@using Microsoft.AspNetCore.WebUtilities
+@inject NavigationManager Navigation
+@inject DashboardAuthenticationStateProvider Auth
+
+@code {
+    /// <summary>
+    /// Sends the browser to the sign-in page with a full page load (the cookie is set on an ordinary HTTP response, never over a
+    /// circuit), coming back to the current page afterwards; when the session ended under an open page the sign-in page says so.
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        string returnUrl = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+        Dictionary<string, string?> query = [];
+        if (returnUrl != DashboardRoutes.Home)
+        {
+            query[DashboardForm.ReturnUrl] = returnUrl;
+        }
+
+        if (Auth.EndedAt is not null)
+        {
+            query[DashboardForm.NoticeParameter] = DashboardForm.SessionEndedNotice;
+        }
+
+        Navigation.NavigateTo(QueryHelpers.AddQueryString(DashboardRoutes.SignIn, query), forceLoad: true);
+    }
+}

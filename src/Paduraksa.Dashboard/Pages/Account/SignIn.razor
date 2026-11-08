@@ -1,0 +1,62 @@
+@attribute [Route(DashboardRoutes.SignIn)]
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in · Paduraksa</PageTitle>
+
+<h1 class="pdk-auth-title">Sign in</h1>
+<p class="pdk-auth-lead">Use your Paduraksa admin account.</p>
+
+@if (SignInMessages.Notice(Notice) is { } notice)
+{
+    <div class="pdk-callout pdk-callout-info" role="status">@notice</div>
+}
+@if (SignInMessages.Error(Error) is { } error)
+{
+    <div class="pdk-callout pdk-callout-error" role="alert">@error</div>
+}
+
+<form method="post" action="@DashboardRoutes.Actions.SignIn" class="pdk-form" autocomplete="on">
+    <AntiforgeryToken />
+    @if (_returnUrl is not null)
+    {
+        <input type="hidden" name="@DashboardForm.ReturnUrl" value="@_returnUrl" />
+    }
+    <label class="pdk-field">
+        <span class="pdk-label">Username</span>
+        <input class="pdk-input" name="@DashboardForm.Username" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus />
+    </label>
+    <label class="pdk-field">
+        <span class="pdk-label">Password</span>
+        <input class="pdk-input" name="@DashboardForm.Password" type="password" autocomplete="current-password" required />
+    </label>
+    <button type="submit" class="pdk-button pdk-button-primary">Sign in</button>
+</form>
+
+<p class="pdk-auth-note">Forgot the password? Run <code>paduraksa admin reset-password &lt;user&gt;</code> on the server.</p>
+
+@code {
+    private string? _returnUrl;
+
+    [SupplyParameterFromQuery(Name = DashboardForm.ErrorParameter)]
+    private string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = DashboardForm.NoticeParameter)]
+    private string? Notice { get; set; }
+
+    [SupplyParameterFromQuery(Name = DashboardForm.ReturnUrl)]
+    private string? ReturnUrl { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _returnUrl = SignInMessages.LocalReturnUrl(ReturnUrl);
+
+        // Already signed in (another tab, or the back button): go on.
+        if (AuthenticationState is not null && (await AuthenticationState).User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo(_returnUrl ?? DashboardRoutes.Home);
+        }
+    }
+}

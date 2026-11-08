@@ -7,4 +7,10 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />
+  </ItemGroup>
 </Project>

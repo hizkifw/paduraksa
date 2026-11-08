@@ -1,0 +1,30 @@
+@* Shows its content only to a signed-in user holding Permission (else Otherwise, if given). It hides what can't be used; the
+   Application services still refuse on their own whatever the page shows. *@
+@if (_permitted)
+{
+    @ChildContent
+}
+else
+{
+    @Otherwise
+}
+
+@code {
+    private bool _permitted;
+
+    [Parameter, EditorRequired]
+    public Permission Permission { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>What to show instead (a disabled control, a note); nothing when null.</summary>
+    [Parameter]
+    public RenderFragment? Otherwise { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync() =>
+        _permitted = AuthenticationState is not null && (await AuthenticationState).User.Has(Permission);
+}

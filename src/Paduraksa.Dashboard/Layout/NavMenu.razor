@@ -1,0 +1,36 @@
+@* The side navigation: only the pages the user may see; a page that is still a placeholder carries a "soon" badge. *@
+<nav class="pdk-nav" aria-label="Main">
+    <MudNavMenu Rounded="true" Margin="Margin.Dense" Color="Color.Primary">
+        @foreach (IGrouping<string?, NavigationEntry> group in _entries.GroupBy(entry => entry.Group))
+        {
+            if (group.Key is not null)
+            {
+                <div class="pdk-nav-section">@group.Key</div>
+            }
+
+            foreach (NavigationEntry entry in group)
+            {
+                <MudNavLink Href="@entry.Href" Icon="@entry.Icon" Match="@(entry.Href == DashboardRoutes.Home ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                    <span class="pdk-nav-label">@entry.Title</span>
+                    @if (!entry.Available)
+                    {
+                        <span class="pdk-soon">Soon</span>
+                    }
+                </MudNavLink>
+            }
+        }
+    </MudNavMenu>
+</nav>
+
+@code {
+    private IReadOnlyList<NavigationEntry> _entries = [];
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        DashboardPrincipal? user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
+        _entries = [.. DashboardNavigation.VisibleTo(permission => user?.Has(permission) == true)];
+    }
+}

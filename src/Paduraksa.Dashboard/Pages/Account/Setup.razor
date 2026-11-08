@@ -1,0 +1,72 @@
+@attribute [Route(DashboardRoutes.Setup)]
+@inject NavigationManager Navigation
+@inject Paduraksa.Application.Identity.SetupService SetupService
+@inject DashboardOptions Options
+
+<PageTitle>Set up · Paduraksa</PageTitle>
+
+<h1 class="pdk-auth-title">Welcome to Paduraksa</h1>
+<p class="pdk-auth-lead">Claim this instance and create its Owner, the account that can do everything.</p>
+
+@if (SignInMessages.Error(Error) is { } error)
+{
+    <div class="pdk-callout pdk-callout-error" role="alert">@error</div>
+}
+
+<form method="post" action="@DashboardRoutes.Actions.Setup" class="pdk-form pdk-setup" autocomplete="off">
+    <AntiforgeryToken />
+
+    <fieldset class="pdk-step">
+        <legend><span class="pdk-step-number">1</span> Claim this instance</legend>
+        <label class="pdk-field">
+            <span class="pdk-label">Setup token</span>
+            <input class="pdk-input pdk-mono" name="@DashboardForm.SetupToken" autocomplete="off" autocapitalize="none" spellcheck="false" required autofocus />
+            <span class="pdk-hint">Printed in the server log at startup. Run <code>paduraksa setup-token</code> to see it again.</span>
+        </label>
+    </fieldset>
+
+    <hr class="pdk-divider" />
+
+    <fieldset class="pdk-step">
+        <legend><span class="pdk-step-number">2</span> Owner account</legend>
+        <label class="pdk-field">
+            <span class="pdk-label">Username</span>
+            <input class="pdk-input" name="@DashboardForm.Username" autocomplete="username" autocapitalize="none" spellcheck="false"
+                   pattern="@SignInMessages.UsernamePattern" required />
+            <span class="pdk-hint">@SignInMessages.UsernameHint</span>
+        </label>
+        <label class="pdk-field">
+            <span class="pdk-label">Display name <span class="pdk-optional">optional</span></span>
+            <input class="pdk-input" name="@DashboardForm.DisplayName" autocomplete="name" maxlength="128" />
+        </label>
+        <div class="pdk-field-row">
+            <label class="pdk-field">
+                <span class="pdk-label">Password</span>
+                <input class="pdk-input" name="@DashboardForm.Password" type="password" autocomplete="new-password" minlength="@Options.MinPasswordLength" required />
+            </label>
+            <label class="pdk-field">
+                <span class="pdk-label">Confirm password</span>
+                <input class="pdk-input" name="@DashboardForm.ConfirmPassword" type="password" autocomplete="new-password" minlength="@Options.MinPasswordLength" required />
+            </label>
+        </div>
+        <span class="pdk-hint">@SignInMessages.PasswordHint(Options.MinPasswordLength)</span>
+    </fieldset>
+
+    <button type="submit" class="pdk-button pdk-button-primary">Create the Owner and sign in</button>
+</form>
+
+<p class="pdk-auth-note">Next, from the dashboard: a second factor for the Owner, certificates and your first host.</p>
+
+@code {
+    [SupplyParameterFromQuery(Name = DashboardForm.ErrorParameter)]
+    private string? Error { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Setup is done once: afterwards this page only points at the sign-in page.
+        if (await SetupService.IsCompleteAsync())
+        {
+            Navigation.NavigateTo(DashboardRoutes.SignIn);
+        }
+    }
+}

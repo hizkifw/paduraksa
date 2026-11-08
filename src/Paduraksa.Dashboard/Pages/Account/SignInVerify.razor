@@ -1,0 +1,91 @@
+@attribute [Route(DashboardRoutes.SignInVerify)]
+@using Microsoft.AspNetCore.WebUtilities
+
+<PageTitle>Verify · Paduraksa</PageTitle>
+
+<h1 class="pdk-auth-title">Two-step verification</h1>
+@if (_recovery)
+{
+    <p class="pdk-auth-lead">Enter one of the recovery codes you saved when you set up your authenticator. Each code works once.</p>
+}
+else
+{
+    <p class="pdk-auth-lead">Enter the 6-digit code from your authenticator app.</p>
+}
+
+@if (SignInMessages.Error(Error) is { } error)
+{
+    <div class="pdk-callout pdk-callout-error" role="alert">@error</div>
+}
+
+<form method="post" action="@DashboardRoutes.Actions.SecondFactor" class="pdk-form" autocomplete="off">
+    <AntiforgeryToken />
+    @if (_returnUrl is not null)
+    {
+        <input type="hidden" name="@DashboardForm.ReturnUrl" value="@_returnUrl" />
+    }
+    @if (_recovery)
+    {
+        <label class="pdk-field">
+            <span class="pdk-label">Recovery code</span>
+            <input class="pdk-input pdk-input-code" name="@DashboardForm.RecoveryCode" autocomplete="off" autocapitalize="none" spellcheck="false" required autofocus />
+        </label>
+    }
+    else
+    {
+        <label class="pdk-field">
+            <span class="pdk-label">Authentication code</span>
+            <input class="pdk-input pdk-input-code" name="@DashboardForm.Code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7"
+                   placeholder="123 456" required autofocus />
+        </label>
+    }
+    <button type="submit" class="pdk-button pdk-button-primary">Verify</button>
+</form>
+
+<div class="pdk-auth-links">
+    @if (_recovery)
+    {
+        <a href="@Link(recovery: false)">Use the authenticator app instead</a>
+    }
+    else
+    {
+        <a href="@Link(recovery: true)">Use a recovery code instead</a>
+    }
+    <a href="@DashboardRoutes.SignIn">Start over</a>
+</div>
+
+@code {
+    private string? _returnUrl;
+    private bool _recovery;
+
+    [SupplyParameterFromQuery(Name = DashboardForm.ErrorParameter)]
+    private string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = DashboardForm.ReturnUrl)]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery(Name = DashboardForm.RecoveryParameter)]
+    private string? Recovery { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        _returnUrl = SignInMessages.LocalReturnUrl(ReturnUrl);
+        _recovery = Recovery == "1";
+    }
+
+    private string Link(bool recovery)
+    {
+        Dictionary<string, string?> query = [];
+        if (recovery)
+        {
+            query[DashboardForm.RecoveryParameter] = "1";
+        }
+
+        if (_returnUrl is not null)
+        {
+            query[DashboardForm.ReturnUrl] = _returnUrl;
+        }
+
+        return QueryHelpers.AddQueryString(DashboardRoutes.SignInVerify, query);
+    }
+}

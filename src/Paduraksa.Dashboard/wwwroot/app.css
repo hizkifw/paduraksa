@@ -1,0 +1,759 @@
+/*
+ * Paduraksa dashboard styles. The app shell and pages build on MudBlazor's theme variables (--mud-palette-*), so they follow the light
+ * and dark palettes of PaduraksaTheme. The sign-in and setup pages are plain HTML without MudBlazor's theme provider; their colours
+ * (--pdk-*) mirror the same palettes: dark by default, light when the system asks for it, and the person's own choice (data-theme on
+ * <html>) over both.
+ */
+
+/* ---------- Shared ---------- */
+
+:root {
+    --pdk-font: Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --pdk-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --pdk-radius: 10px;
+    --pdk-radius-lg: 14px;
+
+    --pdk-bg: #0E1216;
+    --pdk-surface: #151A20;
+    --pdk-surface-2: #1A2027;
+    --pdk-line: #242B33;
+    --pdk-line-strong: #323B45;
+    --pdk-text: #E6EAEE;
+    --pdk-muted: #97A3AF;
+    --pdk-accent: #3FBFAE;
+    --pdk-accent-contrast: #04211D;
+    --pdk-error: #EF6B67;
+    --pdk-info: #5AA9E6;
+    --pdk-shadow: 0 30px 80px -32px rgba(0, 0, 0, 0.7);
+    color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+        --pdk-bg: #F4F6F8;
+        --pdk-surface: #FFFFFF;
+        --pdk-surface-2: #F8FAFB;
+        --pdk-line: #E2E7EC;
+        --pdk-line-strong: #CBD3DB;
+        --pdk-text: #18212B;
+        --pdk-muted: #5B6773;
+        --pdk-accent: #0E7D6F;
+        --pdk-accent-contrast: #FFFFFF;
+        --pdk-error: #C9403C;
+        --pdk-info: #1F78C1;
+        --pdk-shadow: 0 30px 80px -40px rgba(24, 33, 43, 0.35);
+        color-scheme: light;
+    }
+}
+
+:root[data-theme="light"] {
+    --pdk-bg: #F4F6F8;
+    --pdk-surface: #FFFFFF;
+    --pdk-surface-2: #F8FAFB;
+    --pdk-line: #E2E7EC;
+    --pdk-line-strong: #CBD3DB;
+    --pdk-text: #18212B;
+    --pdk-muted: #5B6773;
+    --pdk-accent: #0E7D6F;
+    --pdk-accent-contrast: #FFFFFF;
+    --pdk-error: #C9403C;
+    --pdk-info: #1F78C1;
+    --pdk-shadow: 0 30px 80px -40px rgba(24, 33, 43, 0.35);
+    color-scheme: light;
+}
+
+html, body {
+    margin: 0;
+    font-family: var(--pdk-font);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+body {
+    background: var(--pdk-bg);
+    color: var(--pdk-text);
+}
+
+.pdk-mono {
+    font-family: var(--pdk-mono) !important;
+    font-feature-settings: "zero" 1;
+}
+
+.pdk-boot {
+    min-height: 100vh;
+}
+
+/* Secondary text: the palette's quiet text colour (MudBlazor's Color.Secondary is the secondary accent, not muted text). */
+.pdk-muted {
+    color: var(--mud-palette-text-secondary, var(--pdk-muted)) !important;
+}
+
+/* Tones: an icon or dot in a semantic colour on a soft wash of it. */
+.pdk-tone-primary { --pdk-tone: var(--mud-palette-primary, var(--pdk-accent)); }
+.pdk-tone-success { --pdk-tone: var(--mud-palette-success, #4CC38A); }
+.pdk-tone-warning { --pdk-tone: var(--mud-palette-warning, #E8B04B); }
+.pdk-tone-error { --pdk-tone: var(--mud-palette-error, var(--pdk-error)); }
+.pdk-tone-info { --pdk-tone: var(--mud-palette-info, var(--pdk-info)); }
+.pdk-tone-default, .pdk-tone-secondary, .pdk-tone-tertiary, .pdk-tone-dark, .pdk-tone-inherit, .pdk-tone-surface, .pdk-tone-transparent {
+    --pdk-tone: var(--mud-palette-text-secondary, var(--pdk-muted));
+}
+
+/* ---------- App shell ---------- */
+
+.pdk-shell {
+    min-height: 100vh;
+}
+
+.pdk-appbar.mud-appbar {
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    backdrop-filter: saturate(160%) blur(10px);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+}
+
+.pdk-appbar .mud-toolbar {
+    gap: 4px;
+}
+
+.pdk-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: 6px;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 8px;
+}
+
+.pdk-brand:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 4px;
+}
+
+.pdk-brand-mark {
+    color: var(--mud-palette-primary);
+}
+
+.pdk-brand-name {
+    font-size: 1.0625rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.pdk-instance {
+    margin-left: 12px;
+    padding: 2px 10px;
+    max-width: 22ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 999px;
+    color: var(--mud-palette-text-secondary);
+    font-family: var(--pdk-mono);
+    font-size: 0.75rem;
+    line-height: 1.6;
+}
+
+.pdk-drawer.mud-drawer {
+    border-right: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-nav {
+    padding: 8px 4px 24px;
+}
+
+.pdk-nav-section {
+    padding: 18px 16px 6px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.pdk-nav .mud-nav-link {
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+.pdk-nav .mud-nav-link-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.pdk-nav-label {
+    flex: 1 1 auto;
+}
+
+.pdk-soon {
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--mud-palette-primary) 13%, transparent);
+    color: var(--mud-palette-primary);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.pdk-main {
+    min-height: 100vh;
+}
+
+.pdk-page.mud-container {
+    padding-top: 32px;
+    padding-bottom: 56px;
+}
+
+.pdk-banner {
+    padding: 12px 24px 0;
+}
+
+.pdk-banner-alert.mud-alert {
+    border: 1px solid color-mix(in srgb, var(--mud-palette-warning) 40%, transparent);
+    background: color-mix(in srgb, var(--mud-palette-warning) 10%, transparent);
+}
+
+/* ---------- User menu and theme toggle ---------- */
+
+.pdk-user-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 6px;
+    padding: 3px 8px 3px 3px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.pdk-user-chip:hover {
+    background: var(--mud-palette-action-default-hover);
+}
+
+.pdk-user-chip:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.pdk-avatar.mud-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.pdk-user-name {
+    max-width: 16ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-user-card {
+    display: grid;
+    gap: 2px;
+    min-width: 240px;
+    padding: 14px 16px 12px;
+}
+
+.pdk-user-roles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.pdk-user-roles .mud-chip {
+    margin: 0;
+}
+
+.pdk-signout {
+    margin: 0;
+}
+
+.pdk-menu-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 16px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.pdk-menu-button:hover, .pdk-menu-button:focus-visible {
+    background: var(--mud-palette-action-default-hover);
+    outline: none;
+}
+
+/* ---------- Pages ---------- */
+
+.pdk-page-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.pdk-page-header h1:focus {
+    outline: none;
+}
+
+.pdk-page-lead {
+    margin-top: 4px;
+}
+
+.pdk-page-header-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.pdk-card.mud-paper {
+    padding: 20px;
+    border-radius: var(--pdk-radius-lg);
+    background: var(--mud-palette-surface);
+}
+
+.pdk-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pdk-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.pdk-stat.mud-paper {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 152px;
+}
+
+.pdk-stat-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.pdk-stat-icon, .pdk-list-icon {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-stat-value {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.75rem;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.pdk-stat-link.mud-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: auto;
+    padding-top: 6px;
+    font-weight: 600;
+}
+
+.pdk-status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--pdk-tone);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--pdk-tone) 20%, transparent);
+}
+
+.pdk-home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.pdk-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-list-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-list-row:first-child {
+    border-top: 0;
+}
+
+.pdk-list-main {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pdk-list-title {
+    overflow: hidden;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-list-sub {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-row-skeleton {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.pdk-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 40px 16px;
+    text-align: center;
+}
+
+.pdk-empty-compact {
+    padding: 20px 12px;
+}
+
+.pdk-empty-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 10px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent);
+    color: var(--mud-palette-primary);
+}
+
+.pdk-empty-compact .pdk-empty-icon {
+    width: 44px;
+    height: 44px;
+}
+
+.pdk-empty-text {
+    max-width: 46ch;
+}
+
+.pdk-empty-action {
+    margin-top: 14px;
+}
+
+@media (max-width: 600px) {
+    .pdk-page.mud-container {
+        padding-top: 20px;
+    }
+
+    .pdk-instance, .pdk-user-name, .pdk-brand-name {
+        display: none;
+    }
+
+    .pdk-home-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- Sign-in and setup (plain HTML) ---------- */
+
+.pdk-auth {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    box-sizing: border-box;
+    padding: 40px 16px;
+    background:
+        radial-gradient(900px 520px at 50% -12%, color-mix(in srgb, var(--pdk-accent) 16%, transparent), transparent 62%),
+        radial-gradient(700px 420px at 110% 110%, color-mix(in srgb, var(--pdk-accent) 7%, transparent), transparent 60%),
+        var(--pdk-bg);
+    color: var(--pdk-text);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+}
+
+.pdk-auth-card {
+    width: min(100%, 420px);
+    box-sizing: border-box;
+    padding: 32px;
+    border: 1px solid var(--pdk-line);
+    border-radius: 18px;
+    background: var(--pdk-surface);
+    box-shadow: var(--pdk-shadow);
+}
+
+.pdk-auth-card:has(.pdk-setup) {
+    width: min(100%, 540px);
+}
+
+.pdk-auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.pdk-auth-mark {
+    color: var(--pdk-accent);
+}
+
+.pdk-auth-product {
+    font-size: 1.0625rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+}
+
+.pdk-auth-tagline {
+    color: var(--pdk-muted);
+    font-size: 0.75rem;
+}
+
+.pdk-auth-title {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    line-height: 1.3;
+}
+
+.pdk-auth-lead {
+    margin: 0 0 24px;
+    color: var(--pdk-muted);
+}
+
+.pdk-form {
+    display: grid;
+    gap: 16px;
+}
+
+.pdk-field {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.pdk-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.pdk-optional {
+    margin-left: 4px;
+    color: var(--pdk-muted);
+    font-weight: 400;
+}
+
+.pdk-input {
+    width: 100%;
+    height: 42px;
+    box-sizing: border-box;
+    padding: 0 12px;
+    border: 1px solid var(--pdk-line-strong);
+    border-radius: var(--pdk-radius);
+    background: var(--pdk-surface-2);
+    color: var(--pdk-text);
+    font: inherit;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.pdk-input:hover {
+    border-color: color-mix(in srgb, var(--pdk-accent) 45%, var(--pdk-line-strong));
+}
+
+.pdk-input:focus {
+    border-color: var(--pdk-accent);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-accent) 28%, transparent);
+}
+
+.pdk-input-code {
+    font-family: var(--pdk-mono);
+    font-size: 1.125rem;
+    letter-spacing: 0.18em;
+    text-align: center;
+}
+
+.pdk-hint {
+    color: var(--pdk-muted);
+    font-size: 0.75rem;
+}
+
+.pdk-button {
+    height: 44px;
+    margin-top: 4px;
+    border: 0;
+    border-radius: var(--pdk-radius);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 120ms ease, transform 60ms ease;
+}
+
+.pdk-button:active {
+    transform: translateY(1px);
+}
+
+.pdk-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-accent) 40%, transparent);
+}
+
+.pdk-button-primary {
+    background: var(--pdk-accent);
+    color: var(--pdk-accent-contrast);
+}
+
+.pdk-button-primary:hover {
+    filter: brightness(1.07);
+}
+
+.pdk-callout {
+    margin: 0 0 18px;
+    padding: 10px 14px;
+    border: 1px solid;
+    border-radius: var(--pdk-radius);
+    font-size: 0.875rem;
+}
+
+.pdk-callout-error {
+    border-color: color-mix(in srgb, var(--pdk-error) 45%, transparent);
+    background: color-mix(in srgb, var(--pdk-error) 11%, transparent);
+}
+
+.pdk-callout-info {
+    border-color: color-mix(in srgb, var(--pdk-info) 40%, transparent);
+    background: color-mix(in srgb, var(--pdk-info) 10%, transparent);
+}
+
+.pdk-auth-note {
+    margin: 22px 0 0;
+    color: var(--pdk-muted);
+    font-size: 0.8125rem;
+}
+
+.pdk-auth code {
+    white-space: nowrap;
+    padding: 1px 6px;
+    border: 1px solid var(--pdk-line);
+    border-radius: 6px;
+    background: var(--pdk-surface-2);
+    font-family: var(--pdk-mono);
+    font-size: 0.8125em;
+}
+
+.pdk-auth-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    font-size: 0.875rem;
+}
+
+.pdk-auth a {
+    color: var(--pdk-accent);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.pdk-auth a:hover {
+    text-decoration: underline;
+}
+
+.pdk-step {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.pdk-divider {
+    width: 100%;
+    height: 1px;
+    margin: 4px 0;
+    border: 0;
+    background: var(--pdk-line);
+}
+
+.pdk-step legend {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 0;
+    font-weight: 600;
+}
+
+.pdk-step-number {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--pdk-accent) 16%, transparent);
+    color: var(--pdk-accent);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.pdk-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 520px) {
+    .pdk-auth-card {
+        padding: 24px 20px;
+    }
+
+    .pdk-field-row {
+        grid-template-columns: 1fr;
+    }
+}

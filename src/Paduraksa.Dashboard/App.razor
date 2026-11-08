@@ -1,0 +1,41 @@
+@using Microsoft.AspNetCore.Http
+
+<!DOCTYPE html>
+<html lang="en" data-theme="@_themeAttribute">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="referrer" content="no-referrer" />
+    <base href="/" />
+    <link rel="icon" type="image/svg+xml" href="@Assets["_content/Paduraksa.Dashboard/favicon.svg"]" />
+    <link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/Paduraksa.Dashboard/app.css"]" />
+    <HeadOutlet @rendermode="PageRenderMode" />
+</head>
+<body>
+    <Routes @rendermode="PageRenderMode" Preference="_preference" SystemPrefersLight="_systemPrefersLight" />
+    <script src="@Assets["_content/Paduraksa.Dashboard/paduraksa.js"]"></script>
+    <script src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+</html>
+
+@code {
+    private ThemePreference _preference;
+    private bool _systemPrefersLight;
+    private string? _themeAttribute;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    /// <summary>The app's pages are interactive (server); the sign-in and setup pages opt out and stay plain HTML forms.</summary>
+    private IComponentRenderMode? PageRenderMode => HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
+
+    protected override void OnInitialized()
+    {
+        _preference = ThemeState.ParsePreference(HttpContext.Request.Cookies[ThemeState.PreferenceCookie]);
+        _systemPrefersLight = HttpContext.Request.Cookies[ThemeState.SystemSchemeCookie] == "light";
+        _themeAttribute = _preference == ThemePreference.System ? null : ThemeState.ToCookieValue(_preference);
+    }
+}

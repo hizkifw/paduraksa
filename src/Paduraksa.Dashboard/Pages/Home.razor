@@ -1,0 +1,216 @@
+@attribute [Route(DashboardRoutes.Home)]
+@using System.Globalization
+@using Paduraksa.Application.Certificates
+@using Paduraksa.Application.Commands
+@using Paduraksa.Contracts.Certificates
+@using Paduraksa.Contracts.Commands
+@using Microsoft.Extensions.Logging
+@inject DashboardCaller Caller
+@inject ConfigService Config
+@inject CertificateService CertificateInventory
+@inject TimeProvider Time
+@inject ILogger<Home> Logger
+
+<PageTitle>Overview · Paduraksa</PageTitle>
+
+<PageHeader Title="Overview" Overline="Status" Lead="What this instance is serving right now." />
+
+@if (_failed)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
+        The status couldn't be read. The details are in the server log.
+        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+    </MudAlert>
+}
+
+<div class="pdk-stats">
+    <StatCard Label="Config" Icon="@Icons.Material.Outlined.Storage" Tone="@(Status.IsDegraded ? Color.Warning : Color.Success)"
+              Detail="@(Status.IsDegraded ? "Changes are refused until the database is back" : "Changes go live as revisions")">
+        <Value>
+            <span class="pdk-status-dot pdk-tone-@(Status.IsDegraded ? "warning" : "success")" aria-hidden="true"></span>
+            @(Status.Source switch { ConfigSource.LastKnownGood => "Last-known-good", ConfigSource.Database => "Database", _ => "Starting" })
+        </Value>
+    </StatCard>
+
+    @if (_mayReadConfig)
+    {
+        <StatCard Label="Live revision" Icon="@Icons.Material.Outlined.History" Loading="Snapshot is null" Href="@DashboardRoutes.History" LinkText="History"
+                  Detail="@(Snapshot?.Revision is null ? "No change has been made yet" : "The latest change")">
+            <Value>@(Snapshot?.Revision is { } revision ? $"#{revision.ToString(CultureInfo.InvariantCulture)}" : "None yet")</Value>
+        </StatCard>
+        <StatCard Label="Hosts" Icon="@Icons.Material.Outlined.Language" Loading="Snapshot is null" Href="@DashboardRoutes.Hosts" LinkText="Hosts"
+                  Detail="@Plural(Snapshot?.Upstreams ?? 0, "upstream", "upstreams")">
+            <Value>@(Snapshot?.Hosts ?? 0)</Value>
+        </StatCard>
+    }
+
+    @if (_mayReadCertificates)
+    {
+        <StatCard Label="Certificates" Icon="@Icons.Material.Outlined.WorkspacePremium" Loading="Snapshot is null" Href="@DashboardRoutes.Certificates" LinkText="Certificates"
+                  Tone="@(ExpiringCount > 0 ? Color.Warning : Color.Primary)" Detail="@(ExpiringCount > 0 ? $"{Plural(ExpiringCount, "expires", "expire")} within {HomeSnapshot.ExpiryHorizonDays} days" : "None expire soon")">
+            <Value>@(Snapshot?.Certificates ?? 0)</Value>
+        </StatCard>
+    }
+</div>
+
+<div class="pdk-home-grid">
+    @if (_mayReadCertificates)
+    {
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+            <div class="pdk-card-head">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h2">Expiring soon</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">Certificates in use that end within @HomeSnapshot.ExpiryHorizonDays days</MudText>
+                </div>
+            </div>
+            @if (Snapshot is null)
+            {
+                @for (int i = 0; i < 3; i++)
+                {
+                    <div class="pdk-row-skeleton">
+                        <MudSkeleton SkeletonType="SkeletonType.Circle" Width="28px" Height="28px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="55%" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+                    </div>
+                }
+            }
+            else if (Snapshot.Expiring is not { Count: > 0 } expiring)
+            {
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.VerifiedUser" Title="Nothing expires soon"
+                            Description="Renewals run on their own; anything that needs you will show here." />
+            }
+            else
+            {
+                <ul class="pdk-list">
+                    @foreach (ExpiringCertificate certificate in expiring)
+                    {
+                        <li class="pdk-list-row">
+                            <span class="pdk-list-icon pdk-tone-@ExpiryTone(certificate)"><MudIcon Icon="@Icons.Material.Outlined.WorkspacePremium" Size="Size.Small" /></span>
+                            <span class="pdk-list-main">
+                                <span class="pdk-list-title">@certificate.Name</span>
+                                <span class="pdk-list-sub">@certificate.Source · @Plural(certificate.NameCount, "name", "names")</span>
+                            </span>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@(ExpiryTone(certificate) == "error" ? Color.Error : Color.Warning)">@ExpiresIn(certificate)</MudChip>
+                        </li>
+                    }
+                </ul>
+            }
+        </MudPaper>
+    }
+
+    @if (_mayReadConfig)
+    {
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+            <div class="pdk-card-head">
+                <div>
+                    <MudText Typo="Typo.h6" HtmlTag="h2">Hosts</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">The names this instance answers for</MudText>
+                </div>
+            </div>
+            @if (Snapshot is null)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="96px" />
+            }
+            else if (Snapshot.Hosts is 0)
+            {
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.AddLink" Title="No hosts yet"
+                            Description="Add a host to start proxying a name to a service on your network.">
+                    <Action>
+                        <IfPermitted Permission="Permission.ConfigWrite">
+                            <MudButton Href="@DashboardRoutes.Hosts" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add">Add a host</MudButton>
+                        </IfPermitted>
+                    </Action>
+                </EmptyState>
+            }
+            else
+            {
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Language" Title="@($"{Plural(Snapshot.Hosts ?? 0, "host", "hosts")} configured")"
+                            Description="Live traffic and health arrive with the metrics (M7).">
+                    <Action>
+                        <MudButton Href="@DashboardRoutes.Hosts" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">See the hosts</MudButton>
+                    </Action>
+                </EmptyState>
+            }
+        </MudPaper>
+    }
+</div>
+
+@if (!_mayReadConfig && !_mayReadCertificates && _checked)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Nothing to show for your role"
+                    Description="Your account can't read the config or the certificates. An Owner can change your roles." />
+    </MudPaper>
+}
+
+@code {
+    private bool _mayReadConfig;
+    private bool _mayReadCertificates;
+    private bool _checked;
+    private bool _failed;
+
+    /// <summary>The page's data, carried from the server's render into the circuit.</summary>
+    [PersistentState]
+    public HomeSnapshot? Snapshot { get; set; }
+
+    private ConfigStoreStatus Status => Config.Status;
+
+    private int ExpiringCount => Snapshot?.Expiring?.Count ?? 0;
+
+    protected override Task OnInitializedAsync() => LoadAsync(force: false);
+
+    private Task ReloadAsync() => LoadAsync(force: true);
+
+    private async Task LoadAsync(bool force)
+    {
+        _failed = false;
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayReadConfig = user.Has(Permission.ConfigRead);
+        _mayReadCertificates = user.Has(Permission.CertificatesRead);
+        _checked = true;
+        if (Snapshot is not null && !force)
+        {
+            return;
+        }
+
+        try
+        {
+            CurrentConfig? current = _mayReadConfig ? await Config.GetCurrentAsync() : null;
+            IReadOnlyList<CertificateSummary>? certificates = _mayReadCertificates ? await CertificateInventory.ListAsync() : null;
+            Snapshot = new HomeSnapshot(
+                current?.Revision?.Seq,
+                current?.Document.Hosts.Count,
+                current?.Document.Upstreams.Count,
+                certificates?.Count,
+                certificates is null ? null : HomeSnapshot.ExpiringOf(certificates, Time.GetUtcNow()));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the overview.");
+            _failed = true;
+            Snapshot = new HomeSnapshot(null, null, null, null, null);
+        }
+    }
+
+    private string ExpiryTone(ExpiringCertificate certificate) =>
+        certificate.NotAfter - Time.GetUtcNow() <= TimeSpan.FromDays(7) ? "error" : "warning";
+
+    private string ExpiresIn(ExpiringCertificate certificate)
+    {
+        TimeSpan left = certificate.NotAfter - Time.GetUtcNow();
+        if (left <= TimeSpan.Zero)
+        {
+            return "Expired";
+        }
+
+        return left.TotalDays >= 1 ? $"In {Plural((int)left.TotalDays, "day", "days")}" : "Today";
+    }
+
+    private static string Plural(int count, string one, string many) =>
+        string.Create(CultureInfo.InvariantCulture, $"{count} {(count == 1 ? one : many)}");
+}

@@ -1,0 +1,25 @@
+@implements IDisposable
+@inject ThemeState Theme
+@inject IJSRuntime JS
+
+<MudTooltip Text="@Label" Placement="Placement.Bottom">
+    <MudIconButton Icon="@(Theme.IsDark ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)" Color="Color.Inherit"
+                   OnClick="ToggleAsync" aria-label="@Label" Class="pdk-theme-toggle" />
+</MudTooltip>
+
+@code {
+    private string Label => Theme.IsDark ? "Switch to the light theme" : "Switch to the dark theme";
+
+    protected override void OnInitialized() => Theme.Changed += OnChanged;
+
+    public void Dispose() => Theme.Changed -= OnChanged;
+
+    /// <summary>Flips the palette and remembers the choice in the theme cookie (not a secret; read on the next page load).</summary>
+    private async Task ToggleAsync()
+    {
+        string value = Theme.Toggle();
+        await JS.InvokeVoidAsync("paduraksa.setTheme", value);
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+}
