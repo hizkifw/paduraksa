@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -17,6 +18,7 @@ using Paduraksa.Admin.Web;
 using Paduraksa.Application.Commands;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Dashboard;
+using Paduraksa.Dashboard.Identity;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Placeholders;
@@ -138,6 +140,8 @@ internal static partial class AdminApp
             MinPasswordLength = context.Options.Admin.MinPasswordLength,
             SessionRecheckInterval = context.Options.Admin.SessionRecheckInterval,
         });
+        // The dashboard's password checks (change password, TOTP, recovery codes) share the API's derivation slots.
+        builder.Services.Replace(ServiceDescriptor.Singleton<IPasswordCheckSlots>(static sp => new AdminPasswordCheckSlots(sp.GetRequiredService<AdminThrottle>())));
         DashboardAssets.Use(builder);
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Admin);

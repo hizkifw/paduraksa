@@ -1,0 +1,52 @@
+@inject DashboardBrowser Browser
+@inject ISnackbar Snackbar
+@* Recovery codes, shown once (after enrolment, after a regeneration): the list, Copy, and Download as a .txt file made in the page
+   (nothing is served from a URL). The owner drops the codes from its state as soon as the step moves on. *@
+<div class="pdk-recovery" data-section="recovery-codes">
+    <ol class="pdk-recovery-codes pdk-mono">
+        @foreach (string recovery in Codes)
+        {
+            <li>@recovery</li>
+        }
+    </ol>
+    <div class="pdk-recovery-actions">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@(_copied ? Icons.Material.Rounded.Check : Icons.Material.Outlined.ContentCopy)"
+                   OnClick="CopyAsync" data-action="copy-codes">@(_copied ? "Copied" : "Copy")</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Download"
+                   OnClick="DownloadAsync" data-action="download-codes">Download .txt</MudButton>
+    </div>
+</div>
+
+@code {
+    private bool _copied;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Codes { get; set; } = [];
+
+    /// <summary>The account the codes are for, named in the file.</summary>
+    [Parameter]
+    public string? Username { get; set; }
+
+    /// <summary>The codes as a text file: a heading, then one code per line.</summary>
+    internal static string FileText(IReadOnlyList<string> codes, string? username) =>
+        $"Paduraksa recovery codes{(username is null ? string.Empty : $" for {username}")}\n"
+        + "Each code signs you in once instead of your authenticator app. Keep them away from that device.\n\n"
+        + string.Join('\n', codes) + "\n";
+
+    private async Task CopyAsync()
+    {
+        _copied = await Browser.CopyAsync(string.Join('\n', Codes));
+        if (!_copied)
+        {
+            Snackbar.Add("The browser didn't allow copying. Download the codes or write them down.", Severity.Warning);
+        }
+    }
+
+    private async Task DownloadAsync()
+    {
+        if (!await Browser.DownloadTextAsync("paduraksa-recovery-codes.txt", FileText(Codes, Username)))
+        {
+            Snackbar.Add("The download didn't start. Copy the codes or write them down.", Severity.Warning);
+        }
+    }
+}

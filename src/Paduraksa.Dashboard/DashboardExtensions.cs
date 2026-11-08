@@ -12,8 +12,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using MudBlazor;
 using MudBlazor.Services;
 
+using Paduraksa.Dashboard.Audit;
 using Paduraksa.Dashboard.Auth;
 using Paduraksa.Dashboard.Config;
+using Paduraksa.Dashboard.Identity;
 using Paduraksa.Dashboard.Theme;
 
 namespace Paduraksa.Dashboard;
@@ -25,8 +27,10 @@ public static class DashboardExtensions
     /// Registers the Razor components with interactive server rendering, MudBlazor (snackbars bottom-right, newest on top, one of each),
     /// the cascading authentication state built from the admin app's session (<see cref="DashboardAuthenticationStateProvider"/>), the
     /// circuit handler that ends a circuit whose session ended, the per-circuit theme, and what the config pages use per circuit: the
-    /// Application services behind <see cref="IDashboardConfig"/>, the Undo toast and the change under review. The Application services, the admin app's
-    /// authentication and Data Protection come from the host.
+    /// Application services behind <see cref="IDashboardConfig"/>, the Undo toast and the change under review; what the settings, account and audit
+    /// pages use (<see cref="IDashboardIdentity"/> with its change feed, <see cref="IDashboardAudit"/>). The Application services, the admin app's
+    /// authentication and Data Protection come from the host, and so does the bound on password checks (<see cref="IPasswordCheckSlots"/>; unbounded
+    /// when the host gives none).
     /// </summary>
     public static IServiceCollection AddPaduraksaDashboard(this IServiceCollection services, DashboardOptions? options = null)
     {
@@ -51,11 +55,16 @@ public static class DashboardExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<CircuitHandler, SessionCircuitHandler>());
         services.AddScoped<DashboardCaller>();
         services.AddScoped<ThemeState>();
+        services.AddScoped<DashboardBrowser>();
         services.TryAddScoped<IDashboardConfig, DashboardConfig>();
         services.AddScoped<ConfigUndo>();
         services.AddScoped<ReviewedDraft>();
         services.AddScoped<Providers.ProviderActions>();
         services.TryAddSingleton<Application.Probes.UpstreamProbe>();
+        services.TryAddSingleton<IPasswordCheckSlots, UnboundedPasswordChecks>();
+        services.TryAddSingleton<IdentityChangeFeed>();
+        services.TryAddScoped<IDashboardIdentity, DashboardIdentity>();
+        services.TryAddScoped<IDashboardAudit, DashboardAudit>();
         return services;
     }
 
