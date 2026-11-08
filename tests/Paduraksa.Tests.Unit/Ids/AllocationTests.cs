@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Text;
 
 using Paduraksa.Core.Ids;
@@ -17,13 +18,12 @@ public sealed class AllocationTests
     [Fact]
     public void Base62OverSpansDoesNotAllocate()
     {
-        Span<char> chars = stackalloc char[Base62.Width128];
-        Span<byte> bytes = stackalloc byte[Base62.Width128];
-        Guid guid = UuidV4Generator.Next();
-
-        long allocated = 0;
-        for (int round = 0; round < 2; round++) // round 0 warms up (JIT, static ctors)
+        long allocated = AllocatedOnDedicatedThread(static () =>
         {
+            Span<char> chars = stackalloc char[Base62.Width128];
+            Span<byte> bytes = stackalloc byte[Base62.Width128];
+            Guid guid = UuidV4Generator.Next();
+
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 1000; i++)
             {
@@ -35,8 +35,8 @@ public sealed class AllocationTests
                 Base62.TryDecodeUInt64(chars[..Base62.Width64], out _);
             }
 
-            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        }
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        });
 
         Assert.Equal(0, allocated);
     }
@@ -44,14 +44,13 @@ public sealed class AllocationTests
     private static void AssertNoAllocations<T>(T id)
         where T : struct, ITypedId<T>
     {
-        Span<char> chars = stackalloc char[64];
-        Span<byte> bytes = stackalloc byte[64];
-        ReadOnlySpan<char> text = id.ToString();
-        ReadOnlySpan<byte> utf8 = Encoding.UTF8.GetBytes(id.ToString()!);
-
-        long allocated = 0;
-        for (int round = 0; round < 2; round++) // round 0 warms up (JIT, static ctors)
+        long allocated = AllocatedOnDedicatedThread(() =>
         {
+            Span<char> chars = stackalloc char[64];
+            Span<byte> bytes = stackalloc byte[64];
+            ReadOnlySpan<char> text = id.ToString();
+            ReadOnlySpan<byte> utf8 = Encoding.UTF8.GetBytes(id.ToString()!);
+
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 1000; i++)
             {
@@ -63,9 +62,46 @@ public sealed class AllocationTests
                 _ = id.CompareTo(a);
             }
 
-            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        }
+            return GC.GetAllocatedBytesForCurrentThread() - before;
+        });
 
         Assert.Equal(0, allocated);
+    }
+
+    /// <summary>
+    /// Measures allocations on a thread of the test's own. <see cref="GC.GetAllocatedBytesForCurrentThread"/> counts
+    /// only its thread, but the thread-pool thread a test runs on is shared with the test framework (and with whatever it
+    /// did there before); on a busy full run that showed up as a few kilobytes in a zero-allocation assertion. The
+    /// measurement runs twice: the first time warms JIT, statics and the thread's own runtime state.
+    /// </summary>
+    private static long AllocatedOnDedicatedThread(Func<long> measure)
+    {
+        long allocated = 0;
+        Exception? failure = null;
+        Thread thread = new(
+            () =>
+            {
+                try
+                {
+                    _ = measure();
+                    allocated = measure();
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+            },
+            maxStackSize: 1024 * 1024)
+        {
+            IsBackground = true,
+        };
+        thread.Start();
+        thread.Join();
+        if (failure is not null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        return allocated;
     }
 }
