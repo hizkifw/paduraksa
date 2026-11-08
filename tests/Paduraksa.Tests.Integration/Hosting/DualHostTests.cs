@@ -283,6 +283,57 @@ public sealed class DualHostTests
     }
 
     [Fact]
+    public async Task AnAbortedStartDoesNotLogTheCoreBackgroundServiceItCancelled()
+    {
+        // .NET 10 runs a BackgroundService's ExecuteAsync through Task.Run(…, token) with the token it was started with,
+        // so an aborted start can cancel a core background service before its delegate even ran. The generic host then
+        // reports that cancellation ("BackgroundService failed" + stopping the host) at Error and Critical, because its
+        // own suppression only applies once ApplicationStopping has fired — which happens when the hosts are stopped,
+        // not when the start token is cancelled. The public host's stopping fires in between: after the abort was
+        // requested, before the core host (which owns the background services) is stopping. The generic host must not
+        // surface the cancellation as an error there, or every blocked-core abort would flake.
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        LogCapture logs = new();
+        CanceledOnHostStopping service = new();
+        BlocksStart blocker = new();
+        await using PaduraksaHost host = TestHost.Create(logs: logs, configureServices: (role, services) =>
+        {
+            if (role == HostRole.Core)
+            {
+                services.AddSingleton<IHostedService>(service);
+                services.AddSingleton<IHostedService>(blocker);
+            }
+        });
+        service.CancelWhen(host.Public.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
+
+        Task starting = host.StartAsync(ct);
+        await blocker.Entered.Task.WaitAsync(ct);
+        await host.StopAsync(ct).WaitAsync(ct);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => starting);
+        Assert.Equal(HostState.Stopped, host.State);
+        Assert.DoesNotContain(logs.Entries, static e => e.Level >= LogLevel.Error);
+    }
+
+    /// <summary>A core background service whose ExecuteTask is cancelled by a callback (the stand-in for the cancelled
+    /// Task.Run delegate of an aborted start; see <see cref="AnAbortedStartDoesNotLogTheCoreBackgroundServiceItCancelled"/>).</summary>
+    private sealed class CanceledOnHostStopping : BackgroundService
+    {
+        private readonly TaskCompletionSource _canceled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>What the generic host observes: pending until cancelled, like a Task.Run delegate that never ran.</summary>
+        public override Task? ExecuteTask => _canceled.Task;
+
+        // No real work: the ExecuteTask above is the whole story.
+        protected override Task ExecuteAsync(CancellationToken stoppingToken) => _canceled.Task;
+
+        public override Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void CancelWhen(CancellationToken token) => token.Register(
+            static tcs => ((TaskCompletionSource)tcs!).TrySetCanceled(), _canceled);
+    }
+
+    [Fact]
     public async Task StopDuringStartUnbindsListenersThatWereAlreadyAccepting()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;

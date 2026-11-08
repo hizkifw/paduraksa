@@ -52,7 +52,7 @@ internal sealed class RoleLoggerFactory : ILoggerFactory
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            if (!inner.IsEnabled(logLevel) || (startupLogFilter?.ShouldDrop(category, eventId) ?? false))
+            if (!inner.IsEnabled(logLevel) || (startupLogFilter?.ShouldDrop(category, eventId, exception) ?? false))
             {
                 return;
             }
