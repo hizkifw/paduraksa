@@ -8,6 +8,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Application.Identity;
+using Paduraksa.Core.Model;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Server.Placeholders;
@@ -39,6 +41,13 @@ public sealed class DualHostTests
         using HttpRequestMessage head = new(HttpMethod.Head, new Uri(admin, "/healthz"));
         using HttpResponseMessage headResponse = await client.SendAsync(head, ct);
         Assert.Equal(HttpStatusCode.OK, headResponse.StatusCode);
+
+        // Until first-run setup is complete the admin app serves only the health endpoints and the setup flow (PLAN §12.1).
+        using HttpResponseMessage gated = await client.GetAsync(admin, ct);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, gated.StatusCode);
+        string token = await host.Shared.Setup.EnsureTokenAsync(ct) ?? throw new InvalidOperationException("Setup is already complete.");
+        SetupResult owner = await host.Shared.Setup.CompleteSetupAsync(token, "owner", "correct horse battery staple", null, new ClientContext(Channel.System), ct);
+        Assert.Equal(SetupOutcome.Succeeded, owner.Outcome);
 
         using HttpResponseMessage page = await client.GetAsync(admin, ct);
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);

@@ -11,5 +11,7 @@
     <ProjectReference Include="../../src/Paduraksa.Contracts/Paduraksa.Contracts.csproj" />
     <!-- Pure Application logic: the config document, the audit chain encoding. -->
     <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
+    <!-- The admin app's pure pieces: the source allowlist, the sign-in throttle, the cookie reader, the HTTP JSON contract. -->
+    <ProjectReference Include="../../src/Paduraksa.Admin/Paduraksa.Admin.csproj" />
   </ItemGroup>
 </Project>
