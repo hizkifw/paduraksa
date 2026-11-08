@@ -12,12 +12,15 @@ namespace Paduraksa.Tests.Dashboard.EndToEnd;
 /// <summary>
 /// The first-run wizard in a real browser from a fresh instance (PLAN §12.1, M5): setup token, Owner, two-step sign-in with the QR step,
 /// ACME and DNS skipped, a local-CA certificate, the first host to a test upstream (checked, reviewed, applied), done; then the
-/// certificates page lists the certificate, a PEM is uploaded, a DNS provider is added and tested, and the overview's checklist names
+/// certificates page lists the certificate, a PEM is uploaded, a DNS provider is added and tested (only with PADURAKSA_E2E_LIVE_DNS=1), and the overview's checklist names
 /// what was skipped. Skipped without Chromium; screenshots of every step when <see cref="PlaywrightBrowser.ScreenshotVariable"/> is set.
 /// </summary>
 public sealed class SetupWizardEndToEndTests
 {
     private const string HostName = "app.home.arpa";
+
+    /// <summary>Set to <c>1</c> to also add and test a DNS provider against the real Cloudflare API.</summary>
+    private const string LiveDnsVariable = "PADURAKSA_E2E_LIVE_DNS";
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -161,18 +164,21 @@ public sealed class SetupWizardEndToEndTests
             }
         }
 
-        // A DNS provider, tested right after it is added. No fake Cloudflare is reachable through the vault's handler (https to the
-        // real host only), so the verdict is the real API's (a bad token) or a network failure: either way a verdict is shown.
-        await page.GotoAsync("/settings/dns-providers");
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-        await page.ClickAsync(".pdk-add-dns");
-        await page.FillAsync(".pdk-dns-label input", "Cloudflare - test");
-        await page.FillAsync(".pdk-dns-credential input", "not-a-real-token");
-        await page.ClickAsync(".pdk-dns-submit");
-        await Expect(page.Locator(".pdk-dns-row")).ToContainTextAsync("Cloudflare - test");
-        await Expect(page.Locator(".pdk-test-result:not(.pdk-test-running)")).ToBeVisibleAsync(new() { Timeout = 45_000 });
-        await Expect(page.Locator(".pdk-dns-row")).Not.ToContainTextAsync("not-a-real-token");
-        await PlaywrightBrowser.ScreenshotAsync(page, "dns-providers");
+        // A DNS provider, tested right after it is added. The test calls the real Cloudflare API (no fake is reachable through the
+        // vault's handler, which only speaks https to the real host), so it runs only on request, like the live provider tests.
+        if (Environment.GetEnvironmentVariable(LiveDnsVariable) == "1")
+        {
+            await page.GotoAsync("/settings/dns-providers");
+            await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
+            await page.ClickAsync(".pdk-add-dns");
+            await page.FillAsync(".pdk-dns-label input", "Cloudflare - test");
+            await page.FillAsync(".pdk-dns-credential input", "not-a-real-token");
+            await page.ClickAsync(".pdk-dns-submit");
+            await Expect(page.Locator(".pdk-dns-row")).ToContainTextAsync("Cloudflare - test");
+            await Expect(page.Locator(".pdk-test-result:not(.pdk-test-running)")).ToBeVisibleAsync(new() { Timeout = 45_000 });
+            await Expect(page.Locator(".pdk-dns-row")).Not.ToContainTextAsync("not-a-real-token");
+            await PlaywrightBrowser.ScreenshotAsync(page, "dns-providers");
+        }
 
         await page.GotoAsync("/settings/acme-accounts");
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
