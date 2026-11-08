@@ -44,3 +44,13 @@ public sealed record RevisionDiff(ConfigRevisionId From, ConfigRevisionId To, IR
 /// <param name="Items">The page.</param>
 /// <param name="Next">The last revision of the page when older ones remain; null otherwise.</param>
 public sealed record RevisionPage(IReadOnlyList<RevisionSummary> Items, ConfigRevisionId? Next = null);
+
+/// <summary>A revision on the history timeline: its metadata and what it changed against its parent.</summary>
+/// <param name="Revision">The metadata.</param>
+/// <param name="Changes">What it changed against its parent.</param>
+public sealed record RevisionTimelineEntry(RevisionSummary Revision, IReadOnlyList<ConfigChange> Changes);
+
+/// <summary>A page of the history timeline, newest first.</summary>
+/// <param name="Items">The page.</param>
+/// <param name="Next">The last revision of the page when older ones remain; null otherwise.</param>
+public sealed record RevisionTimelinePage(IReadOnlyList<RevisionTimelineEntry> Items, ConfigRevisionId? Next = null);

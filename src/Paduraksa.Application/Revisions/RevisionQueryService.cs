@@ -11,8 +11,8 @@ using Paduraksa.Data;
 namespace Paduraksa.Application.Revisions;
 
 /// <summary>
-/// Reads the config history for the surfaces (the REST API, later MCP and the dashboard): revision metadata pages, one revision
-/// with its document, and the diff between two. Read-only and without authorization of its own: the caller checks
+/// Reads the config history for the surfaces (the REST API, the dashboard, later MCP): revision metadata pages (with what each
+/// revision changed, for the dashboard's timeline), one revision with its document, and the diff between two. Read-only and without authorization of its own: the caller checks
 /// <c>config:read</c>, as it does for <see cref="Commands.ConfigService.GetCurrentAsync"/>. Everything it returns is a Contracts DTO.
 /// </summary>
 public sealed class RevisionQueryService
@@ -40,25 +40,37 @@ public sealed class RevisionQueryService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            long? beforeSeq = null;
-            if (after is { } cursor)
+            if (await PageAsync(context, limit, after, cancellationToken).ConfigureAwait(false) is not { } rows)
             {
-                beforeSeq = await context.ConfigRevisions.AsNoTracking()
-                    .Where(r => r.Id == cursor)
-                    .Select(r => (long?)r.Seq)
-                    .FirstOrDefaultAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                if (beforeSeq is null)
-                {
-                    return null;
-                }
+                return null;
             }
 
-            // One more than asked: whether it exists says whether older revisions remain.
-            IReadOnlyList<RevisionInfo> rows = await ConfigRevisionStore.ListAsync(context, limit + 1, beforeSeq, cancellationToken).ConfigureAwait(false);
             bool more = rows.Count > limit;
             RevisionSummary[] items = [.. rows.Take(limit).Select(ToSummary)];
             return new RevisionPage(items, more ? items[^1].Id : null);
+        }
+    }
+
+    /// <summary>
+    /// Like <see cref="ListAsync"/>, with what each revision changed against its parent (read from the stored change summary, so no
+    /// document is decompressed): the history timeline's rows. Returns null when <paramref name="after"/> names no revision.
+    /// </summary>
+    /// <exception cref="RevisionIntegrityException">A stored revision's metadata or change summary is corrupt.</exception>
+    public async Task<RevisionTimelinePage?> ListWithChangesAsync(int limit, ConfigRevisionId? after, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, MaxPageSize);
+        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (context.ConfigureAwait(false))
+        {
+            if (await PageAsync(context, limit, after, cancellationToken).ConfigureAwait(false) is not { } rows)
+            {
+                return null;
+            }
+
+            bool more = rows.Count > limit;
+            RevisionTimelineEntry[] items = [.. rows.Take(limit).Select(row => new RevisionTimelineEntry(ToSummary(row), ReadChanges(row)))];
+            return new RevisionTimelinePage(items, more ? items[^1].Revision.Id : null);
         }
     }
 
@@ -87,6 +99,27 @@ public sealed class RevisionQueryService
                 ? null
                 : new RevisionDiff(from, to, ConfigDiff.Compare(ReadDocument(older), ReadDocument(newer)));
         }
+    }
+
+    /// <summary>Up to <paramref name="limit"/> + 1 revisions older than <paramref name="after"/> (one more than asked: whether it exists
+    /// says whether older revisions remain); null when <paramref name="after"/> names no revision.</summary>
+    private static async Task<IReadOnlyList<RevisionInfo>?> PageAsync(ConfigDbContext context, int limit, ConfigRevisionId? after, CancellationToken cancellationToken)
+    {
+        long? beforeSeq = null;
+        if (after is { } cursor)
+        {
+            beforeSeq = await context.ConfigRevisions.AsNoTracking()
+                .Where(r => r.Id == cursor)
+                .Select(r => (long?)r.Seq)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (beforeSeq is null)
+            {
+                return null;
+            }
+        }
+
+        return await ConfigRevisionStore.ListAsync(context, limit + 1, beforeSeq, cancellationToken).ConfigureAwait(false);
     }
 
     private static RevisionSummary ToSummary(RevisionInfo info) => new(
