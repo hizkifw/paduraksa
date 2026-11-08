@@ -8,6 +8,11 @@ namespace Paduraksa.Server.Hosting;
 /// <see cref="PaduraksaHost"/> logs at Information. Real start failures (a port in use, a host stopping itself) are
 /// never requests, so they're still logged, by the generic host and at Critical by <see cref="PaduraksaHost"/>.
 /// One instance per process, shared by every <see cref="RoleLoggerFactory"/>.
+/// <para>
+/// It also drops Data Protection's "No XML encryptor configured" warning (event 35): the vault seals every element at rest,
+/// so Data Protection's own encryptor is deliberately absent and the warning is a false alarm. The vault logs its own
+/// Information line when it seals a new key.
+/// </para>
 /// </summary>
 /// <remarks>
 /// <para>Since .NET 10 a <see cref="Microsoft.Extensions.Hosting.BackgroundService"/> runs its
@@ -32,15 +37,22 @@ internal sealed class StartupLogFilter
     /// <summary>Its <c>BackgroundServiceStoppingHost</c> event: the StopHost behaviour stopping the host for it.</summary>
     internal const int BackgroundServiceStoppingHostEventId = 10;
 
+    /// <summary>Category of <c>Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager</c>.</summary>
+    internal const string XmlKeyManagerCategory = "Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager";
+
+    /// <summary>Its <c>NoXmlEncryptor</c> event: "No XML encryptor configured. Key … may be persisted to storage in unencrypted form."</summary>
+    internal const int NoXmlEncryptorEventId = 35;
+
     private volatile bool _startAbortRequested;
 
     /// <summary>Called by <see cref="PaduraksaHost"/> before it cancels the start.</summary>
     public void StartAbortRequested() => _startAbortRequested = true;
 
     public bool ShouldDrop(string category, EventId eventId, Exception? exception) =>
-        _startAbortRequested
-        && string.Equals(category, HostCategory, StringComparison.Ordinal)
-        && (eventId.Id == HostingFailedToStartEventId
-            || (eventId.Id is BackgroundServiceFailedEventId or BackgroundServiceStoppingHostEventId
-                && exception is OperationCanceledException));
+        (string.Equals(category, XmlKeyManagerCategory, StringComparison.Ordinal) && eventId.Id == NoXmlEncryptorEventId)
+        || (_startAbortRequested
+            && string.Equals(category, HostCategory, StringComparison.Ordinal)
+            && (eventId.Id == HostingFailedToStartEventId
+                || (eventId.Id is BackgroundServiceFailedEventId or BackgroundServiceStoppingHostEventId
+                    && exception is OperationCanceledException)));
 }

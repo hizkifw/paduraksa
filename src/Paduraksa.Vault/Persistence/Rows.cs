@@ -139,6 +139,29 @@ internal sealed class StagedKeyRow
     public const int SealedVersion = 1;
 }
 
+/// <summary>
+/// One element of the admin app's ASP.NET Core Data Protection key ring (PLAN §8.1, <c>IDataProtectionKeyStore</c>): the
+/// element XML sealed by the envelope cipher, bound to <c>(Id, purpose, Version)</c> with the friendly name in the purpose.
+/// The name is not secret; the element is, because it carries the raw key. Storing the same friendly name again replaces the
+/// element and increments <see cref="Version"/>, which is also in the AAD.
+/// </summary>
+internal sealed class DataProtectionKeyRow
+{
+    public DataProtectionKeyId Id { get; set; }
+
+    /// <summary>Data Protection's name for the element (unique): the AAD binds it, so editing it makes the element fail to open.</summary>
+    public string FriendlyName { get; set; } = "";
+
+    public int Version { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>The key element XML as <see cref="Crypto.EnvelopeCipher"/> made it (it contains the raw key material).</summary>
+    public byte[] Sealed { get; set; } = [];
+}
+
 internal sealed class VaultMetaRowConfiguration : IEntityTypeConfiguration<VaultMetaRow>
 {
     public void Configure(EntityTypeBuilder<VaultMetaRow> builder)
@@ -243,6 +266,28 @@ internal sealed class TotpStateRow
 
     /// <summary>The RFC 6238 time step of the last accepted code (Unix time / 30 s); null if none yet. Only ever rises.</summary>
     public long? LastStep { get; set; }
+}
+
+internal sealed class DataProtectionKeyRowConfiguration : IEntityTypeConfiguration<DataProtectionKeyRow>
+{
+    public void Configure(EntityTypeBuilder<DataProtectionKeyRow> builder)
+    {
+        builder.ToTable("DataProtectionKeys", table =>
+        {
+            table.HasCheckConstraint("CK_DataProtectionKeys_Name", "length(\"FriendlyName\") BETWEEN 1 AND 256");
+            table.HasCheckConstraint("CK_DataProtectionKeys_Version", "\"Version\" >= 1");
+            table.HasCheckConstraint("CK_DataProtectionKeys_Sealed", "length(\"Sealed\") > 0");
+        });
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.FriendlyName).HasMaxLength(256).IsRequired();
+        builder.Property(r => r.Sealed).IsRequired();
+
+        // One element per name: storing it again replaces it in place (see DataProtectionKeyStore.StoreAsync).
+        builder.HasIndex(r => r.FriendlyName).IsUnique();
+
+        // The version is in the AAD, so a concurrent store of the same name must fail rather than reuse a version.
+        builder.Property(r => r.Version).IsConcurrencyToken();
+    }
 }
 
 internal sealed class TotpStateRowConfiguration : IEntityTypeConfiguration<TotpStateRow>

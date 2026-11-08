@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
+using Paduraksa.Admin.DataProtection;
 using Paduraksa.Server.Configuration;
 
 namespace Paduraksa.Server.Hosting;
@@ -48,6 +49,14 @@ internal static class HostSetup
         ArgumentNullException.ThrowIfNull(context);
 
         context.Shared.RegisterInto(services, role);
+
+        // PLAN §8.1, §8.2: ASP.NET Core Data Protection for the admin app only (the dashboard's antiforgery tokens and circuit
+        // state), with its key ring in the vault. The public proxy and the core host never use Data Protection, and the
+        // public app must not be able to ask for it.
+        if (role == HostRole.Admin)
+        {
+            services.AddPaduraksaDataProtection(context.Shared.KeyRing);
+        }
 
         // ConsoleLifetime would hook SIGINT/SIGTERM in every host and stop each one independently.
         // PaduraksaHost owns signals and the stop order instead.

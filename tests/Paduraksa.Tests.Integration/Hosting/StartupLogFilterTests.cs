@@ -67,4 +67,16 @@ public sealed class StartupLogFilterTests
         Assert.False(_filter.ShouldDrop(Host, new EventId(12), new OperationCanceledException()));
         Assert.False(_filter.ShouldDrop(Host, new EventId(StartupLogFilter.HostingFailedToStartEventId + 1), new OperationCanceledException()));
     }
+
+    [Fact]
+    public void TheDataProtectionNoEncryptorWarningIsAlwaysDropped()
+    {
+        // Pinned to the framework's event: the vault seals the elements, so Data Protection's own encryptor is absent by design.
+        EventId noEncryptor = new(35);
+        Assert.True(_filter.ShouldDrop("Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager", noEncryptor, exception: null));
+
+        // Only that event in that category: other Data Protection failures must still be seen.
+        Assert.False(_filter.ShouldDrop("Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager", new EventId(36), exception: null));
+        Assert.False(_filter.ShouldDrop("Paduraksa.Vault.DataProtection.DataProtectionKeyStore", noEncryptor, exception: null));
+    }
 }

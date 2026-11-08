@@ -261,7 +261,17 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
                 CheckMode(stream, path, generated);
                 read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
+            {
+                // The commonest first-deploy trap: a Docker (non-swarm) secret is a bind mount with the host's owner and
+                // mode, so a host-root 0600 file is unreadable for the container's uid 10001.
+                throw new InvalidOperationException(
+                    $"The master key file {path} ({what}) cannot be read by {CurrentUser()}: {ex.Message} "
+                    + "This is a permissions problem, not a missing key. A Docker bind-mounted secret keeps its host owner and mode: "
+                    + $"run sudo chown 10001:10001 '{path}' && sudo chmod 400 '{path}' (the container runs as uid 10001).",
+                    ex);
+            }
+            catch (IOException ex)
             {
                 throw new InvalidOperationException($"The master key file {path} ({what}) cannot be read: {ex.Message}", ex);
             }
@@ -307,6 +317,36 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
             + (inner is null ? "." : $": {inner.Message}")
             + (generated ? " If it is empty or cut short (a first start that was interrupted) and vault.db holds no secrets, delete it and the vault generates a new one." : string.Empty),
             inner);
+
+    /// <summary>The effective user, with its uid on Unix (from <c>/proc/self/status</c>), for a permission error that says who was refused.</summary>
+    private static string CurrentUser()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return Environment.UserName;
+        }
+
+        try
+        {
+            foreach (string line in File.ReadLines("/proc/self/status"))
+            {
+                if (line.StartsWith("Uid:", StringComparison.Ordinal))
+                {
+                    string[] fields = line.Split('\t', StringSplitOptions.RemoveEmptyEntries);
+                    if (fields.Length >= 2 && int.TryParse(fields[1], out int uid))
+                    {
+                        return $"{Environment.UserName} (uid {uid})";
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // No procfs: the name alone still says who.
+        }
+
+        return Environment.UserName;
+    }
 
     private void CheckMode(FileStream stream, string path, bool generated)
     {

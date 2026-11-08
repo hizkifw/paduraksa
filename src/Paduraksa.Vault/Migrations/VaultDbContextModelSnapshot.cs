@@ -115,6 +115,47 @@ namespace Paduraksa.Vault.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Vault.Persistence.DataProtectionKeyRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FriendlyName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Sealed")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FriendlyName")
+                        .IsUnique();
+
+                    b.ToTable("DataProtectionKeys", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DataProtectionKeys_Name", "length(\"FriendlyName\") BETWEEN 1 AND 256");
+
+                            t.HasCheckConstraint("CK_DataProtectionKeys_Sealed", "length(\"Sealed\") > 0");
+
+                            t.HasCheckConstraint("CK_DataProtectionKeys_Version", "\"Version\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Vault.Persistence.SecretRow", b =>
                 {
                     b.Property<byte[]>("Id")

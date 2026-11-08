@@ -32,6 +32,8 @@ internal sealed class VaultDbContext(DbContextOptions<VaultDbContext> options) :
 
     internal DbSet<TotpStateRow> TotpStates => Set<TotpStateRow>();
 
+    internal DbSet<DataProtectionKeyRow> DataProtectionKeys => Set<DataProtectionKeyRow>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.AddTypedIdConventions();
@@ -49,6 +51,7 @@ internal sealed class VaultDbContext(DbContextOptions<VaultDbContext> options) :
         modelBuilder.ApplyConfiguration(new CertificateKeyRowConfiguration());
         modelBuilder.ApplyConfiguration(new StagedKeyRowConfiguration());
         modelBuilder.ApplyConfiguration(new TotpStateRowConfiguration());
+        modelBuilder.ApplyConfiguration(new DataProtectionKeyRowConfiguration());
     }
 }
 

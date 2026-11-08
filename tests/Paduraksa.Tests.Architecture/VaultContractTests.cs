@@ -54,6 +54,7 @@ public sealed class VaultContractTests
         typeof(IVaultLifecycle),
         typeof(IVaultKekRotation),
         typeof(ITotpAuthenticator),
+        typeof(IDataProtectionKeyStore),
     ];
 
     /// <summary>
@@ -79,6 +80,9 @@ public sealed class VaultContractTests
         $"{nameof(CsrResult)}.{nameof(CsrResult.Der)}",
         $"{nameof(CsrResult)}.{nameof(CsrResult.Pem)}",
         $"{nameof(CertificateInfo)}.{nameof(CertificateInfo.PublicChainPem)}",
+
+        // The third sanctioned egress: Data Protection must parse and use the key element in-process (PLAN §8.2).
+        $"{nameof(DataProtectionKey)}.{nameof(DataProtectionKey.KeyXml)}",
     ];
 
     /// <summary>Text members under these names are key material on their way out.</summary>
@@ -170,6 +174,19 @@ public sealed class VaultContractTests
         }
 
         Assert.DoesNotContain(narrow, l => l.StartsWith("CleanKeyHolder", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void KeyMaterialEgressTypesDoNotPrintTheirKey()
+    {
+        // The one public egress type that carries raw key material (the Data Protection element): a record's generated
+        // ToString would print every property, including KeyXml. The others in the allowlist are public data (a CSR, PEM
+        // certificate chains) or framework types.
+        DataProtectionKey key = new("friendly-name", "SECRET-KEY-MATERIAL");
+
+        Assert.DoesNotContain("SECRET-KEY-MATERIAL", key.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("SECRET-KEY-MATERIAL", $"{key}", StringComparison.Ordinal);
+        Assert.Contains("FriendlyName", key.ToString(), StringComparison.Ordinal);
     }
 
     private static List<Type> VaultTypes() =>

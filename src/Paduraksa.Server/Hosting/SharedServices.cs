@@ -59,6 +59,7 @@ internal sealed class SharedServices : IAsyncDisposable
         AdminCertificate = Get<AdminCertificateService>();
         AdminInternal = Get<AdminInternalListener>();
         Catalog = Get<ICertificateCatalog>();
+        KeyRing = Get<IDataProtectionKeyStore>();
         PublicListeners = Get<PublicListenerSetup>();
         Config = Get<ConfigService>();
         CertificateService = Get<CertificateService>();
@@ -143,6 +144,12 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The vault describing the certificates it holds (public facts only); the CA download endpoints read the root from it.</summary>
     public ICertificateCatalog Catalog { get; }
+
+    /// <summary>
+    /// The admin app's Data Protection key ring in the vault (PLAN §8.1): the admin host registers Data Protection over it in
+    /// <see cref="HostSetup.ApplyCommon"/>. The public and core hosts never resolve Data Protection.
+    /// </summary>
+    public IDataProtectionKeyStore KeyRing { get; }
 
     /// <summary>The public listener layout, the TLS handshake selector and the compiler options derived from it.</summary>
     public PublicListenerSetup PublicListeners { get; }
@@ -246,6 +253,8 @@ internal sealed class SharedServices : IAsyncDisposable
             VaultCapabilities vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
             // The vault's own catalog is a shared instance too: the CA download endpoints read the root from it (public facts).
             builder.AddOwnedElsewhere(vault.Catalog);
+            // The admin app's Data Protection key ring (PLAN §8.1); the admin host registers Data Protection over it in HostSetup.
+            builder.AddOwnedElsewhere(vault.KeyRing);
             ConfigStoreServices configStore = ConfigStore.AddTo(
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
 

@@ -22,6 +22,7 @@ namespace Paduraksa.Server.Hosting;
 /// <param name="Secrets">Secret metadata and storage (DNS provider credentials).</param>
 /// <param name="SecretHandlers">The authenticating HTTP handlers DNS providers build their clients over.</param>
 /// <param name="Totp">Two-factor codes for admin users (the secret never leaves the vault).</param>
+/// <param name="KeyRing">The admin app's Data Protection key ring (the dashboard's antiforgery and circuit state; PLAN §8.1).</param>
 internal sealed record VaultCapabilities(
     IVaultLifecycle Lifecycle,
     IServerCertificateSource ServerCertificates,
@@ -32,7 +33,8 @@ internal sealed record VaultCapabilities(
     IMacKeySource MacKeys,
     ISecretStore Secrets,
     ISecretHttpHandlerFactory SecretHandlers,
-    ITotpAuthenticator Totp);
+    ITotpAuthenticator Totp,
+    IDataProtectionKeyStore KeyRing);
 
 /// <summary>
 /// Composes the vault (PLAN §8) into the shared services: the one <c>AddPaduraksaVault</c> registration, over the data
@@ -62,7 +64,8 @@ internal static class VaultStore
             container.GetRequiredService<IMacKeySource>(),
             container.GetRequiredService<ISecretStore>(),
             container.GetRequiredService<ISecretHttpHandlerFactory>(),
-            container.GetRequiredService<ITotpAuthenticator>());
+            container.GetRequiredService<ITotpAuthenticator>(),
+            container.GetRequiredService<IDataProtectionKeyStore>());
     }
 }
 

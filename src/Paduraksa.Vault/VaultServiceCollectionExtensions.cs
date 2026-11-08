@@ -3,6 +3,7 @@ using Paduraksa.Core.Vault;
 using Paduraksa.Storage.Sqlite;
 using Paduraksa.Vault.Certificates;
 using Paduraksa.Vault.Crypto;
+using Paduraksa.Vault.DataProtection;
 using Paduraksa.Vault.Keys;
 using Paduraksa.Vault.Persistence;
 using Paduraksa.Vault.Secrets;
@@ -72,6 +73,7 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ICertificateImport, CertificateImport>();
         services.AddSingleton<ICertificateCatalog, CertificateCatalog>();
         services.AddSingleton<ITotpAuthenticator, TotpAuthenticator>();
+        services.AddSingleton<IDataProtectionKeyStore, DataProtectionKeyStore>();
         return services;
     }
 }

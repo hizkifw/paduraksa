@@ -123,6 +123,28 @@ public sealed class KekProviderTests : IDisposable
     }
 
     [Fact]
+    [UnsupportedOSPlatform("windows")]
+    public void AnUnreadableKeyFileNamesThePermissionProblemAndTheUser()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "Unix file modes.");
+        Assert.SkipWhen(string.Equals(Environment.UserName, "root", StringComparison.Ordinal), "root bypasses file modes.");
+
+        string path = _data.File("secret.key");
+        using (var kek = Kek.Generate())
+        {
+            Assert.True(KekProvider.TryCreateKeyFile(path, kek));
+        }
+
+        File.SetUnixFileMode(path, UnixFileMode.None);
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => Resolve(new Dictionary<string, string?> { [KekProvider.KeyFileVariable] = path }));
+
+        Assert.Contains("permissions problem", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("uid", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("chown 10001:10001", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnOversizedOrNonTextKeyFileIsRefused()
     {
         var big = _data.File("big");

@@ -32,3 +32,10 @@ public readonly partial record struct AcmeOrderId;
 /// </summary>
 [TypedId("stk")]
 public readonly partial record struct StagedKeyId;
+
+/// <summary>
+/// One element of the ASP.NET Core Data Protection key ring in the vault (<see cref="Core.Vault.IDataProtectionKeyStore"/>,
+/// PLAN §8.1). A reference only: the element itself is sealed, and only the admin app's <c>IXmlRepository</c> adapter reads it.
+/// </summary>
+[TypedId("dpk")]
+public readonly partial record struct DataProtectionKeyId;

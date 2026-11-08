@@ -44,7 +44,8 @@ internal static class VaultDatabase
                     var holdsData = await context.Secrets.AnyAsync(cancellationToken).ConfigureAwait(false)
                         || await context.AccountKeys.AnyAsync(cancellationToken).ConfigureAwait(false)
                         || await context.CertificateKeys.AnyAsync(cancellationToken).ConfigureAwait(false)
-                        || await context.StagedKeys.AnyAsync(cancellationToken).ConfigureAwait(false);
+                        || await context.StagedKeys.AnyAsync(cancellationToken).ConfigureAwait(false)
+                        || await context.DataProtectionKeys.AnyAsync(cancellationToken).ConfigureAwait(false);
                     if (holdsData)
                     {
                         throw new InvalidOperationException(

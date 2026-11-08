@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Vault;
 using Paduraksa.Vault.Certificates;
 using Paduraksa.Vault.Crypto;
+using Paduraksa.Vault.DataProtection;
 using Paduraksa.Vault.Keys;
 using Paduraksa.Vault.Secrets;
 
@@ -10,7 +11,7 @@ namespace Paduraksa.Vault;
 
 /// <summary>What <see cref="KekRotation.RotateAsync"/> re-wrapped.</summary>
 /// <param name="Secrets">Secret values re-wrapped (a MAC secret's previous value counts too).</param>
-/// <param name="AccountKeys">Account keys, certificate keys and staged certificate keys re-wrapped.</param>
+/// <param name="AccountKeys">Account keys, certificate keys, staged certificate keys and Data Protection key-ring elements re-wrapped.</param>
 internal sealed record KekRotated(int Secrets, int AccountKeys);
 
 /// <summary>
@@ -116,6 +117,13 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                 foreach (var row in await context.StagedKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
                 {
                     row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, CertificateSeal.StagedContextOf(row.CertificateId, row.StagedKeyId, row.Names));
+                    accountKeys++;
+                }
+
+                // The admin app's Data Protection key ring (PLAN §8.1): its elements are keys like any other.
+                foreach (var row in await context.DataProtectionKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    row.Sealed = EnvelopeCipher.Rewrap(old, newKek, row.Sealed, DataProtectionKeyStore.ContextOf(row));
                     accountKeys++;
                 }
 

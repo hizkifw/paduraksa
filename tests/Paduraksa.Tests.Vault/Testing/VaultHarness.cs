@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Vault;
 using Paduraksa.Vault;
 using Paduraksa.Vault.Crypto;
+using Paduraksa.Vault.DataProtection;
 
 namespace Paduraksa.Tests.Vault.Testing;
 
@@ -19,10 +20,13 @@ internal sealed class VaultHarness : IDisposable
 
     public TempDirectory Data { get; } = new();
 
+    /// <summary>The frozen clock every vault test runs on. Test certificates and chain checks use it too, so the suite is deterministic.</summary>
+    public static readonly DateTimeOffset Epoch = new(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);
+
     /// <summary>The environment the vault sees. Starts with a fresh master key in <c>PADURAKSA_MASTER_KEY</c>.</summary>
     public Dictionary<string, string?> Variables { get; } = [];
 
-    public ManualTimeProvider Time { get; } = new(new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero));
+    public ManualTimeProvider Time { get; } = new(Epoch);
 
     public VaultPolicy Policy { get; set; } = VaultPolicy.Default;
 
@@ -32,6 +36,9 @@ internal sealed class VaultHarness : IDisposable
     public ICertificateNameRules? NameRules { get; set; }
 
     public ListLogger<KekProvider> KekLog { get; } = new();
+
+    /// <summary>What the Data Protection store logged (a skipped damaged row, a newly sealed element).</summary>
+    public ListLogger<DataProtectionKeyStore> DataProtectionLog { get; } = new();
 
     public VaultHarness()
     {
@@ -78,6 +85,7 @@ internal sealed class VaultHarness : IDisposable
             Terminal ?? Paduraksa.Vault.Secrets.TerminalHandlers.CreateSockets);
         VaultServiceCollectionExtensions.AddVault(services, options, NameRules);
         services.AddSingleton<ILogger<KekProvider>>(KekLog);
+        services.AddSingleton<ILogger<DataProtectionKeyStore>>(DataProtectionLog);
         return services.BuildServiceProvider(validateScopes: true);
     }
 }
