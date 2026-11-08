@@ -9,6 +9,7 @@ using Paduraksa.Proxy;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
 
 namespace Paduraksa.Server.Hosting;
@@ -81,6 +82,10 @@ internal static partial class PublicApp
                     .ConfigureServices(services => services.AddPaduraksaProxy(context.Shared.SnapshotPublisher))
                     .Configure(static app =>
                     {
+                        // The simulator reads destination health from this app's YARP while it runs.
+                        DeferredUpstreamHealth health = app.ApplicationServices.GetRequiredService<DeferredUpstreamHealth>();
+                        health.Attach(app.ApplicationServices.GetRequiredService<IUpstreamHealth>());
+                        app.ApplicationServices.GetRequiredService<IHostApplicationLifetime>().ApplicationStopped.Register(health.Detach);
                         GateMiddleware gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
                         app.Use(gate.InvokeAsync);
                         app.UseRouting();

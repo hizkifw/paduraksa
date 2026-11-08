@@ -23,6 +23,28 @@ public interface IUpstreamHealth
     UpstreamHealthSnapshot? Lookup(UpstreamId upstream);
 }
 
+/// <summary>
+/// An <see cref="IUpstreamHealth"/> that can be handed out before YARP exists: the process-wide services (the request
+/// simulator) are built before the public app, whose YARP holds the state. Answers null (no such cluster) until
+/// <see cref="Attach"/>, and again after <see cref="Detach"/>.
+/// </summary>
+public sealed class DeferredUpstreamHealth : IUpstreamHealth
+{
+    private volatile IUpstreamHealth? _inner;
+
+    /// <summary>Starts answering from <paramref name="health"/>.</summary>
+    public void Attach(IUpstreamHealth health)
+    {
+        ArgumentNullException.ThrowIfNull(health);
+        _inner = health;
+    }
+
+    /// <summary>Stops answering (the proxy it read has stopped).</summary>
+    public void Detach() => _inner = null;
+
+    public UpstreamHealthSnapshot? Lookup(UpstreamId upstream) => _inner?.Lookup(upstream);
+}
+
 /// <summary><see cref="IUpstreamHealth"/> over YARP's runtime state (<see cref="IProxyStateLookup"/>).</summary>
 public sealed class YarpUpstreamHealth(IProxyStateLookup state) : IUpstreamHealth
 {

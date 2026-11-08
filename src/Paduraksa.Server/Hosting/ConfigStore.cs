@@ -7,8 +7,11 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
+using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Placeholders;
@@ -46,6 +49,7 @@ internal static class ConfigStore
         PublicListenerSetup listeners,
         PlaceholderCertificates placeholder,
         VaultCapabilities vault,
+        AcmeChallengeStore challenges,
         bool placeholderEnabled,
         AdminOptions admin,
         TimeProvider timeProvider,
@@ -55,6 +59,9 @@ internal static class ConfigStore
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
         IConfigCompiler compiler = builder.Add<IConfigCompiler>(new ConfigCompiler(listeners.CompilerOptions));
+
+        // The public app attaches YARP's live health when it starts (PublicApp); until then every destination is unknown.
+        DeferredUpstreamHealth health = builder.Add(new DeferredUpstreamHealth());
 
         // The vault's certificates first; the placeholder (a source and a built-in inventory entry) only when it is enabled.
         IServiceCollection services = new ServiceCollection()
@@ -70,6 +77,9 @@ internal static class ConfigStore
             .AddSingleton(vault.Catalog)
             .AddSingleton(vault.Totp)
             .AddPaduraksaIdentity(dataDirectory, admin.ToIdentityOptions())
+            .AddSingleton<IUpstreamHealth>(health)
+            .AddSingleton(new ListenerFacts(listeners.HttpProxyProtocol, listeners.HttpsProxyProtocol, listeners.Http3))
+            .AddSingleton(challenges)
             .AddPaduraksaConfigService()
             .AddPaduraksaCertificateOperations()
             .AddPaduraksaCertificateRecovery();
@@ -83,6 +93,7 @@ internal static class ConfigStore
         ConfigService config = builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
         CertificateService certificates = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<RequestSimulator>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateRecovery>());
         builder.AddOwnedElsewhere(container.GetRequiredService<UserService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<SessionService>());

@@ -10,6 +10,7 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
@@ -63,6 +64,7 @@ internal sealed class SharedServices : IAsyncDisposable
         DnsProviders = Get<DnsProviderService>();
         AcmeIssuance = Get<AcmeIssuanceService>();
         AcmeScheduler = Get<AcmeRenewalScheduler>();
+        Simulator = Get<RequestSimulator>();
         LastKnownGood = Get<LastKnownGoodFile>();
         Users = Get<UserService>();
         Sessions = Get<SessionService>();
@@ -153,6 +155,8 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The renewal scheduler. A hosted service of the core host only when <c>Paduraksa:Acme:Enabled</c> (see <see cref="CoreHost"/>).</summary>
     public AcmeRenewalScheduler AcmeScheduler { get; }
+    /// <summary>The request simulator (PLAN §7.7): what a request would get against the live config, a revision or a draft.</summary>
+    public RequestSimulator Simulator { get; }
 
     /// <summary><c>&lt;data dir&gt;/last-good.json</c>, written after every successful publish.</summary>
     public LastKnownGoodFile LastKnownGood { get; }
@@ -200,14 +204,16 @@ internal sealed class SharedServices : IAsyncDisposable
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 
+            // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate and the
+            // request simulator read the class.
+            AcmeChallengeStore challenges = builder.Add(new AcmeChallengeStore());
+            builder.Add<IAcmeChallengeStore>(challenges);
+
             // The vault before the config store, so it is disposed after it (the store loads certificates through it).
             VaultCapabilities vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
             ConfigStoreServices configStore = ConfigStore.AddTo(
-                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
 
-            // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate reads the class.
-            AcmeChallengeStore challenges = builder.Add(new AcmeChallengeStore());
-            builder.Add<IAcmeChallengeStore>(challenges);
             // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
             IssuanceStore.AddTo(builder, options, configStore, vault, challenges, timeProvider, coreLoggers);
             // TODO(M7): MetricsRegistry.
