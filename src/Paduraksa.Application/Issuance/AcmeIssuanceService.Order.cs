@@ -9,6 +9,7 @@ using Paduraksa.Acme;
 using Paduraksa.Acme.Dns;
 using Paduraksa.Application.Audit;
 using Paduraksa.Contracts.Certificates;
+using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data.Issuance;
@@ -70,6 +71,7 @@ public sealed partial class AcmeIssuanceService
                     break;
                 case AcmeStatus.Processing:
                     LogStep(row.CertificateId, "waiting for the certificate");
+                    Report(attempt, AcmeProgressStage.Finalizing);
                     order = await attempt.Client.WaitForOrderIssuedAsync(attempt.Ref, order.Url, cancellationToken).ConfigureAwait(false);
                     break;
                 case AcmeStatus.Valid:
@@ -107,6 +109,7 @@ public sealed partial class AcmeIssuanceService
         if (order is { Status: AcmeStatus.Pending or AcmeStatus.Ready or AcmeStatus.Processing or AcmeStatus.Valid })
         {
             LogStep(row.CertificateId, "resuming the order at the CA");
+            Report(attempt, AcmeProgressStage.OrderCreated, "Resumed the order the CA already has.");
             return order;
         }
 
@@ -161,6 +164,7 @@ public sealed partial class AcmeIssuanceService
             },
             cancellationToken).ConfigureAwait(false);
         LogStep(row.CertificateId, "order created");
+        Report(attempt, AcmeProgressStage.OrderCreated, Plural(row.Names.Count, "name", "names") + " ordered.");
         return order;
     }
 
@@ -172,6 +176,7 @@ public sealed partial class AcmeIssuanceService
     private async Task<AcmeOrder> FulfilAsync(Attempt attempt, AcmeOrder order, CancellationToken cancellationToken)
     {
         AcmeOrderRow row = attempt.Row;
+        Report(attempt, AcmeProgressStage.Authorizing, Plural(order.Authorizations.Count, "authorization", "authorizations") + " to check.");
         string challengeType = row.ChallengeType.ToName();
         List<(AcmeAuthorization Authorization, AcmeChallenge Challenge, string KeyAuthorization)> pending = [];
         foreach (Uri authorizationUrl in order.Authorizations)
@@ -226,9 +231,25 @@ public sealed partial class AcmeIssuanceService
                 await dns.CreateTxtBatchAsync([.. records.Select(r => new DnsChallengeRecord(r.Name, r.Value))], cancellationToken).ConfigureAwait(false);
             }
 
+            if (pending.Count > 0)
+            {
+                Report(
+                    attempt,
+                    AcmeProgressStage.ChallengePublished,
+                    records.Count > 0
+                        ? $"{Plural(records.Count, "TXT record", "TXT records")} at {string.Join(", ", records.Select(r => r.Name).Distinct(StringComparer.Ordinal))}."
+                        : $"{Plural(tokens.Count, "HTTP-01 answer", "HTTP-01 answers")} served under /.well-known/acme-challenge/.");
+            }
+
             if (records.Count > 0)
             {
+                Report(attempt, AcmeProgressStage.PropagationCheck, "Waiting for the zone's authoritative name servers to return the records.");
                 await WaitForDnsAsync(row.CertificateId, records, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (pending.Count > 0)
+            {
+                Report(attempt, AcmeProgressStage.Validating);
             }
 
             foreach ((AcmeAuthorization _, AcmeChallenge challenge, string _) in pending)
@@ -255,6 +276,7 @@ public sealed partial class AcmeIssuanceService
         }
 
         AcmeOrder ready = await attempt.Client.WaitForOrderReadyAsync(attempt.Ref, order.Url, cancellationToken).ConfigureAwait(false);
+        Report(attempt, AcmeProgressStage.Validated);
         return ready;
     }
 
@@ -388,6 +410,7 @@ public sealed partial class AcmeIssuanceService
     private async Task<AcmeOrder> FinalizeAsync(Attempt attempt, AcmeOrder order, CancellationToken cancellationToken)
     {
         AcmeOrderRow row = attempt.Row;
+        Report(attempt, AcmeProgressStage.Finalizing);
         if (row.StagedKeyId is null || row.Csr is null)
         {
             CsrResult csr = await _vault.CreateKeyAndCsrAsync(row.CertificateId, row.KeySpec, row.Names, cancellationToken).ConfigureAwait(false);
@@ -607,4 +630,7 @@ public sealed partial class AcmeIssuanceService
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Certificate {Certificate}: the CA could not use the ARI replaces hint ({ProblemType}); ordering again without it.")]
     private partial void LogReplacesDropped(CertificateId certificate, string problemType);
+
+    private static string Plural(int count, string one, string many) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{count} {(count == 1 ? one : many)}");
 }

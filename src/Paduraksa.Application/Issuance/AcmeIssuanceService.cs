@@ -62,6 +62,7 @@ public sealed partial class AcmeIssuanceService
     public const int MaxChainLength = 256;
 
     private readonly ConcurrentDictionary<CertificateId, byte> _running = [];
+    private readonly ConcurrentDictionary<CertificateId, AcmeOrderProgress> _progress = [];
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly ConfigService _config;
     private readonly CertificateService _certificates;
@@ -123,7 +124,16 @@ public sealed partial class AcmeIssuanceService
     /// key and CSR in the vault, finalize, download (the preferred chain if the CA offers it), attach, register. Returns
     /// when it is issued or has failed; a failure is kept for the scheduler to retry.
     /// </summary>
-    public async Task<IssuanceResult> RequestCertificateAsync(CertificateIssueRequest request, CommandOrigin origin, CancellationToken cancellationToken = default)
+    public Task<IssuanceResult> RequestCertificateAsync(CertificateIssueRequest request, CommandOrigin origin, CancellationToken cancellationToken = default) =>
+        RequestCertificateAsync(request, origin, null, cancellationToken);
+
+    /// <summary>
+    /// <see cref="RequestCertificateAsync(CertificateIssueRequest, CommandOrigin, CancellationToken)"/>, telling <paramref name="progress"/>
+    /// each step as the run reaches it (the first report carries the new certificate's ID). The reports are made on the run's own thread;
+    /// a reporter that throws is ignored.
+    /// </summary>
+    public async Task<IssuanceResult> RequestCertificateAsync(
+        CertificateIssueRequest request, CommandOrigin origin, IProgress<AcmeOrderProgress>? progress, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(origin);
@@ -178,7 +188,7 @@ public sealed partial class AcmeIssuanceService
             throw;
         }
 
-        return await RunAsync(id, origin, cancellationToken).ConfigureAwait(false);
+        return await RunAsync(id, origin, progress, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -187,7 +197,14 @@ public sealed partial class AcmeIssuanceService
     /// is unfinished or failed continues the order it has, or makes a new one if the CA no longer accepts it. This is what
     /// the scheduler calls, and what "renew now" is.
     /// </summary>
-    public async Task<IssuanceResult> RenewAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default)
+    public Task<IssuanceResult> RenewAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default) =>
+        RenewAsync(id, origin, null, cancellationToken);
+
+    /// <summary>
+    /// <see cref="RenewAsync(CertificateId, CommandOrigin, CancellationToken)"/>, telling <paramref name="progress"/> each step as the run
+    /// reaches it.
+    /// </summary>
+    public async Task<IssuanceResult> RenewAsync(CertificateId id, CommandOrigin origin, IProgress<AcmeOrderProgress>? progress, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
         if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.CertificatesWrite, "acme.order.renew", id.ToString(), cancellationToken).ConfigureAwait(false))
@@ -195,8 +212,14 @@ public sealed partial class AcmeIssuanceService
             return new IssuanceResult(IssuanceOutcome.Forbidden, id);
         }
 
-        return await RunAsync(id, origin, cancellationToken).ConfigureAwait(false);
+        return await RunAsync(id, origin, progress, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// The step a run of this certificate's issuance has reached, while one runs in this process (the scheduler's included); null when
+    /// none runs. What a page shows for an order it did not start itself; the stored order (<see cref="GetOrderAsync"/>) says the rest.
+    /// </summary>
+    public AcmeOrderProgress? GetProgress(CertificateId id) => _progress.GetValueOrDefault(id);
 
     /// <summary>
     /// What the scheduler calls for a certificate: does what is <b>due now</b>, if anything. Under the certificate's guard it reads the
@@ -228,7 +251,7 @@ public sealed partial class AcmeIssuanceService
                 case AcmeOrderStatus.Failed when row.RetryAt is not { } retryAt || retryAt <= now:
                 case AcmeOrderStatus.Valid when row.NextRenewalAt is { } renewAt && renewAt <= now:
                     LogDue(id, row.Status);
-                    IssuanceResult result = await RunCoreAsync(row, CommandOrigin.System, cancellationToken).ConfigureAwait(false);
+                    IssuanceResult result = await RunCoreAsync(row, CommandOrigin.System, null, cancellationToken).ConfigureAwait(false);
                     return result.Outcome is not (IssuanceOutcome.InProgress or IssuanceOutcome.NotFound or IssuanceOutcome.Unavailable);
                 case AcmeOrderStatus.Valid when row.AriCheckAt is { } checkAt && checkAt <= now:
                     _ = await RefreshCoreAsync(row, cancellationToken).ConfigureAwait(false);
@@ -239,6 +262,7 @@ public sealed partial class AcmeIssuanceService
         }
         finally
         {
+            _progress.TryRemove(id, out _);
             _running.TryRemove(id, out _);
         }
     }
@@ -470,7 +494,7 @@ public sealed partial class AcmeIssuanceService
         }
     }
 
-    private async Task<IssuanceResult> RunAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken)
+    private async Task<IssuanceResult> RunAsync(CertificateId id, CommandOrigin origin, IProgress<AcmeOrderProgress>? progress, CancellationToken cancellationToken)
     {
         if (!_running.TryAdd(id, 0))
         {
@@ -481,16 +505,17 @@ public sealed partial class AcmeIssuanceService
         {
             // Read under the guard: what is decided from the row (a renewal or a continuation) must not be stale.
             AcmeOrderRow? row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
-            return row is null ? new IssuanceResult(IssuanceOutcome.NotFound, id) : await RunCoreAsync(row, origin, cancellationToken).ConfigureAwait(false);
+            return row is null ? new IssuanceResult(IssuanceOutcome.NotFound, id) : await RunCoreAsync(row, origin, progress, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
+            _progress.TryRemove(id, out _);
             _running.TryRemove(id, out _);
         }
     }
 
     /// <summary>One run for a row read under the certificate's guard: a finished issuance starts a new order, anything else continues.</summary>
-    private async Task<IssuanceResult> RunCoreAsync(AcmeOrderRow row, CommandOrigin origin, CancellationToken cancellationToken)
+    private async Task<IssuanceResult> RunCoreAsync(AcmeOrderRow row, CommandOrigin origin, IProgress<AcmeOrderProgress>? progress, CancellationToken cancellationToken)
     {
         CertificateId id = row.CertificateId;
         if (_config.Status is { AcceptsCommands: false } unusable)
@@ -517,12 +542,15 @@ public sealed partial class AcmeIssuanceService
                 account,
                 _clients.GetClient(new Uri(account.DirectoryUrl)),
                 new AcmeAccountRef(account.Id, new Uri(account.AccountUrl)),
-                origin);
+                origin,
+                progress);
+            Report(attempt, AcmeProgressStage.Starting);
             LogAttempt(id, row.Status, startFresh);
             await UpdateAsync(row, r => r.LastAttemptAt = _time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
             CertificateInfo info = await DriveAsync(attempt, startFresh, cancellationToken).ConfigureAwait(false);
             CertificateDetail? issued = await _certificates.GetAsync(id, CancellationToken.None).ConfigureAwait(false);
             LogIssued(id, info.Sha256Fingerprint, info.NotAfter);
+            Report(attempt, AcmeProgressStage.Issued);
             return new IssuanceResult(IssuanceOutcome.Issued, id, issued?.Summary);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -532,12 +560,12 @@ public sealed partial class AcmeIssuanceService
         }
         catch (Exception ex)
         {
-            return await FailAsync(row, ex, origin).ConfigureAwait(false);
+            return await FailAsync(row, ex, origin, progress).ConfigureAwait(false);
         }
     }
 
     /// <summary>Records a failed attempt: the row, an audit event, and the certificate's own status where it matters.</summary>
-    private async Task<IssuanceResult> FailAsync(AcmeOrderRow row, Exception ex, CommandOrigin origin)
+    private async Task<IssuanceResult> FailAsync(AcmeOrderRow row, Exception ex, CommandOrigin origin, IProgress<AcmeOrderProgress>? progress)
     {
         (AcmeFailureKind kind, TimeSpan? retryAfter, string message) = Classify(ex);
         message = IssuanceMapping.Sanitize(message, 1024);
@@ -607,6 +635,7 @@ public sealed partial class AcmeIssuanceService
         row.RetryAt = retryAt;
 
         LogFailed(row.CertificateId, kind, attempts, retryAt, message);
+        Report(row, progress, new AcmeOrderProgress(row.CertificateId, AcmeProgressStage.Failed, row.ChallengeType, now, message, retryAt));
 
         CertificateDetail? certificate = await _certificates.GetAsync(row.CertificateId, token).ConfigureAwait(false);
         if (certificate is { Summary: { } summary }
@@ -631,8 +660,35 @@ public sealed partial class AcmeIssuanceService
         _ => (AcmeFailureKind.Permanent, null, $"{ex.GetType().Name}: {IssuanceMapping.Sanitize(ex.Message)}"),
     };
 
-    /// <summary>The state of one run: the order row (updated in memory as it is saved), its account and the client.</summary>
-    private sealed record Attempt(AcmeOrderRow Row, AcmeAccountRow Account, AcmeClient Client, AcmeAccountRef Ref, CommandOrigin Origin);
+    /// <summary>The state of one run: the order row (updated in memory as it is saved), its account, the client and who hears of its steps.</summary>
+    private sealed record Attempt(AcmeOrderRow Row, AcmeAccountRow Account, AcmeClient Client, AcmeAccountRef Ref, CommandOrigin Origin, IProgress<AcmeOrderProgress>? Progress);
+
+    /// <summary>Records that the run reached <paramref name="stage"/>, for <see cref="GetProgress"/> and the caller's reporter.</summary>
+    private void Report(Attempt attempt, AcmeProgressStage stage, string? detail = null) =>
+        Report(attempt.Row, attempt.Progress, new AcmeOrderProgress(attempt.Row.CertificateId, stage, attempt.Row.ChallengeType, _time.GetUtcNow(), detail));
+
+    private void Report(AcmeOrderRow row, IProgress<AcmeOrderProgress>? progress, AcmeOrderProgress step)
+    {
+        _progress[row.CertificateId] = step;
+        if (progress is null)
+        {
+            return;
+        }
+
+        try
+        {
+            progress.Report(step);
+        }
+#pragma warning disable CA1031 // A watcher's failure (a closed page) must never fail the issuance it watches.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            LogProgressReporterFailed(row.CertificateId, ex.GetType().Name);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Certificate {Certificate}: a progress reporter failed ({ErrorType}); the issuance goes on.")]
+    private partial void LogProgressReporterFailed(CertificateId certificate, string errorType);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Certificate {Certificate}: due ({Status}).")]
     private partial void LogDue(CertificateId certificate, AcmeOrderStatus status);
