@@ -139,8 +139,15 @@ public static class IdentityText
     {
         ArgumentNullException.ThrowIfNull(token);
         return token.Revoked ? ("Revoked", Config.Tone.Default)
-            : token.ExpiresAt is { } end && end <= now ? ("Expired", Config.Tone.Warning)
+            : !IsLive(token, now) ? ("Expired", Config.Tone.Warning)
             : ("Active", Config.Tone.Success);
+    }
+
+    /// <summary>Whether a token still works: not revoked, and not past its expiry.</summary>
+    public static bool IsLive(ApiTokenSummary token, DateTimeOffset now)
+    {
+        ArgumentNullException.ThrowIfNull(token);
+        return !token.Revoked && (token.ExpiresAt is not { } end || end > now);
     }
 
     /// <summary>When something ends, from now: "in 5 days", "never".</summary>

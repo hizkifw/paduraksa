@@ -158,7 +158,7 @@
     internal sealed record TokenRow(ApiTokenSummary Token, string Owner, bool Mine);
 
     private IReadOnlyList<TokenRow> Shown =>
-        _rows is null ? [] : [.. _rows.Where(r => _showRevoked || IdentityText.State(r.Token, _now).Label == "Active")];
+        _rows is null ? [] : [.. _rows.Where(r => _showRevoked || IdentityText.IsLive(r.Token, _now))];
 
     protected override async Task OnInitializedAsync()
     {
