@@ -102,7 +102,16 @@ public sealed class AuthenticationStateTests
         auth.SetAuthenticationState(StateOf(session));
         await auth.GetAuthenticationStateAsync();
         TaskCompletionSource<AuthenticationState> ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        auth.AuthenticationStateChanged += async state => ended.TrySetResult(await state);
+        // A check that runs while the revocation lands can read the session and then no permissions (the fake answers per user): that
+        // announces a signed-in state first. The ending is the anonymous one.
+        auth.AuthenticationStateChanged += async state =>
+        {
+            AuthenticationState announced = await state;
+            if (announced.User.Identity?.IsAuthenticated != true)
+            {
+                ended.TrySetResult(announced);
+            }
+        };
 
         auth.StartBackgroundRecheck();
         await WaitUntilAsync(() => !sessions.Checks.IsEmpty);

@@ -56,8 +56,11 @@ internal static class PlaywrightBrowser
         }
     }
 
-    /// <summary>Saves a full-page screenshot when <see cref="ScreenshotVariable"/> names a directory.</summary>
-    public static async Task ScreenshotAsync(IPage page, string name)
+    /// <summary>
+    /// Saves a screenshot when <see cref="ScreenshotVariable"/> names a directory: the full page, or only the window (for a drawer, which
+    /// sits fixed over the page).
+    /// </summary>
+    public static async Task ScreenshotAsync(IPage page, string name, bool fullPage = true)
     {
         string? directory = Environment.GetEnvironmentVariable(ScreenshotVariable);
         if (string.IsNullOrWhiteSpace(directory))
@@ -66,7 +69,7 @@ internal static class PlaywrightBrowser
         }
 
         Directory.CreateDirectory(directory);
-        await page.ScreenshotAsync(new PageScreenshotOptions { Path = Path.Combine(directory, $"paduraksa-dashboard-{name}.png"), FullPage = true });
+        await page.ScreenshotAsync(new PageScreenshotOptions { Path = Path.Combine(directory, $"paduraksa-dashboard-{name}.png"), FullPage = fullPage });
     }
 
     private static bool IsMissingBrowser(PlaywrightException ex) =>
