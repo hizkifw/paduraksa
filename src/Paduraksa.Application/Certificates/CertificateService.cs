@@ -93,6 +93,26 @@ public sealed partial class CertificateService
     }
 
     /// <summary>
+    /// Like <see cref="RegisterAsync"/>, but <b>never republishes</b> the live config: for a certificate nothing in the
+    /// document can bind — the admin listener's own (PLAN §3, §10.1), which the process issues and serves itself. The row is
+    /// still written and audited; the next compile reads the inventory fresh, so nothing is lost.
+    /// </summary>
+    internal async Task<CertificateChangeResult> RegisterQuietlyAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(registration);
+        ArgumentNullException.ThrowIfNull(origin);
+        if (await DeniedAsync(origin, "certificate.add", registration.Id, cancellationToken).ConfigureAwait(false) is { } denied)
+        {
+            return denied;
+        }
+
+        return await _config.ApplyCertificateChangeAsync(
+            origin,
+            async scope => (await RegisterCoreAsync(scope, registration, origin, cancellationToken).ConfigureAwait(false)) with { Republish = false },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Registers a certificate the vault holds under <paramref name="registration"/> <b>only if the inventory has no row for it</b> and
     /// the audit trail does not say it was deleted on purpose, both checked under the config writer's lock, so a registration that
     /// races with this (a vault-first upload) is never overwritten and a certificate deleted by an operator is never resurrected
@@ -467,6 +487,13 @@ public sealed partial class CertificateService
     private async Task<CertificateChangeOutcome> DeleteCoreAsync(CertificateChangeScope scope, CertificateId id, CommandOrigin origin, CancellationToken cancellationToken)
     {
         ConfigDbContext context = scope.Context;
+        if (id == AdminCertificate.Id)
+        {
+            // The admin listener's certificate is the process's own (PLAN §3, §10.1): refused, and audited like the in-use
+            // refusal below. It is recreated, never deleted.
+            return Rejected(origin, "certificate.delete", id, new ConfigError(string.Empty, CertificateErrorCodes.Managed, "the admin listener's certificate is managed by the process and can't be deleted"));
+        }
+
         if (!await context.Certificates.AnyAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false))
         {
             return NotFound(origin, "certificate.delete", id);
@@ -659,6 +686,9 @@ public static class CertificateErrorCodes
     public const string Exists = "certificate.exists";
     public const string BuiltIn = "certificate.builtIn";
     public const string TextTooLong = "certificate.text.tooLong";
+
+    /// <summary>The admin listener's certificate is managed by the process and can't be deleted (PLAN §3, §10.1).</summary>
+    public const string Managed = "certificate.managed";
 
     // The vault flows (CertificateOperations).
     public const string NotReplaceable = "certificate.replace.notAllowed";

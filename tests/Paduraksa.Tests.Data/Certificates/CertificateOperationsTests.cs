@@ -26,7 +26,7 @@ public sealed class CertificateOperationsTests
     {
         var vault = new FakeVault();
         var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance);
-        var operations = new CertificateOperations(certificates, vault, vault, authorizer ?? new Allow(), NullLogger<CertificateOperations>.Instance);
+        var operations = new CertificateOperations(certificates, vault, vault, vault, authorizer ?? new Allow(), TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         return (operations, certificates, vault);
     }
 
@@ -431,7 +431,7 @@ public sealed class CertificateOperationsTests
         var certificates = new CertificateService(
             harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 0));
         // The operation-level authorizer lets the caller through, so it is the service's own check that refuses.
-        var operations = new CertificateOperations(certificates, vault, vault, new Allow(), NullLogger<CertificateOperations>.Instance);
+        var operations = new CertificateOperations(certificates, vault, vault, vault, new Allow(), TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         var viewer = new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api);
 
         var issued = await operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["a.example.com"]), viewer, Ct);
@@ -452,7 +452,7 @@ public sealed class CertificateOperationsTests
         // The caller may register the pending row (one allowed check), and has lost the permission by the time the rollback runs.
         var certificates = new CertificateService(
             harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 1));
-        var operations = new CertificateOperations(certificates, vault, vault, new Allow(), NullLogger<CertificateOperations>.Instance);
+        var operations = new CertificateOperations(certificates, vault, vault, vault, new Allow(), TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         var caller = new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api, System.Net.IPAddress.Loopback);
 
         await Assert.ThrowsAsync<IOException>(
@@ -462,6 +462,85 @@ public sealed class CertificateOperationsTests
         var rollback = Assert.Single(await harness.AuditAsync(), e => e.Action == "certificate.delete");
         Assert.Equal((ActorKind.System, AuditOutcome.Success, Channel.Api), (rollback.Actor.Kind, rollback.Outcome, rollback.Channel));
         Assert.DoesNotContain(await harness.AuditAsync(), e => e.Outcome == AuditOutcome.Denied);
+    }
+
+    [Fact]
+    public async Task ALeftoverPendingAdminCertificateRowIsCompletedUnderItsOwnId()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        var (operations, certificates, vault) = Create(harness);
+        await harness.RunAsync(new UpsertHostCommand(Objects.RespondHost(HostId.New(), "seed.example.com")));
+        Assert.Equal(CertificateOperationStatus.Completed, (await operations.EnsureLocalCaAsync(new LocalCaRequest(), ConfigServiceHarness.Admin, Ct)).Status);
+
+        // What a crash between the pending row and the vault left behind: no key, a row that is not active.
+        var pending = await certificates.RegisterPendingAsync(AdminCertificate.Id, CertificateSource.LocalCa, ["localhost"], AdminCertificate.Label, ConfigServiceHarness.Admin, Ct);
+        Assert.Equal(CertificateChangeStatus.Committed, pending.Status);
+
+        CertificateOperationResult completed = await operations.EnsureAdminCertificateAsync(["localhost"], ConfigServiceHarness.Admin, Ct);
+
+        Assert.Equal(CertificateOperationStatus.Completed, completed.Status);
+        Assert.Equal(AdminCertificate.Id, completed.Certificate!.Id);
+        Assert.Equal((CertificateStatus.Active, AdminCertificate.Label), (completed.Certificate.Status, completed.Certificate.Label));
+        Assert.Contains(AdminCertificate.Id, vault.Keys);
+    }
+
+    [Fact]
+    public async Task ARecoveredLabelOnTheAdminCertificateIsPutBackAndItsNotesAreKept()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        var (operations, certificates, _) = Create(harness);
+        await harness.RunAsync(new UpsertHostCommand(Objects.RespondHost(HostId.New(), "seed.example.com")));
+        await operations.EnsureLocalCaAsync(new LocalCaRequest(), ConfigServiceHarness.Admin, Ct);
+        Assert.Equal(CertificateOperationStatus.Completed, (await operations.EnsureAdminCertificateAsync(["localhost"], ConfigServiceHarness.Admin, Ct)).Status);
+
+        // A database loss would have the recovery register the row under its own label, keeping the notes.
+        Assert.Equal(CertificateChangeStatus.Committed, (await certificates.UpdateDetailsAsync(AdminCertificate.Id, CertificateRecovery.Label, "kept", ConfigServiceHarness.Admin, Ct)).Status);
+
+        CertificateOperationResult repaired = await operations.EnsureAdminCertificateAsync(["localhost"], ConfigServiceHarness.Admin, Ct);
+
+        Assert.Equal(CertificateOperationStatus.Unchanged, repaired.Status);
+        Assert.Equal((AdminCertificate.Label, "kept"), (repaired.Certificate!.Label, repaired.Certificate.Notes));
+    }
+
+    [Fact]
+    public async Task AFailedAdminIssuanceKeepsTheKeyTheVaultAlreadyHolds()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        var (operations, certificates, vault) = Create(harness);
+        await harness.RunAsync(new UpsertHostCommand(Objects.RespondHost(HostId.New(), "seed.example.com")));
+        await operations.EnsureLocalCaAsync(new LocalCaRequest(), ConfigServiceHarness.Admin, Ct);
+
+        // What a crash between the pending row and the vault leaves, once the vault already holds a servable pair for the fixed
+        // ID (a database loss with a changed name set looks the same): the re-issue is attempted and fails.
+        Assert.Equal(CertificateChangeStatus.Committed, (await certificates.RegisterPendingAsync(
+            AdminCertificate.Id, CertificateSource.LocalCa, ["localhost"], AdminCertificate.Label, ConfigServiceHarness.Admin, Ct)).Status);
+        vault.Keys.Add(AdminCertificate.Id);
+        vault.Catalog[AdminCertificate.Id] = vault.InfoFor(["localhost"]);
+        vault.OnCreate = id => id == AdminCertificate.Id
+            ? Task.FromException(new IOException("the vault went away"))
+            : Task.CompletedTask;
+
+        await Assert.ThrowsAsync<IOException>(async () => await operations.EnsureAdminCertificateAsync(["localhost", "admin.test"], ConfigServiceHarness.Admin, Ct));
+
+        // The key the admin port would serve is still there: a rollback must never delete it (its ID is fixed, so the vault's
+        // pair may be the only servable one left).
+        Assert.Contains(AdminCertificate.Id, vault.Keys);
+        Assert.DoesNotContain("delete", vault.Calls);
+    }
+
+    [Fact]
+    public async Task IssuingALeafWithoutALocalCaIsRefused()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        var (operations, _, _) = Create(harness);
+        await harness.RunAsync(new UpsertHostCommand(Objects.RespondHost(HostId.New(), "seed.example.com")));
+
+        // The state the admin certificate service exists to prevent (PLAN §3); the API maps this Invalid to a 422 carrying the
+        // code, so it is asserted here, where it can still arise.
+        CertificateOperationResult refused = await operations.IssueFromLocalCaAsync(new LocalCaLeafRequest(["leaf.test"]), ConfigServiceHarness.Admin, Ct);
+
+        Assert.Equal(CertificateOperationStatus.Invalid, refused.Status);
+        Assert.Equal(CertificateErrorCodes.LocalCaMissing, Assert.Single(refused.Errors).Code);
     }
 
     private sealed class Allow : ICertificateOperationAuthorizer
@@ -475,13 +554,25 @@ public sealed class CertificateOperationsTests
     }
 
     /// <summary>A vault that remembers which IDs hold a key and can be made to fail; it makes CertificateInfo with a fresh fingerprint each time.</summary>
-    private sealed class FakeVault : ICertificateIssuance, ICertificateImport
+    private sealed class FakeVault : ICertificateIssuance, ICertificateImport, ICertificateCatalog
     {
         private static readonly DateTimeOffset Start = DateTimeOffset.UtcNow.AddMinutes(-5);
 
         private int _serial;
 
         public HashSet<CertificateId> Keys { get; } = [];
+
+        /// <summary>What the catalog describes, per ID (filled by every create and import, dropped by a delete).</summary>
+        public Dictionary<CertificateId, CertificateInfo> Catalog { get; } = [];
+
+        /// <summary>The IDs the vault holds as the local CA root (there is at most one).</summary>
+        public HashSet<CertificateId> RootIds { get; } = [];
+
+        public ValueTask<IReadOnlyList<VaultCertificate>> ListAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<VaultCertificate>>([.. Catalog.Select(pair => new VaultCertificate(pair.Key, RootIds.Contains(pair.Key), pair.Value))]);
+
+        public ValueTask<VaultCertificate?> DescribeAsync(CertificateId id, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(Catalog.TryGetValue(id, out CertificateInfo? info) ? new VaultCertificate(id, RootIds.Contains(id), info) : null);
 
         public List<string> Calls { get; } = [];
 
@@ -542,6 +633,8 @@ public sealed class CertificateOperationsTests
                 throw DeleteFailure;
             }
 
+            Catalog.Remove(id);
+            RootIds.Remove(id);
             return Keys.Remove(id);
         }
 
@@ -555,7 +648,9 @@ public sealed class CertificateOperationsTests
             }
 
             Keys.Add(id);
-            return ValueTask.FromResult(InfoFor(ImportNames));
+            CertificateInfo info = InfoFor(ImportNames);
+            Catalog[id] = info;
+            return ValueTask.FromResult(info);
         }
 
         private async ValueTask<CertificateInfo> Create(string kind, CertificateId id, KeySpec spec, IReadOnlyList<string> names, TimeSpan validity)
@@ -584,10 +679,17 @@ public sealed class CertificateOperationsTests
                 throw StoreThenFail;
             }
 
-            return InfoFor(names, validity, spec);
+            CertificateInfo info = InfoFor(names, validity, spec);
+            Catalog[id] = info;
+            if (kind == "LocalCaRoot")
+            {
+                RootIds.Add(id);
+            }
+
+            return info;
         }
 
-        private CertificateInfo InfoFor(IReadOnlyList<string> names, TimeSpan? validity = null, KeySpec spec = KeySpec.EcdsaP256)
+        public CertificateInfo InfoFor(IReadOnlyList<string> names, TimeSpan? validity = null, KeySpec spec = KeySpec.EcdsaP256)
         {
             var serial = Interlocked.Increment(ref _serial);
             CertificateInfo info = new(

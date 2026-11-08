@@ -1,5 +1,6 @@
 using System.Buffers;
 
+using Paduraksa.Application.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
@@ -126,6 +127,10 @@ public static class ConfigValidator
             if (settings.DefaultCertificateId is { IsEmpty: true })
             {
                 Add($"{path}/defaultCertificateId", IdEmpty, "the default certificate ID can't be empty (leave it unset for none)");
+            }
+            else if (settings.DefaultCertificateId == AdminCertificate.Id)
+            {
+                Add($"{path}/defaultCertificateId", SettingsDefaultCertificateUnusable, "that certificate is reserved for the admin listener; choose another one");
             }
 
             CheckTrustedProxies(settings.TrustedProxies ?? new(), $"{path}/trustedProxies");
@@ -299,6 +304,10 @@ public static class ConfigValidator
                 if (certificate.Mode == CertificateBindingMode.Specific && certificate.CertificateId is null or { IsEmpty: true })
                 {
                     Add($"{path}/certificate/certificateId", HostCertificateIdRequired, "a specific certificate binding needs a certificate ID");
+                }
+                else if (certificate.Mode == CertificateBindingMode.Specific && certificate.CertificateId == AdminCertificate.Id)
+                {
+                    Add($"{path}/certificate/certificateId", HostCertificateUnusable, "that certificate is reserved for the admin listener; choose another one");
                 }
                 else if (certificate.Mode != CertificateBindingMode.Specific && certificate.CertificateId is not null)
                 {

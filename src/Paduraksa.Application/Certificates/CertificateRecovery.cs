@@ -87,6 +87,14 @@ public sealed partial class CertificateRecovery
         List<CertificateId> failed = [];
         foreach (VaultCertificate certificate in held.OrderByDescending(c => c.IsLocalCaRoot))
         {
+            if (certificate.Id == AdminCertificate.Id)
+            {
+                // The process's own admin certificate (PLAN §3, §10.1): the core host's AdminCertificateService owns its row
+                // and adopts the vault's leaf itself, so a database loss cannot make two writers race over one fixed ID (nor
+                // leave a delete on record for it, which would make this branch finish the "deletion" of a fresh key).
+                continue;
+            }
+
             CertificateSource source = certificate.IsLocalCaRoot ? CertificateSource.LocalCaRoot
                 : roots.Any(root => IsSignedBy(certificate.Info, root.Info)) ? CertificateSource.LocalCa
                 : CertificateSource.Uploaded;

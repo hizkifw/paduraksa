@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 
+using Paduraksa.Core.Vault;
+
 namespace Paduraksa.Vault.Certificates;
 
 /// <summary>
@@ -11,8 +13,8 @@ namespace Paduraksa.Vault.Certificates;
 /// </summary>
 internal static class CertificateNaming
 {
-    /// <summary>The most names one certificate carries; far above what a CA allows (100) and what a homelab needs.</summary>
-    public const int MaxNames = 100;
+    /// <summary>The most names one certificate carries; the shared limit (<see cref="CertificateLimits.MaxNames"/>).</summary>
+    public const int MaxNames = CertificateLimits.MaxNames;
 
     /// <summary>The RFC 5280 limit of a common name.</summary>
     public const int MaxCommonNameLength = 64;

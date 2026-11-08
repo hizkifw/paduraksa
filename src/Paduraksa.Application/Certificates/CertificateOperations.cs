@@ -78,25 +78,33 @@ public sealed partial class CertificateOperations
     private readonly CertificateService _certificates;
     private readonly ICertificateIssuance _issuance;
     private readonly ICertificateImport _import;
+    private readonly ICertificateCatalog _catalog;
     private readonly ICertificateOperationAuthorizer _authorizer;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
 
     internal CertificateOperations(
         CertificateService certificates,
         ICertificateIssuance issuance,
         ICertificateImport import,
+        ICertificateCatalog catalog,
         ICertificateOperationAuthorizer authorizer,
+        TimeProvider timeProvider,
         ILogger<CertificateOperations> logger)
     {
         ArgumentNullException.ThrowIfNull(certificates);
         ArgumentNullException.ThrowIfNull(issuance);
         ArgumentNullException.ThrowIfNull(import);
+        ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(authorizer);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
         _certificates = certificates;
         _issuance = issuance;
         _import = import;
+        _catalog = catalog;
         _authorizer = authorizer;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -254,6 +262,12 @@ public sealed partial class CertificateOperations
             return Forbidden();
         }
 
+        if (id == AdminCertificate.Id)
+        {
+            // The admin listener's certificate is the process's own; the process re-issues it when it needs to (PLAN §3, §10.1).
+            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.Managed, "the admin listener's certificate is managed by the process and can't be re-issued here"));
+        }
+
         CertificateDetail? current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
         if (current is null)
         {
@@ -299,11 +313,13 @@ public sealed partial class CertificateOperations
             return Forbidden();
         }
 
+        // The managed admin certificate is refused by the inventory (audited there, like the in-use refusal below), so no
+        // check is needed here; the query below is what the local-CA-root refusal needs.
         CertificateDetail? current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
         if (current?.Summary.Source == CertificateSource.LocalCaRoot
             && (await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCa), cancellationToken).ConfigureAwait(false)).Count > 0)
         {
-            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.LocalCaInUse, "leaf certificates issued by the local CA still exist; delete them first"));
+            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.LocalCaInUse, "leaf certificates issued by the local CA still exist (the admin listener's own among them); the root can't be deleted while they do"));
         }
 
         CertificateChangeResult change = await _certificates.DeleteAsync(id, origin, cancellationToken).ConfigureAwait(false);
@@ -341,7 +357,12 @@ public sealed partial class CertificateOperations
         return new CertificateOperationResult(CertificateOperationStatus.Completed, Publish: change.Publish);
     }
 
-    /// <summary>The creation flow of a certificate with a new ID and known names: pending first, then the vault, then active (see the remarks).</summary>
+    /// <summary>
+    /// The creation flow of a certificate with a new ID and known names: pending first, then the vault, then active (see the remarks).
+    /// <paramref name="newId"/> is the ID for a brand-new certificate (null: a fresh random one) and is ignored when
+    /// <paramref name="existingPendingId"/> is set. <paramref name="republish"/> false records the result without republishing
+    /// (see <see cref="CertificateService.RegisterQuietlyAsync"/>).
+    /// </summary>
     private async Task<CertificateOperationResult> CreateWithNamesAsync(
         CertificateSource source,
         IReadOnlyList<string> names,
@@ -349,9 +370,11 @@ public sealed partial class CertificateOperations
         CommandOrigin origin,
         Func<CertificateId, IReadOnlyList<string>, CancellationToken, ValueTask<CertificateInfo>> create,
         CancellationToken cancellationToken,
-        CertificateId? existingPendingId = null)
+        CertificateId? existingPendingId = null,
+        CertificateId? newId = null,
+        bool republish = true)
     {
-        CertificateId id = existingPendingId ?? CertificateId.New();
+        CertificateId id = existingPendingId ?? newId ?? CertificateId.New();
         if (existingPendingId is null)
         {
             CertificateChangeResult pending = await _certificates.RegisterPendingAsync(id, source, names, label, origin, cancellationToken).ConfigureAwait(false);
@@ -369,7 +392,7 @@ public sealed partial class CertificateOperations
         catch (Exception ex)
         {
             // The key is deleted whatever failed (deleting is idempotent): a vault call that threw after storing it must not leave it.
-            await RollBackNewAsync(id, origin, deleteKey: true).ConfigureAwait(false);
+            await RollBackNewAsync(id, origin, deleteKey: MayDeleteVaultKeyOnRollback(id)).ConfigureAwait(false);
             if (ex is LocalCaExistsException)
             {
                 throw;
@@ -383,23 +406,26 @@ public sealed partial class CertificateOperations
             throw;
         }
 
-        return await RegisterVaultResultAsync(id, source, info, label, isNew: true, pendingFirst: true, origin, cancellationToken).ConfigureAwait(false);
+        return await RegisterVaultResultAsync(id, source, info, label, isNew: true, pendingFirst: true, origin, cancellationToken, republish).ConfigureAwait(false);
     }
 
     /// <summary>Records what the vault made. A refusal or failure takes a new certificate's key and pending row back out.</summary>
     private async Task<CertificateOperationResult> RegisterVaultResultAsync(
-        CertificateId id, CertificateSource source, CertificateInfo info, string? label, bool isNew, bool pendingFirst, CommandOrigin origin, CancellationToken cancellationToken)
+        CertificateId id, CertificateSource source, CertificateInfo info, string? label, bool isNew, bool pendingFirst, CommandOrigin origin, CancellationToken cancellationToken, bool republish = true)
     {
+        CertificateRegistration registration = new(id, source, info, CertificateStatus.Active, label);
         CertificateChangeResult registered;
         try
         {
-            registered = await _certificates.RegisterAsync(new CertificateRegistration(id, source, info, CertificateStatus.Active, label), origin, cancellationToken).ConfigureAwait(false);
+            registered = republish
+                ? await _certificates.RegisterAsync(registration, origin, cancellationToken).ConfigureAwait(false)
+                : await _certificates.RegisterQuietlyAsync(registration, origin, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             if (isNew)
             {
-                await RollBackNewAsync(id, origin, deleteKey: true, deleteRow: pendingFirst).ConfigureAwait(false);
+                await RollBackNewAsync(id, origin, deleteKey: MayDeleteVaultKeyOnRollback(id), deleteRow: pendingFirst).ConfigureAwait(false);
             }
             else
             {
@@ -416,7 +442,7 @@ public sealed partial class CertificateOperations
 
         if (isNew)
         {
-            await RollBackNewAsync(id, origin, deleteKey: true, deleteRow: pendingFirst).ConfigureAwait(false);
+            await RollBackNewAsync(id, origin, deleteKey: MayDeleteVaultKeyOnRollback(id), deleteRow: pendingFirst).ConfigureAwait(false);
         }
         else
         {
@@ -430,6 +456,11 @@ public sealed partial class CertificateOperations
     /// Undoes a creation that did not complete: the vault's key (if it was made) and the pending row. Best effort and
     /// not cancellable (a cancelled request still has to clean up); a failure is logged and leaves a pending row the user can delete.
     /// </summary>
+    /// <remarks>
+    /// <paramref name="deleteKey"/> is false for the admin listener's certificate: its ID is fixed and the vault may already
+    /// hold the pair that is being served (a re-issue that failed halfway, or a database loss), so deleting it would leave
+    /// the admin port on the placeholder for good. Its row is still rolled back; the next run adopts whatever the vault holds.
+    /// </remarks>
     private async Task RollBackNewAsync(CertificateId id, CommandOrigin origin, bool deleteKey, bool deleteRow = true)
     {
         if (deleteKey)
@@ -458,6 +489,13 @@ public sealed partial class CertificateOperations
             }
         }
     }
+
+    /// <summary>
+    /// Whether a failed creation may delete the vault key it was making. Everything may, except the admin listener's own
+    /// certificate: its ID is fixed, and the vault may already hold the pair being served (a re-issue that failed halfway, or
+    /// a database loss), so deleting it would leave the admin port on the placeholder for good.
+    /// </summary>
+    private static bool MayDeleteVaultKeyOnRollback(CertificateId id) => id != AdminCertificate.Id;
 
     private async Task<CertificateOperationResult> DeleteOrphanKeyAsync(CertificateId id, CancellationToken cancellationToken)
     {
@@ -555,7 +593,9 @@ public static class CertificateOperationsServiceCollectionExtensions
     /// <summary>
     /// Registers <see cref="CertificateOperations"/> as a singleton, with the allow-everything
     /// <see cref="ICertificateOperationAuthorizer"/> unless one is registered. Needs the <see cref="CertificateService"/>
-    /// (<c>AddPaduraksaConfigService</c>), <see cref="ICertificateIssuance"/> and <see cref="ICertificateImport"/> (the vault).
+    /// (<c>AddPaduraksaConfigService</c>), <see cref="ICertificateIssuance"/>, <see cref="ICertificateImport"/> and
+    /// <see cref="ICertificateCatalog"/> (the vault), and a <see cref="TimeProvider"/> (when the admin certificate must be
+    /// re-issued: its lifetime threshold is judged against it).
     /// </summary>
     public static IServiceCollection AddPaduraksaCertificateOperations(this IServiceCollection services)
     {
@@ -565,7 +605,9 @@ public static class CertificateOperationsServiceCollectionExtensions
             sp.GetRequiredService<CertificateService>(),
             sp.GetRequiredService<ICertificateIssuance>(),
             sp.GetRequiredService<ICertificateImport>(),
+            sp.GetRequiredService<ICertificateCatalog>(),
             sp.GetRequiredService<ICertificateOperationAuthorizer>(),
+            sp.GetRequiredService<TimeProvider>(),
             (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<CertificateOperations>()));
         return services;
     }

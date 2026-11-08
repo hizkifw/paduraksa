@@ -89,8 +89,16 @@ internal sealed partial class CertificateInventoryLoader
         CertificateId? fallbackDefault = null;
         List<DateTimeOffset> boundaries = [];
 
+        // The admin listener's own certificate (PLAN §3, §10.1) never takes part in the proxy's selection: it is reserved
+        // for the admin port, so Auto never picks it, a Specific binding to it is refused by the validator, and its validity
+        // boundaries never trigger a config republish (the table query below leaves it out too).
         foreach (BuiltInCertificate builtIn in _builtIns?.Current ?? [])
         {
+            if (builtIn.Id == AdminCertificate.Id)
+            {
+                continue;
+            }
+
             if (seen.Add(builtIn.Id))
             {
                 entries.Add(Judge(builtIn.Id, CertificateStatus.Active, CertificateNames.Normalize(builtIn.Info.SubjectAlternativeNames, out _), builtIn.Info.NotBefore, builtIn.Info.NotAfter, now, boundaries));
@@ -198,6 +206,7 @@ internal sealed partial class CertificateInventoryLoader
     {
         var rows = await context.Certificates
             .AsNoTracking()
+            .Where(c => c.Id != AdminCertificate.Id)
             .Select(c => new { c.Id, c.Status, c.NotBefore, c.NotAfter })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
