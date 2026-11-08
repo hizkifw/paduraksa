@@ -53,6 +53,9 @@ public static class ConfigErrorCodes
     public const string SettingsDefaultCertificateUnusable = "settings.defaultCertificate.unusable";
     public const string HostRoutesRequired = "host.routes.required";
     public const string HostRoutesUnexpected = "host.routes.unexpected";
+    public const string HostAdminDuplicate = "host.admin.duplicate";
+    public const string HostAdminHttpsRequired = "host.admin.httpsRequired";
+    public const string HostAdminLockout = "host.admin.lockout";
     public const string HostRedirectRequired = "host.redirect.required";
     public const string HostRedirectUnexpected = "host.redirect.unexpected";
     public const string HostRespondRequired = "host.respond.required";

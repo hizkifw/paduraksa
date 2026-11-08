@@ -42,6 +42,12 @@ public sealed class CompiledRoute
     /// <summary>The route's own policies. The host's chain has already run when these do (see <c>GateMiddleware</c>).</summary>
     public required IRequestPolicy[] Policies { get; init; }
 
+    /// <summary>
+    /// True for the implicit route every admin host gets (PLAN §3.1): it takes every path and forwards to the
+    /// <c>__admin</c> cluster. It has no <see cref="RouteId"/>, so <see cref="Id"/> is empty.
+    /// </summary>
+    public bool Admin { get; init; }
+
     /// <summary>Does this route take <paramref name="path"/> (a canonical view)? An empty path counts as <c>/</c>.</summary>
     public bool Matches(ReadOnlySpan<char> path)
     {

@@ -32,6 +32,18 @@ public sealed class ConfigCompiler : IConfigCompiler
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(inventory);
         MappedConfig mapped = ProxyConfigMapping.Map(document, revision, inventory);
+        List<MappedWarning> warnings = [.. mapped.Warnings];
+        if (!_options.AdminUpstream)
+        {
+            foreach (HostConfig host in document.Hosts.Where(static h => h.Kind == HostKind.Admin))
+            {
+                warnings.Add(new MappedWarning(
+                    CompileErrorSource.Host(host.Id),
+                    string.Empty,
+                    ConfigWarningCodes.AdminInternalDisabled,
+                    "the admin host answers 503 until Paduraksa:Listen:AdminInternal is enabled"));
+            }
+        }
 
         // The inventory's resolver (usable certificates only) replaces whatever the options carry.
         CompileResult result = SnapshotCompiler.Compile(mapped.Model, _options with { Certificates = inventory.Resolver });
@@ -42,7 +54,7 @@ public sealed class ConfigCompiler : IConfigCompiler
                 snapshot,
                 [],
                 [
-                    .. mapped.Warnings
+                    .. warnings
                         .Select(w => new ConfigWarning(paths.Of(w.Source) + w.Member, w.Code, w.Message))
                         .Distinct(),
                 ])

@@ -31,6 +31,20 @@ public sealed class ConfigCompilerTests : IDisposable
     }
 
     [Fact]
+    public void AnAdminHostWithoutTheInternalListenerWarnsAndCompilesAsUnavailable()
+    {
+        ConfigDocument document = new(Hosts: [new HostConfig(AppHost, ["admin.example.com"], Kind: HostKind.Admin)]);
+        ConfigCompiler compiler = new(new SnapshotCompilerOptions { AdminUpstream = false });
+
+        ConfigCompilation compilation = compiler.Compile(document, Revision, _certificates.InventoryFor(document));
+
+        Assert.True(compilation.Succeeded);
+        ConfigWarning warning = Assert.Single(compilation.Warnings, w => w.Code == ConfigWarningCodes.AdminInternalDisabled);
+        Assert.Equal("/hosts/0", warning.Path);
+        Assert.Equal(-1, Assert.Single(compilation.Snapshot!.HostsByIndex[0].Routes).Slot);
+    }
+
+    [Fact]
     public void ErrorsPointAtTheObjectInTheDocumentAsGiven()
     {
         // Not in canonical order: hosts and upstreams by descending ID, routes by descending order, a disabled

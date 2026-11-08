@@ -61,6 +61,7 @@ public static class ConfigValidator
         // Typed IDs by their string form: prefixes keep the types apart, and the comparison ignores case.
         private readonly Dictionary<string, string> _ids = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _enabledHostNames = new(StringComparer.Ordinal);
+        private string? _adminHostPath;
 
         public List<ConfigError> Errors { get; } = [];
 
@@ -293,6 +294,7 @@ public static class ConfigValidator
             {
                 // Judged after layering (PLAN §6.4): the host, else its profile, else the global defaults.
                 if (certificate.Mode == CertificateBindingMode.None
+                    && host.Kind != HostKind.Admin
                     && (host.Settings?.ForceHttps ?? profile?.ForceHttps ?? defaults?.ForceHttps ?? false))
                 {
                     string from = host.Settings?.ForceHttps is not null ? string.Empty
@@ -319,6 +321,7 @@ public static class ConfigValidator
             if (kindDefined)
             {
                 CheckKindParts(host, path);
+                CheckAdminHost(host, certificate, path);
             }
 
             IReadOnlyList<RouteConfig> routes = host.Routes ?? [];
@@ -412,6 +415,12 @@ public static class ConfigValidator
                     }
 
                     break;
+
+                case HostKind.Admin:
+                    CheckNoRoutes(hasRoutes, path);
+                    CheckUnexpected(host.Redirect, $"{path}/redirect", HostRedirectUnexpected, "an admin host can't have a redirect");
+                    CheckUnexpected(host.Respond, $"{path}/respond", HostRespondUnexpected, "an admin host can't have a fixed response");
+                    break;
             }
         }
 
@@ -420,6 +429,29 @@ public static class ConfigValidator
             if (hasRoutes)
             {
                 Add($"{path}/routes", HostRoutesUnexpected, "only proxy hosts have routes");
+            }
+        }
+
+        /// <summary>Admin hosts (PLAN §3.1): one at most, and HTTPS is required (the mapping forces the redirect).</summary>
+        private void CheckAdminHost(HostConfig host, CertificateBinding certificate, string path)
+        {
+            if (host.Kind != HostKind.Admin)
+            {
+                return;
+            }
+
+            if (_adminHostPath is { } existing)
+            {
+                Add($"{path}/kind", HostAdminDuplicate, $"only one admin host can exist; there is already one at {existing}");
+            }
+            else
+            {
+                _adminHostPath = path;
+            }
+
+            if (certificate.Mode == CertificateBindingMode.None)
+            {
+                Add($"{path}/certificate/mode", HostAdminHttpsRequired, "an admin host is served over HTTPS: it can't use certificate mode none");
             }
         }
 

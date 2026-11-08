@@ -3,6 +3,7 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
 
@@ -90,6 +91,89 @@ public sealed class SnapshotCompilerTests
         Assert.True(web.SessionAffinity!.Enabled);
         Assert.True(web.HealthCheck!.Passive!.Enabled);
         Assert.Equal(32, Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == TestIds.Upstream("api").ToString()).HttpClient!.MaxConnectionsPerServer);
+    }
+
+    [Fact]
+    public void AnAdminHostForwardsEveryPathToTheAdminCluster()
+    {
+        HostSpec admin = new()
+        {
+            Id = TestIds.Host("admin"),
+            Names = ["admin.test"],
+            Kind = HostKind.Admin,
+            ForceHttps = true,
+            Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])],
+        };
+
+        RuntimeSnapshot snapshot = Compile(
+            new ProxyConfigModel { Hosts = [admin] },
+            new SnapshotCompilerOptions { AdminUpstream = true, PublicHttpsPort = 8443 });
+
+        CompiledHost host = snapshot.Hosts.Find("admin.test")!;
+        Assert.Equal(HostKind.Admin, host.Kind);
+        Assert.NotNull(host.HttpsRedirect);
+        Assert.Single(host.Policies);
+        CompiledRoute route = Assert.Single(host.Routes);
+        Assert.True(route.Admin);
+        Assert.Equal(RouteId.Empty, route.Id);
+        Assert.Equal("/", route.Path);
+        Assert.Equal(RouteMatchKind.Prefix, route.MatchKind);
+        Assert.Equal(RouteId.Empty, Assert.Single(snapshot.RouteIdBySlot));
+
+        RouteConfig yarpRoute = Assert.Single(snapshot.Yarp.Routes);
+        Assert.Equal(YarpConfig.AdminClusterId, yarpRoute.ClusterId);
+        Assert.StartsWith(SnapshotCompiler.InternalRoutePrefix, yarpRoute.Match.Path, StringComparison.Ordinal);
+        ClusterConfig cluster = Assert.Single(snapshot.Yarp.Clusters);
+        Assert.Equal(YarpConfig.AdminClusterId, cluster.ClusterId);
+        Assert.Equal(YarpConfig.AdminUpstreamAddress, cluster.Destinations!["admin"].Address);
+        Assert.Equal(System.Net.HttpVersion.Version11, cluster.HttpRequest!.Version);
+        Assert.Equal(System.Net.Http.HttpVersionPolicy.RequestVersionExact, cluster.HttpRequest.VersionPolicy);
+
+        // Every path reaches it, and only an admin host gets that route.
+        Assert.Same(route, host.Match("/"));
+        Assert.Same(route, host.Match("/api/v1/auth/me"));
+    }
+
+    [Fact]
+    public void AdminHostsWithoutTheInternalListenerStillCompileAsUnavailable()
+    {
+        HostSpec admin = new() { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, ForceHttps = true };
+        SnapshotCompilerOptions withListener = new() { AdminUpstream = true };
+
+        CompileResult disabled = SnapshotCompiler.Compile(
+            new ProxyConfigModel
+            {
+                Upstreams = [Upstream("web", "http://10.0.0.1/")],
+                Hosts = [admin, ProxyHost("app", "app.test", Route("app-root", "web"))],
+            },
+            withListener with { AdminUpstream = false });
+        Assert.Empty(disabled.Errors);
+        RuntimeSnapshot disabledSnapshot = disabled.Snapshot!;
+        CompiledHost disabledAdmin = disabledSnapshot.Hosts.Find("admin.test")!;
+        Assert.Equal(-1, Assert.Single(disabledAdmin.Routes).Slot);
+        Assert.DoesNotContain(RouteId.Empty, disabledSnapshot.RouteIdBySlot);
+        Assert.DoesNotContain(disabledSnapshot.Yarp.Routes, route => route.ClusterId == YarpConfig.AdminClusterId);
+        Assert.DoesNotContain(disabledSnapshot.Yarp.Clusters, cluster => cluster.ClusterId == YarpConfig.AdminClusterId);
+        Assert.NotNull(disabledSnapshot.Hosts.Find("app.test"));
+
+        CompileResult noHttps = SnapshotCompiler.Compile(
+            new ProxyConfigModel { Hosts = [admin with { ForceHttps = false, Https = false }] }, withListener);
+        Assert.Contains(noHttps.Errors, e => e.Message.Contains("forces HTTPS", StringComparison.Ordinal));
+        Assert.Contains(noHttps.Errors, e => e.Message.Contains("served over HTTPS", StringComparison.Ordinal));
+
+        CompileResult parts = SnapshotCompiler.Compile(
+            new ProxyConfigModel
+            {
+                Upstreams = [Upstream("web", "http://10.0.0.1/")],
+                Hosts = [admin with { Routes = [Route("admin-root", "web")], Redirect = new RedirectSpec { Target = "https://x.test" } }],
+            },
+            withListener);
+        Assert.Contains(parts.Errors, e => e.Message.Contains("no routes of its own", StringComparison.Ordinal));
+        Assert.Contains(parts.Errors, e => e.Message.Contains("redirect or respond", StringComparison.Ordinal));
+
+        CompileResult twice = SnapshotCompiler.Compile(
+            new ProxyConfigModel { Hosts = [admin, admin with { Id = TestIds.Host("admin2"), Names = ["admin2.test"] }] }, withListener);
+        Assert.Contains(twice.Errors, e => e.Message.Contains("only one admin host", StringComparison.Ordinal));
     }
 
     [Fact]

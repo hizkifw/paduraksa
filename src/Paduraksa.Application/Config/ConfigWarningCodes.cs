@@ -19,4 +19,10 @@ public static class ConfigWarningCodes
     /// <summary>The default certificate the config names is unusable (see <see cref="CertificateSpecificUnusable"/>);
     /// the inventory's fallback default, if any, serves instead.</summary>
     public const string CertificateDefaultUnusable = "certificate.default.unusable";
+
+    /// <summary>An admin host set <c>forceHttps: false</c>; an admin host is always forced to HTTPS, so the setting is ignored.</summary>
+    public const string AdminForceHttpsIgnored = "host.admin.forceHttpsIgnored";
+
+    /// <summary>An admin host exists while <c>Paduraksa:Listen:AdminInternal</c> is off: it answers 503 until the listener is enabled.</summary>
+    public const string AdminInternalDisabled = "host.admin.internalDisabled";
 }

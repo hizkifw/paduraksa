@@ -364,6 +364,20 @@ public sealed class ProxyConfigMappingTests
         Assert.Null(Assert.Single(ProxyConfigMapping.Map(Valid(), Revision, CertificateInventory.Empty).Model.Upstreams).LoadBalancing);
     }
 
+    [Fact]
+    public void AnAdminHostsExplicitForceHttpsFalseWarnsThatItIsIgnored()
+    {
+        ConfigDocument document = new(
+            Hosts: [new HostConfig(Id<HostId>(50), ["admin.example.com"], Kind: HostKind.Admin, Settings: new HostSettings { ForceHttps = false })]);
+
+        MappedConfig mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+
+        MappedWarning warning = Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.AdminForceHttpsIgnored);
+        Assert.Equal("/settings/forceHttps", warning.Member);
+        Assert.Equal(CompileErrorSource.Host(Id<HostId>(50)), warning.Source);
+        Assert.Contains("always served over HTTPS", warning.Message, StringComparison.Ordinal);
+    }
+
     // One proxy host with two routes ("/" and "/b") under a profile-less, default-less document.
     private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second)
     {

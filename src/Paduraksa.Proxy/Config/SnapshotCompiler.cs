@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Net;
 using System.Text;
 
 using Microsoft.AspNetCore.Http;
@@ -11,6 +12,7 @@ using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
+using Yarp.ReverseProxy.Forwarder;
 using Yarp.ReverseProxy.Health;
 
 namespace Paduraksa.Proxy.Config;
@@ -46,6 +48,9 @@ public static class SnapshotCompiler
     /// <summary>Cookie name for session affinity.</summary>
     public const string AffinityCookieName = ".Paduraksa.Affinity";
 
+    /// <summary>The admin cluster's one destination key; the connect callback ignores its address.</summary>
+    private const string AdminClusterDestinationId = "admin";
+
     /// <summary>Compiles <paramref name="model"/> with <paramref name="options"/> (default: <see cref="SnapshotCompilerOptions.Default"/>).</summary>
     public static CompileResult Compile(ProxyConfigModel model, SnapshotCompilerOptions? options = null)
     {
@@ -70,6 +75,7 @@ public static class SnapshotCompiler
         HashSet<UpstreamId> withoutDestinations = [];
         Dictionary<UpstreamId, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], withoutDestinations, errors);
         HashSet<UpstreamId> reported = [];
+        bool adminHost = false;
 
         HostTable.Builder table = new();
         HashSet<HostId> hostIds = [];
@@ -98,10 +104,28 @@ public static class SnapshotCompiler
                 errors.Add(new(where, $"unknown host kind {spec.Kind}"));
             }
 
+            if (spec.Kind == HostKind.Admin)
+            {
+                if (adminHost)
+                {
+                    errors.Add(new(where, "only one admin host can exist"));
+                }
+
+                adminHost = true;
+                if (!spec.ForceHttps)
+                {
+                    errors.Add(new(where, "an admin host forces HTTPS"));
+                }
+
+            }
+
             IRequestPolicy[] hostPolicies = CompilePolicies(spec.Policies ?? [], where, errors);
-            CompiledRoute[] routes = spec.Kind == HostKind.Proxy
-                ? CompileRoutes(spec, clusters, routeIds, yarpRouteIds, yarpRoutes, routeIdBySlot, where, errors)
-                : RejectRoutes(spec, where, errors);
+            CompiledRoute[] routes = spec.Kind switch
+            {
+                HostKind.Admin => CompileAdminRoute(spec, options.AdminUpstream, routeIdBySlot, yarpRoutes, where, errors),
+                HostKind.Proxy => CompileRoutes(spec, clusters, routeIds, yarpRouteIds, yarpRoutes, routeIdBySlot, where, errors),
+                _ => RejectRoutes(spec, where, errors),
+            };
             PrecomputedResponse? fixedResponse = CompileFixedResponse(spec, where, errors);
 
             if (spec.ForceHttps)
@@ -192,8 +216,26 @@ public static class SnapshotCompiler
             return new CompileResult(null, errors);
         }
 
-        ClusterConfig[] clusterArray = new ClusterConfig[clusters.Count];
+        ClusterConfig[] clusterArray = new ClusterConfig[clusters.Count + (adminHost && options.AdminUpstream ? 1 : 0)];
         clusters.Values.CopyTo(clusterArray, 0);
+        if (adminHost && options.AdminUpstream)
+        {
+            clusterArray[^1] = new ClusterConfig
+            {
+                ClusterId = YarpConfig.AdminClusterId,
+                Destinations = new Dictionary<string, DestinationConfig>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [AdminClusterDestinationId] = new DestinationConfig { Address = YarpConfig.AdminUpstreamAddress },
+                },
+                // The internal listener speaks HTTP/1.1 (and a WebSocket upgrade is HTTP/1.1): never let the client negotiate
+                // anything else for this symbolic destination.
+                HttpRequest = new ForwarderRequestConfig
+                {
+                    Version = HttpVersion.Version11,
+                    VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+                },
+            };
+        }
         RuntimeSnapshot snapshot = new()
         {
             Generation = 0,
@@ -333,6 +375,69 @@ public static class SnapshotCompiler
         }
 
         return clusters;
+    }
+
+    /// <summary>
+    /// The implicit route of an admin host (PLAN §3.1): one prefix route matching every path, forwarding to the
+    /// <see cref="YarpConfig.AdminClusterId"/> cluster. It has no user route ID, so its slot's <see cref="RouteId"/> is empty.
+    /// </summary>
+    private static CompiledRoute[] CompileAdminRoute(
+        HostSpec host, bool available, List<RouteId> routeIdBySlot, List<RouteConfig> yarpRoutes, CompileErrorSource where, List<CompileError> errors)
+    {
+        if (host.Routes is { Count: > 0 })
+        {
+            errors.Add(new(where, "an admin host has no routes of its own: it forwards every path to the admin app"));
+        }
+
+        if (host.Redirect is not null || host.Respond is not null)
+        {
+            errors.Add(new(where, "an admin host can't have a redirect or respond setting"));
+        }
+
+        if (!host.Https)
+        {
+            errors.Add(new(where, "an admin host is served over HTTPS"));
+        }
+
+        // With the internal listener disabled the route still matches, but there is no YARP endpoint, so the gate answers the
+        // snapshot's 503 instead of taking every other host down with it.
+        if (!available)
+        {
+            return
+            [
+                new CompiledRoute
+                {
+                    Id = RouteId.Empty,
+                    MatchKind = RouteMatchKind.Prefix,
+                    Path = "/",
+                    Slot = -1,
+                    Policies = [],
+                    Admin = true,
+                },
+            ];
+        }
+
+        int slot = routeIdBySlot.Count;
+        routeIdBySlot.Add(RouteId.Empty);
+        string routeId = YarpConfig.AdminClusterId + "-" + host.Id;
+        yarpRoutes.Add(new RouteConfig
+        {
+            RouteId = routeId,
+            ClusterId = YarpConfig.AdminClusterId,
+            Match = new RouteMatch { Path = InternalRoutePrefix + routeId + "/{**rest}" },
+        });
+        return
+        [
+            new CompiledRoute
+            {
+                Id = RouteId.Empty,
+                MatchKind = RouteMatchKind.Prefix,
+                Path = "/",
+                Slot = slot,
+                Policies = [],
+                Admin = true,
+            },
+        ];
     }
 
     private static CompiledRoute[] CompileRoutes(

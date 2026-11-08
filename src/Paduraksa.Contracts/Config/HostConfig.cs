@@ -47,7 +47,7 @@ public sealed record HostConfig(
     public IReadOnlyList<string> Tags { get; init; } = Tags ?? [];
 }
 
-/// <summary>What a host does with requests. Admin hosts (PLAN §3.1) come later.</summary>
+/// <summary>What a host does with requests.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<HostKind>))]
 public enum HostKind
 {
@@ -59,6 +59,12 @@ public enum HostKind
 
     /// <summary>Answers every request with a fixed response (<see cref="HostConfig.Respond"/>).</summary>
     Respond,
+
+    /// <summary>
+    /// Serves the admin app through the internal listener (PLAN §3.1): every path is forwarded to <c>__admin</c>, HTTPS is
+    /// forced, and it has no routes or fixed answer of its own. At most one exists.
+    /// </summary>
+    Admin,
 }
 
 /// <summary>A host's certificate binding (PLAN §5.1).</summary>

@@ -365,6 +365,33 @@ public sealed class ConfigValidatorTests
             ($"{RespondHostPath}/respond", HostRespondRequired));
     }
 
+    [Fact]
+    public void AdminHostsAreSingleAndHaveNoRoutesOrOtherAnswer()
+    {
+        ConfigDocument document = Valid();
+        HostConfig admin = new(Id<HostId>(8), ["admin.example.com"], Kind: HostKind.Admin);
+        RouteConfig route = new(Id<RouteId>(9), AppUpstream);
+
+        // One admin host is valid (Auto binding, HTTPS implied by the mapping).
+        Assert.Empty(ConfigValidator.Validate(document with { Hosts = [.. document.Hosts, admin] }));
+
+        AssertErrors(
+            document with { Hosts = [.. document.Hosts, admin with { Routes = [route], Redirect = new RedirectConfig("https://x.test"), Respond = new RespondConfig(200) }] },
+            ("/hosts/3/routes", HostRoutesUnexpected),
+            ("/hosts/3/redirect", HostRedirectUnexpected),
+            ("/hosts/3/respond", HostRespondUnexpected));
+
+        // At most one, enabled or not.
+        AssertErrors(
+            document with { Hosts = [.. document.Hosts, admin, admin with { Id = Id<HostId>(9), Names = ["admin2.example.com"], Enabled = false }] },
+            ("/hosts/4/kind", HostAdminDuplicate));
+
+        // HTTPS is required: mode none can't serve an admin host.
+        AssertErrors(
+            document with { Hosts = [.. document.Hosts, admin with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } }] },
+            ("/hosts/3/certificate/mode", HostAdminHttpsRequired));
+    }
+
     [Theory]
     [InlineData("example.com", 301, true, "/target", RedirectTargetInvalid)]
     [InlineData("mailto:a@example.com", 301, true, "/target", RedirectTargetInvalid)]

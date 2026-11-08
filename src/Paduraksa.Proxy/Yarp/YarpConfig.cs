@@ -10,6 +10,16 @@ namespace Paduraksa.Proxy.Yarp;
 /// </summary>
 public sealed class YarpConfig
 {
+    /// <summary>
+    /// The cluster every admin host routes to (PLAN §3.1). Its destination address is symbolic
+    /// (<see cref="AdminUpstreamAddress"/>); the forwarder's connect callback reaches the admin app's internal listener instead
+    /// of resolving it.
+    /// </summary>
+    public const string AdminClusterId = "__admin";
+
+    /// <summary>The admin cluster's symbolic destination; never resolved.</summary>
+    public const string AdminUpstreamAddress = "http://admin.internal/";
+
     public YarpConfig(IReadOnlyList<RouteConfig> routes, IReadOnlyList<ClusterConfig> clusters)
     {
         ArgumentNullException.ThrowIfNull(routes);

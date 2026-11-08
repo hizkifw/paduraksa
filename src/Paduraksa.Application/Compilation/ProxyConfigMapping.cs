@@ -198,6 +198,15 @@ public static class ProxyConfigMapping
         HostConfig host, EffectiveHostSettings effective, CertificateInventory inventory, List<CompileError> errors, List<MappedWarning> warnings)
     {
         CompileErrorSource where = CompileErrorSource.Host(host.Id);
+        if (host.Kind == HostKind.Admin && host.Settings.ForceHttps is false)
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/forceHttps",
+                ConfigWarningCodes.AdminForceHttpsIgnored,
+                "an admin host is always served over HTTPS and redirects plain HTTP; forceHttps: false is ignored"));
+        }
+
         IpAllowListSettings?[] routeLists = [.. host.Routes.Select(r => HostSettingsLayers.ResolveRoute(effective, r.Settings))];
         bool uniform = routeLists.All(list => HostSettingsLayers.SameRestriction(list, routeLists[0]));
         PolicySpec[] hostChain = routeLists.Length == 0 ? AllowListPolicy(effective.IpAllowList)
@@ -243,7 +252,8 @@ public static class ProxyConfigMapping
             Names = host.Names,
             Kind = (ProxySnapshot.HostKind)host.Kind,
             Enabled = host.Enabled,
-            ForceHttps = effective.ForceHttps,
+            // The admin is only ever reached over HTTPS (PLAN §3.1): it forces the redirect whatever the layers say.
+            ForceHttps = host.Kind == HostKind.Admin || effective.ForceHttps,
             Https = binding.Mode != CertificateBindingMode.None,
             Certificate = certificate,
             NameCertificates = certificatesByName,

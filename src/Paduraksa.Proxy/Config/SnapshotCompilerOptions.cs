@@ -41,6 +41,12 @@ public sealed record SnapshotCompilerOptions
     public bool AdvertiseHttp3 { get; init; }
 
     /// <summary>
+    /// Whether an admin host's <c>__admin</c> cluster can be compiled (PLAN §3.1): true when the admin app's internal listener
+    /// exists (<c>Paduraksa:Listen:AdminInternal</c>). False: a config with an admin host is refused, with that reason.
+    /// </summary>
+    public bool AdminUpstream { get; init; }
+
+    /// <summary>
     /// Cloudflare's edge ranges for <see cref="TrustedProxyMode.CloudflareProxy"/>; null for the baked-in
     /// <see cref="CloudflareIpRanges.Default"/>. The range refresh job (M6) passes its latest list here; tests use it to
     /// put loopback "at the edge".
