@@ -345,6 +345,57 @@ public sealed partial class DashboardPipelineTests
         Assert.NotEqual("no-store", css.Header("Cache-Control"));
     }
 
+    [Fact]
+    public async Task StaticFiles_CostNoSessionLookup_WhileTheHubAndThePagesStillDo()
+    {
+        await using AdminHarness h = await AdminHarness.StartAsync();
+        string owner = await h.SetUpOwnerAsync();
+        long before = h.Host.Shared.Sessions.ValidationCount;
+
+        // A page load pulls dozens of these, each with the browser's cookie on it.
+        foreach (string asset in new[] { "/_framework/blazor.web.js", "/_content/MudBlazor/MudBlazor.min.css", "/_content/Paduraksa.Dashboard/app.css" })
+        {
+            using AdminResponse file = await h.GetAsync(asset, owner);
+            Assert.Equal(HttpStatusCode.OK, file.Status);
+        }
+
+        // Not even a cookie that names no session is looked up for one.
+        using (AdminResponse stale = await h.GetAsync("/_content/Paduraksa.Dashboard/app.css", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
+        {
+            Assert.Equal(HttpStatusCode.OK, stale.Status);
+        }
+
+        Assert.Equal(0L, h.Host.Shared.Sessions.ValidationCount - before);
+
+        // Pages and the circuit hub are not static files: they still check the session, and still refuse or redirect without one.
+        using (AdminResponse signedOut = await GetPageAsync(h, "/"))
+        {
+            Assert.Equal(HttpStatusCode.Found, signedOut.Status);
+            Assert.Equal(DashboardRoutes.SignIn, signedOut.Headers.Location?.OriginalString);
+        }
+
+        using (AdminResponse anonymousHub = await h.GetAsync("/_blazor?id=x"))
+        {
+            Assert.Equal(HttpStatusCode.Unauthorized, anonymousHub.Status);
+        }
+
+        Assert.Equal(0L, h.Host.Shared.Sessions.ValidationCount - before);
+
+        using (AdminResponse page = await GetPageAsync(h, "/", owner))
+        {
+            Assert.Equal(HttpStatusCode.OK, page.Status);
+        }
+
+        Assert.Equal(1L, h.Host.Shared.Sessions.ValidationCount - before);
+
+        using (AdminResponse hub = await h.SendAsync(HttpMethod.Post, "/_blazor/negotiate?negotiateVersion=1", json: "", cookie: owner, contentType: "text/plain"))
+        {
+            Assert.Equal(HttpStatusCode.OK, hub.Status);
+        }
+
+        Assert.Equal(2L, h.Host.Shared.Sessions.ValidationCount - before);
+    }
+
     private static Task<AdminResponse> GetPageAsync(AdminHarness h, string path, string? session = null) =>
         h.SendAsync(HttpMethod.Get, path, cookie: session, headers: new Dictionary<string, string> { ["Accept"] = Html });
 

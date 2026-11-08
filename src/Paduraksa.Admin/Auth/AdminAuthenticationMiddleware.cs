@@ -101,7 +101,8 @@ public static class AdminAuthEndpointExtensions
 /// lenient: a valid full session sets the caller (channel <see cref="Channel.Dashboard"/>), a partial one the <see cref="PartialSession"/>,
 /// and anything else leaves the request anonymous for the endpoint (or its authorization metadata) to decide. A bearer token is never
 /// a dashboard credential. Under <see cref="AdminPipelineHooks.AuthenticatedPathPrefixes"/> (the circuit hub) a request without a
-/// signed-in caller is a bare 401.</para>
+/// signed-in caller is a bare 401. Under <see cref="AdminPipelineHooks.StaticAssetPathPrefixes"/> (the dashboard's scripts and
+/// stylesheets) the cookie is not looked at at all: a static file needs no identity, and a page load pulls dozens of them.</para>
 /// <para>A signed-in session also becomes the request's <see cref="HttpContext.User"/> (a <see cref="SessionIdentity"/>), which is what
 /// the dashboard's authorization and the circuits it opens read.</para>
 /// </remarks>
@@ -186,6 +187,13 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
     /// <summary>The dashboard side: the session cookie only, never refused here (see the remarks).</summary>
     private async Task AuthenticateBrowserAsync(HttpContext context)
     {
+        // A static file needs no identity: no session lookup, whatever cookie the browser sends with it.
+        if (IsStaticAsset(context.Request.Path))
+        {
+            await next(context).ConfigureAwait(false);
+            return;
+        }
+
         (bool cookiePresent, bool cookieAmbiguous, string? cookie) = AdminSessionCookie.Read(context.Request);
         if (cookiePresent && !cookieAmbiguous)
         {
@@ -201,8 +209,7 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
             }
         }
 
-        if (context.GetCaller() is null
-            && hooks.AuthenticatedPathPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)))
+        if (context.GetCaller() is null && MatchesAny(context.Request.Path, hooks.AuthenticatedPathPrefixes))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return;
@@ -210,6 +217,16 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
 
         await next(context).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Whether the path is a static file: under <see cref="AdminPipelineHooks.StaticAssetPathPrefixes"/> and not under
+    /// <see cref="AdminPipelineHooks.AuthenticatedPathPrefixes"/>, so a prefix named in both lists stays protected.
+    /// </summary>
+    private bool IsStaticAsset(PathString path) =>
+        MatchesAny(path, hooks.StaticAssetPathPrefixes) && !MatchesAny(path, hooks.AuthenticatedPathPrefixes);
+
+    private static bool MatchesAny(PathString path, IEnumerable<string> prefixes) =>
+        prefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Sets the caller of a valid full session, and the request's user to its <see cref="SessionIdentity"/>.</summary>
     private static void SignIn(HttpContext context, SessionPrincipal principal, Channel channel)

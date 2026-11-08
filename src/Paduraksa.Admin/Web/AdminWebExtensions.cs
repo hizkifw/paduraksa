@@ -67,6 +67,7 @@ public static class AdminWebExtensions
         foreach (string prefix in web.StaticAssetPathPrefixes)
         {
             hooks.SetupAllowedPathPrefixes.Add(prefix);
+            hooks.StaticAssetPathPrefixes.Add(prefix);
         }
 
         hooks.SetupPagePath = web.SetupPage;

@@ -86,6 +86,13 @@ public sealed class AdminPipelineHooks
     public IList<string> AuthenticatedPathPrefixes { get; } = [];
 
     /// <summary>
+    /// Path prefixes outside <c>/api</c> of static files (the dashboard's <c>/_framework</c> and <c>/_content</c>). A static file needs
+    /// no identity, so the authentication middleware spends no session lookup on it, whatever cookie the request carries. A path under
+    /// <see cref="AuthenticatedPathPrefixes"/> is never one of these, so a prefix added to both lists stays protected.
+    /// </summary>
+    public IList<string> StaticAssetPathPrefixes { get; } = [];
+
+    /// <summary>
     /// Path prefixes where <b>every</b> request, whatever its method, must pass the same-origin check of
     /// <see cref="AdminCsrfMiddleware"/> (the circuit hub: its WebSocket handshake is a <c>GET</c>).
     /// </summary>

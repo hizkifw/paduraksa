@@ -78,6 +78,7 @@ public sealed class SessionService
     private readonly IdentityOptions _options;
     private readonly IdentityAudit _audit;
     private readonly IPermissionEvaluator _permissions;
+    private long _validations;
 
     internal SessionService(
         IDbContextFactory<ConfigDbContext> contexts, TimeProvider time, IdentityOptions options, IdentityAudit audit, IPermissionEvaluator permissions)
@@ -89,9 +90,14 @@ public sealed class SessionService
         _permissions = permissions;
     }
 
+    /// <summary>How many <see cref="ValidateAsync"/> calls this instance has seen. A test seam: a static file must cost none.</summary>
+    internal long ValidationCount => Interlocked.Read(ref _validations);
+
     /// <summary>Checks a cookie value presented by a browser, and counts the use (to within the touch interval).</summary>
     public async Task<SessionValidation> ValidateAsync(string? cookieValue, CancellationToken cancellationToken = default)
     {
+        Interlocked.Increment(ref _validations);
+
         if (!IsWellFormed(cookieValue))
         {
             return new SessionValidation(SessionStatus.Invalid);
