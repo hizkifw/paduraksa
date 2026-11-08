@@ -48,6 +48,7 @@ public static class ProxyHostingExtensions
                 transforms.UseDefaultForwarders = false;
                 transforms.AddRequestTransform(RawPathTransform.ApplyAsync);
                 transforms.AddRequestTransform(ForwardedHeadersTransform.ApplyAsync);
+                transforms.AddRequestTransform(SessionCookieTransform.ApplyAsync);
             });
         services.RemoveAll<IForwarderHttpClientFactory>();
         services.AddSingleton<IForwarderHttpClientFactory, PaduraksaForwarderHttpClientFactory>();

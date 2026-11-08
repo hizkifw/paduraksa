@@ -24,7 +24,7 @@ internal static class HeaderEchoUpstreamHost
     public static readonly string[] Echoed =
     [
         "X-Forwarded-For", "X-Real-IP", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Prefix", "X-Forwarded-Port",
-        "Forwarded", .. CloudflareHeaders.StripWhenUntrusted, "Cf-Access-Authenticated-User-Email", "Cf-Access-Jwt-Assertion", "cf-ipcity",
+        "Forwarded", "Cookie", .. CloudflareHeaders.StripWhenUntrusted, "Cf-Access-Authenticated-User-Email", "Cf-Access-Jwt-Assertion", "cf-ipcity",
     ];
 
     /// <summary>Starts the upstream on an ephemeral loopback port.</summary>
