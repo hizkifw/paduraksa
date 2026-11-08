@@ -2,6 +2,7 @@ using System.Net;
 
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Proxy.Net;
 
@@ -51,11 +52,13 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             ("Http", listen.Http),
             ("Https", listen.Https),
             ("Admin", listen.Admin),
+            ("AdminLoopbackHttp", listen.AdminLoopbackHttp),
         ];
 
         foreach ((string portName, int port) in ports)
         {
-            int min = allowEphemeralPorts ? 0 : 1;
+            // The loopback fallback is the only optional listener: 0 is "off" for it, never an OS-assigned port.
+            int min = portName == "AdminLoopbackHttp" ? 0 : allowEphemeralPorts ? 0 : 1;
             if (port < min || port > MaxPort)
             {
                 failures.Add($"{PaduraksaOptions.SectionName}:Listen:{portName} must be between {min} and {MaxPort}, was {port}.");
@@ -76,6 +79,18 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         if (!IPAddress.TryParse(listen.AdminBind, out _))
         {
             failures.Add($"{PaduraksaOptions.SectionName}:Listen:AdminBind must be an IP address, was '{listen.AdminBind}'.");
+        }
+
+        if (listen.AdminAllowedSources is null)
+        {
+            failures.Add($"{PaduraksaOptions.SectionName}:Listen:AdminAllowedSources must not be null.");
+        }
+        else
+        {
+            foreach (string source in listen.AdminAllowedSources.Where(static s => !AdminSourcePolicy.TryParseBlock(s, out _)))
+            {
+                failures.Add($"{PaduraksaOptions.SectionName}:Listen:AdminAllowedSources entry '{source}' is not an IP address or CIDR block (an IPv4-mapped IPv6 block must be written as IPv4).");
+            }
         }
 
         if (listen.PublicHttpsPort is < 1 or > MaxPort)
@@ -222,6 +237,22 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             // A last-seen time written less often than the idle limit is long would end live sessions.
             failures.Add($"{Key}:TouchInterval must be shorter than SessionIdleTimeout ({admin.SessionIdleTimeout}), was {admin.TouchInterval}.");
         }
+        if (admin.RateLimit is null)
+        {
+            failures.Add($"{Key}:RateLimit must not be null.");
+        }
+        else
+        {
+            Int($"RateLimit:{nameof(AdminRateLimitOptions.PermitsPerIp)}", admin.RateLimit.PermitsPerIp, 1, 10_000);
+            Int($"RateLimit:{nameof(AdminRateLimitOptions.PermitsPerUser)}", admin.RateLimit.PermitsPerUser, 1, 1000);
+            Span($"RateLimit:{nameof(AdminRateLimitOptions.Window)}", admin.RateLimit.Window, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10));
+        }
+
+        if (admin.MaxRequestBodyBytes is < 1024 or > 16 * 1024 * 1024)
+        {
+            failures.Add($"{Key}:{nameof(AdminOptions.MaxRequestBodyBytes)} must be between 1024 and {16 * 1024 * 1024}, was {admin.MaxRequestBodyBytes}.");
+        }
+
         if (string.IsNullOrWhiteSpace(admin.TotpIssuer) || admin.TotpIssuer.Length > 64 || admin.TotpIssuer.Contains(':', StringComparison.Ordinal) || admin.TotpIssuer.Any(char.IsControl))
         {
             failures.Add($"{Key}:TotpIssuer must be 1 to 64 characters without a colon or control characters.");

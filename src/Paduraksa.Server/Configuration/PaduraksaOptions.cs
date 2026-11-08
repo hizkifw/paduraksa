@@ -1,3 +1,4 @@
+using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 
@@ -144,6 +145,15 @@ internal sealed class AdminOptions
     /// <summary>The issuer name authenticator apps show (1 to 64 characters, no colon).</summary>
     public string TotpIssuer { get; set; } = new IdentityOptions().TotpIssuer;
 
+    /// <summary>Sign-in rate limits (<c>Paduraksa:Admin:RateLimit</c>): per client IP and per username, on top of the account lockout.</summary>
+    public AdminRateLimitOptions RateLimit { get; set; } = new();
+
+    /// <summary>
+    /// The largest request body the admin API accepts, in bytes (1 KiB to 16 MiB). 64 KiB suits every JSON request; an endpoint that takes
+    /// larger bodies (a certificate or config upload) raises its own limit.
+    /// </summary>
+    public long MaxRequestBodyBytes { get; set; } = AdminSecurityOptions.DefaultMaxRequestBodyBytes;
+
     public IdentityOptions ToIdentityOptions() => new()
     {
         MaxFailedAttempts = MaxFailedAttempts,
@@ -156,6 +166,31 @@ internal sealed class AdminOptions
         TouchInterval = TouchInterval,
         TotpIssuer = TotpIssuer,
     };
+
+    public AdminSecurityOptions ToSecurityOptions(int loopbackHttpPort = 0) => new()
+    {
+        LoopbackHttpPort = loopbackHttpPort,
+        RateLimitPermitsPerIp = RateLimit.PermitsPerIp,
+        RateLimitPermitsPerUser = RateLimit.PermitsPerUser,
+        RateLimitWindow = RateLimit.Window,
+        MaxRequestBodyBytes = MaxRequestBodyBytes,
+    };
+}
+
+/// <summary>
+/// <c>Paduraksa:Admin:RateLimit</c>: how often credentials may be tried (login, second factor, setup), in fixed windows. A refusal is a 429
+/// with <c>Retry-After</c>. It counts every attempt, successful or not, and is independent of the lockout (which counts failures per account).
+/// </summary>
+internal sealed class AdminRateLimitOptions
+{
+    /// <summary>Attempts, successful or not, one client may make per <see cref="Window"/> (1 to 10 000). An IPv6 client is one /64.</summary>
+    public int PermitsPerIp { get; set; } = new AdminSecurityOptions().RateLimitPermitsPerIp;
+
+    /// <summary>Failed attempts against one username per <see cref="Window"/> (1 to 1000); successful ones do not count.</summary>
+    public int PermitsPerUser { get; set; } = new AdminSecurityOptions().RateLimitPermitsPerUser;
+
+    /// <summary>The window (1 second to 10 minutes): memory held per client and username lives no longer than this.</summary>
+    public TimeSpan Window { get; set; } = new AdminSecurityOptions().RateLimitWindow;
 }
 
 internal sealed class PaduraksaListenOptions
@@ -191,6 +226,22 @@ internal sealed class PaduraksaListenOptions
 
     /// <summary>Bind address of the admin listener (§3: configurable).</summary>
     public string AdminBind { get; set; } = "0.0.0.0";
+
+    /// <summary>
+    /// Addresses and CIDR blocks allowed to connect to the admin listener (e.g. <c>192.168.1.0/24</c>); empty means no restriction.
+    /// Loopback is <b>not</b> implied: list <c>127.0.0.1/32</c> or <c>::1/128</c> to allow it (a proxy on this machine would otherwise let
+    /// every client in as loopback). Enforced per connection, before TLS; the loopback fallback listener is not subject to it.
+    /// IPv4-mapped IPv6 blocks are refused: write the IPv4 block.
+    /// </summary>
+    public IList<string> AdminAllowedSources { get; } = new List<string>();
+
+    /// <summary>
+    /// Opt-in plain-HTTP admin listener on this port, bound to loopback only (127.0.0.1 and ::1; there is no setting to bind anything
+    /// else). For headless setups reached through an SSH tunnel. Same app, same authentication; the session cookie is still sent
+    /// <c>Secure</c>, which Chromium and Firefox accept for <c>http://localhost</c> and <c>http://127.0.0.1</c> (Safari does not).
+    /// 0 turns it off (the default).
+    /// </summary>
+    public int AdminLoopbackHttp { get; set; }
 }
 
 /// <summary>

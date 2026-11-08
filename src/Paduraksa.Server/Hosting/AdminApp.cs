@@ -2,11 +2,14 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Admin.Auth;
+using Paduraksa.Admin.Identity;
 using Paduraksa.Application.Commands;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Server.Configuration;
@@ -16,9 +19,9 @@ namespace Paduraksa.Server.Hosting;
 
 /// <summary>
 /// The admin <c>WebApplication</c>: HTTPS on <c>Paduraksa:Listen:Admin</c> (default 9443).
-/// Today: health endpoints (PLAN §11.3) and a placeholder page.
-/// TODO(M4): auth, /api/v1, /mcp, /metrics. TODO(M5): dashboard. TODO(M4/§3.1): internal UDS listener,
-/// loopback plain-HTTP fallback listener.
+/// Health endpoints (PLAN §11.3), the security pipeline and identity API (<c>Paduraksa.Admin</c>: setup gate, authentication, CSRF
+/// defence, hardening), a placeholder page, the optional source allowlist and the opt-in loopback plain-HTTP listener.
+/// TODO(M4): /mcp, /metrics. TODO(M5): dashboard. TODO(§3.1): internal UDS listener.
 /// </summary>
 internal static class AdminApp
 {
@@ -50,6 +53,7 @@ internal static class AdminApp
         // TODO(M3): certificate issued by the internal CA (vault).
         X509Certificate2 certificate = context.Shared.ServerCertificate.Certificate;
 
+        AdminSourcePolicy sources = new(listen.AdminAllowedSources);
         builder.WebHost.UseKestrelCore().UseKestrelHttpsConfiguration();
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
@@ -57,18 +61,52 @@ internal static class AdminApp
             kestrel.Listen(bind, listen.Admin, admin =>
             {
                 admin.Protocols = HttpProtocols.Http1AndHttp2;
+                RestrictSources(admin, sources);
                 admin.UseHttps(certificate);
             });
+
+            // PLAN §3: opt-in, loopback only. ListenLocalhost binds 127.0.0.1 and ::1 and nothing else; no setting moves it.
+            if (listen.AdminLoopbackHttp > 0)
+            {
+                kestrel.ListenLocalhost(listen.AdminLoopbackHttp, fallback => fallback.Protocols = HttpProtocols.Http1);
+            }
         });
         builder.Services.AddRoutingCore();
+        builder.Services.AddPaduraksaAdminAuth(context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp));
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Admin);
         HostSetup.PinListenerConfiguration(builder);
 
         WebApplication app = builder.Build();
+        app.UsePaduraksaAdminAuth();
         MapHealth(app);
+        app.MapPaduraksaIdentityApi();
         app.MapMethods("/", GetAndHead, PlaceholderPageAsync);
         return app;
+    }
+
+    /// <summary>
+    /// Refuses connections from outside <c>AdminAllowedSources</c> before TLS starts: the TCP handshake completes, then the connection is
+    /// aborted without a byte sent. Loopback is not implied. No-op without an allowlist. Only the main listener has it: the loopback
+    /// fallback is loopback-only by construction.
+    /// </summary>
+    private static void RestrictSources(ListenOptions listener, AdminSourcePolicy sources)
+    {
+        if (!sources.IsRestricted)
+        {
+            return;
+        }
+
+        listener.Use(next => connection =>
+        {
+            if (sources.IsAllowed((connection.RemoteEndPoint as IPEndPoint)?.Address))
+            {
+                return next(connection);
+            }
+
+            connection.Abort();
+            return Task.CompletedTask;
+        });
     }
 
     /// <summary>PLAN §11.3: unauthenticated, status only, never any detail.</summary>
