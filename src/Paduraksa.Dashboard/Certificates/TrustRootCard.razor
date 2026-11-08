@@ -1,0 +1,57 @@
+@* "Trust the local CA once": the root's fingerprint, the PEM and DER downloads (the admin's anonymous /api/v1/ca endpoints), and how to
+   install it on the usual systems. Public data only. *@
+
+<MudPaper Class="pdk-card pdk-trust" Elevation="0" Outlined="true">
+    <div class="pdk-card-head">
+        <div class="pdk-card-head-main">
+            <span class="pdk-stat-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" /></span>
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">Trust the local CA</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">Install its root once and browsers trust the admin page and every local-CA certificate.</MudText>
+            </div>
+        </div>
+    </div>
+
+    @if (Root is null)
+    {
+        <EmptyState Compact="true" Icon="@Icons.Material.Outlined.AccountTree" Title="No local CA yet"
+                    Description="It is created with the admin certificate at the first start, or when you issue a local-CA certificate." />
+    }
+    else
+    {
+        <dl class="pdk-facts pdk-facts-compact">
+            <dt>Name</dt>
+            <dd>@CertificateDisplay.CommonName(Root.Subject)</dd>
+            <dt>Valid until</dt>
+            <dd>@CertificateDisplay.Date(Root.NotAfter)</dd>
+            <dt>SHA-256</dt>
+            <dd class="pdk-mono pdk-wrap pdk-fingerprint">@CertificateDisplay.Fingerprint(Root.Sha256Fingerprint)</dd>
+        </dl>
+        <div class="pdk-trust-actions">
+            <MudButton Href="/api/v1/ca/root.crt" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Download"
+                       UserAttributes="@Download("paduraksa-root.crt")" Class="pdk-root-crt">Download (.crt, DER)</MudButton>
+            <MudButton Href="/api/v1/ca/root.pem" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Download"
+                       UserAttributes="@Download("paduraksa-root.pem")" Class="pdk-root-pem">PEM</MudButton>
+        </div>
+        <MudExpansionPanels Elevation="0" Outlined="false" Class="pdk-trust-howto">
+            <MudExpansionPanel Text="How to install it">
+                <ul class="pdk-howto">
+                    <li><strong>Windows:</strong> open the .crt, Install Certificate, Local Machine, "Trusted Root Certification Authorities".</li>
+                    <li><strong>macOS:</strong> open the .crt in Keychain Access (System), then set it to "Always Trust".</li>
+                    <li><strong>Linux:</strong> copy the PEM to <code>/usr/local/share/ca-certificates/paduraksa.crt</code> and run <code>sudo update-ca-certificates</code>.</li>
+                    <li><strong>Firefox:</strong> Settings, Privacy &amp; Security, Certificates, View Certificates, Authorities, Import.</li>
+                    <li><strong>iOS / Android:</strong> open the .crt on the device, install the profile, then enable full trust for it.</li>
+                </ul>
+                <MudText Typo="Typo.caption" Class="pdk-muted">Check that the fingerprint your system shows matches the one above before you trust it.</MudText>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    }
+</MudPaper>
+
+@code {
+    /// <summary>The root as the inventory has it; null when there is none.</summary>
+    [Parameter]
+    public CertificateSummary? Root { get; set; }
+
+    private static Dictionary<string, object> Download(string name) => new() { ["download"] = name };
+}

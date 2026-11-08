@@ -1,0 +1,173 @@
+@* Upload a certificate with its key (PEM or PFX). The file is streamed from the browser into the vault's import during the call and never
+   read into memory here; the password is handed over as a char array that is cleared afterwards, and the field is emptied as soon as the
+   form is sent, whatever the outcome. *@
+@using Microsoft.AspNetCore.Components.Forms
+
+<div class="pdk-form-stack">
+    <div class="pdk-drop @(_file is not null ? "pdk-drop-filled" : null) @(_fileError is not null ? "pdk-drop-error" : null)">
+        <span class="pdk-drop-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.UploadFile" /></span>
+        <div class="pdk-drop-text">
+            @if (_file is { } file)
+            {
+                <span class="pdk-drop-title pdk-upload-file">@file.Name</span>
+                <span class="pdk-drop-hint">@FileSize(file.Size) · @(IsPfx(file.Name) ? "PKCS#12 (PFX)" : "PEM")</span>
+            }
+            else
+            {
+                <span class="pdk-drop-title">Choose the certificate file</span>
+                <span class="pdk-drop-hint">A PEM with the chain and its key, or a PFX/P12. At most 1 MiB.</span>
+            }
+        </div>
+        <InputFile OnChange="OnFileChosen" accept=".pem,.crt,.cer,.key,.pfx,.p12" class="pdk-drop-input" aria-label="Certificate file" disabled="@_busy" />
+    </div>
+    @if (_fileError is { } fileError)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Error" Class="pdk-field-error">@fileError</MudText>
+    }
+
+    @if (_file is not null && !IsPfx(_file.Name))
+    {
+        <div class="pdk-drop pdk-drop-small @(_keyFile is not null ? "pdk-drop-filled" : null)">
+            <span class="pdk-drop-icon pdk-tone-default"><MudIcon Icon="@Icons.Material.Outlined.Key" Size="Size.Small" /></span>
+            <div class="pdk-drop-text">
+                <span class="pdk-drop-title">@(_keyFile?.Name ?? "Key in a separate file?")</span>
+                <span class="pdk-drop-hint">@(_keyFile is null ? "Optional: a PKCS#8 key file, when the PEM above has only the chain." : "Read together with the certificate file.")</span>
+            </div>
+            <InputFile OnChange="OnKeyChosen" accept=".pem,.key" class="pdk-drop-input" aria-label="Key file" disabled="@_busy" />
+        </div>
+    }
+
+    <MudTextField T="string" @bind-Value="_password" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                  HelperText="For a PFX or an encrypted key. Cleared as soon as you upload." autocomplete="off" Disabled="_busy" Class="pdk-upload-password" />
+    <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
+                  HelperText="Optional. Shown in lists instead of the first name." Disabled="_busy" Class="pdk-upload-label" />
+
+    @if (_errors.Count > 0)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert">
+            @foreach (string error in _errors)
+            {
+                <div>@error</div>
+            }
+        </MudAlert>
+    }
+
+    <div class="pdk-form-actions">
+        @if (OnCancel.HasDelegate)
+        {
+            <MudButton Variant="Variant.Text" OnClick="OnCancel" Disabled="_busy">Cancel</MudButton>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="UploadAsync" Disabled="_busy" Class="pdk-upload-submit"
+                   StartIcon="@(_busy ? null : Icons.Material.Rounded.CloudUpload)">
+            @if (_busy)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+                <span>Uploading...</span>
+            }
+            else
+            {
+                <span>Upload</span>
+            }
+        </MudButton>
+    </div>
+</div>
+
+@code {
+    private IBrowserFile? _file;
+    private IBrowserFile? _keyFile;
+    private string? _password;
+    private string? _label;
+    private string? _fileError;
+    private bool _busy;
+    private List<string> _errors = [];
+
+    /// <summary>Hands the upload to the vault (the page wires it to <c>CertificateOperations.UploadAsync</c>).</summary>
+    [Parameter, EditorRequired]
+    public Func<CertificateUpload, Task<CertificateOperationResult?>> Submit { get; set; } = default!;
+
+    /// <summary>The certificate, once the vault took it and the inventory recorded it.</summary>
+    [Parameter]
+    public EventCallback<CertificateSummary> Uploaded { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    internal static bool IsPfx(string name) =>
+        name.EndsWith(".pfx", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".p12", StringComparison.OrdinalIgnoreCase);
+
+    private void OnFileChosen(InputFileChangeEventArgs args)
+    {
+        _file = args.File;
+        _keyFile = null;
+        _fileError = _file.Size > CertificateImportLimits.MaxBytes ? "The file is larger than 1 MiB; a certificate with its key is a few kilobytes." : null;
+        _errors = [];
+    }
+
+    private void OnKeyChosen(InputFileChangeEventArgs args)
+    {
+        _keyFile = args.File;
+        _fileError = _file!.Size + _keyFile.Size > CertificateImportLimits.MaxBytes ? "The two files together are larger than 1 MiB." : null;
+    }
+
+    private async Task UploadAsync()
+    {
+        _errors = [];
+        if (_file is null)
+        {
+            _fileError = "Choose a PEM or PFX file first.";
+            return;
+        }
+
+        if (_fileError is not null)
+        {
+            return;
+        }
+
+        // The password leaves the component's state before anything is awaited, and lives on only in this array until the call is done.
+        char[] password = (_password ?? string.Empty).ToCharArray();
+        _password = string.Empty;
+        IBrowserFile file = _file;
+        IBrowserFile? keyFile = _keyFile;
+        _busy = true;
+        CertificateOperationResult? result = null;
+        try
+        {
+            Stream data = file.OpenReadStream(CertificateImportLimits.MaxBytes);
+            await using (data.ConfigureAwait(false))
+            {
+                Stream upload = keyFile is null ? data : new PemConcatStream(data, keyFile.OpenReadStream(CertificateImportLimits.MaxBytes));
+                await using (upload.ConfigureAwait(false))
+                {
+                    result = await Submit(new CertificateUpload(upload, password, string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));
+                }
+            }
+        }
+        catch (IOException)
+        {
+            _errors = ["The file couldn't be read from the browser. Choose it again and retry."];
+        }
+        finally
+        {
+            Array.Clear(password);
+            _file = null;
+            _keyFile = null;
+            _busy = false;
+        }
+
+        if (result is null)
+        {
+            return;
+        }
+
+        if (result is { Status: CertificateOperationStatus.Completed, Certificate: { } certificate })
+        {
+            _label = null;
+            await Uploaded.InvokeAsync(certificate);
+            return;
+        }
+
+        _errors = [.. CertificateMessages.Errors(result), "Choose the file again to retry."];
+    }
+
+    private static string FileSize(long bytes) => bytes >= 1024 ? $"{bytes / 1024.0:0.#} KiB" : $"{bytes} B";
+}

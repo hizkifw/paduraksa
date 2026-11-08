@@ -1,0 +1,135 @@
+@* Runs one ACME issuance or renewal and shows its live progress: the service reports each step through IProgress, pushed to this
+   component's dispatcher (no polling). The run belongs to the server, not to this page: closing the page doesn't stop it, and its
+   result shows on the certificate. *@
+@implements IDisposable
+
+<OrderProgressView ChallengeType="ChallengeType" Reports="_reports" Attempts="Attempts" Now="_now" />
+
+@if (_errors.Count > 0)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert mt-3">
+        @foreach (string error in _errors)
+        {
+            <div>@error</div>
+        }
+    </MudAlert>
+}
+
+@code {
+    private readonly List<AcmeOrderProgress> _reports = [];
+    private List<string> _errors = [];
+    private DateTimeOffset _now;
+    private bool _started;
+    private volatile bool _disposed;
+    private Timer? _ticker;
+
+    /// <summary>Starts the run with the reporter it should tell (the page binds it to the issuance service).</summary>
+    [Parameter, EditorRequired]
+    public Func<IProgress<AcmeOrderProgress>, Task<IssuanceResult>> Start { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public AcmeChallengeType ChallengeType { get; set; }
+
+    [Parameter]
+    public int? Attempts { get; set; }
+
+    /// <summary>When the run ended (issued, failed or refused).</summary>
+    [Parameter]
+    public EventCallback<IssuanceResult> Finished { get; set; }
+
+    [Inject]
+    private TimeProvider Time { get; set; } = default!;
+
+    /// <summary>Whether the run is still going.</summary>
+    public bool Running { get; private set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_started)
+        {
+            return;
+        }
+
+        _started = true;
+        Running = true;
+        _now = Time.GetUtcNow();
+        // Only the elapsed time line ticks; the steps arrive as the service reports them.
+        _ticker = new Timer(_ => _ = Tick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        IssuanceResult result;
+        try
+        {
+            result = await Start(new Reporter(this));
+        }
+        finally
+        {
+            Running = false;
+            _ticker?.Dispose();
+            _ticker = null;
+        }
+
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (result.Outcome is not (IssuanceOutcome.Issued or IssuanceOutcome.Failed))
+        {
+            _errors = [.. CertificateMessages.Errors(result)];
+        }
+
+        await Finished.InvokeAsync(result);
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _ticker?.Dispose();
+    }
+
+    private async Task Tick()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                _now = Time.GetUtcNow();
+                StateHasChanged();
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit went away.
+        }
+    }
+
+    private void Add(AcmeOrderProgress report)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _reports.Add(report);
+            _now = Time.GetUtcNow();
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>Passes the service's reports to the component; never throws back into the issuance.</summary>
+    private sealed class Reporter(AcmeRunPanel panel) : IProgress<AcmeOrderProgress>
+    {
+        public void Report(AcmeOrderProgress value) => panel.Add(value);
+    }
+}

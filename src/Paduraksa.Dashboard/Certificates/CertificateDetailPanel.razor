@@ -1,0 +1,338 @@
+@* One certificate's public facts, its renewal and order state, and what can be done with it. While an issuance of it runs (started here,
+   by the scheduler or elsewhere), its progress is read every two seconds for as long as this panel is open: the one place that polls. *@
+@implements IDisposable
+@inject CertificateService Certificates
+@inject AcmeIssuanceService Issuance
+@inject AcmeAccountService AcmeAccounts
+@inject TimeProvider Time
+
+<div class="pdk-detail">
+    <header class="pdk-detail-head">
+        <span class="pdk-detail-icon pdk-tone-@CertificateDisplay.StatusTone(S.Status, S.NotBefore, S.NotAfter, Now)">
+            <MudIcon Icon="@CertificateDisplay.Icon(Row.Origin)" />
+        </span>
+        <div class="pdk-detail-titles">
+            <MudText Typo="Typo.h6" HtmlTag="h2" Class="pdk-detail-name">@Row.Name</MudText>
+            <div class="pdk-detail-chips">
+                <span class="pdk-pill pdk-tone-@CertificateDisplay.StatusTone(S.Status, S.NotBefore, S.NotAfter, Now)">@CertificateDisplay.StatusLabel(S.Status, S.NotBefore, S.NotAfter, Now)</span>
+                <span class="pdk-pill pdk-tone-default">@CertificateDisplay.Label(Row.Origin)</span>
+                @if (Row.IsAdmin)
+                {
+                    <span class="pdk-pill pdk-tone-info">Managed</span>
+                }
+            </div>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Rounded.Close" OnClick="OnClose" aria-label="Close" Size="Size.Small" />
+    </header>
+
+    @if (S.Status == CertificateStatus.Failed && S.StatusMessage is { Length: > 0 } failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-4">@failed</MudAlert>
+    }
+
+    @if (Row.IsAdmin)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="mb-4">
+            The admin listener's own certificate. Paduraksa issues it from the local CA and keeps it current; it can't be deleted, re-issued by
+            hand or bound to a host. Trust the local CA's root once and the browser trusts this page.
+        </MudAlert>
+    }
+
+    <section class="pdk-detail-section">
+        <MudText Typo="Typo.overline" Class="pdk-muted">Validity</MudText>
+        <div class="pdk-validity">
+            <ExpiryCountdown NotAfter="S.NotAfter" Now="Now" ShowDate="false" />
+            <MudProgressLinear Value="CertificateDisplay.LifetimeUsed(S.NotBefore, S.NotAfter, Now)" Rounded="true" Size="Size.Small"
+                               Color="@ToneColor(CertificateDisplay.ExpiryTone(S.NotAfter, Now))" Class="pdk-validity-bar" />
+            <div class="pdk-validity-dates">
+                <span>From @CertificateDisplay.DateTime(S.NotBefore)</span>
+                <span>Until @CertificateDisplay.DateTime(S.NotAfter)</span>
+            </div>
+        </div>
+    </section>
+
+    @if (S.Names.Count > 0)
+    {
+        <section class="pdk-detail-section">
+            <MudText Typo="Typo.overline" Class="pdk-muted">Names</MudText>
+            <div class="pdk-name-chips">
+                @foreach (string name in S.Names)
+                {
+                    <span class="pdk-name-chip pdk-mono">@name</span>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="pdk-detail-section">
+        <MudText Typo="Typo.overline" Class="pdk-muted">Used by</MudText>
+        @if (!UsageKnown)
+        {
+            <MudText Typo="Typo.body2" Class="pdk-muted">Your role can't read the hosts.</MudText>
+        }
+        else if (Row.Uses.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="pdk-muted">No host uses it right now.</MudText>
+        }
+        else
+        {
+            <ul class="pdk-use-list">
+                @foreach (CertificateUse use in Row.Uses)
+                {
+                    <li>
+                        <MudIcon Icon="@(use.Kind == CertificateUseKind.Default ? Icons.Material.Outlined.Star : Icons.Material.Outlined.Language)" Size="Size.Small" />
+                        <span>@(use.Kind == CertificateUseKind.Default ? "The default certificate" : use.HostName)</span>
+                        <span class="pdk-muted">@UseLabel(use)</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="pdk-detail-section">
+        <MudText Typo="Typo.overline" Class="pdk-muted">Details</MudText>
+        <dl class="pdk-facts">
+            <dt>Issuer</dt>
+            <dd>@CertificateDisplay.CommonName(S.Issuer)@(CertificateDisplay.Organization(S.Issuer) is { } org ? $" ({org})" : null)</dd>
+            <dt>Subject</dt>
+            <dd class="pdk-mono">@(string.IsNullOrEmpty(S.Subject) ? "-" : S.Subject)</dd>
+            <dt>Key</dt>
+            <dd>@S.KeyAlgorithm</dd>
+            <dt>Serial</dt>
+            <dd class="pdk-mono pdk-wrap">@S.SerialNumber</dd>
+            <dt>SHA-256</dt>
+            <dd class="pdk-mono pdk-wrap pdk-fingerprint">@CertificateDisplay.Fingerprint(S.Sha256Fingerprint)</dd>
+            @if (_detail is { ChainIssuers.Count: > 0 } detail)
+            {
+                <dt>Chain</dt>
+                <dd>
+                    <ol class="pdk-chain">
+                        @foreach (string issuer in detail.ChainIssuers)
+                        {
+                            <li>@CertificateDisplay.CommonName(issuer)</li>
+                        }
+                    </ol>
+                </dd>
+            }
+            <dt>Added</dt>
+            <dd>@CertificateDisplay.DateTime(S.CreatedAt)</dd>
+        </dl>
+    </section>
+
+    @if (Row.Order is not null || _progress is not null)
+    {
+        AcmeOrderSummary? order = _order ?? Row.Order;
+        <section class="pdk-detail-section">
+            <MudText Typo="Typo.overline" Class="pdk-muted">ACME</MudText>
+            @if (_progress is { } progress)
+            {
+                <OrderProgressView ChallengeType="progress.ChallengeType" Reports="_watched" Now="Now" Attempts="order?.Attempts" />
+            }
+            @if (order is not null)
+            {
+                <dl class="pdk-facts">
+                    <dt>Account</dt>
+                    <dd>@(_accountName ?? "-")</dd>
+                    <dt>Challenge</dt>
+                    <dd>@(order.ChallengeType == AcmeChallengeType.Dns01 ? "DNS-01" : "HTTP-01")</dd>
+                    <dt>Order</dt>
+                    <dd><span class="pdk-pill pdk-tone-@OrderTone(order.Status)">@OrderLabel(order.Status)</span></dd>
+                    @if (order.NextRenewalAt is { } renewAt)
+                    {
+                        <dt>Next renewal</dt>
+                        <dd>@CertificateDisplay.DateTime(renewAt)</dd>
+                    }
+                    @if (order.AriWindowStart is { } windowStart && order.AriWindowEnd is { } windowEnd)
+                    {
+                        <dt>CA's window</dt>
+                        <dd>@CertificateDisplay.DateTime(windowStart) to @CertificateDisplay.DateTime(windowEnd) <span class="pdk-muted">(ARI)</span></dd>
+                    }
+                    @if (order.LastAttemptAt is { } last)
+                    {
+                        <dt>Last attempt</dt>
+                        <dd>@CertificateDisplay.DateTime(last)</dd>
+                    }
+                </dl>
+                @if (order.Status == AcmeOrderStatus.Failed && _progress is null)
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mt-2">
+                        <strong>Attempt @order.Attempts failed.</strong> @order.Error
+                        @if (order.RetryAt is { } retry)
+                        {
+                            <div class="pdk-progress-retry">Next try @CertificateDisplay.DateTime(retry); the wait grows after each failure.</div>
+                        }
+                    </MudAlert>
+                }
+            }
+        </section>
+    }
+
+    @if (_detail is { PublicChainPem.Length: > 0 } pem)
+    {
+        <MudExpansionPanels Elevation="0" Outlined="true" Class="pdk-detail-section">
+            <MudExpansionPanel Text="Public chain (PEM)">
+                <pre class="pdk-pem">@pem.PublicChainPem</pre>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    }
+
+    @if (MayWrite && (Row.CanRenew || Row.CanReissue || Row.CanDelete))
+    {
+        <footer class="pdk-detail-actions">
+            @if (Row.CanRenew)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Autorenew" OnClick="() => OnRenew.InvokeAsync(Row)"
+                           Disabled="_progress is not null" Class="pdk-renew">Renew now</MudButton>
+            }
+            @if (Row.CanReissue)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="() => OnReissue.InvokeAsync(Row)"
+                           Class="pdk-reissue">Re-issue</MudButton>
+            }
+            <MudSpacer />
+            @if (Row.CanDelete)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.DeleteOutline" OnClick="() => OnDelete.InvokeAsync(Row)"
+                           Class="pdk-delete">Delete</MudButton>
+            }
+        </footer>
+    }
+</div>
+
+@code {
+    private CertificateDetail? _detail;
+    private AcmeOrderSummary? _order;
+    private AcmeOrderProgress? _progress;
+    private readonly List<AcmeOrderProgress> _watched = [];
+    private string? _accountName;
+    private Timer? _poll;
+    private CertificateId? _loaded;
+    private volatile bool _disposed;
+
+    [Parameter, EditorRequired]
+    public CertificateRow Row { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+
+    [Parameter]
+    public bool MayWrite { get; set; }
+
+    [Parameter]
+    public bool UsageKnown { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback<CertificateRow> OnRenew { get; set; }
+
+    [Parameter]
+    public EventCallback<CertificateRow> OnReissue { get; set; }
+
+    [Parameter]
+    public EventCallback<CertificateRow> OnDelete { get; set; }
+
+    private CertificateSummary S => Row.Summary;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == Row.Id)
+        {
+            _order = Row.Order ?? _order;
+            return;
+        }
+
+        _loaded = Row.Id;
+        _watched.Clear();
+        _progress = null;
+        _order = Row.Order;
+        _detail = Row.IsBuiltIn ? null : await Certificates.GetAsync(Row.Id);
+        _accountName = Row.Order is { } order && await AcmeAccounts.GetAsync(order.AccountId) is { } account ? ProviderDisplay.AccountName(account) : null;
+        Watch();
+        _poll ??= new Timer(_ => _ = PollAsync(), null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _poll?.Dispose();
+    }
+
+    /// <summary>Reads the running issuance's step, if there is one; keeps the steps seen so the list shows the way it went.</summary>
+    private bool Watch()
+    {
+        AcmeOrderProgress? now = Row.Origin == CertificateOrigin.Acme ? Issuance.GetProgress(Row.Id) : null;
+        if (now is null)
+        {
+            bool changed = _progress is not null;
+            _progress = null;
+            _watched.Clear();
+            return changed;
+        }
+
+        if (_watched.Count == 0 || _watched[^1] != now)
+        {
+            _watched.Add(now);
+            _progress = now;
+            return true;
+        }
+
+        return false;
+    }
+
+    private async Task PollAsync()
+    {
+        if (_disposed || Row.Origin != CertificateOrigin.Acme)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeAsync(async () =>
+            {
+                bool running = _progress is not null;
+                if (Watch() || running)
+                {
+                    _order = await Issuance.GetOrderAsync(Row.Id);
+                    StateHasChanged();
+                }
+            });
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit went away.
+        }
+    }
+
+    private static Color ToneColor(string tone) => tone switch
+    {
+        "error" => Color.Error,
+        "warning" => Color.Warning,
+        _ => Color.Success,
+    };
+
+    private static string UseLabel(CertificateUse use) => use.Kind switch
+    {
+        CertificateUseKind.Specific => "named by the host",
+        CertificateUseKind.Default => "for names nothing else covers",
+        _ => use.ServerNames.Count > 0 ? $"best match for {string.Join(", ", use.ServerNames)}" : "best match",
+    };
+
+    private static string OrderTone(AcmeOrderStatus status) => status switch
+    {
+        AcmeOrderStatus.Valid => "success",
+        AcmeOrderStatus.Failed => "error",
+        _ => "info",
+    };
+
+    private static string OrderLabel(AcmeOrderStatus status) => status switch
+    {
+        AcmeOrderStatus.Pending => "Pending",
+        AcmeOrderStatus.Ordered => "Ordered",
+        AcmeOrderStatus.Finalizing => "Finalizing",
+        AcmeOrderStatus.Valid => "Issued",
+        _ => "Failed",
+    };
+}

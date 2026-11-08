@@ -21,7 +21,7 @@ public static class DashboardNavigation
         new("Overview", DashboardRoutes.Home, Icons.Material.Outlined.SpaceDashboard, null, null, true),
         new("Hosts", DashboardRoutes.Hosts, Icons.Material.Outlined.Language, "Traffic", Permission.ConfigRead, true),
         new("Upstreams", DashboardRoutes.Upstreams, Icons.Material.Outlined.Hub, "Traffic", Permission.ConfigRead, true),
-        new("Certificates", DashboardRoutes.Certificates, Icons.Material.Outlined.WorkspacePremium, "Traffic", Permission.CertificatesRead, false),
+        new("Certificates", DashboardRoutes.Certificates, Icons.Material.Outlined.WorkspacePremium, "Traffic", Permission.CertificatesRead, true),
         new("Simulator", DashboardRoutes.Simulator, Icons.Material.Outlined.Science, "Insight", Permission.Simulate, true),
         new("History", DashboardRoutes.History, Icons.Material.Outlined.History, "Insight", Permission.ConfigRead, true),
         new("Audit", DashboardRoutes.Audit, Icons.Material.Outlined.FactCheck, "Insight", Permission.AuditRead, false),

@@ -1,0 +1,864 @@
+/*
+ * Certificates, ACME accounts, DNS providers and the first-run wizard. Builds on app.css: the same MudBlazor palette variables
+ * (--mud-palette-*), the tone classes (.pdk-tone-*) and the card, list and empty-state conventions.
+ */
+
+/* ---------- Shared bits ---------- */
+
+.pdk-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.pdk-pill-spinner.mud-progress-circular {
+    width: 12px !important;
+    height: 12px !important;
+    color: inherit;
+}
+
+.pdk-name-chips, .pdk-use-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pdk-name-chip {
+    display: inline-block;
+    max-width: 100%;
+    padding: 2px 8px;
+    overflow: hidden;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 6px;
+    background: var(--mud-palette-background-gray);
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-wrap {
+    overflow-wrap: anywhere;
+}
+
+.pdk-fingerprint {
+    font-size: 0.75rem;
+    letter-spacing: 0.02em;
+}
+
+.pdk-card-head-main {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.pdk-facts {
+    display: grid;
+    grid-template-columns: minmax(96px, max-content) 1fr;
+    gap: 8px 16px;
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.pdk-facts dt {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-facts dd {
+    min-width: 0;
+    margin: 0;
+}
+
+.pdk-facts-compact {
+    margin-bottom: 14px;
+}
+
+/* ---------- Dialogs and forms ---------- */
+
+.pdk-dialog.mud-dialog {
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius-lg);
+    background: var(--mud-palette-surface);
+}
+
+.pdk-dialog-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pdk-dialog-icon {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-dialog-content {
+    padding-bottom: 8px;
+}
+
+.pdk-form-stack {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+}
+
+.pdk-field-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.pdk-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.pdk-form-alert.mud-alert {
+    margin: 0;
+}
+
+.pdk-field-error {
+    margin-top: -8px;
+}
+
+.pdk-drop {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px;
+    border: 1.5px dashed var(--mud-palette-lines-inputs);
+    border-radius: var(--pdk-radius-lg);
+    background: color-mix(in srgb, var(--mud-palette-primary) 4%, transparent);
+    transition: border-color 120ms ease, background 120ms ease;
+}
+
+.pdk-drop:hover, .pdk-drop:focus-within {
+    border-color: var(--mud-palette-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+}
+
+.pdk-drop-filled {
+    border-style: solid;
+}
+
+.pdk-drop-error {
+    border-color: var(--mud-palette-error);
+}
+
+.pdk-drop-small {
+    padding: 12px 14px;
+}
+
+.pdk-drop-icon {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-drop-small .pdk-drop-icon {
+    width: 32px;
+    height: 32px;
+}
+
+.pdk-drop-text {
+    display: grid;
+    min-width: 0;
+}
+
+.pdk-drop-title {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-drop-hint {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+/* The native file input covers the whole drop zone, invisible: a click or a drop anywhere picks the file. */
+.pdk-drop-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.pdk-choice-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.pdk-choice {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 2px 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--mud-palette-lines-inputs);
+    border-radius: var(--pdk-radius);
+    background: transparent;
+    color: var(--mud-palette-text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.pdk-choice:hover {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 55%, var(--mud-palette-lines-inputs));
+}
+
+.pdk-choice:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mud-palette-primary) 30%, transparent);
+}
+
+.pdk-choice-on {
+    border-color: var(--mud-palette-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 9%, transparent);
+}
+
+.pdk-choice .mud-icon-root {
+    color: var(--mud-palette-primary);
+}
+
+.pdk-choice-title {
+    font-weight: 600;
+}
+
+.pdk-choice-hint {
+    grid-column: 1 / -1;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+/* ---------- ACME progress ---------- */
+
+.pdk-progress {
+    display: grid;
+    gap: 14px;
+}
+
+.pdk-progress-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pdk-progress-badge {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--pdk-tone) 16%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-progress-headline.mud-typography {
+    font-weight: 600;
+}
+
+.pdk-steps {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pdk-step-item {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    padding: 0 0 14px;
+}
+
+/* The line joining the markers. */
+.pdk-step-item:not(:last-child)::before {
+    position: absolute;
+    top: 24px;
+    bottom: 2px;
+    left: 11px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--mud-palette-lines-default);
+    content: "";
+}
+
+.pdk-step-done:not(:last-child)::before {
+    background: color-mix(in srgb, var(--mud-palette-success) 60%, transparent);
+}
+
+.pdk-step-marker {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--mud-palette-lines-inputs);
+    border-radius: 50%;
+    box-sizing: border-box;
+    background: var(--mud-palette-surface);
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-step-marker .mud-icon-root {
+    font-size: 15px;
+}
+
+.pdk-step-done .pdk-step-marker {
+    border-color: var(--mud-palette-success);
+    background: var(--mud-palette-success);
+    color: var(--mud-palette-surface);
+}
+
+.pdk-step-active .pdk-step-marker {
+    border-color: var(--mud-palette-primary);
+}
+
+.pdk-step-failed .pdk-step-marker {
+    border-color: var(--mud-palette-error);
+    background: var(--mud-palette-error);
+    color: var(--mud-palette-surface);
+}
+
+.pdk-step-skipped .pdk-step-marker {
+    border-style: dashed;
+}
+
+.pdk-step-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--mud-palette-primary);
+    animation: pdk-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pdk-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pdk-step-pulse {
+        animation: none;
+    }
+}
+
+.pdk-step-body {
+    display: grid;
+    min-width: 0;
+    padding-top: 2px;
+}
+
+.pdk-step-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.pdk-step-waiting .pdk-step-title, .pdk-step-skipped .pdk-step-title {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-step-active .pdk-step-title {
+    font-weight: 650;
+}
+
+.pdk-step-detail {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-progress-retry {
+    margin-top: 6px;
+    font-size: 0.8125rem;
+}
+
+/* ---------- The certificate list ---------- */
+
+.pdk-cert-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.pdk-cert-counter {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 999px;
+    background: var(--mud-palette-surface);
+}
+
+.pdk-cert-counter .pdk-status-dot {
+    width: 8px;
+    height: 8px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-tone) 20%, transparent);
+}
+
+.pdk-cert-counter-value {
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-cert-counter-label {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-cert-card.mud-paper {
+    padding: 6px 8px;
+    margin-bottom: 16px;
+}
+
+.pdk-cert-card .pdk-row-skeleton, .pdk-cert-card .pdk-empty {
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.pdk-cert-table {
+    display: grid;
+}
+
+.pdk-cert-tr {
+    display: grid;
+    grid-template-columns: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr);
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+}
+
+.pdk-cert-th {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.pdk-cert-row {
+    width: 100%;
+    border: 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 100ms ease;
+}
+
+.pdk-cert-row:hover {
+    background: var(--mud-palette-table-hover);
+}
+
+.pdk-cert-row:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mud-palette-primary) 50%, transparent);
+}
+
+.pdk-cert-row-selected {
+    background: color-mix(in srgb, var(--mud-palette-primary) 7%, transparent);
+}
+
+.pdk-cert-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.pdk-cert-cell {
+    min-width: 0;
+}
+
+.pdk-cert-issuer {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-expiry {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pdk-expiry-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--pdk-tone);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pdk-tone) 18%, transparent);
+}
+
+.pdk-expiry-text {
+    display: grid;
+    line-height: 1.3;
+}
+
+.pdk-expiry-left {
+    color: var(--pdk-tone);
+    font-weight: 600;
+}
+
+.pdk-expiry-date {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-cert-managed {
+    align-items: start;
+}
+
+.pdk-admin-cert-body {
+    display: grid;
+    gap: 12px;
+}
+
+.pdk-admin-cert code, .pdk-trust code, .pdk-howto code {
+    padding: 1px 5px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 5px;
+    background: var(--mud-palette-background-gray);
+    font-family: var(--pdk-mono);
+    font-size: 0.8em;
+}
+
+.pdk-trust-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pdk-trust-howto.mud-expansion-panels {
+    margin-top: 10px;
+}
+
+.pdk-trust-howto .mud-expand-panel {
+    background: transparent;
+}
+
+.pdk-trust-howto .mud-expand-panel-header {
+    padding-left: 0;
+}
+
+.pdk-trust-howto .mud-expand-panel-content {
+    padding-left: 0;
+}
+
+.pdk-howto {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 10px;
+    padding-left: 18px;
+    font-size: 0.8125rem;
+}
+
+/* Phones and narrow windows: each row becomes a card, the cells labelled. */
+@media (max-width: 900px) {
+    .pdk-cert-th {
+        display: none;
+    }
+
+    .pdk-cert-tr {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px 16px;
+        padding: 14px 10px;
+    }
+
+    .pdk-cert-main {
+        grid-column: 1 / -1;
+    }
+
+    .pdk-cert-cell::before {
+        display: block;
+        margin-bottom: 2px;
+        color: var(--mud-palette-text-secondary);
+        content: attr(data-label);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .pdk-cert-row:first-of-type {
+        border-top: 0;
+    }
+
+    .pdk-field-pair, .pdk-choice-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---------- The detail drawer ---------- */
+
+.pdk-detail-drawer.mud-drawer {
+    border-left: 1px solid var(--mud-palette-lines-default);
+    background: var(--mud-palette-surface);
+}
+
+.pdk-detail {
+    display: grid;
+    gap: 0;
+    padding: 20px 22px 28px;
+}
+
+.pdk-detail-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.pdk-detail-icon {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-detail-titles {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 6px;
+    min-width: 0;
+}
+
+.pdk-detail-name.mud-typography {
+    overflow-wrap: anywhere;
+}
+
+.pdk-detail-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pdk-detail-section {
+    display: grid;
+    gap: 8px;
+    padding: 16px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-validity {
+    display: grid;
+    gap: 8px;
+}
+
+.pdk-validity-dates {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-use-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.875rem;
+}
+
+.pdk-use-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.pdk-use-list .mud-icon-root {
+    color: var(--mud-palette-primary);
+}
+
+.pdk-chain {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.pdk-pem {
+    max-height: 260px;
+    margin: 0;
+    padding: 12px;
+    overflow: auto;
+    border-radius: var(--pdk-radius);
+    background: var(--mud-palette-background-gray);
+    font-family: var(--pdk-mono);
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    white-space: pre;
+}
+
+.pdk-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-top: 18px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+/* ---------- Settings: the hub, ACME accounts and DNS providers ---------- */
+
+.pdk-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.pdk-settings-tile.mud-paper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 140px;
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 120ms ease, transform 120ms ease;
+}
+
+a.pdk-settings-tile.mud-paper:hover {
+    border-color: var(--mud-palette-primary);
+    transform: translateY(-1px);
+}
+
+.pdk-settings-tile-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pdk-provider-list {
+    display: grid;
+    gap: 12px;
+}
+
+.pdk-provider.mud-paper {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+}
+
+.pdk-provider-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pdk-provider-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.pdk-provider-sub {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-provider-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.pdk-test-result {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--pdk-tone) 40%, transparent);
+    border-radius: var(--pdk-radius);
+    background: color-mix(in srgb, var(--pdk-tone) 9%, transparent);
+    font-size: 0.8125rem;
+}
+
+.pdk-test-result .mud-icon-root {
+    color: var(--pdk-tone);
+}
+
+.pdk-test-result strong {
+    display: block;
+}
+
+.pdk-secret-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-secret-note .mud-icon-root {
+    color: var(--mud-palette-primary);
+}
+
+@media (max-width: 600px) {
+    .pdk-provider.mud-paper {
+        grid-template-columns: auto 1fr;
+    }
+
+    .pdk-provider-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
+}
+
+/* ---------- The QR code ---------- */
+
+.pdk-qr {
+    display: block;
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px var(--mud-palette-lines-default);
+}

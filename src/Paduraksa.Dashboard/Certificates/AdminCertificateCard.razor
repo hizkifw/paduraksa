@@ -1,0 +1,51 @@
+@* The admin listener's certificate, read-only: what it is, the names it covers and when it ends. Paduraksa keeps it current itself. *@
+
+<MudPaper Class="pdk-card pdk-admin-cert" Elevation="0" Outlined="true">
+    <div class="pdk-card-head">
+        <div class="pdk-card-head-main">
+            <span class="pdk-stat-icon pdk-tone-info"><MudIcon Icon="@Icons.Material.Outlined.AdminPanelSettings" Size="Size.Small" /></span>
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">Admin certificate</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">Managed by Paduraksa: issued from the local CA and renewed on its own.</MudText>
+            </div>
+        </div>
+        @if (Admin is not null)
+        {
+            <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Primary" OnClick="() => OnOpen.InvokeAsync(Admin)">Details</MudButton>
+        }
+    </div>
+    @if (Admin is null)
+    {
+        <MudText Typo="Typo.body2" Class="pdk-muted">Not recorded yet; it is issued at startup.</MudText>
+    }
+    else
+    {
+        <div class="pdk-admin-cert-body">
+            <ExpiryCountdown NotAfter="Admin.Summary.NotAfter" Now="Now" />
+            <div class="pdk-name-chips">
+                @foreach (string name in Admin.Summary.Names.Take(6))
+                {
+                    <span class="pdk-name-chip pdk-mono">@name</span>
+                }
+                @if (Admin.Summary.Names.Count > 6)
+                {
+                    <span class="pdk-name-chip">+@(Admin.Summary.Names.Count - 6) more</span>
+                }
+            </div>
+            <MudText Typo="Typo.caption" Class="pdk-muted">
+                It can't be deleted, re-issued by hand or used for a host. Add names with <code>Paduraksa:Admin:CertificateNames</code>.
+            </MudText>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter]
+    public CertificateRow? Admin { get; set; }
+
+    [Parameter, EditorRequired]
+    public DateTimeOffset Now { get; set; }
+
+    [Parameter]
+    public EventCallback<CertificateRow> OnOpen { get; set; }
+}

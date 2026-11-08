@@ -106,6 +106,12 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<ApiTokenService>());
         SetupService setup = builder.AddOwnedElsewhere(container.GetRequiredService<SetupService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<IPermissionEvaluator>());
+        if (placeholderEnabled)
+        {
+            // The dashboard lists it with the inventory's certificates (source "built-in").
+            builder.AddOwnedElsewhere<IBuiltInCertificates>(placeholder);
+        }
+
         return new ConfigStoreServices(contexts, config, certificates, operations, setup);
     }
 }

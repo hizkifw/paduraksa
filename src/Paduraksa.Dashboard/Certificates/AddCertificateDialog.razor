@@ -1,0 +1,93 @@
+@* The dialog around the upload and the self-signed / local-CA forms: it binds them to CertificateOperations as the signed-in user. *@
+@inject CertificateOperations Operations
+@inject DashboardCaller Caller
+@inject ISnackbar Snackbar
+
+<MudDialog Class="pdk-dialog" ContentClass="pdk-dialog-content">
+    <TitleContent>
+        <div class="pdk-dialog-title">
+            <span class="pdk-dialog-icon pdk-tone-primary"><MudIcon Icon="@Icon" Size="Size.Small" /></span>
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">@Title</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">@Subtitle</MudText>
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @switch (Kind)
+        {
+            case AddCertificateKind.Upload:
+                <UploadCertificateForm Submit="UploadAsync" Uploaded="Done" OnCancel="Cancel" />
+                break;
+            case AddCertificateKind.SelfSigned:
+                <LocalCertificateForm LocalCa="false" Submit="IssueAsync" Issued="Done" OnCancel="Cancel" SubmitText="Create self-signed" />
+                break;
+            default:
+                <LocalCertificateForm LocalCa="true" Submit="IssueAsync" Issued="Done" OnCancel="Cancel" SubmitText="Issue from the local CA" />
+                break;
+        }
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance? Dialog { get; set; }
+
+    [Parameter]
+    public AddCertificateKind Kind { get; set; }
+
+    private string Title => Kind switch
+    {
+        AddCertificateKind.Upload => "Upload a certificate",
+        AddCertificateKind.SelfSigned => "Create a self-signed certificate",
+        _ => "Issue from the local CA",
+    };
+
+    private string Subtitle => Kind switch
+    {
+        AddCertificateKind.Upload => "The key goes straight into the vault and is never shown again.",
+        AddCertificateKind.SelfSigned => "Trusted by nothing; fine for testing or a client you configure by hand.",
+        _ => "For LAN names: trusted wherever the local CA's root is installed.",
+    };
+
+    private string Icon => Kind switch
+    {
+        AddCertificateKind.Upload => Icons.Material.Outlined.UploadFile,
+        AddCertificateKind.SelfSigned => Icons.Material.Outlined.Draw,
+        _ => Icons.Material.Outlined.Lan,
+    };
+
+    private async Task<CertificateOperationResult?> UploadAsync(CertificateUpload upload)
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        return origin is null ? null : await Operations.UploadAsync(upload.Data, upload.Password, upload.Label, null, origin);
+    }
+
+    private async Task<CertificateOperationResult?> IssueAsync(LocalCertificateRequest request)
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return null;
+        }
+
+        return Kind == AddCertificateKind.SelfSigned
+            ? await Operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(request.Names, request.KeySpec, request.Validity, request.Label), origin)
+            : await LocalCa.IssueAsync(Operations, request, origin);
+    }
+
+    private void Done(CertificateSummary certificate)
+    {
+        Snackbar.Add($"{CertificateDisplay.DisplayName(certificate)} is ready.", Severity.Success);
+        Dialog?.Close(DialogResult.Ok(certificate));
+    }
+
+    private void Cancel() => Dialog?.Cancel();
+
+    public static Task<IDialogReference> ShowAsync(IDialogService dialogs, AddCertificateKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(dialogs);
+        return dialogs.ShowAsync<AddCertificateDialog>(kind.ToString(), new DialogParameters<AddCertificateDialog> { { d => d.Kind, kind } },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false });
+    }
+}

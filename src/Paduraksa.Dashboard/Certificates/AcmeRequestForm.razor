@@ -1,0 +1,171 @@
+@* What to ask an ACME CA for: the names, the account, and how the names are proven (HTTP-01 through this proxy's public port, or DNS-01
+   through a DNS provider, which wildcards need). The run itself, with its progress, is the parent's. *@
+
+<div class="pdk-form-stack">
+    <MudTextField T="string" @bind-Value="_names" Label="Names" Variant="Variant.Outlined" Lines="2" Sizing="InputSizing.Auto" MaxLines="8"
+                  Placeholder="example.com&#10;*.example.com" Error="_namesError is not null" ErrorText="@_namesError" Class="pdk-acme-names"
+                  HelperText="One per line or comma-separated. A wildcard (*.example.com) needs DNS-01." Disabled="Busy" OnBlur="CheckNames" Immediate="true" />
+
+    @if (_active.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+            There is no ACME account yet. Add one first (Settings, ACME accounts): it is how the CA knows who is asking.
+        </MudAlert>
+    }
+    else
+    {
+        <MudSelect T="AcmeAccountId?" @bind-Value="_account" Label="ACME account" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Busy"
+                   Error="_accountError is not null" ErrorText="@_accountError" Class="pdk-acme-account">
+            @foreach (AcmeAccountSummary account in _active)
+            {
+                <MudSelectItem T="AcmeAccountId?" Value="account.Id">@ProviderDisplay.AccountName(account)</MudSelectItem>
+            }
+        </MudSelect>
+    }
+
+    <div class="pdk-choice-grid" role="radiogroup" aria-label="Challenge type">
+        <button type="button" class="pdk-choice @(_challenge == AcmeChallengeType.Http01 ? "pdk-choice-on" : null)" role="radio"
+                aria-checked="@(_challenge == AcmeChallengeType.Http01 ? "true" : "false")" disabled="@Busy" @onclick="() => Choose(AcmeChallengeType.Http01)">
+            <MudIcon Icon="@Icons.Material.Outlined.Http" Size="Size.Small" />
+            <span class="pdk-choice-title">HTTP-01</span>
+            <span class="pdk-choice-hint">The CA fetches a token from port 80 of each name. No wildcards.</span>
+        </button>
+        <button type="button" class="pdk-choice @(_challenge == AcmeChallengeType.Dns01 ? "pdk-choice-on" : null)" role="radio"
+                aria-checked="@(_challenge == AcmeChallengeType.Dns01 ? "true" : "false")" disabled="@Busy" @onclick="() => Choose(AcmeChallengeType.Dns01)">
+            <MudIcon Icon="@Icons.Material.Outlined.Dns" Size="Size.Small" />
+            <span class="pdk-choice-title">DNS-01</span>
+            <span class="pdk-choice-hint">A TXT record through your DNS provider. Wildcards work; nothing needs to be reachable.</span>
+        </button>
+    </div>
+
+    @if (_challenge == AcmeChallengeType.Dns01)
+    {
+        @if (Providers.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                DNS-01 needs a DNS provider. Add one first (Settings, DNS providers), or use HTTP-01.
+            </MudAlert>
+        }
+        else
+        {
+            <MudSelect T="DnsProviderId?" @bind-Value="_provider" Label="DNS provider" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Busy"
+                       Error="_providerError is not null" ErrorText="@_providerError" Class="pdk-acme-provider">
+                @foreach (DnsProviderSummary provider in Providers)
+                {
+                    <MudSelectItem T="DnsProviderId?" Value="provider.Id">@provider.Label (@ProviderDisplay.KindLabel(provider.Kind))</MudSelectItem>
+                }
+            </MudSelect>
+        }
+    }
+
+    <div class="pdk-field-pair">
+        <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
+                      HelperText="Optional" Disabled="Busy" />
+        <MudSelect T="KeySpec" @bind-Value="_keySpec" Label="Key" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Busy" Dense="true">
+            @foreach ((KeySpec spec, string label) in NameList.KeySpecs)
+            {
+                <MudSelectItem T="KeySpec" Value="spec">@label</MudSelectItem>
+            }
+        </MudSelect>
+    </div>
+
+    <div class="pdk-form-actions">
+        @if (OnCancel.HasDelegate)
+        {
+            <MudButton Variant="Variant.Text" OnClick="OnCancel" Disabled="Busy">Cancel</MudButton>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="@(Busy || _active.Count == 0)" Class="pdk-acme-submit"
+                   StartIcon="@Icons.Material.Rounded.Bolt">@SubmitText</MudButton>
+    </div>
+</div>
+
+@code {
+    private string? _names;
+    private string? _label;
+    private AcmeAccountId? _account;
+    private DnsProviderId? _provider;
+    private AcmeChallengeType _challenge = AcmeChallengeType.Http01;
+    private KeySpec _keySpec = KeySpec.EcdsaP256;
+    private string? _namesError;
+    private string? _accountError;
+    private string? _providerError;
+    private IReadOnlyList<AcmeAccountSummary> _active = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<AcmeAccountSummary> Accounts { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DnsProviderSummary> Providers { get; set; } = [];
+
+    /// <summary>Hands the request over; the parent runs it and shows the progress.</summary>
+    [Parameter, EditorRequired]
+    public EventCallback<CertificateIssueRequest> Submit { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string>? InitialNames { get; set; }
+
+    [Parameter]
+    public AcmeChallengeType? InitialChallenge { get; set; }
+
+    [Parameter]
+    public string SubmitText { get; set; } = "Request certificate";
+
+    protected override void OnInitialized()
+    {
+        _names = InitialNames is { Count: > 0 } names ? string.Join('\n', names) : null;
+        _challenge = InitialChallenge ?? (Providers.Count > 0 && InitialNames?.Any(n => n.StartsWith("*.", StringComparison.Ordinal)) == true ? AcmeChallengeType.Dns01 : AcmeChallengeType.Http01);
+    }
+
+    protected override void OnParametersSet()
+    {
+        _active = [.. Accounts.Where(a => a.Status == AcmeAccountStatus.Active)];
+        IReadOnlyList<AcmeAccountSummary> active = _active;
+        if (_account is null || active.All(a => a.Id != _account))
+        {
+            _account = active.Count > 0 ? active[0].Id : null;
+        }
+
+        if (_provider is null || Providers.All(p => p.Id != _provider))
+        {
+            _provider = Providers.Count > 0 ? Providers[0].Id : null;
+        }
+    }
+
+    private void Choose(AcmeChallengeType challenge)
+    {
+        _challenge = challenge;
+        if (_names is not null)
+        {
+            CheckNames();
+        }
+    }
+
+    private void CheckNames() =>
+        _namesError = NameList.Problem(NameList.Parse(_names), allowWildcards: _challenge == AcmeChallengeType.Dns01, allowIps: _challenge == AcmeChallengeType.Http01);
+
+    private async Task SubmitAsync()
+    {
+        IReadOnlyList<string> names = NameList.Parse(_names);
+        CheckNames();
+        _accountError = _account is null ? "Choose the account to order with." : null;
+        _providerError = _challenge == AcmeChallengeType.Dns01 && _provider is null ? "DNS-01 needs a DNS provider." : null;
+        if (_namesError is not null || _accountError is not null || _providerError is not null)
+        {
+            return;
+        }
+
+        await Submit.InvokeAsync(new CertificateIssueRequest(
+            names,
+            _account!.Value,
+            _challenge,
+            _keySpec,
+            _challenge == AcmeChallengeType.Dns01 ? _provider : null,
+            string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));
+    }
+}

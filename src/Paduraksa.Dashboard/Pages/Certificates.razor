@@ -1,6 +1,388 @@
+@attribute [Authorize]
 @attribute [Route(DashboardRoutes.Certificates)]
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Certificates
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Issuance
+@using Paduraksa.Contracts.Certificates
+@using Paduraksa.Contracts.Config
+@using Paduraksa.Contracts.Issuance
+@using Paduraksa.Dashboard.Certificates
+@inject CertificateService CertificateInventory
+@inject CertificateOperations Operations
+@inject AcmeIssuanceService Issuance
+@inject ConfigService Config
+@inject DashboardCaller Caller
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+@inject IServiceProvider Services
+@inject ILogger<Certificates> Logger
 
 <PageTitle>Certificates · Paduraksa</PageTitle>
 
-<ComingSoon Title="Certificates" Overline="Traffic" Icon="@Icons.Material.Outlined.WorkspacePremium"
-            Description="Issue certificates from Let's Encrypt or another ACME CA (HTTP-01 or DNS-01), upload your own, or use the local CA, and follow every renewal." />
+<PageHeader Title="Certificates" Overline="Traffic" Lead="Everything this instance can serve, where it came from, who uses it and when it ends.">
+    <Actions>
+        @if (_mayWrite)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Public" OnClick="RequestAsync" Class="pdk-request-acme">
+                Request from ACME
+            </MudButton>
+            <MudMenu Label="Add" Variant="Variant.Outlined" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ExpandMore" Class="pdk-add-menu"
+                     AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="Add a certificate">
+                <ChildContent>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.UploadFile" OnClick="() => Add(AddCertificateKind.Upload)" Class="pdk-add-upload">Upload PEM or PFX</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Lan" OnClick="() => Add(AddCertificateKind.LocalCaLeaf)" Class="pdk-add-local">Issue from the local CA</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Draw" OnClick="() => Add(AddCertificateKind.SelfSigned)" Class="pdk-add-self">Create self-signed</MudMenuItem>
+                    @if (_view is { Root: null })
+                    {
+                        <MudDivider />
+                        <MudMenuItem Icon="@Icons.Material.Outlined.AccountTree" OnClick="CreateRootAsync">Create the local CA</MudMenuItem>
+                    }
+                </ChildContent>
+            </MudMenu>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_failed)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
+        The certificates couldn't be read. The details are in the server log.
+        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+    </MudAlert>
+}
+
+<div class="pdk-cert-summary">
+    @foreach ((string tone, string label, int? count) in Counters)
+    {
+        <div class="pdk-cert-counter pdk-tone-@tone">
+            <span class="pdk-status-dot" aria-hidden="true"></span>
+            @if (count is null)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="2.5rem" />
+            }
+            else
+            {
+                <span class="pdk-cert-counter-value">@count</span>
+            }
+            <span class="pdk-cert-counter-label">@label</span>
+        </div>
+    }
+</div>
+
+<MudPaper Class="pdk-card pdk-cert-card" Elevation="0" Outlined="true">
+    @if (_view is null)
+    {
+        @for (int i = 0; i < 4; i++)
+        {
+            <div class="pdk-row-skeleton">
+                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+            </div>
+        }
+    }
+    else if (_view.Rows.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.WorkspacePremium" Title="No certificates yet"
+                    Description="Request one from Let's Encrypt or another ACME CA, issue one from the local CA for LAN names, or upload your own.">
+            <Action>
+                @if (_mayWrite)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Public" OnClick="RequestAsync">Request from ACME</MudButton>
+                }
+            </Action>
+        </EmptyState>
+    }
+    else
+    {
+        <div class="pdk-cert-table" role="table" aria-label="Certificates">
+            <div class="pdk-cert-tr pdk-cert-th" role="row">
+                <span role="columnheader">Certificate</span>
+                <span role="columnheader">Source</span>
+                <span role="columnheader">Status</span>
+                <span role="columnheader">Expires</span>
+                <span role="columnheader">Issuer</span>
+                <span role="columnheader">Used by</span>
+            </div>
+            @foreach (CertificateRow row in _view.Rows)
+            {
+                CertificateSummary s = row.Summary;
+                <button type="button" class="pdk-cert-tr pdk-cert-row @(_selected?.Id == row.Id ? "pdk-cert-row-selected" : null)" role="row" @onclick="() => Open(row)"
+                        data-certificate="@row.Id">
+                    <span class="pdk-cert-main" role="cell">
+                        <span class="pdk-list-icon pdk-tone-@CertificateDisplay.StatusTone(s.Status, s.NotBefore, s.NotAfter, _now)">
+                            <MudIcon Icon="@CertificateDisplay.Icon(row.Origin)" Size="Size.Small" />
+                        </span>
+                        <span class="pdk-list-main">
+                            <span class="pdk-list-title">@row.Name</span>
+                            <span class="pdk-list-sub pdk-mono">@NamesLine(s)</span>
+                        </span>
+                    </span>
+                    <span role="cell" class="pdk-cert-cell" data-label="Source">@CertificateDisplay.Label(row.Origin)</span>
+                    <span role="cell" class="pdk-cert-cell" data-label="Status">
+                        @if (Issuance.GetProgress(row.Id) is not null)
+                        {
+                            <span class="pdk-pill pdk-tone-info"><MudProgressCircular Indeterminate="true" Size="Size.Small" Class="pdk-pill-spinner" /> Issuing</span>
+                        }
+                        else
+                        {
+                            <span class="pdk-pill pdk-tone-@CertificateDisplay.StatusTone(s.Status, s.NotBefore, s.NotAfter, _now)">@CertificateDisplay.StatusLabel(s.Status, s.NotBefore, s.NotAfter, _now)</span>
+                        }
+                    </span>
+                    <span role="cell" class="pdk-cert-cell" data-label="Expires">
+                        @if (s.Status == CertificateStatus.Pending)
+                        {
+                            <span class="pdk-muted">-</span>
+                        }
+                        else
+                        {
+                            <ExpiryCountdown NotAfter="s.NotAfter" Now="_now" />
+                        }
+                    </span>
+                    <span role="cell" class="pdk-cert-cell pdk-cert-issuer" data-label="Issuer">@(s.Status == CertificateStatus.Pending ? "-" : CertificateDisplay.CommonName(s.Issuer))</span>
+                    <span role="cell" class="pdk-cert-cell" data-label="Used by">
+                        @if (!_view.UsageKnown)
+                        {
+                            <span class="pdk-muted">-</span>
+                        }
+                        else if (row.Uses.Count == 0)
+                        {
+                            <span class="pdk-muted">Unused</span>
+                        }
+                        else
+                        {
+                            <span class="pdk-use-chips">
+                                @foreach (CertificateUse use in row.Uses.Take(2))
+                                {
+                                    <span class="pdk-name-chip">@(use.Kind == CertificateUseKind.Default ? "default" : use.HostName)</span>
+                                }
+                                @if (row.Uses.Count > 2)
+                                {
+                                    <span class="pdk-name-chip">+@(row.Uses.Count - 2)</span>
+                                }
+                            </span>
+                        }
+                    </span>
+                </button>
+            }
+        </div>
+    }
+</MudPaper>
+
+<div class="pdk-home-grid pdk-cert-managed">
+    <AdminCertificateCard Admin="_view?.Admin" Now="_now" OnOpen="Open" />
+    <TrustRootCard Root="_view?.Root?.Summary" />
+</div>
+
+<MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="2" Width="min(560px, 100vw)" Class="pdk-detail-drawer"
+           Overlay="true">
+    @if (_selected is { } selected)
+    {
+        <CertificateDetailPanel Row="selected" Now="_now" MayWrite="_mayWrite" UsageKnown="_view?.UsageKnown == true" OnClose="Close"
+                                OnRenew="RenewAsync" OnReissue="ReissueAsync" OnDelete="DeleteAsync" />
+    }
+</MudDrawer>
+
+@code {
+    private CertificateInventoryView? _view;
+    private CertificateRow? _selected;
+    private bool _drawerOpen;
+    private bool _mayWrite;
+    private bool _mayReadConfig;
+    private bool _failed;
+    private DateTimeOffset _now;
+    private LiveUpdates? _live;
+
+    private IEnumerable<(string Tone, string Label, int? Count)> Counters
+    {
+        get
+        {
+            IReadOnlyList<CertificateRow>? rows = _view?.Rows;
+            int? Count(Func<CertificateRow, bool> filter) => rows?.Count(filter);
+            yield return ("success", "active", Count(r => r.Summary.Status == CertificateStatus.Active && _now >= r.Summary.NotBefore && _now <= r.Summary.NotAfter));
+            yield return ("warning", $"expire within {CertificateDisplay.WarningDays} days", Count(r => r.Summary.Status == CertificateStatus.Active && r.Summary.NotAfter > _now && r.Summary.NotAfter - _now <= TimeSpan.FromDays(CertificateDisplay.WarningDays)));
+            yield return ("error", "failed or expired", Count(r => r.Summary.Status == CertificateStatus.Failed || (r.Summary.Status == CertificateStatus.Active && _now > r.Summary.NotAfter)));
+            yield return ("info", "pending", Count(r => r.Summary.Status == CertificateStatus.Pending));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _now = Time.GetUtcNow();
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.CertificatesWrite);
+        _mayReadConfig = user.Has(Permission.ConfigRead);
+        await LoadAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Live from the moment the page is interactive: a change anywhere (another tab, the scheduler, the API) refreshes the list.
+        if (firstRender && RendererInfo.IsInteractive && _live is null)
+        {
+            _live = LiveUpdates.Start(Config, InvokeAsync, RefreshAsync, followConfig: _mayReadConfig, "certificate.", "acme.order.");
+        }
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        try
+        {
+            _now = Time.GetUtcNow();
+            _view = await CertificateInventoryView.LoadAsync(
+                CertificateInventory, Issuance, _mayReadConfig ? Config : null, Services.GetService(typeof(IBuiltInCertificates)) as IBuiltInCertificates, _now);
+            if (_selected is { } selected)
+            {
+                _selected = _view.Rows.FirstOrDefault(r => r.Id == selected.Id) ?? (_view.Admin?.Id == selected.Id ? _view.Admin : null);
+                _drawerOpen &= _selected is not null;
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the certificates.");
+            _failed = true;
+            _view ??= new CertificateInventoryView([], null, null, false);
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private void Open(CertificateRow row)
+    {
+        _selected = row;
+        _drawerOpen = true;
+    }
+
+    private void Close() => _drawerOpen = false;
+
+    private async Task RequestAsync()
+    {
+        IDialogReference dialog = await AcmeRequestDialog.ShowAsync(Dialogs);
+        await dialog.Result;
+        await LoadAsync();
+    }
+
+    /// <summary>Opens the dialog without holding up the menu item's click, so the menu closes first.</summary>
+    private void Add(AddCertificateKind kind) => _ = InvokeAsync(() => AddAsync(kind));
+
+    private async Task AddAsync(AddCertificateKind kind)
+    {
+        IDialogReference dialog = await AddCertificateDialog.ShowAsync(Dialogs, kind);
+        DialogResult? result = await dialog.Result;
+        await LoadAsync();
+        if (result is { Canceled: false, Data: CertificateSummary created } && _view?.Rows.FirstOrDefault(r => r.Id == created.Id) is { } row)
+        {
+            Open(row);
+        }
+    }
+
+    private async Task CreateRootAsync()
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return;
+        }
+
+        CertificateOperationResult result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin);
+        Report(result, "The local CA is ready. Install its root to trust what it issues.");
+        await LoadAsync();
+    }
+
+    private async Task RenewAsync(CertificateRow row)
+    {
+        if (row.Order is null)
+        {
+            return;
+        }
+
+        IDialogReference dialog = await AcmeRequestDialog.ShowAsync(Dialogs, row.Order);
+        await dialog.Result;
+        await LoadAsync();
+    }
+
+    private async Task ReissueAsync(CertificateRow row)
+    {
+        bool confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            $"Re-issue {row.Name}?",
+            "A new key and certificate replace the current ones under the same ID, with the same names. Hosts that use it switch over at once.",
+            "Re-issue",
+            destructive: false,
+            icon: Icons.Material.Rounded.Refresh);
+        CommandOrigin? origin = confirmed ? await Caller.OriginAsync() : null;
+        if (origin is null)
+        {
+            return;
+        }
+
+        Report(await Operations.ReissueAsync(row.Id, null, origin), $"{row.Name} was re-issued.");
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(CertificateRow row)
+    {
+        bool confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            $"Delete {row.Name}?",
+            "The certificate and its key are removed from the vault. This can't be undone.",
+            "Delete",
+            detail: row.Uses.Count > 0 ? "Hosts that pick it automatically fall back to the next best certificate; one that names it keeps it from being deleted." : null);
+        CommandOrigin? origin = confirmed ? await Caller.OriginAsync() : null;
+        if (origin is null)
+        {
+            return;
+        }
+
+        CertificateOperationResult result = await Operations.DeleteAsync(row.Id, origin);
+        if (Report(result, $"{row.Name} was deleted."))
+        {
+            _drawerOpen = false;
+            _selected = null;
+        }
+
+        await LoadAsync();
+    }
+
+    /// <summary>A toast for an operation's outcome; true when it completed.</summary>
+    private bool Report(CertificateOperationResult result, string success)
+    {
+        if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
+        {
+            Snackbar.Add(success, Severity.Success);
+            foreach (ConfigError warning in result.Warnings)
+            {
+                Snackbar.Add(CertificateMessages.Sentence(warning.Message), Severity.Warning);
+            }
+
+            return true;
+        }
+
+        Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result)), Severity.Error);
+        return false;
+    }
+
+    private static string NamesLine(CertificateSummary s) =>
+        s.Names.Count switch
+        {
+            0 => CertificateDisplay.CommonName(s.Subject),
+            <= 3 => string.Join(", ", s.Names),
+            _ => $"{string.Join(", ", s.Names.Take(2))} +{s.Names.Count - 2}",
+        };
+}

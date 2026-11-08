@@ -1,0 +1,65 @@
+@* A yes/no question before something that can't be undone: what will happen, in a sentence or two, and a button that says it again. *@
+<MudDialog Class="pdk-dialog" ContentClass="pdk-dialog-content">
+    <TitleContent>
+        <div class="pdk-dialog-title">
+            <span class="pdk-dialog-icon pdk-tone-@(Destructive ? "error" : "primary")"><MudIcon Icon="@Icon" Size="Size.Small" /></span>
+            <MudText Typo="Typo.h6" HtmlTag="h2">@Title</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2">@Message</MudText>
+        @if (Detail is not null)
+        {
+            <MudText Typo="Typo.body2" Class="pdk-muted mt-2">@Detail</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="@(Destructive ? Color.Error : Color.Primary)" OnClick="Confirm" Class="pdk-confirm">@ConfirmText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance? Dialog { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = "Are you sure?";
+
+    [Parameter, EditorRequired]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Detail { get; set; }
+
+    [Parameter]
+    public string ConfirmText { get; set; } = "Confirm";
+
+    [Parameter]
+    public bool Destructive { get; set; } = true;
+
+    [Parameter]
+    public string Icon { get; set; } = Icons.Material.Outlined.DeleteOutline;
+
+    /// <summary>Asks; true when the person confirmed.</summary>
+    public static async Task<bool> AskAsync(IDialogService dialogs, string title, string message, string confirmText, string? detail = null, bool destructive = true, string? icon = null)
+    {
+        ArgumentNullException.ThrowIfNull(dialogs);
+        DialogParameters<ConfirmActionDialog> parameters = new()
+        {
+            { d => d.Title, title },
+            { d => d.Message, message },
+            { d => d.ConfirmText, confirmText },
+            { d => d.Detail, detail },
+            { d => d.Destructive, destructive },
+            { d => d.Icon, icon ?? (destructive ? Icons.Material.Outlined.DeleteOutline : Icons.Material.Outlined.HelpOutline) },
+        };
+        IDialogReference reference = await dialogs.ShowAsync<ConfirmActionDialog>(title, parameters, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = false });
+        DialogResult? result = await reference.Result;
+        return result is { Canceled: false };
+    }
+
+    private void Cancel() => Dialog?.Cancel();
+
+    private void Confirm() => Dialog?.Close(DialogResult.Ok(true));
+}

@@ -1,0 +1,120 @@
+@* A certificate made here: self-signed, or signed by the local CA (for LAN-only names a public CA can't validate). The key is born in the vault. *@
+
+<div class="pdk-form-stack">
+    <MudTextField T="string" @bind-Value="_names" Label="Names" Variant="Variant.Outlined" Lines="3" Sizing="InputSizing.Auto" MaxLines="8"
+                  Placeholder="nas.home.arpa&#10;*.lab.home.arpa&#10;192.168.1.20" Error="_namesError is not null" ErrorText="@_namesError"
+                  HelperText="One per line (or comma-separated): DNS names, *. wildcards and IP addresses." Disabled="_busy" Class="pdk-local-names"
+                  Immediate="true" OnBlur="CheckNames" />
+    <div class="pdk-field-pair">
+        <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
+                      HelperText="Optional" Disabled="_busy" />
+        <MudNumericField T="int" @bind-Value="_days" Label="Valid for (days)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="@MaxDays"
+                         HelperText="@($"Default {DefaultDays}; at most {MaxDays}")" Disabled="_busy" />
+    </div>
+    <MudSelect T="KeySpec" @bind-Value="_keySpec" Label="Key" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_busy" Dense="true">
+        @foreach ((KeySpec spec, string label) in NameList.KeySpecs)
+        {
+            <MudSelectItem T="KeySpec" Value="spec">@label</MudSelectItem>
+        }
+    </MudSelect>
+
+    @if (_errors.Count > 0)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert">
+            @foreach (string error in _errors)
+            {
+                <div>@error</div>
+            }
+        </MudAlert>
+    }
+
+    <div class="pdk-form-actions">
+        @if (OnCancel.HasDelegate)
+        {
+            <MudButton Variant="Variant.Text" OnClick="OnCancel" Disabled="_busy">Cancel</MudButton>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="_busy" Class="pdk-local-submit">
+            @if (_busy)
+            {
+                <MudProgressCircular Indeterminate="true" Size="Size.Small" Class="mr-2" />
+            }
+            @SubmitText
+        </MudButton>
+    </div>
+</div>
+
+@code {
+    private string? _names;
+    private string? _label;
+    private int _days;
+    private KeySpec _keySpec = KeySpec.EcdsaP256;
+    private string? _namesError;
+    private bool _busy;
+    private List<string> _errors = [];
+
+    /// <summary>Self-signed, or a leaf of the local CA.</summary>
+    [Parameter]
+    public bool LocalCa { get; set; } = true;
+
+    [Parameter, EditorRequired]
+    public Func<LocalCertificateRequest, Task<CertificateOperationResult?>> Submit { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<CertificateSummary> Issued { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    /// <summary>Names to start with (the wizard passes the first host's).</summary>
+    [Parameter]
+    public IReadOnlyList<string>? InitialNames { get; set; }
+
+    [Parameter]
+    public string? InitialLabel { get; set; }
+
+    [Parameter]
+    public string SubmitText { get; set; } = "Create";
+
+    private int DefaultDays => (int)(LocalCa ? CertificateOperations.DefaultLeafValidity : CertificateOperations.DefaultSelfSignedValidity).TotalDays;
+
+    private int MaxDays => LocalCa ? 397 : 825;
+
+    protected override void OnInitialized()
+    {
+        _days = DefaultDays;
+        _names = InitialNames is { Count: > 0 } names ? string.Join('\n', names) : null;
+        _label = InitialLabel;
+    }
+
+    private void CheckNames() => _namesError = _names is null ? null : NameList.Problem(NameList.Parse(_names));
+
+    private async Task SubmitAsync()
+    {
+        _errors = [];
+        IReadOnlyList<string> names = NameList.Parse(_names);
+        _namesError = NameList.Problem(names);
+        if (_namesError is not null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            TimeSpan? validity = _days == DefaultDays ? null : TimeSpan.FromDays(Math.Clamp(_days, 1, MaxDays));
+            CertificateOperationResult? result = await Submit(new LocalCertificateRequest(names, _keySpec, validity, string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));
+            if (result is { Status: CertificateOperationStatus.Completed, Certificate: { } certificate })
+            {
+                await Issued.InvokeAsync(certificate);
+            }
+            else if (result is not null)
+            {
+                _errors = [.. CertificateMessages.Errors(result)];
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

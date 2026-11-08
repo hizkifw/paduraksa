@@ -1,0 +1,140 @@
+@* Request a certificate from an ACME CA (the form, then the live progress), or renew one now (the progress only). The run uses the
+   application's stopping token, not the circuit's, like the API: closing the dialog leaves it running. *@
+@inject AcmeIssuanceService Issuance
+@inject AcmeAccountService AcmeAccounts
+@inject DnsProviderService DnsProviders
+@inject DashboardCaller Caller
+@inject Microsoft.Extensions.Hosting.IHostApplicationLifetime Lifetime
+@inject ISnackbar Snackbar
+
+<MudDialog Class="pdk-dialog" ContentClass="pdk-dialog-content">
+    <TitleContent>
+        <div class="pdk-dialog-title">
+            <span class="pdk-dialog-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Public" Size="Size.Small" /></span>
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">@(Renew is null ? "Request from an ACME CA" : "Renew now")</MudText>
+                @if (Renew is { } renew)
+                {
+                    <MudText Typo="Typo.caption" Class="pdk-muted">@string.Join(", ", renew.Names)</MudText>
+                }
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_start is not null)
+        {
+            <AcmeRunPanel @key="_run" Start="_start" ChallengeType="_challenge" Attempts="Renew?.Attempts" Finished="OnFinished" />
+        }
+        else if (_accounts is null)
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="220px" />
+        }
+        else
+        {
+            <AcmeRequestForm Accounts="_accounts" Providers="_providers" Submit="StartRequest" OnCancel="Close" InitialNames="InitialNames" />
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_start is not null)
+        {
+            @if (_finished is { Outcome: IssuanceOutcome.Failed } && _lastRequest is not null)
+            {
+                <MudButton Variant="Variant.Text" OnClick="RetryAsync" StartIcon="@Icons.Material.Rounded.Refresh">Retry now</MudButton>
+            }
+            <MudButton Variant="@(_finished is null ? Variant.Text : Variant.Filled)" Color="Color.Primary" OnClick="Close" Class="pdk-run-close">
+                @(_finished is null ? "Continue in the background" : "Done")
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private IReadOnlyList<AcmeAccountSummary>? _accounts;
+    private IReadOnlyList<DnsProviderSummary> _providers = [];
+    private Func<IProgress<AcmeOrderProgress>, Task<IssuanceResult>>? _start;
+    private AcmeChallengeType _challenge;
+    private IssuanceResult? _finished;
+    private CertificateId? _lastRequest;
+    private int _run;
+
+    [CascadingParameter]
+    private IMudDialogInstance? Dialog { get; set; }
+
+    /// <summary>The order to renew; null to request a new certificate.</summary>
+    [Parameter]
+    public AcmeOrderSummary? Renew { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string>? InitialNames { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Renew is { } order)
+        {
+            StartRenewal(order.CertificateId, order.ChallengeType);
+            return;
+        }
+
+        _accounts = await AcmeAccounts.ListAsync();
+        _providers = await DnsProviders.ListAsync();
+    }
+
+    private async Task StartRequest(CertificateIssueRequest request)
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return;
+        }
+
+        _challenge = request.ChallengeType;
+        _start = progress => Issuance.RequestCertificateAsync(request, origin, progress, Lifetime.ApplicationStopping);
+    }
+
+    private void StartRenewal(CertificateId id, AcmeChallengeType challenge)
+    {
+        _challenge = challenge;
+        _finished = null;
+        _start = async progress =>
+        {
+            CommandOrigin? origin = await Caller.OriginAsync();
+            return origin is null
+                ? new IssuanceResult(IssuanceOutcome.Forbidden, id)
+                : await Issuance.RenewAsync(id, origin, progress, Lifetime.ApplicationStopping);
+        };
+    }
+
+    private void RetryAsync()
+    {
+        if (_lastRequest is { } id)
+        {
+            _run++;
+            StartRenewal(id, _challenge);
+        }
+    }
+
+    private void OnFinished(IssuanceResult result)
+    {
+        _finished = result;
+        _lastRequest = result.CertificateId;
+        if (result.Outcome == IssuanceOutcome.Issued)
+        {
+            Snackbar.Add($"Certificate issued for {string.Join(", ", result.Certificate?.Names ?? [])}.", Severity.Success);
+        }
+        else if (result.Outcome == IssuanceOutcome.Failed)
+        {
+            Snackbar.Add("The CA did not issue the certificate. The scheduler retries on its own.", Severity.Error);
+        }
+    }
+
+    private void Close() => Dialog?.Close(DialogResult.Ok(_finished));
+
+    /// <summary>Opens the dialog.</summary>
+    public static Task<IDialogReference> ShowAsync(IDialogService dialogs, AcmeOrderSummary? renew = null, IReadOnlyList<string>? names = null)
+    {
+        ArgumentNullException.ThrowIfNull(dialogs);
+        DialogParameters<AcmeRequestDialog> parameters = new() { { d => d.Renew, renew }, { d => d.InitialNames, names } };
+        return dialogs.ShowAsync<AcmeRequestDialog>(renew is null ? "Request from an ACME CA" : "Renew now", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false, CloseOnEscapeKey = false });
+    }
+}

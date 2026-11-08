@@ -1,0 +1,108 @@
+@* The live ACME progress (PLAN §12.1): a headline, the steps with their state, and on a failure the CA's message and when the scheduler
+   tries again. Rendered from the run's reports alone, so it is the same for a run this page started and one it is watching. *@
+<div class="pdk-progress @(Failed ? "pdk-progress-failed" : Issued ? "pdk-progress-done" : null)" role="status" aria-live="polite">
+    <div class="pdk-progress-head">
+        @if (Failed)
+        {
+            <span class="pdk-progress-badge pdk-tone-error"><MudIcon Icon="@Icons.Material.Rounded.ErrorOutline" Size="Size.Small" /></span>
+        }
+        else if (Issued)
+        {
+            <span class="pdk-progress-badge pdk-tone-success"><MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" /></span>
+        }
+        else
+        {
+            <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" Class="pdk-progress-spinner" />
+        }
+        <div>
+            <MudText Typo="Typo.subtitle1" Class="pdk-progress-headline">@OrderProgressModel.Headline(ChallengeType, Reports)</MudText>
+            <MudText Typo="Typo.caption" Class="pdk-muted">@(ChallengeType == AcmeChallengeType.Dns01 ? "DNS-01" : "HTTP-01") · @Elapsed</MudText>
+        </div>
+    </div>
+
+    <ol class="pdk-steps">
+        @foreach (ProgressStep step in OrderProgressModel.Steps(ChallengeType, Reports))
+        {
+            <li class="pdk-step-item pdk-step-@step.State.ToString().ToLowerInvariant()" data-state="@step.State.ToString().ToLowerInvariant()">
+                <span class="pdk-step-marker" aria-hidden="true">
+                    @switch (step.State)
+                    {
+                        case StepState.Done:
+                            <MudIcon Icon="@Icons.Material.Rounded.Check" Size="Size.Small" />
+                            break;
+                        case StepState.Failed:
+                            <MudIcon Icon="@Icons.Material.Rounded.Close" Size="Size.Small" />
+                            break;
+                        case StepState.Active:
+                            <span class="pdk-step-pulse"></span>
+                            break;
+                        case StepState.Skipped:
+                            <MudIcon Icon="@Icons.Material.Rounded.Remove" Size="Size.Small" />
+                            break;
+                    }
+                </span>
+                <span class="pdk-step-body">
+                    <span class="pdk-step-title">@step.Title</span>
+                    @if (step.State == StepState.Skipped)
+                    {
+                        <span class="pdk-step-detail">Not needed: the CA already had it.</span>
+                    }
+                    else if (step.Detail is { Length: > 0 } detail)
+                    {
+                        <span class="pdk-step-detail">@detail</span>
+                    }
+                </span>
+            </li>
+        }
+    </ol>
+
+    @if (Failure is { } failure)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-progress-alert">
+            <strong>The CA did not issue the certificate.</strong> @failure.Detail
+            @if (failure.RetryAt is { } retry)
+            {
+                <div class="pdk-progress-retry">
+                    The renewal scheduler tries again @(CertificateDisplay.DateTime(retry))@(Attempts is > 0 ? $" (attempt {Attempts + 1})" : null), backing off after each failure. You can also retry now.
+                </div>
+            }
+        </MudAlert>
+    }
+</div>
+
+@code {
+    /// <summary>How the names are proven (decides whether the propagation step is listed).</summary>
+    [Parameter, EditorRequired]
+    public AcmeChallengeType ChallengeType { get; set; }
+
+    /// <summary>The run's reports so far, oldest first.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<AcmeOrderProgress> Reports { get; set; } = [];
+
+    /// <summary>How many attempts failed before (from the stored order), for the retry line.</summary>
+    [Parameter]
+    public int? Attempts { get; set; }
+
+    [Parameter]
+    public DateTimeOffset? Now { get; set; }
+
+    private AcmeOrderProgress? Failure => Reports.Count > 0 && Reports[^1].Stage == AcmeProgressStage.Failed ? Reports[^1] : null;
+
+    private bool Failed => Failure is not null;
+
+    private bool Issued => Reports.Count > 0 && Reports[^1].Stage == AcmeProgressStage.Issued;
+
+    private string Elapsed
+    {
+        get
+        {
+            if (Reports.Count == 0)
+            {
+                return "starting";
+            }
+
+            TimeSpan elapsed = ((Failed || Issued ? Reports[^1].At : Now ?? Reports[^1].At) - Reports[0].At).Duration();
+            return elapsed.TotalMinutes >= 1 ? $"{(int)elapsed.TotalMinutes} min {elapsed.Seconds} s" : $"{Math.Max(0, (int)elapsed.TotalSeconds)} s";
+        }
+    }
+}
