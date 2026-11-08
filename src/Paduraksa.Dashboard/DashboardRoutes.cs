@@ -1,3 +1,5 @@
+using Paduraksa.Core.Model;
+
 namespace Paduraksa.Dashboard;
 
 /// <summary>
@@ -27,6 +29,27 @@ public static class DashboardRoutes
     public const string Simulator = "/simulator";
 
     public const string Settings = "/settings";
+
+    /// <summary>The form for a new host.</summary>
+    public const string NewHost = "/hosts/new";
+
+    /// <summary>The form for a new upstream.</summary>
+    public const string NewUpstream = "/upstreams/new";
+
+    /// <summary>The page shown for an address the dashboard has no page at.</summary>
+    public const string NotFound = "/not-found";
+
+    /// <summary>A host's page: <c>/hosts/host_...</c>. The page parses the segment back into a <see cref="HostId"/>.</summary>
+    public static string Host(HostId id) => $"{Hosts}/{id}";
+
+    /// <summary>An upstream's page: <c>/upstreams/ups_...</c>.</summary>
+    public static string Upstream(UpstreamId id) => $"{Upstreams}/{id}";
+
+    /// <summary>The history with a revision selected: <c>/history?revision=rev_...</c>.</summary>
+    public static string Revision(ConfigRevisionId id) => $"{History}?revision={id}";
+
+    /// <summary>The simulator against a stored revision.</summary>
+    public static string SimulateRevision(ConfigRevisionId id) => $"{Simulator}?revision={id}";
 
     /// <summary>Blazor's circuit hub (its negotiate request and WebSocket).</summary>
     public const string CircuitHub = "/_blazor";

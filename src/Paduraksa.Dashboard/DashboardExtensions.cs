@@ -9,6 +9,7 @@ using MudBlazor;
 using MudBlazor.Services;
 
 using Paduraksa.Dashboard.Auth;
+using Paduraksa.Dashboard.Config;
 using Paduraksa.Dashboard.Theme;
 
 namespace Paduraksa.Dashboard;
@@ -19,7 +20,8 @@ public static class DashboardExtensions
     /// <summary>
     /// Registers the Razor components with interactive server rendering, MudBlazor (snackbars bottom-right, newest on top, one of each),
     /// the cascading authentication state built from the admin app's session (<see cref="DashboardAuthenticationStateProvider"/>), the
-    /// circuit handler that ends a circuit whose session ended, and the per-circuit theme. The Application services, the admin app's
+    /// circuit handler that ends a circuit whose session ended, the per-circuit theme, and what the config pages use per circuit: the
+    /// Application services behind <see cref="IDashboardConfig"/>, the Undo toast and the change under review. The Application services, the admin app's
     /// authentication and Data Protection come from the host.
     /// </summary>
     public static IServiceCollection AddPaduraksaDashboard(this IServiceCollection services, DashboardOptions? options = null)
@@ -45,6 +47,9 @@ public static class DashboardExtensions
         services.TryAddEnumerable(ServiceDescriptor.Scoped<CircuitHandler, SessionCircuitHandler>());
         services.AddScoped<DashboardCaller>();
         services.AddScoped<ThemeState>();
+        services.TryAddScoped<IDashboardConfig, DashboardConfig>();
+        services.AddScoped<ConfigUndo>();
+        services.AddScoped<ReviewedDraft>();
         return services;
     }
 
