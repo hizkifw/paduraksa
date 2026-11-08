@@ -81,6 +81,7 @@ public sealed partial class ConfigService : IDisposable
     private readonly IDbContextFactory<ConfigDbContext> _contexts;
     private readonly IConfigCompiler _compiler;
     private readonly CertificateInventoryLoader _certificates;
+    private readonly CertificateInventoryLoader _simulationCertificates;
     private readonly SnapshotPublisher _publisher;
     private readonly IConfigCommandAuthorizer _authorizer;
     private readonly ConfigServiceOptions _options;
@@ -119,7 +120,8 @@ public sealed partial class ConfigService : IDisposable
         ConfigServiceOptions? options = null,
         LastKnownGoodFile? lastKnownGood = null,
         IServerCertificateSource? certificateSource = null,
-        IBuiltInCertificates? builtInCertificates = null)
+        IBuiltInCertificates? builtInCertificates = null,
+        ICertificateCatalog? certificateCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(compiler);
@@ -136,6 +138,9 @@ public sealed partial class ConfigService : IDisposable
         _audit = new AuditLog(_timeProvider, loggerFactory.CreateLogger<AuditLog>());
         _logger = loggerFactory.CreateLogger<ConfigService>();
         _certificates = new CertificateInventoryLoader(certificateSource, builtInCertificates, _timeProvider, loggerFactory.CreateLogger<CertificateInventoryLoader>());
+        // Drafts and old revisions never load the vault's keys: what the vault describes decides what is usable, and the
+        // inventory serves placeholder certificates.
+        _simulationCertificates = CertificateInventoryLoader.ForSimulation(certificateCatalog, builtInCertificates, _timeProvider, loggerFactory.CreateLogger<CertificateInventoryLoader>());
     }
 
     /// <summary>The config before the first commit: no objects, default settings, every version 0.</summary>
@@ -229,7 +234,8 @@ public sealed partial class ConfigService : IDisposable
     }
 
     /// <summary>Load, plan, validate, compile and commit; null when the head moved before the commit (rolled back).</summary>
-    private async Task<Execution?> AttemptAsync(ConfigCommand command, CommandOrigin origin, Audited audited, string? message, CancellationToken cancellationToken)
+    private async Task<Execution?> AttemptAsync(
+        ConfigCommand command, CommandOrigin origin, Audited audited, string? message, CancellationToken cancellationToken, bool simulation = false)
     {
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
@@ -258,7 +264,10 @@ public sealed partial class ConfigService : IDisposable
 
             if (changes.Count == 0)
             {
-                return new Execution(new ConfigCommandResult(ConfigCommandStatus.Unchanged));
+                // A draft that changes nothing is simulated as the head this attempt planned on, not one a later commit made.
+                return simulation
+                    ? await UnchangedCandidateAsync(context, current, latest, cancellationToken).ConfigureAwait(false)
+                    : new Execution(new ConfigCommandResult(ConfigCommandStatus.Unchanged));
             }
 
             long next = (latest?.Info.Seq ?? 0) + 1;
@@ -273,7 +282,7 @@ public sealed partial class ConfigService : IDisposable
             }
 
             ConfigRevisionId revisionId = command.DryRun ? ConfigRevisionId.Empty : _revisions.NextId();
-            CertificateInventory inventory = await _certificates.LoadAsync(context, candidate, cancellationToken).ConfigureAwait(false);
+            CertificateInventory inventory = await (simulation ? _simulationCertificates : _certificates).LoadAsync(context, candidate, cancellationToken).ConfigureAwait(false);
             ConfigCompilation compilation = _compiler.Compile(candidate, revisionId, inventory);
             if (compilation.Snapshot is not { } snapshot)
             {
@@ -296,7 +305,7 @@ public sealed partial class ConfigService : IDisposable
 
             if (command.DryRun)
             {
-                return new Execution(new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: changes, Version: version, Warnings: compilation.Warnings));
+                return new Execution(new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: changes, Version: version, Warnings: compilation.Warnings), Candidate: snapshot);
             }
 
             return await CommitAsync(context, origin, audited, latest, candidate, changes, revisionId, compilation, message ?? plan.DefaultMessage, version, cancellationToken)
@@ -931,5 +940,8 @@ public sealed partial class ConfigService : IDisposable
     /// last-known-good document (the database can't be used): going live doesn't end a degraded start.</param>
     private sealed record PublishTicket(RevisionRef Revision, Task<PublishResult> Task, LastKnownGoodEntry? LastKnownGood, bool FromDatabase = true);
 
-    private readonly record struct Execution(ConfigCommandResult Result, PublishTicket? Publish = null);
+    /// <param name="Result">The command's result.</param>
+    /// <param name="Publish">The queued publish of a committed command.</param>
+    /// <param name="Candidate">A dry run's compiled snapshot (never published); the request simulator runs on it.</param>
+    private readonly record struct Execution(ConfigCommandResult Result, PublishTicket? Publish = null, RuntimeSnapshot? Candidate = null);
 }

@@ -146,6 +146,39 @@ public static class CanonicalConfigJson
         };
     }
 
+    /// <summary>
+    /// The checks reading applies, for a document that didn't come from reading (a draft handed in as an object): the
+    /// <c>apiVersion</c> this build reads, and no null list elements. Null: it passes. Without them a null element is a
+    /// <see cref="NullReferenceException"/> deep inside the pipeline instead of an error with a path.
+    /// </summary>
+    internal static ConfigError? Preflight(ConfigDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        if (document.ApiVersion != ConfigDocument.V1)
+        {
+            return new ConfigError("/apiVersion", ConfigErrorCodes.ApiVersionUnsupported, UnsupportedApiVersionMessage(document.ApiVersion));
+        }
+
+        if (document.Settings?.TrustedProxies is null || document.Profiles is null || document.Upstreams is null || document.Hosts is null)
+        {
+            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams and hosts (empty lists, not null).");
+        }
+
+        try
+        {
+            RejectNullElements(document);
+            return null;
+        }
+        catch (JsonException ex)
+        {
+            return new ConfigError(ToJsonPointer(ex.Path), InvalidJsonCode, ex.Message);
+        }
+        catch (NullReferenceException)
+        {
+            return new ConfigError(string.Empty, InvalidJsonCode, "The document has a null where an object is required.");
+        }
+    }
+
     // Reading leaves null elements in lists (nullable annotations only cover properties); report the first one with
     // its path, like any other read error.
     private static void RejectNullElements(ConfigDocument document)

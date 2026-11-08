@@ -43,6 +43,8 @@ internal sealed partial class CertificateInventoryLoader
     private readonly IBuiltInCertificates? _builtIns;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
+    private readonly bool _simulation;
+    private readonly ICertificateCatalog? _catalog;
 
     public CertificateInventoryLoader(
         IServerCertificateSource? source,
@@ -56,6 +58,23 @@ internal sealed partial class CertificateInventoryLoader
         _timeProvider = timeProvider;
         _logger = logger ?? NullLogger.Instance;
     }
+
+    private CertificateInventoryLoader(ICertificateCatalog? catalog, IBuiltInCertificates? builtIns, TimeProvider timeProvider, ILogger? logger)
+        : this(new SimulationCertificateSource(), builtIns, timeProvider, logger)
+    {
+        _simulation = true;
+        _catalog = catalog;
+    }
+
+    /// <summary>
+    /// A loader for configs that are only simulated (PLAN §7.7): whether a certificate is usable is decided from what the
+    /// vault <b>describes</b> (<paramref name="catalog"/>: public facts, no key opened), with the reasons the real loader
+    /// gives; and what is served is a placeholder context (<see cref="SimulationCertificateSource"/>), never the vault's.
+    /// Without a catalog every certificate the table says is valid counts as usable: nothing can say otherwise.
+    /// </summary>
+    public static CertificateInventoryLoader ForSimulation(
+        ICertificateCatalog? catalog, IBuiltInCertificates? builtIns, TimeProvider timeProvider, ILogger? logger = null) =>
+        new(catalog, builtIns, timeProvider, logger);
 
     /// <summary>
     /// The inventory for compiling <paramref name="document"/>. <paramref name="context"/> reads the certificate table;
@@ -106,13 +125,16 @@ internal sealed partial class CertificateInventoryLoader
 
             foreach (CertificateId id in toLoad)
             {
-                if (await LoadOneAsync(id, cancellationToken).ConfigureAwait(false) is { } serving)
+                (ServerCertificate? serving, string? reason) = _simulation
+                    ? await ServeForSimulationAsync(id, now, cancellationToken).ConfigureAwait(false)
+                    : (await LoadOneAsync(id, cancellationToken).ConfigureAwait(false), null);
+                if (serving is not null)
                 {
                     loaded[id] = serving;
                 }
                 else
                 {
-                    failed[id] = _source is null ? "no certificate source is configured" : "the vault has no usable key and chain for it";
+                    failed[id] = reason ?? (_source is null ? "no certificate source is configured" : NoUsableKeyAndChain);
                 }
             }
         }
@@ -125,6 +147,50 @@ internal sealed partial class CertificateInventoryLoader
             ],
             fallbackDefault,
             boundaries.Count == 0 ? null : boundaries.Min());
+    }
+
+    /// <summary>What the real loader says when the vault can't serve a certificate.</summary>
+    private const string NoUsableKeyAndChain = "the vault has no usable key and chain for it";
+
+    /// <summary>
+    /// The simulation's stand-in for <see cref="LoadOneAsync"/>: usable exactly when the real load would succeed, judged from
+    /// public facts. A built-in certificate is served by this process's placeholder. Otherwise the vault must describe the
+    /// certificate (not the local CA root, whose key never serves) and the chain it holds must be inside its validity
+    /// period (the same reasons as <see cref="Judge"/>: the table's row can be older than the vault's renewed pair).
+    /// </summary>
+    private async Task<(ServerCertificate? Serving, string? Reason)> ServeForSimulationAsync(CertificateId id, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        bool builtIn = false;
+        foreach (BuiltInCertificate candidate in _builtIns?.Current ?? [])
+        {
+            builtIn |= candidate.Id == id;
+        }
+
+        if (!builtIn && _catalog is not null)
+        {
+            VaultCertificate? held;
+            try
+            {
+                held = await _catalog.DescribeAsync(id, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                LogLoadFailed(id, ex.GetType().Name);
+                return (null, NoUsableKeyAndChain);
+            }
+
+            if (held is null || held.IsLocalCaRoot)
+            {
+                return (null, NoUsableKeyAndChain);
+            }
+
+            if (ValidityReason(CertificateStatus.Active, held.Info.NotBefore, held.Info.NotAfter, now) is { } reason)
+            {
+                return (null, reason);
+            }
+        }
+
+        return (await LoadOneAsync(id, cancellationToken).ConfigureAwait(false), null);
     }
 
     private static async Task<List<InventoryCertificate>> ReadTableAsync(
@@ -156,7 +222,7 @@ internal sealed partial class CertificateInventoryLoader
         {
             if (await _source.LoadForServingAsync(id, cancellationToken).ConfigureAwait(false) is { } context)
             {
-                return new ServerCertificate(context);
+                return new ServerCertificate(context) { Id = id };
             }
 
             LogNotLoaded(id);
@@ -186,14 +252,7 @@ internal sealed partial class CertificateInventoryLoader
     {
         DateTimeOffset validFrom = notBefore - NotBeforeTolerance;
         DateTimeOffset expiredFrom = notAfter + TimeSpan.FromSeconds(1);
-        string? reason = status switch
-        {
-            CertificateStatus.Pending => "it is pending: no chain is attached yet",
-            CertificateStatus.Failed => "its issuance failed",
-            _ when now < validFrom => $"it isn't valid before {notBefore:u}",
-            _ when now >= expiredFrom => $"it expired at {notAfter:u}",
-            _ => null,
-        };
+        string? reason = ValidityReason(status, notBefore, notAfter, now);
         if (status == CertificateStatus.Active)
         {
             if (validFrom > now)
@@ -208,6 +267,21 @@ internal sealed partial class CertificateInventoryLoader
         }
 
         return new InventoryCertificate(id, names, notBefore, notAfter, null, reason);
+    }
+
+    /// <summary>Why a certificate with this status and validity period can't be used at <paramref name="now"/>; null when it can.</summary>
+    private static string? ValidityReason(CertificateStatus status, DateTimeOffset notBefore, DateTimeOffset notAfter, DateTimeOffset now)
+    {
+        DateTimeOffset validFrom = notBefore - NotBeforeTolerance;
+        DateTimeOffset expiredFrom = notAfter + TimeSpan.FromSeconds(1);
+        return status switch
+        {
+            CertificateStatus.Pending => "it is pending: no chain is attached yet",
+            CertificateStatus.Failed => "its issuance failed",
+            _ when now < validFrom => $"it isn't valid before {notBefore:u}",
+            _ when now >= expiredFrom => $"it expired at {notAfter:u}",
+            _ => null,
+        };
     }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The certificate source has no serving context for certificate {Certificate} (no key or no chain): it is left out of this compile.")]
