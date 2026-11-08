@@ -197,6 +197,38 @@ public sealed class LoginServiceTests
     }
 
     [Fact]
+    public async Task APartialSessionThatExpiresWhileTheCodeIsCheckedCannotComplete()
+    {
+        await using var h = await CreateAsync();
+        var (_, secret, _) = await EnrolledAsync(h);
+        var first = await h.Login.LoginAsync("alice", Password, h.Client, Ct);
+        Assert.Equal(LoginStatus.SecondFactorRequired, first.Status);
+        h.Totp.Rotate(secret);
+
+        // The clock passes the partial session's end between the read that admits the request and the write lock.
+        h.Totp.OnVerify = () => h.Time.Advance(first.Session!.ExpiresAt - h.Time.GetUtcNow() + TimeSpan.FromSeconds(1));
+        var result = await h.Login.CompleteSecondFactorAsync(first.Session!.CookieValue, h.Totp.CodeFor(secret), null, h.Client, Ct);
+
+        Assert.Equal(LoginStatus.SessionExpired, result.Status);
+        Assert.NotEqual(SessionStatus.Valid, (await h.Sessions.ValidateAsync(first.Session.CookieValue, Ct)).Status);
+        Assert.Empty(await h.AuditAsync("auth.second_factor"));
+    }
+
+    [Fact]
+    public async Task AnEnrolmentThatCannotBeRecordedDeletesItsNewSecretAgain()
+    {
+        await using var h = await CreateAsync();
+        var user = await h.CreateUserAsync("alice");
+        await h.Db.ExecuteAsync("CREATE TRIGGER refuse_user_update BEFORE UPDATE ON Users BEGIN SELECT RAISE(ABORT, 'no'); END");
+
+        // The vault made a secret, but no row can name it: it is deleted again instead of being left unreachable.
+        await Assert.ThrowsAnyAsync<Exception>(() => h.TwoFactor.BeginEnrollmentAsync(h.As(user), Password, Ct));
+
+        Assert.Equal(0, h.Totp.Count);
+        Assert.Empty(await h.AuditAsync("user.totp.enroll"));
+    }
+
+    [Fact]
     public async Task WrongCodesAreRefusedCountedAndLockTheAccount()
     {
         await using var h = await CreateAsync(new IdentityOptions { PasswordIterations = 1_000, MaxFailedAttempts = 4 });

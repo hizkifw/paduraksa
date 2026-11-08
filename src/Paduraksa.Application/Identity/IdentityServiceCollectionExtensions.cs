@@ -13,12 +13,13 @@ namespace Paduraksa.Application.Identity;
 public static class IdentityServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the identity services (PLAN §10.1) and makes permissions decide who may run config commands and change
-    /// certificates: it <b>replaces</b> the <see cref="IConfigCommandAuthorizer"/> (the allow-all default of
-    /// <see cref="ConfigServiceCollectionExtensions.AddPaduraksaConfigService"/>, in whichever order they are called) replaces the
-    /// <see cref="Certificates.ICertificateOperationAuthorizer"/> likewise, makes request simulations need <c>simulate</c> (and <c>config:read</c> for a draft or a revision), and gives the <see cref="Certificates.CertificateService"/> its
-    /// <see cref="IPermissionEvaluator"/>. Needs the config database's context
-    /// factory and the vault's <see cref="ITotpAuthenticator"/>.
+    /// Registers the identity services (PLAN §10.1) and makes permissions decide who may run config commands and change certificates.
+    /// It <b>replaces</b> the allow-all <see cref="IConfigCommandAuthorizer"/> that
+    /// <see cref="ConfigServiceCollectionExtensions.AddPaduraksaConfigService"/> leaves behind, in whichever order the two are
+    /// called, and replaces <see cref="Certificates.ICertificateOperationAuthorizer"/> the same way. Request simulations then need
+    /// <c>simulate</c> (and <c>config:read</c> for a draft or a revision), and <see cref="Certificates.CertificateService"/> is given
+    /// the <see cref="IPermissionEvaluator"/>. Needs the config database's context factory and the vault's
+    /// <see cref="ITotpAuthenticator"/>.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="dataDirectory">The data directory: <c>setup-token</c> lives in it.</param>

@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -129,7 +130,7 @@ internal sealed class PermissionEvaluator(IDbContextFactory<ConfigDbContext> con
         return (await GetPermissionsAsync(origin.Actor, cancellationToken).ConfigureAwait(false)).Contains(permission);
     }
 
-    private static readonly IReadOnlySet<Permission> Empty = new HashSet<Permission>();
+    private static readonly FrozenSet<Permission> Empty = FrozenSet<Permission>.Empty;
 
     /// <summary>The permissions of an enabled user's roles; none for a disabled or unknown user.</summary>
     internal static async Task<IReadOnlySet<Permission>> OfUserAsync(ConfigDbContext context, UserId id, CancellationToken cancellationToken)

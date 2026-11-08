@@ -127,7 +127,12 @@ public sealed class LoginService
                 {
                     await _audit.AppendAsync(
                         context,
-                        IdentityAudit.Entry(system, "auth.login", AuditOutcome.Denied, user.Id.ToString(), w => w.WriteString("reason", row is { Disabled: true } ? "disabled" : "locked")),
+                        IdentityAudit.Entry(
+                            system,
+                            "auth.login",
+                            AuditOutcome.Denied,
+                            user.Id.ToString(),
+                            w => w.WriteString("reason", row is null ? "deleted" : row.Disabled ? "disabled" : "locked")),
                         cancellationToken).ConfigureAwait(false);
                     await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                     await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -227,7 +232,8 @@ public sealed class LoginService
                 var finished = _time.GetUtcNow();
                 var row = await context.Sessions.SingleOrDefaultAsync(s => s.Id == session.Id && !s.SecondFactorCompleted && s.RevokedAt == null, cancellationToken).ConfigureAwait(false);
                 var userRow = await context.Users.SingleOrDefaultAsync(u => u.Id == user.Id && !u.Disabled && u.TotpEnabled, cancellationToken).ConfigureAwait(false);
-                if (row is null || userRow is null || (IdentityMapping.IsLocked(userRow, finished) && userRow.LockedUntil != attempt.Engaged))
+                // The expiry is read again under the write lock: a partial session can end between the two reads.
+                if (row is null || row.ExpiresAt <= finished || userRow is null || (IdentityMapping.IsLocked(userRow, finished) && userRow.LockedUntil != attempt.Engaged))
                 {
                     return new LoginResult(LoginStatus.SessionExpired);
                 }

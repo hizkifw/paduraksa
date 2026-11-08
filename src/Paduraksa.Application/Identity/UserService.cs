@@ -65,7 +65,7 @@ public sealed partial class UserService
         ArgumentNullException.ThrowIfNull(request);
         if (!await _permissions.IsAllowedAsync(origin, Permission.UsersWrite, cancellationToken).ConfigureAwait(false))
         {
-            return await DeniedAsync<UserResult>(origin, "user.create", null).ConfigureAwait(false);
+            return await DeniedUserAsync(origin, "user.create", null).ConfigureAwait(false);
         }
 
         var problem = CheckNewUser(request, out var username, out var displayName, out var roles);
@@ -159,7 +159,7 @@ public sealed partial class UserService
         ArgumentNullException.ThrowIfNull(request);
         if (!await _permissions.IsAllowedAsync(origin, Permission.UsersWrite, cancellationToken).ConfigureAwait(false))
         {
-            return await DeniedAsync<UserResult>(origin, "user.update", id).ConfigureAwait(false);
+            return await DeniedUserAsync(origin, "user.update", id).ConfigureAwait(false);
         }
 
         string? displayName = null;
@@ -266,7 +266,8 @@ public sealed partial class UserService
                 return IdentityStatus.Succeeded;
             },
             null,
-            cancellationToken));
+            cancellationToken),
+            cancellationToken);
     }
 
     /// <summary>Deletes a user with their tokens, sessions and recovery codes (and their TOTP secret in the vault). Needs <see cref="Permission.UsersWrite"/>.</summary>
@@ -275,7 +276,7 @@ public sealed partial class UserService
         ArgumentNullException.ThrowIfNull(origin);
         if (!await _permissions.IsAllowedAsync(origin, Permission.UsersWrite, cancellationToken).ConfigureAwait(false))
         {
-            return await DeniedAsync<IdentityResult>(origin, "user.delete", id).ConfigureAwait(false);
+            return await DeniedIdentityAsync(origin, "user.delete", id).ConfigureAwait(false);
         }
 
         SecretId? totp;
@@ -321,7 +322,7 @@ public sealed partial class UserService
         ArgumentNullException.ThrowIfNull(request);
         if (origin.Actor.Kind != ActorKind.User)
         {
-            return await DeniedAsync<IdentityResult>(origin, "user.password.change", null).ConfigureAwait(false);
+            return await DeniedIdentityAsync(origin, "user.password.change", null).ConfigureAwait(false);
         }
 
         var id = origin.Actor.UserId!.Value;
@@ -401,7 +402,7 @@ public sealed partial class UserService
         ArgumentNullException.ThrowIfNull(username);
         if (!await _permissions.IsAllowedAsync(origin, Permission.UsersWrite, cancellationToken).ConfigureAwait(false))
         {
-            return await DeniedAsync<IdentityResult>(origin, "user.password.reset", null).ConfigureAwait(false);
+            return await DeniedIdentityAsync(origin, "user.password.reset", null).ConfigureAwait(false);
         }
 
         if (_policy.Check(newPassword) is { } problem)
@@ -494,11 +495,11 @@ public sealed partial class UserService
     private static string? RolesProblem(List<Role> roles) =>
         roles.Count == 0 ? "A user needs at least one role." : roles.Exists(r => !Enum.IsDefined(r)) ? "Unknown role." : null;
 
-    private async Task<UserResult> PermitThenAsync(CommandOrigin origin, UserId id, string action, Func<Task<UserResult>> run)
+    private async Task<UserResult> PermitThenAsync(CommandOrigin origin, UserId id, string action, Func<Task<UserResult>> run, CancellationToken cancellationToken)
     {
-        if (!await _permissions.IsAllowedAsync(origin, Permission.UsersWrite, CancellationToken.None).ConfigureAwait(false))
+        if (!await _permissions.IsAllowedAsync(origin, Permission.UsersWrite, cancellationToken).ConfigureAwait(false))
         {
-            return await DeniedAsync<UserResult>(origin, action, id).ConfigureAwait(false);
+            return await DeniedUserAsync(origin, action, id).ConfigureAwait(false);
         }
 
         return await run().ConfigureAwait(false);
@@ -543,12 +544,22 @@ public sealed partial class UserService
         }
     }
 
-    private async Task<T> DeniedAsync<T>(CommandOrigin origin, string action, UserId? target)
-        where T : class
+    /// <summary>Audits a refusal (the actor and channel, the target when there is one) and answers it.</summary>
+    private async Task<UserResult> DeniedUserAsync(CommandOrigin origin, string action, UserId? target)
     {
-        await _audit.TryAppendAsync(_contexts, IdentityAudit.Entry(origin, action, AuditOutcome.Denied, target?.ToString())).ConfigureAwait(false);
-        return (T)(object)(typeof(T) == typeof(UserResult) ? new UserResult(IdentityStatus.Denied) : new IdentityResult(IdentityStatus.Denied));
+        await AuditDenialAsync(origin, action, target).ConfigureAwait(false);
+        return new UserResult(IdentityStatus.Denied);
     }
+
+    /// <summary><see cref="DeniedUserAsync"/> for an operation that answers with an <see cref="IdentityResult"/>.</summary>
+    private async Task<IdentityResult> DeniedIdentityAsync(CommandOrigin origin, string action, UserId? target)
+    {
+        await AuditDenialAsync(origin, action, target).ConfigureAwait(false);
+        return new IdentityResult(IdentityStatus.Denied);
+    }
+
+    private Task AuditDenialAsync(CommandOrigin origin, string action, UserId? target) =>
+        _audit.TryAppendAsync(_contexts, IdentityAudit.Entry(origin, action, AuditOutcome.Denied, target?.ToString()));
 
     private static Task<UserRow?> LoadAsync(ConfigDbContext context, UserId id, CancellationToken cancellationToken) =>
         context.Users.SingleOrDefaultAsync(u => u.Id == id, cancellationToken);

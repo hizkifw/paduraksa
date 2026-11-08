@@ -106,16 +106,26 @@ public sealed partial class TwoFactorService
 
             var enrollment = await _totp.BeginEnrollmentAsync(user.Username, _options.TotpIssuer, cancellationToken).ConfigureAwait(false);
             SecretId? previous;
-            var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-            await using (transaction.ConfigureAwait(false))
+            try
             {
-                var row = await context.Users.SingleAsync(u => u.Id == id, cancellationToken).ConfigureAwait(false);
-                previous = row.TotpSecretId;
-                row.TotpSecretId = enrollment.SecretId;
-                row.UpdatedAt = _time.GetUtcNow();
-                await _audit.AppendAsync(context, IdentityAudit.Entry(origin, "user.totp.enroll", AuditOutcome.Success, id.ToString()), cancellationToken).ConfigureAwait(false);
-                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+                await using (transaction.ConfigureAwait(false))
+                {
+                    var row = await context.Users.SingleAsync(u => u.Id == id, cancellationToken).ConfigureAwait(false);
+                    previous = row.TotpSecretId;
+                    row.TotpSecretId = enrollment.SecretId;
+                    row.UpdatedAt = _time.GetUtcNow();
+                    await _audit.AppendAsync(context, IdentityAudit.Entry(origin, "user.totp.enroll", AuditOutcome.Success, id.ToString()), cancellationToken).ConfigureAwait(false);
+                    await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                    await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch
+            {
+                // Nothing recorded the new secret (the transaction failed or the request ended), so it would be unreachable: delete it
+                // again, uncancellable like the certificate flows' rollbacks (PLAN §9.2), before the original failure goes on.
+                await DeleteSecretAsync(enrollment.SecretId).ConfigureAwait(false);
+                throw;
             }
 
             await DeleteSecretAsync(previous).ConfigureAwait(false);

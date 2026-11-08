@@ -129,6 +129,9 @@ internal sealed class FakeTotp : ITotpAuthenticator
     /// <summary>The secrets in the order they were created.</summary>
     public IReadOnlyList<SecretId> SecretIds => [.. _secrets.Keys.OrderBy(k => _secrets[k].Order)];
 
+    /// <summary>Run at the start of <see cref="VerifyAsync"/>: a test moves its clock here, between the service's two reads.</summary>
+    public Action? OnVerify { get; set; }
+
     public bool Exists(SecretId id) => _secrets.ContainsKey(id);
 
     /// <summary>The code that would be accepted for <paramref name="id"/> now.</summary>
@@ -153,8 +156,11 @@ internal sealed class FakeTotp : ITotpAuthenticator
     public ValueTask<bool> ConfirmEnrollmentAsync(SecretId id, string code, CancellationToken cancellationToken) =>
         ValueTask.FromResult(_secrets.TryGetValue(id, out var state) && !state.Confirmed && state.Accept(code) && (state.Confirmed = true));
 
-    public ValueTask<bool> VerifyAsync(SecretId id, string code, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(_secrets.TryGetValue(id, out var state) && state.Confirmed && state.Accept(code));
+    public ValueTask<bool> VerifyAsync(SecretId id, string code, CancellationToken cancellationToken)
+    {
+        OnVerify?.Invoke();
+        return ValueTask.FromResult(_secrets.TryGetValue(id, out var state) && state.Confirmed && state.Accept(code));
+    }
 
     public ValueTask<bool> DeleteAsync(SecretId id, CancellationToken cancellationToken) => ValueTask.FromResult(_secrets.Remove(id));
 

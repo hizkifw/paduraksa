@@ -8,7 +8,7 @@ namespace Paduraksa.Data.Identity;
 /// <summary>
 /// An admin user (PLAN §5.2). Not part of the config document: users change on their own (a login, a password change) and are
 /// audited one by one. <b>Secrets here are hashes or references only</b>: the password as a self-describing PBKDF2 string, the TOTP
-/// secret as a vault <see cref="Core.Vault.ITotpAuthenticator"/> reference, never a value.
+/// secret as a vault <c>SecretId</c> (the secret itself is sealed in the vault and used through <c>ITotpAuthenticator</c>), never a value.
 /// </summary>
 internal sealed class UserRow
 {
