@@ -19,6 +19,12 @@ dotnet run --project src/Paduraksa.Server --launch-profile dev
 
 Warnings are errors, and CI runs all three checks.
 
+Write ASCII. `NoConfusableCharactersTests` (architecture tests) fails on an ambiguous or invisible Unicode
+character anywhere in a tracked file - an en dash, a smart quote, a non-breaking or zero-width space, a Greek or
+Cyrillic homoglyph - because editors flag them and every reviewer has to look twice; the test's remarks list
+what stays allowed (box drawing, arrows, `§`). `./scripts/check-confusables.sh` is the same check in one grep,
+for a local answer in a second.
+
 The server keeps its state in its data directory (`Paduraksa:DataDirectory`, default `./data` next to the shipped
 `appsettings.json`, so `src/Paduraksa.Server/bin/Debug/net10.0/data/` for the `dev` profile; set
 `Paduraksa__DataDirectory` to move it): the config database `paduraksa.db` and `last-good.json`, the config that was
