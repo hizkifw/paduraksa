@@ -47,6 +47,12 @@ public static class AdminApiExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         RouteGroupBuilder api = endpoints.MapGroup("/api/v1");
+        ConfigEndpoints.Map(api);
+        RevisionEndpoints.Map(api);
+        CertificateEndpoints.Map(api);
+        ProviderEndpoints.Map(api);
+        AuditEndpoints.Map(api);
+        SimulateEndpoints.Map(api);
         AdminOpenApi.Map(endpoints);
         return endpoints;
     }
