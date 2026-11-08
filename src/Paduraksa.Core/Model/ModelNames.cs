@@ -85,6 +85,36 @@ public static class ModelNames
         _ => throw Undefined(kind),
     };
 
+    public static string ToName(this Role role) => role switch
+    {
+        Role.Owner => "owner",
+        Role.Admin => "admin",
+        Role.Operator => "operator",
+        Role.Viewer => "viewer",
+        Role.Auditor => "auditor",
+        _ => throw Undefined(role),
+    };
+
+    /// <summary>The stable name of <paramref name="permission"/>, e.g. <c>config:write</c>; also a token scope's spelling.</summary>
+    public static string ToName(this Permission permission) => permission switch
+    {
+        Permission.ConfigRead => "config:read",
+        Permission.ConfigWrite => "config:write",
+        Permission.CertificatesRead => "certificates:read",
+        Permission.CertificatesWrite => "certificates:write",
+        Permission.ProvidersRead => "providers:read",
+        Permission.ProvidersWrite => "providers:write",
+        Permission.UsersRead => "users:read",
+        Permission.UsersWrite => "users:write",
+        Permission.TokensOwn => "tokens:own",
+        Permission.TokensAll => "tokens:all",
+        Permission.SessionsAll => "sessions:all",
+        Permission.AuditRead => "audit:read",
+        Permission.VaultManage => "vault:manage",
+        Permission.Simulate => "simulate",
+        _ => throw Undefined(permission),
+    };
+
     /// <exception cref="FormatException"><paramref name="name"/> is not one of the names above.</exception>
     public static ActorKind ParseActorKind(string name) => name switch
     {
@@ -171,6 +201,37 @@ public static class ModelNames
         "desec" => DnsProviderKind.DeSec,
         _ => throw NotAName<DnsProviderKind>(name),
     };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static Role ParseRole(string name) => name switch
+    {
+        "owner" => Role.Owner,
+        "admin" => Role.Admin,
+        "operator" => Role.Operator,
+        "viewer" => Role.Viewer,
+        "auditor" => Role.Auditor,
+        _ => throw NotAName<Role>(name),
+    };
+
+    /// <inheritdoc cref="ParseActorKind"/>
+    public static Permission ParsePermission(string name) =>
+        TryParsePermission(name, out var permission) ? permission : throw NotAName<Permission>(name);
+
+    /// <summary>Parses a permission name without throwing.</summary>
+    public static bool TryParsePermission(string? name, out Permission permission)
+    {
+        foreach (var candidate in Enum.GetValues<Permission>())
+        {
+            if (string.Equals(candidate.ToName(), name, StringComparison.Ordinal))
+            {
+                permission = candidate;
+                return true;
+            }
+        }
+
+        permission = default;
+        return false;
+    }
 
     private static FormatException NotAName<T>(string? name)
         where T : struct, Enum =>

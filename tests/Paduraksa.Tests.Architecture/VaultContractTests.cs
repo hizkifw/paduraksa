@@ -53,6 +53,7 @@ public sealed class VaultContractTests
         typeof(ISecretHttpHandlerFactory),
         typeof(IVaultLifecycle),
         typeof(IVaultKekRotation),
+        typeof(ITotpAuthenticator),
     ];
 
     /// <summary>

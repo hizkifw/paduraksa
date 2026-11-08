@@ -37,10 +37,10 @@ public readonly partial record struct ConfigRevisionId;
 [TypedId("aud", IdKind.Int64Ordered)]
 public readonly partial record struct AuditEventId;
 
-/// <summary>An admin user (PLAN §5.2); the entity arrives with M4, audit actors name it from M2.</summary>
+/// <summary>An admin user (PLAN §5.2); audit actors named it from M2 and the entity is <c>UserRow</c> in Data.</summary>
 [TypedId("usr")]
 public readonly partial record struct UserId;
 
-/// <summary>An API token (PLAN §4.3, §5.2); the entity arrives with M4, audit actors name it from M2.</summary>
+/// <summary>An API token (PLAN §4.3, §5.2); audit actors named it from M2.</summary>
 [TypedId("tok")]
 public readonly partial record struct ApiTokenId;
