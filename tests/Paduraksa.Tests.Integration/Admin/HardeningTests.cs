@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Admin.Auth;
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Core.Model;
 using Paduraksa.Server.Configuration;
@@ -321,6 +322,38 @@ public sealed class HardeningTests
 
         PaduraksaOptions clash = new() { Listen = { AdminLoopbackHttp = 9443 } };
         Assert.Contains(new PaduraksaOptionsValidator().Validate(null, clash).Failures!, f => f.Contains("distinct", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TheValidatorBoundsTheAdminCertificateSettings()
+    {
+        PaduraksaOptions valid = new();
+        valid.Admin.CertificateNames.Add("admin.home.lan");
+        valid.Admin.CertificateNames.Add("192.0.2.10");
+        Assert.True(new PaduraksaOptionsValidator().Validate(null, valid).Succeeded);
+
+        PaduraksaOptions bad = new();
+        bad.Admin.CertificateNames.Add("*.home.lan");       // a wildcard: the admin certificate covers exact names
+        bad.Admin.CertificateNames.Add("fe80::1%eth0");     // a zone/scope id is not a certificate name
+        bad.Admin.CertificateNames.Add("   ");              // empty
+        bad.Admin.CertificateNames.Add("not a name!");
+        string[] failures = [.. new PaduraksaOptionsValidator().Validate(null, bad).Failures!];
+        Assert.Contains(failures, f => f.Contains("'*.home.lan'", StringComparison.Ordinal) && f.Contains("wildcard", StringComparison.Ordinal));
+        Assert.Contains(failures, f => f.Contains("'fe80::1%eth0'", StringComparison.Ordinal) && f.Contains("zone", StringComparison.Ordinal));
+        Assert.Contains(failures, f => f.Contains("entry 2", StringComparison.Ordinal) && f.Contains("empty", StringComparison.Ordinal));
+        Assert.Contains(failures, f => f.Contains("'not a name!'", StringComparison.Ordinal));
+
+        // One name more than the cap leaves no room for the process's own names, so it is refused rather than truncated.
+        PaduraksaOptions tooMany = new();
+        for (int i = 0; i <= AdminCertificateNames.MaxConfiguredNames; i++)
+        {
+            tooMany.Admin.CertificateNames.Add($"admin{i}.lan");
+        }
+
+        Assert.Contains(new PaduraksaOptionsValidator().Validate(null, tooMany).Failures!, f => f.Contains("at most 95", StringComparison.Ordinal));
+
+        PaduraksaOptions impatient = new() { Admin = { CertificateStartupTimeout = TimeSpan.FromHours(1) } };
+        Assert.Contains(new PaduraksaOptionsValidator().Validate(null, impatient).Failures!, f => f.Contains("CertificateStartupTimeout", StringComparison.Ordinal));
     }
 
     private static int FreePort()

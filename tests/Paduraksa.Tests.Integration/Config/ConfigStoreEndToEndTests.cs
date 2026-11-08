@@ -115,7 +115,11 @@ public sealed class ConfigStoreEndToEndTests
         Assert.Equal("Rollback to #1", history[0].Message);
         AuditChainReport audit = await AuditChainVerifier.VerifyAsync(database, ct);
         Assert.True(audit.IsIntact, audit.Break?.Description);
-        Assert.Equal(3, audit.VerifiedEvents);
+        // Exactly: the three config revisions, plus the process's own certificate events at startup — the local CA root and the
+        // admin listener's leaf, each registered pending (certificate.add) and then active (certificate.update).
+        long certificateEvents = Convert.ToInt64(await ScalarAsync(data, "SELECT count(*) FROM AuditEvents WHERE \"Action\" IN ('certificate.add', 'certificate.update')", ct));
+        Assert.Equal(2 * 2, certificateEvents);
+        Assert.Equal(3 + 4, audit.VerifiedEvents);
     }
 
     [Fact]
@@ -137,12 +141,13 @@ public sealed class ConfigStoreEndToEndTests
         await using PaduraksaHost second = TestHost.Create(dataDirectory: data);
         await second.StartAsync(ct);
         using HttpClient client = TestHost.CreateClient(second);
+        using HttpClient adminClient = TestHost.CreateAdminClient(second);
 
         Assert.Equal(latest.Id, second.Shared.SnapshotStore.Current.Revision);
         Assert.Equal(new ConfigStoreStatus(ConfigSource.Database, latest), second.Shared.Config.Status);
         Assert.Equal((HttpStatusCode.OK, "one"), await GetAsync(client, second, "one.test", "/", ct));
         Assert.Equal((HttpStatusCode.OK, "two"), await GetAsync(client, second, "two.test", "/", ct));
-        Assert.Equal((HttpStatusCode.OK, "ready\n"), await ReadyzAsync(client, second, ct));
+        Assert.Equal((HttpStatusCode.OK, "ready\n"), await ReadyzAsync(adminClient, second, ct));
         Assert.Equal(2L, await ScalarAsync(data, "SELECT count(*) FROM Hosts", ct));
         Assert.Equal(1L, await ScalarAsync(data, "SELECT count(*) FROM GlobalSettings", ct));
 
@@ -184,6 +189,7 @@ public sealed class ConfigStoreEndToEndTests
         await using PaduraksaHost host = TestHost.Create(dataDirectory: data, logs: logs);
         await host.StartAsync(ct);
         using HttpClient client = TestHost.CreateClient(host);
+        using HttpClient adminClient = TestHost.CreateAdminClient(host);
 
         // The proxy serves the last-known-good config (the latest revision that went live: B) ...
         ConfigStoreStatus status = host.Shared.Config.Status;
@@ -195,7 +201,7 @@ public sealed class ConfigStoreEndToEndTests
         Assert.Equal((HttpStatusCode.OK, "B"), await GetAsync(client, host, "app.test", "/", ct));
 
         // ... still ready for traffic, but says it's degraded, and logs why at Critical ...
-        Assert.Equal((HttpStatusCode.OK, "degraded\n"), await ReadyzAsync(client, host, ct));
+        Assert.Equal((HttpStatusCode.OK, "degraded\n"), await ReadyzAsync(adminClient, host, ct));
         Assert.Contains(logs.Entries, e => e.Level == LogLevel.Critical && e.Message.StartsWith("DEGRADED: serving the last-known-good config", StringComparison.Ordinal));
 
         // ... and refuses changes.
@@ -269,6 +275,7 @@ public sealed class ConfigStoreEndToEndTests
         await using PaduraksaHost host = TestHost.Create(dataDirectory: data, logs: logs);
         await host.StartAsync(ct);
         using HttpClient client = TestHost.CreateClient(host);
+        using HttpClient adminClient = TestHost.CreateAdminClient(host);
 
         // The file's config is committed again as revision #1 (audited) and served, healthy.
         ConfigStoreStatus status = host.Shared.Config.Status;
@@ -276,7 +283,7 @@ public sealed class ConfigStoreEndToEndTests
         Assert.Equal(1, status.Revision!.Seq);
         Assert.Equal((HttpStatusCode.OK, "one"), await GetAsync(client, host, "one.test", "/", ct));
         Assert.Equal((HttpStatusCode.OK, "two"), await GetAsync(client, host, "two.test", "/", ct));
-        Assert.Equal((HttpStatusCode.OK, "ready\n"), await ReadyzAsync(client, host, ct));
+        Assert.Equal((HttpStatusCode.OK, "ready\n"), await ReadyzAsync(adminClient, host, ct));
         Assert.Contains(logs.Entries, e => e.Level == LogLevel.Critical && e.Message.Contains($"#{lost.Seq} ({lost.Id})", StringComparison.Ordinal));
         await using ConfigDbContext database = OpenDatabase(data);
         RevisionInfo restored = Assert.Single(await ConfigRevisionStore.ListAsync(database, 10, cancellationToken: ct));

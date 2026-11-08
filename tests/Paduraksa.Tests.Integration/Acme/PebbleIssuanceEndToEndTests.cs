@@ -119,7 +119,7 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
         Assert.NotEqual(first.SerialNumber, second.SerialNumber);
         Assert.Equal(second.Sha256Fingerprint, Fingerprint((await VaultCertificatesEndToEndTests.HandshakeAsync(host, names[0])).Certificate));
         Assert.Equal(revision, (await host.Shared.Config.GetCurrentAsync(Ct)).Revision);
-        Assert.Single(await host.Shared.CertificateService.ListAsync(null, Ct));
+        Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.Acme), Ct));
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
 
         Assert.True(served != firstFingerprint, $"the scheduler had not renewed the due certificate after 90 s (order: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Status}, error: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Error})");
 
-        CertificateSummary current = Assert.Single(await host.Shared.CertificateService.ListAsync(null, Ct));
+        CertificateSummary current = Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.Acme), Ct));
         Assert.Equal((id, served), (current.Id, current.Sha256Fingerprint));
         AcmeOrderSummary order = (await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))!;
         Assert.Equal((AcmeOrderStatus.Valid, 0), (order.Status, order.Attempts));
@@ -189,7 +189,7 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
 
         Assert.Equal(IssuanceOutcome.Failed, failed.Outcome);
         Assert.Equal(0, host.Shared.Challenges.Count);
-        CertificateSummary certificate = Assert.Single(await host.Shared.CertificateService.ListAsync(null, Ct));
+        CertificateSummary certificate = Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.Acme), Ct));
         Assert.Equal(CertificateStatus.Failed, certificate.Status);
         Assert.NotNull((await host.Shared.AcmeIssuance.GetOrderAsync(certificate.Id, Ct))!.RetryAt);
 

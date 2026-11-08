@@ -1,3 +1,4 @@
+using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -599,13 +600,27 @@ public sealed class ConfigValidatorTests
         Assert.Contains(errors, e => e.Message.Contains("-bad-", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void TheAdminListenersCertificateCannotBeBound()
+    {
+        // It is reserved for the admin port (PLAN §3, §10.1): the process's own certificate is not the config's to serve.
+        ConfigDocument document = Valid();
+        ConfigDocument specific = document with
+        {
+            Hosts = MapHost(document, AppHost, host => host with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = AdminCertificate.Id } }),
+        };
+        AssertErrors(specific, ($"{Proxy}/certificate/certificateId", HostCertificateUnusable));
+
+        ConfigDocument asDefault = document with { Settings = document.Settings with { DefaultCertificateId = AdminCertificate.Id } };
+        AssertErrors(asDefault, ("/settings/defaultCertificateId", SettingsDefaultCertificateUnusable));
+    }
+
     /// <summary>Validates <paramref name="document"/> as written and expects exactly these errors, in order.</summary>
     private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected)
     {
         IReadOnlyList<ConfigError> errors = ConfigValidator.Validate(document);
         Assert.Equal(expected, errors.Select(e => (e.Path, e.Code)));
     }
-
     private static HostConfig[] MapHost(ConfigDocument document, HostId id, Func<HostConfig, HostConfig> change) =>
         MapHost(document.Hosts, id, change);
 

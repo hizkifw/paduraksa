@@ -85,7 +85,8 @@ public sealed class VaultCertificatesEndToEndTests
         CertificateOperations operations = host.Shared.CertificateOperations;
         CertificateOperationResult root = await operations.EnsureLocalCaAsync(new LocalCaRequest(), Origin, Ct);
         CertificateOperationResult leaf = await operations.IssueFromLocalCaAsync(new LocalCaLeafRequest([name]), Origin, Ct);
-        Assert.Equal(CertificateOperationStatus.Completed, root.Status);
+        // The process's own admin certificate may have created the local CA root already (PLAN §3), so "ensure" can be Unchanged.
+        Assert.True(root.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged, root.Status.ToString());
         Assert.Equal(CertificateOperationStatus.Completed, leaf.Status);
         CertificateDetail rootDetail = (await host.Shared.CertificateService.GetAsync(root.Certificate!.Id, Ct))!;
         return (root.Certificate, leaf.Certificate!, FirstCertificate(rootDetail.PublicChainPem));

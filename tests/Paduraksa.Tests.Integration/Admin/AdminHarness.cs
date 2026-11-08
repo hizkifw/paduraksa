@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -87,18 +86,15 @@ internal sealed class AdminHarness : IAsyncDisposable
 
         PaduraksaHost host = TestHost.Create(settings: config, configureServices: configureServices, logs: logs);
         await host.StartAsync(Ct);
-        string pin = host.Shared.ServerCertificate.Certificate.GetCertHashString(HashAlgorithmName.SHA256);
-        SocketsHttpHandler handler = new()
+        // The hardening tests reach the admin by a LAN name or a made-up one over a loopback connection, so the client
+        // must not insist the certificate covers that name (it is still pinned or chain-checked to the local CA).
+        HttpClient http = TestHost.CreateAdminClient(host, static handler =>
         {
-            UseCookies = false,
-            AllowAutoRedirect = false,
-            SslOptions =
-            {
-                RemoteCertificateValidationCallback = (_, certificate, _, _) =>
-                    certificate is not null && string.Equals(certificate.GetCertHashString(HashAlgorithmName.SHA256), pin, StringComparison.Ordinal),
-            },
-        };
-        return new AdminHarness(host, new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) }, TestHost.Endpoint(host, HostRole.Admin, "https"));
+            handler.UseCookies = false;
+            handler.AllowAutoRedirect = false;
+        }, checkServerName: false);
+        http.Timeout = TimeSpan.FromSeconds(20);
+        return new AdminHarness(host, http, TestHost.Endpoint(host, HostRole.Admin, "https"));
     }
 
     /// <summary>

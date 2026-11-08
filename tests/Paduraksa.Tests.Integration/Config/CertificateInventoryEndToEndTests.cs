@@ -90,7 +90,7 @@ public sealed class CertificateInventoryEndToEndTests
         Assert.True(deleted.Publish!.Succeeded);
         Assert.Equal("Paduraksa placeholder", await EdgeClient.ServedSubjectAsync(host, "a.test"));
         Assert.Equal("certificate.auto.noCoverage", Assert.Single(host.Shared.Config.Warnings).Code);
-        Assert.Empty(await service.ListAsync(cancellationToken: ct));
+        Assert.DoesNotContain(await service.ListAsync(cancellationToken: ct), c => c.Id == A);
     }
 
     [Fact]

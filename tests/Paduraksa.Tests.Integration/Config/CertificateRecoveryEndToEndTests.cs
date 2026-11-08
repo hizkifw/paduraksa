@@ -40,6 +40,7 @@ public sealed class CertificateRecoveryEndToEndTests
         CertificateSummary root;
         CertificateSummary leaf;
         CertificateSummary selfSigned;
+        string adminFingerprint;
         await using (PaduraksaHost first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
         {
             await first.StartAsync(Ct);
@@ -47,6 +48,7 @@ public sealed class CertificateRecoveryEndToEndTests
             root = (await operations.EnsureLocalCaAsync(new LocalCaRequest(), Origin, Ct)).Certificate!;
             leaf = (await operations.IssueFromLocalCaAsync(new LocalCaLeafRequest(["local.test"]), Origin, Ct)).Certificate!;
             selfSigned = (await operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["self.test"]), Origin, Ct)).Certificate!;
+            adminFingerprint = (await first.Shared.CertificateService.GetAsync(AdminCertificate.Id, Ct))!.Summary.Sha256Fingerprint;
             HostConfig bound = RespondHost("l", "local.test", "ok") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = leaf.Id } };
             await CommitAsync(first, new UpsertHostCommand(bound), Ct);
         }
@@ -62,14 +64,23 @@ public sealed class CertificateRecoveryEndToEndTests
         await host.StartAsync(Ct);
 
         CertificateRecoveryResult recovery = await RecoveredAsync(host);
-        Assert.Equal(3, recovery.Recovered.Count);
         Assert.Empty(recovery.Failed);
+        // The admin listener's own certificate (PLAN §3) is in the vault too: the recovery skips it and the admin
+        // certificate service adopts it, so only the certificates this test made are pinned to the recovery's list.
+        Assert.Contains(leaf.Id, recovery.Recovered);
+        Assert.Contains(selfSigned.Id, recovery.Recovered);
         IReadOnlyList<CertificateSummary> inventory = await host.Shared.CertificateService.ListAsync(null, Ct);
-        Assert.Equal(3, inventory.Count);
-        Assert.All(inventory, c => Assert.Equal((CertificateStatus.Active, CertificateRecovery.Label), (c.Status, c.Label)));
         Assert.Equal(CertificateSource.LocalCaRoot, inventory.Single(c => c.Id == root.Id).Source);
         Assert.Equal(CertificateSource.LocalCa, inventory.Single(c => c.Id == leaf.Id).Source);
         Assert.Equal(CertificateSource.Uploaded, inventory.Single(c => c.Id == selfSigned.Id).Source);
+        Assert.All(
+            new[] { root.Id, leaf.Id, selfSigned.Id },
+            id => Assert.Equal((CertificateStatus.Active, CertificateRecovery.Label), (inventory.Single(c => c.Id == id).Status, inventory.Single(c => c.Id == id).Label)));
+
+        // The admin listener's own certificate was adopted from the vault, not re-issued: the served fingerprint survives.
+        CertificateSummary adminLeaf = Assert.Single(await host.Shared.CertificateService.ListAsync(null, Ct), c => c.Id == AdminCertificate.Id);
+        Assert.Equal((CertificateStatus.Active, AdminCertificate.Label), (adminLeaf.Status, adminLeaf.Label));
+        Assert.Equal(adminFingerprint, adminLeaf.Sha256Fingerprint);
         Assert.Equal(leaf.Sha256Fingerprint, inventory.Single(c => c.Id == leaf.Id).Sha256Fingerprint);
         Assert.Equal(["local.test"], inventory.Single(c => c.Id == leaf.Id).Names);
         Assert.Equal(leaf.Sha256Fingerprint, Fingerprint((await VaultCertificatesEndToEndTests.HandshakeAsync(host, "local.test")).Certificate));
@@ -97,7 +108,7 @@ public sealed class CertificateRecoveryEndToEndTests
         CertificateRecoveryResult recovery = await RecoveredAsync(host);
 
         Assert.Empty(recovery.Recovered);
-        CertificateSummary only = Assert.Single(await host.Shared.CertificateService.ListAsync(null, Ct));
+        CertificateSummary only = Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.SelfSigned), Ct));
         Assert.Equal((made.Id, CertificateSource.SelfSigned, "mine"), (only.Id, only.Source, only.Label));
     }
 }

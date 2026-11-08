@@ -27,7 +27,7 @@ public sealed class DualHostTests
         CancellationToken ct = TestContext.Current.CancellationToken;
         await using PaduraksaHost host = TestHost.Create();
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
+        using HttpClient client = TestHost.CreateAdminClient(host);
         Uri admin = TestHost.Endpoint(host, HostRole.Admin, "https");
 
         using HttpResponseMessage healthz = await client.GetAsync(new Uri(admin, "/healthz"), ct);
@@ -204,7 +204,7 @@ public sealed class DualHostTests
             }
         });
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
+        using HttpClient client = TestHost.CreateAdminClient(host);
         Uri readyz = new(TestHost.Endpoint(host, HostRole.Admin, "https"), "/readyz");
 
         Task stopping = host.StopAsync(ct);

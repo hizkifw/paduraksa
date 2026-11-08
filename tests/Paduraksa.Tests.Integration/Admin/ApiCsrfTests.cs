@@ -32,7 +32,9 @@ public sealed class ApiCsrfTests
             Assert.Equal("csrf", problem.Code);
         }
 
-        using HttpResponseMessage inventory = await api.GetAsync("/api/v1/certificates");
+        // Nothing was uploaded: the inventory holds only what the process itself made at startup (the local CA root and the
+        // admin listener's certificate, PLAN §3).
+        using HttpResponseMessage inventory = await api.GetAsync("/api/v1/certificates?source=uploaded");
         Assert.Empty((await NodeOf(inventory)).AsArray());
 
         using HttpResponseMessage sameOrigin = await api.SendWithCookieAsync(HttpMethod.Post, "/api/v1/certificates", cookie, "same-origin", null, ResourceApiTests.Upload(pem));
@@ -79,10 +81,12 @@ public sealed class ApiCsrfTests
 
         using HttpResponseMessage read = await api.SendWithCookieAsync(HttpMethod.Get, "/api/v1/config", cookie);
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
-        using HttpResponseMessage forbiddenForViewer = await api.SendWithCookieAsync(HttpMethod.Post, "/api/v1/certificates/local-ca", cookie, "same-origin");
+        using HttpResponseMessage forbiddenForViewer = await api.SendWithCookieAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", cookie, "same-origin", null, AdminApiHarness.JsonBody("""{"names":["viewer.test"]}"""));
         Assert.Equal(HttpStatusCode.Forbidden, forbiddenForViewer.StatusCode);
         Assert.NotEqual("csrf", (await AdminApiHarness.ProblemAsync(forbiddenForViewer, Ct)).Code);
-        using HttpResponseMessage bearer = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/local-ca");
+        // Creating the local CA is the process's own work at startup now (the admin certificate is issued from it), so the
+        // bearer token proves its exemption on a certificate operation that is still the caller's.
+        using HttpResponseMessage bearer = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", content: AdminApiHarness.JsonBody("""{"names":["bearer.test"]}"""));
         Assert.Equal(HttpStatusCode.Created, bearer.StatusCode);
     }
 

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -10,6 +11,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Admin.Certificates;
+using Paduraksa.Core.Vault;
 using Paduraksa.Server.Hosting;
 
 namespace Paduraksa.Tests.Integration.Hosting;
@@ -92,7 +95,10 @@ internal static class TestHost
         return new UriBuilder(scheme, IPAddress.Loopback.ToString(), new Uri(address).Port).Uri;
     }
 
-    /// <summary>HTTP client trusting exactly the host's placeholder certificate (pinned, not "accept anything").</summary>
+    /// <summary>
+    /// HTTP client for the <b>public</b> listener: it trusts exactly the in-memory placeholder certificate the tests serve
+    /// there (pinned, not "accept anything").
+    /// </summary>
     public static HttpClient CreateClient(PaduraksaHost host)
     {
         string pin = host.Shared.ServerCertificate.Certificate.GetCertHashString(HashAlgorithmName.SHA256);
@@ -107,6 +113,75 @@ internal static class TestHost
             },
         };
         return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+    }
+
+    /// <summary>
+    /// HTTP client for the <b>admin</b> listener (PLAN §3): it trusts <b>only</b> a certificate chaining to the process's local CA
+    /// root, and by default still checks the name it connects to, so a test cannot pass on the placeholder fallback by
+    /// accident (its SANs include <c>localhost</c> and the loopback addresses, which is what every test connects to). The
+    /// root is read lazily, so a client built before the admin certificate exists still works once it does. The strict TLS
+    /// assertions live in the dedicated handshake tests, which use <see cref="System.Net.Security.SslStream"/> directly.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="checkServerName"/> false is for clients that deliberately send a <c>Host</c> header the certificate
+    /// doesn't cover (the hardening tests reach the admin by a LAN name or a made-up one over a loopback connection;
+    /// <c>SocketsHttpHandler</c> takes its TLS target host from that header, so the name check would refuse the handshake).
+    /// <paramref name="allowPlaceholder"/> true is for the tests that deliberately reach a host serving the fallback (an empty
+    /// vault, or one whose config store refuses changes).
+    /// </remarks>
+    public static HttpClient CreateAdminClient(
+        PaduraksaHost host, Action<SocketsHttpHandler>? configure = null, bool checkServerName = true, bool allowPlaceholder = false)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        X509Certificate2? root = null;
+        SocketsHttpHandler handler = new()
+        {
+            SslOptions =
+            {
+                RemoteCertificateValidationCallback = (_, certificate, _, errors) =>
+                {
+                    if (certificate is null
+                        || (checkServerName && (errors & System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch) != 0))
+                    {
+                        return false;
+                    }
+
+                    // The OS trusts it (a real CA), or it chains to the process's local CA root.
+                    return (errors & ~System.Net.Security.SslPolicyErrors.RemoteCertificateNameMismatch) == System.Net.Security.SslPolicyErrors.None
+                        || IsIssuedBy(certificate, root ??= LocalCaRoot(host))
+                        || (allowPlaceholder && IsPinned(certificate, host.Shared.ServerCertificate.Certificate));
+                },
+            },
+        };
+        configure?.Invoke(handler);
+        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
+    }
+
+    private static bool IsPinned(X509Certificate certificate, X509Certificate2 pin) =>
+        string.Equals(certificate.GetCertHashString(HashAlgorithmName.SHA256), pin.GetCertHashString(HashAlgorithmName.SHA256), StringComparison.Ordinal);
+
+    private static bool IsIssuedBy(X509Certificate certificate, X509Certificate2? root)
+    {
+        if (root is null)
+        {
+            return false;
+        }
+
+        using X509Chain chain = new();
+        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+        chain.ChainPolicy.CustomTrustStore.Add(root);
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        chain.ChainPolicy.DisableCertificateDownloads = true;
+        using X509Certificate2 leaf = X509CertificateLoader.LoadCertificate(certificate.GetRawCertData());
+        return chain.Build(leaf);
+    }
+
+    /// <summary>The process's local CA root (public data), or null before it exists.</summary>
+    private static X509Certificate2? LocalCaRoot(PaduraksaHost host)
+    {
+        VaultCertificate? root = host.Shared.Catalog.ListAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult()
+            .FirstOrDefault(static certificate => certificate.IsLocalCaRoot);
+        return root is null ? null : X509CertificateLoader.LoadCertificate(CaRoot.PemToDer(root.Info.PublicChainPem));
     }
 }
 

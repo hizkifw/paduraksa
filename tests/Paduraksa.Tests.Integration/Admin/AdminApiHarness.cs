@@ -59,7 +59,10 @@ internal sealed class AdminApiHarness : IAsyncDisposable
                 }
             });
         await host.StartAsync(ct);
-        AdminApiHarness harness = new(host, TestHost.CreateClient(host), TestHost.Endpoint(host, HostRole.Admin, "https"));
+        // The admin listener serves the process's local-CA certificate (PLAN §3), so the harness trusts that root. It sends
+        // cookies by hand (the CSRF tests set them explicitly), so the handler must not keep a jar of its own.
+        HttpClient client = TestHost.CreateAdminClient(host, static handler => handler.UseCookies = false);
+        AdminApiHarness harness = new(host, client, TestHost.Endpoint(host, HostRole.Admin, "https"));
         await harness.CreateUsersAsync(ct);
         return harness;
     }

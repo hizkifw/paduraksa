@@ -103,7 +103,7 @@ public sealed class PublicProxyTests
         await host.StartAsync(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
         Assert.True(host.Shared.SnapshotStore.HasPublished);
         Assert.Equal(startup.Id, host.Shared.SnapshotStore.Current.Revision);
-        using HttpClient client = TestHost.CreateClient(host);
+        using HttpClient client = TestHost.CreateAdminClient(host);
         using HttpResponseMessage ready = await client.GetAsync(new Uri(TestHost.Endpoint(host, HostRole.Admin, "https"), "/readyz"), ct);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
         using HttpResponseMessage proxied = await client.SendAsync(Request(host, "http", "app.test", "/started"), ct);

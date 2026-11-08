@@ -276,9 +276,10 @@ public sealed class ApiConventionTests
             Assert.Equal(permission, found);
         }
 
-        // Nothing resource-like is mapped that this table doesn't know (the identity endpoints are the auth branch's and are checked by their own rules).
-        string[] identityPrefixes = ["/api/v1/setup", "/api/v1/auth", "/api/v1/me", "/api/v1/sessions", "/api/v1/tokens", "/api/v1/users", "/api/v1/openapi.json", "/api/docs"];
-        IEnumerable<string> unknown = actual.Keys.Where(k => !expected.Any(e => e.Route == k) && !identityPrefixes.Any(prefix => k[(k.IndexOf(' ', StringComparison.Ordinal) + 1)..].StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
+        // Nothing resource-like is mapped that this table doesn't know (the identity endpoints are the auth branch's, the CA
+        // endpoints are anonymous by design, and both are checked by their own rules).
+        string[] anonymousPrefixes = ["/api/v1/setup", "/api/v1/auth", "/api/v1/me", "/api/v1/sessions", "/api/v1/tokens", "/api/v1/users", "/api/v1/ca", "/api/v1/openapi.json", "/api/docs"];
+        IEnumerable<string> unknown = actual.Keys.Where(k => !expected.Any(e => e.Route == k) && !anonymousPrefixes.Any(prefix => k[(k.IndexOf(' ', StringComparison.Ordinal) + 1)..].StartsWith(prefix, StringComparison.OrdinalIgnoreCase)));
         Assert.Empty(unknown);
     }
 
@@ -358,8 +359,10 @@ public sealed class ApiConventionTests
         Assert.DoesNotContain("http", csp, StringComparison.Ordinal);
         Assert.DoesNotContain("'unsafe-eval'", csp, StringComparison.Ordinal);
 
-        // Every script tag, the inline module included, carries the policy's nonce.
-        MatchCollection scripts = Regex.Matches(html, "<script[^>]*>");
+        // Every script tag, the inline module included, carries the policy's nonce. The HTML encoder escapes characters
+        // like '+' (the nonce is base64), so the assertion decodes the page first.
+        string decoded = System.Net.WebUtility.HtmlDecode(html);
+        MatchCollection scripts = Regex.Matches(decoded, "<script[^>]*>");
         Assert.NotEmpty(scripts);
         Assert.All(scripts, s => Assert.Contains($"nonce=\"{cspNonce.Groups[1].Value}\"", s.Value, StringComparison.Ordinal));
 
