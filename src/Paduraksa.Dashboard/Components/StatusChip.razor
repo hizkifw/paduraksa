@@ -1,0 +1,49 @@
+@* A state in a word (the design language, PLAN §12): a soft chip in a tone, with a dot or an icon in front. One size everywhere: lists,
+   drawers and the review. *@
+<span class="pdk-chip pdk-tone-@Tone.Css() @Class" title="@Detail" data-chip="@Name">
+    @if (Icon is not null)
+    {
+        <MudIcon Icon="@Icon" Size="Size.Small" Class="pdk-chip-icon" />
+    }
+    else if (Dot)
+    {
+        <span class="pdk-chip-dot" aria-hidden="true"></span>
+    }
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else
+    {
+        @Text
+    }
+</span>
+
+@code {
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public Tone Tone { get; set; }
+
+    [Parameter]
+    public string? Icon { get; set; }
+
+    /// <summary>A dot in front (when there is no icon).</summary>
+    [Parameter]
+    public bool Dot { get; set; }
+
+    /// <summary>The longer explanation, as a tooltip.</summary>
+    [Parameter]
+    public string? Detail { get; set; }
+
+    /// <summary>Names the chip for tests (<c>data-chip</c>).</summary>
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

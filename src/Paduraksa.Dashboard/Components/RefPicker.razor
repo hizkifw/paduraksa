@@ -1,0 +1,88 @@
+@typeparam T
+@* A field that references another object (an upstream, a certificate, a profile, an ACME account): a select of what exists, and last a
+   "New ..." choice that makes one. Choosing it calls OnNew instead of changing the value (the caller stacks a drawer for the new object
+   and sets the value to it when the drawer hands one back). *@
+<MudSelect @key="_generation" T="T" Value="Value" ValueChanged="OnChangedAsync" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+           ReadOnly="ReadOnly" Disabled="Disabled" HelperText="@HelperText" Error="Error" ErrorText="@ErrorText" ToStringFunc="Display" Class="@Class"
+           Placeholder="@Placeholder" @attributes="Attributes">
+    @ChildContent
+    @if (OnNew.HasDelegate && !ReadOnly)
+    {
+        <MudSelectItem T="T" Value="NewValue" Class="pdk-picker-new-item">
+            <span class="pdk-picker-new"><MudIcon Icon="@Icons.Material.Rounded.Add" Size="Size.Small" /> @NewLabel</span>
+        </MudSelectItem>
+    }
+</MudSelect>
+
+@code {
+    private int _generation;
+
+    [Parameter]
+    public T? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<T> ValueChanged { get; set; }
+
+    /// <summary>The items: <c>MudSelectItem</c>s of what exists.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public bool Error { get; set; }
+
+    [Parameter]
+    public string? ErrorText { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public Func<T?, string?>? ToStringFunc { get; set; }
+
+    /// <summary>The "New ..." item's text ("New upstream...").</summary>
+    [Parameter]
+    public string NewLabel { get; set; } = "New...";
+
+    /// <summary>The value that stands for "New ...": one no real item has (an empty ID, a key no item uses).</summary>
+    [Parameter, EditorRequired]
+    public T NewValue { get; set; } = default!;
+
+    /// <summary>"New ..." was chosen; no "New ..." item without it.</summary>
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? Attributes { get; set; }
+
+    private string? Display(T? value) =>
+        value is not null && EqualityComparer<T>.Default.Equals(value, NewValue) ? NewLabel : ToStringFunc is null ? value?.ToString() : ToStringFunc(value);
+
+    private async Task OnChangedAsync(T value)
+    {
+        if (value is not null && EqualityComparer<T>.Default.Equals(value, NewValue))
+        {
+            await OnNew.InvokeAsync();
+
+            // The select shows what it was last set to: made again, it shows the value as it is now (the new object, or the old one).
+            _generation++;
+            return;
+        }
+
+        await ValueChanged.InvokeAsync(value);
+    }
+}

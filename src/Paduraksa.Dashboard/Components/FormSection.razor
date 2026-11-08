@@ -1,0 +1,47 @@
+@* A section of a form in a drawer (the design language, PLAN §12): a heading, a line on what it is for, an optional control beside the
+   heading (an Enabled switch), and the fields. Sections are divided by a rule instead of each being a card. *@
+<section class="pdk-section @Class" data-section="@Name">
+    <header class="pdk-section-head">
+        <div class="pdk-section-titles">
+            <h3 class="pdk-section-title">@Title</h3>
+            @if (Description is not null)
+            {
+                <p class="pdk-section-text">@Description</p>
+            }
+            @if (DescriptionContent is not null)
+            {
+                <p class="pdk-section-text">@DescriptionContent</p>
+            }
+        </div>
+        @if (Aside is not null)
+        {
+            <div class="pdk-section-aside">@Aside</div>
+        }
+    </header>
+    @ChildContent
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    /// <summary>The line under the heading, with markup (a monospace example).</summary>
+    [Parameter]
+    public RenderFragment? DescriptionContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Aside { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Names the section (<c>data-section</c>).</summary>
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

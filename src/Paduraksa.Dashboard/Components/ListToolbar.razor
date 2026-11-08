@@ -1,0 +1,48 @@
+@* A list's toolbar (the design language, PLAN §12): the search on the left, how many match, and the list's own controls on the right. It
+   heads a list card; the page's primary action stays in the page header. *@
+<div class="pdk-toolbar">
+    @if (SearchChanged.HasDelegate)
+    {
+        <MudTextField T="string" Value="Search" ValueChanged="SearchChanged" Immediate="true" Placeholder="@Placeholder" Variant="Variant.Outlined"
+                      Margin="Margin.Dense" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Rounded.Search" Clearable="true" Class="pdk-search"
+                      aria-label="@Placeholder" />
+    }
+    @if (Total is { } total)
+    {
+        <span class="pdk-toolbar-count" aria-live="polite">@Count(Shown ?? total, One, Many)@(Shown is { } shown && shown != total ? $" of {total}" : string.Empty)</span>
+    }
+    @if (ChildContent is not null)
+    {
+        <div class="pdk-toolbar-end">@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? Search { get; set; }
+
+    [Parameter]
+    public EventCallback<string> SearchChanged { get; set; }
+
+    [Parameter]
+    public string Placeholder { get; set; } = "Search";
+
+    /// <summary>How many there are; null while loading.</summary>
+    [Parameter]
+    public int? Total { get; set; }
+
+    /// <summary>How many the search leaves.</summary>
+    [Parameter]
+    public int? Shown { get; set; }
+
+    [Parameter]
+    public string One { get; set; } = "item";
+
+    [Parameter]
+    public string Many { get; set; } = "items";
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private static string Count(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
+}

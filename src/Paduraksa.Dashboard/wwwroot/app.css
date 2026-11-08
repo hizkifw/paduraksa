@@ -586,8 +586,9 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     font-size: 0.8125rem;
 }
 
-/* ---------- Lists: hosts and upstreams ---------- */
+/* ---------- Lists ---------- */
 
+/* A list card: a toolbar (ListToolbar) over a data table. */
 .pdk-table-card.mud-paper {
     padding: 0;
     overflow: hidden;
@@ -597,15 +598,28 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 16px 20px;
+    gap: 12px 16px;
+    padding: 14px 20px;
     border-bottom: 1px solid var(--mud-palette-lines-default);
 }
 
 .pdk-search {
-    flex: 0 1 380px;
+    flex: 0 1 400px;
     margin: 0 !important;
+}
+
+.pdk-toolbar-count {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pdk-toolbar-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
 }
 
 .pdk-table-card .pdk-row-skeleton, .pdk-table-card .pdk-empty {
@@ -613,6 +627,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     padding-right: 20px;
 }
 
+/* MudBlazor's table (users, tokens) in the same voice as the data table below. */
 .pdk-table.mud-table {
     background: transparent;
 }
@@ -634,82 +649,263 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     padding-left: 20px;
 }
 
-.pdk-clickable {
-    cursor: pointer;
+/* The data table: rows are grids whose columns a list sets with --pdk-dt-cols; a row opens its drawer (the main cell's link is the
+   keyboard's way in). Below 900 px every row becomes a card with labelled cells. */
+.pdk-dt {
+    display: grid;
 }
 
-.pdk-host-cell {
+.pdk-dt-row {
+    display: grid;
+    grid-template-columns: var(--pdk-dt-cols, minmax(0, 2fr) repeat(3, minmax(0, 1fr)));
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+    font-size: 0.875rem;
+}
+
+.pdk-dt-head {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    border-top: 0;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.pdk-dt-link {
+    cursor: pointer;
+    transition: background 100ms ease;
+}
+
+.pdk-dt-link:hover {
+    background: var(--mud-palette-table-hover);
+}
+
+.pdk-dt-link:focus-within {
+    background: color-mix(in srgb, var(--mud-palette-primary) 5%, transparent);
+}
+
+.pdk-dt-selected {
+    background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+}
+
+.pdk-dt-off .pdk-dt-main, .pdk-dt-off .pdk-dest-list {
+    opacity: 0.6;
+}
+
+.pdk-dt-main {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
     min-width: 0;
 }
 
-.pdk-host-cell .pdk-status-dot {
+.pdk-dt-main > .pdk-status-dot {
     flex: 0 0 auto;
-    margin-top: 6px;
 }
 
-.pdk-target {
-    font-family: var(--pdk-mono);
-    font-size: 0.8125rem;
-    overflow-wrap: anywhere;
-}
-
-.pdk-card-grid {
+.pdk-dt-titles {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
+    gap: 3px;
+    min-width: 0;
 }
 
-.pdk-upstream-card.mud-paper {
+.pdk-dt-titles .pdk-row-link {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-dt-cell {
+    min-width: 0;
+}
+
+.pdk-dt-note {
+    overflow: hidden;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-dt-chips {
     display: flex;
-    flex-direction: column;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
-.pdk-upstream-card .pdk-card-head {
-    margin-bottom: 0;
-}
-
-.pdk-card-title {
-    font-size: 1rem;
-}
-
-.pdk-destinations {
+.pdk-dt-stack {
     display: grid;
-    gap: 6px;
+    justify-items: start;
+    gap: 4px;
+}
+
+.pdk-dt-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pdk-dt-status .mud-switch {
     margin: 0;
-    padding: 10px 12px;
-    border-radius: var(--pdk-radius);
-    background: var(--mud-palette-background-gray);
+}
+
+.pdk-dt-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.pdk-hosts-table { --pdk-dt-cols: minmax(0, 1.5fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(150px, 0.8fr); }
+.pdk-upstreams-table { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.4fr); }
+.pdk-profiles-table { --pdk-dt-cols: minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.2fr) 40px; }
+.pdk-certs-table { --pdk-dt-cols: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr); }
+
+/* Where a host's requests go: "/api -> app  http://10.0.0.5:8080", a line per route. */
+.pdk-dest-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
     list-style: none;
 }
 
-.pdk-destinations li {
+.pdk-dest-list li {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 2px 8px;
     min-width: 0;
+}
+
+.pdk-dest-path {
+    padding: 0 6px;
+    border-radius: 5px;
+    background: var(--mud-palette-background-gray);
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-dest-arrow.mud-icon-root {
+    width: 16px;
+    height: 16px;
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-dest-label {
+    font-weight: 600;
+}
+
+.pdk-dest-detail {
+    min-width: 0;
+    color: var(--mud-palette-text-secondary);
     font-size: 0.8125rem;
     overflow-wrap: anywhere;
 }
 
-.pdk-destinations .mud-icon-root {
-    color: var(--mud-palette-text-secondary);
+.pdk-dest-missing .pdk-dest-label {
+    color: var(--mud-palette-error);
 }
 
 .pdk-disabled {
     opacity: 0.55;
 }
 
-.pdk-usage {
-    display: flex;
-    flex-wrap: wrap;
+/* A state in a word (StatusChip). */
+.pdk-chip {
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    margin-top: auto;
-    font-size: 0.8125rem;
+    gap: 5px;
+    max-width: 100%;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.pdk-chip-dot {
+    flex: 0 0 auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.pdk-chip-icon.mud-icon-root {
+    width: 14px;
+    height: 14px;
+}
+
+.pdk-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+    .pdk-dt-head {
+        display: none;
+    }
+
+    .pdk-dt-row {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 10px 16px;
+        padding: 14px 16px;
+    }
+
+    .pdk-dt-row:nth-child(2) {
+        border-top: 0;
+    }
+
+    .pdk-dt-main {
+        grid-column: 1 / -1;
+    }
+
+    .pdk-dt-cell[data-label]::before {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--mud-palette-text-secondary);
+        content: attr(data-label);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .pdk-hosts-table .pdk-dt-cell[data-label="Destination"], .pdk-upstreams-table .pdk-dt-cell, .pdk-profiles-table .pdk-dt-cell[data-label] {
+        grid-column: 1 / -1;
+    }
+
+    .pdk-dt-row {
+        position: relative;
+    }
+
+    .pdk-profiles-table .pdk-dt-actions {
+        position: absolute;
+        top: 10px;
+        right: 8px;
+    }
+
+    /* The status's label on a line of its own, the chip and the switch under it. */
+    .pdk-dt-status {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .pdk-dt-status::before {
+        flex: 0 0 100%;
+    }
 }
 
 /* ---------- Forms ---------- */
@@ -719,16 +915,204 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     gap: 16px;
 }
 
-.pdk-editor-layout {
+/* A form in a drawer: sections (FormSection) divided by a rule, not cards. */
+.pdk-form {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
-    align-items: start;
-    gap: 16px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
 }
 
-.pdk-editor-side {
+.pdk-form > .mud-alert {
+    margin-bottom: 16px;
+}
+
+.pdk-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    padding: 18px 0;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-form > .pdk-section:first-child, .pdk-form > .mud-alert + .pdk-section {
+    padding-top: 2px;
+    border-top: 0;
+}
+
+.pdk-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.pdk-section-titles {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pdk-section-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.pdk-section-text {
+    margin: 0;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-section-aside {
+    flex: 0 0 auto;
+}
+
+.pdk-section-aside .mud-switch {
+    margin: -6px 0 0;
+}
+
+.pdk-form .pdk-advanced.mud-expansion-panels {
+    margin-top: 6px;
+}
+
+/* A picker of objects with "New ..." last (RefPicker). */
+.pdk-picker-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    min-width: 0;
+}
+
+.pdk-picker-hint {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+}
+
+.pdk-picker-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--mud-palette-primary);
+    font-weight: 600;
+}
+
+.mud-list-item.pdk-picker-new-item {
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+/* A list of ways to go on (where a new certificate comes from): a row each, icon, title and a line, chevron. */
+.pdk-method-grid {
+    display: grid;
+    gap: 8px;
+}
+
+.pdk-method {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius-lg);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 100ms ease, background 100ms ease;
+}
+
+.pdk-method:hover, .pdk-method:focus-visible {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 60%, transparent);
+    background: color-mix(in srgb, var(--mud-palette-primary) 5%, transparent);
+    outline: none;
+}
+
+.pdk-method-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-method-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.pdk-method-title {
+    font-weight: 600;
+}
+
+.pdk-method-hint {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.pdk-method-go.mud-icon-root {
+    color: var(--mud-palette-text-secondary);
+}
+
+/* What a host's drawer made that goes with it. */
+.pdk-staged {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 10px 12px;
+    border: 1px dashed color-mix(in srgb, var(--mud-palette-primary) 45%, transparent);
+    border-radius: var(--pdk-radius);
+    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+    font-size: 0.8125rem;
+}
+
+.pdk-staged .mud-icon-root {
+    flex: 0 0 auto;
+    color: var(--mud-palette-primary);
+}
+
+/* "None yet" with the way to make one, inside a form. */
+.pdk-inline-empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    border: 1px dashed var(--mud-palette-lines-inputs);
+    border-radius: var(--pdk-radius);
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+/* A drawer whose content brings its own buttons (an ACME account's form, a certificate's actions) keeps them in a bar at the foot of the
+   drawer, like DrawerShell's footer, however short the content: the content fills the body and the bar goes last. */
+.pdk-drawer-body:has(> .pdk-form-stack:only-child, > .pdk-detail:only-child) {
+    display: flex;
+    flex-direction: column;
+}
+
+.pdk-drawer-body > .pdk-form-stack:only-child, .pdk-drawer-body > .pdk-detail:only-child {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+}
+
+.pdk-drawer-body > .pdk-form-stack > .pdk-form-actions:last-child {
     position: sticky;
-    top: 84px;
+    bottom: -28px;
+    z-index: 2;
+    margin: auto -24px -28px;
+    padding: 14px 24px 18px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+    background: var(--mud-palette-background-gray);
 }
 
 .pdk-form-grid {
@@ -798,12 +1182,32 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     gap: 8px;
 }
 
-.pdk-name-row .mud-icon-button, .pdk-route-row .mud-icon-button, .pdk-destination-row .mud-icon-button, .pdk-header-row .mud-icon-button {
+/* The rows' buttons line up with the fields; a switch's thumb is an icon button too, and stays in its track. */
+:is(.pdk-name-row, .pdk-route-row, .pdk-destination-row, .pdk-header-row) .mud-icon-button:not(.mud-switch-base) {
     margin-top: 12px;
 }
 
 .pdk-destination-row .mud-switch {
     margin-top: 10px;
+}
+
+.pdk-destination-list {
+    display: grid;
+    gap: 4px;
+}
+
+.pdk-destination-row {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
+
+.pdk-probe-line {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: 4px 8px;
+    margin: -2px 0 6px 2px;
+    font-size: 0.8125rem;
 }
 
 .pdk-header-row {
@@ -1695,12 +2099,8 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
 /* ---------- Narrow screens ---------- */
 
 @media (max-width: 960px) {
-    .pdk-history, .pdk-simulator, .pdk-editor-layout {
+    .pdk-history, .pdk-simulator {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .pdk-editor-side {
-        position: static;
     }
 }
 
