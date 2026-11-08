@@ -9,9 +9,6 @@ namespace Paduraksa.Application.Certificates;
 /// </summary>
 public static class AdminCertificatePolicy
 {
-    /// <summary>How far ahead of its <c>NotBefore</c> a certificate counts as servable: clocks differ, like the inventory's tolerance.</summary>
-    public static readonly TimeSpan NotBeforeTolerance = TimeSpan.FromMinutes(5);
-
     /// <summary>
     /// Re-issue <paramref name="current"/> when the set of names it covers is no longer exactly <paramref name="desiredNames"/>
     /// (order-insensitive), or when a third or less of its lifetime is left (<c>NotAfter</c> − (lifetime ÷ 3) reached). An
@@ -38,7 +35,8 @@ public static class AdminCertificatePolicy
     public static bool IsServable(CertificateInfo info, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(info);
-        return now < info.NotAfter && now >= info.NotBefore - NotBeforeTolerance;
+        // The inventory's own tolerance for clock skew, so both judge "valid yet" the same way.
+        return now < info.NotAfter && now >= info.NotBefore - CertificateInventoryLoader.NotBeforeTolerance;
     }
 
     /// <summary>
