@@ -40,6 +40,10 @@ public sealed class AcmeHostingTests
 
         await host.StopAsync(Ct);
 
+        // StopAsync may return before a background service's task when the shutdown budget's token fires, so wait for
+        // the task itself instead of asserting the instant after the stop (under load the budget can be the first to win).
+        await host.Shared.AcmeScheduler.ExecuteTask.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+
         // Drained before the public app stopped (and so before its listener closed): it is finished by the time the hosts stopped.
         Assert.True(host.Shared.AcmeScheduler.ExecuteTask.IsCompletedSuccessfully);
     }
