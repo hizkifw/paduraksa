@@ -559,8 +559,13 @@ public sealed partial class ConfigService : IDisposable
         }
         catch (ArgumentException ex)
         {
-            // A bound candidate: a compiler bug. Reported like any failed publish.
-            return Task.FromResult(new PublishResult(PublishStatus.Failed, 0, [ex.Message]));
+            // A bound candidate: a compiler bug. Reported like any failed publish, with a sentence and the trace ID rather than the
+            // exception's own text (the log has it).
+            LogPublishRefused(ex);
+            return Task.FromResult(new PublishResult(
+                PublishStatus.Failed,
+                0,
+                ["The candidate snapshot was refused by the publisher, so nothing went live. The details are in the server log under this response's trace ID."]));
         }
 
         _ = publishing.ContinueWith(
@@ -1034,6 +1039,9 @@ public sealed partial class ConfigService : IDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Config revision #{Seq} ({Revision}) is committed but publishing it failed ({Status}): {Errors}. The previous snapshot stays live; the change goes live with the next successful publish or start.")]
     private partial void LogPublishFailed(long seq, ConfigRevisionId revision, PublishOutcomeStatus status, string errors);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The publisher refused the candidate snapshot (an ArgumentException, so a compiler bug); nothing went live.")]
+    private partial void LogPublishRefused(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't write the audit event {Action} ({Outcome}, target {Target}); the outcome stands.")]
     private partial void LogAuditFailed(Exception exception, string action, AuditOutcome outcome, string? target);

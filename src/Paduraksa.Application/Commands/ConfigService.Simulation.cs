@@ -1,6 +1,7 @@
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
@@ -41,7 +42,14 @@ public sealed partial class ConfigService
             }
             catch (RevisionIntegrityException ex)
             {
-                return new StoredDocument(new RevisionRef(id, 0), null, new ConfigError(string.Empty, CorruptRevisionCode, ex.Message));
+                LogRevisionCorrupt(ex, id);
+                return new StoredDocument(
+                    new RevisionRef(id, 0),
+                    null,
+                    new ConfigError(
+                        string.Empty,
+                        CorruptRevisionCode,
+                        "The revision fails its integrity check, so it can't be read. The details are in the server log under this response's trace ID."));
             }
 
             if (stored is null)
@@ -128,9 +136,19 @@ public sealed partial class ConfigService
         }
         catch (Exception ex) when (ex is RevisionIntegrityException or JsonException)
         {
-            // The latest revision is corrupt: the same state startup calls degraded. A result, not a crash.
+            // The latest revision is corrupt: the same state startup calls degraded. A result, not a crash; the exception is logged,
+            // the caller gets a sentence and the response's trace ID.
+            LogLatestRevisionCorrupt(ex);
             return new DraftPlan(
-                new ConfigCommandResult(ConfigCommandStatus.Unavailable, Errors: [new ConfigError(string.Empty, "store.corrupt", $"The latest config revision can't be read: {ex.Message}")]),
+                new ConfigCommandResult(
+                    ConfigCommandStatus.Unavailable,
+                    Errors:
+                    [
+                        new ConfigError(
+                            string.Empty,
+                            CorruptRevisionCode,
+                            "The latest config revision can't be read. The details are in the server log under this response's trace ID."),
+                    ]),
                 null);
         }
     }
@@ -179,4 +197,10 @@ public sealed partial class ConfigService
 
     /// <summary>A draft command's dry run: its result, and the compiled candidate when it passed.</summary>
     internal sealed record DraftPlan(ConfigCommandResult Result, RuntimeSnapshot? Candidate);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Revision {Revision} failed its integrity check and can't be read.")]
+    private partial void LogRevisionCorrupt(Exception exception, ConfigRevisionId revision);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The latest config revision can't be read; a draft can't be planned on it.")]
+    private partial void LogLatestRevisionCorrupt(Exception exception);
 }

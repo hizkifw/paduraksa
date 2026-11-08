@@ -76,8 +76,10 @@ public static class CanonicalConfigJson
         }
         catch (JsonException ex)
         {
+            // The reader's own text names CLR types and is not written for a caller: the path is the useful part, and the message
+            // is a fixed sentence (PLAN §11.1: an exception's message never reaches a client).
             document = null;
-            error = new ConfigError(ToJsonPointer(ex.Path), InvalidJsonCode, ex.Message);
+            error = new ConfigError(ToJsonPointer(ex.Path), InvalidJsonCode, ReadMessage(ToJsonPointer(ex.Path)));
             return false;
         }
     }
@@ -171,7 +173,12 @@ public static class CanonicalConfigJson
         }
         catch (JsonException ex)
         {
-            return new ConfigError(ToJsonPointer(ex.Path), InvalidJsonCode, ex.Message);
+            // The only JsonException this block throws is our own null-element check, so a fixed sentence with the pointer is exact.
+            string pointer = ToJsonPointer(ex.Path);
+            return new ConfigError(
+                pointer,
+                InvalidJsonCode,
+                "The document has a null list element, which isn't allowed" + (pointer.Length == 0 ? "." : $" (at '{pointer}')."));
         }
         catch (NullReferenceException)
         {
@@ -226,6 +233,14 @@ public static class CanonicalConfigJson
             Check(host.Tags, $"{path}.tags");
         }
     }
+
+    /// <summary>
+    /// A fixed sentence for a document this build can't read, with the pointer: the reader's own exception text names CLR types.
+    /// </summary>
+    private static string ReadMessage(string pointer) =>
+        "The document isn't a valid Paduraksa config (does it carry `apiVersion: paduraksa.dev/v1`?): a member is missing, unknown, "
+        + "repeated or of the wrong type"
+        + (pointer.Length == 0 ? "." : $" (at '{pointer}').");
 
     /// <summary>
     /// Converts a System.Text.Json path (<c>$.hosts[3].names[0]</c>, <c>$['odd.name']</c>) into a JSON pointer

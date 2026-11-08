@@ -182,7 +182,9 @@ public sealed partial class ConfigService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            problem = $"the database has no revisions, and restoring {source} failed ({ex.GetType().Name}: {ex.Message})";
+            // The exception is logged; the status reason is a sentence a client may read.
+            LogRestoreFailed(ex);
+            problem = $"the database has no revisions, and restoring {source} failed";
         }
 
         return await StartOnLastKnownGoodAsync(problem, acceptsCommands: true, lastGood, lastGoodProblem: null, emptyIfUnusable: true, cancellationToken).ConfigureAwait(false);
@@ -251,7 +253,7 @@ public sealed partial class ConfigService
         {
             // Anything (SQLite refusing the file, a full or read-only disk, a failed migration) means the same here.
             LogDatabaseFailed(ex);
-            return new DatabaseStart(null, null, $"the config database can't be opened or migrated ({ex.GetType().Name}: {ex.Message})");
+            return new DatabaseStart(null, null, "the config database can't be opened or migrated");
         }
 
         try
@@ -283,7 +285,7 @@ public sealed partial class ConfigService
             // A corrupt document, but also columns a converter can't read (a damaged ID or timestamp): the revision is
             // unusable whatever the exception says.
             LogDatabaseFailed(ex);
-            return new DatabaseStart(null, null, $"the latest config revision can't be read ({ex.GetType().Name}: {ex.Message})");
+            return new DatabaseStart(null, null, "the latest config revision can't be read");
         }
     }
 
@@ -628,6 +630,9 @@ public sealed partial class ConfigService
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The certificate inventory can't be read; compiling with the built-in certificates only. Hosts keep their config but lose certificates the vault would have served.")]
     private partial void LogInventoryUnreadable(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Restoring the last-known-good config into the empty database failed; the startup continues on the last-known-good file.")]
+    private partial void LogRestoreFailed(Exception exception);
 
     /// <summary>A command refused because the store is unusable; not audited (the audit log lives in that store).</summary>
     private ConfigCommandResult Unavailable(ConfigCommand command, ConfigStoreStatus status)

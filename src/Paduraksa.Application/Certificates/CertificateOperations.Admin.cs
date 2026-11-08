@@ -81,7 +81,8 @@ public sealed partial class CertificateOperations
         }
 
         // No row, a row a crash left not active, or a row whose key the vault lost (vault.db deleted or restored from an older
-        // copy): the leaf has to be made. There is nothing to re-issue in that last case, and the row is reused.
+        // copy): the leaf has to be made. There is nothing to re-issue in that last case, and the row is reused. The adoption above
+        // only happens when the vault's leaf carries exactly the wanted names; a leaf with other names is issued again.
         if (held is null || current is null || current.Summary.Status != CertificateStatus.Active)
         {
             CertificateOperationResult created = await CreateWithNamesAsync(
@@ -118,7 +119,8 @@ public sealed partial class CertificateOperations
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
-            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.IssuanceRefused, ex.Message));
+            LogIssuanceRefused(AdminCertificate.Id, ex);
+            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.IssuanceRefused, IssuanceRefusedMessage));
         }
 
         return await RegisterVaultResultAsync(AdminCertificate.Id, CertificateSource.LocalCa, info, label: null, isNew: false, pendingFirst: false, origin, cancellationToken, republish: false).ConfigureAwait(false);
@@ -176,7 +178,20 @@ public sealed partial class CertificateOperations
         try
         {
             // A root row that is not active is what a crash left behind: it is completed under its own ID (the vault's ensure
-            // is idempotent for it). Only an inventory with no root row at all reaches the vault's create.
+            // is idempotent for it), so a pending row wins over any other; only an inventory with no root row at all reaches the
+            // vault's create.
+            CertificateId? leftBehind = null;
+            foreach (CertificateSummary root in roots)
+            {
+                if (root.Status == CertificateStatus.Pending)
+                {
+                    leftBehind = root.Id;
+                    break;
+                }
+
+                leftBehind ??= root.Id;
+            }
+
             return await CreateWithNamesAsync(
                 CertificateSource.LocalCaRoot,
                 [],
@@ -184,7 +199,7 @@ public sealed partial class CertificateOperations
                 origin,
                 (id, _, ct) => _issuance.EnsureLocalCaAsync(id, KeySpec.EcdsaP256, DefaultRootValidity, ct),
                 cancellationToken,
-                existingPendingId: roots.Count > 0 ? roots[0].Id : null,
+                existingPendingId: leftBehind,
                 republish: false).ConfigureAwait(false);
         }
         catch (LocalCaExistsException exists)

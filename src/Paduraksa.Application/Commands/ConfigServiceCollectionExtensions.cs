@@ -63,7 +63,8 @@ public static class ConfigServiceCollectionExtensions
             sp.GetService<IUpstreamHealth>(),
             sp.GetService<ISimulationAuthorizer>(),
             sp.GetService<AcmeChallengeStore>(),
-            sp.GetService<ListenerFacts>()));
+            sp.GetService<ListenerFacts>(),
+            (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<RequestSimulator>()));
         services.TryAddSingleton(sp => new RevisionQueryService(sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>()));
         services.TryAddSingleton(sp => new AuditQueryService(sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>()));
         return services;

@@ -131,6 +131,13 @@ public sealed partial class CertificateOperations
         }
 
         CertificateId id = replaceId ?? CertificateId.New();
+        if (id == AdminCertificate.Id)
+        {
+            // The admin listener's certificate is the process's own (PLAN §3, §10.1): an upload may not take its ID, and the answer
+            // says why rather than calling it a source mismatch.
+            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.Managed, ManagedCertificateMessage));
+        }
+
         if (replaceId is { } existing && await CheckReplaceableAsync(existing, CertificateSource.Uploaded, cancellationToken).ConfigureAwait(false) is { } refusal)
         {
             return refusal;
@@ -144,12 +151,14 @@ public sealed partial class CertificateOperations
         catch (CertificateImportException ex)
         {
             LogImportRefused(id, ex.Reason);
-            return Invalid(new ConfigError(string.Empty, ImportCode(ex.Reason), ex.Message));
+            return Invalid(new ConfigError(string.Empty, ImportCode(ex.Reason), ImportMessage(ex.Reason)));
         }
         catch (InvalidOperationException ex)
         {
-            // The ID is the local CA root's.
-            return Invalid(new ConfigError("/id", CertificateErrorCodes.NotReplaceable, ex.Message));
+            // The ID is the local CA root's (only the vault knows that, so the refusal is not the inventory's): the details are in
+            // the log under the response's trace ID.
+            LogImportRefusedByVault(id, ex);
+            return Invalid(new ConfigError("/id", CertificateErrorCodes.NotReplaceable, "The vault refused the upload. The details are in the server log under this response's trace ID."));
         }
 
         return await RegisterVaultResultAsync(id, CertificateSource.Uploaded, info, label, isNew: replaceId is null, pendingFirst: false, origin, cancellationToken).ConfigureAwait(false);
@@ -295,7 +304,8 @@ public sealed partial class CertificateOperations
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
-            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.IssuanceRefused, ex.Message));
+            LogIssuanceRefused(id, ex);
+            return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.IssuanceRefused, IssuanceRefusedMessage));
         }
 
         return await RegisterVaultResultAsync(id, summary.Source, info, label: null, isNew: false, pendingFirst: false, origin, cancellationToken).ConfigureAwait(false);
@@ -400,7 +410,8 @@ public sealed partial class CertificateOperations
 
             if (ex is ArgumentException or InvalidOperationException)
             {
-                return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.IssuanceRefused, ex.Message));
+                LogIssuanceRefused(id, ex);
+                return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.IssuanceRefused, IssuanceRefusedMessage));
             }
 
             throw;
@@ -561,6 +572,26 @@ public sealed partial class CertificateOperations
         _ => CertificateErrorCodes.ImportUnreadable,
     };
 
+    /// <summary>What the caller is told for an import the vault refused: one fixed sentence per reason, never the vault's exception text.</summary>
+    private static string ImportMessage(CertificateImportFailure reason) => reason switch
+    {
+        CertificateImportFailure.TooLarge => "The upload is larger than the 1 MiB limit.",
+        CertificateImportFailure.Unreadable => "The upload is not a readable PEM or PKCS#12 certificate and key.",
+        CertificateImportFailure.WrongPassword => "The password is missing or wrong.",
+        CertificateImportFailure.UnsupportedKeyFormat => "The private key is in a format the vault doesn't read (only PKCS#8, plain or encrypted, is accepted).",
+        CertificateImportFailure.NoMatchingKey => "No certificate in the upload matches its private key.",
+        CertificateImportFailure.NoUsableName => "The certificate has no DNS name or IP address in its subject alternative names that Paduraksa can use.",
+        CertificateImportFailure.WeakKey => "The certificate's RSA key is under 2048 bits.",
+        CertificateImportFailure.CaCertificate => "The certificate is a CA certificate, not a server certificate.",
+        _ => "The upload is not a readable PEM or PKCS#12 certificate and key.",
+    };
+
+    /// <summary>A refusal of the vault's: the exception is logged, and the caller gets this sentence and the response's trace ID.</summary>
+    private const string IssuanceRefusedMessage = "The vault refused to create the certificate. The details are in the server log under this response's trace ID.";
+
+    /// <summary>The admin listener's certificate is the process's own (PLAN §3, §10.1).</summary>
+    private const string ManagedCertificateMessage = "the admin listener's certificate is managed by the process and can't be uploaded over";
+
     /// <summary>The key kind a certificate has, from its stored display label (<c>ECDSA P-256</c>, <c>RSA 2048</c>); P-256 for any other.</summary>
     private static KeySpec KeySpecOf(string keyAlgorithm) => keyAlgorithm switch
     {
@@ -573,6 +604,12 @@ public sealed partial class CertificateOperations
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Upload for certificate {Certificate} refused by the vault: {Reason}.")]
     private partial void LogImportRefused(CertificateId certificate, CertificateImportFailure reason);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Upload for certificate {Certificate} refused by the vault (it may be the local CA root's ID).")]
+    private partial void LogImportRefusedByVault(CertificateId certificate, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The vault refused to create certificate {Certificate}.")]
+    private partial void LogIssuanceRefused(CertificateId certificate, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "{Operation} refused for {Actor}.")]
     private partial void LogForbidden(CertificateOperation operation, Actor actor);

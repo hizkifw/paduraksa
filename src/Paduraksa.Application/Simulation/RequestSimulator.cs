@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
@@ -44,7 +45,7 @@ namespace Paduraksa.Application.Simulation;
 /// one that can't start within <see cref="BusyWait"/> is answered <see cref="SimulationStatus.Unavailable"/>. The live
 /// target takes no slot: it compiles nothing.</para>
 /// </remarks>
-public sealed class RequestSimulator : IDisposable
+public sealed partial class RequestSimulator : IDisposable
 {
     /// <summary>How many drafts and revisions are compiled at the same time.</summary>
     public const int MaxConcurrentCompiles = 4;
@@ -60,6 +61,7 @@ public sealed class RequestSimulator : IDisposable
     private readonly ISimulationAuthorizer _authorizer;
     private readonly AcmeChallengeStore? _challenges;
     private readonly ListenerFacts? _listeners;
+    private readonly ILogger _logger;
 
     /// <param name="config">Where drafts and revisions come from.</param>
     /// <param name="store">The live snapshot.</param>
@@ -70,6 +72,7 @@ public sealed class RequestSimulator : IDisposable
     /// <param name="listeners">What the public listeners do before a request exists (PROXY protocol, HTTP/3); null: not
     /// modelled, any connection is let through.</param>
     /// <param name="busyWait">How long a draft or revision waits for a compile slot; default <see cref="BusyWait"/>.</param>
+    /// <param name="logger">Where a failure to read the store is logged; null: nowhere (a test that only checks the answer).</param>
     internal RequestSimulator(
         ConfigService config,
         SnapshotStore store,
@@ -77,6 +80,7 @@ public sealed class RequestSimulator : IDisposable
         ISimulationAuthorizer? authorizer = null,
         AcmeChallengeStore? challenges = null,
         ListenerFacts? listeners = null,
+        ILogger<RequestSimulator>? logger = null,
         TimeSpan? busyWait = null)
     {
         ArgumentNullException.ThrowIfNull(config);
@@ -87,6 +91,7 @@ public sealed class RequestSimulator : IDisposable
         _authorizer = authorizer ?? AllowAllSimulations.Instance;
         _challenges = challenges;
         _listeners = listeners;
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RequestSimulator>.Instance;
         _busyWait = busyWait ?? BusyWait;
     }
 
@@ -132,7 +137,8 @@ public sealed class RequestSimulator : IDisposable
         }
         catch (Exception ex) when (ex is DbException or DbUpdateException or InvalidOperationException or RevisionIntegrityException or JsonException)
         {
-            resolved = new Resolved(Unreadable(source, ex));
+            LogStoreUnreadable(ex, source.Kind);
+            resolved = new Resolved(Unreadable(source));
         }
         finally
         {
@@ -172,10 +178,17 @@ public sealed class RequestSimulator : IDisposable
     /// <summary>Releases the compile slots.</summary>
     public void Dispose() => _compiles.Dispose();
 
-    private static SimulationResult Unreadable(SimulationSource source, Exception ex) => new(
+    /// <summary>The store couldn't be read: the exception is logged, and the caller gets a sentence and the response's trace ID.</summary>
+    private static SimulationResult Unreadable(SimulationSource source) => new(
         SimulationStatus.Unavailable,
         source,
-        Errors: [new ConfigError(string.Empty, SimulationErrorCodes.StoreUnreadable, $"The config store can't be read: {ex.Message}")]);
+        Errors:
+        [
+            new ConfigError(
+                string.Empty,
+                SimulationErrorCodes.StoreUnreadable,
+                "The config store can't be read, so the request can't be simulated. The details are in the server log under this response's trace ID."),
+        ]);
 
     private async Task<Resolved> ResolveAsync(SimulationTarget target, CommandOrigin origin, CancellationToken cancellationToken)
     {
@@ -442,4 +455,7 @@ public sealed class RequestSimulator : IDisposable
 
         public IReadOnlyList<string> Notes { get; init; } = [];
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Simulating a request against a {Target} target could not read the config store.")]
+    private partial void LogStoreUnreadable(Exception exception, SimulationTargetKind target);
 }

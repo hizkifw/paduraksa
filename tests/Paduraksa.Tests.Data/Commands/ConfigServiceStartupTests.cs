@@ -77,7 +77,7 @@ public sealed class ConfigServiceStartupTests
 
         var failure = await Assert.ThrowsAsync<ConfigStartupException>(() => h.Service.StartAsync(Ct));
 
-        Assert.Contains("is corrupt", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("the latest config revision can't be read", failure.Message, StringComparison.Ordinal);
         Assert.Contains("there is no last-known-good file", failure.Message, StringComparison.Ordinal);
         Assert.Equal(generation, h.Store.Current.Generation); // nothing published
     }

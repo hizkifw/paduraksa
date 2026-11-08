@@ -170,7 +170,9 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
         {
-            problem = $"{Path} can't be read: {ex.Message}";
+            // Logged, never written into the reason a client may read.
+            LogReadFailed(_logger, ex, Path);
+            problem = $"{Path} can't be read";
             return false;
         }
 
@@ -204,7 +206,7 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
     }
 
     /// <summary>Null and the entry, or the problem.</summary>
-    private static string? Parse(byte[] bytes, out LastKnownGoodEntry? entry)
+    private string? Parse(byte[] bytes, out LastKnownGoodEntry? entry)
     {
         entry = null;
         try
@@ -269,13 +271,15 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
         }
         catch (JsonException ex)
         {
-            return $"it isn't valid JSON ({ex.Message})";
+            LogDamaged(_logger, ex, Path);
+            return "it isn't valid JSON";
         }
 #pragma warning disable CA1031 // A damaged file is a reason not to use it, never a reason for startup to fail.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            return $"it can't be read ({ex.GetType().Name}: {ex.Message})";
+            LogDamaged(_logger, ex, Path);
+            return "it can't be read";
         }
     }
 
@@ -378,6 +382,12 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
             // The next write removes it first anyway.
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good config {Path} can't be read; startup continues without it.")]
+    private static partial void LogReadFailed(ILogger logger, Exception exception, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good config {Path} is damaged and can't be used; startup continues without it.")]
+    private static partial void LogDamaged(ILogger logger, Exception exception, string path);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Wrote the last-known-good config (revision #{Seq}, {Revision}) to {Path}.")]
     private partial void LogWritten(long seq, ConfigRevisionId revision, string path);
