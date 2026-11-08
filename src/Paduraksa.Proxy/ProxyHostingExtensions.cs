@@ -8,6 +8,7 @@ using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 
+using Yarp.ReverseProxy;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Forwarder;
 using Yarp.ReverseProxy.Transforms;
@@ -28,7 +29,8 @@ public static class ProxyHostingExtensions
     /// Registers YARP (fed by <paramref name="publisher"/>'s provider and listener, forwarding the path as received and
     /// clean forwarding headers built from the gate's client resolution instead of YARP's own <c>X-Forwarded-*</c>),
     /// the client factory, routing, the gate, and the default <see cref="IClientAddressSource"/>
-    /// (<see cref="TrustedProxyClientAddressSource"/>: the connection's ClientInfo through the snapshot's trusted proxies).
+    /// (<see cref="TrustedProxyClientAddressSource"/>: the connection's ClientInfo through the snapshot's trusted proxies) and
+    /// the live destination health the request simulator reads (<see cref="IUpstreamHealth"/>).
     /// </summary>
     public static IServiceCollection AddPaduraksaProxy(this IServiceCollection services, SnapshotPublisher publisher)
     {
@@ -52,6 +54,7 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton<TrustedProxyClientAddressSource>();
         services.TryAddSingleton<IClientAddressSource>(static provider => provider.GetRequiredService<TrustedProxyClientAddressSource>());
         services.TryAddSingleton<GateMiddleware>();
+        services.TryAddSingleton<IUpstreamHealth>(static provider => new YarpUpstreamHealth(provider.GetRequiredService<IProxyStateLookup>()));
         return services;
     }
 
