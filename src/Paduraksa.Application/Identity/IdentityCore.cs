@@ -159,6 +159,24 @@ internal sealed class PermissionCertificateOperationAuthorizer(IPermissionEvalua
         permissions.IsAllowedAsync(origin, Permission.CertificatesWrite, cancellationToken);
 }
 
+/// <summary>
+/// Runs request simulations (PLAN §7.7) for origins holding <see cref="Permission.Simulate"/>; a draft or a stored revision shows
+/// what the config contains, so those also need <see cref="Permission.ConfigRead"/>. The system and the CLI hold everything.
+/// </summary>
+internal sealed class PermissionSimulationAuthorizer(IPermissionEvaluator permissions) : Simulation.ISimulationAuthorizer
+{
+    public async ValueTask<bool> IsAllowedAsync(Contracts.Simulation.SimulationTarget target, CommandOrigin origin, CancellationToken cancellationToken)
+    {
+        if (!await permissions.IsAllowedAsync(origin, Permission.Simulate, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        return target is Contracts.Simulation.LiveSimulationTarget
+            || await permissions.IsAllowedAsync(origin, Permission.ConfigRead, cancellationToken).ConfigureAwait(false);
+    }
+}
+
 /// <summary>Appends identity events to the audit chain, in the caller's transaction or in one of its own.</summary>
 internal sealed partial class IdentityAudit(TimeProvider time, ILoggerFactory loggerFactory)
 {

@@ -8,8 +8,11 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
+using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Yarp;
 
 namespace Paduraksa.Application.Commands;
@@ -22,7 +25,10 @@ public static class ConfigServiceCollectionExtensions
     /// unless those are already registered. The config database's context factory, an <see cref="IConfigCompiler"/>
     /// and the <see cref="SnapshotPublisher"/> must be registered too; a <see cref="LastKnownGoodFile"/>, an
     /// <see cref="IServerCertificateSource"/> and <see cref="IBuiltInCertificates"/> are used when registered. Also
-    /// registers the <see cref="CertificateService"/>, which shares the service's writer.
+    /// registers the <see cref="CertificateService"/>, which shares the service's writer, and the <see cref="RequestSimulator"/>
+    /// (PLAN §7.7), which uses the live snapshot (the publisher's store) and, when registered, <see cref="IUpstreamHealth"/>, an
+    /// <see cref="ISimulationAuthorizer"/>, the <see cref="AcmeChallengeStore"/> and the public listeners' <see cref="ListenerFacts"/>.
+    /// Drafts and revisions are judged through the vault's <see cref="ICertificateCatalog"/> when one is registered.
     /// </summary>
     public static IServiceCollection AddPaduraksaConfigService(this IServiceCollection services)
     {
@@ -40,7 +46,8 @@ public static class ConfigServiceCollectionExtensions
             sp.GetRequiredService<ConfigServiceOptions>(),
             sp.GetService<LastKnownGoodFile>(),
             sp.GetService<IServerCertificateSource>(),
-            sp.GetService<IBuiltInCertificates>()));
+            sp.GetService<IBuiltInCertificates>(),
+            sp.GetService<ICertificateCatalog>()));
         services.TryAddSingleton(sp => new CertificateService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),
@@ -48,6 +55,13 @@ public static class ConfigServiceCollectionExtensions
             (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<CertificateService>(),
             sp.GetService<IBuiltInCertificates>(),
             sp.GetService<IPermissionEvaluator>()));
+        services.TryAddSingleton(sp => new RequestSimulator(
+            sp.GetRequiredService<ConfigService>(),
+            sp.GetRequiredService<SnapshotPublisher>().Store,
+            sp.GetService<IUpstreamHealth>(),
+            sp.GetService<ISimulationAuthorizer>(),
+            sp.GetService<AcmeChallengeStore>(),
+            sp.GetService<ListenerFacts>()));
         return services;
     }
 }
