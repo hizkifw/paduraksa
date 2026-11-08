@@ -1,0 +1,75 @@
+@attribute [Route(DashboardRoutes.Account)]
+@implements IDisposable
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Identity
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+
+<PageTitle>My account · Paduraksa</PageTitle>
+
+<PageHeader Title="My account" Overline="You" Lead="Your name, password, two-step verification and the places you are signed in." />
+
+@if (_me is null)
+{
+    <div class="pdk-account-grid" aria-busy="true">
+        @for (int i = 0; i < 4; i++)
+        {
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="35%" Height="28px" />
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="90px" Class="mt-3" />
+            </MudPaper>
+        }
+    </div>
+}
+else
+{
+    <div class="pdk-account-grid">
+        <div class="pdk-account-column">
+            <ProfileCard User="_me" MayEdit="_mayEditUsers" Saved="LoadAsync" />
+            <TwoFactorCard Enabled="_me.TwoFactorEnabled" Username="@_me.Username" Changed="LoadAsync" />
+        </div>
+        <div class="pdk-account-column">
+            <PasswordCard />
+            <SessionsCard />
+        </div>
+    </div>
+}
+
+@code {
+    private UserSummary? _me;
+    private bool _mayEditUsers;
+    private IDisposable? _watch;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _watch = Identity.Watch(() => InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }));
+        await LoadAsync();
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayEditUsers = user.Has(Permission.UsersWrite);
+        UserResult result = await Identity.GetUserAsync(user.Session.OriginFor(Channel.Dashboard), user.Session.Session.UserId);
+        if (result.User is { } me)
+        {
+            _me = me;
+        }
+    }
+}

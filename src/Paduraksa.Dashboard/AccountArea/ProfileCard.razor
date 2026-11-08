@@ -1,0 +1,88 @@
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Identity
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+@inject ISnackbar Snackbar
+@* My account: who you are. The display name can be changed by a user who may change users (the Owner); everyone else sees it read-only,
+   like the username, which never changes. *@
+<MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="profile">
+    <div class="pdk-account-profile">
+        <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Class="pdk-account-avatar">@UserMenu.Initials(User.DisplayName)</MudAvatar>
+        <div class="pdk-list-main">
+            <MudText Typo="Typo.h6" HtmlTag="h2">@User.DisplayName</MudText>
+            <span class="pdk-list-sub pdk-mono">@User.Username</span>
+            <span class="pdk-tags">
+                @foreach (Role role in User.Roles)
+                {
+                    <MudTooltip Text="@IdentityText.Describe(role)" Arrow="true">
+                        <span class="pdk-badge pdk-tone-@(role == Role.Owner ? "primary" : "default")">@IdentityText.Name(role)</span>
+                    </MudTooltip>
+                }
+            </span>
+        </div>
+    </div>
+
+    <form class="pdk-field-grid mt-4" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" novalidate>
+        <MudTextField T="string" Value="User.Username" Label="Username" ReadOnly="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input"
+                      HelperText="Your sign-in name. It can't be changed." data-field="username" />
+        <MudTextField T="string" @bind-Value="_displayName" Label="Display name" ReadOnly="!MayEdit" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      MaxLength="UserService.MaxDisplayNameLength" Immediate="true"
+                      HelperText="@(MayEdit ? "Shown in the top bar and the history." : "Shown in the top bar and the history. An Owner can change it.")"
+                      Error="@(_attempted && string.IsNullOrWhiteSpace(_displayName))" ErrorText="A display name can't be empty." data-field="display-name" />
+        @if (MayEdit)
+        {
+            <div class="pdk-span-2 pdk-form-actions">
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Outlined" Color="Color.Primary" Disabled="@(_saving || _displayName == User.DisplayName)" data-action="save-profile">Save name</MudButton>
+            </div>
+        }
+    </form>
+    <MudText Typo="Typo.caption" Class="pdk-muted">Member since @RevisionText.Exact(User.CreatedAt).</MudText>
+</MudPaper>
+
+@code {
+    private string? _displayName;
+    private bool _attempted;
+    private bool _saving;
+
+    [Parameter, EditorRequired]
+    public UserSummary User { get; set; } = default!;
+
+    /// <summary>The caller may change users (and so their own display name).</summary>
+    [Parameter]
+    public bool MayEdit { get; set; }
+
+    /// <summary>After the name was saved.</summary>
+    [Parameter]
+    public EventCallback Saved { get; set; }
+
+    protected override void OnParametersSet() => _displayName ??= User.DisplayName;
+
+    private async Task SaveAsync()
+    {
+        _attempted = true;
+        if (!MayEdit || string.IsNullOrWhiteSpace(_displayName) || await Caller.OriginAsync() is not { } origin)
+        {
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            UserResult result = await Identity.UpdateUserAsync(origin, User.Id, new UpdateUserRequest(DisplayName: _displayName.Trim()));
+            if (result.Succeeded)
+            {
+                Snackbar.Add("Saved your display name.", Severity.Success);
+                _displayName = null;
+                await Saved.InvokeAsync();
+            }
+            else
+            {
+                Snackbar.Add(IdentityText.Refusal(result.Status, result.Problem), Severity.Error);
+            }
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

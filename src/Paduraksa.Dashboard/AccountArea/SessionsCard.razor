@@ -1,0 +1,144 @@
+@implements IDisposable
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Identity
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+@inject TimeProvider Time
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@* My account: your sessions. This one is marked; any other can be ended, or all of them at once. An ended session's open page goes to
+   the sign-in page within the re-check interval. *@
+<MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="sessions">
+    <div class="pdk-card-head">
+        <div>
+            <MudText Typo="Typo.h6" HtmlTag="h2">Sessions</MudText>
+            <MudText Typo="Typo.caption" Class="pdk-muted">Where you are signed in. End any you don't recognise, then change your password.</MudText>
+        </div>
+        @if (_sessions is { Count: > 1 })
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Logout" OnClick="RevokeOthersAsync" data-action="revoke-others">
+                Sign out everywhere else
+            </MudButton>
+        }
+    </div>
+
+    @if (_sessions is null)
+    {
+        @for (int i = 0; i < 2; i++)
+        {
+            <div class="pdk-row-skeleton">
+                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="30px" Height="30px" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
+            </div>
+        }
+    }
+    else
+    {
+        <ul class="pdk-list" data-section="sessions">
+            @foreach (SessionSummary session in _sessions)
+            {
+                <li class="pdk-list-row pdk-session-row" data-session="@session.Id" data-current="@(session.Current ? "true" : "false")">
+                    <span class="pdk-list-icon pdk-tone-@(session.Current ? "success" : "default")">
+                        <MudIcon Icon="@(IsPhone(session.UserAgent) ? Icons.Material.Outlined.PhoneAndroid : Icons.Material.Outlined.Computer)" Size="Size.Small" />
+                    </span>
+                    <span class="pdk-list-main">
+                        <span class="pdk-list-title">
+                            @IdentityText.Browser(session.UserAgent)
+                            @if (session.Current)
+                            {
+                                <span class="pdk-badge pdk-tone-success">This session</span>
+                            }
+                        </span>
+                        <span class="pdk-list-sub">
+                            <span class="pdk-mono">@(session.ClientIp ?? "Unknown address")</span>
+                            · <span title="@RevisionText.Exact(session.LastSeenAt)">last seen @RevisionText.Ago(session.LastSeenAt, _now)</span>
+                            · <span title="@RevisionText.Exact(session.CreatedAt)">signed in @RevisionText.Ago(session.CreatedAt, _now)</span>
+                        </span>
+                    </span>
+                    @if (!session.Current)
+                    {
+                        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => RevokeAsync(session)" data-action="revoke-session">End</MudButton>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</MudPaper>
+
+@code {
+    private IReadOnlyList<SessionSummary>? _sessions;
+    private DateTimeOffset _now;
+    private IDisposable? _watch;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _watch = Identity.Watch(() => InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }));
+        await LoadAsync();
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _now = Time.GetUtcNow();
+        SessionListResult result = await Identity.ListSessionsAsync(user.Session.OriginFor(Channel.Dashboard), user.Session.Session.UserId, user.Session.Session.SessionId);
+        _sessions = [.. result.Sessions.Where(s => s.SecondFactorCompleted).OrderByDescending(s => s.Current).ThenByDescending(s => s.LastSeenAt)];
+    }
+
+    private static bool IsPhone(string? userAgent) =>
+        userAgent is not null && (userAgent.Contains("Mobile", StringComparison.Ordinal) || userAgent.Contains("Android", StringComparison.Ordinal));
+
+    private async Task RevokeAsync(SessionSummary session)
+    {
+        bool confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            "End this session?",
+            $"{IdentityText.Browser(session.UserAgent)} at {session.ClientIp ?? "an unknown address"} is signed out; its open pages go to the sign-in page.",
+            "End session",
+            icon: Icons.Material.Outlined.Logout);
+        if (!confirmed || await Caller.OriginAsync() is not { } origin)
+        {
+            return;
+        }
+
+        IdentityResult result = await Identity.RevokeSessionAsync(origin, session.Id);
+        Snackbar.Add(result.Succeeded ? "Session ended." : $"Couldn't end it. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+
+    private async Task RevokeOthersAsync()
+    {
+        bool confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            "Sign out everywhere else?",
+            "Every other session of yours ends now. This one stays signed in.",
+            "Sign out the others",
+            icon: Icons.Material.Outlined.Logout);
+        if (!confirmed || await Caller.CheckAsync() is not { } user)
+        {
+            return;
+        }
+
+        CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
+        IdentityResult result = await Identity.RevokeOtherSessionsAsync(origin, user.Session.Session.SessionId);
+        Snackbar.Add(result.Succeeded ? "Signed out everywhere else." : $"That didn't work. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+}

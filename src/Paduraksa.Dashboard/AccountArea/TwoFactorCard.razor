@@ -1,0 +1,218 @@
+@using Paduraksa.Application.Identity
+@using Paduraksa.Contracts.Identity
+@inject IDashboardIdentity Identity
+@inject DashboardCaller Caller
+@inject ISnackbar Snackbar
+@* My account: two-step verification. Off: set up an authenticator (the same enrolment as the first-run wizard). On: new recovery codes
+   or turn it off, each behind the current password. Passwords and codes live only in the dialog that asked for them. *@
+<MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="two-factor" data-state="@(Enabled ? "on" : "off")">
+    <div class="pdk-card-head">
+        <div>
+            <MudText Typo="Typo.h6" HtmlTag="h2">Two-step verification</MudText>
+            <MudText Typo="Typo.caption" Class="pdk-muted">A code from an authenticator app after your password, so a leaked password alone isn't enough.</MudText>
+        </div>
+        @if (Enabled)
+        {
+            <span class="pdk-badge pdk-tone-success"><MudIcon Icon="@Icons.Material.Rounded.Lock" Size="Size.Small" Style="font-size: 0.85rem" /> On</span>
+        }
+        else
+        {
+            <span class="pdk-badge pdk-tone-warning">Off</span>
+        }
+    </div>
+
+    @if (Enabled)
+    {
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Signing in asks for a code from your authenticator app. If you lose it, a recovery code gets you in once.
+        </MudText>
+        <div class="pdk-form-actions pdk-form-actions-start">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Autorenew" OnClick="() => Open(Step.Regenerate)" data-action="regenerate">New recovery codes</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.LockOpen" OnClick="() => Open(Step.Disable)" data-action="disable-totp">Turn off</MudButton>
+        </div>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Text" Dense="true" Class="mb-3">Your account is protected by its password only.</MudAlert>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.QrCode2" OnClick="() => Open(Step.Enrol)" data-action="enrol">Set up an authenticator</MudButton>
+    }
+</MudPaper>
+
+<MudDialog Visible="_step is not null" VisibleChanged="OnVisibleChanged" Options="DialogOptions" Class="pdk-dialog pdk-two-factor-dialog" ContentClass="pdk-dialog-content">
+    <TitleContent>
+        <div class="pdk-dialog-title">
+            <span class="pdk-dialog-icon pdk-tone-@(_step == Step.Disable ? "error" : "primary")"><MudIcon Icon="@Icons.Material.Outlined.PhonelinkLock" Size="Size.Small" /></span>
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">@Title</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">@Caption</MudText>
+            </div>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @switch (_step)
+        {
+            case Step.Enrol:
+                <TwoStepEnrollment Enabled="EnrolledAsync" />
+                break;
+            case Step.Regenerate when _codes is not null:
+                <div class="pdk-form-stack">
+                    <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">New recovery codes made; the old ones no longer work.</MudAlert>
+                    <MudText Typo="Typo.body2"><strong>They are shown only now.</strong> Keep them somewhere safe, away from your authenticator.</MudText>
+                    <RecoveryCodesView Codes="_codes" Username="@Username" />
+                    <div class="pdk-form-actions">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close" data-action="codes-saved">I have saved them</MudButton>
+                    </div>
+                </div>
+                break;
+            case Step.Regenerate:
+            case Step.Disable:
+                <form class="pdk-form-stack" @onsubmit="ConfirmPasswordAsync" @onsubmit:preventDefault="true" novalidate>
+                    <MudText Typo="Typo.body2">
+                        @(_step == Step.Disable
+                            ? "Signing in will ask for your password only. Your recovery codes stop working."
+                            : "Your current recovery codes stop working, and ten new ones are shown once.")
+                    </MudText>
+                    <MudTextField T="string" @bind-Value="_password" Label="Your password" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  autocomplete="current-password" AutoFocus="true" Error="_error is not null" ErrorText="@_error" Disabled="_busy" data-field="confirm-password" />
+                    <div class="pdk-form-actions">
+                        <MudButton Variant="Variant.Text" OnClick="Close" Disabled="_busy">Cancel</MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="@(_step == Step.Disable ? Color.Error : Color.Primary)" Disabled="_busy" data-action="confirm-password">
+                            @(_step == Step.Disable ? "Turn off" : "Make new codes")
+                        </MudButton>
+                    </div>
+                </form>
+                break;
+        }
+    </DialogContent>
+</MudDialog>
+
+@code {
+    private static readonly DialogOptions DialogOptions = new() { MaxWidth = MaxWidth.Small, FullWidth = true, CloseOnEscapeKey = true, BackdropClick = false };
+
+    private Step? _step;
+    private string? _password;
+    private string? _error;
+    private bool _busy;
+    private IReadOnlyList<string>? _codes;
+
+    private enum Step
+    {
+        Enrol,
+        Regenerate,
+        Disable,
+    }
+
+    [Parameter]
+    public bool Enabled { get; set; }
+
+    [Parameter]
+    public string? Username { get; set; }
+
+    /// <summary>After the second factor was turned on or off.</summary>
+    [Parameter]
+    public EventCallback Changed { get; set; }
+
+    private string Title => _step switch
+    {
+        Step.Enrol => "Set up an authenticator",
+        Step.Regenerate => "New recovery codes",
+        _ => "Turn off two-step verification",
+    };
+
+    private string Caption => _step switch
+    {
+        Step.Enrol => "Password, then the QR code, then a code from the app.",
+        Step.Regenerate => "Your password first.",
+        _ => "Your password first.",
+    };
+
+    private void Open(Step step)
+    {
+        Close();
+        _step = step;
+    }
+
+    /// <summary>Closes the dialog and forgets everything it held: the password, the codes (the enrolment drops its own as it goes away).</summary>
+    private void Close()
+    {
+        _step = null;
+        _password = null;
+        _error = null;
+        _codes = null;
+    }
+
+    private void OnVisibleChanged(bool visible)
+    {
+        if (!visible && !_busy)
+        {
+            Close();
+        }
+    }
+
+    private async Task EnrolledAsync()
+    {
+        Close();
+        Snackbar.Add("Two-step verification is on.", Severity.Success);
+        await Changed.InvokeAsync();
+    }
+
+    private async Task ConfirmPasswordAsync()
+    {
+        string password = _password ?? string.Empty;
+        _password = null;
+        _error = null;
+        if (password.Length == 0)
+        {
+            _error = "Enter your password.";
+            return;
+        }
+
+        if (await Caller.OriginAsync() is not { } origin)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (_step == Step.Regenerate)
+            {
+                RecoveryCodesResult? result = await Identity.RegenerateRecoveryCodesAsync(origin, password);
+                if (result is { Status: IdentityStatus.Succeeded, Codes: { } codes })
+                {
+                    _codes = codes.Codes;
+                }
+                else
+                {
+                    _error = Refusal(result?.Status);
+                }
+            }
+            else
+            {
+                IdentityResult? result = await Identity.DisableTotpAsync(origin, password);
+                if (result is { Succeeded: true })
+                {
+                    Close();
+                    Snackbar.Add("Two-step verification is off.", Severity.Info);
+                    await Changed.InvokeAsync();
+                }
+                else
+                {
+                    _error = Refusal(result?.Status, result?.Problem);
+                }
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string Refusal(IdentityStatus? status, string? problem = null) => status switch
+    {
+        null => IdentityText.Busy,
+        IdentityStatus.InvalidCredentials => "That password isn't right. Too many wrong tries lock the account for a while.",
+        IdentityStatus.Conflict => "Two-step verification isn't on any more. Reload the page.",
+        { } other => IdentityText.Refusal(other, problem),
+    };
+}
