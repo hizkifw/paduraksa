@@ -90,6 +90,8 @@ public static class PaduraksaTheme
             TableHover = "#0E7D6F0D",
             Skeleton = "#0000000F",
         },
+        // Dialogs (a confirmation asked from inside a drawer) above the drawer stack (DrawerHost.BaseZ), tooltips above both.
+        ZIndex = new ZIndex { Dialog = 1700, Tooltip = 1800 },
         LayoutProperties = new LayoutProperties
         {
             DefaultBorderRadius = "10px",

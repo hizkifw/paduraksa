@@ -27,7 +27,7 @@ public static class DashboardExtensions
     /// Registers the Razor components with interactive server rendering, MudBlazor (snackbars bottom-right, newest on top, one of each),
     /// the cascading authentication state built from the admin app's session (<see cref="DashboardAuthenticationStateProvider"/>), the
     /// circuit handler that ends a circuit whose session ended, the per-circuit theme, and what the config pages use per circuit: the
-    /// Application services behind <see cref="IDashboardConfig"/>, the Undo toast and the change under review; what the settings, account and audit
+    /// Application services behind <see cref="IDashboardConfig"/>, the Undo toast, the change under review and the drawer stack; what the settings, account and audit
     /// pages use (<see cref="IDashboardIdentity"/> with its change feed, <see cref="IDashboardAudit"/>). The Application services, the admin app's
     /// authentication and Data Protection come from the host, and so does the bound on password checks (<see cref="IPasswordCheckSlots"/>; unbounded
     /// when the host gives none).
@@ -59,6 +59,7 @@ public static class DashboardExtensions
         services.TryAddScoped<IDashboardConfig, DashboardConfig>();
         services.AddScoped<ConfigUndo>();
         services.AddScoped<ReviewedDraft>();
+        services.AddScoped<Drawers.DrawerStack>();
         services.AddScoped<Providers.ProviderActions>();
         services.TryAddSingleton<Application.Probes.UpstreamProbe>();
         services.TryAddSingleton<IPasswordCheckSlots, UnboundedPasswordChecks>();

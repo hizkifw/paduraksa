@@ -164,6 +164,7 @@ public sealed class SettingsPagesTests
         (_, _, FakeDashboardConfig config, _) = IdentityPages.SignIn(context, role);
         config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 4));
         context.Render<MudPopoverProvider>();
+        context.Render<Paduraksa.Dashboard.Drawers.DrawerHost>();
         IRenderedComponent<GlobalDefaults> page = context.Render<GlobalDefaults>();
         await page.WaitForStateAsync(() => page.FindAll("[data-form=defaults]").Count == 1);
 

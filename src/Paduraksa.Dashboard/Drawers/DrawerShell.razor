@@ -1,0 +1,135 @@
+@* A drawer's frame (the design language, PLAN §12): the way back to the level it opened from, an overline, the title (what screen readers
+   name the drawer by, focused as it opens) with an optional icon and line under it, actions beside the close button, a body that
+   scrolls, and a footer for the drawer's actions that stays in view. With OnSubmit the whole drawer is one form, so Enter in a field submits. *@
+
+@if (OnSubmit.HasDelegate)
+{
+    <form class="pdk-drawer" @onsubmit="OnSubmit" @onsubmit:preventDefault="true" novalidate data-drawer="@Name">
+        @Frame
+    </form>
+}
+else
+{
+    <div class="pdk-drawer" data-drawer="@Name">
+        @Frame
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>The small line above the title: the kind of thing ("Host", "Review changes").</summary>
+    [Parameter]
+    public string? Overline { get; set; }
+
+    /// <summary>One line under the title.</summary>
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    /// <summary>An icon in a soft disc beside the title.</summary>
+    [Parameter]
+    public string? Icon { get; set; }
+
+    [Parameter]
+    public Tone IconTone { get; set; } = Tone.Primary;
+
+    /// <summary>Names the drawer for tests and styles (<c>data-drawer</c>).</summary>
+    [Parameter]
+    public string? Name { get; set; }
+
+    /// <summary>Buttons beside the close button (Delete, Simulate).</summary>
+    [Parameter]
+    public RenderFragment? HeaderActions { get; set; }
+
+    /// <summary>Banners between the header and the body that don't scroll away (changed elsewhere, read-only).</summary>
+    [Parameter]
+    public RenderFragment? Banner { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The drawer's actions, primary last (Cancel, then Review changes).</summary>
+    [Parameter]
+    public RenderFragment? Footer { get; set; }
+
+    /// <summary>Makes the drawer a form: Enter and a submit button in the footer call it.</summary>
+    [Parameter]
+    public EventCallback OnSubmit { get; set; }
+
+    /// <summary>Closing without a level around it (a test rendering the drawer on its own).</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>The id of a level's title, which its sheet is labelled by.</summary>
+    public static string TitleId(DrawerLevel level)
+    {
+        ArgumentNullException.ThrowIfNull(level);
+        return $"pdk-drawer-title-{level.Id}";
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Level is not null)
+        {
+            Level.Title = Title;
+        }
+    }
+
+    private RenderFragment Frame => __builder =>
+    {
+        <header class="pdk-drawer-head">
+            @if (Level?.Parent is { } parent)
+            {
+                <button type="button" class="pdk-drawer-back" @onclick="CloseAsync" aria-label="@($"Back to {parent.Title}")" data-drawer-action="back">
+                    <MudIcon Icon="@Icons.Material.Rounded.ChevronLeft" Size="Size.Small" />
+                    <span>@parent.Title</span>
+                </button>
+            }
+            <div class="pdk-drawer-heading">
+                @if (Icon is not null)
+                {
+                    <span class="pdk-drawer-icon pdk-tone-@IconTone.Css()"><MudIcon Icon="@Icon" Size="Size.Small" /></span>
+                }
+                <div class="pdk-drawer-titles">
+                    @if (Overline is not null)
+                    {
+                        <span class="pdk-drawer-overline">@Overline</span>
+                    }
+                    <h2 class="pdk-drawer-title" id="@(Level is null ? null : TitleId(Level))" tabindex="-1">@Title</h2>
+                    @if (Subtitle is not null)
+                    {
+                        <span class="pdk-drawer-subtitle">@Subtitle</span>
+                    }
+                </div>
+                <div class="pdk-drawer-head-actions">
+                    @HeaderActions
+                    <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="CloseAsync" aria-label="Close" data-drawer-action="close" />
+                </div>
+            </div>
+        </header>
+        @if (Banner is not null)
+        {
+            <div class="pdk-drawer-banner">@Banner</div>
+        }
+        <div class="pdk-drawer-body">@ChildContent</div>
+        @if (Footer is not null)
+        {
+            <footer class="pdk-drawer-foot">@Footer</footer>
+        }
+    };
+
+    private async Task CloseAsync()
+    {
+        if (Level is not null)
+        {
+            Level.RequestClose();
+            return;
+        }
+
+        await OnClose.InvokeAsync();
+    }
+}

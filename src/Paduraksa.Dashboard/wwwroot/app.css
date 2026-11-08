@@ -888,13 +888,13 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     backdrop-filter: none;
 }
 
-/* ---------- Review drawer ---------- */
+/* ---------- Drawers ---------- */
 
-.pdk-sheet-backdrop {
+/* The stack (DrawerHost): each level a sheet from the right. The top one's backdrop dims the page and every level under it; those
+   are shifted aside a little per level, so the stack reads as a stack, and are inert. Every sheet takes the whole width of a phone. */
+.pdk-stack-backdrop {
     position: fixed;
     inset: 0;
-    /* Above the toasts (an earlier change's Undo must not cover Apply); the drawer holds no popover-based input. */
-    z-index: 1600;
     background: color-mix(in srgb, #06090C 55%, transparent);
     animation: pdk-fade 160ms ease-out;
 }
@@ -904,17 +904,28 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     top: 0;
     right: 0;
     bottom: 0;
-    z-index: 1601;
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
-    width: min(640px, 100vw);
+    width: min(var(--pdk-sheet-width, 640px), 100vw);
     max-width: 100vw;
     overflow: hidden;
     border-left: 1px solid var(--mud-palette-lines-default);
     background: var(--mud-palette-surface);
     box-shadow: -30px 0 80px -40px rgba(0, 0, 0, 0.6);
+    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pdk-sheet-narrow { --pdk-sheet-width: 520px; }
+.pdk-sheet-medium { --pdk-sheet-width: 640px; }
+.pdk-sheet-wide { --pdk-sheet-width: 780px; }
+
+.pdk-sheet-top {
     animation: pdk-slide-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pdk-sheet-under {
+    transform: translateX(calc(var(--pdk-under) * -28px));
 }
 
 .pdk-sheet:focus {
@@ -925,35 +936,131 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     min-width: 0;
 }
 
-.pdk-sheet-head {
+/* A drawer's frame (DrawerShell): head, banners, a body that scrolls, a footer that stays. */
+.pdk-drawer {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 20px 24px 16px;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.pdk-drawer-head {
+    display: grid;
+    gap: 6px;
+    padding: 18px 24px 16px;
     border-bottom: 1px solid var(--mud-palette-lines-default);
 }
 
-.pdk-sheet-title {
-    margin: 0;
-    overflow-wrap: anywhere;
+.pdk-drawer-back {
+    display: inline-flex;
+    align-items: center;
+    justify-self: start;
+    gap: 2px;
+    max-width: 100%;
+    margin: -4px 0 0 -6px;
+    padding: 2px 8px 2px 2px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--mud-palette-text-secondary);
+    font: inherit;
+    font-size: 0.8125rem;
+    cursor: pointer;
 }
 
-.pdk-sheet-title:focus {
+.pdk-drawer-back span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdk-drawer-back:hover, .pdk-drawer-back:focus-visible {
+    color: var(--mud-palette-primary);
     outline: none;
 }
 
-.pdk-sheet-body {
+.pdk-drawer-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+}
+
+.pdk-drawer-icon {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-drawer-titles {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pdk-drawer-overline {
+    color: var(--mud-palette-primary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1.8;
+    text-transform: uppercase;
+}
+
+.pdk-drawer-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.pdk-drawer-title:focus {
+    outline: none;
+}
+
+.pdk-drawer-subtitle {
+    margin-top: 2px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+}
+
+.pdk-drawer-head-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+    margin: -4px -8px 0 0;
+}
+
+.pdk-drawer-banner {
+    display: grid;
+    gap: 8px;
+    padding: 12px 24px 0;
+}
+
+.pdk-drawer-banner .mud-alert {
+    margin: 0;
+}
+
+.pdk-drawer-body {
     flex: 1 1 auto;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: 14px;
     overflow-y: auto;
-    padding: 20px 24px;
+    padding: 20px 24px 28px;
 }
 
-.pdk-sheet-foot {
+.pdk-drawer-foot {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 10px;
@@ -962,18 +1069,78 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     background: var(--mud-palette-background-gray);
 }
 
-/* The actions wrap onto a second line rather than run off the edge, whatever the width and the labels. */
-.pdk-sheet-actions {
+/* The actions wrap onto a second line rather than run off the edge, whatever the width and the labels; a leading action (Delete)
+   goes to the left with .pdk-drawer-actions-start. */
+.pdk-drawer-actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
+    align-items: center;
     gap: 8px;
     min-width: 0;
 }
 
-.pdk-sheet-actions .mud-button-root {
+.pdk-drawer-actions .mud-button-root {
     flex: 0 0 auto;
     max-width: 100%;
+}
+
+.pdk-drawer-actions-start {
+    margin-right: auto;
+}
+
+/* "Discard your changes?" over the top drawer. */
+.pdk-discard {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    align-items: end;
+    padding: 16px;
+    background: color-mix(in srgb, var(--mud-palette-surface) 55%, transparent);
+    animation: pdk-fade 120ms ease-out;
+}
+
+.pdk-discard-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px 14px;
+    padding: 16px 18px;
+    border: 1px solid color-mix(in srgb, var(--mud-palette-warning) 45%, var(--mud-palette-lines-default));
+    border-radius: var(--pdk-radius-lg);
+    background: var(--mud-palette-surface);
+    box-shadow: 0 20px 60px -24px rgba(0, 0, 0, 0.55);
+}
+
+.pdk-discard-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
+    color: var(--pdk-tone);
+}
+
+.pdk-discard-text {
+    display: grid;
+    gap: 2px;
+    font-size: 0.875rem;
+}
+
+.pdk-discard-actions {
+    display: flex;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* "Review changes". */
+.pdk-review-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
 }
 
 .pdk-review-note {
@@ -1042,8 +1209,9 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .pdk-sheet, .pdk-sheet-backdrop {
+    .pdk-sheet, .pdk-sheet-top, .pdk-stack-backdrop, .pdk-discard {
         animation: none;
+        transition: none;
     }
 }
 
@@ -1574,7 +1742,7 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
         margin-left: 10px;
     }
 
-    .pdk-sheet-head, .pdk-sheet-body, .pdk-sheet-foot {
+    .pdk-drawer-head, .pdk-drawer-banner, .pdk-drawer-body, .pdk-drawer-foot {
         padding-left: 16px;
         padding-right: 16px;
     }

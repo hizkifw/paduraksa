@@ -1,0 +1,176 @@
+@implements IAsyncDisposable
+@inject DrawerStack Stack
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@* Renders the drawer stack (PLAN §12), once, in the layout: each level a sheet from the right; the top one live and in focus, those below
+   it shifted aside, dimmed by the top's backdrop and inert. Escape and the backdrop act on the top level only, and ask before throwing
+   away unsaved changes; so does leaving the page while a drawer holds some. *@
+
+<NavigationLock OnBeforeInternalNavigation="OnNavigating" />
+
+@if (Stack.Levels.Count > 0)
+{
+    int count = Stack.Levels.Count;
+    <div class="pdk-stack" data-depth="@count">
+        @for (int i = 0; i < count; i++)
+        {
+            DrawerLevel level = Stack.Levels[i];
+            int below = count - 1 - i;
+            bool top = below == 0;
+            @if (top)
+            {
+                <div class="pdk-stack-backdrop" style="@($"z-index: {BaseZ + (2 * i)}")" @onclick="level.RequestClose" aria-hidden="true"></div>
+            }
+            <aside @key="level.Id" class="@($"pdk-sheet pdk-sheet-{level.Width.ToString().ToLowerInvariant()}{(top ? " pdk-sheet-top" : " pdk-sheet-under")}")"
+                   style="@($"--pdk-under: {below}; z-index: {BaseZ + 1 + (2 * i)}")" data-level="@i" data-top="@(top ? "true" : null)"
+                   inert="@(!top)" role="dialog" aria-modal="@(top ? "true" : null)" aria-labelledby="@DrawerShell.TitleId(level)" tabindex="-1">
+                <CascadingValue Value="level" IsFixed="true">
+                    <DynamicComponent Type="level.Component" Parameters="Parameters(level)" />
+                </CascadingValue>
+                @if (top && (level.ConfirmingDiscard || _leavingTo is not null))
+                {
+                    <div class="pdk-discard" role="alertdialog" aria-labelledby="pdk-discard-title" data-drawer="discard">
+                        <div class="pdk-discard-card">
+                            <span class="pdk-discard-icon pdk-tone-warning"><MudIcon Icon="@Icons.Material.Outlined.EditOff" Size="Size.Small" /></span>
+                            <div class="pdk-discard-text">
+                                <strong id="pdk-discard-title">@(_leavingTo is null ? "Discard your changes?" : "Leave and discard your changes?")</strong>
+                                <span class="pdk-muted">@(_leavingTo is null ? "What you changed in this drawer isn't saved anywhere yet." : "A drawer on this page holds changes that aren't saved yet.")</span>
+                            </div>
+                            <div class="pdk-discard-actions">
+                                <MudButton Variant="Variant.Text" OnClick="KeepEditing" data-drawer="keep">Keep editing</MudButton>
+                                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Discard" data-drawer="discard-confirm">Discard</MudButton>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </aside>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The bottom level's backdrop. Above the toasts (an earlier change's Undo must not cover Apply) and the app bar; below the dialogs
+    /// (a confirmation asked from inside a drawer, raised to 1700 by the theme). MudBlazor places a select's list above its own field.
+    /// </summary>
+    public const int BaseZ = 1600;
+
+    private DotNetObjectReference<DrawerHost>? _self;
+    private bool _attached;
+    private int _rendered;
+    private string? _leavingTo;
+
+    protected override void OnInitialized() => Stack.Changed += OnStackChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_attached)
+            {
+                _attached = true;
+                _self = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("paduraksa.drawers.attach", _self);
+            }
+
+            // Focus follows the stack: into a level as it opens, back to what opened it as it closes.
+            int depth = Stack.Levels.Count;
+            if (depth != _rendered)
+            {
+                _rendered = depth;
+                await JS.InvokeVoidAsync("paduraksa.drawers.sync", depth);
+            }
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException)
+        {
+            // The circuit is going away, or the page isn't live: nothing to focus.
+        }
+    }
+
+    /// <summary>Escape in the top drawer (from <c>paduraksa.js</c>, which leaves it to an open list or a dialog first).</summary>
+    [JSInvokable]
+    public Task EscapeAsync() => InvokeAsync(() =>
+    {
+        if (_leavingTo is not null)
+        {
+            KeepEditing();
+            return;
+        }
+
+        Stack.Escape();
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        Stack.Changed -= OnStackChanged;
+        if (_attached)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.drawers.detach");
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException)
+            {
+                // Gone with the circuit.
+            }
+        }
+
+        _self?.Dispose();
+    }
+
+    private static IDictionary<string, object> Parameters(DrawerLevel level) =>
+        level.Parameters.Where(p => p.Value is not null).ToDictionary(p => p.Key, p => p.Value!);
+
+    private void OnStackChanged()
+    {
+        if (Stack.Levels.Count == 0)
+        {
+            _leavingTo = null;
+        }
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Leaving the page while a drawer holds unsaved changes asks first; anything else goes ahead (the page closes its drawers).</summary>
+    private void OnNavigating(LocationChangingContext context)
+    {
+        if (!Stack.AnyDirty || _leavingTo == context.TargetLocation)
+        {
+            return;
+        }
+
+        context.PreventNavigation();
+        _leavingTo = context.TargetLocation;
+        StateHasChanged();
+    }
+
+    private void KeepEditing()
+    {
+        _leavingTo = null;
+        Stack.Top?.KeepEditing();
+        StateHasChanged();
+    }
+
+    private void Discard()
+    {
+        if (_leavingTo is { } target)
+        {
+            // Everything goes: the drawers first (so nothing is dirty any more), then the navigation that was held back.
+            foreach (DrawerLevel level in Stack.Levels)
+            {
+                level.IsDirty = false;
+            }
+
+            Stack.Clear();
+            Navigation.NavigateTo(target);
+            return;
+        }
+
+        Stack.Top?.Discard();
+    }
+}

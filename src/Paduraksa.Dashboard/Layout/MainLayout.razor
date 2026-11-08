@@ -4,13 +4,14 @@
 @inject DashboardOptions Options
 @inject Paduraksa.Application.Commands.ConfigService Config
 @inject NavigationManager Navigation
+@inject DrawerStack Drawers
 
 <MudThemeProvider @ref="_themeProvider" Theme="PaduraksaTheme.Theme" IsDarkMode="Theme.IsDark" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout Class="pdk-shell" data-circuit="@(RendererInfo.IsInteractive ? "live" : "prerendered")">
+<MudLayout Class="pdk-shell" data-circuit="@(RendererInfo.IsInteractive ? "live" : "prerendered")" inert="@(Drawers.Levels.Count > 0)">
     <MudAppBar Elevation="0" Class="pdk-appbar" Gutters="true">
         <MudIconButton Icon="@Icons.Material.Rounded.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer"
                        aria-label="Toggle navigation" aria-expanded="@(_drawerOpen ? "true" : "false")" />
@@ -59,13 +60,19 @@
         </MudContainer>
     </MudMainContent>
 </MudLayout>
+<DrawerHost />
 
 @code {
     private MudThemeProvider? _themeProvider;
     private ErrorBoundary? _errorBoundary;
     private bool _drawerOpen = true;
+    private bool _drawersOpen;
 
-    protected override void OnInitialized() => Theme.Changed += OnThemeChanged;
+    protected override void OnInitialized()
+    {
+        Theme.Changed += OnThemeChanged;
+        Drawers.Changed += OnDrawersChanged;
+    }
 
     /// <summary>A page that failed is shown as the error card until the person goes elsewhere: a navigation renders the next page.</summary>
     protected override void OnParametersSet() => _errorBoundary?.Recover();
@@ -84,9 +91,24 @@
         }
     }
 
-    public void Dispose() => Theme.Changed -= OnThemeChanged;
+    public void Dispose()
+    {
+        Theme.Changed -= OnThemeChanged;
+        Drawers.Changed -= OnDrawersChanged;
+    }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
     private void OnThemeChanged() => _ = InvokeAsync(StateHasChanged);
+
+    /// <summary>While a drawer is open the page behind it is inert: Tab stays in the drawer, and nothing behind the backdrop takes a click.</summary>
+    private void OnDrawersChanged()
+    {
+        bool open = Drawers.Levels.Count > 0;
+        if (open != _drawersOpen)
+        {
+            _drawersOpen = open;
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
 }

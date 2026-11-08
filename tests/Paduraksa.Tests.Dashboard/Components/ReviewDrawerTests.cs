@@ -7,6 +7,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Config;
+using Paduraksa.Dashboard.Drawers;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
@@ -34,7 +35,7 @@ public sealed class ReviewDrawerTests
                 Warnings: [new ConfigWarning("/hosts/0", "certificate.auto.noCoverage", "no valid certificate covers www.example.com")])
             : throw new InvalidOperationException("Only the dry run should run.");
 
-        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited));
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
         ConfigCommand ran = Assert.Single(config.Executed);
@@ -53,7 +54,7 @@ public sealed class ReviewDrawerTests
         await using DashboardTestContext context = new();
         FakeDashboardConfig config = Arrange(context);
         ConfigCommandResult? applied = null;
-        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited), onApplied: result => applied = result);
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited), onApplied: result => applied = result);
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
         Assert.NotNull(context.Services.GetRequiredService<ReviewedDraft>().Command);
 
@@ -77,7 +78,7 @@ public sealed class ReviewDrawerTests
             Errors: [new ConfigError("/names/1", "host.name.duplicate", "'www.example.com' is already served by another host")]);
         IReadOnlyList<ConfigError>? handed = null;
 
-        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited), onInvalid: errors => handed = errors);
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited), onInvalid: errors => handed = errors);
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=invalid]").Count == 1);
         string text = drawer.Find("[data-review=invalid]").TextContent;
@@ -97,7 +98,7 @@ public sealed class ReviewDrawerTests
             Conflict: new ConfigConflict([], new RevisionRef(ConfigRevisionId.New(), 9), CurrentVersion: 9));
         bool reloaded = false;
 
-        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited), onReload: () => reloaded = true);
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited), onReload: () => reloaded = true);
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=conflict]").Count == 1);
         string text = drawer.Find("[data-review=conflict]").TextContent;
@@ -115,7 +116,7 @@ public sealed class ReviewDrawerTests
         config.Results = command => command.DryRun
             ? new ConfigCommandResult(ConfigCommandStatus.DryRun)
             : new ConfigCommandResult(ConfigCommandStatus.Conflict, Conflict: new ConfigConflict([], CurrentVersion: 3));
-        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited));
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
 
         await drawer.Find("[data-review=apply]").ClickAsync(new());
@@ -135,7 +136,7 @@ public sealed class ReviewDrawerTests
                 ConfigCommandStatus.PublishFailed,
                 stored,
                 Publish: new PublishOutcome(PublishOutcomeStatus.Rejected, 0, ["YARP rejected the cluster"], stored.Id));
-        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited));
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
 
         await drawer.Find("[data-review=apply]").ClickAsync(new());
@@ -150,7 +151,7 @@ public sealed class ReviewDrawerTests
     {
         await using DashboardTestContext context = new();
         FakeDashboardConfig config = Arrange(context);
-        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited));
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
 
         context.Services.GetRequiredService<TestSessions>().Ended = true;
@@ -158,9 +159,9 @@ public sealed class ReviewDrawerTests
 
         // Nothing ran, and nothing is stuck applying: Apply and Cancel are both still there to press.
         Assert.Single(config.Executed);
-        Assert.Empty(drawer.FindAll(".pdk-sheet-actions .mud-progress-circular"));
-        Assert.All(drawer.FindAll(".pdk-sheet-actions button"), button => Assert.False(button.HasAttribute("disabled")));
-        await drawer.FindAll(".pdk-sheet-actions button").Single(b => b.TextContent.Contains("Cancel", StringComparison.Ordinal)).ClickAsync(new());
+        Assert.Empty(drawer.FindAll(".pdk-drawer-actions .mud-progress-circular"));
+        Assert.All(drawer.FindAll(".pdk-drawer-actions button"), button => Assert.False(button.HasAttribute("disabled")));
+        await drawer.FindAll(".pdk-drawer-actions button").Single(b => b.TextContent.Contains("Cancel", StringComparison.Ordinal)).ClickAsync(new());
         Assert.Empty(drawer.FindAll(".pdk-sheet"));
     }
 
@@ -171,12 +172,12 @@ public sealed class ReviewDrawerTests
         FakeDashboardConfig config = Arrange(context);
         context.Services.GetRequiredService<TestSessions>().Ended = true;
 
-        IRenderedComponent<ReviewDrawer> drawer = Render(context, new UpsertHostCommand(Edited));
+        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=signed-out]").Count == 1);
         Assert.Empty(config.Executed);
         Assert.Empty(drawer.FindAll("[aria-busy=true]"));
-        await drawer.FindAll(".pdk-sheet-actions button").Single(b => b.TextContent.Contains("Back to the form", StringComparison.Ordinal)).ClickAsync(new());
+        await drawer.FindAll(".pdk-drawer-actions button").Single(b => b.TextContent.Contains("Back to the form", StringComparison.Ordinal)).ClickAsync(new());
         Assert.Empty(drawer.FindAll(".pdk-sheet"));
     }
 
@@ -187,12 +188,15 @@ public sealed class ReviewDrawerTests
         return config;
     }
 
-    private static IRenderedComponent<ReviewDrawer> Render(
+    /// <summary>Opens the review as a page does (the ReviewDrawer component) and hands back the drawer host it shows in.</summary>
+    private static IRenderedComponent<DrawerHost> Render(
         DashboardTestContext context,
         ConfigCommand command,
         Action<ConfigCommandResult>? onApplied = null,
         Action<IReadOnlyList<ConfigError>>? onInvalid = null,
-        Action? onReload = null) =>
+        Action? onReload = null)
+    {
+        IRenderedComponent<DrawerHost> host = context.Render<DrawerHost>();
         context.Render<ReviewDrawer>(parameters => parameters
             .Add(d => d.Open, true)
             .Add(d => d.Title, "Edit app.example.com")
@@ -200,4 +204,6 @@ public sealed class ReviewDrawerTests
             .Add(d => d.OnApplied, onApplied ?? (_ => { }))
             .Add(d => d.OnInvalid, onInvalid ?? (_ => { }))
             .Add(d => d.OnReload, onReload ?? (() => { })));
+        return host;
+    }
 }

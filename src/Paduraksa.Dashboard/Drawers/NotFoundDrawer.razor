@@ -1,0 +1,40 @@
+@* What an address opens when the object it names isn't there (a deleted host, a wrong or wrong-type ID): a drawer that says so. *@
+<DrawerShell Title="@Title" Overline="@Overline" Icon="@Icons.Material.Outlined.WrongLocation" IconTone="Tone.Warning" Name="not-found">
+    <ChildContent>
+        <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="@Message" Description="It may have been deleted, or the link is wrong." />
+    </ChildContent>
+    <Footer>
+        <div class="pdk-drawer-actions">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="() => Level?.Cancel()">@BackLabel</MudButton>
+        </div>
+    </Footer>
+</DrawerShell>
+
+@code {
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>"Host not found".</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Overline { get; set; }
+
+    /// <summary>"There is no such host".</summary>
+    [Parameter, EditorRequired]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public string BackLabel { get; set; } = "Back to the list";
+
+    /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
+    public static IReadOnlyDictionary<string, object?> For(string title, string message, string? overline = null, string backLabel = "Back to the list") =>
+        new Dictionary<string, object?>
+        {
+            [nameof(Title)] = title,
+            [nameof(Message)] = message,
+            [nameof(Overline)] = overline,
+            [nameof(BackLabel)] = backLabel,
+        };
+}

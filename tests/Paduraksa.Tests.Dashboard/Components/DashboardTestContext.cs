@@ -12,6 +12,7 @@ using Paduraksa.Application.Identity;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Auth;
+using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.Theme;
 
 namespace Paduraksa.Tests.Dashboard.Components;
@@ -28,6 +29,7 @@ internal sealed class DashboardTestContext : BunitContext
         Services.AddSingleton<AntiforgeryStateProvider>(new FixedAntiforgery());
         Services.AddSingleton(new DashboardOptions { InstanceName = "test", MinPasswordLength = 12 });
         Services.AddScoped<ThemeState>();
+        Services.AddScoped<DrawerStack>();
     }
 
     /// <summary>A cascading authentication state for <paramref name="user"/> (anonymous when null).</summary>

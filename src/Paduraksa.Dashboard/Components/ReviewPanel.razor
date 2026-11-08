@@ -1,0 +1,423 @@
+@using Paduraksa.Application.Commands
+@using Paduraksa.Contracts.Simulation
+@using Microsoft.Extensions.Logging
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject ConfigUndo Undo
+@inject ReviewedDraft Draft
+@inject ISnackbar Snackbar
+@inject ILogger<ReviewPanel> Logger
+@* "Review changes" (PLAN §12), a level of the drawer stack: every edit is run as a dry run first and shown as a diff with its warnings
+   and errors; Apply commits it with the version the form opened with. A stale version is a friendly conflict, a commit that couldn't go
+   live says so, and a successful one leaves a toast with Undo. The level hands back a ReviewOutcome. *@
+
+<DrawerShell Title="@Request.Title" Overline="Review changes" Icon="@Icons.Material.Outlined.FactCheck" Name="review">
+    <ChildContent>
+        <div class="pdk-review-body" data-review-phase="@_phase.ToString().ToLowerInvariant()">
+            @switch (_phase)
+            {
+                case Phase.Loading:
+                    <div class="pdk-review-loading" aria-busy="true">
+                        <MudText Typo="Typo.body2" Class="pdk-muted">Checking the change against the current config...</MudText>
+                        @for (int i = 0; i < 3; i++)
+                        {
+                            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="72px" Class="mt-3" />
+                        }
+                    </div>
+                    break;
+
+                case Phase.Conflict:
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="conflict">
+                        <strong>This changed since you opened it.</strong>
+                        @(_conflict?.CurrentRevision is { } head ? $"The config is now at {head}" : "Someone else saved a change")
+                        @(_conflict?.CurrentVersion is { } version ? $" and this object is at version {version}" : string.Empty).
+                        Reload to start from what is live now; your edits here would replace theirs otherwise.
+                    </MudAlert>
+                    @if (_groups.Count > 0)
+                    {
+                        <MudText Typo="Typo.subtitle2" HtmlTag="h3" Class="pdk-review-section">What your change would do on top of it</MudText>
+                        <ChangeList Groups="_groups" />
+                    }
+                    break;
+
+                case Phase.NotFound:
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="not-found">
+                        <strong>It's gone.</strong> Someone deleted it since you opened it, so there is nothing to change. Reload to see what is there now.
+                    </MudAlert>
+                    break;
+
+                case Phase.Denied:
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="denied">
+                        Your role can't change the config. An Owner or Admin can give you the Operator role.
+                    </MudAlert>
+                    break;
+
+                case Phase.Unavailable:
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="unavailable">
+                        <strong>The config store can't take changes right now.</strong> @(FirstError ?? "The server is running on its last-known-good config.")
+                    </MudAlert>
+                    break;
+
+                case Phase.SignedOut:
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="signed-out">
+                        <strong>Your session has ended.</strong> Sign in again to review and apply this change.
+                    </MudAlert>
+                    break;
+
+                case Phase.Failed:
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="failed">
+                        Something went wrong while talking to the config store. The details are in the server log.
+                    </MudAlert>
+                    break;
+
+                case Phase.PublishFailed:
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="publish-failed">
+                        <strong>Saved as @_committed, but it isn't live.</strong>
+                        Publishing the new config failed, so the proxy keeps serving the previous one. The change goes live with the next
+                        successful change or the next restart.
+                        @if (_publishErrors.Count > 0)
+                        {
+                            <ul class="pdk-plain-list">
+                                @foreach (string error in _publishErrors)
+                                {
+                                    <li class="pdk-mono">@error</li>
+                                }
+                            </ul>
+                        }
+                    </MudAlert>
+                    <ChangeList Groups="_groups" />
+                    break;
+
+                case Phase.Unchanged:
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.DoneAll" Title="Nothing to change"
+                                Description="The config already is exactly this way, so there is nothing to apply." />
+                    break;
+
+                default:
+                    @if (_errors.Count > 0)
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="invalid">
+                            <strong>@(_errors.Count == 1 ? "One thing to fix" : $"{_errors.Count} things to fix") before this can go live.</strong>
+                            <ul class="pdk-error-list">
+                                @foreach ((string where, string message) in _errors)
+                                {
+                                    <li><span class="pdk-error-where">@where</span> @message</li>
+                                }
+                            </ul>
+                        </MudAlert>
+                    }
+
+                    @if (_notices.Count > 0)
+                    {
+                        <ul class="pdk-notices" aria-label="Warnings">
+                            @foreach (string notice in _notices)
+                            {
+                                <li><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" /> <span>@notice</span></li>
+                            }
+                        </ul>
+                    }
+
+                    <MudText Typo="Typo.subtitle2" HtmlTag="h3" Class="pdk-review-section">@(_errors.Count > 0 ? "What it would change" : "What changes")</MudText>
+                    <ChangeList Groups="_groups" />
+
+                    @if (_phase == Phase.Ready && _maySimulate)
+                    {
+                        <div class="pdk-review-simulate">
+                            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Science"
+                                       OnClick="ToggleSimulation" aria-expanded="@(_simulating ? "true" : "false")">Simulate this change</MudButton>
+                            @if (_simulating)
+                            {
+                                <div class="pdk-review-simulate-form">
+                                    <MudTextField T="string" @bind-Value="_simulation.Url" Label="URL" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" />
+                                    <MudTextField T="string" @bind-Value="_simulation.ClientIp" Label="Client IP" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="SimulateAsync" Disabled="_simulationRunning">Try it</MudButton>
+                                </div>
+                                @if (_simulationResult is not null)
+                                {
+                                    <SimulationView Result="_simulationResult" Compact="true" />
+                                }
+                            }
+                        </div>
+                    }
+                    break;
+            }
+        </div>
+    </ChildContent>
+    <Footer>
+        @if (_phase == Phase.Ready)
+        {
+            <MudTextField T="string" @bind-Value="_message" Label="Note for the history (optional)" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          MaxLength="1000" Class="pdk-review-note" />
+        }
+        <div class="pdk-drawer-actions">
+            @switch (_phase)
+            {
+                case Phase.Conflict:
+                case Phase.NotFound:
+                    <MudButton Variant="Variant.Text" OnClick="Close">Keep editing</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="Reload">Reload</MudButton>
+                    break;
+                case Phase.PublishFailed:
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Close</MudButton>
+                    break;
+                case Phase.Ready:
+                case Phase.Applying:
+                    <MudButton Variant="Variant.Text" OnClick="Close" Disabled="_phase == Phase.Applying">Cancel</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="@(Request.Destructive ? Color.Error : Color.Primary)" OnClick="ApplyAsync"
+                               Disabled="_phase == Phase.Applying" data-review="apply">
+                        @if (_phase == Phase.Applying)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        @Request.ApplyLabel
+                    </MudButton>
+                    break;
+                default:
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Back to the form</MudButton>
+                    break;
+            }
+        </div>
+    </Footer>
+</DrawerShell>
+
+@code {
+    private enum Phase
+    {
+        Loading,
+        Ready,
+        Invalid,
+        Unchanged,
+        Conflict,
+        NotFound,
+        Denied,
+        Unavailable,
+        SignedOut,
+        Failed,
+        Applying,
+        PublishFailed,
+    }
+
+    private Phase _phase;
+    private ConfigCommand? _reviewed;
+    private bool _starting;
+    private ConfigDocument _before = new();
+    private ConfigDocument _after = new();
+    private IReadOnlyList<ChangeGroup> _groups = [];
+    private IReadOnlyList<string> _notices = [];
+    private List<(string Where, string Message)> _errors = [];
+    private ConfigConflict? _conflict;
+    private RevisionRef? _committed;
+    private IReadOnlyList<string> _publishErrors = [];
+    private string? _message;
+    private bool _maySimulate;
+    private bool _simulating;
+    private bool _simulationRunning;
+    private SimulationForm _simulation = new();
+    private SimulationResult? _simulationResult;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>What to review: a new instance starts a new review.</summary>
+    [Parameter, EditorRequired]
+    public ReviewRequest Request { get; set; } = default!;
+
+    private string? FirstError => _errors.Count > 0 ? _errors[0].Message : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!ReferenceEquals(Request.Command, _reviewed))
+        {
+            _reviewed = Request.Command;
+            await ReviewAsync(Request.Command);
+        }
+    }
+
+    private async Task ReviewAsync(ConfigCommand command)
+    {
+        _phase = Phase.Loading;
+        _groups = [];
+        _notices = [];
+        _errors = [];
+        _conflict = null;
+        _committed = null;
+        _publishErrors = [];
+        _message = null;
+        _simulating = false;
+        _simulationResult = null;
+        _simulation = new SimulationForm { Url = Request.SampleHost is null ? "https://" : $"https://{Request.SampleHost}/" };
+        StateHasChanged();
+
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            // Never left loading: the drawer says why, and its exits work (the page is on its way to the sign-in page).
+            _phase = Phase.SignedOut;
+            return;
+        }
+
+        _maySimulate = user.Has(Permission.Simulate);
+        try
+        {
+            CurrentConfig current = await Config.GetCurrentAsync();
+            _before = current.Document;
+            _after = Request.AfterDocument ?? ChangeView.Apply(current.Document, command) ?? current.Document;
+            ConfigCommandResult result = await Config.ExecuteAsync(command with { DryRun = true }, user.Session.OriginFor(Channel.Dashboard));
+            await ShowAsync(result, command);
+            if (_phase == Phase.Ready)
+            {
+                Draft.Set(command, Request.Title, Request.SampleHost);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't review a config change.");
+            _phase = Phase.Failed;
+        }
+    }
+
+    private async Task ShowAsync(ConfigCommandResult result, ConfigCommand command)
+    {
+        _groups = ChangeView.Build(_before, _after, result.Changes);
+        bool objectCommand = command is not (ReplaceConfigCommand or RollbackConfigCommand);
+        _errors =
+        [
+            .. result.Errors.Select(e => (ChangeView.Locate(e.Path, objectCommand ? null : _after), ReviewNotices.Sentence(e.Message))),
+            .. result.RelatedErrors.Select(e => (ChangeView.Locate(e.Path, _after), ReviewNotices.Sentence(e.Message))),
+        ];
+        _phase = result.Status switch
+        {
+            ConfigCommandStatus.DryRun => Phase.Ready,
+            ConfigCommandStatus.Unchanged => Phase.Unchanged,
+            ConfigCommandStatus.Invalid => Phase.Invalid,
+            ConfigCommandStatus.Conflict => Phase.Conflict,
+            ConfigCommandStatus.NotFound => Phase.NotFound,
+            ConfigCommandStatus.Denied => Phase.Denied,
+            ConfigCommandStatus.Unavailable => Phase.Unavailable,
+            _ => Phase.Failed,
+        };
+        _conflict = result.Conflict;
+        _notices = _phase is Phase.Ready or Phase.Invalid ? ReviewNotices.Of(_before, _after, result.Changes, result.Warnings) : [];
+        if (result.Status == ConfigCommandStatus.Invalid && objectCommand && result.Errors.Count > 0)
+        {
+            await Request.OnInvalid.InvokeAsync(result.Errors);
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_reviewed is not { } command || _phase != Phase.Ready || _starting)
+        {
+            return;
+        }
+
+        // Applying (which disables every exit) starts only once the origin is in hand: a session that ended leaves the drawer as it was.
+        CommandOrigin? origin;
+        _starting = true;
+        try
+        {
+            origin = await Caller.OriginAsync();
+        }
+        finally
+        {
+            _starting = false;
+        }
+
+        if (origin is null || _phase != Phase.Ready || !ReferenceEquals(_reviewed, command))
+        {
+            return;
+        }
+
+        _phase = Phase.Applying;
+        SetBusy(true);
+
+        ConfigCommandResult result;
+        try
+        {
+            result = await Config.ExecuteAsync(command with { DryRun = false, Message = string.IsNullOrWhiteSpace(_message) ? command.Message : _message.Trim() }, origin);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't apply a config change.");
+            _phase = Phase.Failed;
+            return;
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+
+        switch (result.Status)
+        {
+            case ConfigCommandStatus.Committed:
+                Draft.Clear();
+                Undo.Offer(result.Revision!, Request.SuccessMessage, pending: result.Publish?.Status == PublishOutcomeStatus.Pending);
+                Finish(new ReviewOutcome(result, false));
+                break;
+            case ConfigCommandStatus.PublishFailed:
+                Draft.Clear();
+                _committed = result.Revision;
+                _publishErrors = result.Publish?.Errors ?? [];
+                _groups = ChangeView.Build(_before, _after, result.Changes);
+                _phase = Phase.PublishFailed;
+                if (Level is not null)
+                {
+                    // However the drawer is closed now (Close, Escape, the backdrop), the form below learns the change was stored.
+                    Level.ResultOnClose = new ReviewOutcome(new ConfigCommandResult(ConfigCommandStatus.PublishFailed, _committed), false);
+                }
+
+                Snackbar.Add($"Saved as {result.Revision}, but publishing failed: the previous config is still live.", Severity.Error, options => options.RequireInteraction = true);
+                break;
+            case ConfigCommandStatus.Unchanged:
+                Draft.Clear();
+                Snackbar.Add("Nothing changed: the config already was that way.", Severity.Info);
+                Finish(ReviewOutcome.Closed);
+                break;
+            default:
+                await ShowAsync(result, command);
+                break;
+        }
+    }
+
+    /// <summary>Cancel, Close, Keep editing, Back to the form.</summary>
+    private void Close()
+    {
+        if (_phase != Phase.Applying)
+        {
+            Level?.RequestClose();
+        }
+    }
+
+    private void Reload() => Finish(new ReviewOutcome(null, true));
+
+    private void Finish(ReviewOutcome outcome) => Level?.Close(outcome);
+
+    private void SetBusy(bool busy)
+    {
+        if (Level is not null)
+        {
+            Level.Busy = busy;
+        }
+    }
+
+    private void ToggleSimulation() => _simulating = !_simulating;
+
+    private async Task SimulateAsync()
+    {
+        if (_reviewed is not { } command || await Caller.OriginAsync() is not { } origin)
+        {
+            return;
+        }
+
+        _simulationRunning = true;
+        try
+        {
+            await Logger.TryAsync(Snackbar, "The simulation couldn't run.", async () =>
+                _simulationResult = await Config.SimulateAsync(new DraftCommandSimulationTarget(command with { DryRun = true }), _simulation.ToRequest(), origin));
+        }
+        finally
+        {
+            _simulationRunning = false;
+        }
+    }
+}
