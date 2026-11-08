@@ -98,6 +98,7 @@ internal static class TestHost
         string pin = host.Shared.ServerCertificate.Certificate.GetCertHashString(HashAlgorithmName.SHA256);
         SocketsHttpHandler handler = new()
         {
+            UseCookies = false, // a test that wants a cookie sends it itself
             SslOptions =
             {
                 RemoteCertificateValidationCallback = (_, certificate, _, _) =>
