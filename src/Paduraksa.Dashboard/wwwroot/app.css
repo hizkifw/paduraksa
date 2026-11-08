@@ -823,28 +823,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     padding-right: 20px;
 }
 
-/* MudBlazor's table (users, tokens) in the same voice as the data table below. */
-.pdk-table.mud-table {
-    background: transparent;
-}
-
-.pdk-table .mud-table-head .mud-table-cell {
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.pdk-table .mud-table-cell {
-    padding-top: 12px;
-    padding-bottom: 12px;
-}
-
-.pdk-table .mud-table-cell:first-child {
-    padding-left: 20px;
-}
-
 /* The data table: rows are grids whose columns a list sets with --pdk-dt-cols; a row opens its drawer (the main cell's link is the
    keyboard's way in). Below 900 px every row becomes a card with labelled cells. */
 .pdk-dt {
@@ -1042,15 +1020,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-chip-icon.mud-icon-root {
     width: 14px;
     height: 14px;
-}
-
-.pdk-visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
 }
 
 @media (max-width: 900px) {
@@ -1370,10 +1339,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 .pdk-form-card .pdk-card-head {
     margin-bottom: 16px;
-}
-
-.pdk-form-subhead {
-    margin: 18px 0 6px !important;
 }
 
 .pdk-form-summary.mud-alert {

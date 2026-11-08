@@ -200,36 +200,7 @@
 
 /* ---------- Profiles ---------- */
 
-.pdk-profile-card.mud-paper {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.pdk-profile-card .pdk-card-head {
-    margin-bottom: 0;
-}
-
 /* ---------- Users, roles and tokens ---------- */
-
-.pdk-user-cell {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-
-.pdk-user-cell .pdk-list-title {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-}
-
-.pdk-row-actions {
-    white-space: nowrap;
-    text-align: right;
-}
 
 .pdk-role-list {
     display: grid;
@@ -251,30 +222,10 @@
     justify-self: start;
 }
 
-.pdk-modal-form {
-    display: grid;
-    gap: 14px;
-}
-
-.pdk-role-picker, .pdk-scope-picker {
+.pdk-role-picker {
     display: grid;
     gap: 6px;
     min-width: 0;
-    margin: 0;
-    padding: 0;
-    border: 0;
-}
-
-.pdk-role-picker legend, .pdk-scope-picker legend {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
-    margin-bottom: 6px;
-    padding: 0;
-    font-weight: 600;
 }
 
 .pdk-role-option, .pdk-scope-option {
@@ -314,44 +265,11 @@
     font-size: 0.8125rem;
 }
 
-.pdk-token-expiry {
-    display: grid;
-    gap: 6px;
-}
-
-.pdk-token-expiry .mud-toggle-group {
-    flex-wrap: wrap;
-    justify-self: start;
-    max-width: 100%;
-}
-
-.pdk-label-text {
-    font-size: 0.875rem;
-    font-weight: 600;
-}
-
 .pdk-scope-presets {
     display: inline-flex;
     flex-wrap: wrap;
     gap: 2px;
     font-weight: 400;
-}
-
-.pdk-scope-hint {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin: 0 0 6px;
-    padding: 10px 12px;
-    border-radius: var(--pdk-radius);
-    background: color-mix(in srgb, var(--mud-palette-info) 9%, transparent);
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.8125rem;
-}
-
-.pdk-scope-hint .mud-icon-root {
-    flex: 0 0 auto;
-    color: var(--mud-palette-info);
 }
 
 .pdk-scope-areas {
@@ -620,20 +538,6 @@
     color: var(--mud-palette-text-secondary);
 }
 
-.pdk-audit-row.pdk-open .pdk-audit-summary {
-    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
-}
-
-.pdk-audit-detail {
-    display: grid;
-    gap: 10px;
-    padding: 4px 20px 16px 128px;
-}
-
-.pdk-audit-detail .pdk-facts {
-    margin: 0;
-}
-
 .pdk-json {
     max-height: 320px;
     margin: 0;
@@ -698,11 +602,6 @@
     .pdk-audit-chevron {
         grid-column: 3;
         grid-row: 1;
-    }
-
-    .pdk-audit-detail {
-        padding-left: 14px;
-        padding-right: 14px;
     }
 
     .pdk-role-list li {
