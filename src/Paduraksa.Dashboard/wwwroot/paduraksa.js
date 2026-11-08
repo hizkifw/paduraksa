@@ -17,6 +17,7 @@
 
     // The drawer stack (DrawerHost): Escape for the top drawer, and focus that follows the stack.
     const opener = [];
+    let asked = null;
     let escapeListener = null;
     const topSheet = () => document.querySelector(".pdk-sheet[data-top]");
     const focusInto = (sheet) => {
@@ -62,6 +63,29 @@
             }
 
             opener.length = 0;
+        },
+
+        /** A level took the place of the top one (one host's drawer for another's): focus into it. */
+        focusTop() {
+            setTimeout(() => focusInto(topSheet()), 0);
+        },
+
+        /** "Discard?" shows over the top drawer: it takes focus (the drawer under it is inert), and remembers where focus was. */
+        ask() {
+            asked = document.activeElement;
+            const keep = document.querySelector(".pdk-sheet[data-top] [data-drawer=keep]");
+            if (keep) {
+                keep.focus({ preventScroll: true });
+            }
+        },
+
+        /** The question went: focus goes back to where it was, if that is still there. */
+        answered() {
+            const back = asked;
+            asked = null;
+            if (back && back.isConnected && !back.closest("[inert]")) {
+                back.focus({ preventScroll: true });
+            }
         },
 
         /** The stack is now `depth` levels deep: focus a level that opened, or go back to what opened the levels that closed. */

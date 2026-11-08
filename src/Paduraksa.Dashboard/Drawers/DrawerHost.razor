@@ -4,7 +4,7 @@
 @inject NavigationManager Navigation
 @* Renders the drawer stack (PLAN §12), once, in the layout: each level a sheet from the right; the top one live and in focus, those below
    it shifted aside, dimmed by the top's backdrop and inert. Escape and the backdrop act on the top level only, and ask before throwing
-   away unsaved changes; so does leaving the page while a drawer holds some. *@
+   away unsaved changes; so does leaving the page while a drawer holds some, or shows something it can't show again (a new token). *@
 
 <NavigationLock OnBeforeInternalNavigation="OnNavigating" />
 
@@ -17,6 +17,7 @@
             DrawerLevel level = Stack.Levels[i];
             int below = count - 1 - i;
             bool top = below == 0;
+            bool asking = top && Asking;
             @if (top)
             {
                 <div class="pdk-stack-backdrop" style="@($"z-index: {BaseZ + (2 * i)}")" @onclick="level.RequestClose" aria-hidden="true"></div>
@@ -24,21 +25,27 @@
             <aside @key="level.Id" class="@($"pdk-sheet pdk-sheet-{level.Width.ToString().ToLowerInvariant()}{(top ? " pdk-sheet-top" : " pdk-sheet-under")}")"
                    style="@($"--pdk-under: {below}; z-index: {BaseZ + 1 + (2 * i)}")" data-level="@i" data-top="@(top ? "true" : null)"
                    inert="@(!top)" role="dialog" aria-modal="@(top ? "true" : null)" aria-labelledby="@DrawerShell.TitleId(level)" tabindex="-1">
-                <CascadingValue Value="level" IsFixed="true">
-                    <DynamicComponent Type="level.Component" Parameters="Parameters(level)" />
-                </CascadingValue>
-                @if (top && (level.ConfirmingDiscard || _leavingTo is not null))
+                @* While the question is open, the drawer under it is inert: Tab stays on the question's two buttons. *@
+                <div class="pdk-sheet-content" inert="@asking">
+                    <CascadingValue Value="level" IsFixed="true">
+                        <DynamicComponent Type="level.Component" Parameters="Parameters(level)" />
+                    </CascadingValue>
+                </div>
+                @if (asking)
                 {
-                    <div class="pdk-discard" role="alertdialog" aria-labelledby="pdk-discard-title" data-drawer="discard">
+                    string? warning = _leavingTo is null ? null : Stack.Levels.Select(l => l.LeaveWarning).FirstOrDefault(w => w is not null);
+                    <div class="pdk-discard" role="alertdialog" aria-labelledby="pdk-discard-title" aria-describedby="pdk-discard-text" data-drawer="discard">
                         <div class="pdk-discard-card">
                             <span class="pdk-discard-icon pdk-tone-warning"><MudIcon Icon="@Icons.Material.Outlined.EditOff" Size="Size.Small" /></span>
                             <div class="pdk-discard-text">
-                                <strong id="pdk-discard-title">@(_leavingTo is null ? "Discard your changes?" : "Leave and discard your changes?")</strong>
-                                <span class="pdk-muted">@(_leavingTo is null ? "What you changed in this drawer isn't saved anywhere yet." : "A drawer on this page holds changes that aren't saved yet.")</span>
+                                <strong id="pdk-discard-title">@(warning is not null ? "Leave without it?" : _leavingTo is null ? "Discard your changes?" : "Leave and discard your changes?")</strong>
+                                <span class="pdk-muted" id="pdk-discard-text">
+                                    @(warning ?? (_leavingTo is null ? "What you changed in this drawer isn't saved anywhere yet." : "A drawer on this page holds changes that aren't saved yet."))
+                                </span>
                             </div>
                             <div class="pdk-discard-actions">
-                                <MudButton Variant="Variant.Text" OnClick="KeepEditing" data-drawer="keep">Keep editing</MudButton>
-                                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Discard" data-drawer="discard-confirm">Discard</MudButton>
+                                <MudButton Variant="Variant.Text" OnClick="KeepEditing" data-drawer="keep">@(warning is not null ? "Stay" : "Keep editing")</MudButton>
+                                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Discard" data-drawer="discard-confirm">@(warning is not null ? "Leave anyway" : "Discard")</MudButton>
                             </div>
                         </div>
                     </div>
@@ -58,7 +65,12 @@
     private DotNetObjectReference<DrawerHost>? _self;
     private bool _attached;
     private int _rendered;
+    private int? _renderedTop;
+    private bool _renderedAsking;
     private string? _leavingTo;
+
+    /// <summary>The top level asks "discard?" (closing it, or leaving the page).</summary>
+    private bool Asking => Stack.Top is { } top && (top.ConfirmingDiscard || _leavingTo is not null);
 
     protected override void OnInitialized()
     {
@@ -82,12 +94,28 @@
                 await JS.InvokeVoidAsync("paduraksa.drawers.attach", _self);
             }
 
-            // Focus follows the stack: into a level as it opens, back to what opened it as it closes.
+            // Focus follows the stack: into a level as it opens, back to what opened it as it closes; into a level that took the place of
+            // another (one host's drawer for another's) as well.
             int depth = Stack.Levels.Count;
+            int? top = Stack.Top?.Id;
             if (depth != _rendered)
             {
                 _rendered = depth;
+                _renderedTop = top;
                 await JS.InvokeVoidAsync("paduraksa.drawers.sync", depth);
+            }
+            else if (top != _renderedTop)
+            {
+                _renderedTop = top;
+                await JS.InvokeVoidAsync("paduraksa.drawers.focusTop");
+            }
+
+            // The question takes focus as it shows, and gives it back as it goes.
+            bool asking = Asking;
+            if (asking != _renderedAsking)
+            {
+                _renderedAsking = asking;
+                await JS.InvokeVoidAsync(asking ? "paduraksa.drawers.ask" : "paduraksa.drawers.answered");
             }
         }
         catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException)
@@ -153,6 +181,7 @@
     /// </summary>
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
     {
+        _leavingTo = null;
         if (Stack.Levels.Count > 0 && Stack.Levels[0] is { Routed: false, OwnerPath: { } owner } root && owner != PathOf(args.Location))
         {
             _ = InvokeAsync(() =>
@@ -167,10 +196,13 @@
         }
     }
 
-    /// <summary>Leaving the page while a drawer holds unsaved changes asks first; anything else goes ahead (the page closes its drawers).</summary>
+    /// <summary>
+    /// Leaving the page while a drawer holds unsaved changes, or shows what it can't show again, asks first; anything else goes ahead
+    /// (the page closes its drawers).
+    /// </summary>
     private void OnNavigating(LocationChangingContext context)
     {
-        if (!Stack.AnyDirty || _leavingTo == context.TargetLocation)
+        if (!Stack.HoldsSomething || _leavingTo == context.TargetLocation)
         {
             return;
         }
@@ -191,13 +223,16 @@
     {
         if (_leavingTo is { } target)
         {
-            // Everything goes: the drawers first (so nothing is dirty any more), then the navigation that was held back.
+            // Nothing holds the person back any more, and the navigation that was held back goes ahead. The drawers close as the page
+            // that opened them goes (or as their address does): closing them here first would let a drawer with an address send the
+            // person back to its list.
             foreach (DrawerLevel level in Stack.Levels)
             {
                 level.IsDirty = false;
+                level.Busy = false;
+                level.LeaveWarning = null;
             }
 
-            Stack.Clear();
             Navigation.NavigateTo(target);
             return;
         }

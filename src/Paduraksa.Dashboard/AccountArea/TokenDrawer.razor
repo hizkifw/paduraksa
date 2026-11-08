@@ -232,8 +232,9 @@
                 _issued = issued;
                 if (Level is not null)
                 {
-                    // Only "I've copied it" closes it now: the secret can't be shown again.
+                    // Only "I've copied it" closes it now: the secret can't be shown again. Leaving the page asks first.
                     Level.Busy = true;
+                    Level.LeaveWarning = "You haven't copied the token yet. It can't be shown again: leaving means revoking it and creating another.";
                 }
 
                 return;

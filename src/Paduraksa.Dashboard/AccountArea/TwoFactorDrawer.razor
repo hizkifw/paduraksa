@@ -78,11 +78,11 @@
         _codes = null;
     }
 
-    private async Task EnrolledAsync()
+    private Task EnrolledAsync()
     {
         Snackbar.Add("Two-step verification is on.", Severity.Success);
         Level?.Close(true);
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
 
     private void CodesSaved()
@@ -118,8 +118,9 @@
                     _codes = codes.Codes;
                     if (Level is not null)
                     {
-                        // They can't be shown again: only "I have saved them" closes the drawer now.
+                        // They can't be shown again: only "I have saved them" closes the drawer now. Leaving the page asks first.
                         Level.Busy = true;
+                        Level.LeaveWarning = "You haven't saved the new recovery codes yet. They can't be shown again, and the old ones no longer work.";
                     }
                 }
                 else

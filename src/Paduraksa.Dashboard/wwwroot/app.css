@@ -1588,6 +1588,13 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     min-width: 0;
 }
 
+.pdk-sheet-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
 /* A drawer's frame (DrawerShell): head, banners, a body that scrolls, a footer that stays. */
 .pdk-drawer {
     display: flex;

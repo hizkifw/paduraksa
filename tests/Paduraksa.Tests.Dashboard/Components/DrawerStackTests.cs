@@ -98,12 +98,16 @@ public sealed class DrawerStackTests
         await host.InvokeAsync(() => level = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("New host", "b")));
         level.IsDirty = true;
 
-        // Escape asks; Escape again is "keep editing".
+        // Escape asks, and the question takes focus with the drawer under it inert; Escape again is "keep editing", and focus goes back.
         await host.InvokeAsync(host.Instance.EscapeAsync);
         Assert.Single(host.FindAll("[data-drawer=discard]"));
+        Assert.True(host.Find(".pdk-sheet[data-top] .pdk-sheet-content").HasAttribute("inert"));
+        context.JSInterop.VerifyInvoke("paduraksa.drawers.ask");
         Assert.True(level.IsOpen);
         await host.InvokeAsync(host.Instance.EscapeAsync);
         Assert.Empty(host.FindAll("[data-drawer=discard]"));
+        Assert.False(host.Find(".pdk-sheet[data-top] .pdk-sheet-content").HasAttribute("inert"));
+        context.JSInterop.VerifyInvoke("paduraksa.drawers.answered");
         Assert.True(level.IsOpen);
 
         // The close button asks too; "Keep editing" keeps it, "Discard" closes it without a result.
@@ -255,6 +259,54 @@ public sealed class DrawerStackTests
 
         Assert.Equal("false", drawers.Find("[data-staged=app]").GetAttribute("data-used"));
         Assert.Contains("Won't be created: no route uses it", drawers.Find("[data-staged=app] [data-chip=staged-unused]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LeavingAPageWithADirtyRoutedDrawer_GoesWhereThePersonWent_NotBackToTheList()
+    {
+        await using DashboardTestContext context = new();
+        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        UpstreamConfig app = new(UpstreamId.New(), "app", Version: 1, Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);
+        HostConfig host = new(HostId.New(), ["app.home.test"], Version: 1, Routes: [new RouteConfig(RouteId.New(), app.Id)]);
+        config.Document = new ConfigDocument(Upstreams: [app], Hosts: [host]);
+        context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        NavigationManager navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo(DashboardRoutes.Host(host.Id));
+        IRenderedComponent<Hosts> page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, host.Id.ToString()));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "changed.home.test");
+
+        await drawers.InvokeAsync(() => navigation.NavigateTo(DashboardRoutes.Upstreams));
+        Assert.Single(drawers.FindAll("[data-drawer=discard]"));
+        Assert.EndsWith(DashboardRoutes.Host(host.Id), navigation.Uri, StringComparison.Ordinal);
+        await drawers.Find("[data-drawer=discard-confirm]").ClickAsync(new());
+
+        // The upstreams, as asked; the drawer goes with the hosts page.
+        await drawers.WaitForStateAsync(() => navigation.Uri.EndsWith(DashboardRoutes.Upstreams, StringComparison.Ordinal));
+        page.Instance.Dispose();
+        Assert.Empty(context.Services.GetRequiredService<DrawerStack>().Levels);
+        Assert.EndsWith(DashboardRoutes.Upstreams, navigation.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ADrawerThatTakesThePlaceOfTheTopOne_TakesFocus()
+    {
+        await using DashboardTestContext context = new();
+        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Viewer);
+        HostConfig one = new(HostId.New(), ["one.home.test"], Version: 1, Kind: HostKind.Respond, Respond: new RespondConfig(200, "one"));
+        HostConfig two = new(HostId.New(), ["two.home.test"], Version: 1, Kind: HostKind.Respond, Respond: new RespondConfig(200, "two"));
+        config.Document = new ConfigDocument(Hosts: [one, two]);
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        IRenderedComponent<Hosts> page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, one.Id.ToString()));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] .pdk-form").Count == 1);
+        Assert.Empty(context.JSInterop.Invocations["paduraksa.drawers.focusTop"]);
+
+        page.Render(parameters => parameters.Add(p => p.Key, two.Id.ToString()));
+
+        await drawers.WaitForStateAsync(() => drawers.Find(".pdk-drawer-title").TextContent == "two.home.test");
+        Assert.Single(drawers.FindAll(".pdk-sheet"));
+        context.JSInterop.VerifyInvoke("paduraksa.drawers.focusTop");
     }
 
     [Fact]

@@ -59,6 +59,15 @@ public sealed class SettingsPagesTests
         Assert.All(request.Scopes, scope => Assert.True(Paduraksa.Dashboard.Identity.IdentityText.IsRead(scope)));
         Assert.NotNull(request.ExpiresAt);
 
+        // Leaving the page asks first, and saying so keeps the secret where it is.
+        Microsoft.AspNetCore.Components.NavigationManager navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        string here = navigation.Uri;
+        await dialogs.InvokeAsync(() => navigation.NavigateTo(Paduraksa.Dashboard.DashboardRoutes.Hosts));
+        Assert.Contains("You haven't copied the token yet", dialogs.Find("[data-drawer=discard]").TextContent, StringComparison.Ordinal);
+        Assert.Equal(here, navigation.Uri);
+        await dialogs.Find("[data-drawer=keep]").ClickAsync(new());
+        Assert.Single(dialogs.FindAll("[data-secret=token]"));
+
         Paduraksa.Dashboard.AccountArea.TokenDrawer drawer = dialogs.FindComponent<Paduraksa.Dashboard.AccountArea.TokenDrawer>().Instance;
         await dialogs.Find("[data-action=done]").ClickAsync(new());
         await creating.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);

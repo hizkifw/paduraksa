@@ -55,6 +55,9 @@ public sealed class DrawerStack
     /// <summary>Whether any open level holds changes that closing would lose.</summary>
     public bool AnyDirty => _levels.Any(level => level.IsDirty);
 
+    /// <summary>Whether leaving the page would lose something: unsaved changes, or what a level shows only once.</summary>
+    public bool HoldsSomething => _levels.Any(level => level.IsDirty || level.LeaveWarning is not null);
+
     /// <summary>Raised after a level opened or closed, or a level's state the host shows changed (the discard question).</summary>
     public event Action? Changed;
 
@@ -171,6 +174,12 @@ public sealed class DrawerLevel
 
     /// <summary>The level has an address of its own (<see cref="RoutedDrawer"/>): the page opens and closes it as its address changes.</summary>
     public bool Routed { get; set; }
+
+    /// <summary>
+    /// What leaving the page would lose, in words, when it isn't an edit (a new token's secret, shown once): leaving asks first, with
+    /// this. Null: nothing beyond <see cref="IsDirty"/>.
+    /// </summary>
+    public string? LeaveWarning { get; set; }
 
     /// <summary>The drawer is busy (an apply in flight): it can't be closed until it is done.</summary>
     public bool Busy { get; set; }
