@@ -76,6 +76,7 @@ public sealed partial class ConfigService
 
                 // Committed: from here on the change is done, whatever happens to the publish.
                 result = outcome.Result;
+                PublishOperational(outcome.Audit);
                 if (live is not null)
                 {
                     ticket = PublishLive(live);
