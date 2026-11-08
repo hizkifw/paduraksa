@@ -1,3 +1,4 @@
+using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 
 namespace Paduraksa.Server.Configuration;
@@ -21,6 +22,9 @@ internal sealed class PaduraksaOptions
     public string DataDirectory { get; set; } = "./data";
 
     public PaduraksaListenOptions Listen { get; set; } = new();
+
+    /// <summary>Sign-in, lockout, session and password settings (<c>Paduraksa:Admin</c>, PLAN §10.1).</summary>
+    public AdminOptions Admin { get; set; } = new();
 
     /// <summary>ACME issuance and renewal (PLAN §9.3): the scheduler, its timing and which CAs are trusted.</summary>
     public PaduraksaAcmeOptions Acme { get; set; } = new();
@@ -105,6 +109,53 @@ internal sealed class PaduraksaAcmeOptions
     /// second to 10 minutes, a query 0.1 to 30 seconds, <c>UnreachableRounds</c> 1 to 20 and at most 8 resolvers. See <c>DnsPropagationSettings</c>.
     /// </summary>
     public DnsPropagationSettings DnsPropagation { get; set; } = new();
+}
+
+/// <summary>
+/// <c>Paduraksa:Admin</c>: how admin users sign in and how long that lasts. The defaults are the values Paduraksa ships with; the
+/// validator holds each to sane bounds (a lockout of zero, or a session of a year, is a mistake, not a policy).
+/// </summary>
+internal sealed class AdminOptions
+{
+    /// <summary>Consecutive wrong passwords or codes before an account is locked (2 to 100).</summary>
+    public int MaxFailedAttempts { get; set; } = new IdentityOptions().MaxFailedAttempts;
+
+    /// <summary>How long a locked account refuses sign-in (1 minute to 24 hours).</summary>
+    public TimeSpan LockoutDuration { get; set; } = new IdentityOptions().LockoutDuration;
+
+    /// <summary>The absolute lifetime of a session (5 minutes to 30 days).</summary>
+    public TimeSpan SessionLifetime { get; set; } = new IdentityOptions().SessionLifetime;
+
+    /// <summary>A session unused for this long ends (1 minute up to <see cref="SessionLifetime"/>).</summary>
+    public TimeSpan SessionIdleTimeout { get; set; } = new IdentityOptions().SessionIdleTimeout;
+
+    /// <summary>How long a person has to give the second factor after the password (30 seconds to 30 minutes).</summary>
+    public TimeSpan PartialSessionLifetime { get; set; } = new IdentityOptions().PartialSessionLifetime;
+
+    /// <summary>The shortest password accepted, in characters (8 to 128). There are no composition rules.</summary>
+    public int MinPasswordLength { get; set; } = new IdentityOptions().MinPasswordLength;
+
+    /// <summary>PBKDF2-HMAC-SHA-512 iterations for new password hashes (100 000 to 10 000 000); older hashes are upgraded at sign-in.</summary>
+    public int PasswordIterations { get; set; } = new IdentityOptions().PasswordIterations;
+
+    /// <summary>The least interval between writes of a token's last-used or a session's last-seen time (1 second to 1 hour).</summary>
+    public TimeSpan TouchInterval { get; set; } = new IdentityOptions().TouchInterval;
+
+    /// <summary>The issuer name authenticator apps show (1 to 64 characters, no colon).</summary>
+    public string TotpIssuer { get; set; } = new IdentityOptions().TotpIssuer;
+
+    public IdentityOptions ToIdentityOptions() => new()
+    {
+        MaxFailedAttempts = MaxFailedAttempts,
+        LockoutDuration = LockoutDuration,
+        SessionLifetime = SessionLifetime,
+        SessionIdleTimeout = SessionIdleTimeout,
+        PartialSessionLifetime = PartialSessionLifetime,
+        MinPasswordLength = MinPasswordLength,
+        PasswordIterations = PasswordIterations,
+        TouchInterval = TouchInterval,
+        TotpIssuer = TotpIssuer,
+    };
 }
 
 internal sealed class PaduraksaListenOptions

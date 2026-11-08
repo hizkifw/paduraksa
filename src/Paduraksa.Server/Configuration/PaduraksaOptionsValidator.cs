@@ -43,6 +43,8 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             failures.Add($"{PaduraksaOptions.SectionName}:ShutdownTimeout must be positive.");
         }
 
+        ValidateAdmin(options.Admin, failures);
+
         PaduraksaListenOptions listen = options.Listen;
         (string Name, int Port)[] ports =
         [
@@ -177,6 +179,52 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         if (value < min || value > max)
         {
             failures.Add($"{name} must be between {min} and {max}, was {value}.");
+        }
+    }
+
+    private static void ValidateAdmin(AdminOptions? admin, List<string> failures)
+    {
+        const string Key = PaduraksaOptions.SectionName + ":Admin";
+        if (admin is null)
+        {
+            failures.Add($"{Key} must not be null.");
+            return;
+        }
+
+        static string Between<T>(T min, T max) => $"between {min} and {max}";
+
+        void Int(string name, int value, int min, int max)
+        {
+            if (value < min || value > max)
+            {
+                failures.Add($"{Key}:{name} must be {Between(min, max)}, was {value}.");
+            }
+        }
+
+        void Span(string name, TimeSpan value, TimeSpan min, TimeSpan max)
+        {
+            if (value < min || value > max)
+            {
+                failures.Add($"{Key}:{name} must be {Between(min, max)}, was {value}.");
+            }
+        }
+
+        Int(nameof(AdminOptions.MaxFailedAttempts), admin.MaxFailedAttempts, 2, 100);
+        Span(nameof(AdminOptions.LockoutDuration), admin.LockoutDuration, TimeSpan.FromMinutes(1), TimeSpan.FromHours(24));
+        Span(nameof(AdminOptions.SessionLifetime), admin.SessionLifetime, TimeSpan.FromMinutes(5), TimeSpan.FromDays(30));
+        Span(nameof(AdminOptions.SessionIdleTimeout), admin.SessionIdleTimeout, TimeSpan.FromMinutes(1), admin.SessionLifetime < TimeSpan.FromMinutes(1) ? TimeSpan.FromMinutes(1) : admin.SessionLifetime);
+        Span(nameof(AdminOptions.PartialSessionLifetime), admin.PartialSessionLifetime, TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(30));
+        Int(nameof(AdminOptions.MinPasswordLength), admin.MinPasswordLength, 8, 128);
+        Int(nameof(AdminOptions.PasswordIterations), admin.PasswordIterations, 100_000, 10_000_000);
+        Span(nameof(AdminOptions.TouchInterval), admin.TouchInterval, TimeSpan.FromSeconds(1), TimeSpan.FromHours(1));
+        if (admin.TouchInterval >= admin.SessionIdleTimeout)
+        {
+            // A last-seen time written less often than the idle limit is long would end live sessions.
+            failures.Add($"{Key}:TouchInterval must be shorter than SessionIdleTimeout ({admin.SessionIdleTimeout}), was {admin.TouchInterval}.");
+        }
+        if (string.IsNullOrWhiteSpace(admin.TotpIssuer) || admin.TotpIssuer.Length > 64 || admin.TotpIssuer.Contains(':', StringComparison.Ordinal) || admin.TotpIssuer.Any(char.IsControl))
+        {
+            failures.Add($"{Key}:TotpIssuer must be 1 to 64 characters without a colon or control characters.");
         }
     }
 
