@@ -4,6 +4,22 @@ using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Proxy.Snapshot;
 
+/// <summary>Which of the host table's name tables a <c>Host</c> header matched.</summary>
+public enum HostMatchKind : byte
+{
+    /// <summary>No host takes the name.</summary>
+    None = 0,
+
+    /// <summary>An exact name.</summary>
+    Exact,
+
+    /// <summary>A single-label wildcard (<c>*.example.com</c>).</summary>
+    Wildcard,
+
+    /// <summary>An IPv6 literal (<c>[2001:db8::1]</c>).</summary>
+    IPv6Literal,
+}
+
 /// <summary>
 /// Host name → <see cref="CompiledHost"/>, looked up from the raw <c>Host</c> header span without allocating
 /// (spike S3 §1, PLAN §7.1). Exact names first, then a single-label wildcard: <c>*.example.com</c> matches
@@ -37,8 +53,12 @@ public sealed class HostTable
     /// Resolves a raw <c>Host</c> header value: any case, with or without a port, a trailing dot, or an IPv6 literal.
     /// 0 B, except for IPv6-literal hosts (see <see cref="HostNames.TryParseIPv6Literal"/>).
     /// </summary>
-    public CompiledHost? Find(ReadOnlySpan<char> hostHeader)
+    public CompiledHost? Find(ReadOnlySpan<char> hostHeader) => Find(hostHeader, out _);
+
+    /// <summary>The same lookup, also saying which table matched (for the request simulator's trace).</summary>
+    public CompiledHost? Find(ReadOnlySpan<char> hostHeader, out HostMatchKind kind)
     {
+        kind = HostMatchKind.None;
         ReadOnlySpan<char> host = HostName(hostHeader);
         if (host.IsEmpty)
         {
@@ -47,15 +67,20 @@ public sealed class HostTable
 
         if (host[0] == '[')
         {
-            return _ipv6Literals.Count > 0 && host.Length > 2 && host[^1] == ']'
+            if (_ipv6Literals.Count > 0 && host.Length > 2 && host[^1] == ']'
                 && HostNames.TryParseIPv6Literal(host[1..^1], out UInt128 key)
-                && _ipv6Literals.TryGetValue(key, out CompiledHost? literal)
-                ? literal
-                : null;
+                && _ipv6Literals.TryGetValue(key, out CompiledHost? literal))
+            {
+                kind = HostMatchKind.IPv6Literal;
+                return literal;
+            }
+
+            return null;
         }
 
         if (_exactBySpan.TryGetValue(host, out CompiledHost? exact))
         {
+            kind = HostMatchKind.Exact;
             return exact;
         }
 
@@ -68,6 +93,7 @@ public sealed class HostTable
             if (dot > 0 && !host[..dot].ContainsAnyExcept(DnsNames.LabelChars)
                 && _wildcardBySpan.TryGetValue(host[(dot + 1)..], out CompiledHost? wildcard))
             {
+                kind = HostMatchKind.Wildcard;
                 return wildcard;
             }
         }

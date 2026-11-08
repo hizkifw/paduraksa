@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 
@@ -82,22 +83,34 @@ public sealed class GateMiddleware
     /// The synchronous decision. Never writes the response; sets the endpoint when forwarding, and the host's
     /// <c>Alt-Svc</c> header (YARP doesn't copy an upstream's own <c>Alt-Svc</c>, so ours is the one sent).
     /// </summary>
-    internal GateDecision Decide(HttpContext context)
+    internal GateDecision Decide(HttpContext context) => Decide(context, _store.Current, _clientAddresses, _challenges, default(NoGateTracer));
+
+    /// <summary>
+    /// The decision over <paramref name="snapshot"/>, reporting every step to <paramref name="tracer"/>. The one body
+    /// production (<see cref="NoGateTracer"/>, which the JIT removes) and the request simulator (PLAN §7.7) both run.
+    /// </summary>
+    internal static GateDecision Decide<TTracer>(HttpContext context, RuntimeSnapshot snapshot, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges, TTracer tracer)
+        where TTracer : struct, IGateTracer
     {
-        RuntimeSnapshot snapshot = _store.Current;
         GateRequestState state = AcquireState(context);
         state.Snapshot = snapshot;
-        state.ClientIp = _clientAddresses.Resolve(context, snapshot);
-        state.IsHttps = state.ClientIp.Scheme.EffectiveIsHttps(context.Request.IsHttps);
+        ClientIpResolution client = clientAddresses.Resolve(context, snapshot);
+        state.ClientIp = client;
+        state.IsHttps = client.Scheme.EffectiveIsHttps(context.Request.IsHttps);
+        tracer.ClientResolved(context, snapshot, in client, state.IsHttps);
 
-        if (TryAnswerAcmeChallenge(context, out GateDecision challenge))
+        bool answered = TryAnswerAcmeChallenge(challenges, context, out GateDecision challenge);
+        tracer.AcmeChallenge(context, answered);
+        if (answered)
         {
             return challenge;
         }
 
         HttpRequest request = context.Request;
         StringValues hostHeader = request.Headers.Host;
-        CompiledHost? host = hostHeader.Count == 1 ? snapshot.Hosts.Find(hostHeader[0]) : null;
+        HostMatchKind matched = HostMatchKind.None;
+        CompiledHost? host = hostHeader.Count == 1 ? snapshot.Hosts.Find(hostHeader[0], out matched) : null;
+        tracer.HostLookup(hostHeader, host, matched, snapshot.Default);
         if (host is null)
         {
             DefaultHostBehaviour fallback = snapshot.Default;
@@ -105,43 +118,56 @@ public sealed class GateMiddleware
         }
 
         state.Host = host;
-        if (request.IsHttps && (!host.Https || !ConnectionTlsCheck.Satisfies(context, host.Tls)))
+        bool connectionIsHttps = request.IsHttps;
+        TlsMismatch mismatch = connectionIsHttps
+            ? host.Https ? ConnectionTlsCheck.Check(context, host.Tls) : TlsMismatch.HostNotServedOverHttps
+            : TlsMismatch.None;
+        tracer.TlsCheck(context, host, connectionIsHttps, mismatch);
+        if (mismatch != TlsMismatch.None)
         {
             return GateDecision.Respond(snapshot.Misdirected);
         }
 
         AltSvcHeader.Apply(context, host.AltSvc);
-        RequestView view = new(context, state);
-        if (Stops(host.Policies, in view, out GateDecision stopped))
+        RequestView view = new(context, state, TTracer.IsSimulation);
+        if (Stops(PolicyScope.Host, host.Policies, in view, tracer, out GateDecision stopped))
         {
             return stopped;
         }
 
         // The trusted scheme, not the connection's: behind a TLS-terminating trusted proxy the client already uses HTTPS.
-        if (host.HttpsRedirect is { } httpsRedirect && !state.IsHttps)
+        if (host.HttpsRedirect is { } httpsRedirect)
         {
-            return GateDecision.Respond(httpsRedirect.For(request.Method));
+            bool redirect = !state.IsHttps;
+            tracer.HttpsRedirect(host, state.IsHttps, redirect);
+            if (redirect)
+            {
+                return GateDecision.Respond(httpsRedirect.For(request.Method));
+            }
         }
 
         if (host.FixedResponse is { } fixedResponse)
         {
+            tracer.FixedResponse(host);
             return GateDecision.Respond(fixedResponse);
         }
 
-        CompiledRoute? route = MatchRoute(host, request.Path.Value);
+        CompiledRoute? route = MatchRoute(host, request.Path.Value, tracer);
         if (route is null)
         {
             return GateDecision.Respond(snapshot.NoRoute);
         }
 
         state.Route = route;
-        if (Stops(route.Policies, in view, out stopped))
+        if (Stops(PolicyScope.Route, route.Policies, in view, tracer, out stopped))
         {
             return stopped;
         }
 
         Endpoint[] endpoints = snapshot.YarpEndpoints;
-        if ((uint)route.Slot >= (uint)endpoints.Length)
+        bool endpointPresent = (uint)route.Slot < (uint)endpoints.Length;
+        tracer.Forward(snapshot, route, endpointPresent);
+        if (!endpointPresent)
         {
             return GateDecision.Respond(snapshot.Unavailable);
         }
@@ -168,11 +194,14 @@ public sealed class GateMiddleware
     }
 
     /// <summary>Runs a chain; true (with the decision) when a policy responds or drops.</summary>
-    private static bool Stops(IRequestPolicy[] policies, in RequestView view, out GateDecision decision)
+    private static bool Stops<TTracer>(PolicyScope scope, IRequestPolicy[] policies, in RequestView view, TTracer tracer, out GateDecision decision)
+        where TTracer : struct, IGateTracer
     {
-        foreach (IRequestPolicy policy in policies)
+        for (int i = 0; i < policies.Length; i++)
         {
+            IRequestPolicy policy = policies[i];
             PolicyDecision verdict = policy.Evaluate(in view);
+            tracer.PolicyEvaluated(scope, i, policy, in view, verdict);
             switch (verdict.Action)
             {
                 case PolicyAction.Continue:
@@ -198,18 +227,18 @@ public sealed class GateMiddleware
     /// normal pipeline, where it is a request like any other: that is how an upstream that runs its own ACME client
     /// keeps serving its own challenges. 0 B.
     /// </summary>
-    private bool TryAnswerAcmeChallenge(HttpContext context, out GateDecision decision)
+    private static bool TryAnswerAcmeChallenge(AcmeChallengeStore? challenges, HttpContext context, out GateDecision decision)
     {
         decision = default;
         HttpRequest request = context.Request;
-        if (_challenges is null || request.IsHttps || request.Path.Value is not { } path
+        if (challenges is null || request.IsHttps || request.Path.Value is not { } path
             || !path.StartsWith(AcmeChallengeStore.PathPrefix, StringComparison.Ordinal)
             || !(HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method)))
         {
             return false;
         }
 
-        if (!_challenges.TryGet(path.AsSpan(AcmeChallengeStore.PathPrefix.Length), out PrecomputedResponse? response))
+        if (!challenges.TryGet(path.AsSpan(AcmeChallengeStore.PathPrefix.Length), out PrecomputedResponse? response))
         {
             return false;
         }
@@ -222,23 +251,33 @@ public sealed class GateMiddleware
     /// Matches on the canonical view of the path (<see cref="RoutePath"/>) without allocating: as is when it's already
     /// canonical, else rewritten on the stack, or in a pooled buffer past <see cref="RoutePath.StackLimit"/> chars.
     /// </summary>
-    private static CompiledRoute? MatchRoute(CompiledHost host, ReadOnlySpan<char> path)
+    private static CompiledRoute? MatchRoute<TTracer>(CompiledHost host, ReadOnlySpan<char> path, TTracer tracer)
+        where TTracer : struct, IGateTracer
     {
+        CompiledRoute? route;
         if (RoutePath.IsCanonical(path))
         {
-            return host.Match(path);
+            route = host.Match(path);
+            tracer.RouteMatch(host, path, path, route);
+            return route;
         }
 
         if (path.Length < RoutePath.StackLimit)
         {
             Span<char> buffer = stackalloc char[RoutePath.StackLimit];
-            return host.Match(buffer[..RoutePath.Canonicalize(path, buffer)]);
+            ReadOnlySpan<char> canonical = buffer[..RoutePath.Canonicalize(path, buffer)];
+            route = host.Match(canonical);
+            tracer.RouteMatch(host, path, canonical, route);
+            return route;
         }
 
         char[] rented = ArrayPool<char>.Shared.Rent(path.Length + 1);
         try
         {
-            return host.Match(rented.AsSpan(0, RoutePath.Canonicalize(path, rented)));
+            ReadOnlySpan<char> canonical = rented.AsSpan(0, RoutePath.Canonicalize(path, rented));
+            route = host.Match(canonical);
+            tracer.RouteMatch(host, path, canonical, route);
+            return route;
         }
         finally
         {

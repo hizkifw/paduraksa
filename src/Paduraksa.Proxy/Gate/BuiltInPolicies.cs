@@ -8,6 +8,15 @@ public sealed class StaticPolicy(PolicyDecision decision) : IRequestPolicy
     public PolicyDecision Decision { get; } = decision;
 
     public PolicyDecision Evaluate(in RequestView request) => Decision;
+
+    string IRequestPolicy.Name => "static";
+
+    string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict) => verdict.Action switch
+    {
+        PolicyAction.Drop => "always drops the request",
+        PolicyAction.Respond => $"always answers {verdict.Response!.StatusCode}",
+        _ => "lets every request through",
+    };
 }
 
 /// <summary>
@@ -25,4 +34,11 @@ public sealed class IpAllowListPolicy(CidrSet allowed, PolicyDecision onDenied) 
 
     public PolicyDecision Evaluate(in RequestView request) =>
         Allowed.Contains(request.State.ClientAddress) ? PolicyDecision.Continue : OnDenied;
+
+    string IRequestPolicy.Name => "ipAllowList";
+
+    string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict) =>
+        verdict.Action == PolicyAction.Continue
+            ? $"client {request.State.ClientAddress} is in the allow list ({Allowed.RangeCount} range(s))"
+            : $"client {request.State.ClientAddress} is not in the allow list ({Allowed.RangeCount} range(s)): {(verdict.Action == PolicyAction.Drop ? "dropped" : "answered " + verdict.Response!.StatusCode)}";
 }

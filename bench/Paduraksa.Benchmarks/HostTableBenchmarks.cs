@@ -5,7 +5,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Benchmarks;
 
 /// <summary>
-/// <see cref="HostTable.Find"/> over the raw <c>Host</c> header (port and trailing dot stripped by span) in a ~500-host
+/// <see cref="HostTable.Find(ReadOnlySpan{char})"/> over the raw <c>Host</c> header (port and trailing dot stripped by span) in a ~500-host
 /// table: exact, case-folded, with a port, a single-label wildcard, and a miss (exact miss + wildcard miss).
 /// </summary>
 [MemoryDiagnoser]

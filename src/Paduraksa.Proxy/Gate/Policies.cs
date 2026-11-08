@@ -55,15 +55,23 @@ public readonly struct PolicyDecision : IEquatable<PolicyDecision>
 /// <summary>What a policy sees: the request and the gate's per-request state. Passed by <c>in</c>.</summary>
 public readonly ref struct RequestView
 {
-    public RequestView(HttpContext http, GateRequestState state)
+    public RequestView(HttpContext http, GateRequestState state, bool isSimulation = false)
     {
         Http = http;
         State = state;
+        IsSimulation = isSimulation;
     }
 
     public HttpContext Http { get; }
 
     public GateRequestState State { get; }
+
+    /// <summary>
+    /// The request is a simulation (PLAN §7.7), not a real one: the verdict must be what a real request would get, but a
+    /// policy must change nothing to give it. A stateful policy peeks (a rate limit says "would allow, N left" without taking
+    /// a token) and starts no outbound call. Stateless policies ignore it.
+    /// </summary>
+    public bool IsSimulation { get; }
 }
 
 /// <summary>
@@ -74,4 +82,14 @@ public readonly ref struct RequestView
 public interface IRequestPolicy
 {
     PolicyDecision Evaluate(in RequestView request);
+
+    /// <summary>A short, stable kind label for the request simulator's trace (<c>ipAllowList</c>). Never called on the hot
+    /// path. Each policy added later (M6) overrides it and <see cref="Explain"/>.</summary>
+    string Name => "policy";
+
+    /// <summary>Says why <paramref name="verdict"/> (what <see cref="Evaluate"/> just returned for
+    /// <paramref name="request"/>) came out as it did, for the simulator's trace. Must have no side effects (a rate
+    /// limit reports "would allow, N left" without taking a token). Never called on the hot path.</summary>
+    string Explain(in RequestView request, PolicyDecision verdict) =>
+        verdict.Action == PolicyAction.Continue ? "lets the request through" : verdict.Action == PolicyAction.Drop ? "drops the request" : "answers it";
 }
