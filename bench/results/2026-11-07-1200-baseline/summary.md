@@ -7,7 +7,7 @@
 | HTTPS HTTP/2, proxied | 164,249 | 230,465 | 45,242 | 0.71 | 3.63 |
 | HTTPS HTTP/2, browser-like headers, proxied | 134,975 | 206,793 | 37,037 | 0.65 | 3.64 |
 | HTTP/1.1 plain, answered by the proxy | 419,452 | 780,784 | 204,095 | 0.54 | 2.06 |
-| HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | 163,176 | – | – | – | – |
+| HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | 163,176 | - | - | - | - |
 
 Upstream alone (HTTP/1.1, same concurrency): 955,017 requests/s.
 
@@ -20,7 +20,7 @@ Upstream alone (HTTP/1.1, same concurrency): 955,017 requests/s.
 | HTTPS HTTP/2, proxied | 21.3 (3.50) | 14.0 (3.22) | 79.9 (3.62) |
 | HTTPS HTTP/2, browser-like headers, proxied | 26.1 (3.52) | 16.0 (3.31) | 98.4 (3.65) |
 | HTTP/1.1 plain, answered by the proxy | 6.6 (2.78) | 3.7 (2.88) | 17.2 (3.50) |
-| HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | 20.0 (3.26) | – | – |
+| HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | 20.0 (3.26) | - | - |
 
 ### Latency at fixed concurrency (ms)
 

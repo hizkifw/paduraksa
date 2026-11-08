@@ -13,7 +13,7 @@ using SystemIpNetwork = System.Net.IPNetwork;
 namespace Paduraksa.Tests.Unit.Compilation;
 
 /// <summary>
-/// What compiled documents do at the gate: requests (scheme × path × client IP) through the real gate, against a small
+/// What compiled documents do at the gate: requests (scheme x path x client IP) through the real gate, against a small
 /// reference that reads the document directly (PLAN §6.4: layering, allow-list replacement, route matching).
 /// </summary>
 public sealed class CompiledBehaviourTests : IDisposable

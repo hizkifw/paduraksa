@@ -69,7 +69,7 @@ public sealed class IpParserTests
     [InlineData("1.2.3.")]
     [InlineData("1.2.3.4:80")]
     [InlineData("1.2.3.4/32")]
-    [InlineData("１.2.3.4")]
+    [InlineData("\uFF11.2.3.4")] // fullwidth digit "1"
     [InlineData(":")]
     [InlineData(":::")]
     [InlineData(":1")]

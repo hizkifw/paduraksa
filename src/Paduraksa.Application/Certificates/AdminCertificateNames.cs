@@ -55,7 +55,7 @@ public static class AdminCertificateNames
     }
 
     /// <summary>
-    /// The <c>https://…</c> URLs the admin UI answers on, one per concrete name (a wildcard names no URL), for the startup
+    /// The <c>https://...</c> URLs the admin UI answers on, one per concrete name (a wildcard names no URL), for the startup
     /// log so a <c>docker logs</c> reader can see where to go. IPv6 addresses are bracketed.
     /// </summary>
     public static IReadOnlyList<string> Urls(IReadOnlyList<string> names, int port)

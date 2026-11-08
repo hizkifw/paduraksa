@@ -13,7 +13,7 @@ internal sealed class ConfigRevision
 {
     public ConfigRevisionId Id { get; set; }
 
-    /// <summary>1, 2, 3, … in commit order; shown as "#42". Unique.</summary>
+    /// <summary>1, 2, 3, ... in commit order; shown as "#42". Unique.</summary>
     public long Seq { get; set; }
 
     /// <summary>The revision this one was made on top of; null exactly for the first (Seq 1). Unique (no forks).</summary>

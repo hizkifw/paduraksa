@@ -29,7 +29,7 @@ internal sealed class AuditEvent
     /// <summary>A stable dotted name such as <c>config.host.update</c>.</summary>
     public string Action { get; set; } = "";
 
-    /// <summary>The typed-ID string (<c>host_…</c>) of what was acted on, of any type, or null.</summary>
+    /// <summary>The typed-ID string (<c>host_...</c>) of what was acted on, of any type, or null.</summary>
     public string? Target { get; set; }
 
     public AuditOutcome Outcome { get; set; }

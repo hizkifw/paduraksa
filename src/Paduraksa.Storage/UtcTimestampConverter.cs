@@ -17,7 +17,7 @@ namespace Paduraksa.Storage;
 /// </para>
 /// <para>
 /// The offset is not kept: values are normalised to UTC on write and read back with offset zero. Equality
-/// (<see cref="DateTimeOffset.Equals(DateTimeOffset)"/> compares instants) is unaffected. Years outside 0001–9999
+/// (<see cref="DateTimeOffset.Equals(DateTimeOffset)"/> compares instants) is unaffected. Years outside 0001-9999
 /// can't occur in a <see cref="DateTimeOffset"/>, so the width really is fixed.
 /// </para>
 /// </remarks>

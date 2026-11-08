@@ -91,7 +91,7 @@ public sealed record ConfigCommandResult(
 
 /// <summary>A committed revision, by ID and display number.</summary>
 /// <param name="Id">The revision.</param>
-/// <param name="Seq">1, 2, 3, … in commit order; shown as "#42".</param>
+/// <param name="Seq">1, 2, 3, ... in commit order; shown as "#42".</param>
 public sealed record RevisionRef(ConfigRevisionId Id, long Seq)
 {
     /// <summary>The display form: <c>#42</c>.</summary>

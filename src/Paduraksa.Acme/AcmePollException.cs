@@ -1,6 +1,6 @@
 namespace Paduraksa.Acme;
 
-/// <summary>Why a <c>WaitFor…</c> call stopped polling.</summary>
+/// <summary>Why a <c>WaitFor...</c> call stopped polling.</summary>
 public enum AcmePollFailure
 {
     /// <summary>The resource was still not in a final state when <see cref="AcmeClientOptions.PollTimeout"/> ran out.</summary>
@@ -14,7 +14,7 @@ public enum AcmePollFailure
 }
 
 /// <summary>
-/// A <c>WaitFor…</c> call gave up while the CA was answering fine: unlike <see cref="AcmeTransportException"/> ("the
+/// A <c>WaitFor...</c> call gave up while the CA was answering fine: unlike <see cref="AcmeTransportException"/> ("the
 /// network is down"), the resource is reachable and still in progress, and <see cref="Status"/> and the last copy of it say
 /// where it stands. Transient.
 /// </summary>

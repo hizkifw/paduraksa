@@ -2,7 +2,7 @@ namespace Paduraksa.Admin.Api;
 
 /// <summary>
 /// The stable machine-readable <c>code</c>s of the admin API's problems (PLAN §11.1), grouped by area. A code is dotted segments in
-/// lowerCamelCase — an area, then what happened — the same shape as the config errors (<c>host.certificate.unusable</c>), so a client
+/// lowerCamelCase - an area, then what happened - the same shape as the config errors (<c>host.certificate.unusable</c>), so a client
 /// can branch on it and the words never have to change meaning. The config, issuance, certificate, simulation and identity error
 /// codes (<c>ConfigError.Code</c>) live beside their validators in Application; these are the problem-level ones.
 /// </summary>

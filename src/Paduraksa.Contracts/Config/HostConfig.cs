@@ -130,7 +130,7 @@ public enum RouteMatchKind
 public sealed record RedirectConfig(string Target, int StatusCode = 301, bool PreservePath = true);
 
 /// <summary>A Respond host's fixed answer.</summary>
-/// <param name="StatusCode">200–599; 204, 205 and 304 have no body.</param>
+/// <param name="StatusCode">200-599; 204, 205 and 304 have no body.</param>
 /// <param name="Body">Sent as UTF-8.</param>
 /// <param name="ContentType">The <c>Content-Type</c> header: visible ASCII, spaces and tabs.</param>
 public sealed record RespondConfig(int StatusCode, string Body = "", string ContentType = RespondConfig.DefaultContentType)

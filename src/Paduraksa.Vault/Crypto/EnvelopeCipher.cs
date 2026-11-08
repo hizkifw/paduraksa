@@ -9,8 +9,8 @@ namespace Paduraksa.Vault.Crypto;
 /// or the purpose of a key), and its version. They go into the AAD of both AES-GCM operations, so a sealed value moved to
 /// another row, kind or version fails to open instead of opening as something else.
 /// </summary>
-/// <param name="Id">The typed ID's string form (<c>sec_…</c>, <c>acct_…</c>), whose prefix also separates the ID spaces.</param>
-/// <param name="Purpose">A stable name: <c>dns-api-token</c>, <c>hmac-signing-key</c>, <c>acme-account-key</c>…</param>
+/// <param name="Id">The typed ID's string form (<c>sec_...</c>, <c>acct_...</c>), whose prefix also separates the ID spaces.</param>
+/// <param name="Purpose">A stable name: <c>dns-api-token</c>, <c>hmac-signing-key</c>, <c>acme-account-key</c>...</param>
 /// <param name="Version">1 for the first value of a row, +1 on each replacement.</param>
 internal readonly record struct SealContext(string Id, string Purpose, int Version);
 

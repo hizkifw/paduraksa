@@ -5,9 +5,9 @@ namespace Paduraksa.Server.Configuration;
 
 /// <summary>
 /// Binds the list options a user sets from the environment in <b>both</b> forms the configuration binder and a shell offer:
-/// indexed keys (<c>Paduraksa__Listen__AdminAllowedSources__0=…</c>) and one comma-separated scalar
+/// indexed keys (<c>Paduraksa__Listen__AdminAllowedSources__0=...</c>) and one comma-separated scalar
 /// (<c>Paduraksa__Listen__AdminAllowedSources=192.168.1.0/24,10.0.0.0/8</c>). The binder silently ignores a scalar for an
-/// <see cref="IList{T}"/>, which would leave a documented setting doing nothing — for the admin allowlist that means the
+/// <see cref="IList{T}"/>, which would leave a documented setting doing nothing - for the admin allowlist that means the
 /// admin is open while the operator believes it is restricted. A scalar is split on commas, each entry trimmed and empty
 /// entries dropped.
 /// </summary>

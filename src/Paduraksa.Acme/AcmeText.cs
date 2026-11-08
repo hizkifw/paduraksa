@@ -26,7 +26,7 @@ internal static class AcmeText
 
             if (builder.Length >= maxLength)
             {
-                builder.Append('…');
+                builder.Append("...");
                 break;
             }
 

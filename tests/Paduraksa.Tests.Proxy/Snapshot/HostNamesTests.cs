@@ -9,10 +9,10 @@ public sealed class HostNamesTests
     [InlineData(" App.Example.COM ", "app.example.com", "Exact")]
     [InlineData("app.example.com.", "app.example.com", "Exact")]
     [InlineData("*.Example.com", "*.example.com", "Wildcard")]
-    [InlineData("bücher.test", "xn--bcher-kva.test", "Exact")]
-    [InlineData("BÜCHER.Test", "xn--bcher-kva.test", "Exact")] // non-ASCII letters fold like ASCII ones
-    [InlineData("Ελλάδα.test", "xn--hxakic4aa.test", "Exact")]
-    [InlineData("*.bücher.test", "*.xn--bcher-kva.test", "Wildcard")]
+    [InlineData("b\u00FCcher.test", "xn--bcher-kva.test", "Exact")]
+    [InlineData("B\u00DCCHER.Test", "xn--bcher-kva.test", "Exact")] // non-ASCII letters fold like ASCII ones
+    [InlineData("\u0395\u03BB\u03BB\u03AC\u03B4\u03B1.test", "xn--hxakic4aa.test", "Exact")]
+    [InlineData("*.b\u00FCcher.test", "*.xn--bcher-kva.test", "Wildcard")]
     [InlineData("localhost", "localhost", "Exact")]
     [InlineData("_acme.internal", "_acme.internal", "Exact")]
     [InlineData("123.example.com", "123.example.com", "Exact")] // numeric labels are fine, just not the last one
@@ -49,16 +49,16 @@ public sealed class HostNamesTests
     [InlineData("*.localhost")] // a wildcard parent needs two labels, as for server names
     [InlineData("*.com")]
     [InlineData("*.lan.")]
-    [InlineData("*.bücher")]
+    [InlineData("*.b\u00FCcher")]
     [InlineData("[2001:db8::1")]
     [InlineData("[fe80::1%eth0]")]
     [InlineData("[192.0.2.1]")]
     [InlineData("[not-an-ip]")]
-    [InlineData("bücher.test")] // NFD: u + combining diaeresis
-    [InlineData("ｅｘａｍｐｌｅ.test")] // fullwidth "example"
-    [InlineData("example．test")] // fullwidth full stop
-    [InlineData("b‍cher.test")] // zero-width joiner
-    [InlineData("b­cher.test")] // soft hyphen
+    [InlineData("bu\u0308cher.test")] // NFD: u + combining diaeresis
+    [InlineData("\uFF45\uFF58\uFF41\uFF4D\uFF50\uFF4C\uFF45.test")] // fullwidth "example"
+    [InlineData("example\uFF0Etest")] // fullwidth full stop
+    [InlineData("b\u200Dcher.test")] // zero-width joiner
+    [InlineData("b\u00ADcher.test")] // soft hyphen
     public void InvalidNamesAreRejected(string input)
     {
         Assert.False(HostNames.TryNormalize(input, out _, out _, out string? error));
@@ -68,7 +68,7 @@ public sealed class HostNamesTests
     // The certificate table gets every DNS name the host table accepts, so the two must agree (IP literals aside).
     [Theory]
     [InlineData("App.Example.COM.")]
-    [InlineData("*.bücher.test")]
+    [InlineData("*.b\u00FCcher.test")]
     [InlineData("localhost")]
     [InlineData("_acme.internal")]
     [InlineData("xn--zzzzzzzzzzzzzzzzzzzzzz.test")]

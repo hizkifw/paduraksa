@@ -7,7 +7,7 @@ namespace Paduraksa.Admin.Certificates;
 
 /// <summary>
 /// The local CA root as the download endpoints serve it (PLAN §3, §12.1): its public facts and its two encodings, decoded
-/// once. Public data only — never a key, never any other certificate.
+/// once. Public data only - never a key, never any other certificate.
 /// </summary>
 /// <param name="Sha256Fingerprint">SHA-256 of the root's DER, lowercase hex.</param>
 /// <param name="Subject">The root's subject distinguished name (RFC 4514).</param>

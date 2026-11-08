@@ -16,9 +16,9 @@ namespace Paduraksa.Server.Hosting;
 /// </summary>
 /// <remarks>
 /// <para>Since .NET 10 a <see cref="Microsoft.Extensions.Hosting.BackgroundService"/> runs its
-/// <c>ExecuteAsync</c> through <c>Task.Run(…, token)</c> with the token it was started with, so an aborted start can
+/// <c>ExecuteAsync</c> through <c>Task.Run(..., token)</c> with the token it was started with, so an aborted start can
 /// cancel a core background service before its delegate even ran. The host then reports the cancellation twice
-/// ("BackgroundService failed", event 9, and "…stopping the host", event 10): its own suppression only applies once
+/// ("BackgroundService failed", event 9, and "...stopping the host", event 10): its own suppression only applies once
 /// <c>ApplicationStopping</c> has fired, which happens later, when the hosts are stopped, not while the start token
 /// is cancelled. Only the cancellation is dropped (an <see cref="OperationCanceledException"/>); a background service
 /// that really crashes while the start is being aborted still logs.</para>
@@ -40,7 +40,7 @@ internal sealed class StartupLogFilter
     /// <summary>Category of <c>Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager</c>.</summary>
     internal const string XmlKeyManagerCategory = "Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager";
 
-    /// <summary>Its <c>NoXmlEncryptor</c> event: "No XML encryptor configured. Key … may be persisted to storage in unencrypted form."</summary>
+    /// <summary>Its <c>NoXmlEncryptor</c> event: "No XML encryptor configured. Key ... may be persisted to storage in unencrypted form."</summary>
     internal const int NoXmlEncryptorEventId = 35;
 
     private volatile bool _startAbortRequested;

@@ -154,7 +154,7 @@ public static class Compiler
         return new SpikeSnapshot(gen, routes, cl, versions);
     }
 
-    /// <summary>N hosts, each 1 route (Host + /{**catch-all}) → own cluster with 1–2 destinations.</summary>
+    /// <summary>N hosts, each 1 route (Host + /{**catch-all}) → own cluster with 1-2 destinations.</summary>
     public static (List<HostSpec> Hosts, List<ClusterSpec> Clusters) Fleet(int n, int upstreamPort)
     {
         var hosts = new List<HostSpec>(n + 1);

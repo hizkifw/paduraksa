@@ -8,7 +8,7 @@ public enum ActorKind
     /// <summary>Paduraksa itself: startup, schedulers (ACME renewals, retention), migrations.</summary>
     System = 1,
 
-    /// <summary>The local CLI (<c>paduraksa …</c> on the host), which runs with the operator's shell access.</summary>
+    /// <summary>The local CLI (<c>paduraksa ...</c> on the host), which runs with the operator's shell access.</summary>
     Cli = 2,
 
     /// <summary>A signed-in admin user (<see cref="Actor.UserId"/>).</summary>
@@ -62,7 +62,7 @@ public readonly record struct Actor
     };
 
     /// <summary>
-    /// <c>system</c>, <c>cli</c>, or the user's or token's typed ID (<c>usr_…</c>, <c>tok_…</c>); <c>undefined</c> for
+    /// <c>system</c>, <c>cli</c>, or the user's or token's typed ID (<c>usr_...</c>, <c>tok_...</c>); <c>undefined</c> for
     /// <c>default(Actor)</c>.
     /// </summary>
     public override string ToString() => Kind switch

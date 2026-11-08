@@ -47,7 +47,7 @@ internal sealed class TypedIdMapping
 
     /// <summary>
     /// Finds the typed-ID element mapping of a primitive collection type: an array, or a generic collection type
-    /// implementing <see cref="IEnumerable{T}"/> of a typed ID (<c>List&lt;RouteId&gt;</c>, <c>IReadOnlyList&lt;RouteId&gt;</c>, …).
+    /// implementing <see cref="IEnumerable{T}"/> of a typed ID (<c>List&lt;RouteId&gt;</c>, <c>IReadOnlyList&lt;RouteId&gt;</c>, ...).
     /// </summary>
     public static bool TryGetElement(Type clrType, [NotNullWhen(true)] out TypedIdMapping? mapping)
     {

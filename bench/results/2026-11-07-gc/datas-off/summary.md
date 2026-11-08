@@ -25,7 +25,7 @@ Median of 3 runs per row; the p99 column also shows the lowest and highest run.
 
 | Scenario | Rate | Proxy | achieved req/s | p50 | p90 | p95 | p99 | p99.9 | CPU µs/req | failed |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| HTTP/1.1 plain, proxied | 30,000 | Paduraksa | 29,995 | 0.49 | 0.72 | 0.83 | 1.27 (1.08–1.79) | 5.92 | 51.7 | 0 |
+| HTTP/1.1 plain, proxied | 30,000 | Paduraksa | 29,995 | 0.49 | 0.72 | 0.83 | 1.27 (1.08-1.79) | 5.92 | 51.7 | 0 |
 
 ### Paduraksa runtime counters per run (whole process, from the runner's per-second samples)
 

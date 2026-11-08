@@ -20,7 +20,7 @@ internal readonly record struct DnsName(string Canonical, bool IsWildcard, bool 
 /// </summary>
 /// <remarks>
 /// Input is ASCII (IDNs in punycode), with at most one trailing dot and an optional leading <c>*.</c> label. Rules: at
-/// most 253 characters; labels of 1–63 letters, digits, <c>-</c> or <c>_</c>, not starting or ending with <c>-</c>;
+/// most 253 characters; labels of 1-63 letters, digits, <c>-</c> or <c>_</c>, not starting or ending with <c>-</c>;
 /// <c>*</c> only as the whole leftmost label; a wildcard's parent has at least two labels (<c>*.example.com</c>, not
 /// <c>*.com</c> or <c>*.localhost</c>) and isn't numeric; every <c>xn--</c> label decodes. What each caller adds on top
 /// (whitespace trimming, Unicode input, IP literals) is documented on that caller.

@@ -112,7 +112,7 @@ internal static class CommandErrors
         /// <summary><paramref name="pointer"/> with its top-level index mapped; unchanged when there is none to map.</summary>
         public string Remap(string pointer)
         {
-            // "/hosts/3/…": list token, index token, rest.
+            // "/hosts/3/...": list token, index token, rest.
             string[] parts = pointer.Split('/', 4);
             if (parts.Length < 3
                 || parts[0].Length != 0

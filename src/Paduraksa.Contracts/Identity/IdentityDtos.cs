@@ -115,7 +115,7 @@ public sealed record IssueApiTokenRequest(string Name, IReadOnlyList<Permission>
 
 /// <summary>A newly issued token: the only time its secret is shown.</summary>
 /// <param name="Summary">The token's public facts.</param>
-/// <param name="Token">The full <c>pdk_…</c> string to present as a Bearer token. Not recoverable later.</param>
+/// <param name="Token">The full <c>pdk_...</c> string to present as a Bearer token. Not recoverable later.</param>
 public sealed record IssuedApiToken(ApiTokenSummary Summary, string Token)
 {
     public override string ToString() => $"{nameof(IssuedApiToken)} {{ Id = {Summary.Id}, Token = *** }}";

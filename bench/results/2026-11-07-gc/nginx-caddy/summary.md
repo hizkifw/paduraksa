@@ -26,8 +26,8 @@ Median of 2 runs per row; the p99 column also shows the lowest and highest run.
 
 | Scenario | Rate | Proxy | achieved req/s | p50 | p90 | p95 | p99 | p99.9 | CPU µs/req | failed |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| HTTP/1.1 plain, proxied | 30,000 | nginx | 29,995 | 0.64 | 1.04 | 1.15 | 1.52 (1.49–1.55) | 3.44 | 49.2 | 0 |
-| HTTP/1.1 plain, proxied | 30,000 | Caddy | 29,993 | 0.43 | 1.67 | 2.24 | 3.25 (3.17–3.32) | 7.35 | 62.5 | 0 |
+| HTTP/1.1 plain, proxied | 30,000 | nginx | 29,995 | 0.64 | 1.04 | 1.15 | 1.52 (1.49-1.55) | 3.44 | 49.2 | 0 |
+| HTTP/1.1 plain, proxied | 30,000 | Caddy | 29,993 | 0.43 | 1.67 | 2.24 | 3.25 (3.17-3.32) | 7.35 | 62.5 | 0 |
 
 ### Proxy → upstream TCP connections at the end of the plain HTTP/1.1 run
 

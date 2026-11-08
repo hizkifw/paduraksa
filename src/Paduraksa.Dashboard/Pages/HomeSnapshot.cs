@@ -39,6 +39,6 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
 /// <summary>One certificate on the overview's expiry list.</summary>
 /// <param name="Name">Its label, else its first name.</param>
 /// <param name="NameCount">How many names it covers.</param>
-/// <param name="Source">Where it came from (<c>acme</c>, <c>uploaded</c>, <c>local_ca</c>, …).</param>
+/// <param name="Source">Where it came from (<c>acme</c>, <c>uploaded</c>, <c>local_ca</c>, ...).</param>
 /// <param name="NotAfter">When it stops being valid.</param>
 public sealed record ExpiringCertificate(string Name, int NameCount, string Source, DateTimeOffset NotAfter);

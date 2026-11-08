@@ -11,7 +11,7 @@ namespace Paduraksa.Application.Audit;
 /// <param name="Outcome">How it ended.</param>
 internal sealed record AuditEntry(Actor Actor, Channel Channel, string Action, AuditOutcome Outcome)
 {
-    /// <summary>The typed-ID string of what was acted on (<c>host_…</c>), of any type. See <see cref="WithTarget"/>.</summary>
+    /// <summary>The typed-ID string of what was acted on (<c>host_...</c>), of any type. See <see cref="WithTarget"/>.</summary>
     public string? Target { get; init; }
 
     /// <summary>The client address, for actions that came in over the network.</summary>

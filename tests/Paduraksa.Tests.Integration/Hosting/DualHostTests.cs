@@ -290,10 +290,10 @@ public sealed class DualHostTests
     [Fact]
     public async Task AnAbortedStartDoesNotLogTheCoreBackgroundServiceItCancelled()
     {
-        // .NET 10 runs a BackgroundService's ExecuteAsync through Task.Run(…, token) with the token it was started with,
+        // .NET 10 runs a BackgroundService's ExecuteAsync through Task.Run(..., token) with the token it was started with,
         // so an aborted start can cancel a core background service before its delegate even ran. The generic host then
         // reports that cancellation ("BackgroundService failed" + stopping the host) at Error and Critical, because its
-        // own suppression only applies once ApplicationStopping has fired — which happens when the hosts are stopped,
+        // own suppression only applies once ApplicationStopping has fired - which happens when the hosts are stopped,
         // not when the start token is cancelled. The public host's stopping fires in between: after the abort was
         // requested, before the core host (which owns the background services) is stopping. The generic host must not
         // surface the cancellation as an error there, or every blocked-core abort would flake.

@@ -40,9 +40,9 @@ docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"   # the one-ti
 Map **80/tcp, 443/tcp, 443/udp and 9443/tcp 1:1** (the UDP port is HTTP/3; without it clients use HTTP/2). Then trust the
 local CA root from `https://<host>:9443/api/v1/ca/root.crt` and open `https://<host>:9443/`.
 
-The full guide — the master key and Docker secrets, reading or reprinting the setup token, trusting the CA root,
+The full guide - the master key and Docker secrets, reading or reprinting the setup token, trusting the CA root,
 backups and where data lives, upgrades, UDP notes, external health checks, and a systemd unit for a bare-metal
-self-contained publish ([`deploy/paduraksa.service`](deploy/paduraksa.service)) — is in [docs/install.md](docs/install.md).
+self-contained publish ([`deploy/paduraksa.service`](deploy/paduraksa.service)) - is in [docs/install.md](docs/install.md).
 
 ## Database migrations
 

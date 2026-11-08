@@ -98,7 +98,7 @@ public static class ProxyHostingExtensions
 
     /// <summary>
     /// Defence in depth: only the endpoint the gate chose may be proxied. If routing ever matched YARP's internal
-    /// <c>/.paduraksa/r/…</c> routes by itself (the gate missing from the pipeline, or a future change letting a
+    /// <c>/.paduraksa/r/...</c> routes by itself (the gate missing from the pipeline, or a future change letting a
     /// request through without an endpoint), the request is answered 404 instead of reaching an upstream unchecked.
     /// </summary>
     private static Task RejectUngatedRequests(HttpContext context, RequestDelegate next)

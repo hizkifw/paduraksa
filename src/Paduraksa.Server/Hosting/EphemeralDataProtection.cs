@@ -24,7 +24,7 @@ namespace Paduraksa.Server.Hosting;
 /// </remarks>
 internal static class EphemeralDataProtection
 {
-    /// <summary>The framework's key-ring warm-up hosted service, whose full type name is stable across .NET 8–10.</summary>
+    /// <summary>The framework's key-ring warm-up hosted service, whose full type name is stable across .NET 8-10.</summary>
     internal const string HostedServiceTypeName = "Microsoft.AspNetCore.DataProtection.Internal.DataProtectionHostedService";
 
     /// <summary>Registers the in-memory provider before Data Protection's own <c>TryAdd</c> from YARP can take effect.</summary>

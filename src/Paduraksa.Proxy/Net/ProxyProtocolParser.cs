@@ -68,8 +68,8 @@ public enum ProxyProtocolParseStatus : byte
 /// </summary>
 /// <remarks>
 /// <para>Strictness: v1 must be <c>PROXY TCP4|TCP6 src dst sport dport\r\n</c> with single spaces, addresses
-/// valid for the declared family under <see cref="IpParser"/>'s rules, decimal ports 0–65535 without leading
-/// zeros, at most 107 bytes; or <c>PROXY UNKNOWN…\r\n</c>. v2 must have the 12-byte signature, version 2, command
+/// valid for the declared family under <see cref="IpParser"/>'s rules, decimal ports 0-65535 without leading
+/// zeros, at most 107 bytes; or <c>PROXY UNKNOWN...\r\n</c>. v2 must have the 12-byte signature, version 2, command
 /// <c>LOCAL</c> or <c>PROXY</c>, a known family and transport, an address block long enough for the family, and a
 /// total length within the configured maximum. TLVs are skipped unvalidated (no CRC32C check). <c>DGRAM</c> is
 /// rejected: this parser serves TCP listeners.</para>
@@ -87,7 +87,7 @@ public static class ProxyProtocolParser
     /// real load balancers send well under 1 KB.</summary>
     public const int DefaultMaxV2Length = 4096;
 
-    /// <summary>Longest v2 header without TLVs: the fixed part plus the largest address block (AF_UNIX, 2 × 108
+    /// <summary>Longest v2 header without TLVs: the fixed part plus the largest address block (AF_UNIX, 2 x 108
     /// bytes). The parser peeks this many bytes (which also covers v1's 107), and a configured maximum
     /// (<see cref="ProxyProtocolOptions.MaxV2Length"/>) can't be lower.</summary>
     public const int V2MaxLengthWithoutTlvs = V2FixedLength + UnixAddressLength;

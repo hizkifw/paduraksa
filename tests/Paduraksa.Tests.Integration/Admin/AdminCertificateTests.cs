@@ -258,7 +258,7 @@ public sealed class AdminCertificateTests
     public async Task ASlowFirstRunDoesNotHoldThePublicListenerAndKeepsServingTheVaultsLeaf()
     {
         // A second process on a data directory whose vault already holds the certificate: while its first run is held past the
-        // bound, the admin port must serve that certificate — the placeholder would be the HSTS hard-fail (the browser pinned
+        // bound, the admin port must serve that certificate - the placeholder would be the HSTS hard-fail (the browser pinned
         // the name when it trusted the root).
         string data = TestDataDirectories.NewPath();
         string fingerprint;
@@ -386,7 +386,7 @@ public sealed class AdminCertificateTests
     public async Task ALostVaultIsRepairedWithoutAnOperator()
     {
         // vault.db goes while the config database keeps its rows: the root and leaf rows are active, the vault holds neither.
-        // The service must notice, retire the stale root and issue both again — every manual way out (deleting the root,
+        // The service must notice, retire the stale root and issue both again - every manual way out (deleting the root,
         // deleting the admin certificate, re-issuing it by hand) is refused, so without this the owner would be locked out.
         string data = TestDataDirectories.NewPath();
         string oldRoot;

@@ -10,7 +10,7 @@ namespace Paduraksa.Proxy.Snapshot;
 /// <list type="bullet">
 /// <item><c>\</c>, <c>%2F</c> and <c>%5C</c> (any case; Kestrel leaves <c>%2F</c> encoded) separate segments like <c>/</c>;</item>
 /// <item>repeated separators collapse;</item>
-/// <item><c>;…</c> segment parameters are dropped;</item>
+/// <item><c>;...</c> segment parameters are dropped;</item>
 /// <item>trailing <c>.</c> and spaces are trimmed per segment;</item>
 /// <item><c>.</c> and <c>..</c> segments are resolved (Kestrel already does this for <c>/</c>, but not across <c>\</c>);</item>
 /// <item>a trailing separator is kept; case is kept (matching ignores it).</item>

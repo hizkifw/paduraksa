@@ -30,7 +30,7 @@ public class CidrSetBenchmarks
         {
             if (i % 2 == 0)
             {
-                // 11.0.0.0 – 126.255.255.0 /24s: never 10/8 or 127/8, so the miss below stays a miss.
+                // 11.0.0.0 - 126.255.255.0 /24s: never 10/8 or 127/8, so the miss below stays a miss.
                 string block = $"{random.Next(11, 127)}.{random.Next(256)}.{random.Next(256)}.0/24";
                 v4.Add(block);
                 builder.Add(block);

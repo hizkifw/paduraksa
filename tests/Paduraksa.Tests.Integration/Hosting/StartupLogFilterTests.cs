@@ -7,7 +7,7 @@ namespace Paduraksa.Tests.Integration.Hosting;
 /// <summary>
 /// The generic host's own "start aborted" errors are dropped during a requested abort (<see cref="StartupLogFilter"/>):
 /// "Hosting failed to start" always (it only reports the cancellation), and the .NET 10 background-service entries
-/// ("BackgroundService failed" and the StopHost one) for a cancellation only — a service that really crashes while the
+/// ("BackgroundService failed" and the StopHost one) for a cancellation only - a service that really crashes while the
 /// start is being aborted must still log.
 /// </summary>
 public sealed class StartupLogFilterTests

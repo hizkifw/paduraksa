@@ -22,7 +22,7 @@ public sealed record AcmeClientOptions
     /// <summary>The longest delay between polls: a larger <c>Retry-After</c> is shortened to this, so a polling call stays bounded.</summary>
     public TimeSpan MaxPollDelay { get; init; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>How long a <c>WaitFor…</c> call polls in all before it gives up with an <see cref="AcmeTransportException"/>.</summary>
+    /// <summary>How long a <c>WaitFor...</c> call polls in all before it gives up with an <see cref="AcmeTransportException"/>.</summary>
     public TimeSpan PollTimeout { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>How long a fetched directory is reused.</summary>

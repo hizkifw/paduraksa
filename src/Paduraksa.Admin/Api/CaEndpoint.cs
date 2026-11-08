@@ -18,7 +18,7 @@ namespace Paduraksa.Admin.Api;
 /// All three are anonymous (<see cref="AdminAuthEndpointExtensions.AllowAnonymousAdmin"/>) and reachable while first-run
 /// setup is incomplete (<see cref="AdminPipelineHooks.SetupAllowedPathPrefixes"/> lists the prefix by default): the wizard
 /// asks for them before an Owner exists. They serve the <b>public</b> root certificate only, from <see cref="CaRootSource"/>
-/// (published by the core host's admin certificate service) — never a key, never any other certificate, never a chain.
+/// (published by the core host's admin certificate service) - never a key, never any other certificate, never a chain.
 /// </para>
 /// <para>
 /// <c>GET /api/v1/ca/root.pem</c> (PEM, <c>application/x-pem-file</c>), <c>GET /api/v1/ca/root.crt</c> (DER,

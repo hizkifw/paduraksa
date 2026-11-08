@@ -97,7 +97,7 @@ public static class HostNames
             UnicodeCategory category = CharUnicodeInfo.GetUnicodeCategory(c);
             if (category is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark
                 or UnicodeCategory.Format
-                || c is >= '＀' and <= '￯')
+                || c is >= '\uFF00' and <= '\uFFEF')
             {
                 error = $"'{name}' contains U+{(int)c:X4} (a combining mark, an invisible format character or a "
                     + "fullwidth/halfwidth form), which can't be normalised here; write the name in its composed form or as "

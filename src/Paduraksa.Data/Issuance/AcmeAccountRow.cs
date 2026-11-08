@@ -19,7 +19,7 @@ internal sealed class AcmeAccountRow
     /// <summary>The CA's directory URL (Let's Encrypt, its staging environment, ZeroSSL, Google, or a custom one).</summary>
     public string DirectoryUrl { get; set; } = "";
 
-    /// <summary>Contact URIs (<c>mailto:…</c>) as a JSON array column.</summary>
+    /// <summary>Contact URIs (<c>mailto:...</c>) as a JSON array column.</summary>
     public List<string> Contacts { get; set; } = [];
 
     public AcmeAccountStatus Status { get; set; }

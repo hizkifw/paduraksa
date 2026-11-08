@@ -21,7 +21,7 @@ dotnet run -c Release --project spikes/S3-zero-alloc-gate -- e2e gate h1 /x 4 16
 - **Where the 0 B was measured:** with minimal test traffic and with Chrome-like traffic.
 - **Excluded:** the body write, which is Kestrel's work.
 
-**Kestrel and YARP do allocate.** With realistic browser traffic **Kestrel alone allocates ~1.0–1.1 KB/request**. That traffic is 13 Chrome headers including `sec-ch-ua*`, `sec-fetch-*`, `priority` and `Cookie`, a varying `Accept`/`Referer`, and 64 rotating paths with query strings. Kestrel decodes header values and paths that differ from the previous request into new strings, and allocates name and value strings for unknown headers. A **realistic proxied request costs ~4.1–4.6 KB** in the whole proxy process: Kestrel ~1 KB, routing and YARP init 152 B, and YARP's forwarder plus `SocketsHttpHandler` ~3 KB. The "Kestrel 0 B" result in the first version of this document holds **only for synthetic traffic** that repeats the same few headers and path. It must not be read as Kestrel's real cost.
+**Kestrel and YARP do allocate.** With realistic browser traffic **Kestrel alone allocates ~1.0-1.1 KB/request**. That traffic is 13 Chrome headers including `sec-ch-ua*`, `sec-fetch-*`, `priority` and `Cookie`, a varying `Accept`/`Referer`, and 64 rotating paths with query strings. Kestrel decodes header values and paths that differ from the previous request into new strings, and allocates name and value strings for unknown headers. A **realistic proxied request costs ~4.1-4.6 KB** in the whole proxy process: Kestrel ~1 KB, routing and YARP init 152 B, and YARP's forwarder plus `SocketsHttpHandler` ~3 KB. The "Kestrel 0 B" result in the first version of this document holds **only for synthetic traffic** that repeats the same few headers and path. It must not be read as Kestrel's real cost.
 
 | Server-side bytes/request (whole proxy process, steady state) | HTTP/1.1 | HTTP/2 |
 |---|---|---|
@@ -31,19 +31,19 @@ dotnet run -c Release --project spikes/S3-zero-alloc-gate -- e2e gate h1 /x 4 16
 | Kestrel + gate answering 200 / 403 itself (generic host) | 1,093 / 1,090 | 975 / 973 |
 | Kestrel + gate + **YARP forward**, `WebApplication` (implicit `UseAuthorization`) | 4,303 | 4,606 |
 | Kestrel + gate + **YARP forward**, generic host (no implicit auth middleware) | **4,143** | **4,446** |
-| … plus `CF-Connecting-IP` sent and honoured | 4,782 | 5,087 |
+| ... plus `CF-Connecting-IP` sent and honoured | 4,782 | 5,087 |
 | **Minimal synthetic traffic** (2 headers, 1 or 8 paths) | | |
 | Kestrel alone, same path / 8 rotating paths | 0.0 / 32 | 0.0 / 28 |
 | Kestrel + gate answering 200 / 301 / 403 | 0.0 | 0.0 |
-| Kestrel + gate + YARP forward, `WebApplication` | 2,816–2,857 | 3,176–3,223 |
-| … `noauthz` (implicit auth middleware suppressed) | 2,656 | 3,017 |
-| … `noauthz` + `X-Forwarded` off | 2,504 | 2,864 |
-| … with `CF-Connecting-IP` | 2,920 | 3,280 |
+| Kestrel + gate + YARP forward, `WebApplication` | 2,816-2,857 | 3,176-3,223 |
+| ... `noauthz` (implicit auth middleware suppressed) | 2,656 | 3,017 |
+| ... `noauthz` + `X-Forwarded` off | 2,504 | 2,864 |
+| ... with `CF-Connecting-IP` | 2,920 | 3,280 |
 | Hand-off → first proxy-pipeline middleware (routing + YARP init), all proxied runs | 152 | 152 |
 
-Run-to-run noise on the proxied H2 rows is about ±150 B. The first run of this spike measured 3,024–3,067 B for the same H2 configuration.
+Run-to-run noise on the proxied H2 rows is about ±150 B. The first run of this spike measured 3,024-3,067 B for the same H2 configuration.
 
-The gate takes a few hundred ns: the full synchronous gate is 145–225 ns on a `DefaultHttpContext`. Within that, host lookup is 11–22 ns, the 3-policy chain 66 ns, and `CF-Connecting-IP` parsing 13–58 ns.
+The gate takes a few hundred ns: the full synchronous gate is 145-225 ns on a `DefaultHttpContext`. Within that, host lookup is 11-22 ns, the 3-policy chain 66 ns, and `CF-Connecting-IP` parsing 13-58 ns.
 
 ---
 
@@ -87,7 +87,7 @@ The frozen alternate lookup is within a few ns of a plain `Dictionary` on clean 
 |---|---|---|---|
 | `HttpContext.Features.Get<IClientInfoFeature>()` (custom connection feature) | 0 B | 0 B | 0 |
 | `Features.Get<IConnectionItemsFeature>().Items.TryGetValue(key)` | 0 B | 0 B | 0 |
-| `Connection.RemoteIpAddress` → `UInt128` (per-request recompute) | 0 B | 0 B | – |
+| `Connection.RemoteIpAddress` → `UInt128` (per-request recompute) | 0 B | 0 B | - |
 
 All three are allocation-free. **Use the custom connection feature.** It is typed, it needs no dictionary lookup or cast, and it is where the stage-A work (country lookup, trusted-proxy check, PROXY-protocol IP) naturally lands.
 
@@ -120,16 +120,16 @@ The question was whether the gate can hand state between stages without `HttpCon
 
 `IPersistentStateFeature` (`Microsoft.AspNetCore.Connections.Features`) is Kestrel's built-in answer to this. Its `State` dictionary lives on the `Http1Connection` for H1 and on the **pooled `Http2Stream`** (and `Http3Stream`) for H2/H3. It survives requests, but it is never shared by two concurrent requests. A "one object per connection" pool you build yourself would be **wrong on H2**, where many streams on one connection run concurrently. `IPersistentStateFeature` avoids that.
 
-In the e2e H2 runs the gate showed 0–2 non-zero requests per run out of 0.75–2.1 M, each exactly **408 B**. That is a freshly created stream's state dictionary plus the `GateRequestState`, amortised to 0.00 B/req.
+In the e2e H2 runs the gate showed 0-2 non-zero requests per run out of 0.75-2.1 M, each exactly **408 B**. That is a freshly created stream's state dictionary plus the `GateRequestState`, amortised to 0.00 B/req.
 
 **Pooling caveats:**
 - A stream returns to the pool only when it **ends gracefully** (`CanReuse`).
 - The pool holds at most **100** streams.
 - Idle pooled streams are **evicted after ~5 s**.
 
-So RST_STREAM, client cancellations, our own `Abort()`/Drop, bursts above 100 concurrent streams and bursty idle connections all create a fresh stream, and with it a new dictionary and state object (408 B). "1–2 per million" reflects this benchmark's steady, well-behaved load, not a property of the mechanism. Under attack traffic, where Drop is common, the per-request cost of a dropped request is ~408 B. That's still small next to Kestrel's own per-request cost.
+So RST_STREAM, client cancellations, our own `Abort()`/Drop, bursts above 100 concurrent streams and bursty idle connections all create a fresh stream, and with it a new dictionary and state object (408 B). "1-2 per million" reflects this benchmark's steady, well-behaved load, not a property of the mechanism. Under attack traffic, where Drop is common, the per-request cost of a dropped request is ~408 B. That's still small next to Kestrel's own per-request cost.
 
-Cost: on a `DefaultHttpContext` (BDN) the pooled variant is the slowest: 145 ns locals, 185–192 ns new feature, 219–226 ns pooled. That's because `DefaultHttpContext`'s feature collection is a `Dictionary`. On Kestrel `IPersistentStateFeature` is a field-backed fast path, so the extra cost there should be little more than one `Dictionary<object, object?>` lookup. That wasn't timed separately on Kestrel.
+Cost: on a `DefaultHttpContext` (BDN) the pooled variant is the slowest: 145 ns locals, 185-192 ns new feature, 219-226 ns pooled. That's because `DefaultHttpContext`'s feature collection is a `Dictionary`. On Kestrel `IPersistentStateFeature` is a field-backed fast path, so the extra cost there should be little more than one `Dictionary<object, object?>` lookup. That wasn't timed separately on Kestrel.
 
 ## 4. Snapshot read + route pick + `SetEndpoint`
 
@@ -166,22 +166,22 @@ Kestrel's feature collection implements `IEndpointFeature` itself, as S2 found. 
 | `Response.ContentType = "const"` | 0 B | 0 B |
 | `ResponseWriter.WriteAsync` (sync part) | 0 B | 0 B |
 
-End to end, with minimal traffic, gate-answered requests cost **0.0 B/req for the whole process** on H1 and H2: 200 (`/static`), 301 with `Location` (`/old`), and 403 from the path policy (`/admin`). That's 1.8–1.9 M rps on H1 pipelined and 0.4–0.67 M rps on H2. With browser-like traffic the process total is ~975–1,093 B/req, which is Kestrel's request parsing. The gate and the response writing still add nothing measurable over bare Kestrel.
+End to end, with minimal traffic, gate-answered requests cost **0.0 B/req for the whole process** on H1 and H2: 200 (`/static`), 301 with `Location` (`/old`), and 403 from the path policy (`/admin`). That's 1.8-1.9 M rps on H1 pipelined and 0.4-0.67 M rps on H2. With browser-like traffic the process total is ~975-1,093 B/req, which is Kestrel's request parsing. The gate and the response writing still add nothing measurable over bare Kestrel.
 
 **A precomputed `StringValues` is safely reusable across requests and connections.** It's an immutable struct over an immutable string, and Kestrel encodes it into the output pipe without keeping the instance. The typed property (`Headers.Location`) and the string indexer both cost 0 B on Kestrel. The typed property skips the name lookup, so prefer it. Unknown response headers are also 0 B to set, since Kestrel reuses the dictionary per connection/stream. The per-thread probe doesn't cover H2's HPACK encoding of an unknown header at write time, and the e2e responses only use known headers, so that case is unmeasured.
 
 ## 7. End-to-end, in-process server
 
 **Setup** (`E2E.cs`):
-- The proxy process runs either `WebApplication.CreateSlimBuilder` (default) or, with `generichost`, `new HostBuilder().ConfigureWebHost(… .Configure(app => …))` with an explicit pipeline. Kestrel has one listener, H1 *or* H2 cleartext prior-knowledge, plus the `ClientInfo` connection middleware.
-- The pipeline is: request counter → gate → `UseRouting` → `UseEndpoints(e => e.MapReverseProxy(…))` with a custom pipeline (affinity, LB, passive health), holding 500 path-only YARP routes (`/.paduraksa/r/{slot}/{**rest}`).
+- The proxy process runs either `WebApplication.CreateSlimBuilder` (default) or, with `generichost`, `new HostBuilder().ConfigureWebHost(... .Configure(app => ...))` with an explicit pipeline. Kestrel has one listener, H1 *or* H2 cleartext prior-knowledge, plus the `ClientInfo` connection middleware.
+- The pipeline is: request counter → gate → `UseRouting` → `UseEndpoints(e => e.MapReverseProxy(...))` with a custom pipeline (affinity, LB, passive health), holding 500 path-only YARP routes (`/.paduraksa/r/{slot}/{**rest}`).
 - The snapshot has 520 hosts. Each host has 3 policies and 3 routes: `/static` → 200, `/old` → 301, `/` → YARP slot.
 - The **upstream** (a Kestrel app returning 16 bytes) and the **load generator** run as **separate processes**, so `GC.GetTotalAllocatedBytes(precise: true)` deltas in the proxy count only the proxy's own allocations.
 - The H1 load is raw sockets: 4 connections, 16 requests pipelined per batch, one host per connection. The H2 load is HttpClient on one connection with 64 concurrent streams.
 - **Traffic shapes:**
   - *minimal* sends `User-Agent` and `Accept`, with 1 path, or 8 with `vary`.
   - *`browser`* sends 13 Chrome-like headers (`sec-ch-ua`, `-mobile`, `-platform`, UA, `Accept` alternating, `Sec-Fetch-Site/Mode/Dest` alternating, `Referer` over 5 values, `Accept-Encoding`, `Accept-Language`, `Cookie`, `priority`) and 64 rotating paths with query strings under the scenario's prefix.
-- Each run has 3 s of warm-up, then a 5 s window. An idle second is measured first; background allocation was 0.02–0.5 B/req.
+- Each run has 3 s of warm-up, then a 5 s window. An idle second is measured first; background allocation was 0.02-0.5 B/req.
 - Gate bytes come from `GC.GetAllocatedBytesForCurrentThread()` around the gate's synchronous **decision** section (`Gate.Run`) on every request. **The body write is outside the measured section.** The first version also measured `ResponseWriter.WriteAsync`, and its rare 4,160/4,256 B outliers were Kestrel renting output-pipe memory blocks, not gate state. Pool eviction would have made an M1 `gateBytes == 0` assertion flaky. After the change, the only outliers left are the 408 B new-H2-stream cases (§3).
 - A spy `IAuthorizationPolicyProvider` counts `GetFallbackPolicyAsync` calls, to show whether an authorization middleware runs.
 
@@ -189,8 +189,8 @@ Results from `results/e2e.txt` (bytes/request; "auth" = fallback-policy lookups 
 
 | Run | H1 total | H1 gate | H2 total | H2 gate | auth |
 |---|---|---|---|---|---|
-| bare (no gate), same path | 0.0 | – | 0.0 | – | 0 |
-| bare, 8 rotating paths | 32.0 | – | 28.1 | – | 0 |
+| bare (no gate), same path | 0.0 | - | 0.0 | - | 0 |
+| bare, 8 rotating paths | 32.0 | - | 28.1 | - | 0 |
 | gate → 200 `/static` | 0.0 | 0.00 | 0.0 | 0.00 | 1 |
 | gate → 403 `/admin` (policy) | 0.0 | 0.00 | 0.0 | 0.00 | 1 |
 | gate → 301 `/old` | 0.0 | 0.00 | 0.0 | 0.00 | 1 |
@@ -199,25 +199,25 @@ Results from `results/e2e.txt` (bytes/request; "auth" = fallback-policy lookups 
 | gate → YARP + `CF-Connecting-IP` | 2,920 | 0.00 | 3,280 | 0.00 | 1 |
 | gate → YARP, `noauthz` | 2,656 | 0.00 | 3,017 | 0.00 | 0 |
 | gate → YARP, `noauthz` + `X-Forwarded` off | 2,504 | 0.00 | 2,864 | 0.00 | 0 |
-| **browser:** bare | 1,057 | – | 1,011 | – | 0 |
+| **browser:** bare | 1,057 | - | 1,011 | - | 0 |
 | **browser:** gate → 200 `/static`, generic host | 1,093 | 0.00 | 975 | 0.00 | 0 |
 | **browser:** gate → 403 `/admin`, generic host | 1,090 | 0.00 | 973 | 0.00 | 0 |
 | **browser:** gate → YARP, `WebApplication` | 4,303 | 0.00 | 4,606 | 0.00 | 1 |
 | **browser:** gate → YARP, generic host | 4,143 | 0.00 | 4,446 | 0.00 | 0 |
 | **browser:** gate → YARP, generic host + `CF-Connecting-IP` | 4,782 | 0.00 | 5,087 | 0.00 | 0 |
 
-Across all 34 runs the gate allocated on 0–2 requests per run, always H2 and always exactly 408 B. That rounds to 0.00 B/req.
+Across all 34 runs the gate allocated on 0-2 requests per run, always H2 and always exactly 408 B. That rounds to 0.00 B/req.
 
-**`GC.GetTotalAllocatedBytes(precise: true)` is not always monotonic under Server GC.** The reviewer saw it go backwards in 2 of 12 runs. `E2E` now flags a negative delta as `NON-MONOTONIC … discard`; none occurred in the committed runs. M1's process-level benchmark must discard non-monotonic samples, or repeat the run and take the median.
+**`GC.GetTotalAllocatedBytes(precise: true)` is not always monotonic under Server GC.** The reviewer saw it go backwards in 2 of 12 runs. `E2E` now flags a negative delta as `NON-MONOTONIC ... discard`; none occurred in the committed runs. M1's process-level benchmark must discard non-monotonic samples, or repeat the run and take the median.
 
 ### What allocates, and whose it is
 The Answer table and this list use the same attribution: everything outside the gate belongs to Kestrel, routing or YARP.
 
-- **Kestrel: ~1.0–1.1 KB/req with browser-like traffic; 0 B only for synthetic, repetitive traffic.**
+- **Kestrel: ~1.0-1.1 KB/req with browser-like traffic; 0 B only for synthetic, repetitive traffic.**
   - Kestrel avoids allocating a header-value or path string only when it equals the previous request's value on the same connection.
   - Real browsers vary `Accept`, `Sec-Fetch-*`, `Referer` and the path, so those become new strings.
-  - Every **unknown request header** (`sec-ch-ua*`, `priority`, `CF-Connecting-IP`, …) costs its name and value strings on every request.
-  - A changing path costs ~28–32 B for the decoded path string, plus the query string.
+  - Every **unknown request header** (`sec-ch-ua*`, `priority`, `CF-Connecting-IP`, ...) costs its name and value strings on every request.
+  - A changing path costs ~28-32 B for the decoded path string, plus the query string.
   - On H2, when the app goes async (any proxied request), Kestrel's `HttpProtocol.ProcessRequests` state-machine box appears in the allocation ticks. That's inherent to async request handling.
   - **All accepted.** It is Kestrel's request parsing and outside our control.
 - **ASP.NET routing + YARP init: 152 B/req** from the hand-off to the first proxy middleware. Accepted, as in S2.
@@ -227,8 +227,8 @@ The Answer table and this list use the same attribution: everything outside the 
   - It is an async wrapper around everything after it. It allocates a state-machine box whenever downstream goes async (every proxied request), and it looks up the fallback policy on **every** request, gate-answered ones included. The spy counted 1 `GetFallbackPolicyAsync` call per request.
   - **Hazard:** if anyone ever configures an authorization `FallbackPolicy` (a common "require authenticated users" snippet), it runs **before the gate** on every request of the public proxy.
   - The component that would throw if a YARP route ever carried `AuthorizationPolicy` without the middleware is ASP.NET's `EndpointMiddleware`, not YARP.
-  - **Generic host: verified at 0 extra bytes.** With an explicit pipeline (`new HostBuilder().ConfigureWebHost(w => w.UseKestrel(…).ConfigureServices(…).Configure(app => { app.Use(gate); app.UseRouting(); app.UseEndpoints(e => e.MapReverseProxy(…)); }))`), nothing is auto-inserted. The spy counted 0 calls. Allocation matches the internal-key suppression exactly: 2,656 B (H1, minimal traffic) both ways, and browser 4,143 against 4,303 B (H1) and 4,446 against 4,606 B (H2).
-- **YARP forwarder + `SocketsHttpHandler`: ~2.3–2.7 KB/req with minimal traffic, ~3 KB with browser headers.** It grows because every forwarded header is copied into `HttpRequestMessage`. AllocationTick sampling (`ticks` runs) shows:
+  - **Generic host: verified at 0 extra bytes.** With an explicit pipeline (`new HostBuilder().ConfigureWebHost(w => w.UseKestrel(...).ConfigureServices(...).Configure(app => { app.Use(gate); app.UseRouting(); app.UseEndpoints(e => e.MapReverseProxy(...)); }))`), nothing is auto-inserted. The spy counted 0 calls. Allocation matches the internal-key suppression exactly: 2,656 B (H1, minimal traffic) both ways, and browser 4,143 against 4,303 B (H1) and 4,446 against 4,606 B (H2).
+- **YARP forwarder + `SocketsHttpHandler`: ~2.3-2.7 KB/req with minimal traffic, ~3 KB with browser headers.** It grows because every forwarded header is copied into `HttpRequestMessage`. AllocationTick sampling (`ticks` runs) shows:
   - `HttpRequestMessage`/`HttpResponseMessage` and their header collections (`HeaderEntry[]`, `HttpResponseHeaders`, `HttpContentHeaders`), plus `Uri`/`UriInfo`.
   - Async state-machine boxes: `HttpForwarder.SendAsync`, `HttpConnectionPool.SendWithVersionDetectionAndRetryAsync`, `HttpConnection.SendAsync`, `ForwarderMiddleware`, `PassiveHealthCheckMiddleware`.
   - `ReverseProxyFeature`, `RequestTransformContext`, and header-value strings.
@@ -278,7 +278,7 @@ public static void Zero<TState>(TState state, Action<TState> action, string what
 - After ~2,000 warm-up requests, assert `gateBytes == 0` over ~10,000 requests **on H1**. On H2 a new stream costs 408 B (§3), so either assert "every non-zero sample is exactly the new-stream size and there are at most N of them", or give the test a well-behaved client with ≤ 100 concurrent streams and no cancellations.
 - Keep `GC.GetTotalAllocatedBytes` process deltas (client out of process) as a **benchmark**, not a test: Kestrel and YARP numbers change with their versions and shouldn't be assertions. Track them in `bench/`, use browser-like traffic, and discard non-monotonic samples (§7).
 
-**Pitfall:** BenchmarkDotNet's `Allocated` column was **wrong under Server GC** with the in-process toolchain. It showed 675 B and 1,545 B for `IPAddress.TryParse` where the truth is 80 B, and `-` for rows that allocate 40–96 B. Under workstation GC (`DOTNET_gcServer=0`) it matches `AllocAssert` exactly. M1's `bench/` project uses Server GC (`ServerGarbageCollection=true`). Either run BDN in its default out-of-process toolchain, or force workstation GC for allocation benchmarks.
+**Pitfall:** BenchmarkDotNet's `Allocated` column was **wrong under Server GC** with the in-process toolchain. It showed 675 B and 1,545 B for `IPAddress.TryParse` where the truth is 80 B, and `-` for rows that allocate 40-96 B. Under workstation GC (`DOTNET_gcServer=0`) it matches `AllocAssert` exactly. M1's `bench/` project uses Server GC (`ServerGarbageCollection=true`). Either run BDN in its default out-of-process toolchain, or force workstation GC for allocation benchmarks.
 
 ---
 
@@ -298,7 +298,7 @@ app.UseEndpoints(e => e.MapReverseProxy(p => { p.UseSessionAffinity(); p.UseLoad
 ```
 In the spike, `Gate.Run` returns the `PrecomputedResponse` to write (or null), and the middleware writes it *after* the measured section: `return response is not null ? ResponseWriter.WriteAsync(ctx, response) : forward ? next(ctx) : Task.CompletedTask;`.
 
-**Build the public app on the generic host with this explicit pipeline**: `new HostBuilder().ConfigureWebHost(w => w.UseKestrel(…).ConfigureServices(…).Configure(app => …))`. It uses public API only, with no `WebApplication` auto-wiring, so no implicit `UseAuthorization()` runs ahead of the gate (§7). It was verified at 0 extra bytes against the suppressed variant.
+**Build the public app on the generic host with this explicit pipeline**: `new HostBuilder().ConfigureWebHost(w => w.UseKestrel(...).ConfigureServices(...).Configure(app => ...))`. It uses public API only, with no `WebApplication` auto-wiring, so no implicit `UseAuthorization()` runs ahead of the gate (§7). It was verified at 0 extra bytes against the suppressed variant.
 - **Fallback** if M1 stays on `WebApplication`: set `((IApplicationBuilder)app).Properties["__AuthorizationMiddlewareSet"] = true` (internal key, with a comment).
 - **Guard test, needed with either option:** register a spy `IAuthorizationPolicyProvider` and assert it sees **zero** `GetFallbackPolicyAsync` calls across requests to the public app.
 
@@ -329,7 +329,7 @@ An async policy (forward-auth miss) is the only legitimate await. It should retu
 - exact match first, then a single-label wildcard;
 - IDN converted to punycode at compile time.
 
-This is 11–22 ns and 0 B for every input shape. Read the host from `Request.Headers.Host[0]`, **never `Request.Host.Host`**, which allocates 40 B when a port is present. Decide in M1 whether `*.example.com` should also match deeper names. If so, walk the remaining dots most-specific first; that's still 0 B.
+This is 11-22 ns and 0 B for every input shape. Read the host from `Request.Headers.Host[0]`, **never `Request.Host.Host`**, which allocates 40 B when a port is present. Decide in M1 whether `*.example.com` should also match deeper names. If so, walk the remaining dots most-specific first; that's still 0 B.
 
 **Gaps in the spike's table that M1's compile step must close:**
 - **Duplicate names are silently last-wins.** The spike builds through a `Dictionary` indexer. M1's compiler must **reject** duplicates, including names that collide only after case folding, trailing-dot removal or punycode conversion, and duplicate wildcard parents.
@@ -349,18 +349,18 @@ Sealed classes with all data compiled into the policy instance:
 Interface dispatch costs ≤ 1 ns per policy compared with an enum switch, which isn't worth giving up the open design.
 
 ### Response-writing helpers
-`PrecomputedResponse` is built at snapshot compile time. It holds the status, the body `byte[]`, and `StringValues` for `Content-Type`, `Location` and `Cache-Control` (plus any others). `ResponseWriter.WriteAsync` sets the headers through the **typed properties** (`Headers.Location`, `Headers.ContentType`, …), sets `ContentLength`, writes with `BodyWriter.WriteAsync(byte[])`, and returns `Task.CompletedTask` on synchronous completion. It costs 0 B on H1 and H2, including redirects. Templated error pages (§7.3) write their segments with `BodyWriter.Write(span)` and format variables straight into `GetSpan()`. For example, a request ID uses `Utf8Formatter`/`IUtf8SpanFormattable`. Never build a string.
+`PrecomputedResponse` is built at snapshot compile time. It holds the status, the body `byte[]`, and `StringValues` for `Content-Type`, `Location` and `Cache-Control` (plus any others). `ResponseWriter.WriteAsync` sets the headers through the **typed properties** (`Headers.Location`, `Headers.ContentType`, ...), sets `ContentLength`, writes with `BodyWriter.WriteAsync(byte[])`, and returns `Task.CompletedTask` on synchronous completion. It costs 0 B on H1 and H2, including redirects. Templated error pages (§7.3) write their segments with `BodyWriter.Write(span)` and format variables straight into `GetSpan()`. For example, a request ID uses `Utf8Formatter`/`IUtf8SpanFormattable`. Never build a string.
 
 ### Accepted Kestrel / YARP allocations
-- **Kestrel: ~1.0–1.1 KB/req with real browser traffic.** That covers header values and paths that differ from the previous request on the connection, unknown headers (name and value), query strings, and the H2 request-loop box when the app goes async. It is 0 B only for repetitive synthetic traffic.
+- **Kestrel: ~1.0-1.1 KB/req with real browser traffic.** That covers header values and paths that differ from the previous request on the connection, unknown headers (name and value), query strings, and the H2 request-loop box when the app goes async. It is 0 B only for repetitive synthetic traffic.
 - **ASP.NET routing / YARP init:** 152 B.
-- **YARP forwarder + `HttpClient`:** ~2.3–3 KB/req, growing with the number of forwarded headers.
-- **Realistic proxied total: ~4.1–4.6 KB/req** (generic host, browser traffic).
+- **YARP forwarder + `HttpClient`:** ~2.3-3 KB/req, growing with the number of forwarded headers.
+- **Realistic proxied total: ~4.1-4.6 KB/req** (generic host, browser traffic).
 - **Remove:** the implicit `AuthorizationMiddleware`, by using the generic host (~160 B, a box on every proxied request, and a fallback-policy hazard ahead of the gate).
 - **Budget** for Paduraksa's own YARP transforms (X-Forwarded, X-Real-IP, request ID, security headers): about what YARP's default X-Forwarded costs, ~150 B. Transforms are YARP-side and may allocate header strings, but the request ID and IP strings should come from cached or precomputed values where possible.
 
 ### Zero-alloc tests
-- `AllocAssert.Zero(state, static s => …)` unit tests for every synchronous hot-path piece, driven with a reused `DefaultHttpContext` that carries Kestrel-like features.
+- `AllocAssert.Zero(state, static s => ...)` unit tests for every synchronous hot-path piece, driven with a reused `DefaultHttpContext` that carries Kestrel-like features.
 - One in-process Kestrel test (H1 + H2) that asserts the gate's per-thread delta is 0 after warm-up.
 - Process-level Kestrel/YARP bytes as a tracked benchmark, not an assertion.
 

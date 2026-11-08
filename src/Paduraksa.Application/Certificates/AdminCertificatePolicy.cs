@@ -11,7 +11,7 @@ public static class AdminCertificatePolicy
 {
     /// <summary>
     /// Re-issue <paramref name="current"/> when the set of names it covers is no longer exactly <paramref name="desiredNames"/>
-    /// (order-insensitive), or when a third or less of its lifetime is left (<c>NotAfter</c> − (lifetime ÷ 3) reached). An
+    /// (order-insensitive), or when a third or less of its lifetime is left (<c>NotAfter</c> - (lifetime ÷ 3) reached). An
     /// already expired certificate always qualifies. A certificate not yet valid does not.
     /// </summary>
     public static bool ShouldReissue(CertificateSummary current, IReadOnlyList<string> desiredNames, DateTimeOffset now)

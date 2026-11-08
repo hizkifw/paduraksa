@@ -5,7 +5,7 @@ namespace Paduraksa.Proxy.Config;
 /// <summary>
 /// One error of <see cref="SnapshotCompiler.Compile"/>: the object it is about, by typed ID, and why. The source lets
 /// a caller that built the <see cref="ProxyConfigModel"/> from a document point back into it (M2 maps sources to JSON
-/// pointers); <see cref="ToString"/> reads <c>host 'host_…', route 'rte_…': the path …</c> for logs and tests.
+/// pointers); <see cref="ToString"/> reads <c>host 'host_...', route 'rte_...': the path ...</c> for logs and tests.
 /// </summary>
 /// <param name="Source">What the error is about.</param>
 /// <param name="Message">Human-readable explanation, without the source; wording may change.</param>

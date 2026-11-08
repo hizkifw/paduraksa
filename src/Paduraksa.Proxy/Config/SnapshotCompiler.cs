@@ -26,7 +26,7 @@ public sealed record CompileResult(RuntimeSnapshot? Snapshot, IReadOnlyList<Comp
 
 /// <summary>
 /// Validates a <see cref="ProxyConfigModel"/> and compiles it into an unbound <see cref="RuntimeSnapshot"/> candidate
-/// plus its YARP config (PLAN §6.1 step 3–4). Cold path: it may allocate freely. It reports every error it finds
+/// plus its YARP config (PLAN §6.1 step 3-4). Cold path: it may allocate freely. It reports every error it finds
 /// rather than stopping at the first, each attributed to the object it is about (<see cref="CompileErrorSource"/>:
 /// a host, route, upstream, destination or the defaults, by typed ID). YARP's own validator runs later, in
 /// <c>SnapshotPublisher</c>.
@@ -606,7 +606,7 @@ public static class SnapshotCompiler
 
                 if (respond.StatusCode is < 200 or > 599)
                 {
-                    errors.Add(new(where, $"respond status {respond.StatusCode} must be 200–599"));
+                    errors.Add(new(where, $"respond status {respond.StatusCode} must be 200-599"));
                     return null;
                 }
 
@@ -639,7 +639,7 @@ public static class SnapshotCompiler
         switch (spec)
         {
             case DenyPolicySpec deny when deny.StatusCode is < 200 or > 599:
-                errors.Add(new(where, $"deny status {deny.StatusCode} must be 200–599"));
+                errors.Add(new(where, $"deny status {deny.StatusCode} must be 200-599"));
                 break;
             case DenyPolicySpec deny when PrecomputedResponse.ForbidsBody(deny.StatusCode) && !string.IsNullOrEmpty(deny.Body):
                 errors.Add(new(where, $"a {deny.StatusCode} deny response can't have a body"));

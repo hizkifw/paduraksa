@@ -10,11 +10,11 @@ namespace Paduraksa.Proxy.Net;
 /// anything it accepts, the BCL accepts with the same address (enforced by a differential fuzz test). It never
 /// guesses at forms that parse differently between implementations, since those are a spoofing and
 /// deny-list-bypass risk.</para>
-/// <para><b>IPv4</b>: exactly four decimal parts of 1–3 digits, each 0–255, separated by single dots. Rejected:
+/// <para><b>IPv4</b>: exactly four decimal parts of 1-3 digits, each 0-255, separated by single dots. Rejected:
 /// short forms (<c>1.2.3</c>, <c>16909060</c>), octal and hex parts (<c>010.0.0.1</c>, <c>0x7f.0.0.1</c>) and
 /// <b>leading zeros</b> in any part (<c>01</c>, <c>00</c>; <c>0</c> itself is fine). The BCL reads a leading
 /// zero as octal, other parsers read it as decimal, so it is ambiguous by construction.</para>
-/// <para><b>IPv6</b>: eight groups of 1–4 hex digits (any case, leading zeros within a group allowed, as RFC 4291
+/// <para><b>IPv6</b>: eight groups of 1-4 hex digits (any case, leading zeros within a group allowed, as RFC 4291
 /// says), at most one <c>::</c> standing for one or more zero groups (<c>::</c> alone is the unspecified address),
 /// optionally ending in an embedded dotted-quad IPv4 (same IPv4 rules) as the last 32 bits.</para>
 /// <para><b>Always rejected</b>: zone IDs (<c>fe80::1%eth0</c>), brackets (<c>[::1]</c>), ports, whitespace
@@ -92,7 +92,7 @@ public static class IpParser
     private static uint Code<T>(T c)
         where T : unmanaged, IBinaryInteger<T> => uint.CreateTruncating(c);
 
-    /// <summary>Exactly four 0–255 decimal parts, no leading zeros, nothing else.</summary>
+    /// <summary>Exactly four 0-255 decimal parts, no leading zeros, nothing else.</summary>
     private static bool TryParseDottedQuad<T>(ReadOnlySpan<T> s, out uint value)
         where T : unmanaged, IBinaryInteger<T>
     {

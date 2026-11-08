@@ -63,7 +63,7 @@ public sealed record AcmeAccountKeyInfo(JwsAlgorithm Algorithm, JsonWebKeyPublic
 
 /// <summary>
 /// A signed JWS in the flattened JSON serialization (RFC 7515 §7.2.2). Each member is the already base64url-encoded
-/// string that goes into the request body unchanged: ACME writes <c>{"protected":…,"payload":…,"signature":…}</c> with
+/// string that goes into the request body unchanged: ACME writes <c>{"protected":...,"payload":...,"signature":...}</c> with
 /// exactly these values.
 /// </summary>
 /// <param name="Protected">base64url of the protected header JSON the caller supplied.</param>

@@ -73,7 +73,7 @@ internal static class ConfigNormalization
     /// <summary>A tag's normal form: trimmed and lowercase.</summary>
     public static string NormalizeTag(string? tag) => (tag ?? string.Empty).Trim().ToLowerInvariant();
 
-    /// <summary>A normalised tag is 1–<see cref="MaxTagLength"/> letters, digits or <c>- _ . : /</c>.</summary>
+    /// <summary>A normalised tag is 1-<see cref="MaxTagLength"/> letters, digits or <c>- _ . : /</c>.</summary>
     public static bool IsValidTag(string tag) =>
         tag.Length is > 0 and <= MaxTagLength && tag.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or ':' or '/');
 

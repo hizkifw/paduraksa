@@ -7,7 +7,7 @@ install guide; the design is in [PLAN.md](PLAN.md) §3, §8 and §16.
   9443/tcp (the admin app).
 - **Data:** one directory, mounted at `/data` in the container. It holds `paduraksa.db` (config, users, audit),
   `vault.db` (certificate keys, secrets, the Data Protection key ring), `last-good.json`, the admin socket under `run/`
-  and — unless you supply the master key another way — `master.key`.
+  and, unless you supply the master key another way, `master.key`.
 - **Master key:** the one key that opens `vault.db`. Keep a copy somewhere other than the data volume; losing it loses
   every certificate key, DNS credential, TOTP secret and the Data Protection key ring. Admin sessions do **not** depend on
   it: the admin session cookie is Paduraksa's own random value, stored hashed in `paduraksa.db`. See PLAN §8.3.
@@ -31,7 +31,7 @@ runtimes that do not.
 
    If you prefer to keep the compose file elsewhere, set `build.context` to your checkout (and `dockerfile` to its
    `Dockerfile`), or build the image once with `docker build -t paduraksa:local .` in the repository root and replace
-   the `build:` block with `image: paduraksa:local`. A published release image (`ghcr.io/…`, M9) is a drop-in
+   the `build:` block with `image: paduraksa:local`. A published release image (`ghcr.io/...`, M9) is a drop-in
    replacement for either.
 
    **A bind-mounted data directory** (instead of the named volume) must be owned by the container's uid 10001:
@@ -89,7 +89,7 @@ runtimes that do not.
    Then open **`https://<host>:9443/`** and enter the setup token.
 
    The admin port is HTTPS only. If you set `Paduraksa__Listen__AdminAllowedSources` (addresses/CIDRs), loopback is
-   **not** implied — add `127.0.0.1/32` if you also want the container healthcheck (`paduraksa doctor --liveness`) and
+   **not** implied - add `127.0.0.1/32` if you also want the container healthcheck (`paduraksa doctor --liveness`) and
    an SSH tunnel to work.
 
    Every list setting takes **either** one comma-separated value or indexed keys, so both shell conventions work:
@@ -118,7 +118,7 @@ runtimes that do not.
 
 443/**udp** is HTTP/3. Map it 1:1 like the TCP ports; if it is missing or firewalled, browsers fall back to HTTP/2 over
 443/tcp and nothing breaks (Paduraksa only advertises `Alt-Svc` for H3 when libmsquic loaded). The image installs
-libmsquic and logs `HTTP/3 is on: QUIC on UDP 443 …` at startup; if it says HTTP/3 is off, the package did not load.
+libmsquic and logs `HTTP/3 is on: QUIC on UDP 443 ...` at startup; if it says HTTP/3 is off, the package did not load.
 
 Do not remap the container's ports: `Alt-Svc` and the HTTP→HTTPS redirect advertise 443, because that is the port
 clients use. Behind a port translation, set `Paduraksa__Listen__PublicHttpsPort` to the outside port.
@@ -150,7 +150,7 @@ cd deploy
 docker compose up -d --build
 ```
 
-For a **published image** (replace the `build:` block with `image: ghcr.io/…` first):
+For a **published image** (replace the `build:` block with `image: ghcr.io/...` first):
 
 ```sh
 docker compose pull
@@ -192,7 +192,7 @@ docker inspect --format '{{.State.Health.Status}}' paduraksa
 ```
 
 For external monitors use the admin endpoints directly: `/healthz` (process alive, a snapshot loaded) and `/readyz`
-(serving traffic; `200 degraded` means the last-known-good config is live because the config database is unavailable —
+(serving traffic; `200 degraded` means the last-known-good config is live because the config database is unavailable;
 still ready, worth an alert). See PLAN §11.3.
 
 ## Bare metal
@@ -204,7 +204,7 @@ still ready, worth an alert). See PLAN §11.3.
    ```
 
    **Install libmsquic** from Microsoft's Ubuntu 24.04 feed, or HTTP/3 is silently off (the startup log says
-   `HTTP/3 is off: libmsquic isn't available…` and `Alt-Svc` is not advertised):
+   `HTTP/3 is off: libmsquic isn't available...` and `Alt-Svc` is not advertised):
 
    ```sh
    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \

@@ -26,7 +26,7 @@ namespace Paduraksa.Server.Cli;
 /// <para>
 /// <b>Certificate validation for this one call.</b> The admin certificate is issued by Paduraksa's own local CA (or, before
 /// one exists, is the in-memory placeholder), which this short-lived process has not loaded: trusting it would mean starting
-/// the vault — reading the master key and the database — just to ask one loopback question. So validation is turned off for
+/// the vault - reading the master key and the database - just to ask one loopback question. So validation is turned off for
 /// this call only: the connection never leaves the machine (a loopback socket), the only thing learned is "a process on this
 /// host answered 200 on /healthz", and a party able to intercept loopback traffic already has the host. It cannot be
 /// redirected to another host: the URLs are built from the configured loopback/bind address and the handler follows no

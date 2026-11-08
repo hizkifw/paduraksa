@@ -16,7 +16,7 @@ internal sealed record NewRevision(ReadOnlyMemory<byte> Document, string Summary
 
 /// <summary>A committed revision's metadata: everything but the document itself.</summary>
 /// <param name="Id">The revision ID.</param>
-/// <param name="Seq">1, 2, 3, … in commit order.</param>
+/// <param name="Seq">1, 2, 3, ... in commit order.</param>
 /// <param name="ParentId">The revision this one was made on top of; null only for the first.</param>
 /// <param name="Actor">Who made the change.</param>
 /// <param name="Channel">Where it came in.</param>

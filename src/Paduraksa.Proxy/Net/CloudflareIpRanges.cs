@@ -74,7 +74,7 @@ public static class CloudflareHeaders
     public const string Visitor = "CF-Visitor";
 
     /// <summary>The prefix of every Cloudflare request header (<c>CF-Connecting-IP</c>, <c>Cf-Access-Jwt-Assertion</c>,
-    /// <c>cf-ipcity</c>, …), compared ignoring case.</summary>
+    /// <c>cf-ipcity</c>, ...), compared ignoring case.</summary>
     public const string Prefix = "cf-";
 
     /// <summary>The well-known headers that are only meaningful from a trusted Cloudflare peer: the client-IP ones and

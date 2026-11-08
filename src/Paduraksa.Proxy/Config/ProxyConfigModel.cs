@@ -9,7 +9,7 @@ namespace Paduraksa.Proxy.Config;
 /// The compiler's input: a plain, in-memory description of the proxy config (M1). M2 builds the same records from
 /// the EF entities / canonical config document, so nothing here knows about storage. Objects are identified by their
 /// typed IDs (PLAN §4), which must be unique and non-empty; the route, upstream and destination IDs' canonical strings
-/// (<c>rte_…</c>, <c>ups_…</c>, <c>dst_…</c>) double as YARP route, cluster and destination IDs.
+/// (<c>rte_...</c>, <c>ups_...</c>, <c>dst_...</c>) double as YARP route, cluster and destination IDs.
 /// </summary>
 public sealed record ProxyConfigModel
 {
@@ -217,7 +217,7 @@ public sealed record RedirectSpec
 /// <summary>A Respond host's fixed answer.</summary>
 public sealed record RespondSpec
 {
-    /// <summary>200–599.</summary>
+    /// <summary>200-599.</summary>
     public int StatusCode { get; init; } = 200;
 
     public string Body { get; init; } = string.Empty;

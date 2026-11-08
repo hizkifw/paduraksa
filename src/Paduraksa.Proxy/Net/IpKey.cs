@@ -39,11 +39,11 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
     /// <summary>True for an IPv4 (IPv4-mapped) key.</summary>
     public bool IsIPv4 => (ulong)(_value >> 64) == 0 && ((ulong)_value & MappedPrefixMask) == MappedPrefix;
 
-    /// <summary>The IPv4 address as a big-endian-read <see cref="uint"/> (<c>a.b.c.d</c> = <c>a &lt;&lt; 24 | …</c>).
+    /// <summary>The IPv4 address as a big-endian-read <see cref="uint"/> (<c>a.b.c.d</c> = <c>a &lt;&lt; 24 | ...</c>).
     /// Only meaningful when <see cref="IsIPv4"/> is true.</summary>
     public uint IPv4Value => (uint)_value;
 
-    /// <summary>An IPv4 key from a host-order value (<c>a.b.c.d</c> = <c>a &lt;&lt; 24 | b &lt;&lt; 16 | …</c>).</summary>
+    /// <summary>An IPv4 key from a host-order value (<c>a.b.c.d</c> = <c>a &lt;&lt; 24 | b &lt;&lt; 16 | ...</c>).</summary>
     public static IpKey FromIPv4(uint address) => new(new UInt128(0, MappedPrefix | address));
 
     /// <summary>A key from 4 (IPv4) or 16 (IPv6) bytes in network order.</summary>
@@ -117,7 +117,7 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
     }
 
     /// <summary>Keeps the first <paramref name="prefixLength"/> bits <em>of the address's own family</em>
-    /// (0–32 for IPv4, 0–128 for IPv6) and zeroes the rest. An IPv4 key stays an IPv4 key.</summary>
+    /// (0-32 for IPv4, 0-128 for IPv6) and zeroes the rest. An IPv4 key stays an IPv4 key.</summary>
     /// <example><c>2001:db8:1:2:3:4:5:6</c> /64 → <c>2001:db8:1:2::</c>; <c>192.0.2.77</c> /24 → <c>192.0.2.0</c>.</example>
     public IpKey MaskTo(int prefixLength)
     {
@@ -132,7 +132,7 @@ public readonly struct IpKey : IEquatable<IpKey>, IComparable<IpKey>, ISpanForma
     public IpKey MaskTo(int ipv4PrefixLength, int ipv6PrefixLength) =>
         MaskTo(IsIPv4 ? ipv4PrefixLength : ipv6PrefixLength);
 
-    /// <summary>A mask with the top <paramref name="bits"/> (0–128) of 128 set.</summary>
+    /// <summary>A mask with the top <paramref name="bits"/> (0-128) of 128 set.</summary>
     internal static UInt128 PrefixMask(int bits) => bits == 0 ? UInt128.Zero : UInt128.MaxValue << (128 - bits);
 
     public bool Equals(IpKey other) => _value == other._value;

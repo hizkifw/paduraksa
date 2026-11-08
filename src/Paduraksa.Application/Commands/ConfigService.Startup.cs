@@ -49,7 +49,7 @@ public sealed partial class ConfigService
     /// once; it isn't written to the last-known-good file, which only ever holds a revision.</para>
     /// <para><b>Restore.</b> A database without revisions next to a usable last-known-good file has lost its config (a
     /// deleted or replaced file): the file's document is committed as revision #1 through the replace path (actor
-    /// System, message "Restored from last-known-good #N (…)", audited) and startup goes on from there. If that commit is
+    /// System, message "Restored from last-known-good #N (...)", audited) and startup goes on from there. If that commit is
     /// rejected or fails, the start is degraded on the last-known-good config (or, if that doesn't compile either, on the
     /// empty config), accepting commands.</para>
     /// <para><b>Degraded starts.</b> When the database can't be opened or migrated, or its latest revision can't be read
@@ -58,7 +58,7 @@ public sealed partial class ConfigService
     /// (<see cref="ConfigCommandStatus.Unavailable"/>) while the store itself is unusable. When only the compile failed,
     /// the database is fine and commands are accepted: they are planned on the latest revision as always (its errors
     /// show up on whatever they touch), and the first one that goes live ends the degraded state.</para>
-    /// <para><b>A failed startup publish</b> (YARP rejects it, times out, …) leaves no live config: if the last-known-good
+    /// <para><b>A failed startup publish</b> (YARP rejects it, times out, ...) leaves no live config: if the last-known-good
     /// file holds another revision and no command has committed since, that is published instead, degraded and accepting
     /// commands. A superseded startup publish isn't a failure (a newer commit's publish carries the config).</para>
     /// <para>With neither a usable database revision nor a usable last-known-good document there is nothing to serve:

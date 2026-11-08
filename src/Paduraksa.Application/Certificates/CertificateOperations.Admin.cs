@@ -19,15 +19,15 @@ namespace Paduraksa.Application.Certificates;
 /// <b>Nothing here republishes the live config.</b> The admin certificate is the process's own: no host can bind it (the
 /// validator refuses such a binding and the inventory loader leaves it out of the compiler's inventory), so a change to it
 /// can't change what the proxy serves. Registering it quietly (<see cref="CertificateService.RegisterQuietlyAsync"/>)
-/// keeps the startup step from waiting for the public app's YARP — the core host can finish it before any listener binds,
+/// keeps the startup step from waiting for the public app's YARP - the core host can finish it before any listener binds,
 /// so the admin port serves the local-CA certificate from its first request. The next compile reads the inventory fresh.
 /// </para>
 /// <para>
 /// <b>A lost vault is repaired, not waited out.</b> When the inventory has no row for the admin certificate (or the root)
-/// but the vault holds one, it is adopted from <see cref="ICertificateCatalog"/> — never re-issued — so the served
+/// but the vault holds one, it is adopted from <see cref="ICertificateCatalog"/> - never re-issued - so the served
 /// fingerprint survives and the recovery and this service cannot race each other into a second certificate. When it is the
 /// other way round (the row is there, the vault's key is gone: vault.db was deleted or restored from an older copy), the
-/// stale root row is retired and the leaf is issued again, so the admin port comes back with no operator action at all —
+/// stale root row is retired and the leaf is issued again, so the admin port comes back with no operator action at all -
 /// which matters because every manual way out (deleting the root, deleting the admin certificate, re-issuing it by hand) is
 /// refused by design.
 /// </para>
@@ -135,8 +135,8 @@ public sealed partial class CertificateOperations
 
     /// <summary>
     /// The local CA root for the admin flow, quietly (nothing can bind it either): the inventory's active one while the vault
-    /// still holds its key, or the one the vault holds that the inventory lost — adopted under
-    /// <see cref="CertificateRecovery.Label"/> so it does not matter which of the two writers registers it first — or a newly
+    /// still holds its key, or the one the vault holds that the inventory lost - adopted under
+    /// <see cref="CertificateRecovery.Label"/> so it does not matter which of the two writers registers it first - or a newly
     /// created one when the vault has none.
     /// </summary>
     /// <remarks>

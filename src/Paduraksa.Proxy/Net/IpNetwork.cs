@@ -8,8 +8,8 @@ namespace Paduraksa.Proxy.Net;
 /// <remarks>
 /// <para>An IPv4 block lives in the IPv4-mapped range: <c>10.0.0.0/8</c> is <c>::ffff:10.0.0.0/104</c>, so
 /// <c>0.0.0.0/0</c> covers all of IPv4 and nothing else, while <c>::/0</c> covers everything, IPv4 included.</para>
-/// <para>Parsing is strict: the address follows <see cref="IpParser"/>, the prefix is 0–32 for a dotted-quad
-/// address and 0–128 for an IPv6-text address, written in decimal without leading zeros or signs. Host bits set
+/// <para>Parsing is strict: the address follows <see cref="IpParser"/>, the prefix is 0-32 for a dotted-quad
+/// address and 0-128 for an IPv6-text address, written in decimal without leading zeros or signs. Host bits set
 /// below the prefix (<c>10.0.0.1/8</c>) are rejected rather than silently masked: in a trust list that's usually
 /// a typo for a single address. A bare address is a /32 or /128.</para>
 /// <para><c>default(IpNetwork)</c> is <c>::/128</c>, the single unspecified address, never <c>::/0</c>: the struct
@@ -38,7 +38,7 @@ public readonly struct IpNetwork : IEquatable<IpNetwork>
     /// <summary>True when the block is inside the IPv4(-mapped) range (/96 or longer over <c>::ffff:0:0</c>).</summary>
     public bool IsIPv4 => First.IsIPv4 && Prefix128 >= 96;
 
-    /// <summary>The prefix length in the block's own family (0–32 for IPv4, 0–128 for IPv6).</summary>
+    /// <summary>The prefix length in the block's own family (0-32 for IPv4, 0-128 for IPv6).</summary>
     public int PrefixLength => IsIPv4 ? Prefix128 - 96 : Prefix128;
 
     /// <summary>A block from a network address and a family-relative prefix length; host bits are masked off.</summary>

@@ -56,7 +56,7 @@ internal sealed class RouteRow
 
     public UpstreamId UpstreamId { get; set; }
 
-    /// <summary>0, 1, 2, … in the host's evaluation order (the canonical route order).</summary>
+    /// <summary>0, 1, 2, ... in the host's evaluation order (the canonical route order).</summary>
     public int Position { get; set; }
 
     public int Order { get; set; }

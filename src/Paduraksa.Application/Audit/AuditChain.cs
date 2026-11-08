@@ -21,15 +21,15 @@ namespace Paduraksa.Application.Audit;
 /// <item><term>1</term><description>ID: int64, big-endian (8 bytes)</description></item>
 /// <item><term>2</term><description>timestamp: int64, big-endian, UTC ticks (100 ns units since 0001-01-01T00:00:00Z)</description></item>
 /// <item><term>3</term><description>actor kind: UTF-8 name (<see cref="ModelNames"/>)</description></item>
-/// <item><term>4</term><description>actor user: UTF-8 typed-ID string (<c>usr_…</c>); user actors only</description></item>
-/// <item><term>5</term><description>actor token: UTF-8 typed-ID string (<c>tok_…</c>); token actors only</description></item>
+/// <item><term>4</term><description>actor user: UTF-8 typed-ID string (<c>usr_...</c>); user actors only</description></item>
+/// <item><term>5</term><description>actor token: UTF-8 typed-ID string (<c>tok_...</c>); token actors only</description></item>
 /// <item><term>6</term><description>channel: UTF-8 name</description></item>
 /// <item><term>7</term><description>action: UTF-8</description></item>
 /// <item><term>8</term><description>target: UTF-8 typed-ID string; optional</description></item>
 /// <item><term>9</term><description>outcome: UTF-8 name</description></item>
 /// <item><term>10</term><description>client IP: UTF-8, the stored text; optional</description></item>
 /// <item><term>11</term><description>details: UTF-8, the stored JSON text; optional</description></item>
-/// <item><term>12</term><description>revision: UTF-8 typed-ID string (<c>rev_…</c>); optional</description></item>
+/// <item><term>12</term><description>revision: UTF-8 typed-ID string (<c>rev_...</c>); optional</description></item>
 /// </list>
 /// <para>
 /// Unambiguous because every value is length-prefixed and tagged. Stable because values are the stored text (or a

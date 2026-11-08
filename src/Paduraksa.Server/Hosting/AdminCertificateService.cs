@@ -31,7 +31,7 @@ namespace Paduraksa.Server.Hosting;
 /// out (the sanctioned egress, like the public listener); the private key never leaves the vault's process boundary.
 /// </para>
 /// <para>
-/// <b>Never a lock-out.</b> Whatever the inventory step does — it fails, or a degraded config store refuses it — the run
+/// <b>Never a lock-out.</b> Whatever the inventory step does - it fails, or a degraded config store refuses it - the run
 /// still serves the certificate the vault holds, and only falls back to the placeholder when the vault has nothing usable.
 /// A failure must not discard a valid certificate: the admin sends HSTS for non-loopback names, so a browser that trusted
 /// the root has pinned the name and the self-signed placeholder would be a hard error with no click-through. Every failure
@@ -128,7 +128,7 @@ internal sealed partial class AdminCertificateService : BackgroundService
     };
 
     /// <summary>
-    /// The startup run, awaited by the core host so the certificate is ready before the web apps bind — but only up to
+    /// The startup run, awaited by the core host so the certificate is ready before the web apps bind - but only up to
     /// <see cref="AdminOptions.CertificateStartupTimeout"/>: a slow vault must not hold the public proxy off 443. On timeout
     /// the run continues in the background under a token this service owns (so it can be cancelled and waited for on stop)
     /// and the admin port serves what the vault already has meanwhile.

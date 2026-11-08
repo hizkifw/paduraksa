@@ -84,7 +84,7 @@ public static class AdminAuthEndpointExtensions
 }
 
 /// <summary>
-/// Authenticates <c>/api/</c> requests (PLAN §10.1): a session cookie or a <c>Bearer pdk_…</c> token, checked through
+/// Authenticates <c>/api/</c> requests (PLAN §10.1): a session cookie or a <c>Bearer pdk_...</c> token, checked through
 /// <see cref="SessionService"/> and <see cref="ApiTokenService"/> on every request, so a revoked token or a revoked session stops
 /// working at once. On success it sets the <see cref="AdminCaller"/>.
 /// </summary>

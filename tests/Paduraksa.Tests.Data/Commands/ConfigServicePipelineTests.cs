@@ -250,7 +250,7 @@ public sealed class ConfigServicePipelineTests
     {
         // PLAN §14 M2: change → revision → live in < 100 ms. Real SQLite file and a real publisher (no YARP attached,
         // so the swap is immediate; the S2 spike measured YARP's apply separately), with a 200-host config. Measured
-        // on a dev machine: median 15–21 ms, p90 18–41 ms, max 50–71 ms. Only the median is asserted, after a warm-up,
+        // on a dev machine: median 15-21 ms, p90 18-41 ms, max 50-71 ms. Only the median is asserted, after a warm-up,
         // and a slow round (a loaded CI machine) gets one more try, like AllocAssert.
         await using var h = await ConfigServiceHarness.CreateAsync();
         var document = new ConfigDocument(Hosts:

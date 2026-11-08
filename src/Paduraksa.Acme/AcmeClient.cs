@@ -19,7 +19,7 @@ namespace Paduraksa.Acme;
 /// <para>
 /// Failures are <see cref="AcmeException"/>s whose <see cref="AcmeException.Kind"/> tells a scheduler whether to retry. Caller
 /// mistakes (an account without a key, a malformed ID) are <see cref="InvalidOperationException"/> and
-/// <see cref="ArgumentException"/>. The <c>WaitFor…</c> methods return the resource in whatever terminal state it reached,
+/// <see cref="ArgumentException"/>. The <c>WaitFor...</c> methods return the resource in whatever terminal state it reached,
 /// <see cref="AcmeStatus.Invalid"/> included, so a caller can read the embedded problem; they throw only for a failed request
 /// or an <see cref="AcmePollException"/> when the CA stays busy or asks to be left alone longer than the poll bounds.
 /// </para>

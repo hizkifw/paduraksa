@@ -339,7 +339,7 @@ public static class ConfigValidator
             {
                 if (!ConfigNormalization.IsValidTag(ConfigNormalization.NormalizeTag(tags[i])))
                 {
-                    Add($"{path}/tags/{i}", HostTagInvalid, $"tag '{tags[i]}' must be 1–{ConfigNormalization.MaxTagLength} letters, digits or '- _ . : /'");
+                    Add($"{path}/tags/{i}", HostTagInvalid, $"tag '{tags[i]}' must be 1-{ConfigNormalization.MaxTagLength} letters, digits or '- _ . : /'");
                 }
             }
 
@@ -488,7 +488,7 @@ public static class ConfigValidator
         {
             if (respond.StatusCode is < 200 or > 599)
             {
-                Add($"{path}/statusCode", RespondStatusCodeInvalid, $"respond status {respond.StatusCode} must be 200–599");
+                Add($"{path}/statusCode", RespondStatusCodeInvalid, $"respond status {respond.StatusCode} must be 200-599");
             }
             else if (respond.StatusCode is 204 or 205 or 304 && !string.IsNullOrEmpty(respond.Body))
             {
@@ -505,7 +505,7 @@ public static class ConfigValidator
             if (string.IsNullOrWhiteSpace(contentType) || contentType.Length > MaxContentTypeLength
                 || contentType.Any(c => c is not ((>= '\x21' and <= '\x7E') or ' ' or '\t')))
             {
-                Add($"{path}/contentType", RespondContentTypeInvalid, $"the content type must be 1–{MaxContentTypeLength} visible ASCII characters, spaces or tabs");
+                Add($"{path}/contentType", RespondContentTypeInvalid, $"the content type must be 1-{MaxContentTypeLength} visible ASCII characters, spaces or tabs");
             }
         }
 

@@ -10,7 +10,7 @@ namespace Paduraksa.Tests.Shared;
 
 /// <summary>
 /// Typed IDs named by a readable label, so a config reads <c>TestIds.Host("app")</c> instead of an opaque
-/// <c>host_…</c>. The ID is a hash of its prefix and the label: the same label always gives the same ID (across runs
+/// <c>host_...</c>. The ID is a hash of its prefix and the label: the same label always gives the same ID (across runs
 /// too), different labels give different IDs, and labels that differ only in case are different labels.
 /// These aren't valid UUIDv7 values and their order means nothing (sort them only to compare collections).
 /// </summary>

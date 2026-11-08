@@ -171,7 +171,7 @@ oha (Docker, CPUs 4-11) ──► proxy under test (CPUs 0-3) ──► upstream
 
 **Fixed concurrency:** throughput and latency are measured first at **64 requests in flight**.
 - HTTP/1.1: 64 connections.
-- HTTP/2: 16 connections × 4 streams.
+- HTTP/2: 16 connections x 4 streams.
 
 At fixed concurrency, mean latency is concurrency ÷ throughput (Little's law), so the latency medians only restate
 throughput. Compare latency at the fixed rates below.
@@ -181,7 +181,7 @@ throughput. Compare latency at the fixed rates below.
 | `h1` | plain HTTP/1.1 `GET /` to `bench.test`, proxied |
 | `h1-tls` | HTTPS, HTTP/1.1, proxied |
 | `h2-tls` | HTTPS, HTTP/2, proxied |
-| `browser` | HTTPS, HTTP/2, proxied, with the 13 Chrome-like headers from spike S3 (`sec-ch-ua*`, `Sec-Fetch-*`, `Referer`, `Cookie`, `priority`, …) and random paths with query strings (`/static/abcdef.js?v=123`, …) |
+| `browser` | HTTPS, HTTP/2, proxied, with the 13 Chrome-like headers from spike S3 (`sec-ch-ua*`, `Sec-Fetch-*`, `Referer`, `Cookie`, `priority`, ...) and random paths with query strings (`/static/abcdef.js?v=123`, ...) |
 | `answered` | plain HTTP/1.1 `GET /` to `respond.test`, answered by the proxy itself (Paduraksa: a Respond host in the gate) |
 | `cf` | Paduraksa only: plain HTTP/1.1 like `h1`, through a second runner process that trusts loopback as a Cloudflare Tunnel (`--cloudflare-tunnel true`). Each request carries `CF-Connecting-IP` (IPv6), `CF-Visitor` and `CF-Ray`; the client address and scheme are resolved per request and forwarded as `X-Forwarded-For`/`-Proto`. It gets its own 10 s warm-up. |
 
@@ -194,7 +194,7 @@ throughput. Compare latency at the fixed rates below.
 
 - **Shared machine.** Other agents and services run on the same box. CPU pinning limits the interference but doesn't
   remove it: the cores share L3, memory bandwidth and the package power budget, and the upstream shares the E-cores
-  with everything else. Expect run-to-run differences of ±5–10 % in throughput and much more at p99 and beyond.
+  with everything else. Expect run-to-run differences of ±5-10 % in throughput and much more at p99 and beyond.
   Tail numbers from a single 10 s run are anecdotes; use `REPEATS=3 RATE_DURATION=30s` and the median.
 - **Loopback, one box.** There's no real network, so latencies are microseconds plus scheduling. The load generator
   shares the machine. The `upstream direct` line shows the ceiling of the load generator plus the upstream.

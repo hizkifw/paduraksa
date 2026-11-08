@@ -33,7 +33,7 @@ public sealed class ConfigStoreEndToEndTests
     {
         // PLAN §14 M2: change → revision → live in < 100 ms. Each round creates an upstream and a host routed to it (two
         // commits, two YARP applies) and ends when the first request for the new host comes back from the upstream.
-        // Measured on a dev machine, with the rest of the suite running alongside: median 11–15 ms, max 25 ms. Only the
+        // Measured on a dev machine, with the rest of the suite running alongside: median 11-15 ms, max 25 ms. Only the
         // median is asserted, after a warm-up, and a slow round (a loaded CI machine) gets one more try, like the
         // pipeline's own timing test.
         CancellationToken ct = TestContext.Current.CancellationToken;
@@ -115,7 +115,7 @@ public sealed class ConfigStoreEndToEndTests
         Assert.Equal("Rollback to #1", history[0].Message);
         AuditChainReport audit = await AuditChainVerifier.VerifyAsync(database, ct);
         Assert.True(audit.IsIntact, audit.Break?.Description);
-        // Exactly: the three config revisions, plus the process's own certificate events at startup — the local CA root and the
+        // Exactly: the three config revisions, plus the process's own certificate events at startup - the local CA root and the
         // admin listener's leaf, each registered pending (certificate.add) and then active (certificate.update).
         long certificateEvents = Convert.ToInt64(await ScalarAsync(data, "SELECT count(*) FROM AuditEvents WHERE \"Action\" IN ('certificate.add', 'certificate.update')", ct));
         Assert.Equal(2 * 2, certificateEvents);

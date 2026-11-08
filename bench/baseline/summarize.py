@@ -112,11 +112,11 @@ def runtime(samples, result):
 
 
 def ms(seconds) -> str:
-    return "–" if seconds is None else f"{seconds * 1000:.2f}"
+    return "-" if seconds is None else f"{seconds * 1000:.2f}"
 
 
 def num(value, digits=0) -> str:
-    return "–" if value is None else f"{value:,.{digits}f}"
+    return "-" if value is None else f"{value:,.{digits}f}"
 
 
 def cpu(result):
@@ -147,10 +147,10 @@ def main() -> None:
         emit("| Scenario | " + " | ".join(NAMES[p] for p in proxies) + "".join(f" | Paduraksa ÷ {NAMES[p]}" for p in ratios) + " |")
         emit("|---|" + "---:|" * (len(proxies) + len(ratios)))
         for key, label in scenarios:
-            cells = [num(runs[(p, key)]["rps"]) if runs[(p, key)] else "–" for p in proxies]
+            cells = [num(runs[(p, key)]["rps"]) if runs[(p, key)] else "-" for p in proxies]
             for other in ratios:
                 mine, theirs = runs[("paduraksa", key)], runs[(other, key)]
-                cells.append(f"{mine['rps'] / theirs['rps']:.2f}" if mine and theirs and theirs["rps"] else "–")
+                cells.append(f"{mine['rps'] / theirs['rps']:.2f}" if mine and theirs and theirs["rps"] else "-")
             emit(f"| {label} | " + " | ".join(cells) + " |")
         upstream = load(raw, "upstream.h1")
         if upstream is not None:
@@ -166,7 +166,7 @@ def main() -> None:
             cells = []
             for p in proxies:
                 per_request, busy = cpu(runs[(p, key)])
-                cells.append("–" if per_request is None else f"{per_request:.1f} ({busy:.2f})")
+                cells.append("-" if per_request is None else f"{per_request:.1f} ({busy:.2f})")
             emit(f"| {label} | " + " | ".join(cells) + " |")
 
         emit("")
@@ -209,11 +209,11 @@ def main() -> None:
 
             p99 = ms(med("p99"))
             if len(results) > 1:
-                p99 += f" ({ms(min(r['p99'] for r in results))}–{ms(max(r['p99'] for r in results))})"
+                p99 += f" ({ms(min(r['p99'] for r in results))}-{ms(max(r['p99'] for r in results))})"
             cpus = [cpu(r)[0] for r in results if cpu(r)[0] is not None]
             emit(f"| {LABELS.get(scenario, scenario)} | {num(rate)} | {NAMES[proxy]} | {num(med('rps'))} | {ms(med('p50'))} "
                  f"| {ms(med('p90'))} | {ms(med('p95'))} | {p99} | {ms(med('p999'))} "
-                 f"| {num(statistics.median(cpus), 1) if cpus else '–'} | {sum(r['failed'] for r in results)} |")
+                 f"| {num(statistics.median(cpus), 1) if cpus else '-'} | {sum(r['failed'] for r in results)} |")
 
     paduraksa_runs = [(k, runs[("paduraksa", k)]) for k, _ in SCENARIOS if runs.get(("paduraksa", k))]
     paduraksa_runs += [(f"{s} at {num(rate)} req/s (run {i + 1})", r)

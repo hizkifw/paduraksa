@@ -62,7 +62,7 @@ internal static class AllocAssert
     /// </summary>
     /// <remarks>
     /// Under parallel test load the per-thread counter occasionally jumps once, by up to one allocation quantum
-    /// (2.5–8 KB seen), with nothing allocated by the code under test: always exactly one sample at a random iteration,
+    /// (2.5-8 KB seen), with nothing allocated by the code under test: always exactly one sample at a random iteration,
     /// also with tiered compilation off and with no GC during that call, never in isolation. A real hot-path allocation
     /// in deterministic code happens on every call, or at least repeatably, so it survives the re-measure.
     /// </remarks>

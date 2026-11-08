@@ -94,7 +94,7 @@ public sealed partial class CertificateService
 
     /// <summary>
     /// Like <see cref="RegisterAsync"/>, but <b>never republishes</b> the live config: for a certificate nothing in the
-    /// document can bind — the admin listener's own (PLAN §3, §10.1), which the process issues and serves itself. The row is
+    /// document can bind - the admin listener's own (PLAN §3, §10.1), which the process issues and serves itself. The row is
     /// still written and audited; the next compile reads the inventory fresh, so nothing is lost.
     /// </summary>
     internal async Task<CertificateChangeResult> RegisterQuietlyAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
