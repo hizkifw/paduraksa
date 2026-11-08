@@ -129,11 +129,11 @@ public sealed class CertificateImportHardeningTests : IDisposable
     {
         using var ca = TestCa.CreateRoot();
         using var key = TestCa.NewKey();
-        using var leaf = ca.Sign(RequestFor(key, San("old.example.com")), notBefore: DateTimeOffset.UtcNow.AddDays(-100), validity: TimeSpan.FromDays(10));
+        using var leaf = ca.Sign(RequestFor(key, San("old.example.com")), notBefore: VaultHarness.Epoch.AddDays(-100), validity: TimeSpan.FromDays(10));
 
         var info = await Import.ImportAsync(CertificateId.New(), Stream(Upload(leaf, key)), default, Ct);
 
-        Assert.True(info.NotAfter < DateTimeOffset.UtcNow);
+        Assert.True(info.NotAfter < VaultHarness.Epoch);
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public sealed class CertificateImportHardeningTests : IDisposable
         using var ecdsa = ca.IssueWithKey("ec.example.com");
         using var rsaKey = RSA.Create(2048);
         var request = new CertificateRequest("CN=rsa.example.com", rsaKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using var rsa = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using var rsa = request.CreateSelfSigned(VaultHarness.Epoch.AddDays(-1), VaultHarness.Epoch.AddDays(1));
 
         var creators = CertificateImport.CandidateKeyTypes([ecdsa, rsa]);
 

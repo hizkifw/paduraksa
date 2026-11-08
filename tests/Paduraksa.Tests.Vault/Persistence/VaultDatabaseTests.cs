@@ -17,7 +17,7 @@ public sealed class VaultDatabaseTests : IDisposable
 
     private readonly Kek _kek = Kek.Generate();
 
-    private readonly ManualTimeProvider _time = new(new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero));
+    private readonly ManualTimeProvider _time = new(VaultHarness.Epoch);
 
     public void Dispose()
     {

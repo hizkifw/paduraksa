@@ -100,7 +100,7 @@ public sealed class SecretStoreTests : IDisposable
 
         Assert.Equal(id, replaced.Id);
         Assert.Equal(2, replaced.Version);
-        Assert.Equal(new DateTimeOffset(2026, 11, 7, 12, 0, 0, TimeSpan.Zero), replaced.CreatedAt);
+        Assert.Equal(VaultHarness.Epoch, replaced.CreatedAt);
         Assert.Equal(_vault.Time.Now, replaced.UpdatedAt);
         Assert.Equal("Cloudflare", replaced.Label);
         Assert.Equal(["api.example.com"], replaced.AllowedHosts);

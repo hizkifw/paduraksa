@@ -44,6 +44,7 @@ public sealed class CertificateIssuanceTests : IDisposable
         chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
         chain.ChainPolicy.CustomTrustStore.Add(root);
         chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+        chain.ChainPolicy.VerificationTime = VaultHarness.Epoch.UtcDateTime; // the vault's clock, not the wall clock
         foreach (var extra in certificates.Skip(1))
         {
             chain.ChainPolicy.ExtraStore.Add(extra);
@@ -337,7 +338,7 @@ public sealed class CertificateIssuanceTests : IDisposable
     {
         await Issuance.EnsureLocalCaAsync(CertificateId.New(), KeySpec.EcdsaP256, TimeSpan.FromDays(10), Ct);
         var info = await Issuance.IssueFromLocalCaAsync(CertificateId.New(), KeySpec.EcdsaP256, AppNames, TimeSpan.FromDays(365), Ct);
-        Assert.True(info.NotAfter < DateTimeOffset.UtcNow.AddDays(11));
+        Assert.True(info.NotAfter < VaultHarness.Epoch.AddDays(11));
     }
 
     [Fact]

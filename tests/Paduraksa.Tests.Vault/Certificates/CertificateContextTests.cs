@@ -127,6 +127,7 @@ public sealed class CertificateContextTests : IDisposable
                 verify.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
                 verify.ChainPolicy.CustomTrustStore.Add(root);
                 verify.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                verify.ChainPolicy.VerificationTime = VaultHarness.Epoch.UtcDateTime; // the vault's clock, not the wall clock
                 foreach (var extra in chain!.ChainElements.Skip(1))
                 {
                     verify.ChainPolicy.ExtraStore.Add(extra.Certificate);

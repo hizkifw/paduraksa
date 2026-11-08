@@ -41,8 +41,8 @@ public sealed class CertificateIssuanceHardeningTests : IDisposable
     {
         using var ca = TestCa.CreateRoot();
         var (id, csr) = await StageAsync();
-        using var expired = ca.Issue(csr.Der.ToArray(), validity: TimeSpan.FromDays(10), notBefore: DateTimeOffset.UtcNow.AddDays(-100));
-        using var future = ca.Issue(csr.Der.ToArray(), notBefore: DateTimeOffset.UtcNow.AddDays(1));
+        using var expired = ca.Issue(csr.Der.ToArray(), validity: TimeSpan.FromDays(10), notBefore: VaultHarness.Epoch.AddDays(-100));
+        using var future = ca.Issue(csr.Der.ToArray(), notBefore: VaultHarness.Epoch.AddDays(1));
 
         var early = await Assert.ThrowsAsync<CryptographicException>(async () => await Issuance.AttachChainAsync(id, csr.StagedKey, Pem(expired), Ct));
         var late = await Assert.ThrowsAsync<CryptographicException>(async () => await Issuance.AttachChainAsync(id, csr.StagedKey, Pem(future), Ct));

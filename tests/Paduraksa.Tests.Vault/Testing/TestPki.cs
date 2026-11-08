@@ -7,6 +7,14 @@ namespace Paduraksa.Tests.Vault.Testing;
 /// <summary>A small certificate authority for the tests: stands in for an ACME CA or for whoever issued an uploaded certificate.</summary>
 internal sealed class TestCa : IDisposable
 {
+    /// <summary>
+    /// The vault tests run on <see cref="VaultHarness.Epoch"/>'s frozen clock, and the vault checks every certificate's
+    /// validity against that clock, not the wall clock. Anchoring the test CA to it keeps the suite deterministic (an earlier
+    /// version used <see cref="DateTimeOffset.UtcNow"/>, which put a default leaf's <c>notBefore</c> after the frozen clock as
+    /// soon as a day had passed since the harness date).
+    /// </summary>
+    private static readonly DateTimeOffset TestNow = VaultHarness.Epoch;
+
     private readonly ECDsa _key;
 
     private TestCa(ECDsa key, X509Certificate2 certificate)
@@ -26,7 +34,7 @@ internal sealed class TestCa : IDisposable
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign, true));
         request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
-        var now = DateTimeOffset.UtcNow;
+        var now = TestNow;
         using var self = request.CreateSelfSigned(now.AddDays(-1), now.AddYears(10));
         return new TestCa(key, X509CertificateLoader.LoadCertificate(self.RawData));
     }
@@ -41,7 +49,7 @@ internal sealed class TestCa : IDisposable
         var subjectKeyIdentifier = new X509SubjectKeyIdentifierExtension(request.PublicKey, false);
         request.CertificateExtensions.Add(subjectKeyIdentifier);
         request.CertificateExtensions.Add(X509AuthorityKeyIdentifierExtension.CreateFromCertificate(Certificate, true, false));
-        var now = DateTimeOffset.UtcNow;
+        var now = TestNow;
         using var signed = request.Create(Certificate.SubjectName, X509SignatureGenerator.CreateForECDsa(_key), now.AddDays(-1), now.AddYears(5), NewSerial());
         return new TestCa(key, X509CertificateLoader.LoadCertificate(signed.RawData));
     }
@@ -65,7 +73,7 @@ internal sealed class TestCa : IDisposable
             request.CertificateExtensions.Add(san.Build());
         }
 
-        var start = notBefore ?? DateTimeOffset.UtcNow.AddDays(-1);
+        var start = notBefore ?? TestNow.AddDays(-1);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
         request.CertificateExtensions.Add(X509AuthorityKeyIdentifierExtension.CreateFromCertificate(Certificate, true, false));
         return request.Create(Certificate.SubjectName, X509SignatureGenerator.CreateForECDsa(_key), start, start + (validity ?? TimeSpan.FromDays(90)), serial ?? NewSerial());
@@ -98,7 +106,7 @@ internal sealed class TestCa : IDisposable
 
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
         request.CertificateExtensions.Add(X509AuthorityKeyIdentifierExtension.CreateFromCertificate(Certificate, true, false));
-        var now = DateTimeOffset.UtcNow;
+        var now = TestNow;
         using var signed = request.Create(Certificate.SubjectName, X509SignatureGenerator.CreateForECDsa(_key), now.AddDays(-1), now.AddDays(90), NewSerial());
         return signed.CopyWithPrivateKey(key);
     }
@@ -106,7 +114,7 @@ internal sealed class TestCa : IDisposable
     /// <summary>Signs a request exactly as built (no extensions added), valid from <paramref name="notBefore"/> (default a day ago) for <paramref name="validity"/> (default 90 days).</summary>
     public X509Certificate2 Sign(CertificateRequest request, DateTimeOffset? notBefore = null, TimeSpan? validity = null)
     {
-        var start = notBefore ?? DateTimeOffset.UtcNow.AddDays(-1);
+        var start = notBefore ?? TestNow.AddDays(-1);
         return request.Create(Certificate.SubjectName, X509SignatureGenerator.CreateForECDsa(_key), start, start + (validity ?? TimeSpan.FromDays(90)), NewSerial());
     }
 
