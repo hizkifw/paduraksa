@@ -210,7 +210,7 @@ public sealed class ApiTokenServiceTests
         var crossed = ApiTokenFormat.Format(idA, secretB);
         var unknown = ApiTokenFormat.Format(ApiTokenId.New(), secretB);
 
-        foreach (var presented in new[] { null, "", "pdk_", "Bearer " + a, a + "x", a[..^1] + "0", crossed, unknown })
+        foreach (var presented in new[] { null, "", "pdk_", "Bearer " + a, a + "x", a[..^1] + (a[^1] == '0' ? "1" : "0"), crossed, unknown })
         {
             Assert.False((await h.Tokens.VerifyAsync(presented, Ct)).IsValid);
         }

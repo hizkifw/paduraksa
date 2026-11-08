@@ -115,10 +115,11 @@ internal static class EdgeClient
         using TcpClient tcp = new();
         await tcp.ConnectAsync(IPAddress.Loopback, TestHost.Endpoint(host, HostRole.Public, "http").Port, ct);
         NetworkStream stream = tcp.GetStream();
-        await stream.WriteAsync(bytes, ct);
         using StreamReader reader = new(stream, Encoding.ASCII);
         try
         {
+            // The write is inside: a listener that refuses the peer may reset the connection before it is sent.
+            await stream.WriteAsync(bytes, ct);
             return await reader.ReadToEndAsync(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
         }
         catch (IOException)
@@ -138,9 +139,10 @@ internal static class EdgeClient
         using TcpClient tcp = new();
         await tcp.ConnectAsync(IPAddress.Loopback, TestHost.Endpoint(host, HostRole.Public, "https").Port, ct);
         NetworkStream stream = tcp.GetStream();
-        await stream.WriteAsync(prefix, ct);
         try
         {
+            // As above: the prefix write can meet a reset from a listener that refuses the peer.
+            await stream.WriteAsync(prefix, ct);
             await using SslStream tls = new(stream);
             await tls.AuthenticateAsClientAsync(
                 new SslClientAuthenticationOptions
