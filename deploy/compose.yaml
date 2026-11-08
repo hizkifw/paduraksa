@@ -1,6 +1,6 @@
-# Paduraksa v0.1, single node (PLAN §16). Copy this file next to where you keep the master key, then:
+# Paduraksa v0.1, single node (PLAN §16). Run it from this directory (it builds the image from the checkout one level up):
 #
-#   docker compose up -d
+#   docker compose up -d --build
 #
 # The ports are mapped 1:1 on purpose: Paduraksa advertises 443 in Alt-Svc and in its HTTP->HTTPS redirect, so a
 # translated in-container port would send clients to the wrong place. 443/udp is HTTP/3; without it the proxy still
@@ -14,6 +14,10 @@ services:
       dockerfile: Dockerfile
     image: paduraksa:local
     container_name: paduraksa
+    # A stable MachineName: the admin certificate covers it, so a recreated container keeps the same name set.
+    hostname: paduraksa
+    # A tiny init reaps orphaned child processes (the healthcheck's short-lived paduraksa process).
+    init: true
     restart: unless-stopped
     stop_grace_period: 35s
     ports:
@@ -23,13 +27,29 @@ services:
       - "9443:9443"
     volumes:
       - paduraksa-data:/data
+      # A bind mount instead of the named volume: the container runs as uid 10001, so the host directory must be its:
+      #   sudo install -d -o 10001 -g 10001 -m 0750 ./data
+      # - ./data:/data
+
+    # Capabilities. The image's apphost carries cap_net_bind_service (setcap) for runtimes without Docker's
+    # net.ipv4.ip_unprivileged_port_start=0 sysctl. If you harden with `cap_drop: [ALL]`, you MUST add it back:
+    #   cap_drop: [ALL]
+    #   cap_add: [NET_BIND_SERVICE]
+    # or exec of /app/paduraksa fails with EPERM. Kubernetes "restricted" needs the same:
+    #   securityContext: { capabilities: { add: ["NET_BIND_SERVICE"] } }
+    # alternatively set net.ipv4.ip_unprivileged_port_start=0 in the pod's sysctls.
 
     # Master key (PLAN §8.3). Recommended for anything reachable: with PADURAKSA_MASTER_KEY_FILE pointing at a Docker
-    # secret, the key never sits in the data directory, so a copy of the volume is not a copy of all your keys. Create
-    # the file with `head -c 32 /dev/urandom | base64 > master.key && chmod 600 master.key` first.
+    # secret, the key never sits in the data directory, so a copy of the volume is not a copy of all your keys.
+    #
+    # Non-swarm Compose mounts a file secret as a bind mount, keeping the *host's* owner and mode, and the container runs
+    # as uid 10001:
+    #   head -c 32 /dev/urandom | base64 | sudo tee master.key >/dev/null
+    #   sudo chown 10001:10001 master.key && sudo chmod 400 master.key
     #
     # WARNING: whichever key the vault is created under is the only key that opens it. Back the key up somewhere
-    # separate from the volume; losing it loses every certificate key, secret and the Data Protection key ring.
+    # separate from the volume; losing it loses every certificate key, secret, TOTP enrolment and the Data Protection
+    # key ring (admin sessions are Paduraksa's own random cookie, not in the vault).
     #
     # secrets:
     #   - paduraksa-master-key
