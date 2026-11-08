@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
-
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Core.Acme;
@@ -64,7 +64,35 @@ internal sealed class SharedServices : IAsyncDisposable
         AcmeIssuance = Get<AcmeIssuanceService>();
         AcmeScheduler = Get<AcmeRenewalScheduler>();
         LastKnownGood = Get<LastKnownGoodFile>();
+        Users = Get<UserService>();
+        Sessions = Get<SessionService>();
+        TwoFactor = Get<TwoFactorService>();
+        Login = Get<LoginService>();
+        ApiTokens = Get<ApiTokenService>();
+        Setup = Get<SetupService>();
+        Permissions = Get<IPermissionEvaluator>();
     }
+
+    /// <summary>User management (PLAN §10.1); the admin app (M4 wave 2) builds on the identity services below.</summary>
+    public UserService Users { get; }
+
+    /// <summary>Admin sessions: cookie validation, listing, revoking.</summary>
+    public SessionService Sessions { get; }
+
+    /// <summary>TOTP enrolment and recovery codes.</summary>
+    public TwoFactorService TwoFactor { get; }
+
+    /// <summary>Sign-in with a password and, for users with one, a second factor.</summary>
+    public LoginService Login { get; }
+
+    /// <summary>API tokens: issue, list, revoke, verify.</summary>
+    public ApiTokenService ApiTokens { get; }
+
+    /// <summary>First-run setup: whether an Owner exists, and the one-time setup token.</summary>
+    public SetupService Setup { get; }
+
+    /// <summary>What an actor may do; the real authorizers decide with it.</summary>
+    public IPermissionEvaluator Permissions { get; }
 
     /// <summary>The one logger factory of the process. Each host sees it through a <see cref="RoleLoggerFactory"/>.</summary>
     public ILoggerFactory LoggerFactory { get; }
@@ -175,7 +203,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // The vault before the config store, so it is disposed after it (the store loads certificates through it).
             VaultCapabilities vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
             ConfigStoreServices configStore = ConfigStore.AddTo(
-                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, options.Development.PlaceholderCertificate, timeProvider, coreLoggers);
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
 
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate reads the class.
             AcmeChallengeStore challenges = builder.Add(new AcmeChallengeStore());

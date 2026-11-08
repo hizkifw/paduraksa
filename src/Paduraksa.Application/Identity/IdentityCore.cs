@@ -152,6 +152,13 @@ internal sealed class PermissionConfigCommandAuthorizer(IPermissionEvaluator per
         permissions.IsAllowedAsync(origin, Permission.ConfigWrite, cancellationToken);
 }
 
+/// <summary>Runs certificate operations (upload, issue, re-issue, delete) only for origins holding <see cref="Permission.CertificatesWrite"/>.</summary>
+internal sealed class PermissionCertificateOperationAuthorizer(IPermissionEvaluator permissions) : Certificates.ICertificateOperationAuthorizer
+{
+    public ValueTask<bool> IsAllowedAsync(Contracts.Certificates.CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken) =>
+        permissions.IsAllowedAsync(origin, Permission.CertificatesWrite, cancellationToken);
+}
+
 /// <summary>Appends identity events to the audit chain, in the caller's transaction or in one of its own.</summary>
 internal sealed partial class IdentityAudit(TimeProvider time, ILoggerFactory loggerFactory)
 {

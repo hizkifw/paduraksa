@@ -12,8 +12,8 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// Decides whether an origin may run a certificate operation (the M4 seam: roles and token scopes). Denials are not audited
-/// here yet; the surface that asks reports them.
+/// Decides whether an origin may run a certificate operation (<c>AddPaduraksaIdentity</c> registers the permission-based one).
+/// Denials are not audited here; the surface that asks reports them.
 /// </summary>
 public interface ICertificateOperationAuthorizer
 {
@@ -21,12 +21,11 @@ public interface ICertificateOperationAuthorizer
     ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken);
 }
 
-/// <summary>The authorizer until roles and scopes exist: allows everything, like <c>AllowAllConfigCommands</c>.</summary>
+/// <summary>The authorizer for a service built without the identity services (tests): allows everything, like <c>AllowAllConfigCommands</c>.</summary>
 internal sealed class AllowAllCertificateOperations : ICertificateOperationAuthorizer
 {
     public static AllowAllCertificateOperations Instance { get; } = new();
 
-    // TODO(M4): check the actor's role (Owner/Admin may manage certificates) and a token's scopes (certificates:write).
     public ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken) =>
         ValueTask.FromResult(true);
 }

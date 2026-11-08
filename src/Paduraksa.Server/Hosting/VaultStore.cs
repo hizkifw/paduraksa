@@ -21,6 +21,7 @@ namespace Paduraksa.Server.Hosting;
 /// <param name="MacKeys">Opens external-account-binding MAC keys for the ACME client.</param>
 /// <param name="Secrets">Secret metadata and storage (DNS provider credentials).</param>
 /// <param name="SecretHandlers">The authenticating HTTP handlers DNS providers build their clients over.</param>
+/// <param name="Totp">Two-factor codes for admin users (the secret never leaves the vault).</param>
 internal sealed record VaultCapabilities(
     IVaultLifecycle Lifecycle,
     IServerCertificateSource ServerCertificates,
@@ -30,7 +31,8 @@ internal sealed record VaultCapabilities(
     IJwsSigner Signer,
     IMacKeySource MacKeys,
     ISecretStore Secrets,
-    ISecretHttpHandlerFactory SecretHandlers);
+    ISecretHttpHandlerFactory SecretHandlers,
+    ITotpAuthenticator Totp);
 
 /// <summary>
 /// Composes the vault (PLAN §8) into the shared services: the one <c>AddPaduraksaVault</c> registration, over the data
@@ -59,7 +61,8 @@ internal static class VaultStore
             container.GetRequiredService<IJwsSigner>(),
             container.GetRequiredService<IMacKeySource>(),
             container.GetRequiredService<ISecretStore>(),
-            container.GetRequiredService<ISecretHttpHandlerFactory>());
+            container.GetRequiredService<ISecretHttpHandlerFactory>(),
+            container.GetRequiredService<ITotpAuthenticator>());
     }
 }
 

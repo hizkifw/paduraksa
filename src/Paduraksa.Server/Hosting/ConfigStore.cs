@@ -5,10 +5,12 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
+using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Placeholders;
 using Paduraksa.Storage.Sqlite;
 
@@ -45,6 +47,7 @@ internal static class ConfigStore
         PlaceholderCertificates placeholder,
         VaultCapabilities vault,
         bool placeholderEnabled,
+        AdminOptions admin,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory)
     {
@@ -65,6 +68,8 @@ internal static class ConfigStore
             .AddSingleton(vault.Issuance)
             .AddSingleton(vault.Import)
             .AddSingleton(vault.Catalog)
+            .AddSingleton(vault.Totp)
+            .AddPaduraksaIdentity(dataDirectory, admin.ToIdentityOptions())
             .AddPaduraksaConfigService()
             .AddPaduraksaCertificateOperations()
             .AddPaduraksaCertificateRecovery();
@@ -79,6 +84,13 @@ internal static class ConfigStore
         CertificateService certificates = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
         builder.AddOwnedElsewhere(container.GetRequiredService<CertificateRecovery>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<UserService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<SessionService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<TwoFactorService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<LoginService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<ApiTokenService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<SetupService>());
+        builder.AddOwnedElsewhere(container.GetRequiredService<IPermissionEvaluator>());
         return new ConfigStoreServices(contexts, config, certificates);
     }
 }

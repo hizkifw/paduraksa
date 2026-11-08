@@ -44,8 +44,10 @@ internal static class PaduraksaCli
         root.SetAction(ServeAsync);
 
         root.Subcommands.Add(VaultCommands.Build());
+        root.Subcommands.Add(IdentityCommands.BuildSetupToken());
+        root.Subcommands.Add(IdentityCommands.BuildAdmin());
 
-        // TODO(M3/M4/M8): setup-token, admin, config, backup, restore, doctor, migrate.
+        // TODO(M8): config, backup, restore, doctor, migrate.
         return root;
     }
 
