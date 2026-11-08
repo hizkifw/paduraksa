@@ -39,7 +39,8 @@ public sealed record CreateUserRequest(string Username, string? DisplayName, str
 /// <summary>Changes a user; a null member stays as it is.</summary>
 /// <param name="DisplayName">The new display name.</param>
 /// <param name="Roles">The complete new set of roles (not a delta); at least one when given.</param>
-public sealed record UpdateUserRequest(string? DisplayName = null, IReadOnlyList<Role>? Roles = null);
+/// <param name="Disabled">True disables the user (ending their sessions; their tokens stop working), false re-enables them and clears a lockout.</param>
+public sealed record UpdateUserRequest(string? DisplayName = null, IReadOnlyList<Role>? Roles = null, bool? Disabled = null);
 
 /// <summary>Changes the signed-in user's own password.</summary>
 /// <param name="CurrentPassword">Proves the person at the keyboard knows it.</param>
@@ -117,7 +118,7 @@ public sealed record IssuedApiToken(ApiTokenSummary Summary, string Token)
     public override string ToString() => $"{nameof(IssuedApiToken)} {{ Id = {Summary.Id}, Token = *** }}";
 }
 
-/// <summary>The start of a TOTP enrolment.</summary>
+/// <summary>The start of a TOTP enrollment.</summary>
 /// <param name="ProvisioningUri">The <c>otpauth://</c> URI for the QR code: shown once, not stored.</param>
 public sealed record TotpEnrollmentStarted(Uri ProvisioningUri)
 {
@@ -134,3 +135,51 @@ public sealed record RecoveryCodes(IReadOnlyList<string> Codes)
 /// <summary>Whether the first Owner exists. Until it does, the admin app serves only the setup flow.</summary>
 /// <param name="Complete">An Owner exists.</param>
 public sealed record SetupStatus(bool Complete);
+
+/// <summary>A session that was just started, by signing in or by setup. Its cookie travels in <c>Set-Cookie</c> only, never in a body.</summary>
+/// <param name="SessionId">The session (a handle, not the cookie).</param>
+/// <param name="SecondFactorRequired">The password was right but a second factor is owed: only <c>auth/second-factor</c> accepts this session until it is given.</param>
+/// <param name="ExpiresAt">When the session ends (when the partial session ends, if a second factor is owed).</param>
+public sealed record SessionStarted(SessionId SessionId, bool SecondFactorRequired, DateTimeOffset ExpiresAt);
+
+/// <summary>Creates the first Owner (PLAN §12.1).</summary>
+/// <param name="SetupToken">The one-time token from the server log or <c>paduraksa setup-token</c>.</param>
+/// <param name="Username">The Owner's sign-in name.</param>
+/// <param name="Password">The Owner's password.</param>
+/// <param name="DisplayName">Shown in the UI; the username when null or empty.</param>
+public sealed record SetupRequest(string SetupToken, string Username, string Password, string? DisplayName = null)
+{
+    public override string ToString() => $"{nameof(SetupRequest)} {{ Username = {Username}, *** }}";
+}
+
+/// <summary>The result of first-run setup: the new Owner, signed in.</summary>
+/// <param name="Owner">The new Owner.</param>
+/// <param name="Session">The session the response sets a cookie for; null only if signing the new Owner in failed, in which case they sign in as usual.</param>
+public sealed record SetupCompleted(UserSummary Owner, SessionStarted? Session);
+
+/// <summary>Proves the person at the keyboard knows their password, for a sensitive change to their own sign-in.</summary>
+/// <param name="Password">The current password.</param>
+public sealed record PasswordConfirmation(string Password)
+{
+    public override string ToString() => $"{nameof(PasswordConfirmation)} {{ *** }}";
+}
+
+/// <summary>A code from the authenticator, to confirm an enrollment.</summary>
+/// <param name="Code">The six digits.</param>
+public sealed record TotpConfirmation(string Code)
+{
+    public override string ToString() => $"{nameof(TotpConfirmation)} {{ *** }}";
+}
+
+/// <summary>Who the admin API thinks the caller is.</summary>
+/// <param name="User">The user (for a token, the one it acts as).</param>
+/// <param name="Permissions">What the caller may do right now, in a fixed order: for a token, its scopes narrowed to what its user holds.</param>
+/// <param name="AuthKind">How the caller authenticated: <c>session</c> or <c>token</c>.</param>
+/// <param name="SessionId">The session, for <c>session</c>.</param>
+/// <param name="TokenId">The token, for <c>token</c>.</param>
+public sealed record CurrentCaller(
+    UserSummary User,
+    IReadOnlyList<Permission> Permissions,
+    string AuthKind,
+    SessionId? SessionId = null,
+    ApiTokenId? TokenId = null);
