@@ -3,9 +3,12 @@
 @using Paduraksa.Application.Probes
 @using Paduraksa.Contracts.Commands
 @using Paduraksa.Dashboard.Config
+@using Microsoft.Extensions.Logging
 @inject IDashboardConfig ConfigPages
 @inject UpstreamProbe Probe
 @inject DashboardCaller Caller
+@inject ISnackbar Snackbar
+@inject ILogger<FirstHostStep> Logger
 
 <div class="pdk-form-stack">
     <MudTextField T="string" @bind-Value="_name" Label="Host name" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="app.example.com"
@@ -107,7 +110,7 @@
         _checking = true;
         try
         {
-            _probe = await Probe.CheckAsync(_upstream ?? string.Empty, origin);
+            await Logger.TryAsync(Snackbar, "The check couldn't run.", async () => _probe = await Probe.CheckAsync(_upstream ?? string.Empty, origin));
         }
         finally
         {
@@ -125,20 +128,26 @@
         _busy = true;
         try
         {
-            string name = _name!.Trim().TrimEnd('.').ToLowerInvariant();
-            Uri address = new(_upstream!.Trim());
-            CurrentConfig current = await ConfigPages.GetCurrentAsync();
-            UpstreamConfig upstream = new(UpstreamId.New(), UniqueName(current.Document, name.Split('.')[0]), Destinations: [new DestinationConfig(DestinationId.New(), address.GetLeftPart(UriPartial.Path).TrimEnd('/'))]);
-            HostConfig host = new(HostId.New(), [name], Routes: [new RouteConfig(RouteId.New(), upstream.Id)]);
-            _after = current.Document with { Upstreams = [.. current.Document.Upstreams, upstream], Hosts = [.. current.Document.Hosts, host] };
-            _command = new ReplaceConfigCommand(_after, current.Revision?.Id) { Message = $"First host {name}" };
-            _name = name;
-            _reviewing = true;
+            await Logger.TryAsync(Snackbar, "Couldn't read the current config.", PrepareAsync);
         }
         finally
         {
             _busy = false;
         }
+    }
+
+    /// <summary>The upstream and the host as one replace, based on the config as it is now.</summary>
+    private async Task PrepareAsync()
+    {
+        string name = _name!.Trim().TrimEnd('.').ToLowerInvariant();
+        Uri address = new(_upstream!.Trim());
+        CurrentConfig current = await ConfigPages.GetCurrentAsync();
+        UpstreamConfig upstream = new(UpstreamId.New(), UniqueName(current.Document, name.Split('.')[0]), Destinations: [new DestinationConfig(DestinationId.New(), address.GetLeftPart(UriPartial.Path).TrimEnd('/'))]);
+        HostConfig host = new(HostId.New(), [name], Routes: [new RouteConfig(RouteId.New(), upstream.Id)]);
+        _after = current.Document with { Upstreams = [.. current.Document.Upstreams, upstream], Hosts = [.. current.Document.Hosts, host] };
+        _command = new ReplaceConfigCommand(_after, current.Revision?.Id) { Message = $"First host {name}" };
+        _name = name;
+        _reviewing = true;
     }
 
     private async Task AppliedAsync(ConfigCommandResult result)

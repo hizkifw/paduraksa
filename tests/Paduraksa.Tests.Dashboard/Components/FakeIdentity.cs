@@ -187,9 +187,17 @@ internal sealed class FakeDashboardAudit : IDashboardAudit
 
     public int Verifications { get; private set; }
 
+    /// <summary>Every query throws, as a busy or briefly unreachable database does.</summary>
+    public bool Failing { get; set; }
+
     public Task<AuditPage> QueryAsync(AuditFilter filter, int limit, AuditEventId? after, CancellationToken cancellationToken = default)
     {
         Queries.Add(filter);
+        if (Failing)
+        {
+            throw new InvalidOperationException("database is locked");
+        }
+
         AuditEventSummary[] matching =
         [
             .. Events

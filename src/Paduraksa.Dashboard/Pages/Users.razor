@@ -9,6 +9,7 @@
 @inject TimeProvider Time
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
+@inject Microsoft.Extensions.Logging.ILogger<Users> Logger
 @* Settings: users and roles (PLAN §10.1). The list for users:read; adding, changing and deleting for users:write (the Owner). The
    services decide, the last-Owner guard included; its refusal is shown where the change was asked for. *@
 
@@ -39,17 +40,28 @@ else
         </MudAlert>
     }
 
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-alert="load-failed">
+            The users couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
         @if (_users is null)
         {
-            @for (int i = 0; i < 3; i++)
+            @if (!_failed)
             {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
-                </div>
+                @for (int i = 0; i < 3; i++)
+                {
+                    <div class="pdk-row-skeleton">
+                        <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+                    </div>
+                }
             }
         }
         else
@@ -243,6 +255,7 @@ else
 
 @code {
     private bool _denied;
+    private bool _failed;
     private IReadOnlyList<UserSummary>? _users;
     private Dictionary<UserId, DateTimeOffset>? _lastSeen;
     private DateTimeOffset _now;
@@ -299,25 +312,34 @@ else
         _mayWrite = user.Has(Permission.UsersWrite);
         _now = Time.GetUtcNow();
         CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
-        UserListResult result = await Identity.ListUsersAsync(origin);
-        _users = result.Users;
-        if (user.Has(Permission.SessionsAll))
+        _failed = false;
+        try
         {
-            Dictionary<UserId, DateTimeOffset> seen = [];
-            foreach (UserSummary listed in result.Users)
+            UserListResult result = await Identity.ListUsersAsync(origin);
+            _users = result.Users;
+            if (user.Has(Permission.SessionsAll))
             {
-                SessionListResult sessions = await Identity.ListSessionsAsync(origin, listed.Id, null);
-                if (sessions.Sessions.Count > 0)
+                Dictionary<UserId, DateTimeOffset> seen = [];
+                foreach (UserSummary listed in result.Users)
                 {
-                    seen[listed.Id] = sessions.Sessions.Max(s => s.LastSeenAt);
+                    SessionListResult sessions = await Identity.ListSessionsAsync(origin, listed.Id, null);
+                    if (sessions.Sessions.Count > 0)
+                    {
+                        seen[listed.Id] = sessions.Sessions.Max(s => s.LastSeenAt);
+                    }
                 }
-            }
 
-            _lastSeen = seen;
+                _lastSeen = seen;
+            }
+            else
+            {
+                _lastSeen = null;
+            }
         }
-        else
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
         {
-            _lastSeen = null;
+            Logger.LogStoreFailure(ex, "Couldn't read the users.");
+            _failed = true;
         }
     }
 
@@ -449,6 +471,12 @@ else
             _formErrorKind = result.Status == IdentityStatus.LastOwner ? "last-owner" : result.Status.ToString().ToLowerInvariant();
             _formError = IdentityText.Refusal(result.Status, result.Problem);
         }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't save a user.");
+            _formErrorKind = "failed";
+            _formError = StoreFailures.Message("The user couldn't be saved.");
+        }
         finally
         {
             _saving = false;
@@ -478,7 +506,13 @@ else
             return;
         }
 
-        IdentityResult result = await Identity.DeleteUserAsync(origin, user.Id);
+        IdentityResult? result = null;
+        if (!await Logger.TryAsync(Snackbar, $"Couldn't delete {user.Username}.", async () => result = await Identity.DeleteUserAsync(origin, user.Id))
+            || result is null)
+        {
+            return;
+        }
+
         if (result.Succeeded)
         {
             Snackbar.Add($"Deleted {user.Username}.", Severity.Success);

@@ -175,8 +175,9 @@ else
             return;
         }
 
-        AcmeAccountResult? result = await Actions.DeactivateAccountAsync(account.Id);
-        if (result is null)
+        AcmeAccountResult? result = null;
+        if (!await Logger.TryAsync(Snackbar, "Couldn't deactivate the account.", async () => result = await Actions.DeactivateAccountAsync(account.Id))
+            || result is null)
         {
             return;
         }

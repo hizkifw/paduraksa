@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 using MudBlazor;
 
 using Paduraksa.Application.Commands;
@@ -12,7 +14,7 @@ namespace Paduraksa.Dashboard.Config;
 /// revision before it through the rollback command (a new revision; history is never rewritten), based on the revision it undoes, so it
 /// is refused when someone changed the config in between. One per circuit, so the toast's button outlives the page that applied.
 /// </summary>
-public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, ISnackbar snackbar)
+public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, ISnackbar snackbar, ILogger<ConfigUndo> logger)
 {
     // Only the latest change can be undone (an undo is based on the revision it undoes), so a newer toast replaces the last one.
     private Snackbar? _offered;
@@ -47,11 +49,25 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
         });
     }
 
-    /// <summary>Rolls back what <paramref name="committed"/> changed, and says how that went.</summary>
+    /// <summary>Rolls back what <paramref name="committed"/> changed, and says how that went (null when it couldn't be tried).</summary>
     public async Task<ConfigCommandResult?> UndoAsync(RevisionRef committed)
     {
         ArgumentNullException.ThrowIfNull(committed);
         _offered = null;
+        try
+        {
+            return await RollBackAsync(committed).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            logger.LogStoreFailure(ex, $"Couldn't undo {committed}.");
+            snackbar.Add($"Couldn't undo {committed}. Roll back from the history instead; the details are in the server log.", Severity.Error);
+            return null;
+        }
+    }
+
+    private async Task<ConfigCommandResult?> RollBackAsync(RevisionRef committed)
+    {
         if (await caller.OriginAsync().ConfigureAwait(false) is not { } origin)
         {
             return null;

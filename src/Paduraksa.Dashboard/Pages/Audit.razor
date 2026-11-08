@@ -155,6 +155,13 @@ else
     </div>
 
     <MudPaper Class="pdk-card pdk-table-card mt-4" Elevation="0" Outlined="true" data-section="events">
+        @if (_failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="ma-3" data-alert="load-failed">
+                The events couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
         @if (_newEvents && _after is not null)
         {
             <div class="pdk-audit-new">
@@ -164,14 +171,17 @@ else
         }
         @if (_events is null)
         {
-            @for (int i = 0; i < 6; i++)
+            @if (!_failed)
             {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="12%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="10%" />
-                </div>
+                @for (int i = 0; i < 6; i++)
+                {
+                    <div class="pdk-row-skeleton">
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="12%" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="10%" />
+                    </div>
+                }
             }
         }
         else if (_events.Count == 0)
@@ -272,6 +282,7 @@ else
     private readonly HashSet<AuditEventId> _expanded = [];
     private DateTimeOffset _now;
     private bool _loadingOlder;
+    private bool _failed;
     private bool _newEvents;
     private bool _exporting;
     private AuditVerification? _verification;
@@ -467,10 +478,20 @@ else
 
         _now = Time.GetUtcNow();
         _newEvents = false;
-        _expanded.Clear();
-        AuditPage page = await AuditLog.QueryAsync(filter, PageSize, null);
-        _events = [.. page.Items];
-        _after = page.Next;
+        _failed = false;
+        try
+        {
+            AuditPage page = await AuditLog.QueryAsync(filter, PageSize, null);
+            _expanded.Clear();
+            _events = [.. page.Items];
+            _after = page.Next;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            // The list keeps what it shows; the alert above it offers another try.
+            Logger.LogStoreFailure(ex, "Couldn't read the audit events.");
+            _failed = true;
+        }
     }
 
     private async Task LoadOlderAsync()
@@ -483,9 +504,12 @@ else
         _loadingOlder = true;
         try
         {
-            AuditPage page = await AuditLog.QueryAsync(filter, PageSize, after);
-            _events?.AddRange(page.Items);
-            _after = page.Next;
+            await Logger.TryAsync(Snackbar, "Couldn't load the older events.", async () =>
+            {
+                AuditPage page = await AuditLog.QueryAsync(filter, PageSize, after);
+                _events?.AddRange(page.Items);
+                _after = page.Next;
+            });
         }
         finally
         {
@@ -549,28 +573,31 @@ else
         _exporting = true;
         try
         {
-            ArrayBufferWriter<byte> output = new();
-            int written = 0;
-            AuditEventId? after = null;
-            do
+            await Logger.TryAsync(Snackbar, "Couldn't export the events.", async () =>
             {
-                AuditPage page = await AuditLog.QueryAsync(filter, AuditQueryPage, after);
-                foreach (AuditEventSummary e in page.Items.Take(ExportLimit - written))
+                ArrayBufferWriter<byte> output = new();
+                int written = 0;
+                AuditEventId? after = null;
+                do
                 {
-                    AuditText.WriteLine(output, e);
-                    written++;
+                    AuditPage page = await AuditLog.QueryAsync(filter, AuditQueryPage, after);
+                    foreach (AuditEventSummary e in page.Items.Take(ExportLimit - written))
+                    {
+                        AuditText.WriteLine(output, e);
+                        written++;
+                    }
+
+                    after = page.Next;
                 }
+                while (after is not null && written < ExportLimit);
 
-                after = page.Next;
-            }
-            while (after is not null && written < ExportLimit);
-
-            string name = $"paduraksa-audit-{Time.GetUtcNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.jsonl";
-            using MemoryStream content = new(output.WrittenMemory.ToArray());
-            if (await Browser.DownloadAsync(name, "application/x-ndjson", content))
-            {
-                Snackbar.Add($"Exported {written.ToString("N0", CultureInfo.InvariantCulture)} {(written == 1 ? "event" : "events")}{(written >= ExportLimit ? " (the most one export holds)" : string.Empty)}.", Severity.Success);
-            }
+                string name = $"paduraksa-audit-{Time.GetUtcNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.jsonl";
+                using MemoryStream content = new(output.WrittenMemory.ToArray());
+                if (await Browser.DownloadAsync(name, "application/x-ndjson", content))
+                {
+                    Snackbar.Add($"Exported {written.ToString("N0", CultureInfo.InvariantCulture)} {(written == 1 ? "event" : "events")}{(written >= ExportLimit ? " (the most one export holds)" : string.Empty)}.", Severity.Success);
+                }
+            });
         }
         finally
         {

@@ -1,6 +1,8 @@
 @* Register an account with an ACME CA: a preset (Let's Encrypt, its staging, CAs with external account binding) or any directory URL,
    a contact email, the CA's terms (required) and, for CAs that need it, the binding's key ID and HMAC key. The HMAC key is write-only:
    the field is emptied as the form is sent and the key is never shown again. *@
+@using Microsoft.Extensions.Logging
+@inject ILogger<AcmeAccountForm> Logger
 
 <div class="pdk-form-stack">
     <MudSelect T="string" Value="_preset" ValueChanged="ChoosePreset" Label="Certificate authority" Variant="Variant.Outlined" Margin="Margin.Dense"
@@ -156,6 +158,12 @@
         try
         {
             result = await Submit(new AcmeAccountSubmission(directory!, email, _agreed, eab ? _eabKid!.Trim() : null, hmac, string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't register an ACME account.");
+            _errors = [StoreFailures.Message("The account couldn't be registered.")];
+            return;
         }
         finally
         {

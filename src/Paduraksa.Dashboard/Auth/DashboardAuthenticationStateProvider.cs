@@ -71,40 +71,20 @@ public sealed partial class DashboardAuthenticationStateProvider : Authenticatio
     /// session alive, as a request with the cookie would. Returns the user, or null when anonymous or the session has ended (the state is
     /// then anonymous and the change is announced).
     /// </summary>
+    /// <remarks>
+    /// A check that fails for another reason than cancellation (the store busy, a brief I/O error) is logged and answers the user as last
+    /// checked, unchanged: every action goes through here, and an exception would end the circuit.
+    /// </remarks>
     public async Task<DashboardPrincipal?> RecheckAsync(bool countAsUse, CancellationToken cancellationToken = default)
     {
-        await _state.ConfigureAwait(false);
-        await _checking.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_user is not { } user)
-            {
-                return null;
-            }
-
-            SessionPrincipal? session = await _sessions.CheckAsync(user.Session.Session.SessionId, countAsUse, cancellationToken).ConfigureAwait(false);
-            _lastCheck = _time.GetUtcNow();
-            if (session is null)
-            {
-                End();
-                return null;
-            }
-
-            IReadOnlySet<Permission> permissions = await _sessions.GetPermissionsAsync(session.UserId, cancellationToken).ConfigureAwait(false);
-            if (Unchanged(user, session, permissions))
-            {
-                return user;
-            }
-
-            DashboardPrincipal updated = new(user.Session.With(session), permissions);
-            _user = updated;
-            _state = Task.FromResult(new AuthenticationState(updated));
-            NotifyAuthenticationStateChanged(_state);
-            return updated;
+            return await CheckNowAsync(countAsUse, cancellationToken).ConfigureAwait(false);
         }
-        finally
+        catch (Exception ex) when (ex is not OperationCanceledException and not ObjectDisposedException)
         {
-            _checking.Release();
+            LogRecheckFailed(_logger, ex);
+            return _user;
         }
     }
 
@@ -133,6 +113,43 @@ public sealed partial class DashboardAuthenticationStateProvider : Authenticatio
         _checking.Dispose();
     }
 
+    private async Task<DashboardPrincipal?> CheckNowAsync(bool countAsUse, CancellationToken cancellationToken)
+    {
+        await _state.ConfigureAwait(false);
+        await _checking.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_user is not { } user)
+            {
+                return null;
+            }
+
+            SessionPrincipal? session = await _sessions.CheckAsync(user.SessionId, countAsUse, cancellationToken).ConfigureAwait(false);
+            _lastCheck = _time.GetUtcNow();
+            if (session is null)
+            {
+                End();
+                return null;
+            }
+
+            IReadOnlySet<Permission> permissions = await _sessions.GetPermissionsAsync(session.UserId, cancellationToken).ConfigureAwait(false);
+            if (Unchanged(user, session, permissions))
+            {
+                return user;
+            }
+
+            DashboardPrincipal updated = new(user.Session.With(session), permissions);
+            _user = updated;
+            _state = Task.FromResult(new AuthenticationState(updated));
+            NotifyAuthenticationStateChanged(_state);
+            return updated;
+        }
+        finally
+        {
+            _checking.Release();
+        }
+    }
+
     private async Task<AuthenticationState> AdoptAsync(Task<AuthenticationState> authenticationStateTask)
     {
         AuthenticationState state = await authenticationStateTask.ConfigureAwait(false);
@@ -155,16 +172,10 @@ public sealed partial class DashboardAuthenticationStateProvider : Authenticatio
             using PeriodicTimer timer = new(_options.SessionRecheckInterval, _time);
             while (await timer.WaitForNextTickAsync(stopping).ConfigureAwait(false))
             {
-                try
+                // A failed check is logged by RecheckAsync and keeps the last state; the next tick tries again.
+                if (_user is not null && await RecheckAsync(countAsUse: false, stopping).ConfigureAwait(false) is null)
                 {
-                    if (_user is not null && await RecheckAsync(countAsUse: false, stopping).ConfigureAwait(false) is null)
-                    {
-                        return;
-                    }
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException and not ObjectDisposedException)
-                {
-                    LogRecheckFailed(_logger, ex);
+                    return;
                 }
             }
         }

@@ -1,4 +1,6 @@
 @* A certificate made here: self-signed, or signed by the local CA (for LAN-only names a public CA can't validate). The key is born in the vault. *@
+@using Microsoft.Extensions.Logging
+@inject ILogger<LocalCertificateForm> Logger
 
 <div class="pdk-form-stack">
     <MudTextField T="string" @bind-Value="_names" Label="Names" Variant="Variant.Outlined" Lines="3" Sizing="InputSizing.Auto" MaxLines="8"
@@ -111,6 +113,11 @@
             {
                 _errors = [.. CertificateMessages.Errors(result)];
             }
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't create a certificate.");
+            _errors = [StoreFailures.Message("The certificate couldn't be created.")];
         }
         finally
         {

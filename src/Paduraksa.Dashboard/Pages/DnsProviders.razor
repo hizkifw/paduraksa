@@ -180,11 +180,13 @@ else
         StateHasChanged();
         try
         {
-            DnsProviderTestResult? result = await Actions.TestAsync(provider.Id);
-            if (result is not null)
+            await Logger.TryAsync(Snackbar, $"The test of {provider.Label} couldn't run.", async () =>
             {
-                _results[provider.Id] = (result, Time.GetUtcNow());
-            }
+                if (await Actions.TestAsync(provider.Id) is { } result)
+                {
+                    _results[provider.Id] = (result, Time.GetUtcNow());
+                }
+            });
         }
         finally
         {
@@ -204,8 +206,9 @@ else
             return;
         }
 
-        DnsProviderResult? result = await Actions.DeleteProviderAsync(provider.Id);
-        if (result is null)
+        DnsProviderResult? result = null;
+        if (!await Logger.TryAsync(Snackbar, $"Couldn't delete {provider.Label}.", async () => result = await Actions.DeleteProviderAsync(provider.Id))
+            || result is null)
         {
             return;
         }

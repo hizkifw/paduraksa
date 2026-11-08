@@ -1,6 +1,7 @@
 @attribute [Route(SettingsRoutes.Tokens)]
 @implements IDisposable
 @using System.Globalization
+@using Microsoft.Extensions.Logging
 @using Paduraksa.Application.Commands
 @using Paduraksa.Application.Identity
 @using Paduraksa.Contracts.Identity
@@ -9,6 +10,7 @@
 @inject TimeProvider Time
 @inject ISnackbar Snackbar
 @inject IDialogService Dialogs
+@inject ILogger<ApiTokens> Logger
 @* Settings: API tokens (PLAN §10.1, §11.1). One's own, and everyone's with tokens:all. A new token's secret is shown once, in the dialog
    that issued it, and dropped from the page's state as the dialog closes. *@
 
@@ -41,15 +43,26 @@
         <MudSwitch T="bool" @bind-Value="_showRevoked" Color="Color.Primary" Label="Show revoked and expired" Size="Size.Small" />
     </div>
 
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="ma-3" data-alert="load-failed">
+            The tokens couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+
     @if (_rows is null)
     {
-        @for (int i = 0; i < 3; i++)
+        @if (!_failed)
         {
-            <div class="pdk-row-skeleton">
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
-            </div>
+            @for (int i = 0; i < 3; i++)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="15%" />
+                </div>
+            }
         }
     }
     else if (Shown.Count == 0)
@@ -260,6 +273,7 @@
     private IssuedApiToken? _issued;
     private string? _formError;
     private bool _saving;
+    private bool _failed;
     private IDisposable? _watch;
 
     /// <summary>How long a new token lives.</summary>
@@ -340,25 +354,34 @@
         _mayAll = user.Has(Permission.TokensAll);
         UserId me = user.UserId;
         CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
-        List<TokenRow> rows = [];
-        if (_everyone && _mayAll)
+        _failed = false;
+        try
         {
-            UserListResult users = await Identity.ListUsersAsync(origin);
-            foreach (UserSummary owner in users.Users)
+            List<TokenRow> rows = [];
+            if (_everyone && _mayAll)
             {
-                ApiTokenListResult tokens = await Identity.ListTokensAsync(origin, owner.Id);
-                rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, owner.Id == me ? "You" : owner.DisplayName, owner.Id == me)));
+                UserListResult users = await Identity.ListUsersAsync(origin);
+                foreach (UserSummary owner in users.Users)
+                {
+                    ApiTokenListResult tokens = await Identity.ListTokensAsync(origin, owner.Id);
+                    rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, owner.Id == me ? "You" : owner.DisplayName, owner.Id == me)));
+                }
+
+                rows.Sort((a, b) => b.Token.CreatedAt.CompareTo(a.Token.CreatedAt));
+            }
+            else
+            {
+                ApiTokenListResult tokens = await Identity.ListTokensAsync(origin);
+                rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, "You", true)));
             }
 
-            rows.Sort((a, b) => b.Token.CreatedAt.CompareTo(a.Token.CreatedAt));
+            _rows = rows;
         }
-        else
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
         {
-            ApiTokenListResult tokens = await Identity.ListTokensAsync(origin);
-            rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, "You", true)));
+            Logger.LogStoreFailure(ex, "Couldn't read the API tokens.");
+            _failed = true;
         }
-
-        _rows = rows;
     }
 
     private async Task SetEveryoneAsync(bool everyone)
@@ -462,6 +485,11 @@
 
             _formError = IdentityText.Refusal(result.Status, result.Problem);
         }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't create an API token.");
+            _formError = StoreFailures.Message("The token couldn't be created.");
+        }
         finally
         {
             _saving = false;
@@ -495,7 +523,13 @@
             return;
         }
 
-        ApiTokenResult result = await Identity.RevokeTokenAsync(origin, row.Token.Id);
+        ApiTokenResult? result = null;
+        if (!await Logger.TryAsync(Snackbar, $"Couldn't revoke {row.Token.Name}.", async () => result = await Identity.RevokeTokenAsync(origin, row.Token.Id))
+            || result is null)
+        {
+            return;
+        }
+
         if (result.Succeeded)
         {
             Snackbar.Add($"Revoked {row.Token.Name}.", Severity.Success);

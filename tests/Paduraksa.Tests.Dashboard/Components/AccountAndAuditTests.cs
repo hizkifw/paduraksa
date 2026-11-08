@@ -190,6 +190,31 @@ public sealed class AccountAndAuditTests
         Assert.Contains("doesn't match its contents", page.Find("[data-section=chain]").TextContent, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task TheAuditPage_SurvivesAStoreThatFails_AndTriesAgain()
+    {
+        await using DashboardTestContext context = new();
+        (_, FakeDashboardAudit audit, _, _) = IdentityPages.SignIn(context, Role.Auditor);
+        audit.Events.Add(Event(1, "auth.login", AuditOutcome.Success));
+        audit.Failing = true;
+        context.Render<MudPopoverProvider>();
+        context.Render<MudSnackbarProvider>();
+        IRenderedComponent<Audit> page = context.Render<Audit>();
+
+        await page.WaitForStateAsync(() => page.FindAll("[data-alert=load-failed]").Count == 1);
+        Assert.Contains("The events couldn't be read.", page.Find("[data-alert=load-failed]").TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll(".pdk-row-skeleton"));
+
+        // A filter change that fails again keeps the page (and the circuit) alive.
+        await page.InvokeAsync(() => SetOutcome(page, AuditOutcome.Denied));
+        Assert.Single(page.FindAll("[data-alert=load-failed]"));
+
+        audit.Failing = false;
+        await page.InvokeAsync(() => SetOutcome(page, AuditOutcome.Success));
+        await page.WaitForStateAsync(() => page.FindAll("[data-event]").Count == 1);
+        Assert.Empty(page.FindAll("[data-alert=load-failed]"));
+    }
+
     [Theory]
     [InlineData(Role.Auditor, true)]
     [InlineData(Role.Operator, false)]

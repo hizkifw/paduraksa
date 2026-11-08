@@ -11,6 +11,7 @@
 @using Paduraksa.Dashboard.Certificates
 @using Paduraksa.Dashboard.Providers
 @using Paduraksa.Dashboard.Setup
+@using Microsoft.Extensions.Logging
 @inject UserService Users
 @inject AcmeAccountService AcmeAccounts
 @inject DnsProviderService DnsProviders
@@ -19,6 +20,8 @@
 @inject ProviderActions Actions
 @inject DashboardCaller Caller
 @inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject ILogger<Welcome> Logger
 
 <PageTitle>Set up · Paduraksa</PageTitle>
 
@@ -52,7 +55,14 @@
             </header>
 
             <div class="pdk-wizard-body">
-                @if (_progress is null)
+                @if (_progress is null && _failed)
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" data-alert="load-failed">
+                        What is set up couldn't be read. The details are in the server log.
+                        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+                    </MudAlert>
+                }
+                else if (_progress is null)
                 {
                     <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="180px" />
                 }
@@ -183,6 +193,7 @@
     private IReadOnlyList<string>? _names;
     private HostConfig? _createdHost;
     private bool _certificateIssued;
+    private bool _failed;
 
     /// <summary>The step's slug from the address, parsed at the page's edge.</summary>
     [Parameter]
@@ -238,9 +249,19 @@
             return;
         }
 
-        _progress = await SetupProgress.LoadAsync(_user, Users, AcmeAccounts, DnsProviders, CertificateInventory, Config);
-        _provider ??= _progress.Providers?.FirstOrDefault();
-        _names ??= _progress.Certificates?.OrderByDescending(c => c.CreatedAt).FirstOrDefault()?.Names;
+        _failed = false;
+        try
+        {
+            _progress = await SetupProgress.LoadAsync(_user, Users, AcmeAccounts, DnsProviders, CertificateInventory, Config);
+            _provider ??= _progress.Providers?.FirstOrDefault();
+            _names ??= _progress.Certificates?.OrderByDescending(c => c.CreatedAt).FirstOrDefault()?.Names;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            // The steps keep what they show; a step with nothing yet offers another try.
+            Logger.LogStoreFailure(ex, "Couldn't read the setup progress.");
+            _failed = true;
+        }
     }
 
     private void Go(WizardStep step) => Navigation.NavigateTo(SetupWizard.PathOf(step));
@@ -290,7 +311,7 @@
         StateHasChanged();
         try
         {
-            _test = await Actions.TestAsync(provider.Id);
+            await Logger.TryAsync(Snackbar, "The DNS provider test couldn't run.", async () => _test = await Actions.TestAsync(provider.Id));
         }
         finally
         {

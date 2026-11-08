@@ -178,6 +178,44 @@ public sealed class AuthenticationStateTests
         await Assert.ThrowsAsync<SessionEndedException>(() => handler(null!));
     }
 
+    [Fact]
+    public async Task ACheckThatFails_KeepsTheLastState_AndTheCircuit()
+    {
+        FakeSessions sessions = new();
+        SessionIdentity session = sessions.Add(Role.Operator);
+        ManualTime time = new();
+        DashboardOptions options = new() { ActivityRecheckInterval = TimeSpan.FromSeconds(10), EndedCircuitGrace = TimeSpan.FromSeconds(10) };
+        using DashboardAuthenticationStateProvider auth = Provider(sessions, time: time, options: options);
+        auth.SetAuthenticationState(StateOf(session));
+        DashboardPrincipal before = Assert.IsType<DashboardPrincipal>((await auth.GetAuthenticationStateAsync()).User);
+        int announced = 0;
+        auth.AuthenticationStateChanged += _ => announced++;
+        sessions.Failing = true;
+
+        // A service call's check: the user as last checked, not an exception that would end the circuit.
+        DashboardPrincipal? user = await new DashboardCaller(auth).CheckAsync(Ct);
+
+        Assert.Same(before, user);
+        Assert.Null(auth.EndedAt);
+        Assert.Equal(0, announced);
+        Assert.Same(before, (await auth.GetAuthenticationStateAsync()).User);
+
+        // The circuit's activity check: the activity goes through on the last state.
+        int handled = 0;
+        Func<CircuitInboundActivityContext, Task> handler =
+            new SessionCircuitHandler(auth, options, time).CreateInboundActivityHandler(_ => { handled++; return Task.CompletedTask; });
+        time.Advance(TimeSpan.FromSeconds(11));
+        await handler(null!);
+        Assert.Equal(1, handled);
+        Assert.Null(auth.EndedAt);
+
+        // Once the store answers again, the next check sees what is true.
+        sessions.Failing = false;
+        sessions.Revoke(session);
+        Assert.Null(await auth.RecheckAsync(countAsUse: true, Ct));
+        Assert.NotNull(auth.EndedAt);
+    }
+
     private static DashboardAuthenticationStateProvider Provider(
         FakeSessions sessions, TimeSpan? recheck = null, TimeProvider? time = null, DashboardOptions? options = null) =>
         new(
@@ -206,6 +244,9 @@ public sealed class AuthenticationStateTests
 
         public ConcurrentQueue<(SessionId Session, bool CountAsUse)> Checks { get; } = new();
 
+        /// <summary>Every check throws, as a busy or briefly unreachable database does.</summary>
+        public bool Failing { get; set; }
+
         public SessionIdentity Add(params Role[] roles)
         {
             SessionIdentity identity = TestUsers.Session(roles);
@@ -221,6 +262,11 @@ public sealed class AuthenticationStateTests
         public Task<SessionPrincipal?> CheckAsync(SessionId session, bool countAsUse, CancellationToken cancellationToken)
         {
             Checks.Enqueue((session, countAsUse));
+            if (Failing)
+            {
+                throw new InvalidOperationException("database is locked");
+            }
+
             return Task.FromResult(_sessions.GetValueOrDefault(session));
         }
 

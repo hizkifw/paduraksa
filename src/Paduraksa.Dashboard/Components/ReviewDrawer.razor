@@ -472,7 +472,8 @@
         _simulationRunning = true;
         try
         {
-            _simulationResult = await Config.SimulateAsync(new DraftCommandSimulationTarget(command with { DryRun = true }), _simulation.ToRequest(), origin);
+            await Logger.TryAsync(Snackbar, "The simulation couldn't run.", async () =>
+                _simulationResult = await Config.SimulateAsync(new DraftCommandSimulationTarget(command with { DryRun = true }), _simulation.ToRequest(), origin));
         }
         finally
         {

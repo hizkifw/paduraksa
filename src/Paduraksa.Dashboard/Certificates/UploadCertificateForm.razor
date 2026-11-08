@@ -1,6 +1,8 @@
 @* Upload a certificate with its key (PEM or PFX). The file is streamed from the browser into the vault's import during the call and never
    read into memory here; the password is handed over as a char array that is cleared afterwards, and the field is emptied as soon as the
    form is sent, whatever the outcome. *@
+@using Microsoft.Extensions.Logging
+@inject ILogger<UploadCertificateForm> Logger
 @using Microsoft.AspNetCore.Components.Forms
 
 <div class="pdk-form-stack">
@@ -133,10 +135,10 @@
         try
         {
             Stream data = file.OpenReadStream(CertificateImportLimits.MaxBytes);
-            await using (data.ConfigureAwait(false))
+            await using (data.ConfigureAwait(true))
             {
                 Stream upload = keyFile is null ? data : new PemConcatStream(data, keyFile.OpenReadStream(CertificateImportLimits.MaxBytes));
-                await using (upload.ConfigureAwait(false))
+                await using (upload.ConfigureAwait(true))
                 {
                     result = await Submit(new CertificateUpload(upload, password, string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));
                 }
@@ -145,6 +147,11 @@
         catch (IOException)
         {
             _errors = ["The file couldn't be read from the browser. Choose it again and retry."];
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't upload a certificate.");
+            _errors = [StoreFailures.Message("The certificate couldn't be uploaded."), "Choose the file again to retry."];
         }
         finally
         {

@@ -2,6 +2,7 @@
 @using Paduraksa.Contracts.Identity
 @inject IDashboardIdentity Identity
 @inject DashboardCaller Caller
+@inject Microsoft.Extensions.Logging.ILogger<ProfileCard> Logger
 @inject ISnackbar Snackbar
 @* My account: who you are. The display name can be changed by a user who may change users (the Owner); everyone else sees it read-only,
    like the username, which never changes. *@
@@ -79,6 +80,11 @@
             {
                 Snackbar.Add(IdentityText.Refusal(result.Status, result.Problem), Severity.Error);
             }
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't save a display name.");
+            Snackbar.Add(StoreFailures.Message("Your display name couldn't be saved."), Severity.Error);
         }
         finally
         {

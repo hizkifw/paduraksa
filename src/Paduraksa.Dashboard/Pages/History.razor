@@ -8,11 +8,20 @@
 @inject DashboardCaller Caller
 @inject TimeProvider Time
 @inject NavigationManager Navigation
+@inject ISnackbar Snackbar
 @inject ILogger<History> Logger
 
 <PageTitle>History · Paduraksa</PageTitle>
 
 <PageHeader Title="History" Overline="Insight" Lead="Every change is a revision: who made it, through what, and exactly what it changed. Roll back to any of them." />
+
+@if (_failed)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-alert="load-failed">
+        The history couldn't be read. The details are in the server log.
+        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+    </MudAlert>
+}
 
 @if (_denied)
 {
@@ -22,20 +31,23 @@
 }
 else if (_entries is null)
 {
-    <div class="pdk-history" aria-busy="true">
-        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-            @for (int i = 0; i < 5; i++)
-            {
-                <div class="pdk-row-skeleton">
-                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="28px" Height="28px" />
-                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="70%" />
-                </div>
-            }
-        </MudPaper>
-        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="200px" />
-        </MudPaper>
-    </div>
+    @if (!_failed)
+    {
+        <div class="pdk-history" aria-busy="true">
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                @for (int i = 0; i < 5; i++)
+                {
+                    <div class="pdk-row-skeleton">
+                        <MudSkeleton SkeletonType="SkeletonType.Circle" Width="28px" Height="28px" />
+                        <MudSkeleton SkeletonType="SkeletonType.Text" Width="70%" />
+                    </div>
+                }
+            </MudPaper>
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="200px" />
+            </MudPaper>
+        </div>
+    }
 }
 else if (_entries.Count == 0)
 {
@@ -164,6 +176,7 @@ else
     private bool _mayWrite;
     private bool _maySimulate;
     private bool _denied;
+    private bool _failed;
     private bool _reviewing;
     private ConfigCommand? _command;
     private string _reviewTitle = string.Empty;
@@ -205,6 +218,7 @@ else
 
     private async Task<bool> LoadAsync()
     {
+        _failed = false;
         DashboardPrincipal? user = await Caller.CheckAsync();
         if (user is null)
         {
@@ -220,16 +234,25 @@ else
         _mayWrite = user.Has(Permission.ConfigWrite);
         _maySimulate = user.Has(Permission.Simulate);
         _me = user.UserId;
-        if (user.Has(Permission.UsersRead))
+        try
         {
-            _users = (await Config.ListUsersAsync(user.Session.OriginFor(Channel.Dashboard))).ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.DisplayName) ? u.Username : u.DisplayName);
-        }
+            if (user.Has(Permission.UsersRead))
+            {
+                _users = (await Config.ListUsersAsync(user.Session.OriginFor(Channel.Dashboard))).ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.DisplayName) ? u.Username : u.DisplayName);
+            }
 
-        RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, null);
-        _entries = [.. page?.Items ?? []];
-        _next = page?.Next;
-        _latest = _entries.Count > 0 ? _entries[0].Revision : null;
-        return true;
+            RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, null);
+            _entries = [.. page?.Items ?? []];
+            _next = page?.Next;
+            _latest = _entries.Count > 0 ? _entries[0].Revision : null;
+            return true;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't read the history.");
+            _failed = true;
+            return false;
+        }
     }
 
     /// <summary>A commit happened: put the new revisions on top, keeping what is loaded and selected.</summary>
@@ -261,9 +284,12 @@ else
         _loadingOlder = true;
         try
         {
-            RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, after);
-            _entries.AddRange(page?.Items ?? []);
-            _next = page?.Next;
+            await Logger.TryAsync(Snackbar, "Couldn't load the older revisions.", async () =>
+            {
+                RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, after);
+                _entries.AddRange(page?.Items ?? []);
+                _next = page?.Next;
+            });
         }
         finally
         {
@@ -319,15 +345,18 @@ else
         _diffLoading = true;
         try
         {
-            if (await Config.GetRevisionAsync(otherId) is not { } compared)
+            await Logger.TryAsync(Snackbar, "Couldn't compare with that revision.", async () =>
             {
-                return;
-            }
+                if (await Config.GetRevisionAsync(otherId) is not { } compared)
+                {
+                    return;
+                }
 
-            // Older on the left: the diff reads as "from, to" whichever was picked first.
-            (RevisionDetail from, RevisionDetail to) = compared.Revision.Seq < selected.Revision.Seq ? (compared, selected) : (selected, compared);
-            _groups = ChangeView.Build(from.Document, to.Document, ConfigDiff.Compare(from.Document, to.Document));
-            _diffCaption = $"From #{from.Revision.Seq} to #{to.Revision.Seq}.";
+                // Older on the left: the diff reads as "from, to" whichever was picked first.
+                (RevisionDetail from, RevisionDetail to) = compared.Revision.Seq < selected.Revision.Seq ? (compared, selected) : (selected, compared);
+                _groups = ChangeView.Build(from.Document, to.Document, ConfigDiff.Compare(from.Document, to.Document));
+                _diffCaption = $"From #{from.Revision.Seq} to #{to.Revision.Seq}.";
+            });
         }
         finally
         {

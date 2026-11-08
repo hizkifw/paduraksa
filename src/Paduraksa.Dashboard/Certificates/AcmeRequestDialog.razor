@@ -6,6 +6,7 @@
 @inject DashboardCaller Caller
 @inject Microsoft.Extensions.Hosting.IHostApplicationLifetime Lifetime
 @inject ISnackbar Snackbar
+@inject Microsoft.Extensions.Logging.ILogger<AcmeRequestDialog> Logger
 
 <MudDialog Class="pdk-dialog" ContentClass="pdk-dialog-content">
     <TitleContent>
@@ -25,6 +26,13 @@
         {
             <AcmeRunPanel @key="_run" Start="_start" ChallengeType="_challenge" Attempts="Renew?.Attempts" Finished="OnFinished" />
         }
+        else if (_failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" data-alert="load-failed">
+                The ACME accounts and DNS providers couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
         else if (_accounts is null)
         {
             <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="220px" />
@@ -35,7 +43,11 @@
         }
     </DialogContent>
     <DialogActions>
-        @if (_start is not null)
+        @if (_failed && _start is null)
+        {
+            <MudButton Variant="Variant.Text" OnClick="Close">Cancel</MudButton>
+        }
+        else if (_start is not null)
         {
             @if (_finished is { Outcome: IssuanceOutcome.Failed } && _lastRequest is not null)
             {
@@ -56,6 +68,7 @@
     private IssuanceResult? _finished;
     private CertificateId? _lastRequest;
     private int _run;
+    private bool _failed;
 
     [CascadingParameter]
     private IMudDialogInstance? Dialog { get; set; }
@@ -75,8 +88,22 @@
             return;
         }
 
-        _accounts = await AcmeAccounts.ListAsync();
-        _providers = await DnsProviders.ListAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        try
+        {
+            _accounts = await AcmeAccounts.ListAsync();
+            _providers = await DnsProviders.ListAsync();
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't read the ACME accounts and DNS providers.");
+            _failed = true;
+        }
     }
 
     private async Task StartRequest(CertificateIssueRequest request)

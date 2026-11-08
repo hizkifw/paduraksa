@@ -1,5 +1,7 @@
 @* Add a DNS provider for DNS-01 (Cloudflare or deSEC), or replace an existing one's credential. The credential is write-only: a password
    field, emptied as the form is sent; it goes into the vault, usable only against the provider's own API host, and is never shown again. *@
+@using Microsoft.Extensions.Logging
+@inject ILogger<DnsProviderForm> Logger
 
 <div class="pdk-form-stack">
     @if (RotateFor is null)
@@ -103,6 +105,12 @@
         try
         {
             result = await Submit(new DnsCredentialSubmission(RotateFor?.Kind ?? _kind, label, credential));
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't save a DNS provider.");
+            _errors = [StoreFailures.Message("The provider couldn't be saved."), "Paste the API token again to retry."];
+            return;
         }
         finally
         {

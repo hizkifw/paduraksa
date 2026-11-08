@@ -12,6 +12,7 @@ namespace Paduraksa.Dashboard.Auth;
 /// <remarks>
 /// Activity checks do not count as use: render acknowledgements and other traffic the browser sends on its own would otherwise keep an
 /// unattended page's session from idling out. Service calls, which follow what the person does, count (<see cref="DashboardCaller"/>).
+/// A check that fails (the store busy) lets the activity through on the last-known state: it is logged, and never ends the circuit.
 /// </remarks>
 internal sealed class SessionCircuitHandler(DashboardAuthenticationStateProvider auth, DashboardOptions options, TimeProvider time) : CircuitHandler
 {

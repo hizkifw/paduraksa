@@ -2,6 +2,7 @@
 @using Paduraksa.Contracts.Identity
 @inject IDashboardIdentity Identity
 @inject DashboardCaller Caller
+@inject Microsoft.Extensions.Logging.ILogger<TwoFactorCard> Logger
 @inject ISnackbar Snackbar
 @* My account: two-step verification. Off: set up an authenticator (the same enrolment as the first-run wizard). On: new recovery codes
    or turn it off, each behind the current password. Passwords and codes live only in the dialog that asked for them. *@
@@ -201,6 +202,11 @@
                     _error = Refusal(result?.Status, result?.Problem);
                 }
             }
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't change two-step verification.");
+            _error = StoreFailures.Message("That didn't go through.");
         }
         finally
         {

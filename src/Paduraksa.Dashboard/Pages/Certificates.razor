@@ -300,8 +300,8 @@
             return;
         }
 
-        CertificateOperationResult result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin);
-        Report(result, "The local CA is ready. Install its root to trust what it issues.");
+        await Logger.TryAsync(Snackbar, "Couldn't create the local CA.", async () =>
+            Report(await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin), "The local CA is ready. Install its root to trust what it issues."));
         await LoadAsync();
     }
 
@@ -332,7 +332,8 @@
             return;
         }
 
-        Report(await Operations.ReissueAsync(row.Id, null, origin), $"{row.Name} was re-issued.");
+        await Logger.TryAsync(Snackbar, $"Couldn't re-issue {row.Name}.", async () =>
+            Report(await Operations.ReissueAsync(row.Id, null, origin), $"{row.Name} was re-issued."));
         await LoadAsync();
     }
 
@@ -350,13 +351,14 @@
             return;
         }
 
-        CertificateOperationResult result = await Operations.DeleteAsync(row.Id, origin);
-        if (Report(result, $"{row.Name} was deleted."))
+        await Logger.TryAsync(Snackbar, $"Couldn't delete {row.Name}.", async () =>
         {
-            _drawerOpen = false;
-            _selected = null;
-        }
-
+            if (Report(await Operations.DeleteAsync(row.Id, origin), $"{row.Name} was deleted."))
+            {
+                _drawerOpen = false;
+                _selected = null;
+            }
+        });
         await LoadAsync();
     }
 

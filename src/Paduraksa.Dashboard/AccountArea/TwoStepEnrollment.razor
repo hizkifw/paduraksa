@@ -6,6 +6,7 @@
 @implements IDisposable
 @inject IDashboardIdentity Identity
 @inject DashboardCaller Caller
+@inject Microsoft.Extensions.Logging.ILogger<TwoStepEnrollment> Logger
 
 <div class="pdk-two-step" data-phase="@_phase.ToString().ToLowerInvariant()">
 @switch (_phase)
@@ -156,6 +157,11 @@
                     break;
             }
         }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't start a two-step enrolment.");
+            _error = StoreFailures.Message("Two-step sign-in couldn't be started.");
+        }
         finally
         {
             _busy = false;
@@ -191,6 +197,11 @@
                     ? "That code didn't work. Check the time on your device and try the current code."
                     : "The enrolment changed meanwhile. Start again.";
             }
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't confirm a two-step enrolment.");
+            _error = StoreFailures.Message("The code couldn't be checked.");
         }
         finally
         {

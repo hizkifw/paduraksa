@@ -2,11 +2,13 @@
 @using Paduraksa.Application.Commands
 @using Paduraksa.Application.Identity
 @using Paduraksa.Contracts.Identity
+@using Microsoft.Extensions.Logging
 @inject IDashboardIdentity Identity
 @inject DashboardCaller Caller
 @inject TimeProvider Time
 @inject IDialogService Dialogs
 @inject ISnackbar Snackbar
+@inject ILogger<SessionsCard> Logger
 @* My account: your sessions. This one is marked; any other can be ended, or all of them at once. An ended session's open page goes to
    the sign-in page within the re-check interval. *@
 <MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="sessions">
@@ -23,15 +25,26 @@
         }
     </div>
 
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="mb-3" data-alert="load-failed">
+            Your sessions couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+
     @if (_sessions is null)
     {
-        @for (int i = 0; i < 2; i++)
+        @if (!_failed)
         {
-            <div class="pdk-row-skeleton">
-                <MudSkeleton SkeletonType="SkeletonType.Circle" Width="30px" Height="30px" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
-            </div>
+            @for (int i = 0; i < 2; i++)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="30px" Height="30px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
+                </div>
+            }
         }
     }
     else
@@ -70,6 +83,7 @@
 @code {
     private IReadOnlyList<SessionSummary>? _sessions;
     private DateTimeOffset _now;
+    private bool _failed;
     private IDisposable? _watch;
 
     protected override async Task OnInitializedAsync()
@@ -98,8 +112,17 @@
         }
 
         _now = Time.GetUtcNow();
-        SessionListResult result = await Identity.ListSessionsAsync(user.Session.OriginFor(Channel.Dashboard), user.UserId, user.SessionId);
-        _sessions = [.. result.Sessions.Where(s => s.SecondFactorCompleted).OrderByDescending(s => s.Current).ThenByDescending(s => s.LastSeenAt)];
+        _failed = false;
+        try
+        {
+            SessionListResult result = await Identity.ListSessionsAsync(user.Session.OriginFor(Channel.Dashboard), user.UserId, user.SessionId);
+            _sessions = [.. result.Sessions.Where(s => s.SecondFactorCompleted).OrderByDescending(s => s.Current).ThenByDescending(s => s.LastSeenAt)];
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't read the sessions.");
+            _failed = true;
+        }
     }
 
     private static bool IsPhone(string? userAgent) =>
@@ -118,8 +141,11 @@
             return;
         }
 
-        IdentityResult result = await Identity.RevokeSessionAsync(origin, session.Id);
-        Snackbar.Add(result.Succeeded ? "Session ended." : $"Couldn't end it. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
+        await Logger.TryAsync(Snackbar, "Couldn't end the session.", async () =>
+        {
+            IdentityResult result = await Identity.RevokeSessionAsync(origin, session.Id);
+            Snackbar.Add(result.Succeeded ? "Session ended." : $"Couldn't end it. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
+        });
         await LoadAsync();
     }
 
@@ -137,8 +163,11 @@
         }
 
         CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
-        IdentityResult result = await Identity.RevokeOtherSessionsAsync(origin, user.SessionId);
-        Snackbar.Add(result.Succeeded ? "Signed out everywhere else." : $"That didn't work. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
+        await Logger.TryAsync(Snackbar, "Couldn't sign out the other sessions.", async () =>
+        {
+            IdentityResult result = await Identity.RevokeOtherSessionsAsync(origin, user.SessionId);
+            Snackbar.Add(result.Succeeded ? "Signed out everywhere else." : $"That didn't work. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
+        });
         await LoadAsync();
     }
 }
