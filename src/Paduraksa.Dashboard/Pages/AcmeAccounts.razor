@@ -13,6 +13,7 @@
 @inject ConfigService Config
 @inject DashboardCaller Caller
 @inject IDialogService Dialogs
+@inject DrawerStack Drawers
 @inject ISnackbar Snackbar
 @inject ILogger<AcmeAccounts> Logger
 
@@ -157,8 +158,7 @@ else
 
     private async Task AddAsync()
     {
-        IDialogReference dialog = await Dialogs.ShowAsync<AcmeAccountDialog>("Add an ACME account", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true, BackdropClick = false });
-        await dialog.Result;
+        await Drawers.OpenAsync<AcmeAccountDrawer>(width: DrawerWidth.Narrow);
         await LoadAsync();
     }
 

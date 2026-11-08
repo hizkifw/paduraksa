@@ -439,71 +439,7 @@
 }
 
 .pdk-cert-card.mud-paper {
-    padding: 6px 8px;
     margin-bottom: 16px;
-}
-
-.pdk-cert-card .pdk-row-skeleton, .pdk-cert-card .pdk-empty {
-    padding-left: 12px;
-    padding-right: 12px;
-}
-
-.pdk-cert-table {
-    display: grid;
-}
-
-.pdk-cert-tr {
-    display: grid;
-    grid-template-columns: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr);
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-}
-
-.pdk-cert-th {
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.pdk-cert-row {
-    width: 100%;
-    border: 0;
-    border-top: 1px solid var(--mud-palette-lines-default);
-    border-radius: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    font-size: 0.875rem;
-    text-align: left;
-    cursor: pointer;
-    transition: background 100ms ease;
-}
-
-.pdk-cert-row:hover {
-    background: var(--mud-palette-table-hover);
-}
-
-.pdk-cert-row:focus-visible {
-    outline: none;
-    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mud-palette-primary) 50%, transparent);
-}
-
-.pdk-cert-row-selected {
-    background: color-mix(in srgb, var(--mud-palette-primary) 7%, transparent);
-}
-
-.pdk-cert-main {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-
-.pdk-cert-cell {
-    min-width: 0;
 }
 
 .pdk-cert-issuer {
@@ -592,86 +528,23 @@
 
 /* Phones and narrow windows: each row becomes a card, the cells labelled. */
 @media (max-width: 900px) {
-    .pdk-cert-th {
-        display: none;
-    }
-
-    .pdk-cert-tr {
-        grid-template-columns: 1fr 1fr;
-        gap: 10px 16px;
-        padding: 14px 10px;
-    }
-
-    .pdk-cert-main {
-        grid-column: 1 / -1;
-    }
-
-    .pdk-cert-cell::before {
-        display: block;
-        margin-bottom: 2px;
-        color: var(--mud-palette-text-secondary);
-        content: attr(data-label);
-        font-size: 0.6875rem;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }
-
-    .pdk-cert-row:first-of-type {
-        border-top: 0;
-    }
-
     .pdk-field-pair, .pdk-choice-grid {
         grid-template-columns: 1fr;
     }
 }
 
-/* ---------- The detail drawer ---------- */
-
-.pdk-detail-drawer.mud-drawer {
-    border-left: 1px solid var(--mud-palette-lines-default);
-    background: var(--mud-palette-surface);
-}
+/* ---------- A certificate's drawer ---------- */
 
 .pdk-detail {
     display: grid;
     gap: 0;
-    padding: 20px 22px 28px;
-}
-
-.pdk-detail-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
-    margin-bottom: 18px;
-}
-
-.pdk-detail-icon {
-    display: inline-grid;
-    place-items: center;
-    flex: 0 0 auto;
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--pdk-tone) 14%, transparent);
-    color: var(--pdk-tone);
-}
-
-.pdk-detail-titles {
-    display: grid;
-    flex: 1 1 auto;
-    gap: 6px;
-    min-width: 0;
-}
-
-.pdk-detail-name.mud-typography {
-    overflow-wrap: anywhere;
 }
 
 .pdk-detail-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    margin-bottom: 16px;
 }
 
 .pdk-detail-section {
@@ -733,13 +606,28 @@
     white-space: pre;
 }
 
+/* The certificate's actions sit in a bar at the foot of its drawer, like a form's. */
 .pdk-detail-actions {
+    position: sticky;
+    bottom: -28px;
+    z-index: 2;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    padding-top: 18px;
+    margin: auto -24px -28px;
+    padding: 14px 24px 18px;
     border-top: 1px solid var(--mud-palette-lines-default);
+    background: var(--mud-palette-background-gray);
+}
+
+@media (max-width: 600px) {
+    .pdk-detail-actions, .pdk-drawer-body > .pdk-form-stack > .pdk-form-actions:last-child {
+        margin-left: -16px;
+        margin-right: -16px;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
 }
 
 /* ---------- Settings: the hub, ACME accounts and DNS providers ---------- */

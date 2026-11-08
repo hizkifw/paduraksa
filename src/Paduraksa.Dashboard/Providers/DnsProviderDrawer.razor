@@ -1,0 +1,31 @@
+@* Add a DNS provider, or replace one's token, in a drawer (from the DNS providers page, or stacked on the certificate request for DNS-01).
+   It is stored at once (a vault object, not config); the drawer hands back the provider. *@
+@inject ProviderActions Actions
+@inject ISnackbar Snackbar
+
+<DrawerShell Title="@(RotateFor is null ? "Add a DNS provider" : $"Replace the token of {RotateFor.Label}")" Overline="DNS provider"
+             Subtitle="For DNS-01: TXT records are written through its API while a certificate is validated." Icon="@Icons.Material.Outlined.Dns" Name="dns-provider">
+    <DnsProviderForm Submit="SubmitAsync" RotateFor="RotateFor" Saved="Saved" OnCancel="() => Level?.RequestClose()" />
+</DrawerShell>
+
+@code {
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>The provider whose token to replace; null to add one.</summary>
+    [Parameter]
+    public DnsProviderSummary? RotateFor { get; set; }
+
+    private Task<DnsProviderResult?> SubmitAsync(DnsCredentialSubmission submission) =>
+        RotateFor is { } provider ? Actions.RotateCredentialAsync(provider.Id, submission) : Actions.CreateProviderAsync(submission);
+
+    private void Saved(DnsProviderSummary provider)
+    {
+        Snackbar.Add(RotateFor is null ? $"{provider.Label} was added." : "The token was replaced.", Severity.Success);
+        Level?.Close(provider);
+    }
+
+    /// <summary>The parameters for <see cref="DrawerStack.Push{TComponent}"/>.</summary>
+    public static IReadOnlyDictionary<string, object?> For(DnsProviderSummary? rotate) =>
+        new Dictionary<string, object?> { [nameof(RotateFor)] = rotate };
+}

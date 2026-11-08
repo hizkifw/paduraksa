@@ -33,20 +33,26 @@ public static class DashboardRoutes
     /// <summary>The signed-in user's own account: profile, password, two-step verification and sessions.</summary>
     public const string Account = "/account";
 
-    /// <summary>The form for a new host.</summary>
-    public const string NewHost = "/hosts/new";
+    /// <summary>The last segment of a list's address that opens its drawer for a new object (<c>/hosts/new</c>).</summary>
+    public const string NewSegment = "new";
 
-    /// <summary>The form for a new upstream.</summary>
-    public const string NewUpstream = "/upstreams/new";
+    /// <summary>The hosts with the drawer for a new host open.</summary>
+    public const string NewHost = Hosts + "/" + NewSegment;
+
+    /// <summary>The upstreams with the drawer for a new upstream open.</summary>
+    public const string NewUpstream = Upstreams + "/" + NewSegment;
 
     /// <summary>The page shown for an address the dashboard has no page at.</summary>
     public const string NotFound = "/not-found";
 
-    /// <summary>A host's page: <c>/hosts/host_...</c>. The page parses the segment back into a <see cref="HostId"/>.</summary>
+    /// <summary>A host: <c>/hosts/host_...</c>, the hosts with its drawer open. The page parses the segment back into a <see cref="HostId"/>.</summary>
     public static string Host(HostId id) => $"{Hosts}/{id}";
 
-    /// <summary>An upstream's page: <c>/upstreams/ups_...</c>.</summary>
+    /// <summary>An upstream: <c>/upstreams/ups_...</c>, the upstreams with its drawer open.</summary>
     public static string Upstream(UpstreamId id) => $"{Upstreams}/{id}";
+
+    /// <summary>A certificate: <c>/certificates/crt_...</c>, the certificates with its details open.</summary>
+    public static string Certificate(CertificateId id) => $"{Certificates}/{id}";
 
     /// <summary>The history with a revision selected: <c>/history?revision=rev_...</c>.</summary>
     public static string Revision(ConfigRevisionId id) => $"{History}?revision={id}";

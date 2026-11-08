@@ -1,5 +1,6 @@
 @attribute [Authorize]
 @attribute [Route(DashboardRoutes.Certificates)]
+@attribute [Route(DashboardRoutes.Certificates + "/{Key}")]
 @implements IDisposable
 @using Microsoft.Extensions.Logging
 @using Paduraksa.Application.Certificates
@@ -14,11 +15,14 @@
 @inject AcmeIssuanceService Issuance
 @inject ConfigService Config
 @inject DashboardCaller Caller
-@inject IDialogService Dialogs
+@inject DrawerStack Drawers
+@inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 @inject TimeProvider Time
 @inject IServiceProvider Services
 @inject ILogger<Certificates> Logger
+@* The certificates (PLAN §9, §12): everything this instance can serve, where it came from, who uses it and when it ends. A certificate
+   opens in a drawer (its address, /certificates/crt_..., is the list with that drawer open); a new one is made in a drawer too. *@
 
 <PageTitle>Certificates · Paduraksa</PageTitle>
 
@@ -26,15 +30,13 @@
     <Actions>
         @if (_mayWrite)
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Public" OnClick="RequestAsync" Class="pdk-request-acme">
-                Request from ACME
-            </MudButton>
-            <MudMenu Label="Add" Variant="Variant.Outlined" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ExpandMore" Class="pdk-add-menu"
-                     AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="Add a certificate">
+            <MudMenu Label="More" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ExpandMore" Class="pdk-add-menu"
+                     AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="More ways to add a certificate">
                 <ChildContent>
-                    <MudMenuItem Icon="@Icons.Material.Outlined.UploadFile" OnClick="() => Add(AddCertificateKind.Upload)" Class="pdk-add-upload">Upload PEM or PFX</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.Public" OnClick="() => Add(AddCertificateKind.Acme)" Class="pdk-add-acme">Request from an ACME CA</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.Lan" OnClick="() => Add(AddCertificateKind.LocalCaLeaf)" Class="pdk-add-local">Issue from the local CA</MudMenuItem>
                     <MudMenuItem Icon="@Icons.Material.Outlined.Draw" OnClick="() => Add(AddCertificateKind.SelfSigned)" Class="pdk-add-self">Create self-signed</MudMenuItem>
+                    <MudMenuItem Icon="@Icons.Material.Outlined.UploadFile" OnClick="() => Add(AddCertificateKind.Upload)" Class="pdk-add-upload">Upload PEM or PFX</MudMenuItem>
                     @if (_view is { Root: null })
                     {
                         <MudDivider />
@@ -42,6 +44,8 @@
                     }
                 </ChildContent>
             </MudMenu>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="() => Add(null)" Class="pdk-add-certificate"
+                       data-action="add-certificate">Add certificate</MudButton>
         }
     </Actions>
 </PageHeader>
@@ -72,7 +76,7 @@
     }
 </div>
 
-<MudPaper Class="pdk-card pdk-cert-card" Elevation="0" Outlined="true">
+<MudPaper Class="pdk-card pdk-table-card pdk-cert-card" Elevation="0" Outlined="true">
     @if (_view is null)
     {
         @for (int i = 0; i < 4; i++)
@@ -92,15 +96,15 @@
             <Action>
                 @if (_mayWrite)
                 {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Public" OnClick="RequestAsync">Request from ACME</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="() => Add(null)">Add certificate</MudButton>
                 }
             </Action>
         </EmptyState>
     }
     else
     {
-        <div class="pdk-cert-table" role="table" aria-label="Certificates">
-            <div class="pdk-cert-tr pdk-cert-th" role="row">
+        <div class="pdk-dt pdk-certs-table" role="table" aria-label="Certificates">
+            <div class="pdk-dt-row pdk-dt-head" role="row">
                 <span role="columnheader">Certificate</span>
                 <span role="columnheader">Source</span>
                 <span role="columnheader">Status</span>
@@ -111,19 +115,19 @@
             @foreach (CertificateRow row in _view.Rows)
             {
                 CertificateSummary s = row.Summary;
-                <button type="button" class="pdk-cert-tr pdk-cert-row @(_selected?.Id == row.Id ? "pdk-cert-row-selected" : null)" role="row" @onclick="() => Open(row)"
-                        data-certificate="@row.Id">
-                    <span class="pdk-cert-main" role="cell">
+                <div class="pdk-dt-row pdk-dt-link @(_drawer?.Key == row.Id.ToString() ? "pdk-dt-selected" : null)" role="row" @onclick="() => Open(row)"
+                     data-certificate="@row.Id" @key="row.Id">
+                    <div class="pdk-dt-main" role="cell">
                         <span class="pdk-list-icon pdk-tone-@CertificateDisplay.StatusTone(s.Status, s.NotBefore, s.NotAfter, _now)">
                             <MudIcon Icon="@CertificateDisplay.Icon(row.Origin)" Size="Size.Small" />
                         </span>
-                        <span class="pdk-list-main">
-                            <span class="pdk-list-title">@row.Name</span>
-                            <span class="pdk-list-sub pdk-mono">@NamesLine(s)</span>
+                        <span class="pdk-dt-titles">
+                            <a class="pdk-row-link pdk-list-title" href="@DashboardRoutes.Certificate(row.Id)" @onclick:stopPropagation="true">@row.Name</a>
+                            <span class="pdk-dt-note pdk-mono">@CertificateDisplay.NamesLine(s)</span>
                         </span>
-                    </span>
-                    <span role="cell" class="pdk-cert-cell" data-label="Source">@CertificateDisplay.Label(row.Origin)</span>
-                    <span role="cell" class="pdk-cert-cell" data-label="Status">
+                    </div>
+                    <span role="cell" class="pdk-dt-cell" data-label="Source">@CertificateDisplay.Label(row.Origin)</span>
+                    <span role="cell" class="pdk-dt-cell" data-label="Status">
                         @if (Issuance.GetProgress(row.Id) is not null)
                         {
                             <span class="pdk-pill pdk-tone-info"><MudProgressCircular Indeterminate="true" Size="Size.Small" Class="pdk-pill-spinner" /> Issuing</span>
@@ -133,7 +137,7 @@
                             <span class="pdk-pill pdk-tone-@CertificateDisplay.StatusTone(s.Status, s.NotBefore, s.NotAfter, _now)">@CertificateDisplay.StatusLabel(s.Status, s.NotBefore, s.NotAfter, _now)</span>
                         }
                     </span>
-                    <span role="cell" class="pdk-cert-cell" data-label="Expires">
+                    <span role="cell" class="pdk-dt-cell" data-label="Expires">
                         @if (s.Status == CertificateStatus.Pending)
                         {
                             <span class="pdk-muted">-</span>
@@ -143,8 +147,8 @@
                             <ExpiryCountdown NotAfter="s.NotAfter" Now="_now" />
                         }
                     </span>
-                    <span role="cell" class="pdk-cert-cell pdk-cert-issuer" data-label="Issuer">@(s.Status == CertificateStatus.Pending ? "-" : CertificateDisplay.CommonName(s.Issuer))</span>
-                    <span role="cell" class="pdk-cert-cell" data-label="Used by">
+                    <span role="cell" class="pdk-dt-cell pdk-cert-issuer" data-label="Issuer">@(s.Status == CertificateStatus.Pending ? "-" : CertificateDisplay.CommonName(s.Issuer))</span>
+                    <span role="cell" class="pdk-dt-cell" data-label="Used by">
                         @if (!_view.UsageKnown)
                         {
                             <span class="pdk-muted">-</span>
@@ -167,7 +171,7 @@
                             </span>
                         }
                     </span>
-                </button>
+                </div>
             }
         </div>
     }
@@ -178,24 +182,18 @@
     <TrustRootCard Root="_view?.Root?.Summary" />
 </div>
 
-<MudDrawer @bind-Open="_drawerOpen" Anchor="Anchor.End" Variant="DrawerVariant.Temporary" Elevation="2" Width="min(560px, 100vw)" Class="pdk-detail-drawer"
-           Overlay="true">
-    @if (_selected is { } selected)
-    {
-        <CertificateDetailPanel Row="selected" Now="_now" MayWrite="_mayWrite" UsageKnown="_view?.UsageKnown == true" OnClose="Close"
-                                OnRenew="RenewAsync" OnReissue="ReissueAsync" OnDelete="DeleteAsync" />
-    }
-</MudDrawer>
-
 @code {
     private CertificateInventoryView? _view;
-    private CertificateRow? _selected;
-    private bool _drawerOpen;
     private bool _mayWrite;
     private bool _mayReadConfig;
     private bool _failed;
     private DateTimeOffset _now;
     private LiveUpdates? _live;
+    private RoutedDrawer? _drawer;
+
+    /// <summary>The address's last segment: a certificate's ID; null for the list alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
 
     private IEnumerable<(string Tone, string Label, int? Count)> Counters
     {
@@ -224,6 +222,17 @@
         await LoadAsync();
     }
 
+    protected override void OnParametersSet()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _drawer ??= new RoutedDrawer(Navigation, DashboardRoutes.Certificates);
+        _drawer.Show(Key, OpenDrawer);
+    }
+
     protected override void OnAfterRender(bool firstRender)
     {
         // Live from the moment the page is interactive: a change anywhere (another tab, the scheduler, the API) refreshes the list.
@@ -233,7 +242,11 @@
         }
     }
 
-    public void Dispose() => _live?.Dispose();
+    public void Dispose()
+    {
+        _live?.Dispose();
+        _drawer?.Dispose();
+    }
 
     private async Task LoadAsync()
     {
@@ -243,11 +256,6 @@
             _now = Time.GetUtcNow();
             _view = await CertificateInventoryView.LoadAsync(
                 CertificateInventory, Issuance, _mayReadConfig ? Config : null, Services.GetService(typeof(IBuiltInCertificates)) as IBuiltInCertificates, _now);
-            if (_selected is { } selected)
-            {
-                _selected = _view.Rows.FirstOrDefault(r => r.Id == selected.Id) ?? (_view.Admin?.Id == selected.Id ? _view.Admin : null);
-                _drawerOpen &= _selected is not null;
-            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -263,32 +271,26 @@
         StateHasChanged();
     }
 
-    private void Open(CertificateRow row)
-    {
-        _selected = row;
-        _drawerOpen = true;
-    }
+    /// <summary>The drawer an address names: the segment is parsed here, and anything that isn't a certificate ID is not found.</summary>
+    private DrawerLevel OpenDrawer(string key) =>
+        CertificateId.TryParse(key, out CertificateId id)
+            ? Drawers.Push<CertificateDrawer>(new Dictionary<string, object?> { [nameof(CertificateDrawer.Id)] = id }, DrawerWidth.Medium)
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Certificate not found", "There is no such certificate", "Certificates", "Back to the certificates"), DrawerWidth.Narrow);
 
-    private void Close() => _drawerOpen = false;
+    private void Open(CertificateRow row) => Navigation.NavigateTo(DashboardRoutes.Certificate(row.Id));
 
-    private async Task RequestAsync()
+    /// <summary>Opens the new-certificate drawer without holding up the menu item's click, so the menu closes first.</summary>
+    private void Add(AddCertificateKind? kind) => _ = InvokeAsync(() => AddAsync(kind));
+
+    private async Task AddAsync(AddCertificateKind? kind)
     {
-        IDialogReference dialog = await AcmeRequestDialog.ShowAsync(Dialogs);
-        await dialog.Result;
+        DrawerResult result = await Drawers.OpenAsync<CertificateCreateDrawer>(
+            new Dictionary<string, object?> { [nameof(CertificateCreateDrawer.Method)] = kind },
+            DrawerWidth.Medium);
         await LoadAsync();
-    }
-
-    /// <summary>Opens the dialog without holding up the menu item's click, so the menu closes first.</summary>
-    private void Add(AddCertificateKind kind) => _ = InvokeAsync(() => AddAsync(kind));
-
-    private async Task AddAsync(AddCertificateKind kind)
-    {
-        IDialogReference dialog = await AddCertificateDialog.ShowAsync(Dialogs, kind);
-        DialogResult? result = await dialog.Result;
-        await LoadAsync();
-        if (result is { Canceled: false, Data: CertificateSummary created } && _view?.Rows.FirstOrDefault(r => r.Id == created.Id) is { } row)
+        if (result.As<CertificateSummary>() is { } created)
         {
-            Open(row);
+            Navigation.NavigateTo(DashboardRoutes.Certificate(created.Id));
         }
     }
 
@@ -301,90 +303,17 @@
         }
 
         await Logger.TryAsync(Snackbar, "Couldn't create the local CA.", async () =>
-            Report(await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin), "The local CA is ready. Install its root to trust what it issues."));
-        await LoadAsync();
-    }
-
-    private async Task RenewAsync(CertificateRow row)
-    {
-        if (row.Order is null)
         {
-            return;
-        }
-
-        IDialogReference dialog = await AcmeRequestDialog.ShowAsync(Dialogs, row.Order);
-        await dialog.Result;
-        await LoadAsync();
-    }
-
-    private async Task ReissueAsync(CertificateRow row)
-    {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
-            Dialogs,
-            $"Re-issue {row.Name}?",
-            "A new key and certificate replace the current ones under the same ID, with the same names. Hosts that use it switch over at once.",
-            "Re-issue",
-            destructive: false,
-            icon: Icons.Material.Rounded.Refresh);
-        CommandOrigin? origin = confirmed ? await Caller.OriginAsync() : null;
-        if (origin is null)
-        {
-            return;
-        }
-
-        await Logger.TryAsync(Snackbar, $"Couldn't re-issue {row.Name}.", async () =>
-            Report(await Operations.ReissueAsync(row.Id, null, origin), $"{row.Name} was re-issued."));
-        await LoadAsync();
-    }
-
-    private async Task DeleteAsync(CertificateRow row)
-    {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
-            Dialogs,
-            $"Delete {row.Name}?",
-            "The certificate and its key are removed from the vault. This can't be undone.",
-            "Delete",
-            detail: row.Uses.Count > 0 ? "Hosts that pick it automatically fall back to the next best certificate; one that names it keeps it from being deleted." : null);
-        CommandOrigin? origin = confirmed ? await Caller.OriginAsync() : null;
-        if (origin is null)
-        {
-            return;
-        }
-
-        await Logger.TryAsync(Snackbar, $"Couldn't delete {row.Name}.", async () =>
-        {
-            if (Report(await Operations.DeleteAsync(row.Id, origin), $"{row.Name} was deleted."))
+            CertificateOperationResult result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin);
+            if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
             {
-                _drawerOpen = false;
-                _selected = null;
+                Snackbar.Add("The local CA is ready. Install its root to trust what it issues.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result)), Severity.Error);
             }
         });
         await LoadAsync();
     }
-
-    /// <summary>A toast for an operation's outcome; true when it completed.</summary>
-    private bool Report(CertificateOperationResult result, string success)
-    {
-        if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
-        {
-            Snackbar.Add(success, Severity.Success);
-            foreach (ConfigError warning in result.Warnings)
-            {
-                Snackbar.Add(CertificateMessages.Sentence(warning.Message), Severity.Warning);
-            }
-
-            return true;
-        }
-
-        Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result)), Severity.Error);
-        return false;
-    }
-
-    private static string NamesLine(CertificateSummary s) =>
-        s.Names.Count switch
-        {
-            0 => CertificateDisplay.CommonName(s.Subject),
-            <= 3 => string.Join(", ", s.Names),
-            _ => $"{string.Join(", ", s.Names.Take(2))} +{s.Names.Count - 2}",
-        };
 }

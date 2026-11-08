@@ -6,21 +6,30 @@
                   Placeholder="example.com&#10;*.example.com" Error="_namesError is not null" ErrorText="@_namesError" Class="pdk-acme-names"
                   HelperText="One per line or comma-separated. A wildcard (*.example.com) needs DNS-01." Disabled="Busy" OnBlur="CheckNames" Immediate="true" />
 
-    @if (_active.Count == 0)
+    @if (_active.Count == 0 && NewAccount is null)
     {
         <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
             There is no ACME account yet. Add one first (Settings, ACME accounts): it is how the CA knows who is asking.
         </MudAlert>
     }
+    else if (_active.Count == 0)
+    {
+        <div class="pdk-inline-empty" data-section="no-account">
+            <span>There is no ACME account yet: it is how the CA knows who is asking.</span>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddAccountAsync"
+                       Disabled="Busy" Class="pdk-acme-new-account">Add an ACME account</MudButton>
+        </div>
+    }
     else
     {
-        <MudSelect T="AcmeAccountId?" @bind-Value="_account" Label="ACME account" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Busy"
+        <RefPicker T="AcmeAccountId?" Value="_account" ValueChanged="value => _account = value" Label="ACME account" Disabled="Busy" ToStringFunc="AccountName"
+                   NewValue="NewAccountValue" NewLabel="New ACME account..." OnNew="@(NewAccount is null ? default : EventCallback.Factory.Create(this, AddAccountAsync))"
                    Error="_accountError is not null" ErrorText="@_accountError" Class="pdk-acme-account">
             @foreach (AcmeAccountSummary account in _active)
             {
                 <MudSelectItem T="AcmeAccountId?" Value="account.Id">@ProviderDisplay.AccountName(account)</MudSelectItem>
             }
-        </MudSelect>
+        </RefPicker>
     }
 
     <div class="pdk-choice-grid" role="radiogroup" aria-label="Challenge type">
@@ -40,21 +49,30 @@
 
     @if (_challenge == AcmeChallengeType.Dns01)
     {
-        @if (Providers.Count == 0)
+        @if (Providers.Count == 0 && NewProvider is null)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
                 DNS-01 needs a DNS provider. Add one first (Settings, DNS providers), or use HTTP-01.
             </MudAlert>
         }
+        else if (Providers.Count == 0)
+        {
+            <div class="pdk-inline-empty" data-section="no-provider">
+                <span>DNS-01 needs a DNS provider to write the TXT record through.</span>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddProviderAsync"
+                           Disabled="Busy" Class="pdk-acme-new-provider">Add a DNS provider</MudButton>
+            </div>
+        }
         else
         {
-            <MudSelect T="DnsProviderId?" @bind-Value="_provider" Label="DNS provider" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Busy"
+            <RefPicker T="DnsProviderId?" Value="_provider" ValueChanged="value => _provider = value" Label="DNS provider" Disabled="Busy" ToStringFunc="ProviderName"
+                       NewValue="NewProviderValue" NewLabel="New DNS provider..." OnNew="@(NewProvider is null ? default : EventCallback.Factory.Create(this, AddProviderAsync))"
                        Error="_providerError is not null" ErrorText="@_providerError" Class="pdk-acme-provider">
                 @foreach (DnsProviderSummary provider in Providers)
                 {
                     <MudSelectItem T="DnsProviderId?" Value="provider.Id">@provider.Label (@ProviderDisplay.KindLabel(provider.Kind))</MudSelectItem>
                 }
-            </MudSelect>
+            </RefPicker>
         }
     }
 
@@ -74,7 +92,7 @@
         {
             <MudButton Variant="Variant.Text" OnClick="OnCancel" Disabled="Busy">Cancel</MudButton>
         }
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="@(Busy || _active.Count == 0)" Class="pdk-acme-submit"
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitAsync" Disabled="@(Busy || (_active.Count == 0 && _account is null))" Class="pdk-acme-submit"
                    StartIcon="@Icons.Material.Rounded.Bolt">@SubmitText</MudButton>
     </div>
 </div>
@@ -115,6 +133,42 @@
 
     [Parameter]
     public string SubmitText { get; set; } = "Request certificate";
+
+    /// <summary>Makes an ACME account (a drawer stacked on this one) and hands it back once the parent's list has it; null offers none.</summary>
+    [Parameter]
+    public Func<Task<AcmeAccountSummary?>>? NewAccount { get; set; }
+
+    /// <summary>Makes a DNS provider and hands it back once the parent's list has it; null offers none.</summary>
+    [Parameter]
+    public Func<Task<DnsProviderSummary?>>? NewProvider { get; set; }
+
+    private static readonly AcmeAccountId? NewAccountValue = default(AcmeAccountId);
+
+    private static readonly DnsProviderId? NewProviderValue = default(DnsProviderId);
+
+    private string? AccountName(AcmeAccountId? id) =>
+        id is { } value && Accounts.FirstOrDefault(a => a.Id == value) is { } account ? ProviderDisplay.AccountName(account) : null;
+
+    private string? ProviderName(DnsProviderId? id) =>
+        id is { } value && Providers.FirstOrDefault(p => p.Id == value) is { } provider ? $"{provider.Label} ({ProviderDisplay.KindLabel(provider.Kind)})" : null;
+
+    private async Task AddAccountAsync()
+    {
+        if (NewAccount is not null && await NewAccount() is { } account)
+        {
+            _account = account.Id;
+            _accountError = null;
+        }
+    }
+
+    private async Task AddProviderAsync()
+    {
+        if (NewProvider is not null && await NewProvider() is { } provider)
+        {
+            _provider = provider.Id;
+            _providerError = null;
+        }
+    }
 
     protected override void OnInitialized()
     {

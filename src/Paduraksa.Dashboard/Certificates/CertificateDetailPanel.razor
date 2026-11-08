@@ -1,5 +1,6 @@
-@* One certificate's public facts, its renewal and order state, and what can be done with it. While an issuance of it runs (started here,
-   by the scheduler or elsewhere), its progress is read every two seconds for as long as this panel is open: the one place that polls. *@
+@* The body of a certificate's drawer (which shows its name): its public facts, its renewal and order state, and what can be done with
+   it. While an issuance of it runs (started here, by the scheduler or elsewhere), its progress is read every two seconds for as long as
+   this panel is open: the one place that polls. *@
 @implements IDisposable
 @inject CertificateService Certificates
 @inject AcmeIssuanceService Issuance
@@ -7,23 +8,14 @@
 @inject TimeProvider Time
 
 <div class="pdk-detail">
-    <header class="pdk-detail-head">
-        <span class="pdk-detail-icon pdk-tone-@CertificateDisplay.StatusTone(S.Status, S.NotBefore, S.NotAfter, Now)">
-            <MudIcon Icon="@CertificateDisplay.Icon(Row.Origin)" />
-        </span>
-        <div class="pdk-detail-titles">
-            <MudText Typo="Typo.h6" HtmlTag="h2" Class="pdk-detail-name">@Row.Name</MudText>
-            <div class="pdk-detail-chips">
-                <span class="pdk-pill pdk-tone-@CertificateDisplay.StatusTone(S.Status, S.NotBefore, S.NotAfter, Now)">@CertificateDisplay.StatusLabel(S.Status, S.NotBefore, S.NotAfter, Now)</span>
-                <span class="pdk-pill pdk-tone-default">@CertificateDisplay.Label(Row.Origin)</span>
-                @if (Row.IsAdmin)
-                {
-                    <span class="pdk-pill pdk-tone-info">Managed</span>
-                }
-            </div>
-        </div>
-        <MudIconButton Icon="@Icons.Material.Rounded.Close" OnClick="OnClose" aria-label="Close" Size="Size.Small" />
-    </header>
+    <div class="pdk-detail-chips">
+        <span class="pdk-pill pdk-tone-@CertificateDisplay.StatusTone(S.Status, S.NotBefore, S.NotAfter, Now)">@CertificateDisplay.StatusLabel(S.Status, S.NotBefore, S.NotAfter, Now)</span>
+        <span class="pdk-pill pdk-tone-default">@CertificateDisplay.Label(Row.Origin)</span>
+        @if (Row.IsAdmin)
+        {
+            <span class="pdk-pill pdk-tone-info">Managed</span>
+        }
+    </div>
 
     @if (S.Status == CertificateStatus.Failed && S.StatusMessage is { Length: > 0 } failed)
     {
@@ -220,9 +212,6 @@
 
     [Parameter]
     public bool UsageKnown { get; set; }
-
-    [Parameter]
-    public EventCallback OnClose { get; set; }
 
     [Parameter]
     public EventCallback<CertificateRow> OnRenew { get; set; }

@@ -19,9 +19,10 @@ public enum CertificateOrigin
     BuiltIn,
 }
 
-/// <summary>What the add-a-certificate dialog makes.</summary>
+/// <summary>Where a new certificate comes from, as the new-certificate drawer offers it.</summary>
 public enum AddCertificateKind
 {
+    Acme,
     Upload,
     SelfSigned,
     LocalCaLeaf,
@@ -200,6 +201,18 @@ public static class CertificateDisplay
         return certificate.Label is { Length: > 0 } label ? label
             : certificate.Names.Count > 0 ? certificate.Names[0]
             : CommonName(certificate.Subject);
+    }
+
+    /// <summary>A certificate's names on one line: up to three, then how many more.</summary>
+    public static string NamesLine(CertificateSummary certificate)
+    {
+        ArgumentNullException.ThrowIfNull(certificate);
+        return certificate.Names.Count switch
+        {
+            0 => CommonName(certificate.Subject),
+            <= 3 => string.Join(", ", certificate.Names),
+            _ => $"{string.Join(", ", certificate.Names.Take(2))} +{(certificate.Names.Count - 2).ToString(CultureInfo.InvariantCulture)}",
+        };
     }
 
     public static string Date(DateTimeOffset value) => value.ToString("d MMM yyyy", CultureInfo.InvariantCulture);

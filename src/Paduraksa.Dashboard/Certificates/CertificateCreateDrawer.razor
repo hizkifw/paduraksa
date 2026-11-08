@@ -1,0 +1,333 @@
+@* A new certificate, in a drawer (PLAN §9, §12): from an ACME CA (with live progress), from the local CA, self-signed, or uploaded; or a
+   renewal now. Opened from the certificates page, or stacked on a host's form for its names. A certificate lives in the vault, not in
+   the config, so this really issues or uploads (there is nothing to review); the drawer hands back the new certificate. "New ACME
+   account..." and "New DNS provider..." stack their own drawers and come back with it selected. *@
+@inject AcmeIssuanceService Issuance
+@inject AcmeAccountService AcmeAccounts
+@inject DnsProviderService DnsProviders
+@inject CertificateOperations Operations
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject Microsoft.Extensions.Hosting.IHostApplicationLifetime Lifetime
+@inject ISnackbar Snackbar
+@inject Microsoft.Extensions.Logging.ILogger<CertificateCreateDrawer> Logger
+
+<DrawerShell Title="@Title" Overline="@(Renew is null ? "New certificate" : "Certificate")" Subtitle="@Subtitle" Icon="@Icon" Name="certificate-new"
+             Footer="@FooterContent">
+    <ChildContent>
+        @if (_mayWrite is false)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">Your role can't add certificates. An Owner can give you a role that can.</MudAlert>
+        }
+        else if (_method is null)
+        {
+            <div class="pdk-method-grid" role="list" aria-label="Where the certificate comes from" data-section="methods">
+                @foreach ((AddCertificateKind kind, string icon, string title, string hint) in Methods)
+                {
+                    <button type="button" class="pdk-method" role="listitem" @onclick="() => Choose(kind)" data-method="@kind.ToString().ToLowerInvariant()">
+                        <span class="pdk-method-icon pdk-tone-primary"><MudIcon Icon="@icon" Size="Size.Small" /></span>
+                        <span class="pdk-method-text">
+                            <span class="pdk-method-title">@title</span>
+                            <span class="pdk-method-hint">@hint</span>
+                        </span>
+                        <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Size="Size.Small" Class="pdk-method-go" />
+                    </button>
+                }
+            </div>
+            @if (InitialNames is { Count: > 0 } names)
+            {
+                <MudText Typo="Typo.caption" Class="pdk-muted">For @string.Join(", ", names). You can change the names on the next step.</MudText>
+            }
+        }
+        else if (_method == AddCertificateKind.Acme)
+        {
+            @if (_start is not null)
+            {
+                <AcmeRunPanel @key="_run" Start="_start" ChallengeType="_challenge" Attempts="Renew?.Attempts" Finished="OnFinished" />
+            }
+            else if (_failed)
+            {
+                <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" data-alert="load-failed">
+                    The ACME accounts and DNS providers couldn't be read. The details are in the server log.
+                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+                </MudAlert>
+            }
+            else if (_accounts is null)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="220px" />
+            }
+            else
+            {
+                <AcmeRequestForm Accounts="_accounts" Providers="_providers" Submit="StartRequestAsync" OnCancel="Back" InitialNames="InitialNames"
+                                 NewAccount="@(_mayWriteProviders ? NewAccountAsync : null)" NewProvider="@(_mayWriteProviders ? NewProviderAsync : null)" />
+            }
+        }
+        else if (_method == AddCertificateKind.Upload)
+        {
+            <UploadCertificateForm Submit="UploadAsync" Uploaded="Done" OnCancel="Back" />
+        }
+        else
+        {
+            <LocalCertificateForm @key="_method" LocalCa="@(_method == AddCertificateKind.LocalCaLeaf)" Submit="IssueAsync" Issued="Done" OnCancel="Back"
+                                  InitialNames="InitialNames" SubmitText="@(_method == AddCertificateKind.SelfSigned ? "Create self-signed" : "Issue from the local CA")" />
+        }
+    </ChildContent>
+</DrawerShell>
+
+@code {
+    private static readonly (AddCertificateKind Kind, string Icon, string Title, string Hint)[] Methods =
+    [
+        (AddCertificateKind.Acme, Icons.Material.Outlined.Public, "From an ACME CA", "Let's Encrypt or another public CA: trusted everywhere, renewed on its own."),
+        (AddCertificateKind.LocalCaLeaf, Icons.Material.Outlined.Lan, "From the local CA", "For LAN names a public CA can't check: trusted where the local CA's root is installed."),
+        (AddCertificateKind.SelfSigned, Icons.Material.Outlined.Draw, "Self-signed", "Trusted by nothing; fine for testing or a client you configure by hand."),
+        (AddCertificateKind.Upload, Icons.Material.Outlined.UploadFile, "Upload", "A PEM with its key, or a PFX, from somewhere else."),
+    ];
+
+    private AddCertificateKind? _method;
+
+    /// <summary>The drawer's own buttons: Cancel while choosing, the run's while an issuance shows its progress; a form brings its own.</summary>
+    private RenderFragment? FooterContent =>
+        _method is null || _mayWrite is false ? CancelFooter : _start is not null ? RunFooter : null;
+
+    private RenderFragment CancelFooter => @<div class="pdk-drawer-actions">
+        <MudButton Variant="Variant.Text" OnClick="() => Level?.RequestClose()">Cancel</MudButton>
+    </div>;
+
+    private RenderFragment RunFooter => @<div class="pdk-drawer-actions">
+        @if (_finished is { Outcome: IssuanceOutcome.Failed } && _lastRequest is not null)
+        {
+            <MudButton Variant="Variant.Text" OnClick="Retry" StartIcon="@Icons.Material.Rounded.Refresh">Retry now</MudButton>
+        }
+        <MudButton Variant="@(_finished is null ? Variant.Text : Variant.Filled)" Color="Color.Primary" OnClick="CloseRun" Class="pdk-run-close">
+            @(_finished is null ? "Continue in the background" : _finished.Outcome == IssuanceOutcome.Issued && Level?.Parent is not null ? "Use this certificate" : "Done")
+        </MudButton>
+    </div>;
+    private IReadOnlyList<AcmeAccountSummary>? _accounts;
+    private IReadOnlyList<DnsProviderSummary> _providers = [];
+    private Func<IProgress<AcmeOrderProgress>, Task<IssuanceResult>>? _start;
+    private AcmeChallengeType _challenge;
+    private IssuanceResult? _finished;
+    private CertificateId? _lastRequest;
+    private int _run;
+    private bool _failed;
+    private bool? _mayWrite;
+    private bool _mayWriteProviders;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    /// <summary>Where it comes from; null lets the person choose.</summary>
+    [Parameter]
+    public AddCertificateKind? Method { get; set; }
+
+    /// <summary>The names to start with (a host's).</summary>
+    [Parameter]
+    public IReadOnlyList<string>? InitialNames { get; set; }
+
+    /// <summary>An ACME order to renew now (the progress only).</summary>
+    [Parameter]
+    public AcmeOrderSummary? Renew { get; set; }
+
+    private string Title => Renew is not null ? "Renew now" : _method switch
+    {
+        AddCertificateKind.Acme => "Request from an ACME CA",
+        AddCertificateKind.Upload => "Upload a certificate",
+        AddCertificateKind.SelfSigned => "Create a self-signed certificate",
+        AddCertificateKind.LocalCaLeaf => "Issue from the local CA",
+        _ => "New certificate",
+    };
+
+    private string? Subtitle => Renew is { } renew ? string.Join(", ", renew.Names) : _method switch
+    {
+        AddCertificateKind.Acme => "The CA checks that the names are yours, then issues. The key is born in the vault.",
+        AddCertificateKind.Upload => "The key goes straight into the vault and is never shown again.",
+        AddCertificateKind.SelfSigned => "Trusted by nothing; fine for testing or a client you configure by hand.",
+        AddCertificateKind.LocalCaLeaf => "For LAN names: trusted wherever the local CA's root is installed.",
+        _ => "Where should it come from?",
+    };
+
+    private string Icon => _method switch
+    {
+        AddCertificateKind.Upload => Icons.Material.Outlined.UploadFile,
+        AddCertificateKind.SelfSigned => Icons.Material.Outlined.Draw,
+        AddCertificateKind.LocalCaLeaf => Icons.Material.Outlined.Lan,
+        _ => Icons.Material.Outlined.Public,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.CertificatesWrite);
+        _mayWriteProviders = user.Has(Permission.ProvidersWrite);
+        if (Renew is { } order)
+        {
+            _method = AddCertificateKind.Acme;
+            StartRenewal(order.CertificateId, order.ChallengeType);
+            return;
+        }
+
+        if (Method is { } method)
+        {
+            await ChooseAsync(method);
+        }
+    }
+
+    private void Choose(AddCertificateKind kind) => _ = InvokeAsync(() => ChooseAsync(kind));
+
+    private async Task ChooseAsync(AddCertificateKind kind)
+    {
+        _method = kind;
+        StateHasChanged();
+        if (kind == AddCertificateKind.Acme)
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Back to the choice of where it comes from (or closed, when the drawer was opened for one way).</summary>
+    private void Back()
+    {
+        if (Method is not null || Renew is not null)
+        {
+            Level?.RequestClose();
+            return;
+        }
+
+        _method = null;
+        _start = null;
+    }
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        try
+        {
+            _accounts = await AcmeAccounts.ListAsync();
+            _providers = await DnsProviders.ListAsync();
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't read the ACME accounts and DNS providers.");
+            _failed = true;
+        }
+    }
+
+    private async Task<AcmeAccountSummary?> NewAccountAsync()
+    {
+        DrawerResult result = await Drawers.OpenAsync<AcmeAccountDrawer>(width: DrawerWidth.Narrow);
+        await LoadAsync();
+        StateHasChanged();
+        return result.As<AcmeAccountSummary>();
+    }
+
+    private async Task<DnsProviderSummary?> NewProviderAsync()
+    {
+        DrawerResult result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(null), DrawerWidth.Narrow);
+        await LoadAsync();
+        StateHasChanged();
+        return result.As<DnsProviderSummary>();
+    }
+
+    private async Task StartRequestAsync(CertificateIssueRequest request)
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return;
+        }
+
+        _challenge = request.ChallengeType;
+        _start = progress => Issuance.RequestCertificateAsync(request, origin, progress, Lifetime.ApplicationStopping);
+        SetRunning(true);
+    }
+
+    private void StartRenewal(CertificateId id, AcmeChallengeType challenge)
+    {
+        _challenge = challenge;
+        _finished = null;
+        _start = async progress =>
+        {
+            CommandOrigin? origin = await Caller.OriginAsync();
+            return origin is null
+                ? new IssuanceResult(IssuanceOutcome.Forbidden, id)
+                : await Issuance.RenewAsync(id, origin, progress, Lifetime.ApplicationStopping);
+        };
+        SetRunning(true);
+    }
+
+    private void Retry()
+    {
+        if (_lastRequest is { } id)
+        {
+            _run++;
+            StartRenewal(id, _challenge);
+        }
+    }
+
+    private void OnFinished(IssuanceResult result)
+    {
+        _finished = result;
+        _lastRequest = result.CertificateId;
+        SetRunning(false);
+        if (result.Outcome == IssuanceOutcome.Issued)
+        {
+            Snackbar.Add($"Certificate issued for {string.Join(", ", result.Certificate?.Names ?? [])}.", Severity.Success);
+        }
+        else if (result.Outcome == IssuanceOutcome.Failed)
+        {
+            Snackbar.Add("The CA did not issue the certificate. The scheduler retries on its own.", Severity.Error);
+        }
+    }
+
+    /// <summary>"Done" hands the issued certificate back; "Continue in the background" leaves the run going and hands back nothing.</summary>
+    private void CloseRun()
+    {
+        if (_finished is { Outcome: IssuanceOutcome.Issued, Certificate: { } certificate })
+        {
+            Level?.Close(certificate);
+            return;
+        }
+
+        Level?.Close();
+    }
+
+    /// <summary>While an issuance shows its progress, Escape and the backdrop don't close the drawer: it ends with Done or Continue in the background.</summary>
+    private void SetRunning(bool running)
+    {
+        if (Level is not null)
+        {
+            Level.Busy = running;
+        }
+    }
+
+    private async Task<CertificateOperationResult?> UploadAsync(CertificateUpload upload)
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        return origin is null ? null : await Operations.UploadAsync(upload.Data, upload.Password, upload.Label, null, origin);
+    }
+
+    private async Task<CertificateOperationResult?> IssueAsync(LocalCertificateRequest request)
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return null;
+        }
+
+        return _method == AddCertificateKind.SelfSigned
+            ? await Operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(request.Names, request.KeySpec, request.Validity, request.Label), origin)
+            : await LocalCa.IssueAsync(Operations, request, origin);
+    }
+
+    private void Done(CertificateSummary certificate)
+    {
+        Snackbar.Add($"{CertificateDisplay.DisplayName(certificate)} is ready.", Severity.Success);
+        Level?.Close(certificate);
+    }
+}

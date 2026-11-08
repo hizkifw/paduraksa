@@ -1,0 +1,22 @@
+@* Add an ACME account, in a drawer (from the ACME accounts page, or stacked on the certificate request when there is none yet). The CA
+   registers it at once (it is a vault object, not config); the drawer hands back the new account. *@
+@inject ProviderActions Actions
+@inject ISnackbar Snackbar
+
+<DrawerShell Title="Add an ACME account" Overline="ACME account" Subtitle="The vault makes the account key; the CA registers it now."
+             Icon="@Icons.Material.Outlined.Badge" Name="acme-account">
+    <AcmeAccountForm Submit="SubmitAsync" Created="Created" OnCancel="() => Level?.RequestClose()" />
+</DrawerShell>
+
+@code {
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    private Task<AcmeAccountResult?> SubmitAsync(AcmeAccountSubmission submission) => Actions.CreateAccountAsync(submission);
+
+    private void Created(AcmeAccountSummary account)
+    {
+        Snackbar.Add($"Registered with {ProviderDisplay.CaName(account.DirectoryUrl)}.", Severity.Success);
+        Level?.Close(account);
+    }
+}

@@ -1,0 +1,188 @@
+@* A certificate in a drawer (PLAN §9, §12): its facts, who uses it, its ACME state, and renew, re-issue and delete. It reads the inventory
+   itself and follows changes to it (a renewal by the scheduler, another tab), so its address (/certificates/crt_...) opens it from
+   anywhere. Renew now stacks the progress on top; re-issue and delete ask first. *@
+@implements IDisposable
+@inject CertificateService CertificateInventory
+@inject CertificateOperations Operations
+@inject AcmeIssuanceService Issuance
+@inject ConfigService ConfigCommands
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+@inject IServiceProvider Services
+@inject Microsoft.Extensions.Logging.ILogger<CertificateDrawer> Logger
+
+<DrawerShell Title="@(_row?.Name ?? (_missing ? "Certificate not found" : "Certificate"))" Overline="Certificate"
+             Subtitle="@(_row is { } row ? CertificateDisplay.NamesLine(row.Summary) : null)"
+             Icon="@(_row is { } r ? CertificateDisplay.Icon(r.Origin) : Icons.Material.Outlined.WorkspacePremium)"
+             IconTone="@(_row is { } t ? ToneOf(CertificateDisplay.StatusTone(t.Summary.Status, t.Summary.NotBefore, t.Summary.NotAfter, _now)) : Tone.Primary)"
+             Name="certificate">
+    <ChildContent>
+        @if (_missing)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such certificate" Description="It may have been deleted, or the link is wrong." />
+        }
+        else if (_failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true">
+                The certificate couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
+        else if (_row is null)
+        {
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="240px" />
+        }
+        else
+        {
+            <CertificateDetailPanel Row="_row" Now="_now" MayWrite="_mayWrite" UsageKnown="_usageKnown" OnRenew="RenewAsync" OnReissue="ReissueAsync" OnDelete="DeleteAsync" />
+        }
+    </ChildContent>
+</DrawerShell>
+
+@code {
+    private CertificateRow? _row;
+    private bool _mayWrite;
+    private bool _usageKnown;
+    private bool _missing;
+    private bool _failed;
+    private DateTimeOffset _now;
+    private LiveUpdates? _live;
+
+    [CascadingParameter]
+    private DrawerLevel? Level { get; set; }
+
+    [Parameter, EditorRequired]
+    public CertificateId Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _now = Time.GetUtcNow();
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.CertificatesWrite);
+        _usageKnown = user.Has(Permission.ConfigRead);
+        await LoadAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive && _live is null)
+        {
+            _live = LiveUpdates.Start(ConfigCommands, InvokeAsync, RefreshAsync, followConfig: _usageKnown, "certificate.", "acme.order.");
+        }
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        try
+        {
+            _now = Time.GetUtcNow();
+            CertificateInventoryView view = await CertificateInventoryView.LoadAsync(
+                CertificateInventory, Issuance, _usageKnown ? ConfigCommands : null, Services.GetService(typeof(IBuiltInCertificates)) as IBuiltInCertificates, _now);
+            _row = view.Rows.FirstOrDefault(r => r.Id == Id) ?? (view.Admin?.Id == Id ? view.Admin : view.Root?.Id == Id ? view.Root : null);
+            _missing = _row is null;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't load a certificate.");
+            _failed = true;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private static Tone ToneOf(string tone) => tone switch
+    {
+        "success" => Tone.Success,
+        "warning" => Tone.Warning,
+        "error" => Tone.Error,
+        "info" => Tone.Info,
+        _ => Tone.Default,
+    };
+
+    private async Task RenewAsync(CertificateRow row)
+    {
+        if (row.Order is null)
+        {
+            return;
+        }
+
+        await Drawers.OpenAsync<CertificateCreateDrawer>(new Dictionary<string, object?> { [nameof(CertificateCreateDrawer.Renew)] = row.Order }, DrawerWidth.Medium);
+        await LoadAsync();
+    }
+
+    private async Task ReissueAsync(CertificateRow row)
+    {
+        bool confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            $"Re-issue {row.Name}?",
+            "A new key and certificate replace the current ones under the same ID, with the same names. Hosts that use it switch over at once.",
+            "Re-issue",
+            destructive: false,
+            icon: Icons.Material.Rounded.Refresh);
+        CommandOrigin? origin = confirmed ? await Caller.OriginAsync() : null;
+        if (origin is null)
+        {
+            return;
+        }
+
+        await Logger.TryAsync(Snackbar, $"Couldn't re-issue {row.Name}.", async () =>
+            Report(await Operations.ReissueAsync(row.Id, null, origin), $"{row.Name} was re-issued."));
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(CertificateRow row)
+    {
+        bool confirmed = await ConfirmActionDialog.AskAsync(
+            Dialogs,
+            $"Delete {row.Name}?",
+            "The certificate and its key are removed from the vault. This can't be undone.",
+            "Delete",
+            detail: row.Uses.Count > 0 ? "Hosts that pick it automatically fall back to the next best certificate; one that names it keeps it from being deleted." : null);
+        CommandOrigin? origin = confirmed ? await Caller.OriginAsync() : null;
+        if (origin is null)
+        {
+            return;
+        }
+
+        bool deleted = false;
+        await Logger.TryAsync(Snackbar, $"Couldn't delete {row.Name}.", async () =>
+            deleted = Report(await Operations.DeleteAsync(row.Id, origin), $"{row.Name} was deleted."));
+        if (deleted)
+        {
+            Level?.Close();
+        }
+    }
+
+    /// <summary>A toast for an operation's outcome; true when it completed.</summary>
+    private bool Report(CertificateOperationResult result, string success)
+    {
+        if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
+        {
+            Snackbar.Add(success, Severity.Success);
+            foreach (ConfigError warning in result.Warnings)
+            {
+                Snackbar.Add(CertificateMessages.Sentence(warning.Message), Severity.Warning);
+            }
+
+            return true;
+        }
+
+        Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result)), Severity.Error);
+        return false;
+    }
+}

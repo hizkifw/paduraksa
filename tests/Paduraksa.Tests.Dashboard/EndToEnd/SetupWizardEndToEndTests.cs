@@ -135,17 +135,18 @@ public sealed class SetupWizardEndToEndTests
 
         // The certificates page lists the new certificate and the hosts that use it.
         await page.GotoAsync("/certificates");
-        ILocator row = page.Locator(".pdk-cert-row", new() { HasText = HostName });
+        ILocator row = page.Locator(".pdk-certs-table .pdk-dt-row", new() { HasText = HostName });
         await Expect(row).ToContainTextAsync("Local CA");
         await Expect(row).ToContainTextAsync(HostName);
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "certificates");
         await row.ClickAsync();
-        await Expect(page.Locator(".pdk-detail")).ToContainTextAsync("best match for");
+        await Expect(page.Locator(".pdk-sheet[data-top] .pdk-detail")).ToContainTextAsync("best match for");
+        await Expect(page).ToHaveURLAsync(new Regex("/certificates/crt_"));
         await PlaywrightBrowser.ScreenshotAsync(page, "certificates-detail", fullPage: false);
         await page.Keyboard.PressAsync("Escape");
-        await page.GotoAsync("/certificates");
-        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
+        await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0);
+        await Expect(page).ToHaveURLAsync(new Regex("/certificates$"));
 
         // Upload a PEM (made by openssl, when it is installed: the test code can't export a key).
         if (await MakePemAsync() is { } pem)
@@ -154,11 +155,14 @@ public sealed class SetupWizardEndToEndTests
             {
                 await page.Locator(".pdk-add-menu button").First.ClickAsync();
                 await page.Locator(".pdk-add-upload").ClickAsync();
+                await Expect(page.Locator(".pdk-sheet[data-top] [data-drawer=certificate-new]")).ToBeVisibleAsync();
                 await page.Locator("input[type=file][aria-label='Certificate file']").SetInputFilesAsync(pem);
                 await page.FillAsync(".pdk-upload-label input", "Uploaded in the test");
                 await PlaywrightBrowser.ScreenshotAsync(page, "certificates-upload", fullPage: false);
                 await page.ClickAsync(".pdk-upload-submit");
-                await Expect(page.Locator(".pdk-cert-row", new() { HasText = "Uploaded in the test" })).ToContainTextAsync("Uploaded", new() { Timeout = 15_000 });
+                // Done: the new certificate's drawer opens over the list, which has it.
+                await Expect(page.Locator(".pdk-sheet[data-top] [data-drawer=certificate]")).ToContainTextAsync("Uploaded in the test", new() { Timeout = 15_000 });
+                await Expect(page.Locator(".pdk-certs-table .pdk-dt-row", new() { HasText = "Uploaded in the test" })).ToContainTextAsync("Uploaded");
             }
             finally
             {

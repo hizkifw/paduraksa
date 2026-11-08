@@ -13,6 +13,7 @@
 @inject ConfigService Config
 @inject DashboardCaller Caller
 @inject IDialogService Dialogs
+@inject DrawerStack Drawers
 @inject ISnackbar Snackbar
 @inject TimeProvider Time
 @inject ILogger<DnsProviders> Logger
@@ -152,10 +153,9 @@ else
 
     private async Task AddAsync()
     {
-        IDialogReference dialog = await DnsProviderDialog.ShowAsync(Dialogs);
-        DialogResult? result = await dialog.Result;
+        DrawerResult result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(null), DrawerWidth.Narrow);
         await LoadAsync();
-        if (result is { Canceled: false, Data: DnsProviderSummary added })
+        if (result.As<DnsProviderSummary>() is { } added)
         {
             await TestAsync(added);
         }
@@ -163,11 +163,10 @@ else
 
     private async Task RotateAsync(DnsProviderSummary provider)
     {
-        IDialogReference dialog = await DnsProviderDialog.ShowAsync(Dialogs, provider);
-        DialogResult? result = await dialog.Result;
+        DrawerResult result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(provider), DrawerWidth.Narrow);
         _results.Remove(provider.Id);
         await LoadAsync();
-        if (result is { Canceled: false })
+        if (!result.Canceled)
         {
             await TestAsync(provider);
         }
