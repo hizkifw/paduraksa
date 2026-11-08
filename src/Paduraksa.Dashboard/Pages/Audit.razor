@@ -378,22 +378,15 @@ else
                 foreach (UserSummary listed in (await Identity.ListUsersAsync(origin)).Users)
                 {
                     users[listed.Id] = listed.DisplayName;
-                    if (user.Has(Permission.TokensAll))
-                    {
-                        foreach (ApiTokenSummary token in (await Identity.ListTokensAsync(origin, listed.Id)).Tokens)
-                        {
-                            tokens[token.Id] = token.Name;
-                        }
-                    }
                 }
             }
 
-            if (!user.Has(Permission.TokensAll) && user.Has(Permission.TokensOwn))
+            ApiTokenListResult? owned = user.Has(Permission.TokensAll) ? await Identity.ListAllTokensAsync(origin)
+                : user.Has(Permission.TokensOwn) ? await Identity.ListTokensAsync(origin)
+                : null;
+            foreach (ApiTokenSummary token in owned?.Tokens ?? [])
             {
-                foreach (ApiTokenSummary token in (await Identity.ListTokensAsync(origin)).Tokens)
-                {
-                    tokens[token.Id] = token.Name;
-                }
+                tokens[token.Id] = token.Name;
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

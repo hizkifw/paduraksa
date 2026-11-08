@@ -60,6 +60,9 @@ internal sealed class DashboardIdentity(
     public Task<ApiTokenListResult> ListTokensAsync(CommandOrigin origin, UserId? owner = null, CancellationToken cancellationToken = default) =>
         tokens.ListAsync(origin, owner, cancellationToken);
 
+    public Task<ApiTokenListResult> ListAllTokensAsync(CommandOrigin origin, CancellationToken cancellationToken = default) =>
+        tokens.ListAllAsync(origin, cancellationToken);
+
     public async Task<ApiTokenResult> IssueTokenAsync(CommandOrigin origin, IssueApiTokenRequest request, CancellationToken cancellationToken = default) =>
         Announce(await tokens.IssueAsync(origin, request, cancellationToken).ConfigureAwait(false), r => r.Succeeded);
 

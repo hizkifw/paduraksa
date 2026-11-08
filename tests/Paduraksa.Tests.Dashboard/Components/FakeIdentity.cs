@@ -149,6 +149,12 @@ internal sealed class FakeDashboardIdentity : IDashboardIdentity
     public Task<ApiTokenListResult> ListTokensAsync(CommandOrigin origin, UserId? owner = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(new ApiTokenListResult(IdentityStatus.Succeeded, [.. Tokens.Where(t => t.UserId == (owner ?? origin.Actor.UserId))]));
 
+    public Task<ApiTokenListResult> ListAllTokensAsync(CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        Calls.Add("list all tokens");
+        return Task.FromResult(new ApiTokenListResult(IdentityStatus.Succeeded, [.. Tokens.OrderByDescending(t => t.CreatedAt)]));
+    }
+
     public Task<ApiTokenResult> IssueTokenAsync(CommandOrigin origin, IssueApiTokenRequest request, CancellationToken cancellationToken = default)
     {
         Issued.Add(request);

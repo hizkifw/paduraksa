@@ -360,14 +360,10 @@
             List<TokenRow> rows = [];
             if (_everyone && _mayAll)
             {
-                UserListResult users = await Identity.ListUsersAsync(origin);
-                foreach (UserSummary owner in users.Users)
-                {
-                    ApiTokenListResult tokens = await Identity.ListTokensAsync(origin, owner.Id);
-                    rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, owner.Id == me ? "You" : owner.DisplayName, owner.Id == me)));
-                }
-
-                rows.Sort((a, b) => b.Token.CreatedAt.CompareTo(a.Token.CreatedAt));
+                // One read for the tokens and one for their owners' names, however many users there are.
+                Dictionary<UserId, string> names = (await Identity.ListUsersAsync(origin)).Users.ToDictionary(u => u.Id, u => u.DisplayName);
+                ApiTokenListResult tokens = await Identity.ListAllTokensAsync(origin);
+                rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, t.UserId == me ? "You" : names.GetValueOrDefault(t.UserId, t.UserId.ToString()), t.UserId == me)));
             }
             else
             {

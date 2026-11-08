@@ -61,6 +61,27 @@ public sealed class SettingsPagesTests
     }
 
     [Fact]
+    public async Task EveryonesTokens_AreReadInOneCall_WithTheirOwnersNames()
+    {
+        await using DashboardTestContext context = new();
+        (FakeDashboardIdentity identity, _, _, DashboardPrincipalRef me) = SignInOwner(context);
+        UserSummary grace = FakeDashboardIdentity.User("grace", Role.Operator) with { DisplayName = "Grace Hopper" };
+        identity.Users.Add(grace);
+        identity.Users.Add(FakeDashboardIdentity.User("linus", Role.Viewer));
+        identity.Tokens.Add(Token(me.Id, "mine"));
+        identity.Tokens.Add(Token(grace.Id, "graces"));
+        context.Render<MudPopoverProvider>();
+        IRenderedComponent<ApiTokens> page = context.Render<ApiTokens>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-token=mine]").Count == 1);
+
+        await page.InvokeAsync(() => page.FindComponent<MudToggleGroup<bool>>().Instance.ValueChanged.InvokeAsync(true));
+
+        await page.WaitForStateAsync(() => page.FindAll("[data-token=graces]").Count == 1);
+        Assert.Contains("Grace Hopper", page.Find("[data-token=graces]").Closest("tr")!.TextContent, StringComparison.Ordinal);
+        Assert.Single(identity.Calls, call => call == "list all tokens");
+    }
+
+    [Fact]
     public async Task EditingTheLastOwner_ShowsTheGuardsRefusal()
     {
         await using DashboardTestContext context = new();
@@ -188,6 +209,9 @@ public sealed class SettingsPagesTests
         (FakeDashboardIdentity identity, FakeDashboardAudit audit, FakeDashboardConfig config, Paduraksa.Dashboard.Auth.DashboardPrincipal user) = IdentityPages.SignIn(context, Role.Owner);
         return (identity, audit, config, new DashboardPrincipalRef(user.Session.Session.UserId));
     }
+
+    private static ApiTokenSummary Token(UserId owner, string name) =>
+        new(ApiTokenId.New(), owner, name, [Permission.ConfigRead], null, DateTimeOffset.UtcNow.AddDays(-1), null, false);
 
     private static object? Field(object instance, string name) =>
         instance.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instance);

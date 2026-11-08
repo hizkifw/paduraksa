@@ -60,6 +60,9 @@ public interface IDashboardIdentity
     /// <summary>The tokens of <paramref name="owner"/> (the caller when null), newest first, revoked ones included, never with a secret.</summary>
     Task<ApiTokenListResult> ListTokensAsync(CommandOrigin origin, UserId? owner = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Every user's tokens in one read, newest first, revoked ones included, never with a secret; needs <c>tokens:all</c>.</summary>
+    Task<ApiTokenListResult> ListAllTokensAsync(CommandOrigin origin, CancellationToken cancellationToken = default);
+
     /// <summary>Issues a token for the caller: its secret, once.</summary>
     Task<ApiTokenResult> IssueTokenAsync(CommandOrigin origin, IssueApiTokenRequest request, CancellationToken cancellationToken = default);
 

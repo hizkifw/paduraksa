@@ -168,6 +168,25 @@ public sealed class ApiTokenService
         }
     }
 
+    /// <summary>
+    /// Every user's tokens in one read, newest first, revoked ones included, never with a secret. Needs <see cref="Permission.TokensAll"/>.
+    /// </summary>
+    public async Task<ApiTokenListResult> ListAllAsync(CommandOrigin origin, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        if (!await _permissions.IsAllowedAsync(origin, Permission.TokensAll, cancellationToken).ConfigureAwait(false))
+        {
+            return new ApiTokenListResult(IdentityStatus.Denied, []);
+        }
+
+        var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
+        await using (context.ConfigureAwait(false))
+        {
+            var rows = await context.ApiTokens.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+            return new ApiTokenListResult(IdentityStatus.Succeeded, [.. rows.OrderByDescending(t => t.CreatedAt).ThenBy(t => t.Id).Select(IdentityMapping.ToSummary)]);
+        }
+    }
+
     /// <summary>Revokes a token (idempotent): the caller's own with <see cref="Permission.TokensOwn"/>, anyone's with <see cref="Permission.TokensAll"/>.</summary>
     public async Task<ApiTokenResult> RevokeAsync(CommandOrigin origin, ApiTokenId id, CancellationToken cancellationToken = default)
     {

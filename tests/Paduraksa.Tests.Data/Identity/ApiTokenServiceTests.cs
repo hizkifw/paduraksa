@@ -146,6 +146,9 @@ public sealed class ApiTokenServiceTests
         Assert.Equal(IdentityStatus.Denied, (await h.Tokens.ListAsync(h.As(bob), alice.Id, Ct)).Status);
         Assert.Equal(IdentityStatus.NotFound, (await h.Tokens.RevokeAsync(h.As(bob), id, Ct)).Status);
         Assert.Single((await h.Tokens.ListAsync(h.As(owner), alice.Id, Ct)).Tokens);
+        Assert.Equal(IdentityStatus.Denied, (await h.Tokens.ListAllAsync(h.As(bob), Ct)).Status);
+        var everyone = await h.Tokens.ListAllAsync(h.As(owner), Ct);
+        Assert.Equal(alice.Id, Assert.Single(everyone.Tokens).UserId);
         Assert.True((await h.Tokens.RevokeAsync(h.As(owner), id, Ct)).Succeeded);
         Assert.Equal(AuditOutcome.Denied, (await h.AuditAsync("token.revoke"))[0].Outcome);
     }
