@@ -42,7 +42,9 @@ public sealed class ConfigServiceObjectCommandTests : IAsyncLifetime
         Assert.Equal(result.Revision.Id, _h.Store.Current.Revision);
         Assert.Equal(result.Publish.Generation, _h.Store.Current.Generation);
         var change = Assert.IsType<HostChange>(Assert.Single(result.Changes));
-        Assert.Equal((ConfigChangeKind.Added, id, "/hosts/0"), (change.Kind, change.HostId, change.Path));
+        Assert.Equal(ConfigChangeKind.Added, change.Kind);
+        Assert.Equal(id, change.HostId);
+        Assert.Equal("/hosts/0", change.Path);
 
         var current = await _h.Service.GetCurrentAsync(TestContext.Current.CancellationToken);
         Assert.Equal(result.Revision, current.Revision);

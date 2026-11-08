@@ -147,7 +147,8 @@ public sealed class CertificateRepublishTests
         await using var degraded = Degraded.Start(h, fail: true); // the latest revision doesn't compile
         var status = await degraded.Service.StartAsync(Ct);
         await degraded.Service.StartupPublishFollowed;
-        Assert.Equal((ConfigSource.LastKnownGood, first), (status.Source, status.Revision));
+        Assert.Equal(ConfigSource.LastKnownGood, status.Source);
+        Assert.Equal(first, status.Revision);
         var generation = degraded.Store.Current.Generation;
 
         var result = await degraded.Certificates.RegisterAsync(Registration("a"), ConfigServiceHarness.Admin, Ct);

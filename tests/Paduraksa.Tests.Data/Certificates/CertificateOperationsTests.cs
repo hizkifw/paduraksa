@@ -370,7 +370,8 @@ public sealed class CertificateOperationsTests
         var result = await operations.EnsureLocalCaAsync(new LocalCaRequest(), ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(CertificateOperationStatus.Completed, result.Status);
-        Assert.Equal((id, CertificateStatus.Active), (result.Certificate!.Id, result.Certificate.Status));
+        Assert.Equal(id, result.Certificate!.Id);
+        Assert.Equal(CertificateStatus.Active, result.Certificate.Status);
         Assert.Contains(id, vault.Keys);
         Assert.Single(await certificates.ListAsync(cancellationToken: Ct));
 
@@ -390,7 +391,8 @@ public sealed class CertificateOperationsTests
         var result = await operations.EnsureLocalCaAsync(new LocalCaRequest(), ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(CertificateOperationStatus.Completed, result.Status);
-        Assert.Equal((real, CertificateSource.LocalCaRoot), (result.Certificate!.Id, result.Certificate.Source));
+        Assert.Equal(real, result.Certificate!.Id);
+        Assert.Equal(CertificateSource.LocalCaRoot, result.Certificate.Source);
         Assert.Equal([real], (await certificates.ListAsync(cancellationToken: Ct)).Select(c => c.Id));
         Assert.Equal([real], vault.Keys);
     }
