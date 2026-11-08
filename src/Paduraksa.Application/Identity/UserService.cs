@@ -147,7 +147,12 @@ public sealed partial class UserService
         }
     }
 
-    /// <summary>Changes the display name and/or replaces the roles. Needs <see cref="Permission.UsersWrite"/>.</summary>
+    /// <summary>
+    /// Changes the display name, replaces the roles and/or disables or re-enables the user, all in one transaction: it succeeds or fails
+    /// as a whole (the last-Owner guard included, so a refusal leaves the name unchanged too). Disabling ends the user's sessions
+    /// and, because tokens are checked against their owner on every use, their tokens; enabling clears a lockout. Needs
+    /// <see cref="Permission.UsersWrite"/>.
+    /// </summary>
     public async Task<UserResult> UpdateAsync(CommandOrigin origin, UserId id, UpdateUserRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
@@ -179,17 +184,33 @@ public sealed partial class UserService
 
         return await MutateAsync(origin, id, "user.update", async (context, user, now) =>
         {
+            var removesOwner = roles is not null && !roles.Contains(Role.Owner);
+            if ((removesOwner || request.Disabled == true) && await WouldLeaveNoOwnerAsync(context, id, cancellationToken).ConfigureAwait(false))
+            {
+                return IdentityStatus.LastOwner;
+            }
+
             if (displayName is not null)
             {
                 user.DisplayName = displayName;
             }
 
+            if (request.Disabled is { } disabled)
+            {
+                if (disabled)
+                {
+                    await RevokeSessionsAsync(context, id, keep: null, now, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    IdentityMapping.ClearFailures(user);
+                }
+
+                user.Disabled = disabled;
+            }
+
             if (roles is not null)
             {
-                if (!roles.Contains(Role.Owner) && await WouldLeaveNoOwnerAsync(context, id, cancellationToken).ConfigureAwait(false))
-                {
-                    return IdentityStatus.LastOwner;
-                }
 
                 var current = await context.RoleAssignments.Where(r => r.UserId == id).ToListAsync(cancellationToken).ConfigureAwait(false);
                 context.RoleAssignments.RemoveRange(current.Where(r => !roles.Contains(r.Role)));
@@ -206,6 +227,11 @@ public sealed partial class UserService
                 w.WriteStartArray("roles");
                 roles.Order().ToList().ForEach(r => w.WriteStringValue(r.ToName()));
                 w.WriteEndArray();
+            }
+
+            if (request.Disabled is { } disabled)
+            {
+                w.WriteBoolean("disabled", disabled);
             }
         },
         cancellationToken).ConfigureAwait(false);

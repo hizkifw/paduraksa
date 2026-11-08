@@ -114,6 +114,32 @@ public sealed class UserServiceTests
     }
 
     [Fact]
+    public async Task UpdatingAppliesNameRolesAndEnabledStateInOneTransaction()
+    {
+        await using var h = await CreateAsync();
+        var owner = await h.CreateUserAsync("owner", Role.Owner);
+        var user = await h.CreateUserAsync("dave");
+
+        var disabled = await h.Users.UpdateAsync(CommandOrigin.Cli, user.Id, new UpdateUserRequest("Dave D", [Role.Operator], Disabled: true), Ct);
+
+        Assert.Equal(("Dave D", true), (disabled.User!.DisplayName, disabled.User.Disabled));
+        Assert.Equal([Role.Operator], disabled.User.Roles);
+        var audit = Assert.Single(await h.AuditAsync("user.update"));
+        Assert.Contains("\"disabled\":true", audit.Details, StringComparison.Ordinal);
+        Assert.False((await h.Users.UpdateAsync(CommandOrigin.Cli, user.Id, new UpdateUserRequest(Disabled: false), Ct)).User!.Disabled);
+
+        // A refusal by the last-Owner guard, whichever part trips it, changes nothing: not even the name.
+        foreach (var request in new UpdateUserRequest[] { new("Renamed", null, true), new("Renamed", [Role.Admin]), new("Renamed", [Role.Admin], true) })
+        {
+            Assert.Equal(IdentityStatus.LastOwner, (await h.Users.UpdateAsync(CommandOrigin.Cli, owner.Id, request, Ct)).Status);
+        }
+
+        var unchanged = (await h.Users.GetAsync(CommandOrigin.Cli, owner.Id, Ct)).User!;
+        Assert.Equal(("owner", false), (unchanged.DisplayName, unchanged.Disabled));
+        Assert.Equal([Role.Owner], unchanged.Roles);
+    }
+
+    [Fact]
     public async Task TheLastEnabledOwnerCannotBeDemotedDisabledOrDeleted()
     {
         await using var h = await CreateAsync();
