@@ -58,10 +58,12 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     {
         Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
         string[] names = ["issue.pebble.test", "www.issue.pebble.test"];
-        int port = PebbleCa.FreePort();
-        await using PebbleCa ca = await PebbleCa.StartAsync(port, names, Ct);
-        await using PaduraksaHost host = TestHost.Create(settings: Settings(port));
+        // The process under test binds an OS-assigned port and Pebble is told that port afterwards, so neither has to
+        // win a race for a probed one.
+        await using PaduraksaHost host = TestHost.Create(settings: Settings(0));
         await host.StartAsync(Ct);
+        int port = TestHost.Endpoint(host, HostRole.Public, "http").Port;
+        await using PebbleCa ca = await PebbleCa.StartAsync(port, names, Ct);
         await CommitAsync(host, new UpsertHostCommand(RespondHost("issue", names[0], "ok") with { Names = names }), Ct);
         AcmeAccountSummary account = await CreateAccountAsync(host, ca);
 
@@ -93,10 +95,10 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     {
         Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
         string[] names = ["renew.pebble.test"];
-        int port = PebbleCa.FreePort();
-        await using PebbleCa ca = await PebbleCa.StartAsync(port, names, Ct);
-        await using PaduraksaHost host = TestHost.Create(settings: Settings(port));
+        await using PaduraksaHost host = TestHost.Create(settings: Settings(0));
         await host.StartAsync(Ct);
+        int port = TestHost.Endpoint(host, HostRole.Public, "http").Port;
+        await using PebbleCa ca = await PebbleCa.StartAsync(port, names, Ct);
         RevisionRef revision = await CommitAsync(host, new UpsertHostCommand(RespondHost("renew", names[0], "ok")), Ct);
         AcmeAccountSummary account = await CreateAccountAsync(host, ca);
         CertificateSummary first = (await IssueAsync(host, account, names)).Certificate!;
@@ -128,48 +130,62 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
         Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
         string[] names = ["again.pebble.test"];
         string data = TestDataDirectories.NewPath();
-        int port = PebbleCa.FreePort();
-        await using PebbleCa ca = await PebbleCa.StartAsync(port, names, Ct);
-        string firstFingerprint;
-        CertificateId id;
-        await using (PaduraksaHost first = TestHost.Create(settings: Settings(port), dataDirectory: data))
+        string firstFingerprint = "";
+        CertificateId id = default;
+        int port = 0;
+        PebbleCa? ca = null;
+        try
         {
-            await first.StartAsync(Ct);
-            await CommitAsync(first, new UpsertHostCommand(RespondHost("again", names[0], "ok")), Ct);
-            CertificateSummary issued = (await IssueAsync(first, await CreateAccountAsync(first, ca), names)).Certificate!;
-            firstFingerprint = issued.Sha256Fingerprint;
-            id = issued.Id;
-        }
+            // The first process binds an OS-assigned port; Pebble is told it once it is bound (the second process has to
+            // bind the same port afterwards, because that is where Pebble's validation authority fetches the challenge).
+            await using (PaduraksaHost first = TestHost.Create(settings: Settings(0), dataDirectory: data))
+            {
+                await first.StartAsync(Ct);
+                port = TestHost.Endpoint(first, HostRole.Public, "http").Port;
+                ca = await PebbleCa.StartAsync(port, names, Ct);
+                await CommitAsync(first, new UpsertHostCommand(RespondHost("again", names[0], "ok")), Ct);
+                CertificateSummary issued = (await IssueAsync(first, await CreateAccountAsync(first, ca), names)).Certificate!;
+                firstFingerprint = issued.Sha256Fingerprint;
+                id = issued.Id;
+            }
 
-        // While the process was down the renewal came due.
-        SqliteConnection.ClearAllPools();
-        await using (SqliteConnection connection = new(PaduraksaSqlite.ConnectionString(Path.Combine(data, ConfigDatabase.FileName))))
+            // While the process was down the renewal came due.
+            SqliteConnection.ClearAllPools();
+            await using (SqliteConnection connection = new(PaduraksaSqlite.ConnectionString(Path.Combine(data, ConfigDatabase.FileName))))
+            {
+                await connection.OpenAsync(Ct);
+                await using SqliteCommand due = connection.CreateCommand();
+                due.CommandText = "UPDATE AcmeOrders SET NextRenewalAt = '2000-01-01T00:00:00.0000000Z', AriCheckAt = NULL";
+                Assert.Equal(1, await due.ExecuteNonQueryAsync(Ct));
+            }
+
+            await using PaduraksaHost host = TestHost.Create(settings: Settings(port, fastScheduler: true), dataDirectory: data);
+            await host.StartAsync(Ct);
+
+            // The scheduler starts with the process, after the vault and the config store, and renews on its own.
+            string served = firstFingerprint;
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(90);
+            while (served == firstFingerprint && DateTimeOffset.UtcNow < deadline)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500), Ct);
+                served = Fingerprint((await VaultCertificatesEndToEndTests.HandshakeAsync(host, names[0])).Certificate);
+            }
+
+            Assert.True(served != firstFingerprint, $"the scheduler had not renewed the due certificate after 90 s (order: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Status}, error: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Error})");
+
+            CertificateSummary current = Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.Acme), Ct));
+            Assert.Equal((id, served), (current.Id, current.Sha256Fingerprint));
+            AcmeOrderSummary order = (await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))!;
+            Assert.Equal((AcmeOrderStatus.Valid, 0), (order.Status, order.Attempts));
+            Assert.True(order.NextRenewalAt > DateTimeOffset.UtcNow);
+        }
+        finally
         {
-            await connection.OpenAsync(Ct);
-            await using SqliteCommand due = connection.CreateCommand();
-            due.CommandText = "UPDATE AcmeOrders SET NextRenewalAt = '2000-01-01T00:00:00.0000000Z', AriCheckAt = NULL";
-            Assert.Equal(1, await due.ExecuteNonQueryAsync(Ct));
+            if (ca is not null)
+            {
+                await ca.DisposeAsync();
+            }
         }
-
-        await using PaduraksaHost host = TestHost.Create(settings: Settings(port, fastScheduler: true), dataDirectory: data);
-        await host.StartAsync(Ct);
-
-        // The scheduler starts with the process, after the vault and the config store, and renews on its own.
-        string served = firstFingerprint;
-        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(90);
-        while (served == firstFingerprint && DateTimeOffset.UtcNow < deadline)
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(500), Ct);
-            served = Fingerprint((await VaultCertificatesEndToEndTests.HandshakeAsync(host, names[0])).Certificate);
-        }
-
-        Assert.True(served != firstFingerprint, $"the scheduler had not renewed the due certificate after 90 s (order: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Status}, error: {(await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))?.Error})");
-
-        CertificateSummary current = Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.Acme), Ct));
-        Assert.Equal((id, served), (current.Id, current.Sha256Fingerprint));
-        AcmeOrderSummary order = (await host.Shared.AcmeIssuance.GetOrderAsync(id, Ct))!;
-        Assert.Equal((AcmeOrderStatus.Valid, 0), (order.Status, order.Attempts));
-        Assert.True(order.NextRenewalAt > DateTimeOffset.UtcNow);
     }
 
     [Fact]
@@ -177,11 +193,11 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     {
         Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
         string[] names = ["unreachable.pebble.test"];
-        int port = PebbleCa.FreePort();
+        await using PaduraksaHost host = TestHost.Create(settings: Settings(0));
+        await host.StartAsync(Ct);
+        int port = TestHost.Endpoint(host, HostRole.Public, "http").Port;
         // Pebble is told another port for validation: its challenge fetch finds nobody there.
         await using PebbleCa ca = await PebbleCa.StartAsync(PebbleCa.FreePort(), names, Ct);
-        await using PaduraksaHost host = TestHost.Create(settings: Settings(port));
-        await host.StartAsync(Ct);
         await CommitAsync(host, new UpsertHostCommand(RespondHost("unreachable", names[0], "ok")), Ct);
         AcmeAccountSummary account = await CreateAccountAsync(host, ca);
 
@@ -203,12 +219,12 @@ public sealed class PebbleIssuanceEndToEndTests(PebbleRoot pebble) : IClassFixtu
     public async Task WithoutTheCaRootInTheTrustFileTheDirectoryIsNotTrusted()
     {
         Assert.SkipUnless(pebble.SkipReason is null, pebble.SkipReason ?? string.Empty);
-        int port = PebbleCa.FreePort();
-        await using PebbleCa ca = await PebbleCa.StartAsync(port, ["trust.pebble.test"], Ct);
-        Dictionary<string, string?> settings = Settings(port);
+        Dictionary<string, string?> settings = Settings(0);
         settings.Remove("Paduraksa:Acme:TrustedRootsFile");
         await using PaduraksaHost host = TestHost.Create(settings: settings);
         await host.StartAsync(Ct);
+        int port = TestHost.Endpoint(host, HostRole.Public, "http").Port;
+        await using PebbleCa ca = await PebbleCa.StartAsync(port, ["trust.pebble.test"], Ct);
 
         AcmeAccountResult created = await host.Shared.AcmeAccounts.CreateAsync(
             new CreateAcmeAccountRequest(ca.Directory.AbsoluteUri, ["mailto:ops@example.com"], TermsOfServiceAgreed: true), Origin, Ct);
