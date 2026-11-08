@@ -53,6 +53,7 @@ public static class AdminApiExtensions
         ProviderEndpoints.Map(api);
         AuditEndpoints.Map(api);
         SimulateEndpoints.Map(api);
+        CaEndpoint.Map(api);
         AdminOpenApi.Map(endpoints);
         return endpoints;
     }

@@ -80,6 +80,7 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(CreateDnsProviderBody))]
 [JsonSerializable(typeof(RotateDnsCredentialBody))]
 [JsonSerializable(typeof(DnsProviderTestOutcome))]
+[JsonSerializable(typeof(CaRootCertificate))]
 [JsonSerializable(typeof(SimulateBody))]
 [JsonSerializable(typeof(SimulationResult))]
 public sealed partial class AdminJsonContext : JsonSerializerContext

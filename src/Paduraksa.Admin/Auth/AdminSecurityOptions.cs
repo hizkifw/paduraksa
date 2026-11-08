@@ -47,9 +47,10 @@ public sealed class AdminPipelineHooks
 {
     /// <summary>
     /// Path prefixes (segment-wise, case-insensitive) that stay reachable, unauthenticated, while first-run setup is incomplete, besides
-    /// the health endpoints and <c>/api/v1/setup</c>. The OpenAPI documents (<c>/openapi</c>, <c>/api/v1/openapi.json</c>) and the API docs are here by default.
+    /// the health endpoints and <c>/api/v1/setup</c>. The OpenAPI documents (<c>/openapi</c>, <c>/api/v1/openapi.json</c>), the API docs and the local
+    /// CA root's download endpoints (the wizard's first step) are here by default.
     /// </summary>
-    public IList<string> SetupAllowedPathPrefixes { get; } = ["/openapi", "/api/v1/openapi.json", "/api/docs"];
+    public IList<string> SetupAllowedPathPrefixes { get; } = ["/openapi", "/api/v1/openapi.json", "/api/docs", Api.CaEndpoint.PathPrefix];
 
     /// <summary>
     /// Path prefixes whose responses keep the CSP the endpoint sets itself (the API docs, the dashboard). Every other response without a
