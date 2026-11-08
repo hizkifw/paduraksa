@@ -6,6 +6,8 @@ using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 
+using Microsoft.Win32.SafeHandles;
+
 namespace Paduraksa.Core.Hosting;
 
 /// <summary>
@@ -31,7 +33,9 @@ namespace Paduraksa.Core.Hosting;
 /// <para><b>Stale sockets.</b> The real socket path is never deleted blindly: connecting to it first distinguishes a live second
 /// instance (startup fails with <see cref="AdminInternalStartupException"/>) from a stale file, and only the latter is removed.
 /// The probe uses a sibling name; <see cref="Dispose"/> removes the socket only while its identity is still the one this process
-/// bound.</para>
+/// bound. On Linux the bound socket's inode is held open for the process's life: a filesystem may hand the inode number of a
+/// deleted file straight to the next one (tmpfs and overlayfs do), so comparing numbers alone is not an identity, but the open
+/// handle keeps <i>our</i> inode allocated, and then an equal number can only be the same file.</para>
 /// <para>This type is in Core because the proxy (the connect callback and the secret stamp), the admin app (the middleware that
 /// trusts forwarded headers on it only) and the composition root all need the same instance; it has no ASP.NET dependency.</para>
 /// </remarks>
@@ -59,11 +63,18 @@ public sealed class AdminInternalListener : IDisposable
     private const uint StatxUid = 0x8;
     private const uint StatxIdentity = StatxIno | StatxUid;
 
+    // Linux open(2) flags (asm-generic values, the same on x86-64 and arm64). O_PATH opens even a socket, which is
+    // what lets Dispose pin the socket's inode without reading it.
+    private const int OpenPath = 0x200000;
+    private const int OpenNoFollow = 0x20000;
+    private const int OpenCloseOnExec = 0x80000;
+
     private readonly string? _socketPath;
     private readonly TaskCompletionSource<IPEndPoint> _loopback = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly string _secretText;
     private readonly byte[] _secretUtf8;
     private SocketIdentity? _boundIdentity;
+    private SafeFileHandle? _identityPin;
     private int _disposed;
 
     /// <summary>
@@ -180,6 +191,8 @@ public sealed class AdminInternalListener : IDisposable
         }
 
         _boundIdentity = SocketIdentity.Read(_socketPath);
+        Interlocked.Exchange(ref _identityPin, null)?.Dispose();
+        _identityPin = TryPinInode(_socketPath);
     }
 
     /// <summary>
@@ -227,21 +240,34 @@ public sealed class AdminInternalListener : IDisposable
     /// <summary>Removes the Unix socket file only if it is still the socket this process bound (the run directory stays).</summary>
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0 || !UsesUnixSocket || _socketPath is null || _boundIdentity is not { } bound)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
 
-        if (bound.Matches(_socketPath))
+        SafeFileHandle? pin = Interlocked.Exchange(ref _identityPin, null);
+        try
         {
-            try
+            if (!UsesUnixSocket || _socketPath is null || _boundIdentity is not { } bound)
             {
-                File.Delete(_socketPath);
+                return;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+            if (bound.Matches(_socketPath))
             {
-                // Best effort: the next start's stale-socket check handles it.
+                try
+                {
+                    File.Delete(_socketPath);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Best effort: the next start's stale-socket check handles it.
+                }
             }
+        }
+        finally
+        {
+            pin?.Dispose();
         }
     }
 
@@ -354,6 +380,10 @@ public sealed class AdminInternalListener : IDisposable
     }
 
     /// <summary>The identity of the socket file, so dispose never deletes a successor's socket.</summary>
+    /// <remarks>
+    /// Inode and device are only an identity while this process holds the socket's inode open (<see cref="TryPinInode"/>):
+    /// a filesystem can reuse a freed inode number immediately, and the successor would then look like us.
+    /// </remarks>
     private readonly record struct SocketIdentity(ulong Inode, uint DeviceMajor, uint DeviceMinor, DateTime LastWriteUtc)
     {
         public static SocketIdentity Read(string path)
@@ -393,6 +423,32 @@ public sealed class AdminInternalListener : IDisposable
         [FieldOffset(140)]
         public uint DevMinor;
     }
+
+    /// <summary>
+    /// Opens the bound socket's inode with <c>O_PATH</c> and keeps the handle, so the inode number recorded for it cannot be
+    /// reused by a successor while this process lives. Null where that isn't possible (not Linux, or no <c>O_PATH</c>): the
+    /// identity check then remains best effort.
+    /// </summary>
+    private static SafeFileHandle? TryPinInode(string path)
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            return null;
+        }
+
+        try
+        {
+            int fd = Open(path, OpenPath | OpenNoFollow | OpenCloseOnExec);
+            return fd >= 0 ? new SafeFileHandle((IntPtr)fd, ownsHandle: true) : null;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+    private static extern int Open([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int flags);
 
     private static bool TryStatx(string path, out Statx statx)
     {

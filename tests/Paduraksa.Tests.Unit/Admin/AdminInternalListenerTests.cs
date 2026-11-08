@@ -116,6 +116,8 @@ public sealed class AdminInternalListenerTests : IDisposable
         File.WriteAllText(socketPath, "this process");
         listener.RecordBoundSocket();
 
+        // A different file, not a rewrite of ours. Deleting ours frees its inode, so the new file may get the same inode
+        // number straight away (tmpfs and overlayfs do); the listener must still know it is not the socket it bound.
         File.Delete(socketPath);
         File.WriteAllText(socketPath, "someone else");
 
