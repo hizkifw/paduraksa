@@ -1105,6 +1105,11 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     flex-direction: column;
 }
 
+/* Only the space above the bar grows (MudBlazor's fields would grow too). */
+.pdk-drawer-body > .pdk-form-stack:only-child > *, .pdk-drawer-body > .pdk-detail:only-child > * {
+    flex: 0 0 auto;
+}
+
 .pdk-drawer-body > .pdk-form-stack > .pdk-form-actions:last-child {
     position: sticky;
     bottom: -28px;
