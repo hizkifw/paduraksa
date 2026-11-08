@@ -8,8 +8,8 @@ namespace Paduraksa.Admin.DataProtection;
 
 /// <summary>
 /// Registers ASP.NET Core Data Protection for the admin app (<c>paduraksa-admin</c>) with its key ring in the vault (PLAN §8.1,
-/// §8.2). The dashboard (Blazor Server) needs it for antiforgery tokens and circuit state; the public proxy does <b>not</b>
-/// use Data Protection, so this belongs to the admin host only.
+/// §8.2). The dashboard (Blazor Server) needs it for antiforgery tokens and circuit state; the public proxy uses an in-memory
+/// ephemeral provider instead (YARP only protects a session-affinity destination ID), and the core host resolves none.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -21,19 +21,16 @@ namespace Paduraksa.Admin.DataProtection;
 /// own to protect this one.
 /// </para>
 /// <para>
-/// <b>Call from the admin app only.</b> The Server composition root registers it for the admin host (<c>HostRole.Admin</c>);
-/// the public and core hosts never resolve Data Protection.
+/// <b>Admin only.</b> The Server composition root registers it for <c>HostRole.Admin</c>; the public app's
+/// <c>EphemeralDataProtection</c> keeps YARP's affinity key in memory.
 /// </para>
 /// </remarks>
 public static class PaduraksaDataProtection
 {
-    /// <summary>The application name Data Protection uses. It is part of the purpose strings of protected payloads, so it must not change.</summary>
+    /// <summary>The admin app's Data Protection application name. It is part of the purpose strings of protected payloads, so it must not change.</summary>
     public const string ApplicationName = "paduraksa-admin";
 
-    /// <summary>
-    /// Adds Data Protection with <paramref name="keyStore"/> as its only key repository, under the application name
-    /// <see cref="ApplicationName"/>. Call once, from the admin app's service collection.
-    /// </summary>
+    /// <summary>Adds Data Protection with <paramref name="keyStore"/> as its only key repository, under <see cref="ApplicationName"/>.</summary>
     public static IServiceCollection AddPaduraksaDataProtection(this IServiceCollection services, IDataProtectionKeyStore keyStore)
     {
         ArgumentNullException.ThrowIfNull(services);

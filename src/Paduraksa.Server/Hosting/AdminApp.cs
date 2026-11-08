@@ -137,7 +137,6 @@ internal static partial class AdminApp
             MinPasswordLength = context.Options.Admin.MinPasswordLength,
             SessionRecheckInterval = context.Options.Admin.SessionRecheckInterval,
         });
-        DashboardDataProtection.AddDashboardDataProtection(builder.Services); // TODO(M5): vault key ring
         DashboardAssets.Use(builder);
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Admin);

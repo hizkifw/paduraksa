@@ -44,7 +44,7 @@ internal sealed class SharedServices : IAsyncDisposable
     private readonly IReadOnlyList<object> _owned;
     private int _disposed;
 
-    private SharedServices(Builder builder, ILoggerFactory loggerFactory)
+    private SharedServices(Builder builder, ILoggerFactory loggerFactory, IDataProtectionKeyStore keyRing)
     {
         _registrations = [.. builder.Registrations];
         _owned = [.. builder.Owned];
@@ -59,7 +59,7 @@ internal sealed class SharedServices : IAsyncDisposable
         AdminCertificate = Get<AdminCertificateService>();
         AdminInternal = Get<AdminInternalListener>();
         Catalog = Get<ICertificateCatalog>();
-        KeyRing = Get<IDataProtectionKeyStore>();
+        KeyRing = keyRing;
         PublicListeners = Get<PublicListenerSetup>();
         Config = Get<ConfigService>();
         CertificateService = Get<CertificateService>();
@@ -146,8 +146,10 @@ internal sealed class SharedServices : IAsyncDisposable
     public ICertificateCatalog Catalog { get; }
 
     /// <summary>
-    /// The admin app's Data Protection key ring in the vault (PLAN §8.1): the admin host registers Data Protection over it in
-    /// <see cref="HostSetup.ApplyCommon"/>. The public and core hosts never resolve Data Protection.
+    /// The admin app's Data Protection key ring in the vault (PLAN §8.1): the only capability here that is <b>not</b> registered
+    /// in any container, so nothing can resolve it from DI. <see cref="HostSetup.ApplySharedServices"/> hands it straight to the
+    /// admin's <c>IXmlRepository</c> (its one sanctioned reader). The public app uses an in-memory ephemeral provider, and the
+    /// core host gets no protector.
     /// </summary>
     public IDataProtectionKeyStore KeyRing { get; }
 
@@ -253,8 +255,6 @@ internal sealed class SharedServices : IAsyncDisposable
             VaultCapabilities vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
             // The vault's own catalog is a shared instance too: the CA download endpoints read the root from it (public facts).
             builder.AddOwnedElsewhere(vault.Catalog);
-            // The admin app's Data Protection key ring (PLAN §8.1); the admin host registers Data Protection over it in HostSetup.
-            builder.AddOwnedElsewhere(vault.KeyRing);
             ConfigStoreServices configStore = ConfigStore.AddTo(
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
 
@@ -273,7 +273,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // TODO(M7): MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();
-            return new SharedServices(builder, loggerFactory);
+            return new SharedServices(builder, loggerFactory, vault.KeyRing);
         }
         catch
         {

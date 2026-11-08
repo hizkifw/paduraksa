@@ -50,12 +50,16 @@ internal static class HostSetup
 
         context.Shared.RegisterInto(services, role);
 
-        // PLAN §8.1, §8.2: ASP.NET Core Data Protection for the admin app only (the dashboard's antiforgery tokens and circuit
-        // state), with its key ring in the vault. The public proxy and the core host never use Data Protection, and the
-        // public app must not be able to ask for it.
+        // PLAN §8.1, §8.2: the admin app's Data Protection ring lives in the vault (the dashboard's antiforgery tokens and
+        // circuit state must survive a restart). The public app only needs YARP's session-affinity key, so it gets an
+        // in-memory ephemeral provider and never touches the vault; the core host resolves none.
         if (role == HostRole.Admin)
         {
             services.AddPaduraksaDataProtection(context.Shared.KeyRing);
+        }
+        else if (role == HostRole.Public)
+        {
+            EphemeralDataProtection.Add(services);
         }
 
         // ConsoleLifetime would hook SIGINT/SIGTERM in every host and stop each one independently.
