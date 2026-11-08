@@ -16,7 +16,7 @@ public sealed record AcmeIssuanceOptions
     /// <summary>How often the scheduler looks for work.</summary>
     public TimeSpan SchedulerPollInterval { get; init; } = TimeSpan.FromMinutes(1);
 
-    /// <summary>How long after the process starts the scheduler's first look waits, so the config store, the vault and the listeners are up before it resumes or renews anything.</summary>
+    /// <summary>How long after the process starts the scheduler's first look waits, so the config store and the vault are up before it resumes or renews anything. The look then also waits for <see cref="IProcessReadiness"/> (every listener bound).</summary>
     public TimeSpan SchedulerStartDelay { get; init; } = TimeSpan.FromSeconds(15);
 
     /// <summary>

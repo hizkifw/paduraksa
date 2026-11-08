@@ -80,7 +80,8 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<AcmeIssuanceService>(),
             sp.GetRequiredService<AcmeIssuanceOptions>(),
             sp.GetRequiredService<TimeProvider>(),
-            Logger<AcmeRenewalScheduler>(sp)));
+            Logger<AcmeRenewalScheduler>(sp),
+            sp.GetService<IProcessReadiness>()));
         services.AddHostedService(sp => sp.GetRequiredService<AcmeRenewalScheduler>());
         return services;
     }

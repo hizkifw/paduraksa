@@ -211,7 +211,7 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add<IOptionsMonitor<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsSnapshot<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsFactory<PaduraksaOptions>>(fixedOptions);
-            builder.Add(new HealthState());
+            HealthState health = builder.Add(new HealthState());
             builder.Add(new CertificateRecoveryCompletion());
             SnapshotStore snapshots = builder.Add(new SnapshotStore());
             RoleLoggerFactory coreLoggers = new(loggerFactory, HostRole.Core);
@@ -250,7 +250,7 @@ internal sealed class SharedServices : IAsyncDisposable
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
 
             // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
-            IssuanceStore.AddTo(builder, options, configStore, vault, challenges, timeProvider, coreLoggers);
+            IssuanceStore.AddTo(builder, options, configStore, vault, challenges, health, timeProvider, coreLoggers);
 
             // The admin API stores DNS credentials and ACME binding keys through it (write-only: there is no get).
             builder.AddOwnedElsewhere(vault.Secrets);

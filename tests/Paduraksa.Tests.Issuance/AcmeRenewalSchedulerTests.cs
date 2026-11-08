@@ -285,6 +285,44 @@ public sealed class AcmeRenewalSchedulerTests
     }
 
     [Fact]
+    public async Task TheFirstLookWaitsForTheListenersBeforeItTouchesADueOrder()
+    {
+        var (h, id) = await IssuedAsync();
+        await using var _ = h;
+        AdvanceTo(h, (await h.OrderAsync(id)).NextRenewalAt!.Value);
+        Readiness readiness = new();
+        var scheduler = new AcmeRenewalScheduler(
+            h.Issuance,
+            h.Options with { SchedulerStartDelay = TimeSpan.Zero, SchedulerPollInterval = TimeSpan.FromHours(1) },
+            TimeProvider.System,
+            h.Loggers.CreateLogger<AcmeRenewalScheduler>(),
+            readiness);
+        await scheduler.StartAsync(Ct);
+
+        // Due, but the public listener is not bound yet: an HTTP-01 validation now would fail (and back the order off).
+        await Task.Delay(TimeSpan.FromMilliseconds(200), Ct);
+        Assert.Equal(1, h.Server.OrderCount);
+
+        readiness.Ready.SetResult();
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (h.Server.OrderCount == 1 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(25), Ct);
+        }
+
+        Assert.Equal(2, h.Server.OrderCount);
+        await scheduler.StopAsync(Ct);
+        Assert.True(scheduler.ExecuteTask!.IsCompletedSuccessfully);
+    }
+
+    private sealed class Readiness : IProcessReadiness
+    {
+        public TaskCompletionSource Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task WaitUntilReadyAsync(CancellationToken cancellationToken) => Ready.Task.WaitAsync(cancellationToken);
+    }
+
+    [Fact]
     public async Task AbsurdPacingFromTheOptionsDoesNotEndTheLoop()
     {
         var (h, _) = await IssuedAsync();

@@ -26,6 +26,7 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
     private readonly AcmeIssuanceOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
+    private readonly IProcessReadiness? _readiness;
     private volatile bool _draining;
     private volatile bool _working;
 
@@ -38,7 +39,12 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
     /// <summary>The pause after a pause itself failed, so the loop neither spins nor ends.</summary>
     private static readonly TimeSpan FallbackPause = TimeSpan.FromMinutes(1);
 
-    public AcmeRenewalScheduler(AcmeIssuanceService issuance, AcmeIssuanceOptions options, TimeProvider time, ILogger<AcmeRenewalScheduler> logger)
+    public AcmeRenewalScheduler(
+        AcmeIssuanceService issuance,
+        AcmeIssuanceOptions options,
+        TimeProvider time,
+        ILogger<AcmeRenewalScheduler> logger,
+        IProcessReadiness? readiness = null)
     {
         ArgumentNullException.ThrowIfNull(issuance);
         ArgumentNullException.ThrowIfNull(options);
@@ -48,6 +54,7 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
         _options = options;
         _time = time;
         _logger = logger;
+        _readiness = readiness;
     }
 
     /// <summary>One look at every order, doing what is due. Returns how many certificates it acted on (a renewal, retry, resume or ARI refresh).</summary>
@@ -138,6 +145,14 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
         try
         {
             await PauseAsync(_options.SchedulerStartDelay, stoppingToken).ConfigureAwait(false);
+            // The start delay is a heuristic; the listeners are a fact. An HTTP-01 validation that runs before the public
+            // listener binds fails, and a permanent failure backs the certificate off for a long time, so wait for the
+            // process to say it is ready (the core host starts before the web apps).
+            if (_readiness is { } readiness)
+            {
+                await readiness.WaitUntilReadyAsync(stoppingToken).ConfigureAwait(false);
+            }
+
             while (!stoppingToken.IsCancellationRequested && !_draining)
             {
                 _working = true;

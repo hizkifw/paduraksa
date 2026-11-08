@@ -22,9 +22,10 @@ namespace Paduraksa.Server.Hosting;
 /// </summary>
 /// <remarks>
 /// <para><b>The scheduler</b> is not started here. It is a hosted service of the core host (<see cref="CoreHost"/>), registered after
-/// <see cref="VaultStartup"/> and <see cref="ConfigStartup"/> so the vault and the config store are up first, and its first look
-/// waits <c>Paduraksa:Acme:SchedulerStartDelay</c> for the listeners. The core host stops after both web apps, and stopping cancels a
-/// running look. With <c>Paduraksa:Acme:Enabled</c> off it is never started.</para>
+/// <see cref="VaultStartup"/> and <see cref="ConfigStartup"/> so the vault and the config store are up first. Its first look waits
+/// <c>Paduraksa:Acme:SchedulerStartDelay</c> and then <see cref="IProcessReadiness"/> (every listener bound), so an HTTP-01 validation
+/// never runs before the public listener can answer it. The core host stops after both web apps, and stopping cancels a running
+/// look. With <c>Paduraksa:Acme:Enabled</c> off it is never started.</para>
 /// <para><b>CA trust.</b> One transport serves every ACME client of the process: <see cref="AcmeHttp.CreateHandler()"/> (no redirects), plus the
 /// roots of <c>Paduraksa:Acme:TrustedRootsFile</c> when set (a private CA, Pebble), which must be self-signed CA certificates (anything
 /// else stops the start with the file named). The file is read once, here. The handler is owned here and disposed after the
@@ -41,6 +42,7 @@ internal static class IssuanceStore
         ConfigStoreServices configStore,
         VaultCapabilities vault,
         IAcmeChallengeStore challenges,
+        IProcessReadiness readiness,
         TimeProvider timeProvider,
         ILoggerFactory loggerFactory)
     {
@@ -49,6 +51,7 @@ internal static class IssuanceStore
         ArgumentNullException.ThrowIfNull(configStore);
         ArgumentNullException.ThrowIfNull(vault);
         ArgumentNullException.ThrowIfNull(challenges);
+        ArgumentNullException.ThrowIfNull(readiness);
 
         PaduraksaAcmeOptions acme = options.Acme;
         AcmeClientOptions clientOptions = new() { AllowInsecureHttp = options.Development.AcmeInsecureHttp };
@@ -75,6 +78,7 @@ internal static class IssuanceStore
             .AddSingleton(vault.Secrets)
             .AddSingleton(vault.SecretHandlers)
             .AddSingleton(challenges)
+            .AddSingleton(readiness)
             .AddSingleton(clientOptions)
             .AddSingleton(issuanceOptions)
             .AddSingleton<IAcmeClientProvider>(sp => new AcmeClientProvider(

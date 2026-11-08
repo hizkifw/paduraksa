@@ -1,3 +1,5 @@
+using Paduraksa.Application.Issuance;
+
 namespace Paduraksa.Server.Placeholders;
 
 /// <summary>
@@ -7,8 +9,9 @@ namespace Paduraksa.Server.Placeholders;
 /// The vault needs no flag: the core host starts it before anything listens, and a vault that can't start stops the
 /// process (PLAN §3, §8), so "listeners bound" already implies it.
 /// </summary>
-internal sealed class HealthState
+internal sealed class HealthState : IProcessReadiness
 {
+    private readonly TaskCompletionSource _boundSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private volatile bool _listenersBound;
     private volatile bool _stopping;
 
@@ -18,8 +21,15 @@ internal sealed class HealthState
     public bool IsStopping => _stopping;
 
     /// <summary>Called by the host once both web apps have started.</summary>
-    public void MarkListenersBound() => _listenersBound = true;
+    public void MarkListenersBound()
+    {
+        _listenersBound = true;
+        _boundSignal.TrySetResult();
+    }
 
     /// <summary>Called by the host as the very first shutdown step, so probes see "not ready" during the drain.</summary>
     public void MarkStopping() => _stopping = true;
+
+    /// <inheritdoc />
+    public Task WaitUntilReadyAsync(CancellationToken cancellationToken) => _boundSignal.Task.WaitAsync(cancellationToken);
 }
