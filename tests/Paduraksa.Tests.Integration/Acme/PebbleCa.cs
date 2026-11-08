@@ -161,22 +161,41 @@ internal sealed class PebbleCa : IAsyncDisposable
         return ((IPEndPoint)probe.LocalEndpoint).Port;
     }
 
+    /// <summary>A probed free port that is none of <paramref name="taken"/> (probes release their port, so the OS may hand
+    /// the same one back).</summary>
+    private static int FreePortExcept(params int[] taken)
+    {
+        while (true)
+        {
+            int port = FreePort();
+            if (Array.IndexOf(taken, port) < 0)
+            {
+                return port;
+            }
+        }
+    }
+
     /// <summary>Starts Pebble so that its validation of <paramref name="names"/> goes to the host's port <paramref name="validationPort"/>.</summary>
     public static async Task<PebbleCa> StartAsync(int validationPort, IReadOnlyList<string> names, CancellationToken cancellationToken)
     {
+        // Its three own listeners need three different ports. Probing each one separately can hand back the same number
+        // twice (the probes release it again), and Pebble then exits at once because two listeners can't share it. Every
+        // port is picked per instance: the fixed TLS port 5001 every container used to share is the same problem with
+        // anything else on the host (or a container that outlived its test).
         int directoryPort = FreePort();
+        int managementPort = FreePortExcept(directoryPort);
+        int tlsPort = FreePortExcept(directoryPort, managementPort);
         string directory = System.IO.Directory.CreateTempSubdirectory("paduraksa-pebble-config-").FullName;
         string config = Path.Combine(directory, "pebble-config.json");
-        // Every port is picked per instance. Pebble's own TLS port used to be the fixed 5001, which is shared by every
-        // Pebble container on the host network: a container that outlived its test (or any other service on 5001) made
-        // the next one exit at once, and the readiness wait below then only saw "connection refused".
         await File.WriteAllTextAsync(
-            config, ConfigFor(validationPort, directoryPort, FreePort(), FreePort()), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+            config, ConfigFor(validationPort, directoryPort, managementPort, tlsPort), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
 
         string container = $"paduraksa-pebble-{Environment.ProcessId}-{Environment.TickCount64}-{validationPort}";
         List<string> arguments =
         [
-            "run", "-d", "--rm", "--name", container, "--label", $"{PebbleRoot.OwnerLabel}={Environment.ProcessId}", "--network", "host",
+            // No --rm: when Pebble exits on its own (a lost port race) the container is still there for the readiness
+            // wait to read its exit code and logs; DisposeAsync (and the failure path below) removes it either way.
+            "run", "-d", "--name", container, "--label", $"{PebbleRoot.OwnerLabel}={Environment.ProcessId}", "--network", "host",
             "-e", "PEBBLE_VA_ALWAYS_VALID=0", "-e", "PEBBLE_VA_NOSLEEP=1", "-e", "PEBBLE_WFE_NONCEREJECT=0", "-e", "PEBBLE_AUTHZREUSE=0",
             "-v", $"{config}:/paduraksa/pebble-config.json:ro",
         ];
@@ -260,16 +279,17 @@ internal sealed class PebbleCa : IAsyncDisposable
             // of polling it for the whole timeout. Cheap enough to check every other second.
             if (attempt++ % 8 == 0)
             {
-                (int inspectCode, string state) = await DockerCli.RunAsync("inspect", "--format", "{{.State.Status}}", _container);
+                (int inspectCode, string state) = await DockerCli.RunAsync("inspect", "--format", "{{.State.Status}} {{.State.ExitCode}}", _container);
                 string status = state.Trim();
                 if (inspectCode != 0)
                 {
                     // Docker itself may be briefly busy under load; the next probes will tell whether the container is gone.
                     last = $"docker inspect failed: {status}";
                 }
-                else if (status is "exited" or "dead")
+                else if (status.StartsWith("exited", StringComparison.Ordinal) || status.StartsWith("dead", StringComparison.Ordinal))
                 {
-                    last = $"the container is {status}";
+                    // It will never answer: say why (exit code and logs below) without polling out the whole budget.
+                    last = $"the container {status}";
                     break;
                 }
             }
