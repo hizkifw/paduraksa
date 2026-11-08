@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The dashboard: bUnit component tests, and a Playwright end-to-end smoke test against a real PaduraksaHost
+       (skipped when no Chromium is installed; see EndToEnd/PlaywrightBrowser.cs for how to install one). -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.Server/Paduraksa.Server.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="bunit" />
+    <PackageReference Include="Microsoft.Playwright" />
+  </ItemGroup>
+</Project>
