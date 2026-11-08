@@ -1,0 +1,43 @@
+@* The wizard's progress rail: every step with its number, done ones ticked, skipped ones marked, the current one highlighted. Plain HTML,
+   so the static setup page shows the same rail as the live wizard. *@
+<ol class="pdk-wizard-rail" aria-label="Setup steps">
+    @foreach (WizardStepInfo info in SetupWizard.Steps)
+    {
+        WizardStepState state = SetupWizard.StateOf(info.Step, Current, Skipped);
+        <li class="pdk-wizard-rail-step pdk-wizard-@state.ToString().ToLowerInvariant()" aria-current="@(state == WizardStepState.Current ? "step" : null)"
+            data-step="@info.Slug">
+            <span class="pdk-wizard-rail-marker" aria-hidden="true">
+                @switch (state)
+                {
+                    case WizardStepState.Done:
+                        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z" /></svg>
+                        break;
+                    case WizardStepState.Skipped:
+                        <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M5 11h14v2H5z" /></svg>
+                        break;
+                    default:
+                        @((int)info.Step + 1)
+                        break;
+                }
+            </span>
+            <span class="pdk-wizard-rail-title">@info.Title</span>
+            <span class="visually-hidden">@StateText(state)</span>
+        </li>
+    }
+</ol>
+
+@code {
+    [Parameter]
+    public WizardStep Current { get; set; }
+
+    [Parameter]
+    public IReadOnlySet<WizardStep> Skipped { get; set; } = new HashSet<WizardStep>();
+
+    private static string StateText(WizardStepState state) => state switch
+    {
+        WizardStepState.Done => "(done)",
+        WizardStepState.Skipped => "(skipped)",
+        WizardStepState.Current => "(current)",
+        _ => string.Empty,
+    };
+}

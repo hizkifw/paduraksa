@@ -1,0 +1,163 @@
+@* The first host: a name, the service it proxies to, an optional "is it there?" check (a TCP connection, reachable or not), then the
+   same review drawer as every config change: the upstream and the host are one revision, applied after the diff was seen. *@
+@using Paduraksa.Application.Probes
+@using Paduraksa.Contracts.Commands
+@using Paduraksa.Dashboard.Config
+@inject IDashboardConfig ConfigPages
+@inject UpstreamProbe Probe
+@inject DashboardCaller Caller
+
+<div class="pdk-form-stack">
+    <MudTextField T="string" @bind-Value="_name" Label="Host name" Variant="Variant.Outlined" Margin="Margin.Dense" Placeholder="app.example.com"
+                  HelperText="The name people type. Point its DNS at this server." Error="_nameError is not null" ErrorText="@_nameError"
+                  Disabled="_busy" Class="pdk-host-name" spellcheck="false" autocomplete="off" />
+    <div class="pdk-probe-row">
+        <MudTextField T="string" @bind-Value="_upstream" Label="Upstream URL" Variant="Variant.Outlined" Margin="Margin.Dense"
+                      Placeholder="http://192.168.1.20:8080" HelperText="The service on your network that answers for it."
+                      Error="_upstreamError is not null" ErrorText="@_upstreamError" Disabled="_busy" Class="pdk-host-upstream" spellcheck="false"
+                      autocomplete="off" TextChanged="_ => _probe = null" Immediate="true" />
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="CheckAsync" Disabled="@(_busy || _checking)" Class="pdk-host-check"
+                   StartIcon="@Icons.Material.Outlined.NetworkCheck">
+            @(_checking ? "Checking..." : "Check")
+        </MudButton>
+    </div>
+    @if (_probe is { } probe)
+    {
+        <div class="pdk-test-result pdk-tone-@(probe.Reachable ? "success" : probe.Outcome == UpstreamProbeOutcome.Invalid ? "warning" : "error") pdk-probe-result"
+             role="status" data-reachable="@(probe.Reachable ? "true" : "false")">
+            <MudIcon Icon="@(probe.Reachable ? Icons.Material.Rounded.CheckCircle : Icons.Material.Rounded.ErrorOutline)" Size="Size.Small" />
+            <span>
+                @switch (probe.Outcome)
+                {
+                    case UpstreamProbeOutcome.Reachable:
+                        <strong>Reachable</strong>
+                        <span>The server opened a connection to it.</span>
+                        break;
+                    case UpstreamProbeOutcome.Unreachable:
+                        <strong>Unreachable</strong>
+                        <span>No connection within @((int)UpstreamProbe.Timeout.TotalSeconds) seconds. You can still add the host; it answers 502 until the service is up.</span>
+                        break;
+                    case UpstreamProbeOutcome.Denied:
+                        <strong>Not allowed</strong>
+                        <span>Your role can't change the config.</span>
+                        break;
+                    default:
+                        <strong>Not checked</strong>
+                        <span>@probe.Message</span>
+                        break;
+                }
+            </span>
+        </div>
+    }
+
+    <div class="pdk-form-actions">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ReviewAsync" Disabled="_busy" Class="pdk-host-review"
+                   StartIcon="@Icons.Material.Rounded.FactCheck">Review and create</MudButton>
+    </div>
+</div>
+
+<ReviewDrawer @bind-Open="_reviewing" Title="@($"New host {_name}")" Command="_command" AfterDocument="_after" ApplyLabel="Create host"
+              SuccessMessage="@($"{_name} is live")" SampleHost="@_name" OnApplied="AppliedAsync" />
+
+@code {
+    private string? _name;
+    private string? _upstream;
+    private string? _nameError;
+    private string? _upstreamError;
+    private UpstreamProbeResult? _probe;
+    private bool _checking;
+    private bool _busy;
+    private bool _reviewing;
+    private ConfigCommand? _command;
+    private ConfigDocument? _after;
+
+    /// <summary>The host's name to start with (the certificate step's first name).</summary>
+    [Parameter]
+    public string? InitialName { get; set; }
+
+    /// <summary>After the host was created.</summary>
+    [Parameter]
+    public EventCallback<HostConfig> Created { get; set; }
+
+    protected override void OnInitialized() => _name = InitialName;
+
+    private bool Validate()
+    {
+        string name = (_name ?? string.Empty).Trim().TrimEnd('.');
+        _nameError = Uri.CheckHostName(name.StartsWith("*.", StringComparison.Ordinal) ? name[2..] : name) == UriHostNameType.Unknown || name.Length == 0
+            ? "Enter a name such as app.example.com."
+            : null;
+        _upstreamError = Uri.TryCreate(_upstream?.Trim(), UriKind.Absolute, out Uri? uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            && uri.UserInfo.Length == 0 && string.IsNullOrEmpty(uri.Query.TrimStart('?'))
+            ? null
+            : "Enter an http:// or https:// address, such as http://192.168.1.20:8080.";
+        return _nameError is null && _upstreamError is null;
+    }
+
+    private async Task CheckAsync()
+    {
+        _probe = null;
+        _upstreamError = null;
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return;
+        }
+
+        _checking = true;
+        try
+        {
+            _probe = await Probe.CheckAsync(_upstream ?? string.Empty, origin);
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+
+    private async Task ReviewAsync()
+    {
+        if (!Validate())
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            string name = _name!.Trim().TrimEnd('.').ToLowerInvariant();
+            Uri address = new(_upstream!.Trim());
+            CurrentConfig current = await ConfigPages.GetCurrentAsync();
+            UpstreamConfig upstream = new(UpstreamId.New(), UniqueName(current.Document, name.Split('.')[0]), Destinations: [new DestinationConfig(DestinationId.New(), address.GetLeftPart(UriPartial.Path).TrimEnd('/'))]);
+            HostConfig host = new(HostId.New(), [name], Routes: [new RouteConfig(RouteId.New(), upstream.Id)]);
+            _after = current.Document with { Upstreams = [.. current.Document.Upstreams, upstream], Hosts = [.. current.Document.Hosts, host] };
+            _command = new ReplaceConfigCommand(_after, current.Revision?.Id) { Message = $"First host {name}" };
+            _name = name;
+            _reviewing = true;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task AppliedAsync(ConfigCommandResult result)
+    {
+        if (_after?.Hosts[^1] is { } host)
+        {
+            await Created.InvokeAsync(host);
+        }
+    }
+
+    private static string UniqueName(ConfigDocument document, string basis)
+    {
+        string name = string.IsNullOrWhiteSpace(basis) ? "upstream" : basis;
+        string candidate = name;
+        for (int i = 2; document.Upstreams.Any(u => string.Equals(u.Name, candidate, StringComparison.OrdinalIgnoreCase)); i++)
+        {
+            candidate = $"{name}-{i}";
+        }
+
+        return candidate;
+    }
+}

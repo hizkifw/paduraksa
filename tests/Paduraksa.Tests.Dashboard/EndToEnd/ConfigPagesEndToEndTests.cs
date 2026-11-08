@@ -142,6 +142,9 @@ public sealed class ConfigPagesEndToEndTests
         await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
         await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
         await page.ClickAsync("button[type=submit]");
+        // The first-run wizard takes over after the Owner; these tests go straight to the dashboard.
+        await Expect(page).ToHaveURLAsync(new Regex("/welcome$"));
+        await page.GotoAsync("/");
         await ExpectHeadingAsync(page, "Overview");
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
     }

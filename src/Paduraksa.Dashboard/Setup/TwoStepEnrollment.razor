@@ -1,0 +1,192 @@
+@* Two-step sign-in (TOTP) for the signed-in user: confirm the password, scan the QR code (drawn here as SVG; the secret goes nowhere
+   else), enter a code, keep the recovery codes. The secret and the codes are shown during this step only: they are dropped from the
+   component as soon as the step moves on. *@
+@inject TwoFactorService TwoFactor
+@inject DashboardCaller Caller
+
+@switch (_phase)
+{
+    case Phase.Password:
+        <div class="pdk-form-stack">
+            <MudText Typo="Typo.body2">Confirm your password to add an authenticator app (Aegis, 1Password, Google Authenticator, ...).</MudText>
+            <MudTextField T="string" @bind-Value="_password" Label="Your password" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          autocomplete="current-password" Error="_error is not null" ErrorText="@_error" Disabled="_busy" Class="pdk-totp-password" />
+            <div class="pdk-form-actions">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="BeginAsync" Disabled="_busy" Class="pdk-totp-begin">Continue</MudButton>
+            </div>
+        </div>
+        break;
+
+    case Phase.Scan:
+        <div class="pdk-totp-scan">
+            <QrCodeImage Text="@(_uri!)" Label="QR code for your authenticator app" Size="188" />
+            <div class="pdk-form-stack">
+                <MudText Typo="Typo.body2">Scan the code with your authenticator app, then enter the six digits it shows.</MudText>
+                <details class="pdk-totp-manual">
+                    <summary>Can't scan it?</summary>
+                    <span class="pdk-muted">Enter this key by hand (time-based, 6 digits, 30 seconds):</span>
+                    <code class="pdk-totp-secret">@Secret</code>
+                </details>
+                <MudTextField T="string" @bind-Value="_code" Label="Code" Variant="Variant.Outlined" Margin="Margin.Dense" autocomplete="one-time-code"
+                              InputMode="InputMode.numeric" MaxLength="8" Error="_error is not null" ErrorText="@_error" Disabled="_busy" Class="pdk-totp-code" />
+                <div class="pdk-form-actions">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConfirmAsync" Disabled="_busy" Class="pdk-totp-confirm">Turn it on</MudButton>
+                </div>
+            </div>
+        </div>
+        break;
+
+    case Phase.Codes:
+        <div class="pdk-form-stack">
+            <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">Two-step sign-in is on.</MudAlert>
+            <MudText Typo="Typo.body2">
+                Keep these recovery codes somewhere safe, away from this device. Each signs you in once if you lose the authenticator.
+                <strong>They are shown only now.</strong>
+            </MudText>
+            <ol class="pdk-recovery-codes pdk-mono">
+                @foreach (string recovery in _codes)
+                {
+                    <li>@recovery</li>
+                }
+            </ol>
+            <MudCheckBox T="bool" @bind-Value="_saved" Color="Color.Primary" Class="pdk-totp-saved">I have saved the recovery codes</MudCheckBox>
+            <div class="pdk-form-actions">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="FinishAsync" Disabled="!_saved" Class="pdk-totp-finish">Continue</MudButton>
+            </div>
+        </div>
+        break;
+
+    default:
+        <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true" Class="pdk-totp-on">
+            Two-step sign-in is on for your account.
+        </MudAlert>
+        break;
+}
+
+@code {
+    private enum Phase
+    {
+        Password,
+        Scan,
+        Codes,
+        Enabled,
+    }
+
+    private Phase _phase;
+    private string? _password;
+    private string? _uri;
+    private string? _code;
+    private string? _error;
+    private bool _busy;
+    private bool _saved;
+    private IReadOnlyList<string> _codes = [];
+
+    /// <summary>Whether the user already has a second factor.</summary>
+    [Parameter]
+    public bool AlreadyEnabled { get; set; }
+
+    /// <summary>After the recovery codes were acknowledged.</summary>
+    [Parameter]
+    public EventCallback Enabled { get; set; }
+
+    private string Secret
+    {
+        get
+        {
+            string query = _uri is { } uri && uri.IndexOf("secret=", StringComparison.Ordinal) is var i and >= 0 ? uri[(i + 7)..] : string.Empty;
+            int end = query.IndexOf('&', StringComparison.Ordinal);
+            string secret = Uri.UnescapeDataString(end >= 0 ? query[..end] : query);
+            return string.Join(' ', secret.Chunk(4).Select(chunk => new string(chunk)));
+        }
+    }
+
+    protected override void OnInitialized() => _phase = AlreadyEnabled ? Phase.Enabled : Phase.Password;
+
+    private async Task BeginAsync()
+    {
+        _error = null;
+        string password = _password ?? string.Empty;
+        _password = null;
+        if (password.Length == 0)
+        {
+            _error = "Enter your password.";
+            return;
+        }
+
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            TotpEnrollmentResult result = await TwoFactor.BeginEnrollmentAsync(origin, password);
+            switch (result)
+            {
+                case { Status: IdentityStatus.Succeeded, Enrollment: { } enrollment }:
+                    _uri = enrollment.ProvisioningUri.AbsoluteUri;
+                    _phase = Phase.Scan;
+                    break;
+                case { Status: IdentityStatus.Conflict }:
+                    _phase = Phase.Enabled;
+                    await Enabled.InvokeAsync();
+                    break;
+                case { Status: IdentityStatus.InvalidCredentials }:
+                    _error = "That password is wrong.";
+                    break;
+                default:
+                    _error = "Two-step sign-in couldn't be started. Try again in a moment.";
+                    break;
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        _error = null;
+        string code = (_code ?? string.Empty).Replace(" ", string.Empty, StringComparison.Ordinal);
+        _code = null;
+        CommandOrigin? origin = code.Length == 0 ? null : await Caller.OriginAsync();
+        if (origin is null)
+        {
+            _error = code.Length == 0 ? "Enter the code your app shows." : null;
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            RecoveryCodesResult result = await TwoFactor.ConfirmEnrollmentAsync(origin, code);
+            if (result is { Status: IdentityStatus.Succeeded, Codes: { } codes })
+            {
+                // The secret is not needed any more: drop it now.
+                _uri = null;
+                _codes = codes.Codes;
+                _phase = Phase.Codes;
+            }
+            else
+            {
+                _error = result.Status == IdentityStatus.InvalidCredentials
+                    ? "That code didn't work. Check the time on your device and try the current code."
+                    : "The enrolment changed meanwhile. Start again.";
+            }
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task FinishAsync()
+    {
+        _codes = [];
+        _phase = Phase.Enabled;
+        await Enabled.InvokeAsync();
+    }
+}

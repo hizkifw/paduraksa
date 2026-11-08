@@ -19,6 +19,9 @@ public sealed class AdminWebOptions
     /// <summary>The first-run setup page.</summary>
     public required string SetupPage { get; init; }
 
+    /// <summary>Where the setup form sends the new Owner once signed in (the rest of the first-run wizard); null for <see cref="HomePage"/>.</summary>
+    public string? SetupCompletedPage { get; init; }
+
     /// <summary>Where the sign-in page posts the username and password.</summary>
     public required string SignInAction { get; init; }
 

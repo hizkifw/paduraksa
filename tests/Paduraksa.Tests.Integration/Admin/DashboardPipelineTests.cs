@@ -81,7 +81,8 @@ public sealed partial class DashboardPipelineTests
         string cookie;
         using (AdminResponse created = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup(token, AdminHarness.Password, AdminHarness.Password)))
         {
-            AssertSeeOther(created, "/");
+            // The rest of the first-run wizard follows the Owner.
+            AssertSeeOther(created, Paduraksa.Dashboard.Setup.SetupWizard.Route);
             cookie = created.SessionCookie ?? throw new InvalidOperationException("Setup set no session cookie.");
             Assert.DoesNotContain(AdminHarness.Password, created.Body, StringComparison.Ordinal);
         }

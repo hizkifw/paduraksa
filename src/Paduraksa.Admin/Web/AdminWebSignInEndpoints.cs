@@ -153,7 +153,7 @@ internal static class AdminWebSignInEndpoints
         return attempt switch
         {
             { HeldBack: not SignInHeldBack.No } => SeeOther(http, Page(web.SetupPage, HeldBackCode(attempt.HeldBack), null, web)),
-            { Result.Outcome: SetupOutcome.Succeeded, Session: not null } => SeeOther(http, web.HomePage),
+            { Result.Outcome: SetupOutcome.Succeeded, Session: not null } => SeeOther(http, web.SetupCompletedPage ?? web.HomePage),
             { Result.Outcome: SetupOutcome.Succeeded or SetupOutcome.AlreadyComplete } => SeeOther(http, Page(web.SignInPage, ApiCodes.Setup.Complete, null, web)),
             { Result.Outcome: SetupOutcome.InvalidToken } => SeeOther(http, Page(web.SetupPage, ApiCodes.Setup.InvalidToken, null, web)),
             _ => SeeOther(http, Page(web.SetupPage, ApiCodes.Identity.Refused, null, web)),

@@ -2,8 +2,11 @@
 @inject NavigationManager Navigation
 @inject Paduraksa.Application.Identity.SetupService SetupService
 @inject DashboardOptions Options
+@using Paduraksa.Dashboard.Setup
 
 <PageTitle>Set up · Paduraksa</PageTitle>
+
+<WizardStepper Current="WizardStep.SetupToken" />
 
 <h1 class="pdk-auth-title">Welcome to Paduraksa</h1>
 <p class="pdk-auth-lead">Claim this instance and create its Owner, the account that can do everything.</p>
@@ -42,20 +45,24 @@
         <div class="pdk-field-row">
             <label class="pdk-field">
                 <span class="pdk-label">Password</span>
-                <input class="pdk-input" name="@DashboardForm.Password" type="password" autocomplete="new-password" minlength="@Options.MinPasswordLength" required />
+                <input class="pdk-input" name="@DashboardForm.Password" type="password" autocomplete="new-password" minlength="@Options.MinPasswordLength" required data-strength />
             </label>
             <label class="pdk-field">
                 <span class="pdk-label">Confirm password</span>
                 <input class="pdk-input" name="@DashboardForm.ConfirmPassword" type="password" autocomplete="new-password" minlength="@Options.MinPasswordLength" required />
             </label>
         </div>
-        <span class="pdk-hint">@SignInMessages.PasswordHint(Options.MinPasswordLength)</span>
+        <div class="pdk-strength" data-strength-meter data-level="-1" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+        <span class="pdk-hint">@SignInMessages.PasswordHint(Options.MinPasswordLength) <strong class="pdk-strength-label" data-strength-label aria-live="polite"></strong></span>
     </fieldset>
 
     <button type="submit" class="pdk-button pdk-button-primary">Create the Owner and sign in</button>
 </form>
 
-<p class="pdk-auth-note">Next, from the dashboard: a second factor for the Owner, certificates and your first host.</p>
+<p class="pdk-auth-note">Next: two-step sign-in for the Owner, an ACME account and DNS provider, a certificate and your first host. Each of
+    those can be skipped and finished later from the overview.</p>
+
+<script src="@Assets["_content/Paduraksa.Dashboard/setup.js"]"></script>
 
 @code {
     [SupplyParameterFromQuery(Name = DashboardForm.ErrorParameter)]
