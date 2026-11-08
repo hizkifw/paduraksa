@@ -113,7 +113,11 @@ internal static class EdgeClient
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         using TcpClient tcp = new();
-        await tcp.ConnectAsync(IPAddress.Loopback, TestHost.Endpoint(host, HostRole.Public, "http").Port, ct);
+        if (!await TryConnectAsync(tcp, TestHost.Endpoint(host, HostRole.Public, "http").Port, ct))
+        {
+            return string.Empty;
+        }
+
         NetworkStream stream = tcp.GetStream();
         using StreamReader reader = new(stream, Encoding.ASCII);
         try
@@ -137,7 +141,11 @@ internal static class EdgeClient
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
         using TcpClient tcp = new();
-        await tcp.ConnectAsync(IPAddress.Loopback, TestHost.Endpoint(host, HostRole.Public, "https").Port, ct);
+        if (!await TryConnectAsync(tcp, TestHost.Endpoint(host, HostRole.Public, "https").Port, ct))
+        {
+            return string.Empty;
+        }
+
         NetworkStream stream = tcp.GetStream();
         try
         {
@@ -159,6 +167,28 @@ internal static class EdgeClient
         catch (Exception ex) when (ex is IOException or System.Security.Authentication.AuthenticationException)
         {
             return string.Empty; // dropped before or during the handshake
+        }
+    }
+
+    /// <summary>
+    /// Connects, treating a peer reset as "the listener dropped the connection" (false) rather than an error.
+    /// </summary>
+    /// <remarks>
+    /// A listener that accepts and immediately aborts a connection it refuses (a missing PROXY protocol header, a denied
+    /// peer) can send its RST before the client's <c>connect()</c> has reported success: the handshake completed on the
+    /// server, so this is the same drop the read path sees as a reset, only it surfaces at <c>ConnectAsync</c>. A refused
+    /// or timed-out connect is a different failure and still throws.
+    /// </remarks>
+    private static async Task<bool> TryConnectAsync(TcpClient tcp, int port, CancellationToken ct)
+    {
+        try
+        {
+            await tcp.ConnectAsync(IPAddress.Loopback, port, ct);
+            return true;
+        }
+        catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionReset)
+        {
+            return false;
         }
     }
 }
