@@ -36,6 +36,13 @@ public sealed class AdminSecurityOptions
 
     /// <summary>The largest request body accepted unless an endpoint raises it with <see cref="AdminRequestLimits.WithAdminBodyLimit{TBuilder}"/>.</summary>
     public long MaxRequestBodyBytes { get; init; } = DefaultMaxRequestBodyBytes;
+
+    /// <summary>
+    /// <c>Paduraksa:Listen:AdminAllowedSources</c>: the addresses and CIDR blocks allowed to reach the admin. The main port applies
+    /// it per connection before TLS; the internal listener applies it per request to the forwarded client address (PLAN §3.1).
+    /// Empty means no restriction.
+    /// </summary>
+    public IReadOnlyList<string> AdminAllowedSources { get; init; } = [];
 }
 
 /// <summary>

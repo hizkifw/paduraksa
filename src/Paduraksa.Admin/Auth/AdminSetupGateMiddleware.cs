@@ -23,6 +23,19 @@ internal sealed partial class AdminSetupGateMiddleware(RequestDelegate next, Set
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // First-run setup is never reachable from the Internet through a proxied admin host. The internal listener's secret
+        // already proves the hop came from this process; this refuses the setup surface even so (the owner reaches the admin
+        // port or the loopback plain-HTTP fallback listener for it).
+        if (context.IsOnInternalListener()
+            && context.Request.Path.StartsWithSegments(SetupPath, StringComparison.OrdinalIgnoreCase))
+        {
+            await AdminProblems.Forbidden(
+                "Setup is not available through the proxy",
+                "First-run setup is only served on the admin port or the loopback plain-HTTP fallback listener.",
+                "setup_via_proxy").ExecuteAsync(context).ConfigureAwait(false);
+            return;
+        }
+
         if (IsAlwaysOpen(context.Request.Path))
         {
             await next(context).ConfigureAwait(false);

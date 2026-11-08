@@ -14,7 +14,7 @@ namespace Paduraksa.Server.Hosting;
 /// </summary>
 internal sealed class PublicListenerSetup
 {
-    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots)
+    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots, bool adminInternal)
     {
         ArgumentNullException.ThrowIfNull(listen);
         ArgumentNullException.ThrowIfNull(snapshots);
@@ -28,6 +28,7 @@ internal sealed class PublicListenerSetup
         {
             PublicHttpsPort = listen.PublicHttpsPort,
             AdvertiseHttp3 = Http3,
+            AdminUpstream = adminInternal,
         };
     }
 

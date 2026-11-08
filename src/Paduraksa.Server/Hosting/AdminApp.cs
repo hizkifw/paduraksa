@@ -6,12 +6,15 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 using Paduraksa.Admin;
 using Paduraksa.Admin.Auth;
 using Paduraksa.Admin.Certificates;
 using Paduraksa.Admin.Identity;
 using Paduraksa.Application.Commands;
+using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Placeholders;
@@ -25,9 +28,11 @@ namespace Paduraksa.Server.Hosting;
 /// (<c>Paduraksa.Admin</c>: setup gate, authentication, CSRF defence, hardening), a placeholder page, the optional source
 /// allowlist and the opt-in loopback plain-HTTP listener.
 /// The resource REST API (<c>/api/v1</c>, its OpenAPI document and the reference UI, PLAN §11.1).
-/// TODO(M4): /mcp, /metrics. TODO(M5): dashboard. TODO(§3.1): internal UDS listener.
+/// The internal listener (PLAN §3.1): a Unix socket (0600, in a 0700 directory) or a loopback fallback, plain HTTP, through
+/// which the public proxy forwards an admin host's requests.
+/// TODO(M4): /mcp, /metrics. TODO(M5): dashboard.
 /// </summary>
-internal static class AdminApp
+internal static partial class AdminApp
 {
     private static readonly string[] GetAndHead = [HttpMethods.Get, HttpMethods.Head];
 
@@ -60,6 +65,9 @@ internal static class AdminApp
         AdminCertificateService adminCertificate = context.Shared.AdminCertificate;
 
         AdminSourcePolicy sources = new(listen.AdminAllowedSources);
+        AdminInternalListener internalListener = context.Shared.AdminInternal;
+        ILogger logger = new RoleLoggerFactory(context.Shared.LoggerFactory, HostRole.Admin).CreateLogger(typeof(AdminApp).FullName!);
+        ListenOptions? internalListenOptions = null;
         builder.WebHost.UseKestrelCore().UseKestrelHttpsConfiguration();
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
@@ -71,6 +79,30 @@ internal static class AdminApp
                 admin.UseHttps(adminCertificate.CreateTlsOptions());
             });
 
+            // PLAN §3.1: the internal listener the public proxy reaches. Plain HTTP by design: it is a Unix socket in the
+            // process's 0700 run directory (0600 for the socket), or a loopback port when one can't be used. No TLS: nothing
+            // leaves the process boundary, and no certificate is needed.
+            if (internalListener.Enabled)
+            {
+                if (internalListener.UsesUnixSocket)
+                {
+                    kestrel.ListenUnixSocket(internalListener.SocketPath!, internalOptions =>
+                    {
+                        internalOptions.Protocols = HttpProtocols.Http1;
+                        MarkInternal(internalOptions);
+                    });
+                }
+                else
+                {
+                    kestrel.Listen(IPAddress.Loopback, 0, internalOptions =>
+                    {
+                        internalListenOptions = internalOptions;
+                        internalOptions.Protocols = HttpProtocols.Http1;
+                        MarkInternal(internalOptions);
+                    });
+                }
+            }
+
             // PLAN §3: opt-in, loopback only. ListenLocalhost binds 127.0.0.1 and ::1 and nothing else; no setting moves it.
             if (listen.AdminLoopbackHttp > 0)
             {
@@ -78,13 +110,15 @@ internal static class AdminApp
             }
         });
         builder.Services.AddRoutingCore();
-        builder.Services.AddPaduraksaAdminAuth(context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp));
+        builder.Services.AddSingleton(sources);
+        builder.Services.AddPaduraksaAdminAuth(context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp, [.. listen.AdminAllowedSources]));
         builder.Services.AddPaduraksaAdminApi();
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Admin);
         HostSetup.PinListenerConfiguration(builder);
 
         WebApplication app = builder.Build();
+        app.Lifetime.ApplicationStarted.Register(() => CompleteInternalListener(internalListener, internalListenOptions, logger));
         app.UsePaduraksaAdminApi();
         app.UsePaduraksaAdminAuth();
         MapHealth(app);
@@ -96,9 +130,66 @@ internal static class AdminApp
     }
 
     /// <summary>
+    /// Finishes the internal listener once Kestrel has bound: the Unix socket's mode is set to 0600 (the directory is already
+    /// 0700), or the fallback's OS-assigned port is recorded so the proxy's connect callback can reach it.
+    /// </summary>
+    private static void CompleteInternalListener(AdminInternalListener listener, ListenOptions? internalOptions, ILogger logger)
+    {
+        if (!listener.Enabled)
+        {
+            return;
+        }
+
+        try
+        {
+            if (listener.UsesUnixSocket)
+            {
+                string path = listener.SocketPath!;
+                if (!OperatingSystem.IsWindows())
+                {
+                    File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+                }
+
+                listener.RecordBoundSocket();
+                if (listener.OwnershipCheckSkipped)
+                {
+                    LogOwnershipSkipped(logger, path);
+                }
+
+                // The internal listener is not a client endpoint: GetListenAddresses leaves it out.
+                LogInternalSocket(logger, path);
+                return;
+            }
+
+            int? port = internalOptions?.IPEndPoint?.Port;
+            if (port is > 0)
+            {
+                listener.BindLoopback(port.Value);
+                LogInternalLoopback(logger, listener.FallbackReason?.Message ?? "unknown reason", $"127.0.0.1:{port.Value}");
+                return;
+            }
+
+            LogInternalPortUnknown(logger);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+        {
+            LogInternalFinishFailed(logger, ex);
+        }
+    }
+
+    /// <summary>Marks connections accepted on the internal listener only; nothing infers it from a peer address or a port.</summary>
+    private static void MarkInternal(ListenOptions options) =>
+        options.Use(next => connection =>
+        {
+            connection.Items[AdminInternalConnectionMarker.Key] = true;
+            return next(connection);
+        });
+
+    /// <summary>
     /// Refuses connections from outside <c>AdminAllowedSources</c> before TLS starts: the TCP handshake completes, then the connection is
-    /// aborted without a byte sent. Loopback is not implied. No-op without an allowlist. Only the main listener has it: the loopback
-    /// fallback is loopback-only by construction.
+    /// aborted without a byte sent. Loopback is not implied. No-op without an allowlist. Only the main admin listener has it: the
+    /// loopback plain-HTTP fallback listener is loopback-only by construction, and the internal admin listener applies the list per
+    /// request to the forwarded client.
     /// </summary>
     private static void RestrictSources(ListenOptions listener, AdminSourcePolicy sources)
     {
@@ -163,4 +254,19 @@ internal static class AdminApp
             ? Task.CompletedTask
             : response.Body.WriteAsync(PlaceholderPageBody, context.RequestAborted).AsTask();
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The admin internal listener is the Unix socket {Path}")]
+    private static partial void LogInternalSocket(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The admin internal TCP fallback listener is {Address}; the Unix socket couldn't be used: {Reason}")]
+    private static partial void LogInternalLoopback(ILogger logger, string reason, string address);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't check the owner of {Path}; this platform exposes no statx owner. Continuing with the symlink check only")]
+    private static partial void LogOwnershipSkipped(ILogger logger, string path);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The admin internal listener bound, but its loopback port could not be read; proxied admin requests answer 502")]
+    private static partial void LogInternalPortUnknown(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Could not finish the admin internal listener; proxied admin requests may answer 502")]
+    private static partial void LogInternalFinishFailed(ILogger logger, Exception exception);
 }

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Runtime.InteropServices;
 
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Paduraksa.Core.Hosting;
 using Paduraksa.Server.Configuration;
 
 namespace Paduraksa.Server.Hosting;
@@ -234,6 +236,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     }
 
     /// <summary>Bound addresses of a web app (e.g. <c>https://[::]:443</c>); empty for the core host or before start.</summary>
+    /// <remarks>The admin app's internal listener (PLAN §3.1) is process-local plumbing, not a client endpoint, so it is left out.</remarks>
     public IReadOnlyList<string> GetListenAddresses(HostRole role)
     {
         IHost? app = role switch
@@ -242,7 +245,31 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             HostRole.Admin => Admin,
             _ => null,
         };
-        return app?.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()?.Addresses.ToArray() ?? [];
+        IReadOnlyList<string> addresses = app?.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()?.Addresses.ToArray() ?? [];
+        return role == HostRole.Admin
+            ? [.. addresses.Where(address => !IsInternalAdminAddress(address, Shared.AdminInternal))]
+            : addresses;
+    }
+
+    private static bool IsInternalAdminAddress(string address, AdminInternalListener listener)
+    {
+        if (!listener.Enabled)
+        {
+            return false;
+        }
+
+        // Kestrel lists a Unix-socket listener as http://unix:<path>; the loopback fallback as its loopback URL.
+        if (listener.UsesUnixSocket)
+        {
+            return address.StartsWith("http://unix:", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return listener.LoopbackEndPoint is { } bound
+            && Uri.TryCreate(address, UriKind.Absolute, out Uri? uri)
+            && uri.Scheme == Uri.UriSchemeHttp
+            && uri.Port == bound.Port
+            && IPAddress.TryParse(uri.Host, out IPAddress? parsed)
+            && IPAddress.IsLoopback(parsed!);
     }
 
     public IServiceProvider GetServices(HostRole role) => role switch

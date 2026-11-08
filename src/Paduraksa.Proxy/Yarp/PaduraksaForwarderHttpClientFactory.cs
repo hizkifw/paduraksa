@@ -2,6 +2,8 @@ using System.Net.Http;
 
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Core.Hosting;
+
 using Yarp.ReverseProxy.Forwarder;
 
 namespace Paduraksa.Proxy.Yarp;
@@ -14,16 +16,18 @@ namespace Paduraksa.Proxy.Yarp;
 /// Base YARP does the same comparison; it's restated here because the reuse is a requirement, not a default.</para>
 /// <para><b>Handler defaults:</b> pooled connections are recycled after <see cref="PooledConnectionLifetime"/> so a
 /// restarted upstream container with a new IP is picked up quickly (PLAN §5.1), and connects time out.</para>
+/// <para><b>The admin cluster</b> (<see cref="YarpConfig.AdminClusterId"/>) connects through
+/// <see cref="AdminInternalListener"/> instead of resolving its symbolic destination (PLAN §3.1): a Unix socket, or the
+/// loopback fallback's port.</para>
 /// </summary>
 internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientFactory
 {
-    public PaduraksaForwarderHttpClientFactory()
-    {
-    }
+    private readonly AdminInternalListener? _admin;
 
-    public PaduraksaForwarderHttpClientFactory(ILogger<ForwarderHttpClientFactory> logger)
+    public PaduraksaForwarderHttpClientFactory(ILogger<ForwarderHttpClientFactory> logger, AdminInternalListener? admin)
         : base(logger)
     {
+        _admin = admin;
     }
 
     /// <summary>PLAN §5.1 default; per-upstream values come with the upstream settings (M2).</summary>
@@ -42,9 +46,19 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
 
     protected override void ConfigureHandler(ForwarderHttpClientContext context, SocketsHttpHandler handler)
     {
+        ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(handler);
         base.ConfigureHandler(context, handler);
         ApplyDefaults(handler);
+
+        if (string.Equals(context.ClusterId, YarpConfig.AdminClusterId, StringComparison.OrdinalIgnoreCase))
+        {
+            // The destination (http://admin.internal/) is never resolved: the connect callback knows the process's own
+            // internal admin listener, which is all this cluster may ever reach.
+            handler.ConnectCallback = (_admin ?? throw new InvalidOperationException(
+                $"Cluster {YarpConfig.AdminClusterId} needs the admin internal listener, which isn't registered in this app."))
+                .ConnectAsync;
+        }
     }
 
     internal static void ApplyDefaults(SocketsHttpHandler handler)

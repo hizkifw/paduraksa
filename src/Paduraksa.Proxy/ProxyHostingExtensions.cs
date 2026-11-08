@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
+using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
@@ -26,32 +28,43 @@ namespace Paduraksa.Proxy;
 public static class ProxyHostingExtensions
 {
     /// <summary>
-    /// Registers YARP (fed by <paramref name="publisher"/>'s provider and listener, forwarding the path as received and
-    /// clean forwarding headers built from the gate's client resolution instead of YARP's own <c>X-Forwarded-*</c>),
-    /// the client factory, routing, the gate, and the default <see cref="IClientAddressSource"/>
-    /// (<see cref="TrustedProxyClientAddressSource"/>: the connection's ClientInfo through the snapshot's trusted proxies) and
-    /// the live destination health the request simulator reads (<see cref="IUpstreamHealth"/>).
+    /// Registers YARP (fed by <paramref name="publisher"/>'s provider and listener, forwarding the path as received, clean
+    /// forwarding headers built from the gate's client resolution instead of YARP's own <c>X-Forwarded-*</c>, the internal admin
+    /// hop secret on admin routes only, and the admin-session cookie rules), the client factory, routing, the gate, and the
+    /// default <see cref="IClientAddressSource"/> (<see cref="TrustedProxyClientAddressSource"/>: the connection's ClientInfo
+    /// through the snapshot's trusted proxies) and the live destination health the request simulator reads
+    /// (<see cref="IUpstreamHealth"/>).
     /// </summary>
-    public static IServiceCollection AddPaduraksaProxy(this IServiceCollection services, SnapshotPublisher publisher)
+    /// <param name="services">The public app's services.</param>
+    /// <param name="publisher">The one snapshot publisher of the process.</param>
+    /// <param name="adminInternal">The admin app's internal listener; null in a test app that can't compile an admin host.</param>
+    public static IServiceCollection AddPaduraksaProxy(
+        this IServiceCollection services, SnapshotPublisher publisher, AdminInternalListener? adminInternal = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(publisher);
 
+        AdminInternalSecretTransform adminSecret = new(adminInternal);
         services.TryAddSingleton(publisher);
         services.TryAddSingleton(publisher.Store);
         services.AddSingleton<IProxyConfigProvider>(publisher.ConfigProvider);
         services.AddSingleton<IConfigChangeListener>(publisher.ApplyListener);
         services.AddRoutingCore();
         services.AddReverseProxy()
-            .AddTransforms(static transforms =>
+            .AddTransforms(transforms =>
             {
                 transforms.UseDefaultForwarders = false;
                 transforms.AddRequestTransform(RawPathTransform.ApplyAsync);
                 transforms.AddRequestTransform(ForwardedHeadersTransform.ApplyAsync);
+                transforms.AddRequestTransform(adminSecret.ApplyAsync);
                 transforms.AddRequestTransform(SessionCookieTransform.ApplyAsync);
+                transforms.AddResponseTransform(SessionCookieTransform.ApplyResponseAsync);
             });
         services.RemoveAll<IForwarderHttpClientFactory>();
-        services.AddSingleton<IForwarderHttpClientFactory, PaduraksaForwarderHttpClientFactory>();
+        services.AddSingleton<IForwarderHttpClientFactory>(
+            static provider => new PaduraksaForwarderHttpClientFactory(
+                provider.GetRequiredService<ILogger<ForwarderHttpClientFactory>>(),
+                provider.GetService<AdminInternalListener>()));
         services.TryAddSingleton<TrustedProxyClientAddressSource>();
         services.TryAddSingleton<IClientAddressSource>(static provider => provider.GetRequiredService<TrustedProxyClientAddressSource>());
         services.TryAddSingleton<GateMiddleware>();

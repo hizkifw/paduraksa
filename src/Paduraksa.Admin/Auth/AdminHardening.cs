@@ -147,7 +147,12 @@ internal sealed class AdminLoopbackHostMiddleware(RequestDelegate next, AdminSec
 {
     public Task InvokeAsync(HttpContext context)
     {
-        if (options.LoopbackHttpPort > 0 && context.Connection.LocalPort == options.LoopbackHttpPort && !IsLoopbackHost(context.Request.Host))
+        // The internal listener is loopback by construction and its forwarded Host is the public name: the DNS-rebinding
+        // check belongs to the plain-HTTP loopback fallback listener alone (PLAN §3.1).
+        if (options.LoopbackHttpPort > 0
+            && !context.IsOnInternalListener()
+            && context.Connection.LocalPort == options.LoopbackHttpPort
+            && !IsLoopbackHost(context.Request.Host))
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             return Task.CompletedTask;

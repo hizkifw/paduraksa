@@ -79,7 +79,7 @@ internal static partial class PublicApp
                             throw new InvalidOperationException("The HTTP/3 listener doesn't match what the snapshot compiler advertises.");
                         }
                     })
-                    .ConfigureServices(services => services.AddPaduraksaProxy(context.Shared.SnapshotPublisher))
+                    .ConfigureServices(services => services.AddPaduraksaProxy(context.Shared.SnapshotPublisher, context.Shared.AdminInternal))
                     .Configure(static app =>
                     {
                         // The simulator reads destination health from this app's YARP while it runs.

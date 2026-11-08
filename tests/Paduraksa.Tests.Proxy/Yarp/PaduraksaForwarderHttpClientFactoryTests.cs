@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
@@ -21,7 +23,7 @@ public sealed class PaduraksaForwarderHttpClientFactoryTests
     [Fact]
     public void TheOldClientIsReusedOnlyWhileTheClientConfigIsUnchanged()
     {
-        PaduraksaForwarderHttpClientFactory factory = new();
+        PaduraksaForwarderHttpClientFactory factory = new(NullLogger<ForwarderHttpClientFactory>.Instance, admin: null);
         HttpClientConfig config = new() { MaxConnectionsPerServer = 8 };
         using HttpMessageInvoker first = factory.CreateClient(new ForwarderHttpClientContext { ClusterId = "c", NewConfig = config });
 

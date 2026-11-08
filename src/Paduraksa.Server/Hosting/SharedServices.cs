@@ -13,6 +13,7 @@ using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
+using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
@@ -56,6 +57,7 @@ internal sealed class SharedServices : IAsyncDisposable
         ServerCertificate = Get<PlaceholderServerCertificate>();
         Certificates = Get<PlaceholderCertificates>();
         AdminCertificate = Get<AdminCertificateService>();
+        AdminInternal = Get<AdminInternalListener>();
         Catalog = Get<ICertificateCatalog>();
         PublicListeners = Get<PublicListenerSetup>();
         Config = Get<ConfigService>();
@@ -132,6 +134,12 @@ internal sealed class SharedServices : IAsyncDisposable
     /// service of the core host. Its <see cref="AdminCertificateService.ServingOptions"/> are the listener's TLS options.
     /// </summary>
     public AdminCertificateService AdminCertificate { get; }
+
+    /// <summary>
+    /// The admin app's internal listener (PLAN §3.1): a Unix socket (0600, in a 0700 directory) or the loopback fallback, through
+    /// which the public proxy reaches the admin. Exists independent of the config, so creating an admin host needs no restart.
+    /// </summary>
+    public AdminInternalListener AdminInternal { get; }
 
     /// <summary>The vault describing the certificates it holds (public facts only); the CA download endpoints read the root from it.</summary>
     public ICertificateCatalog Catalog { get; }
@@ -213,7 +221,19 @@ internal sealed class SharedServices : IAsyncDisposable
             SnapshotPublisher publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider));
             PlaceholderServerCertificate placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
             PlaceholderCertificates certificates = builder.Add(new PlaceholderCertificates(placeholder));
-            PublicListenerSetup listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots));
+            AdminInternalListener adminInternal;
+            try
+            {
+                adminInternal = builder.Add(new AdminInternalListener(options.DataDirectory, options.Listen.AdminInternal));
+            }
+            catch (AdminInternalStartupException ex)
+            {
+                ILogger adminLog = coreLoggers.CreateLogger("Paduraksa.Admin.Internal");
+                AdminInternalLogs.StartupFailed(adminLog, ex);
+                throw;
+            }
+
+            PublicListenerSetup listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 

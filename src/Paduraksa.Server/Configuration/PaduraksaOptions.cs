@@ -184,13 +184,14 @@ internal sealed class AdminOptions
         TotpIssuer = TotpIssuer,
     };
 
-    public AdminSecurityOptions ToSecurityOptions(int loopbackHttpPort = 0) => new()
+    public AdminSecurityOptions ToSecurityOptions(int loopbackHttpPort = 0, IReadOnlyList<string>? adminAllowedSources = null) => new()
     {
         LoopbackHttpPort = loopbackHttpPort,
         RateLimitPermitsPerIp = RateLimit.PermitsPerIp,
         RateLimitPermitsPerUser = RateLimit.PermitsPerUser,
         RateLimitWindow = RateLimit.Window,
         MaxRequestBodyBytes = MaxRequestBodyBytes,
+        AdminAllowedSources = adminAllowedSources ?? [],
     };
 }
 
@@ -243,6 +244,14 @@ internal sealed class PaduraksaListenOptions
 
     /// <summary>Bind address of the admin listener (§3: configurable).</summary>
     public string AdminBind { get; set; } = "0.0.0.0";
+
+    /// <summary>
+    /// The admin app's internal listener (PLAN §3.1), through which the public proxy reaches it: a Unix socket at
+    /// <c>&lt;data dir&gt;/run/admin.sock</c> (0600, in a 0700 directory), or <c>127.0.0.1:&lt;ephemeral&gt;</c> where one can't be
+    /// bound. It is <b>on by default</b> and independent of the config, so creating an admin host later needs no restart. Off:
+    /// no admin host can compile (a config with one is refused). The listener carries no TLS: it is process-local.
+    /// </summary>
+    public bool AdminInternal { get; set; } = true;
 
     /// <summary>
     /// Addresses and CIDR blocks allowed to connect to the admin listener (e.g. <c>192.168.1.0/24</c>); empty means no restriction.
