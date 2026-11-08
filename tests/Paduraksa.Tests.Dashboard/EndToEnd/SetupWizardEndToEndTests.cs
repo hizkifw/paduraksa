@@ -100,6 +100,8 @@ public sealed class SetupWizardEndToEndTests
         await PlaywrightBrowser.ScreenshotAsync(page, "wizard-5-certificate");
         await page.ClickAsync(".pdk-local-submit");
         await Expect(page.Locator(".pdk-cert-issued")).ToContainTextAsync(HostName, new() { Timeout = 15_000 });
+        // Continue follows as soon as the certificate is ready (it used to wait for the progress to be re-read).
+        await Expect(page.Locator(".pdk-wizard-next")).ToBeEnabledAsync(new() { Timeout = 1_000 });
         await PlaywrightBrowser.ScreenshotAsync(page, "wizard-5-certificate-issued");
         await page.ClickAsync(".pdk-wizard-next");
 

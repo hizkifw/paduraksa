@@ -163,7 +163,7 @@
                         <MudButton Variant="Variant.Text" OnClick="SkipAsync" Class="pdk-wizard-skip">@SkipText</MudButton>
                     }
                     <MudButton Variant="@(_progress?.IsDone(_step) == true ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="NextAsync"
-                               EndIcon="@Icons.Material.Rounded.ArrowForward" Disabled="@(_progress?.IsDone(_step) != true)" Class="pdk-wizard-next">Continue</MudButton>
+                               EndIcon="@Icons.Material.Rounded.ArrowForward" Disabled="@(!CanContinue)" Class="pdk-wizard-next">Continue</MudButton>
                 }
             </footer>
         </MudPaper>
@@ -182,6 +182,7 @@
     private bool _testing;
     private IReadOnlyList<string>? _names;
     private HostConfig? _createdHost;
+    private bool _certificateIssued;
 
     /// <summary>The step's slug from the address, parsed at the page's edge.</summary>
     [Parameter]
@@ -299,9 +300,15 @@
 
     private async Task CertificateIssuedAsync(CertificateSummary certificate)
     {
+        // The step says the certificate is ready as soon as it is: Continue follows at once, not after the progress has been re-read.
         _names = certificate.Names;
+        _certificateIssued = true;
+        StateHasChanged();
         await ReloadAsync();
     }
+
+    /// <summary>The step is done: by the progress as last read, or a certificate this page just issued.</summary>
+    private bool CanContinue => _progress?.IsDone(_step) == true || (_step == WizardStep.Certificate && _certificateIssued);
 
     private async Task HostCreatedAsync(HostConfig host)
     {
