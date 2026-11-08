@@ -423,6 +423,47 @@ public sealed class CertificateOperationsTests
         Assert.False(vault.LastDeleteToken.CanBeCanceled);
     }
 
+    [Fact]
+    public async Task ACertificateChangeTheServiceDeniesIsForbiddenAndTheVaultIsNeverTouched()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        var vault = new FakeVault();
+        var certificates = new CertificateService(
+            harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 0));
+        // The operation-level authorizer lets the caller through, so it is the service's own check that refuses.
+        var operations = new CertificateOperations(certificates, vault, vault, new Allow(), NullLogger<CertificateOperations>.Instance);
+        var viewer = new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api);
+
+        var issued = await operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["a.example.com"]), viewer, Ct);
+        var deleted = await operations.DeleteAsync(CertificateId.New(), viewer, Ct);
+
+        Assert.Equal(CertificateOperationStatus.Forbidden, issued.Status);
+        Assert.Empty(issued.Errors);
+        Assert.Equal(CertificateOperationStatus.Forbidden, deleted.Status);
+        Assert.Empty(vault.Calls);
+        Assert.Empty(await certificates.ListAsync(cancellationToken: Ct));
+    }
+
+    [Fact]
+    public async Task ARollbackSucceedsEvenIfTheCallerLostThePermissionAndTheSystemIsAudited()
+    {
+        await using var harness = await ConfigServiceHarness.CreateAsync();
+        var vault = new FakeVault { CreateFailure = new IOException("disk gone") };
+        // The caller may register the pending row (one allowed check), and has lost the permission by the time the rollback runs.
+        var certificates = new CertificateService(
+            harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 1));
+        var operations = new CertificateOperations(certificates, vault, vault, new Allow(), NullLogger<CertificateOperations>.Instance);
+        var caller = new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api, System.Net.IPAddress.Loopback);
+
+        await Assert.ThrowsAsync<IOException>(
+            async () => await operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["a.example.com"]), caller, Ct));
+
+        Assert.Empty(await certificates.ListAsync(cancellationToken: Ct));
+        var rollback = Assert.Single(await harness.AuditAsync(), e => e.Action == "certificate.delete");
+        Assert.Equal((ActorKind.System, AuditOutcome.Success, Channel.Api), (rollback.Actor.Kind, rollback.Outcome, rollback.Channel));
+        Assert.DoesNotContain(await harness.AuditAsync(), e => e.Outcome == AuditOutcome.Denied);
+    }
+
     private sealed class Allow : ICertificateOperationAuthorizer
     {
         public ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken) => ValueTask.FromResult(true);
@@ -563,5 +604,22 @@ public sealed class CertificateOperationsTests
                 "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n");
             return InfoOverride?.Invoke(info) ?? info;
         }
+    }
+
+    /// <summary>
+    /// Grants <c>certificates:write</c> to a user for the first <paramref name="allowedCalls"/> checks and never after; the system may always.
+    /// </summary>
+    private sealed class ScriptedPermissions(int allowedCalls) : Paduraksa.Application.Identity.IPermissionEvaluator
+    {
+        private int _calls;
+
+        public ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(Actor actor, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlySet<Permission>>(
+                actor.Kind == ActorKind.System || Interlocked.Increment(ref _calls) <= allowedCalls
+                    ? new HashSet<Permission> { Permission.CertificatesWrite }
+                    : new HashSet<Permission>());
+
+        public async ValueTask<bool> IsAllowedAsync(CommandOrigin origin, Permission permission, CancellationToken cancellationToken) =>
+            (await GetPermissionsAsync(origin.Actor, cancellationToken)).Contains(permission);
     }
 }

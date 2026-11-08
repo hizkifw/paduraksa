@@ -19,7 +19,8 @@ namespace Paduraksa.Tests.Integration.Config;
 /// <summary>Config through the real <see cref="ConfigService"/> of a <see cref="PaduraksaHost"/>, and its files.</summary>
 internal static class ConfigTestSupport
 {
-    public static CommandOrigin Origin { get; } = new(Actor.ForUser(UserId.New()), Channel.Api, IPAddress.Loopback);
+    /// <summary>An origin the real (permission-based) authorizers allow: the CLI's actor, here on the API channel. A made-up user would be refused.</summary>
+    public static CommandOrigin Origin { get; } = new(Actor.Cli, Channel.Api, IPAddress.Loopback);
 
     /// <summary>Runs <paramref name="command"/> and asserts it committed and went live; returns the revision.</summary>
     public static async Task<RevisionRef> CommitAsync(PaduraksaHost host, ConfigCommand command, CancellationToken ct)
