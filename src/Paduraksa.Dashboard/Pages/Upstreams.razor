@@ -1,6 +1,172 @@
 @attribute [Route(DashboardRoutes.Upstreams)]
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject ILogger<Upstreams> Logger
 
 <PageTitle>Upstreams · Paduraksa</PageTitle>
 
-<ComingSoon Title="Upstreams" Overline="Traffic" Icon="@Icons.Material.Outlined.Hub"
-            Description="The services behind your hosts: their destinations, load balancing and health checks." />
+<PageHeader Title="Upstreams" Overline="Traffic" Lead="The services behind your hosts: where requests go, how they are spread, and how health is checked.">
+    <Actions>
+        @if (_mayWrite)
+        {
+            <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add an upstream</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the config" Description="An Owner can give you the Viewer role or another that can." />
+    </MudPaper>
+}
+else if (_document is null)
+{
+    <div class="pdk-card-grid" aria-busy="true">
+        @for (int i = 0; i < 3; i++)
+        {
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="40%" Height="28px" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="60%" />
+            </MudPaper>
+        }
+    </div>
+}
+else if (_document.Upstreams.Count == 0)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Hub" Title="No upstreams yet"
+                    Description="An upstream is a service on your network, such as http://jellyfin:8096. Add one, then give it a name with a host.">
+            <Action>
+                @if (_mayWrite)
+                {
+                    <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add an upstream</MudButton>
+                }
+            </Action>
+        </EmptyState>
+    </MudPaper>
+}
+else
+{
+    <div class="pdk-card-grid">
+        @foreach (UpstreamConfig upstream in _document.Upstreams.OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            IReadOnlyList<(HostConfig Host, RouteConfig Route)> uses = HostOverview.UsesOf(_document, upstream.Id);
+            <MudPaper Class="pdk-card pdk-upstream-card" Elevation="0" Outlined="true" data-upstream="@upstream.Name">
+                <div class="pdk-card-head">
+                    <div class="pdk-list-main">
+                        <a class="pdk-row-link pdk-card-title" href="@DashboardRoutes.Upstream(upstream.Id)">@upstream.Name</a>
+                        <span class="pdk-list-sub">@Describe(upstream)</span>
+                    </div>
+                    <span class="pdk-status-dot pdk-tone-@(upstream.Destinations.Any(d => d.Enabled) ? "success" : "warning")" aria-hidden="true"></span>
+                </div>
+                <ul class="pdk-destinations">
+                    @foreach (DestinationConfig destination in upstream.Destinations)
+                    {
+                        <li class="@(destination.Enabled ? null : "pdk-disabled")">
+                            <MudIcon Icon="@Icons.Material.Outlined.Dns" Size="Size.Small" />
+                            <span class="pdk-mono">@destination.Address</span>
+                            @if (!destination.Enabled)
+                            {
+                                <span class="pdk-badge pdk-tone-default">Off</span>
+                            }
+                        </li>
+                    }
+                </ul>
+                <div class="pdk-usage">
+                    @if (uses.Count == 0)
+                    {
+                        <span class="pdk-muted">Not used by any host yet</span>
+                    }
+                    else
+                    {
+                        <span class="pdk-muted">Used by</span>
+                        @foreach (IGrouping<HostId, (HostConfig Host, RouteConfig Route)> host in uses.GroupBy(u => u.Host.Id))
+                        {
+                            <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host.Key)">@ChangeView.HostTitle(host.First().Host)@(host.Count() > 1 || host.First().Route.Path != "/" ? $" {string.Join(", ", host.Select(u => u.Route.Path))}" : string.Empty)</a>
+                        }
+                    }
+                </div>
+            </MudPaper>
+        }
+    </div>
+}
+
+@code {
+    private ConfigDocument? _document;
+    private bool _mayWrite;
+    private bool _denied;
+    private IDisposable? _watch;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _watch = Config.Watch(_ => InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }));
+        await LoadAsync();
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        try
+        {
+            _document = (await Config.GetCurrentAsync()).Document;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the upstreams.");
+            throw;
+        }
+    }
+
+    /// <summary>One line about how the upstream spreads load and checks health.</summary>
+    internal static string Describe(UpstreamConfig upstream)
+    {
+        List<string> parts = [upstream.Destinations.Count == 1 ? "1 destination" : $"{upstream.Destinations.Count} destinations"];
+        if (upstream.LoadBalancing is { } policy)
+        {
+            parts.Add(FieldLabels.Value(System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(policy.ToString())).ToLowerInvariant());
+        }
+
+        if (upstream.ActiveHealth is { } active)
+        {
+            parts.Add($"checks {active.Path} every {(int)(active.Interval ?? ActiveHealthConfig.DefaultInterval).TotalSeconds} s");
+        }
+        else if (upstream.PassiveHealth is not null)
+        {
+            parts.Add("passive health");
+        }
+
+        if (upstream.SessionAffinity)
+        {
+            parts.Add("sticky sessions");
+        }
+
+        return string.Join(" · ", parts);
+    }
+}

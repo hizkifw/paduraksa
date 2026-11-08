@@ -1,0 +1,436 @@
+@attribute [Route(DashboardRoutes.NewUpstream)]
+@attribute [Route(DashboardRoutes.Upstreams + "/{Key}")]
+@implements IDisposable
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_model is { IsNew: false } ? _storedName : "New upstream") · Upstreams · Paduraksa</PageTitle>
+
+@if (_notFound)
+{
+    <PageHeader Title="Upstream not found" Overline="Upstreams" />
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such upstream" Description="It may have been deleted, or the link is wrong.">
+            <Action>
+                <MudButton Href="@DashboardRoutes.Upstreams" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">Back to the upstreams</MudButton>
+            </Action>
+        </EmptyState>
+    </MudPaper>
+}
+else if (_denied)
+{
+    <PageHeader Title="Upstreams" Overline="Traffic" />
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the config" Description="An Owner can give you the Viewer role or another that can." />
+    </MudPaper>
+}
+else
+{
+    <PageHeader Title="@(_model is { IsNew: false } ? _storedName : "New upstream")" Overline="Upstreams"
+                Lead="@(_model is { IsNew: true } ? "A service on your network that hosts send requests to." : "Its destinations, load balancing and health checks.")">
+        <Actions>
+            @if (_model is { IsNew: false } && _mayWrite)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="ReviewDelete" data-action="delete">Delete</MudButton>
+            }
+        </Actions>
+    </PageHeader>
+
+    @if (_changedElsewhere is { } elsewhere)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4" data-banner="changed">
+            This upstream was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
+            <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
+        </MudAlert>
+    }
+
+    @if (_deleteRefusal is { } refusal)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => _deleteRefusal = null">
+            <strong>@_storedName is still in use, so it can't be deleted.</strong> @refusal Point those routes at another upstream (or delete them) first.
+        </MudAlert>
+    }
+
+    @if (_model is null || _document is null)
+    {
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true" aria-busy="true">
+            <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" Height="28px" />
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Class="mt-3" />
+        </MudPaper>
+    }
+    else
+    {
+        <div class="pdk-editor-layout">
+            <form class="pdk-editor" @onsubmit="Review" @onsubmit:preventDefault="true" novalidate>
+                <div class="pdk-form-grid">
+                    @if (_attempted && _errors.Count > 0)
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
+                            <strong>@(_errors.Count == 1 ? "One thing to fix" : $"{_errors.Count} things to fix"):</strong>
+                            <ul class="pdk-error-list">
+                                @foreach ((string path, string message) in _errors)
+                                {
+                                    <li><span class="pdk-error-where">@ChangeView.Locate(path, null)</span> @message</li>
+                                }
+                            </ul>
+                        </MudAlert>
+                    }
+
+                    <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+                        <div class="pdk-card-head">
+                            <div>
+                                <MudText Typo="Typo.h6" HtmlTag="h2">Upstream</MudText>
+                                <MudText Typo="Typo.caption" Class="pdk-muted">A name for it, and the addresses that serve it.</MudText>
+                            </div>
+                        </div>
+                        <MudTextField T="string" Value="_model.Name" ValueChanged="@(value => Set(() => _model.Name = value, "/name"))" Immediate="true" DebounceInterval="250"
+                                      Label="Name" Placeholder="jellyfin" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite" AutoFocus="_model.IsNew"
+                                      Error="@(E("/name") is not null)" ErrorText="@E("/name")" data-field="name" />
+
+                        <MudText Typo="Typo.subtitle2" HtmlTag="h3" Class="pdk-form-subhead">Destinations</MudText>
+                        @for (int i = 0; i < _model.Destinations.Count; i++)
+                        {
+                            int index = i;
+                            DestinationEntry destination = _model.Destinations[index];
+                            <div class="pdk-destination-row" @key="destination">
+                                <MudTextField T="string" Value="destination.Address" ValueChanged="@(value => Set(() => destination.Address = value, $"/destinations/{index}/address"))"
+                                              Immediate="true" DebounceInterval="250" Label="@(index == 0 ? "Address" : $"Address {index + 1}")" Placeholder="http://192.168.1.10:8096"
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="!_mayWrite"
+                                              HelperText="@(index == 0 ? "An http:// or https:// address, with a port and a base path if needed." : null)"
+                                              Error="@(E($"/destinations/{index}/address") is not null)" ErrorText="@E($"/destinations/{index}/address")" data-field="@($"destination-{index}")" />
+                                <MudSwitch T="bool" Value="destination.Enabled" ValueChanged="@(value => Set(() => destination.Enabled = value, $"/destinations/{index}/enabled"))"
+                                           Color="Color.Success" Disabled="!_mayWrite" aria-label="@($"Destination {index + 1} enabled")" />
+                                @if (_model.Destinations.Count > 1 && _mayWrite)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="@(() => Set(() => _model.Destinations.Remove(destination), "/destinations"))"
+                                                   aria-label="@($"Remove destination {index + 1}")" />
+                                }
+                            </div>
+                        }
+                        @if (FirstUnder("/destinations", exact: true) is { } destinationsError)
+                        {
+                            <div class="pdk-field-error">@destinationsError</div>
+                        }
+                        @if (_mayWrite)
+                        {
+                            <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="@(() => Set(_model.AddDestination, "/destinations"))" Class="pdk-add">Add a destination</MudButton>
+                        }
+                    </MudPaper>
+
+                    <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+                        <div class="pdk-card-head">
+                            <div>
+                                <MudText Typo="Typo.h6" HtmlTag="h2">Load balancing and health</MudText>
+                                <MudText Typo="Typo.caption" Class="pdk-muted">How requests are spread over the destinations, and when one is taken out of rotation.</MudText>
+                            </div>
+                        </div>
+                        <div class="pdk-field-grid">
+                            <MudSelect T="LoadBalancingPolicy?" Value="_model.LoadBalancing" ValueChanged="@(value => Set(() => _model.LoadBalancing = value, "/loadBalancing"))" Label="Load balancing"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!_mayWrite">
+                                <MudSelectItem T="LoadBalancingPolicy?" Value="null">Default (power of two choices)</MudSelectItem>
+                                <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.RoundRobin">Round robin</MudSelectItem>
+                                <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.LeastRequests">Least requests</MudSelectItem>
+                                <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.Random">Random</MudSelectItem>
+                                <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.PowerOfTwoChoices">Power of two choices (pinned)</MudSelectItem>
+                                <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.FirstAlphabetical">First alphabetical (failover)</MudSelectItem>
+                            </MudSelect>
+                            <MudSwitch T="bool" Value="_model.SessionAffinity" ValueChanged="@(value => Set(() => _model.SessionAffinity = value, "/sessionAffinity"))" Color="Color.Primary"
+                                       Label="Keep a client on the same destination (cookie)" Disabled="!_mayWrite" />
+                            <div class="pdk-span-2 pdk-health">
+                                <MudSwitch T="bool" Value="_model.ActiveHealth" ValueChanged="@(value => Set(() => _model.ActiveHealth = value, "/activeHealth"))" Color="Color.Primary"
+                                           Label="Check each destination with a request" Disabled="!_mayWrite" data-field="active-health" />
+                                @if (_model.ActiveHealth)
+                                {
+                                    <div class="pdk-field-grid pdk-field-grid-3">
+                                        <MudTextField T="string" Value="_model.HealthPath" ValueChanged="@(value => Set(() => _model.HealthPath = value, "/activeHealth/path"))" Label="Path"
+                                                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="!_mayWrite"
+                                                      Error="@(E("/activeHealth/path") is not null)" ErrorText="@E("/activeHealth/path")" />
+                                        <MudNumericField T="int" Value="_model.HealthIntervalSeconds" ValueChanged="@(value => Set(() => _model.HealthIntervalSeconds = value, "/activeHealth/interval"))"
+                                                         Label="Every (seconds)" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite"
+                                                         Error="@(E("/activeHealth/interval") is not null)" ErrorText="@E("/activeHealth/interval")" />
+                                        <MudNumericField T="int" Value="_model.HealthTimeoutSeconds" ValueChanged="@(value => Set(() => _model.HealthTimeoutSeconds = value, "/activeHealth/timeout"))"
+                                                         Label="Timeout (seconds)" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite"
+                                                         Error="@(E("/activeHealth/timeout") is not null)" ErrorText="@E("/activeHealth/timeout")" />
+                                    </div>
+                                }
+                                <MudSwitch T="bool" Value="_model.PassiveHealth" ValueChanged="@(value => Set(() => _model.PassiveHealth = value, "/passiveHealth"))" Color="Color.Primary"
+                                           Label="Take a destination out after failed requests" Disabled="!_mayWrite" />
+                                @if (_model.PassiveHealth)
+                                {
+                                    <MudNumericField T="int?" Value="_model.ReactivationSeconds" ValueChanged="@(value => Set(() => _model.ReactivationSeconds = value, "/passiveHealth/reactivationPeriod"))"
+                                                     Label="Back in rotation after (seconds)" Placeholder="YARP's default" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite"
+                                                     Error="@(E("/passiveHealth/reactivationPeriod") is not null)" ErrorText="@E("/passiveHealth/reactivationPeriod")" />
+                                }
+                            </div>
+                        </div>
+                    </MudPaper>
+
+                    <MudExpansionPanels Elevation="0" Outlined="true" Class="pdk-advanced">
+                        <MudExpansionPanel Text="Advanced">
+                            <TitleContent>
+                                <div class="pdk-advanced-title">
+                                    <MudText Typo="Typo.subtitle1">Advanced</MudText>
+                                    <MudText Typo="Typo.caption" Class="pdk-muted">A connection limit and notes.</MudText>
+                                </div>
+                            </TitleContent>
+                            <ChildContent>
+                                <div class="pdk-field-grid">
+                                    <MudNumericField T="int?" Value="_model.MaxConnectionsPerServer" ValueChanged="@(value => Set(() => _model.MaxConnectionsPerServer = value, "/maxConnectionsPerServer"))"
+                                                     Label="Connections per destination" Placeholder="No limit" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite"
+                                                     Error="@(E("/maxConnectionsPerServer") is not null)" ErrorText="@E("/maxConnectionsPerServer")" />
+                                    <MudTextField T="string" Value="_model.Notes" ValueChanged="@(value => Set(() => _model.Notes = value, "/notes"))" Label="Notes" Lines="2" Sizing="InputSizing.Auto"
+                                                  Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite" Class="pdk-span-2" />
+                                </div>
+                            </ChildContent>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+                </div>
+
+                @if (_mayWrite)
+                {
+                    <div class="pdk-editor-bar">
+                        <MudButton Href="@DashboardRoutes.Upstreams" Variant="Variant.Text">Cancel</MudButton>
+                        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">Review changes</MudButton>
+                    </div>
+                }
+            </form>
+
+            <aside class="pdk-editor-side">
+                <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                    <MudText Typo="Typo.subtitle2" HtmlTag="h2">Used by</MudText>
+                    @if (Uses.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="pdk-muted mt-2">No host sends requests here yet. Add a route to it from a host.</MudText>
+                    }
+                    else
+                    {
+                        <ul class="pdk-list" data-section="usage">
+                            @foreach ((HostConfig host, RouteConfig route) in Uses)
+                            {
+                                <li class="pdk-list-row">
+                                    <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
+                                    <span class="pdk-list-main">
+                                        <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
+                                        <span class="pdk-list-sub pdk-mono">@(route.Match == RouteMatchKind.Exact ? "= " : string.Empty)@route.Path</span>
+                                    </span>
+                                    @if (!host.Enabled)
+                                    {
+                                        <span class="pdk-badge pdk-tone-default">Off</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </MudPaper>
+            </aside>
+        </div>
+    }
+
+    <ReviewDrawer @bind-Open="_reviewing" Title="@_reviewTitle" Command="_command" ApplyLabel="@(_command is DeleteUpstreamCommand ? "Delete" : "Apply")"
+                  Destructive="@(_command is DeleteUpstreamCommand)" SuccessMessage="@_successMessage"
+                  OnApplied="OnApplied" OnInvalid="OnInvalid" OnReload="ReloadAsync" />
+}
+
+@code {
+    private UpstreamEditModel? _model;
+    private ConfigDocument? _document;
+    private string _storedName = string.Empty;
+    private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
+    private readonly HashSet<string> _touched = new(StringComparer.Ordinal);
+    private bool _attempted;
+    private bool _mayWrite;
+    private bool _notFound;
+    private bool _denied;
+    private bool _reviewing;
+    private bool _applying;
+    private ConfigCommand? _command;
+    private string _reviewTitle = string.Empty;
+    private string _successMessage = string.Empty;
+    private string? _deleteRefusal;
+    private RevisionRef? _changedElsewhere;
+    private IDisposable? _watch;
+
+    /// <summary>The upstream's ID as it came in the address; null for a new upstream.</summary>
+    [Parameter]
+    public string? Key { get; set; }
+
+    private IReadOnlyList<(HostConfig Host, RouteConfig Route)> Uses =>
+        _model is null || _document is null || _model.IsNew ? [] : HostOverview.UsesOf(_document, _model.Id);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _watch ??= Config.Watch(committed => InvokeAsync(() => OnCommitted(committed)));
+        await LoadAsync();
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _notFound = false;
+        _changedElsewhere = null;
+        _deleteRefusal = null;
+        _attempted = false;
+        _touched.Clear();
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        UpstreamId? id = null;
+        if (Key is not null)
+        {
+            if (!UpstreamId.TryParse(Key, out UpstreamId parsed))
+            {
+                _notFound = true;
+                return;
+            }
+
+            id = parsed;
+        }
+
+        _document = (await Config.GetCurrentAsync()).Document;
+        if (id is { } upstreamId)
+        {
+            if (_document.Upstreams.FirstOrDefault(u => u.Id == upstreamId) is not { } upstream)
+            {
+                _notFound = true;
+                return;
+            }
+
+            _storedName = upstream.Name;
+            _model = UpstreamEditModel.From(upstream);
+        }
+        else
+        {
+            _model = UpstreamEditModel.New();
+        }
+
+        Validate();
+    }
+
+    private string? E(string path) => (_attempted || _touched.Contains(path)) && _errors.TryGetValue(path, out string? message) ? message : null;
+
+    private string? FirstUnder(string prefix, bool exact) =>
+        _attempted || _touched.Contains(prefix)
+            ? _errors.Where(e => exact ? e.Key == prefix : e.Key.StartsWith(prefix, StringComparison.Ordinal)).Select(e => e.Value).FirstOrDefault()
+            : null;
+
+    private void Set(Action apply, string path)
+    {
+        apply();
+        _touched.Add(path);
+        Validate();
+    }
+
+    private void Validate()
+    {
+        if (_model is not null && _document is not null)
+        {
+            _errors = InlineValidation.ForUpstream(_document, _model.ToConfig());
+        }
+    }
+
+    private void Review()
+    {
+        if (_model is null || !_mayWrite)
+        {
+            return;
+        }
+
+        _attempted = true;
+        Validate();
+        if (_errors.Count > 0)
+        {
+            return;
+        }
+
+        UpstreamConfig upstream = _model.ToConfig();
+        _command = new UpsertUpstreamCommand(upstream);
+        _reviewTitle = _model.IsNew ? $"New upstream {upstream.Name}" : $"Edit {upstream.Name}";
+        _successMessage = _model.IsNew ? $"Created {upstream.Name}" : $"Saved {upstream.Name}";
+        _reviewing = true;
+    }
+
+    private void ReviewDelete()
+    {
+        if (_model is null || _model.IsNew || !_mayWrite)
+        {
+            return;
+        }
+
+        // Refused here with the routes named, rather than by the dry run with a pointer: the service would refuse it the same way.
+        if (Uses.Count > 0)
+        {
+            _deleteRefusal = $"{string.Join(", ", Uses.Select(u => $"{ChangeView.HostTitle(u.Host)} (route {u.Route.Path})"))} {(Uses.Count == 1 ? "sends" : "send")} requests to it.";
+            Snackbar.Add($"{_storedName} is still in use and can't be deleted.", Severity.Warning);
+            return;
+        }
+
+        _command = new DeleteUpstreamCommand(_model.Id, _model.Version);
+        _reviewTitle = $"Delete {_storedName}";
+        _successMessage = $"Deleted {_storedName}";
+        _reviewing = true;
+    }
+
+    private void OnInvalid(IReadOnlyList<ConfigError> errors)
+    {
+        Dictionary<string, string> merged = new(_errors, StringComparer.Ordinal);
+        foreach ((string path, string message) in InlineValidation.Relative(errors, string.Empty))
+        {
+            merged[path] = message;
+        }
+
+        _errors = merged;
+        _attempted = true;
+    }
+
+    private void OnApplied(ConfigCommandResult result)
+    {
+        _applying = true;
+        Navigation.NavigateTo(DashboardRoutes.Upstreams);
+    }
+
+    private async Task ReloadAsync()
+    {
+        _model = null;
+        await LoadAsync();
+    }
+
+    private void OnCommitted(ConfigCommitted committed)
+    {
+        if (_applying || _reviewing || _model is null || _model.IsNew)
+        {
+            return;
+        }
+
+        if (committed.Changes.Any(c => c is UpstreamChange u && u.UpstreamId == _model.Id || c is DestinationChange d && d.UpstreamId == _model.Id))
+        {
+            _changedElsewhere = committed.Revision;
+        }
+
+        // Routes elsewhere may have started or stopped using it: the usage panel reads the latest document.
+        _ = RefreshUsageAsync();
+    }
+
+    private async Task RefreshUsageAsync()
+    {
+        _document = (await Config.GetCurrentAsync()).Document;
+        await InvokeAsync(StateHasChanged);
+    }
+}

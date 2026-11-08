@@ -147,7 +147,7 @@ public sealed partial class DashboardPipelineTests
         using (AdminResponse page = await GetPageAsync(h, "/hosts", owner))
         {
             Assert.Equal(HttpStatusCode.OK, page.Status);
-            Assert.Contains("Hosts is on its way", page.Body, StringComparison.Ordinal);
+            Assert.Contains("Every name this instance answers for", page.Body, StringComparison.Ordinal);
         }
 
         // A bearer token is an API credential, never a dashboard one.

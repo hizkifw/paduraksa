@@ -1,6 +1,300 @@
 @attribute [Route(DashboardRoutes.Simulator)]
+@implements IDisposable
+@using Paduraksa.Contracts.Revisions
+@using Paduraksa.Contracts.Simulation
+@using Microsoft.Extensions.Logging
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject ReviewedDraft Draft
+@inject ILogger<Simulator> Logger
 
 <PageTitle>Simulator · Paduraksa</PageTitle>
 
-<ComingSoon Title="Simulator" Overline="Insight" Icon="@Icons.Material.Outlined.Science"
-            Description="Ask &quot;what would happen to this request?&quot;: see the exact decision chain from host match to upstream, against the live config, an old revision or a change you are reviewing." />
+<PageHeader Title="Simulator" Overline="Insight" Lead="What would this request get, and why? The real gate runs it against a config of your choice; nothing is sent anywhere." />
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't run the simulator" Description="Viewers, Operators, Admins and Owners can." />
+    </MudPaper>
+}
+else
+{
+    <div class="pdk-simulator">
+        <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+            <form @onsubmit="RunAsync" @onsubmit:preventDefault="true" novalidate class="pdk-sim-form">
+                <MudSelect T="TargetChoice" Value="_target" ValueChanged="ChangeTarget" Label="Against" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                           ToStringFunc="TargetLabel" data-field="target">
+                    <MudSelectItem T="TargetChoice" Value="TargetChoice.Live">The live config</MudSelectItem>
+                    @if (Draft.Command is not null)
+                    {
+                        <MudSelectItem T="TargetChoice" Value="TargetChoice.Draft">The change under review: @Draft.Title</MudSelectItem>
+                    }
+                    @foreach (RevisionTimelineEntry entry in _revisions)
+                    {
+                        <MudSelectItem T="TargetChoice" Value="TargetChoice.Of(entry.Revision.Id)">Revision #@entry.Revision.Seq @(entry.Revision.Message ?? RevisionText.Summary(entry.Changes))</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudTextField T="string" @bind-Value="_form.Url" Label="URL" Placeholder="https://app.example.com/path?query" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Class="pdk-mono-input" Error="@(ErrorFor("url") is not null)" ErrorText="@ErrorFor("url")" AutoFocus="true" spellcheck="false" data-field="url" />
+                <div class="pdk-field-grid">
+                    <MudTextField T="string" @bind-Value="_form.ClientIp" Label="Client IP" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input"
+                                  Error="@(ErrorFor("clientIp") is not null)" ErrorText="@ErrorFor("clientIp")" data-field="client-ip" />
+                    <MudSelect T="string" @bind-Value="_form.Method" Label="Method" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                        @foreach (string method in Methods)
+                        {
+                            <MudSelectItem Value="method">@method</MudSelectItem>
+                        }
+                    </MudSelect>
+                </div>
+
+                <div class="pdk-headers">
+                    <MudText Typo="Typo.subtitle2" HtmlTag="h2">Headers</MudText>
+                    @foreach (HeaderEntry header in _form.Headers)
+                    {
+                        <div class="pdk-header-row" @key="header">
+                            <MudTextField T="string" @bind-Value="header.Name" Label="Name" Placeholder="User-Agent" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" />
+                            <MudTextField T="string" @bind-Value="header.Value" Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" />
+                            <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="() => _form.Headers.Remove(header)" aria-label="Remove header" />
+                        </div>
+                    }
+                    @if (ErrorFor("headers") is { } headerError)
+                    {
+                        <div class="pdk-field-error">@headerError</div>
+                    }
+                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="() => _form.Headers.Add(new HeaderEntry())" Class="pdk-add">Add a header</MudButton>
+                </div>
+
+                <MudExpansionPanels Elevation="0" Outlined="true" Class="pdk-advanced">
+                    <MudExpansionPanel>
+                        <TitleContent>
+                            <div class="pdk-advanced-title">
+                                <MudText Typo="Typo.subtitle1">Advanced</MudText>
+                                <MudText Typo="Typo.caption" Class="pdk-muted">How the request arrives, and its TLS. The defaults are a browser connecting directly.</MudText>
+                            </div>
+                        </TitleContent>
+                        <ChildContent>
+                            <div class="pdk-field-grid">
+                                <MudSelect T="SimulationArrival" @bind-Value="_form.Arrival" Label="Arrives" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                                    <MudSelectItem Value="SimulationArrival.Direct">Directly from the client</MudSelectItem>
+                                    <MudSelectItem Value="SimulationArrival.TrustedProxy">Through a trusted proxy</MudSelectItem>
+                                    <MudSelectItem Value="SimulationArrival.CloudflareProxy">Through Cloudflare's proxy</MudSelectItem>
+                                    <MudSelectItem Value="SimulationArrival.CloudflareTunnel">Through a Cloudflare Tunnel</MudSelectItem>
+                                </MudSelect>
+                                <MudTextField T="string" @bind-Value="_form.PeerIp" Label="Proxy address" Placeholder="One the config trusts" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Class="pdk-mono-input" Disabled="@(_form.Arrival == SimulationArrival.Direct)" Error="@(ErrorFor("peerIp") is not null)" ErrorText="@ErrorFor("peerIp")" />
+                                <MudSelect T="SimulationTlsVersion?" @bind-Value="_form.TlsVersion" Label="TLS version" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="!_form.IsHttps">
+                                    <MudSelectItem T="SimulationTlsVersion?" Value="null">Default (TLS 1.3)</MudSelectItem>
+                                    <MudSelectItem T="SimulationTlsVersion?" Value="SimulationTlsVersion.Tls12">TLS 1.2</MudSelectItem>
+                                    <MudSelectItem T="SimulationTlsVersion?" Value="SimulationTlsVersion.Tls13">TLS 1.3</MudSelectItem>
+                                </MudSelect>
+                                <MudSelect T="SimulationHttpVersion?" @bind-Value="_form.HttpVersion" Label="Protocol (ALPN)" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="!_form.IsHttps">
+                                    <MudSelectItem T="SimulationHttpVersion?" Value="null">Default (HTTP/2)</MudSelectItem>
+                                    <MudSelectItem T="SimulationHttpVersion?" Value="SimulationHttpVersion.Http11">HTTP/1.1</MudSelectItem>
+                                    <MudSelectItem T="SimulationHttpVersion?" Value="SimulationHttpVersion.Http2">HTTP/2</MudSelectItem>
+                                    <MudSelectItem T="SimulationHttpVersion?" Value="SimulationHttpVersion.Http3">HTTP/3</MudSelectItem>
+                                </MudSelect>
+                                <MudTextField T="string" @bind-Value="_form.ServerName" Label="Name in the handshake (SNI)" Placeholder="The URL's host" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Class="pdk-mono-input pdk-span-2" Disabled="!_form.IsHttps" Error="@(ErrorFor("tls") is not null)" ErrorText="@ErrorFor("tls")" />
+                            </div>
+                        </ChildContent>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+
+                <div class="pdk-editor-bar pdk-editor-bar-inline">
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.PlayArrow" Disabled="_running" data-action="simulate">
+                        @(_running ? "Running..." : "Simulate")
+                    </MudButton>
+                </div>
+            </form>
+        </MudPaper>
+
+        <div class="pdk-sim-result">
+            @if (_running)
+            {
+                <MudPaper Class="pdk-card" Elevation="0" Outlined="true" aria-busy="true">
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="84px" />
+                    @for (int i = 0; i < 4; i++)
+                    {
+                        <div class="pdk-row-skeleton">
+                            <MudSkeleton SkeletonType="SkeletonType.Circle" Width="24px" Height="24px" />
+                            <MudSkeleton SkeletonType="SkeletonType.Text" Width="60%" />
+                        </div>
+                    }
+                </MudPaper>
+            }
+            else if (_result is not null)
+            {
+                <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                    <SimulationView Result="_result" UpstreamName="@UpstreamName" />
+                </MudPaper>
+            }
+            else
+            {
+                <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+                    <EmptyState Icon="@Icons.Material.Outlined.Science" Title="Ask about a request"
+                                Description="Enter a URL and the client's address, then Simulate: you get the outcome and every step the gate took to reach it." />
+                </MudPaper>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly string[] Methods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+
+    private readonly SimulationForm _form = new();
+    private TargetChoice _target = TargetChoice.Live;
+    private IReadOnlyList<RevisionTimelineEntry> _revisions = [];
+    private ConfigDocument? _document;
+    private SimulationResult? _result;
+    private bool _running;
+    private bool _denied;
+    private bool _started;
+    private IDisposable? _watch;
+
+    /// <summary>A revision to simulate against (<c>?revision=rev_...</c>).</summary>
+    [SupplyParameterFromQuery(Name = "revision")]
+    public string? RevisionKey { get; set; }
+
+    /// <summary>A URL to start from (<c>?url=...</c>).</summary>
+    [SupplyParameterFromQuery(Name = "url")]
+    public string? UrlParameter { get; set; }
+
+    /// <summary><c>draft</c>: the change under review.</summary>
+    [SupplyParameterFromQuery(Name = "target")]
+    public string? TargetParameter { get; set; }
+
+    private string? UpstreamName => _result?.Upstream is { } upstream ? _document?.Upstreams.FirstOrDefault(u => u.Id == upstream.Id)?.Name : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive || _started)
+        {
+            return;
+        }
+
+        _started = true;
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.Simulate))
+        {
+            _denied = true;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(UrlParameter))
+        {
+            _form.Url = UrlParameter;
+        }
+        else if (Draft.SampleHost is { } sample)
+        {
+            _form.Url = $"https://{sample}/";
+        }
+
+        if (string.Equals(TargetParameter, "draft", StringComparison.Ordinal) && Draft.Command is not null)
+        {
+            _target = TargetChoice.Draft;
+        }
+        else if (ConfigRevisionId.TryParse(RevisionKey, out ConfigRevisionId revision))
+        {
+            _target = TargetChoice.Of(revision);
+        }
+
+        if (user.Has(Permission.ConfigRead))
+        {
+            _watch = Config.Watch(_ => InvokeAsync(async () =>
+            {
+                await LoadTargetsAsync();
+                StateHasChanged();
+            }));
+            await LoadTargetsAsync();
+        }
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadTargetsAsync()
+    {
+        try
+        {
+            _document = (await Config.GetCurrentAsync()).Document;
+            _revisions = (await Config.ListRevisionsAsync(50, null))?.Items ?? [];
+            if (_form.Url == "https://" && _document.Hosts.FirstOrDefault(h => h.Enabled && h.Names.Count > 0 && !h.Names[0].StartsWith('*')) is { } host)
+            {
+                _form.Url = $"https://{host.Names[0]}/";
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the simulator's targets.");
+        }
+    }
+
+    private void ChangeTarget(TargetChoice choice) => _target = choice;
+
+    private string TargetLabel(TargetChoice? choice) => choice switch
+    {
+        { Kind: SimulationTargetKind.DraftCommand } => $"The change under review{(Draft.Title is { } title ? $": {title}" : string.Empty)}",
+        { Kind: SimulationTargetKind.Revision, Revision: { } id } =>
+            _revisions.FirstOrDefault(e => e.Revision.Id == id) is { } entry ? $"Revision #{entry.Revision.Seq}" : $"Revision {id}",
+        _ => "The live config",
+    };
+
+    private async Task RunAsync()
+    {
+        if (_running || await Caller.OriginAsync() is not { } origin)
+        {
+            return;
+        }
+
+        SimulationTarget target = _target switch
+        {
+            { Kind: SimulationTargetKind.DraftCommand } when Draft.Command is { } command => new DraftCommandSimulationTarget(command),
+            { Kind: SimulationTargetKind.Revision, Revision: { } revision } => new RevisionSimulationTarget(revision),
+            _ => SimulationTarget.Live,
+        };
+        _running = true;
+        try
+        {
+            _result = await Config.SimulateAsync(target, _form.ToRequest(), origin);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "The simulation failed.");
+            _result = new SimulationResult(SimulationStatus.Unavailable, new SimulationSource(target switch
+            {
+                RevisionSimulationTarget => SimulationTargetKind.Revision,
+                DraftCommandSimulationTarget => SimulationTargetKind.DraftCommand,
+                _ => SimulationTargetKind.Live,
+            }));
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+
+    /// <summary>The request's problem for a field, when the simulator refused it (<c>simulation.request.url</c> is the URL's).</summary>
+    private string? ErrorFor(string field) =>
+        _result is { Status: SimulationStatus.BadRequest } result
+            ? result.Errors.FirstOrDefault(e => e.Code.EndsWith("." + field, StringComparison.Ordinal) || e.Path.TrimStart('/').StartsWith(field, StringComparison.Ordinal)) is { } error
+                ? ReviewNotices.Sentence(error.Message)
+                : null
+            : null;
+
+    /// <summary>What the simulator runs against, as the picker holds it.</summary>
+    private sealed record TargetChoice(SimulationTargetKind Kind, ConfigRevisionId? Revision = null)
+    {
+        public static TargetChoice Live { get; } = new(SimulationTargetKind.Live);
+
+        public static TargetChoice Draft { get; } = new(SimulationTargetKind.DraftCommand);
+
+        public static TargetChoice Of(ConfigRevisionId revision) => new(SimulationTargetKind.Revision, revision);
+    }
+}

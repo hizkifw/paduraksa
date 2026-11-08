@@ -1,6 +1,220 @@
 @attribute [Route(DashboardRoutes.Hosts)]
+@implements IDisposable
+@using Paduraksa.Contracts.Certificates
+@using Microsoft.Extensions.Logging
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject TimeProvider Time
+@inject NavigationManager Navigation
+@inject ILogger<Hosts> Logger
 
 <PageTitle>Hosts · Paduraksa</PageTitle>
 
-<ComingSoon Title="Hosts" Overline="Traffic" Icon="@Icons.Material.Outlined.Language"
-            Description="Every name this instance answers for, with its routes, certificate and policies. Add, edit and remove hosts; each change is reviewed as a diff before it goes live, and can be undone." />
+<PageHeader Title="Hosts" Overline="Traffic" Lead="Every name this instance answers for, and what it does with the requests.">
+    <Actions>
+        @if (_mayWrite)
+        {
+            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add a host</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the config" Description="An Owner can give you the Viewer role or another that can." />
+    </MudPaper>
+}
+else
+{
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+            The hosts couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+
+    <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
+        <div class="pdk-toolbar">
+            <MudTextField T="string" @bind-Value="_search" Immediate="true" Placeholder="Search names, tags, upstreams" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Rounded.Search" Clearable="true" Class="pdk-search" aria-label="Search hosts" />
+            @if (_rows is not null)
+            {
+                <MudText Typo="Typo.caption" Class="pdk-muted">@Count(Filtered.Count, "host", "hosts")@(Filtered.Count != _rows.Count ? $" of {_rows.Count}" : string.Empty)</MudText>
+            }
+        </div>
+
+        @if (_rows is null)
+        {
+            @for (int i = 0; i < 4; i++)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="10px" Height="10px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="12%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="18%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="22%" />
+                </div>
+            }
+        }
+        else if (_rows.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.AddLink" Title="No hosts yet"
+                        Description="@(_upstreamCount == 0 ? "A host gives a name to a service on your network. Add the service as an upstream first, then a host for it." : "A host gives a name to a service on your network: proxy it, redirect it, or answer with a fixed page.")">
+                <Action>
+                    @if (_mayWrite)
+                    {
+                        @if (_upstreamCount == 0)
+                        {
+                            <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add an upstream</MudButton>
+                        }
+                        else
+                        {
+                            <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add a host</MudButton>
+                        }
+                    }
+                </Action>
+            </EmptyState>
+        }
+        else if (Filtered.Count == 0)
+        {
+            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SearchOff" Title="No host matches" Description="Try another name, tag or upstream." />
+        }
+        else
+        {
+            <MudTable T="HostRow" Items="Filtered" Hover="true" Dense="false" Elevation="0" Breakpoint="Breakpoint.Sm" Class="pdk-table" RowClass="pdk-clickable"
+                      OnRowClick="args => Open(args.Item!)">
+                <HeaderContent>
+                    <MudTh>Host</MudTh>
+                    <MudTh>Kind</MudTh>
+                    <MudTh>Goes to</MudTh>
+                    <MudTh>HTTPS</MudTh>
+                    @if (_mayReadCertificates)
+                    {
+                        <MudTh>Certificate</MudTh>
+                    }
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Host">
+                        <div class="pdk-host-cell">
+                            <span class="pdk-status-dot pdk-tone-@context.Health.Css()" title="@HealthText(context)" aria-label="@HealthText(context)" role="img"></span>
+                            <div class="pdk-list-main">
+                                <a class="pdk-row-link" href="@DashboardRoutes.Host(context.Host.Id)" @onclick:stopPropagation="true">@Primary(context.Host)</a>
+                                @if (context.Host.Names.Count > 1)
+                                {
+                                    <span class="pdk-list-sub pdk-mono">@string.Join(", ", context.Host.Names.Skip(1))</span>
+                                }
+                                @if (context.Host.Tags.Count > 0)
+                                {
+                                    <span class="pdk-tags">
+                                        @foreach (string tag in context.Host.Tags)
+                                        {
+                                            <span class="pdk-tag">@tag</span>
+                                        }
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    </MudTd>
+                    <MudTd DataLabel="Kind">
+                        <span class="pdk-badge pdk-tone-@(context.Host.Kind == HostKind.Proxy ? "primary" : "default")">@context.Kind</span>
+                        @if (!context.Host.Enabled)
+                        {
+                            <span class="pdk-badge pdk-tone-default">Off</span>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Goes to"><span class="pdk-target">@context.Target</span></MudTd>
+                    <MudTd DataLabel="HTTPS"><span class="pdk-muted">@context.Https</span></MudTd>
+                    @if (_mayReadCertificates)
+                    {
+                        <MudTd DataLabel="Certificate">
+                            @if (context.Certificate is { } certificate)
+                            {
+                                <MudTooltip Text="@certificate.Detail" Arrow="true" Placement="Placement.Top">
+                                    <span class="pdk-badge pdk-tone-@certificate.Tone.Css()">@certificate.Label</span>
+                                </MudTooltip>
+                            }
+                        </MudTd>
+                    }
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudPaper>
+}
+
+@code {
+    private IReadOnlyList<HostRow>? _rows;
+    private int _upstreamCount;
+    private string? _search;
+    private bool _mayWrite;
+    private bool _mayReadCertificates;
+    private bool _denied;
+    private bool _failed;
+    private IDisposable? _watch;
+
+    private IReadOnlyList<HostRow> Filtered => _rows is null ? [] : [.. _rows.Where(row => row.Matches(_search))];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // The list loads once the page is live (the first render shows its skeleton), and follows every commit from then on.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        _watch = Config.Watch(_ => InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        }));
+        await LoadAsync();
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        _mayReadCertificates = user.Has(Permission.CertificatesRead);
+        try
+        {
+            CurrentConfig current = await Config.GetCurrentAsync();
+            IReadOnlyList<CertificateSummary>? certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
+            _upstreamCount = current.Document.Upstreams.Count;
+            _rows = HostOverview.Rows(current.Document, certificates, Config.LiveWarnings, Time.GetUtcNow());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the hosts.");
+            _failed = true;
+            _rows ??= [];
+        }
+    }
+
+    private void Open(HostRow row) => Navigation.NavigateTo(DashboardRoutes.Host(row.Host.Id));
+
+    private static string Primary(HostConfig host) => host.Names.Count > 0 ? host.Names[0] : "Unnamed host";
+
+    private static string HealthText(HostRow row) => row.Health switch
+    {
+        Tone.Default => "Switched off",
+        Tone.Warning => row.Problems.Count > 0 ? string.Join(" ", row.Problems) : row.Certificate?.Detail ?? "Needs attention",
+        _ => "Serving",
+    };
+
+    private static string Count(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
+}

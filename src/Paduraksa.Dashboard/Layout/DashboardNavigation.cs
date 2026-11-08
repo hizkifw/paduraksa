@@ -19,11 +19,11 @@ public static class DashboardNavigation
     public static IReadOnlyList<NavigationEntry> Entries { get; } =
     [
         new("Overview", DashboardRoutes.Home, Icons.Material.Outlined.SpaceDashboard, null, null, true),
-        new("Hosts", DashboardRoutes.Hosts, Icons.Material.Outlined.Language, "Traffic", Permission.ConfigRead, false),
-        new("Upstreams", DashboardRoutes.Upstreams, Icons.Material.Outlined.Hub, "Traffic", Permission.ConfigRead, false),
+        new("Hosts", DashboardRoutes.Hosts, Icons.Material.Outlined.Language, "Traffic", Permission.ConfigRead, true),
+        new("Upstreams", DashboardRoutes.Upstreams, Icons.Material.Outlined.Hub, "Traffic", Permission.ConfigRead, true),
         new("Certificates", DashboardRoutes.Certificates, Icons.Material.Outlined.WorkspacePremium, "Traffic", Permission.CertificatesRead, false),
-        new("Simulator", DashboardRoutes.Simulator, Icons.Material.Outlined.Science, "Insight", Permission.Simulate, false),
-        new("History", DashboardRoutes.History, Icons.Material.Outlined.History, "Insight", Permission.ConfigRead, false),
+        new("Simulator", DashboardRoutes.Simulator, Icons.Material.Outlined.Science, "Insight", Permission.Simulate, true),
+        new("History", DashboardRoutes.History, Icons.Material.Outlined.History, "Insight", Permission.ConfigRead, true),
         new("Audit", DashboardRoutes.Audit, Icons.Material.Outlined.FactCheck, "Insight", Permission.AuditRead, false),
         new("Settings", DashboardRoutes.Settings, Icons.Material.Outlined.Settings, "System", null, false),
     ];

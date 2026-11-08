@@ -1,6 +1,375 @@
 @attribute [Route(DashboardRoutes.History)]
+@implements IDisposable
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Config
+@using Paduraksa.Contracts.Revisions
+@using Microsoft.Extensions.Logging
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject TimeProvider Time
+@inject NavigationManager Navigation
+@inject ILogger<History> Logger
 
 <PageTitle>History · Paduraksa</PageTitle>
 
-<ComingSoon Title="History" Overline="Insight" Icon="@Icons.Material.Outlined.History"
-            Description="Every config revision with who made it and why, a diff against the one before, and a one-click rollback." />
+<PageHeader Title="History" Overline="Insight" Lead="Every change is a revision: who made it, through what, and exactly what it changed. Roll back to any of them." />
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the config" Description="An Owner can give you the Viewer role or another that can." />
+    </MudPaper>
+}
+else if (_entries is null)
+{
+    <div class="pdk-history" aria-busy="true">
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+            @for (int i = 0; i < 5; i++)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Circle" Width="28px" Height="28px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="70%" />
+                </div>
+            }
+        </MudPaper>
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="200px" />
+        </MudPaper>
+    </div>
+}
+else if (_entries.Count == 0)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.History" Title="No changes yet"
+                    Description="The first change you apply becomes revision #1. Every one after it is kept here, with a diff and a way back.">
+            <Action>
+                @if (_mayWrite)
+                {
+                    <MudButton Href="@DashboardRoutes.NewUpstream" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">Add an upstream</MudButton>
+                }
+            </Action>
+        </EmptyState>
+    </MudPaper>
+}
+else
+{
+    <div class="pdk-history">
+        <MudPaper Class="pdk-card pdk-timeline-card" Elevation="0" Outlined="true">
+            <ol class="pdk-timeline" aria-label="Revisions">
+                @foreach (RevisionTimelineEntry entry in _entries)
+                {
+                    RevisionSummary revision = entry.Revision;
+                    bool selected = revision.Id == _selected?.Revision.Id;
+                    <li class="pdk-timeline-item @(selected ? "pdk-selected" : null)" data-seq="@revision.Seq">
+                        <a href="@DashboardRoutes.Revision(revision.Id)" class="pdk-timeline-link" aria-current="@(selected ? "true" : null)">
+                            <span class="pdk-seq">#@revision.Seq</span>
+                            <span class="pdk-timeline-text">
+                                <span class="pdk-timeline-title">@(revision.Message ?? RevisionText.Summary(entry.Changes))</span>
+                                @if (revision.Message is not null)
+                                {
+                                    <span class="pdk-list-sub">@RevisionText.Summary(entry.Changes)</span>
+                                }
+                                <span class="pdk-timeline-meta">
+                                    <span>@RevisionText.Actor(revision.Actor, _users, _me)</span>
+                                    <span class="pdk-badge pdk-tone-default">@RevisionText.Channel(revision.Channel)</span>
+                                    <span title="@RevisionText.Exact(revision.CreatedAt)">@RevisionText.Ago(revision.CreatedAt, Time.GetUtcNow())</span>
+                                </span>
+                            </span>
+                            @if (revision.Id == _latest?.Id)
+                            {
+                                <span class="pdk-badge pdk-tone-success">Live</span>
+                            }
+                        </a>
+                    </li>
+                }
+            </ol>
+            @if (_next is not null)
+            {
+                <MudButton Variant="Variant.Text" FullWidth="true" OnClick="LoadOlderAsync" Disabled="_loadingOlder">Load older revisions</MudButton>
+            }
+        </MudPaper>
+
+        <MudPaper Class="pdk-card pdk-diff-card" Elevation="0" Outlined="true">
+            @if (_selected is { } detail)
+            {
+                <div class="pdk-card-head pdk-diff-card-head">
+                    <div>
+                        <MudText Typo="Typo.h6" HtmlTag="h2">Revision #@detail.Revision.Seq</MudText>
+                        <MudText Typo="Typo.caption" Class="pdk-muted">
+                            @RevisionText.Actor(detail.Revision.Actor, _users, _me) · @RevisionText.Channel(detail.Revision.Channel) · @RevisionText.Exact(detail.Revision.CreatedAt)
+                        </MudText>
+                        @if (detail.Revision.Message is { } message)
+                        {
+                            <MudText Typo="Typo.body2" Class="pdk-revision-message">@message</MudText>
+                        }
+                    </div>
+                    <div class="pdk-page-header-actions">
+                        @if (_maySimulate)
+                        {
+                            <MudButton Href="@DashboardRoutes.SimulateRevision(detail.Revision.Id)" Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Science">Simulate</MudButton>
+                        }
+                        @if (_mayWrite && detail.Revision.Id != _latest?.Id)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Restore" OnClick="ReviewRollback" data-action="rollback">Roll back to #@detail.Revision.Seq</MudButton>
+                        }
+                    </div>
+                </div>
+
+                <div class="pdk-compare">
+                    <MudSelect T="ConfigRevisionId?" Value="_compareWith" ValueChanged="CompareAsync" Label="Compare with" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                               ToStringFunc="CompareLabel" Class="pdk-compare-select">
+                        <MudSelectItem T="ConfigRevisionId?" Value="null">@(detail.Revision.ParentId is null ? "The empty config (before #1)" : "The revision before it")</MudSelectItem>
+                        @foreach (RevisionTimelineEntry other in _entries.Where(e => e.Revision.Id != detail.Revision.Id))
+                        {
+                            <MudSelectItem T="ConfigRevisionId?" Value="other.Revision.Id">#@other.Revision.Seq @(other.Revision.Message ?? RevisionText.Summary(other.Changes))</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">@_diffCaption</MudText>
+                </div>
+
+                @if (_diffLoading)
+                {
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" />
+                }
+                else
+                {
+                    <ChangeList Groups="_groups" EmptyTitle="No differences" EmptyDescription="Both revisions hold the same config." />
+                }
+            }
+            else
+            {
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.TouchApp" Title="Pick a revision" Description="Its changes show here." />
+            }
+        </MudPaper>
+    </div>
+
+    <ReviewDrawer @bind-Open="_reviewing" Title="@_reviewTitle" Command="_command" AfterDocument="_selected?.Document" ApplyLabel="Roll back"
+                  SuccessMessage="@_successMessage" OnApplied="OnRolledBackAsync" OnReload="ReloadAsync" />
+}
+
+@code {
+    private const int PageSize = 30;
+
+    private List<RevisionTimelineEntry>? _entries;
+    private ConfigRevisionId? _next;
+    private RevisionSummary? _latest;
+    private RevisionDetail? _selected;
+    private ConfigRevisionId? _compareWith;
+    private IReadOnlyList<ChangeGroup> _groups = [];
+    private string? _diffCaption;
+    private bool _diffLoading;
+    private bool _loadingOlder;
+    private IReadOnlyDictionary<UserId, string> _users = new Dictionary<UserId, string>();
+    private UserId? _me;
+    private bool _mayWrite;
+    private bool _maySimulate;
+    private bool _denied;
+    private bool _reviewing;
+    private ConfigCommand? _command;
+    private string _reviewTitle = string.Empty;
+    private string _successMessage = string.Empty;
+    private IDisposable? _watch;
+
+    /// <summary>The revision to show, from the address (<c>?revision=rev_...</c>); the latest when absent or not a revision ID.</summary>
+    [SupplyParameterFromQuery(Name = "revision")]
+    public string? RevisionKey { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        if (_entries is null)
+        {
+            _watch ??= Config.Watch(_ => InvokeAsync(async () =>
+            {
+                await RefreshAsync();
+                StateHasChanged();
+            }));
+            if (!await LoadAsync())
+            {
+                return;
+            }
+        }
+
+        ConfigRevisionId? wanted = ConfigRevisionId.TryParse(RevisionKey, out ConfigRevisionId parsed) ? parsed : _latest?.Id;
+        if (wanted is { } id && id != _selected?.Revision.Id)
+        {
+            await SelectAsync(id);
+        }
+    }
+
+    public void Dispose() => _watch?.Dispose();
+
+    private async Task<bool> LoadAsync()
+    {
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return false;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return false;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        _maySimulate = user.Has(Permission.Simulate);
+        _me = user.Session.Session.UserId;
+        if (user.Has(Permission.UsersRead))
+        {
+            _users = (await Config.ListUsersAsync(user.Session.OriginFor(Channel.Dashboard))).ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.DisplayName) ? u.Username : u.DisplayName);
+        }
+
+        RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, null);
+        _entries = [.. page?.Items ?? []];
+        _next = page?.Next;
+        _latest = _entries.Count > 0 ? _entries[0].Revision : null;
+        return true;
+    }
+
+    /// <summary>A commit happened: put the new revisions on top, keeping what is loaded and selected.</summary>
+    private async Task RefreshAsync()
+    {
+        RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, null);
+        if (page is null || _entries is null)
+        {
+            return;
+        }
+
+        HashSet<ConfigRevisionId> known = [.. _entries.Select(e => e.Revision.Id)];
+        _entries.InsertRange(0, page.Items.TakeWhile(e => !known.Contains(e.Revision.Id)));
+        bool followLatest = _selected is null || _selected.Revision.Id == _latest?.Id;
+        _latest = _entries.Count > 0 ? _entries[0].Revision : null;
+        if (followLatest && _latest is not null && RevisionKey is null)
+        {
+            await SelectAsync(_latest.Id);
+        }
+    }
+
+    private async Task LoadOlderAsync()
+    {
+        if (_next is not { } after || _entries is null)
+        {
+            return;
+        }
+
+        _loadingOlder = true;
+        try
+        {
+            RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, after);
+            _entries.AddRange(page?.Items ?? []);
+            _next = page?.Next;
+        }
+        finally
+        {
+            _loadingOlder = false;
+        }
+    }
+
+    private async Task SelectAsync(ConfigRevisionId id)
+    {
+        _diffLoading = true;
+        _compareWith = null;
+        try
+        {
+            _selected = await Config.GetRevisionAsync(id);
+            if (_selected is null)
+            {
+                _groups = [];
+                return;
+            }
+
+            ConfigDocument before = _selected.Revision.ParentId is { } parent && await Config.GetRevisionAsync(parent) is { } parentDetail
+                ? parentDetail.Document
+                : ConfigService.InitialDocument;
+            _groups = ChangeView.Build(before, _selected.Document, _selected.Changes);
+            _diffCaption = _selected.Revision.ParentId is null ? "What #1 set up, from the empty config." : $"What #{_selected.Revision.Seq} changed.";
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't read revision {Revision}.", id);
+            _selected = null;
+            _groups = [];
+        }
+        finally
+        {
+            _diffLoading = false;
+        }
+    }
+
+    private async Task CompareAsync(ConfigRevisionId? other)
+    {
+        _compareWith = other;
+        if (_selected is not { } selected)
+        {
+            return;
+        }
+
+        if (other is not { } otherId)
+        {
+            await SelectAsync(selected.Revision.Id);
+            return;
+        }
+
+        _diffLoading = true;
+        try
+        {
+            if (await Config.GetRevisionAsync(otherId) is not { } compared)
+            {
+                return;
+            }
+
+            // Older on the left: the diff reads as "from, to" whichever was picked first.
+            (RevisionDetail from, RevisionDetail to) = compared.Revision.Seq < selected.Revision.Seq ? (compared, selected) : (selected, compared);
+            _groups = ChangeView.Build(from.Document, to.Document, ConfigDiff.Compare(from.Document, to.Document));
+            _diffCaption = $"From #{from.Revision.Seq} to #{to.Revision.Seq}.";
+        }
+        finally
+        {
+            _diffLoading = false;
+        }
+    }
+
+    private string CompareLabel(ConfigRevisionId? id) =>
+        id is { } value && _entries?.FirstOrDefault(e => e.Revision.Id == value) is { } entry
+            ? $"#{entry.Revision.Seq}"
+            : _selected?.Revision.ParentId is null ? "The empty config" : "The revision before it";
+
+    private void ReviewRollback()
+    {
+        if (_selected is not { } target || _latest is not { } latest || !_mayWrite)
+        {
+            return;
+        }
+
+        _command = new RollbackConfigCommand(target.Revision.Id, latest.Id);
+        _reviewTitle = $"Roll back to #{target.Revision.Seq}";
+        _successMessage = $"Rolled back to #{target.Revision.Seq}";
+        _reviewing = true;
+    }
+
+    private Task OnRolledBackAsync(ConfigCommandResult result)
+    {
+        if (result.Revision is { } revision)
+        {
+            Navigation.NavigateTo(DashboardRoutes.Revision(revision.Id));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task ReloadAsync()
+    {
+        _entries = null;
+        _selected = null;
+        if (await LoadAsync() && _latest is not null)
+        {
+            await SelectAsync(_latest.Id);
+        }
+    }
+}
