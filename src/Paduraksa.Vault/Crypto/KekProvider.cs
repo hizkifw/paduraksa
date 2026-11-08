@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Vault;
@@ -21,10 +22,12 @@ internal sealed record ResolvedKek(Kek Kek, KekSourceKind Source, bool BesideDat
 /// ignored, with a warning.) Text form: see <see cref="Kek"/>.
 /// </para>
 /// <para>
-/// <b>master.key.</b> Generated only if it does not exist, with an exclusive create (<c>CreateNew</c>, mode 0600 from the
-/// first byte, flushed): of any number of processes racing at the first start one wins and the others read the winner's
-/// file; an existing file is never replaced, and a failed write removes the half-written file. It is also not generated when
-/// <c>vault.db</c> already holds data, since a new key could not open it: that is an error that says so (a lost
+/// <b>master.key.</b> Generated only if it does not exist. The complete key is written to a private temp file (mode 0600 from
+/// the first byte, flushed) and then given the final name with an atomic hard link that fails instead of replacing: of any
+/// number of processes racing at the first start one wins, the others read the winner's complete file, and an existing file is
+/// never replaced. A failed write removes the temp file. Readers that arrive while another writer still holds the file
+/// exclusively retry for a bounded time, and a generated file is only read once it holds the whole key. It is also not
+/// generated when <c>vault.db</c> already holds data, since a new key could not open it: that is an error that says so (a lost
 /// <c>master.key</c> is recoverable from a backup, a silently replaced one is not).
 /// </para>
 /// <para>
@@ -45,6 +48,17 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
 
     /// <summary>A key file is 44 characters and a newline; anything much larger is not one, and is not read.</summary>
     private const int MaxKeyFileBytes = 1024;
+
+    /// <summary>How long a reader waits for another first start to finish writing <c>master.key</c>.</summary>
+    private const int KeyReadWaitMilliseconds = 2000;
+
+    private const int KeyReadPollMilliseconds = 20;
+
+    /// <summary><c>EEXIST</c>, from <c>link(2)</c>: the final name is already taken, so another creator won.</summary>
+    private const int LinkExists = 17;
+
+    /// <summary><c>HRESULT_FROM_WIN32(ERROR_SHARING_VIOLATION)</c>, Windows' report of a conflicting share.</summary>
+    private const int WindowsSharingViolation = unchecked((int)0x80070020);
 
     private const UnixFileMode OthersAny = UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute;
 
@@ -90,14 +104,15 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
     /// Returns false, having written nothing, when the file already exists.
     /// </summary>
     /// <remarks>
-    /// Creation is <c>FileMode.CreateNew</c> straight onto the final path, mode 0600 from the first byte, and the data is
-    /// flushed before returning. A temp file and a rename would never show a reader a partial file, but .NET's
-    /// <c>File.Move(overwrite: false)</c> is not atomic on Unix (it was measured replacing a file a racing creator had just
-    /// moved into place), so the exclusive create is the only primitive that cannot overwrite; readers wait for the
-    /// 45 bytes instead (<see cref="WaitForWriter"/>). The file's data is fsynced but its directory entry is not: .NET cannot open
-    /// a directory to fsync it, so after a power loss right after the very first start the file may be missing. That can only
-    /// cost a vault that holds nothing yet (a missing <c>master.key</c> beside a <c>vault.db</c> that holds data is refused,
-    /// not regenerated), and the error then says what to do.
+    /// The key is written whole to a private temp file (0600 from the first byte) and only then installed at
+    /// <paramref name="path"/>: with a hard link, which is atomic and fails with <c>EEXIST</c> instead of replacing anything,
+    /// so a reader sees either no file or a complete one and racing first starts cannot overwrite each other. .NET's
+    /// <c>File.Move(overwrite: false)</c> is not used because it is not atomic on Unix (it was measured replacing a file a
+    /// racing creator had just moved into place). On a file system without hard links the install falls back to an exclusive
+    /// create on the final path; readers then wait for the 45 bytes instead (<see cref="WaitForComplete"/>). The file's data is
+    /// fsynced but its directory entry is not: .NET cannot open a directory to fsync it, so after a power loss right after the
+    /// very first start the file may be missing. That can only cost a vault that holds nothing yet (a missing
+    /// <c>master.key</c> beside a <c>vault.db</c> that holds data is refused, not regenerated), and the error then says what to do.
     /// </remarks>
     internal static bool TryCreateKeyFile(string path, Kek kek)
     {
@@ -114,7 +129,87 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
             }
         }
 
-        // BufferSize 0: FileStream must not keep a buffer of its own holding the key text after it is disposed.
+        var text = GC.AllocateArray<byte>(Kek.FileLength, pinned: true);
+        // Dot-prefixed and unique: two creators never share a temp file, and a crash leaves no readable key behind.
+        var temp = Path.Combine(directory, $".{Path.GetFileName(path)}.{Convert.ToHexString(RandomNumberGenerator.GetBytes(8))}.tmp");
+        try
+        {
+            kek.WriteEncoded(text);
+            text[Kek.TextLength] = (byte)'\n';
+
+            // BufferSize 0: FileStream must not keep a buffer of its own holding the key text after it is disposed.
+            var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, BufferSize = 0 };
+            if (!OperatingSystem.IsWindows())
+            {
+                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            }
+
+            using (var stream = new FileStream(temp, options))
+            {
+                stream.Write(text);
+                stream.Flush(flushToDisk: true);
+            }
+
+            return InstallExclusive(temp, path, text);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(text);
+            TryDelete(temp);
+        }
+    }
+
+    /// <summary>Installs the finished temp file at <paramref name="path"/> without ever replacing an existing file.</summary>
+    private static bool InstallExclusive(string temp, string path, ReadOnlySpan<byte> text)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                File.Move(temp, path, overwrite: false);
+                return true;
+            }
+            catch (IOException) when (File.Exists(path))
+            {
+                return false;
+            }
+        }
+
+        switch (TryLink(temp, path))
+        {
+            case true:
+                return true;
+            case false:
+                return false; // The name is taken: another first start won.
+            default:
+                return CreateExclusive(path, text); // No hard links here.
+        }
+    }
+
+    /// <summary>
+    /// <c>link(2)</c>: atomically gives the finished temp file the final name, or fails with <c>EEXIST</c>.
+    /// Null means this file system has no hard links, so the caller falls back to an exclusive create.
+    /// </summary>
+    private static bool? TryLink(string temp, string path)
+    {
+        try
+        {
+            if (Link(temp, path) == 0)
+            {
+                return true;
+            }
+
+            return Marshal.GetLastPInvokeError() == LinkExists ? false : null;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The no-hard-links fallback: an exclusive <c>O_EXCL</c> create of the final path, then the whole key.</summary>
+    private static bool CreateExclusive(string path, ReadOnlySpan<byte> text)
+    {
         var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, BufferSize = 0 };
         if (!OperatingSystem.IsWindows())
         {
@@ -124,7 +219,6 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
         FileStream stream;
         try
         {
-            // CreateNew is O_EXCL: of any number of racing creators exactly one gets the file, and nothing existing is opened.
             stream = new FileStream(path, options);
         }
         catch (IOException) when (File.Exists(path))
@@ -132,12 +226,9 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
             return false;
         }
 
-        var text = GC.AllocateArray<byte>(Kek.FileLength, pinned: true);
         var complete = false;
         try
         {
-            kek.WriteEncoded(text);
-            text[Kek.TextLength] = (byte)'\n';
             using (stream)
             {
                 stream.Write(text);
@@ -149,12 +240,23 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
         }
         finally
         {
-            CryptographicOperations.ZeroMemory(text);
             if (!complete)
             {
                 // Never leave half a key behind: the next start would find a file that is not one.
-                File.Delete(path);
+                TryDelete(path);
             }
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best effort; a leftover temp file is dot-prefixed and never read as a key.
         }
     }
 
@@ -162,7 +264,6 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
     {
         if (File.Exists(path))
         {
-            WaitForWriter(path);
             return ReadFile(path, GeneratedFileName, generated: true);
         }
 
@@ -190,21 +291,51 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
 
         // Another process created it between our check and our create: its key is the key.
         kek.Dispose();
-        WaitForWriter(path);
         return ReadFile(path, GeneratedFileName, generated: true);
     }
 
     /// <summary>
-    /// The file is created in place (that is what makes creation exclusive), so a concurrent start can see it before its
-    /// key is written. Waits (at most a second) for the 45 bytes to arrive instead of reading half a key.
+    /// Opens a key file, retrying (at most <see cref="KeyReadWaitMilliseconds"/>) while a first start that holds the file
+    /// exclusively is still writing it. On Linux .NET enforces <see cref="FileShare"/> with advisory locks, so a reader that
+    /// arrives while the creator's <see cref="FileShare.None"/> handle is open fails at once instead of waiting.
     /// </summary>
-    private static void WaitForWriter(string path)
+    private static FileStream OpenKeyFile(string path, bool generated)
     {
-        for (var attempt = 0; attempt < 20 && new FileInfo(path).Length < Kek.FileLength; attempt++)
+        var started = Environment.TickCount64;
+        while (true)
         {
-            Thread.Sleep(50);
+            try
+            {
+                return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 0);
+            }
+            catch (IOException ex) when (generated && IsSharingViolation(ex) && Environment.TickCount64 - started < KeyReadWaitMilliseconds)
+            {
+                Thread.Sleep(KeyReadPollMilliseconds);
+            }
         }
     }
+
+    /// <summary>
+    /// Waits (at most <see cref="KeyReadWaitMilliseconds"/>) for a key file to be complete. The hard-link install never
+    /// exposes a partial one; this covers the exclusive-create fallback and a key file some other writer is producing.
+    /// </summary>
+    private static void WaitForComplete(FileStream stream)
+    {
+        var started = Environment.TickCount64;
+        while (stream.Length < Kek.FileLength && Environment.TickCount64 - started < KeyReadWaitMilliseconds)
+        {
+            Thread.Sleep(KeyReadPollMilliseconds);
+        }
+    }
+
+    /// <summary>
+    /// Whether <paramref name="ex"/> is the BCL's report of a conflicting <see cref="FileShare"/> lock: <c>ERROR_SHARING_VIOLATION</c>
+    /// on Windows, the Unix <c>EAGAIN</c>/<c>EWOULDBLOCK</c> the advisory lock returns (64-bit Linux and macOS values).
+    /// </summary>
+    private static bool IsSharingViolation(IOException ex) => ex.HResult is WindowsSharingViolation or 11 or 35;
+
+    [DllImport("libc", EntryPoint = "link", SetLastError = true)]
+    private static extern int Link([MarshalAs(UnmanagedType.LPUTF8Str)] string existingPath, [MarshalAs(UnmanagedType.LPUTF8Str)] string newPath);
 
     /// <summary>
     /// After a start failed because the key does not match the database: the name of the <c>master.key.old</c> or
@@ -257,7 +388,12 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
             {
                 // Opened first, and the mode judged on the open handle: a check on the path and then an open could be
                 // fooled by the file being swapped in between. BufferSize 0, as when writing.
-                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 0);
+                using var stream = OpenKeyFile(path, generated);
+                if (generated)
+                {
+                    WaitForComplete(stream);
+                }
+
                 CheckMode(stream, path, generated);
                 read = stream.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
             }

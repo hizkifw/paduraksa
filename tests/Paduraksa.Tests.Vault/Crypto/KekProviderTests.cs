@@ -293,6 +293,73 @@ public sealed class KekProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task AReaderWaitsForAFirstStartThatStillHoldsTheKeyFile()
+    {
+        string path = _data.File(KekProvider.GeneratedFileName);
+        string text = NewKekText();
+        using ManualResetEventSlim release = new();
+        Task writer = Task.Run(
+            () =>
+            {
+                var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, BufferSize = 0 };
+                if (!OperatingSystem.IsWindows())
+                {
+                    options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+                }
+
+                using var stream = new FileStream(path, options);
+                stream.Write(System.Text.Encoding.ASCII.GetBytes(text + "\n"));
+                stream.Flush(flushToDisk: true);
+                release.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken); // The creator keeps its exclusive share while the reader arrives.
+            },
+            TestContext.Current.CancellationToken);
+
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!File.Exists(path) && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(5, TestContext.Current.CancellationToken);
+        }
+
+        Task<ResolvedKek> resolve = Task.Run(() => Resolve());
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.False(resolve.IsCompleted); // Held exclusively: the reader cannot open it yet, and retries instead of failing.
+        release.Set();
+        await writer;
+        ResolvedKek resolved = await resolve;
+        using var kek = resolved.Kek;
+
+        Assert.Equal(IdOf(text), kek.Id);
+    }
+
+    [Fact]
+    public async Task AReaderNeverAcceptsAPartiallyWrittenKeyFile()
+    {
+        string path = _data.File(KekProvider.GeneratedFileName);
+        string text = NewKekText();
+        byte[] bytes = System.Text.Encoding.ASCII.GetBytes(text + "\n");
+        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.ReadWrite, BufferSize = 0 };
+        if (!OperatingSystem.IsWindows())
+        {
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        }
+
+        using var writer = new FileStream(path, options);
+        writer.Write(bytes.AsSpan(0, 10));
+        writer.Flush();
+
+        Task<ResolvedKek> resolve = Task.Run(() => Resolve());
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.False(resolve.IsCompleted); // Ten bytes are not a key: the reader waits for the rest instead of parsing them.
+        writer.Write(bytes.AsSpan(10));
+        writer.Flush(flushToDisk: true);
+        writer.Dispose();
+        ResolvedKek resolved = await resolve;
+        using var kek = resolved.Kek;
+
+        Assert.Equal(IdOf(text), kek.Id);
+    }
+
+    [Fact]
     public void ADatabaseWithDataAndNoKeyDoesNotGetANewKey()
     {
         File.WriteAllBytes(Database, [1, 2, 3]);
