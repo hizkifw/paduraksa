@@ -1,0 +1,128 @@
+@using Paduraksa.Contracts.Simulation
+@* A simulation's answer (PLAN §7.7): the outcome up front, then what the gate did, step by step, with its facts. *@
+@if (Result.Status != SimulationStatus.Simulated || Result.Outcome is null)
+{
+    <MudAlert Severity="@(Result.Status == SimulationStatus.Denied ? Severity.Error : Severity.Warning)" Variant="Variant.Outlined" Class="pdk-sim-problem">
+        <strong>@ProblemTitle</strong>
+        @if (Result.Errors.Count > 0 || Result.RelatedErrors.Count > 0)
+        {
+            <ul class="pdk-plain-list">
+                @foreach (ConfigError error in Result.Errors.Concat(Result.RelatedErrors))
+                {
+                    <li>@ReviewNotices.Sentence(error.Message)</li>
+                }
+            </ul>
+        }
+    </MudAlert>
+}
+else
+{
+    (Tone tone, string icon, string title) = SimulationForm.Describe(Result.Outcome, UpstreamName);
+    <section class="pdk-outcome pdk-tone-@tone.Css()" aria-live="polite">
+        <span class="pdk-outcome-icon"><MudIcon Icon="@icon" /></span>
+        <div class="pdk-outcome-text">
+            <div class="pdk-outcome-title">@title</div>
+            <div class="pdk-outcome-summary">@ReviewNotices.Sentence(Result.Outcome.Summary)</div>
+            @if (Result.Outcome.Location is { } location)
+            {
+                <div class="pdk-outcome-detail"><span class="pdk-muted">Location</span> <span class="pdk-mono">@location</span></div>
+            }
+            @if (!string.IsNullOrEmpty(Result.Outcome.Body) && !Compact)
+            {
+                <div class="pdk-outcome-detail"><span class="pdk-muted">Body</span> <span class="pdk-mono">@Result.Outcome.Body</span></div>
+            }
+        </div>
+        @if (Result.Outcome.StatusCode is { } status)
+        {
+            <span class="pdk-outcome-status pdk-mono">@status</span>
+        }
+    </section>
+
+    @if (Result.Upstream is { } upstream)
+    {
+        <div class="pdk-sim-upstream">
+            <MudText Typo="Typo.subtitle2" HtmlTag="h3">Destinations of @(UpstreamName ?? upstream.Id.ToString())</MudText>
+            <ul class="pdk-list">
+                @foreach (SimulationDestination destination in upstream.Destinations)
+                {
+                    <li class="pdk-list-row">
+                        <span class="pdk-status-dot pdk-tone-@HealthTone(destination.Health).Css()" aria-hidden="true"></span>
+                        <span class="pdk-list-main"><span class="pdk-list-title pdk-mono">@destination.Address</span></span>
+                        <span class="pdk-badge pdk-tone-@HealthTone(destination.Health).Css()">@destination.Health</span>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (Result.Warnings.Count > 0 || Result.Notes.Count > 0)
+    {
+        <ul class="pdk-sim-notes">
+            @foreach (ConfigWarning warning in Result.Warnings)
+            {
+                <li class="pdk-tone-warning"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" /> @ReviewNotices.Sentence(warning.Message)</li>
+            }
+            @foreach (string note in Result.Notes)
+            {
+                <li><MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" /> @ReviewNotices.Sentence(note)</li>
+            }
+        </ul>
+    }
+
+    <ol class="pdk-trace" aria-label="Trace">
+        @foreach (SimulationStep step in Result.Trace)
+        {
+            (Tone stepTone, string stepIcon, string word) = SimulationForm.Verdict(step.Verdict, tone);
+            <li class="pdk-trace-step pdk-trace-@step.Verdict.ToString().ToLowerInvariant() pdk-tone-@stepTone.Css()">
+                <span class="pdk-trace-marker"><MudIcon Icon="@stepIcon" Size="Size.Small" /></span>
+                <div class="pdk-trace-body">
+                    <div class="pdk-trace-head">
+                        <span class="pdk-trace-title">@SimulationForm.StepTitle(step)</span>
+                        <span class="pdk-badge pdk-tone-@stepTone.Css()">@word</span>
+                    </div>
+                    <div class="pdk-trace-summary">@ReviewNotices.Sentence(step.Summary)</div>
+                    @if (step.Facts.Count > 0 && !Compact)
+                    {
+                        <dl class="pdk-facts">
+                            @foreach (SimulationFact fact in step.Facts)
+                            {
+                                <div class="pdk-fact"><dt>@fact.Name</dt><dd class="pdk-mono">@fact.Value</dd></div>
+                            }
+                        </dl>
+                    }
+                </div>
+            </li>
+        }
+    </ol>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public SimulationResult Result { get; set; } = default!;
+
+    /// <summary>The forwarding upstream's name, when the page knows it.</summary>
+    [Parameter]
+    public string? UpstreamName { get; set; }
+
+    /// <summary>Leaves out the facts and the body (inside the review drawer).</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    private string ProblemTitle => Result.Status switch
+    {
+        SimulationStatus.Invalid => "This config doesn't validate, so there is nothing to simulate against.",
+        SimulationStatus.RevisionNotFound => "That revision doesn't exist.",
+        SimulationStatus.DraftRejected => "The change can't be applied as it stands.",
+        SimulationStatus.Unavailable => "The config store is unavailable right now.",
+        SimulationStatus.Denied => "Your role can't run this simulation.",
+        SimulationStatus.BadRequest => "Check the request:",
+        _ => "The simulation didn't run.",
+    };
+
+    private static Tone HealthTone(SimulationHealth health) => health switch
+    {
+        SimulationHealth.Healthy => Tone.Success,
+        SimulationHealth.Unhealthy => Tone.Error,
+        _ => Tone.Default,
+    };
+}

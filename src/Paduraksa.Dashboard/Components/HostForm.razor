@@ -1,0 +1,380 @@
+@using Paduraksa.Contracts.Certificates
+@* The host form (PLAN §5.1, §12): names and kind first, then what the kind needs (routes, a redirect, a fixed answer), HTTPS, and the
+   rest under Advanced. Errors show at their fields: the inline validator's once a field is touched (all of them after a review
+   attempt), and the dry run's. *@
+<div class="pdk-form-grid" data-kind="@Model.Kind.ToString().ToLowerInvariant()">
+    @if (ShowAll && Errors.Count > 0)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
+            <strong>@(Errors.Count == 1 ? "One thing to fix" : $"{Errors.Count} things to fix"):</strong>
+            <ul class="pdk-error-list">
+                @foreach ((string path, string message) in Errors)
+                {
+                    <li><span class="pdk-error-where">@ChangeView.Locate(path, null)</span> @message</li>
+                }
+            </ul>
+        </MudAlert>
+    }
+
+    <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+        <div class="pdk-card-head">
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">Names</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">The names this host answers for: <span class="pdk-mono">app.example.com</span>, a wildcard such as <span class="pdk-mono">*.example.com</span>, or an IP address.</MudText>
+            </div>
+            <MudSwitch T="bool" Value="Model.Enabled" ValueChanged="SetEnabledAsync" Color="Color.Success" Label="@(Model.Enabled ? "Enabled" : "Disabled")" Disabled="ReadOnly" aria-label="Enabled" />
+        </div>
+        <div class="pdk-name-list">
+            @for (int i = 0; i < Model.Names.Count; i++)
+            {
+                int index = i;
+                TextEntry entry = Model.Names[index];
+                <div class="pdk-name-row" @key="entry">
+                    <MudTextField T="string" Value="entry.Value" ValueChanged="@(value => SetNameAsync(entry, index, value))" Immediate="true" DebounceInterval="250"
+                                  Label="@(index == 0 ? "Name" : $"Name {index + 1}")" Placeholder="app.example.com" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Class="pdk-mono-input" ReadOnly="ReadOnly" Error="@(E($"/names/{index}") is not null)" ErrorText="@E($"/names/{index}")"
+                                  AutoFocus="@(index == 0 && Model.IsNew)" InputType="InputType.Text" spellcheck="false" autocomplete="off" data-field="@($"name-{index}")" />
+                    @if (Model.Names.Count > 1 && !ReadOnly)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="() => RemoveNameAsync(entry)" aria-label="@($"Remove name {index + 1}")" />
+                    }
+                </div>
+            }
+            @if (E("/names") is { } namesError)
+            {
+                <div class="pdk-field-error">@namesError</div>
+            }
+            @if (!ReadOnly)
+            {
+                <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddNameAsync" Class="pdk-add">Add a name</MudButton>
+            }
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+        <div class="pdk-card-head">
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">What it does</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">@KindHint</MudText>
+            </div>
+        </div>
+        <MudToggleGroup T="HostKind" Value="Model.Kind" ValueChanged="SetKindAsync" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
+                        Outlined="true" Size="Size.Small" Disabled="ReadOnly" Class="pdk-kind-toggle" aria-label="Kind">
+            <MudToggleItem Value="HostKind.Proxy" Text="Proxy" />
+            <MudToggleItem Value="HostKind.Redirect" Text="Redirect" />
+            <MudToggleItem Value="HostKind.Respond" Text="Fixed answer" />
+            <MudToggleItem Value="HostKind.Admin" Text="Admin" />
+        </MudToggleGroup>
+
+        @switch (Model.Kind)
+        {
+            case HostKind.Proxy:
+                <div class="pdk-routes" data-section="routes">
+                    @if (Upstreams.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="mt-4">
+                            A proxy host sends requests to an upstream, and there is none yet.
+                            <MudLink Href="@DashboardRoutes.NewUpstream">Add an upstream</MudLink> first.
+                        </MudAlert>
+                    }
+                    <div class="pdk-route-head" aria-hidden="true">
+                        <span>Match</span><span>Path</span><span>Upstream</span><span></span>
+                    </div>
+                    @for (int i = 0; i < Model.Routes.Count; i++)
+                    {
+                        int index = i;
+                        RouteEntry route = Model.Routes[index];
+                        <div class="pdk-route-row" @key="route">
+                            <MudSelect T="RouteMatchKind" Value="route.Match" ValueChanged="@(value => SetAsync(() => route.Match = value, $"/routes/{index}/match"))" Label="Match"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-route-match">
+                                <MudSelectItem Value="RouteMatchKind.Prefix">Prefix</MudSelectItem>
+                                <MudSelectItem Value="RouteMatchKind.Exact">Exact</MudSelectItem>
+                            </MudSelect>
+                            <MudTextField T="string" Value="route.Path" ValueChanged="@(value => SetAsync(() => route.Path = value, $"/routes/{index}/path"))" Immediate="true" DebounceInterval="250"
+                                          Label="Path" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="ReadOnly"
+                                          Error="@(E($"/routes/{index}/path") is not null)" ErrorText="@E($"/routes/{index}/path")" data-field="@($"route-path-{index}")" />
+                            <MudSelect T="UpstreamId?" Value="route.UpstreamId" ValueChanged="@(value => SetAsync(() => route.UpstreamId = value, $"/routes/{index}/upstreamId"))" Label="Upstream"
+                                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" ToStringFunc="UpstreamName"
+                                       Error="@(E($"/routes/{index}/upstreamId") is not null)" ErrorText="@E($"/routes/{index}/upstreamId")" data-field="@($"route-upstream-{index}")">
+                                @foreach (UpstreamConfig upstream in Upstreams)
+                                {
+                                    <MudSelectItem T="UpstreamId?" Value="upstream.Id">@upstream.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            @if (Model.Routes.Count > 1 && !ReadOnly)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="() => RemoveRouteAsync(route)" aria-label="@($"Remove route {index + 1}")" />
+                            }
+                            else
+                            {
+                                <span></span>
+                            }
+                        </div>
+                    }
+                    @if (E("/routes") is { } routesError)
+                    {
+                        <div class="pdk-field-error">@routesError</div>
+                    }
+                    @if (!ReadOnly)
+                    {
+                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add" OnClick="AddRouteAsync" Class="pdk-add">Add a route</MudButton>
+                    }
+                    <MudText Typo="Typo.caption" Class="pdk-muted pdk-form-note">Routes are tried in this order; the first whose path matches takes the request.</MudText>
+                </div>
+                break;
+
+            case HostKind.Redirect:
+                <div class="pdk-field-grid" data-section="redirect">
+                    <MudTextField T="string" Value="Model.RedirectTarget" ValueChanged="@(value => SetAsync(() => Model.RedirectTarget = value, "/redirect/target"))" Immediate="true" DebounceInterval="250"
+                                  Label="Redirect to" Placeholder="https://www.example.com" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input pdk-span-2" ReadOnly="ReadOnly"
+                                  Error="@(E("/redirect/target") is not null)" ErrorText="@E("/redirect/target")" data-field="redirect-target" />
+                    <MudSelect T="int" Value="Model.RedirectStatus" ValueChanged="@(value => SetAsync(() => Model.RedirectStatus = value, "/redirect/statusCode"))" Label="Status"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly">
+                        <MudSelectItem Value="301">301 Moved permanently</MudSelectItem>
+                        <MudSelectItem Value="302">302 Found</MudSelectItem>
+                        <MudSelectItem Value="303">303 See other</MudSelectItem>
+                        <MudSelectItem Value="307">307 Temporary redirect</MudSelectItem>
+                        <MudSelectItem Value="308">308 Permanent redirect</MudSelectItem>
+                    </MudSelect>
+                    <MudSwitch T="bool" Value="Model.RedirectPreservePath" ValueChanged="@(value => SetAsync(() => Model.RedirectPreservePath = value, "/redirect/preservePath"))" Color="Color.Primary"
+                               Label="Keep the path and query" Disabled="ReadOnly" />
+                </div>
+                break;
+
+            case HostKind.Respond:
+                <div class="pdk-field-grid" data-section="respond">
+                    <MudNumericField T="int" Value="Model.RespondStatus" ValueChanged="@(value => SetAsync(() => Model.RespondStatus = value, "/respond/statusCode"))" Label="Status" Min="200" Max="599"
+                                     Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="ReadOnly" HideSpinButtons="true"
+                                     Error="@(E("/respond/statusCode") is not null)" ErrorText="@E("/respond/statusCode")" data-field="respond-status" />
+                    <MudTextField T="string" Value="Model.RespondContentType" ValueChanged="@(value => SetAsync(() => Model.RespondContentType = value, "/respond/contentType"))" Label="Content type"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="ReadOnly"
+                                  Error="@(E("/respond/contentType") is not null)" ErrorText="@E("/respond/contentType")" />
+                    <MudTextField T="string" Value="Model.RespondBody" ValueChanged="@(value => SetAsync(() => Model.RespondBody = value, "/respond/body"))" Label="Body" Lines="4" Sizing="InputSizing.Auto" MaxLines="12"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input pdk-span-2" ReadOnly="ReadOnly" Immediate="true" DebounceInterval="250"
+                                  Error="@(E("/respond/body") is not null)" ErrorText="@E("/respond/body")" data-field="respond-body" />
+                </div>
+                break;
+
+            default:
+                <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="mt-4" data-section="admin">
+                    These names open this admin through the proxy. HTTPS is always on for them, and there can be one admin host.
+                </MudAlert>
+                break;
+        }
+    </MudPaper>
+
+    <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
+        <div class="pdk-card-head">
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">HTTPS</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">Which certificate the names are served with, and whether plain HTTP is sent to HTTPS.</MudText>
+            </div>
+        </div>
+        <div class="pdk-field-grid">
+            <MudSelect T="CertificateBindingMode" Value="Model.CertificateMode" ValueChanged="SetCertificateModeAsync" Label="Certificate"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Error="@(E("/certificate") is not null)" ErrorText="@E("/certificate")"
+                       data-field="certificate-mode">
+                <MudSelectItem Value="CertificateBindingMode.Auto">Automatic: one that covers the names</MudSelectItem>
+                <MudSelectItem Value="CertificateBindingMode.Specific">A specific certificate</MudSelectItem>
+                <MudSelectItem Value="CertificateBindingMode.None">None: HTTP only</MudSelectItem>
+            </MudSelect>
+            @if (Model.CertificateMode == CertificateBindingMode.Specific)
+            {
+                <MudSelect T="CertificateId?" Value="Model.CertificateId" ValueChanged="@(value => SetAsync(() => Model.CertificateId = value, "/certificate/certificateId"))" Label="Which certificate"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" ToStringFunc="CertificateName"
+                           Disabled="@(Certificates is null)" HelperText="@(Certificates is null ? "Your role can't read the certificates." : PickerHint)"
+                           Error="@(E("/certificate/certificateId") is not null)" ErrorText="@E("/certificate/certificateId")" data-field="certificate-id">
+                    @foreach (CertificateSummary certificate in PickableCertificates)
+                    {
+                        <MudSelectItem T="CertificateId?" Value="certificate.Id">@HostOverview.CertificateTitle(certificate)</MudSelectItem>
+                    }
+                </MudSelect>
+            }
+            @if (Model.Kind != HostKind.Admin)
+            {
+                <MudSelect T="bool?" Value="Model.ForceHttps" ValueChanged="@(value => SetAsync(() => Model.ForceHttps = value, "/settings/forceHttps"))" Label="HTTPS redirect"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Disabled="@(Model.CertificateMode == CertificateBindingMode.None)"
+                           Error="@(E("/settings/forceHttps") is not null)" ErrorText="@E("/settings/forceHttps")" data-field="force-https">
+                    <MudSelectItem T="bool?" Value="null">@($"Inherit ({(InheritedForceHttps ? "redirect" : "don't redirect")})")</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="true">Redirect HTTP to HTTPS</MudSelectItem>
+                    <MudSelectItem T="bool?" Value="false">Answer plain HTTP too</MudSelectItem>
+                </MudSelect>
+            }
+            <MudSelect T="ProfileId?" Value="Model.ProfileId" ValueChanged="@(value => SetAsync(() => Model.ProfileId = value, "/profileId"))" Label="Profile"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" ToStringFunc="ProfileName" Disabled="@(Profiles.Count == 0 && Model.ProfileId is null)"
+                       HelperText="@(Profiles.Count == 0 ? "No profiles yet: settings come from the global defaults." : "A named set of settings the host inherits.")"
+                       Error="@(E("/profileId") is not null)" ErrorText="@E("/profileId")">
+                <MudSelectItem T="ProfileId?" Value="null">No profile</MudSelectItem>
+                @foreach (ProfileConfig profile in Profiles)
+                {
+                    <MudSelectItem T="ProfileId?" Value="profile.Id">@profile.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </MudPaper>
+
+    <MudExpansionPanels Elevation="0" Outlined="true" Class="pdk-advanced">
+        <MudExpansionPanel Text="Advanced" Expanded="_advanced" ExpandedChanged="value => _advanced = value" data-section="advanced">
+            <TitleContent>
+                <div class="pdk-advanced-title">
+                    <MudText Typo="Typo.subtitle1">Advanced</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">TLS versions and protocols, an IP allow list, tags and notes. Unset fields inherit.</MudText>
+                </div>
+            </TitleContent>
+            <ChildContent>
+                <div class="pdk-field-grid">
+                    <MudSelect T="TlsMinimumVersion?" Value="Model.MinimumTls" ValueChanged="@(value => SetAsync(() => Model.MinimumTls = value, "/settings/tls"))" Label="Minimum TLS version"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly">
+                        <MudSelectItem T="TlsMinimumVersion?" Value="null">Inherit</MudSelectItem>
+                        <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls12">TLS 1.2</MudSelectItem>
+                        <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls13">TLS 1.3</MudSelectItem>
+                    </MudSelect>
+                    <MudSelect T="TcpAlpn?" Value="Model.TcpAlpn" ValueChanged="@(value => SetAsync(() => Model.TcpAlpn = value, "/settings/tls"))" Label="Protocols over TCP"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly">
+                        <MudSelectItem T="TcpAlpn?" Value="null">Inherit</MudSelectItem>
+                        <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http2AndHttp11">HTTP/2 and HTTP/1.1</MudSelectItem>
+                        <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http11Only">HTTP/1.1 only</MudSelectItem>
+                    </MudSelect>
+                    <MudSelect T="bool?" Value="Model.Http3" ValueChanged="@(value => SetAsync(() => Model.Http3 = value, "/settings/tls"))" Label="HTTP/3"
+                               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly">
+                        <MudSelectItem T="bool?" Value="null">Inherit</MudSelectItem>
+                        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+                    </MudSelect>
+                    <MudTextField T="string" Value="Model.Tags" ValueChanged="@(value => SetAsync(() => Model.Tags = value, "/tags"))" Label="Tags" Placeholder="media, lan"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="ReadOnly" HelperText="Separated by commas." Error="@(TagError is not null)" ErrorText="@TagError" />
+
+                    <div class="pdk-span-2 pdk-allow">
+                        <MudSwitch T="bool" Value="Model.AllowListSet" ValueChanged="@(value => SetAsync(() => Model.AllowListSet = value, "/settings/ipAllowList"))" Color="Color.Primary"
+                                   Label="Only let in clients from these addresses" Disabled="ReadOnly" />
+                        @if (Model.AllowListSet)
+                        {
+                            <MudTextField T="string" Value="Model.AllowList" ValueChanged="@(value => SetAsync(() => Model.AllowList = value, "/settings/ipAllowList"))" Label="Addresses and networks"
+                                          Placeholder="192.168.1.0/24&#10;10.0.0.5" Lines="3" Sizing="InputSizing.Auto" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input"
+                                          ReadOnly="ReadOnly" HelperText="One per line. Leave it empty to lift a list inherited from the profile or the defaults."
+                                          Error="@(AllowListError is not null)" ErrorText="@AllowListError" />
+                            <MudSwitch T="bool" Value="Model.DropDenied" ValueChanged="@(value => SetAsync(() => Model.DropDenied = value, "/settings/ipAllowList"))" Color="Color.Primary"
+                                       Label="Drop other clients without an answer (instead of 403)" Disabled="ReadOnly" />
+                        }
+                    </div>
+
+                    <MudTextField T="string" Value="Model.Notes" ValueChanged="@(value => SetAsync(() => Model.Notes = value, "/notes"))" Label="Notes" Lines="2" Sizing="InputSizing.Auto"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-span-2" ReadOnly="ReadOnly"
+                                  Error="@(E("/notes") is not null)" ErrorText="@E("/notes")" />
+                </div>
+            </ChildContent>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+</div>
+
+@code {
+    private readonly HashSet<string> _touched = new(StringComparer.Ordinal);
+    private bool _advanced;
+
+    [Parameter, EditorRequired]
+    public HostEditModel Model { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<UpstreamConfig> Upstreams { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<ProfileConfig> Profiles { get; set; } = [];
+
+    /// <summary>The inventory for the picker; null when the user may not read it.</summary>
+    [Parameter]
+    public IReadOnlyList<CertificateSummary>? Certificates { get; set; }
+
+    /// <summary>What the host inherits for the HTTPS redirect.</summary>
+    [Parameter]
+    public bool InheritedForceHttps { get; set; }
+
+    /// <summary>The errors, by pointer relative to the host (<c>/names/0</c>).</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, string> Errors { get; set; } = new Dictionary<string, string>();
+
+    /// <summary>Show every error, touched or not (after a review attempt).</summary>
+    [Parameter]
+    public bool ShowAll { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    /// <summary>The model changed (re-validate).</summary>
+    [Parameter]
+    public EventCallback OnChanged { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (!_advanced && (Model.MinimumTls is not null || Model.TcpAlpn is not null || Model.Http3 is not null || Model.AllowListSet
+            || ErrorsUnder("/settings/ipAllowList") || ErrorsUnder("/tags") || ErrorsUnder("/notes")))
+        {
+            _advanced = ShowAll || !Model.IsNew;
+        }
+    }
+
+    private string KindHint => Model.Kind switch
+    {
+        HostKind.Proxy => "Sends requests to an upstream, by path.",
+        HostKind.Redirect => "Sends every request somewhere else.",
+        HostKind.Respond => "Answers every request with a fixed status and body: a placeholder, a 410, \"coming soon\".",
+        _ => "Opens this admin through the proxy.",
+    };
+
+    private string PickerHint => PickableCertificates.Count == 0 ? "No usable certificate in the inventory yet." : "Only certificates that can be served now are listed.";
+
+    private IReadOnlyList<CertificateSummary> PickableCertificates =>
+        Certificates is null ? [] : [.. Certificates.Where(c => HostOverview.IsUsable(c) || c.Id == Model.CertificateId).OrderBy(HostOverview.CertificateTitle, StringComparer.Ordinal)];
+
+    private string? TagError => FirstUnder("/tags");
+
+    private string? AllowListError => FirstUnder("/settings/ipAllowList");
+
+    private string? E(string path) => (ShowAll || _touched.Contains(path)) && Errors.TryGetValue(path, out string? message) ? message : null;
+
+    private string? FirstUnder(string prefix) =>
+        ShowAll || _touched.Contains(prefix)
+            ? Errors.Where(e => e.Key == prefix || e.Key.StartsWith(prefix + "/", StringComparison.Ordinal)).Select(e => e.Value).FirstOrDefault()
+            : null;
+
+    private bool ErrorsUnder(string prefix) => Errors.Keys.Any(k => k == prefix || k.StartsWith(prefix + "/", StringComparison.Ordinal));
+
+    private string UpstreamName(UpstreamId? id) =>
+        id is { } value ? Upstreams.FirstOrDefault(u => u.Id == value)?.Name ?? "Unknown upstream" : string.Empty;
+
+    private string ProfileName(ProfileId? id) =>
+        id is { } value ? Profiles.FirstOrDefault(p => p.Id == value)?.Name ?? "Unknown profile" : "No profile";
+
+    private string CertificateName(CertificateId? id) =>
+        id is { } value ? (Certificates?.FirstOrDefault(c => c.Id == value) is { } certificate ? HostOverview.CertificateTitle(certificate) : value.ToString()) : string.Empty;
+
+    private Task SetAsync(Action apply, string path)
+    {
+        apply();
+        _touched.Add(path);
+        return OnChanged.InvokeAsync();
+    }
+
+    private Task SetNameAsync(TextEntry entry, int index, string value) => SetAsync(() => entry.Value = value, $"/names/{index}");
+
+    private Task SetEnabledAsync(bool value) => SetAsync(() => Model.Enabled = value, "/enabled");
+
+    private Task SetKindAsync(HostKind kind) => SetAsync(() => Model.Kind = kind, "/kind");
+
+    private Task SetCertificateModeAsync(CertificateBindingMode mode) => SetAsync(() =>
+    {
+        Model.CertificateMode = mode;
+        if (mode == CertificateBindingMode.None)
+        {
+            // No certificate means no HTTPS to redirect to: lift an inherited redirect rather than fail validation.
+            Model.ForceHttps = InheritedForceHttps ? false : null;
+        }
+    }, "/certificate");
+
+    private Task AddNameAsync() => SetAsync(Model.AddName, "/names");
+
+    private Task RemoveNameAsync(TextEntry entry) => SetAsync(() => Model.Names.Remove(entry), "/names");
+
+    private Task AddRouteAsync() => SetAsync(() => Model.AddRoute(Upstreams.Count == 1 ? Upstreams[0].Id : null), "/routes");
+
+    private Task RemoveRouteAsync(RouteEntry route) => SetAsync(() => Model.Routes.Remove(route), "/routes");
+}

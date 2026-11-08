@@ -1,0 +1,96 @@
+@* The diff (PLAN §6.1, §12): one card per top-level object, its routes or destinations under it, and per field the old value struck
+   through beside the new one. Used by the review drawer and the history. *@
+@if (Groups.Count == 0)
+{
+    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.DoneAll" Title="@EmptyTitle" Description="@EmptyDescription" />
+}
+else
+{
+    <div class="pdk-diff" role="list" aria-label="Changes">
+        @foreach (ChangeGroup group in Groups)
+        {
+            <section class="pdk-diff-group pdk-diff-@KindCss(group.Head.Kind)" role="listitem">
+                @Header(group.Head)
+                @Fields(group.Head)
+                @foreach (ObjectChange child in group.Children)
+                {
+                    <div class="pdk-diff-child pdk-diff-@KindCss(child.Kind)">
+                        @Header(child)
+                        @Fields(child)
+                    </div>
+                }
+            </section>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The changes, grouped (<see cref="ChangeView.Build"/>).</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ChangeGroup> Groups { get; set; } = [];
+
+    [Parameter]
+    public string EmptyTitle { get; set; } = "Nothing changes";
+
+    [Parameter]
+    public string? EmptyDescription { get; set; }
+
+    private static string KindCss(ConfigChangeKind? kind) => kind switch
+    {
+        ConfigChangeKind.Added => "added",
+        ConfigChangeKind.Removed => "removed",
+        ConfigChangeKind.Modified => "modified",
+        _ => "context",
+    };
+
+    private RenderFragment Header(ObjectChange change) => __builder =>
+    {
+        <div class="pdk-diff-head">
+            <span class="pdk-list-icon pdk-tone-@Tones.Of(change.Kind).Css()"><MudIcon Icon="@Tones.IconOf(change.What)" Size="Size.Small" /></span>
+            <span class="pdk-diff-title">@change.Title</span>
+            @if (change.Kind is not null)
+            {
+                <span class="pdk-badge pdk-tone-@Tones.Of(change.Kind).Css()">@Tones.Word(change.Kind)</span>
+            }
+        </div>
+    };
+
+    private RenderFragment Fields(ObjectChange change) => __builder =>
+    {
+        @if (change.Fields.Count > 0)
+        {
+            <dl class="pdk-diff-fields">
+                @foreach (FieldChange field in change.Fields)
+                {
+                    <div class="pdk-diff-field">
+                        <dt>@field.Label</dt>
+                        <dd>
+                            @if (field.Before is not null && field.After is not null)
+                            {
+                                <span class="pdk-diff-old" aria-label="was">@field.Before</span>
+                                <MudIcon Icon="@Icons.Material.Rounded.ArrowForward" Size="Size.Small" Class="pdk-diff-arrow" aria-hidden="true" />
+                                <span class="pdk-diff-new" aria-label="now">@field.After</span>
+                            }
+                            else if (field.After is not null)
+                            {
+                                <span class="pdk-diff-new">@field.After</span>
+                                @if (change.Kind == ConfigChangeKind.Modified)
+                                {
+                                    <span class="pdk-diff-note">set</span>
+                                }
+                            }
+                            else if (field.Before is not null)
+                            {
+                                <span class="pdk-diff-old">@field.Before</span>
+                                @if (change.Kind == ConfigChangeKind.Modified)
+                                {
+                                    <span class="pdk-diff-note">no longer set</span>
+                                }
+                            }
+                        </dd>
+                    </div>
+                }
+            </dl>
+        }
+    };
+}
