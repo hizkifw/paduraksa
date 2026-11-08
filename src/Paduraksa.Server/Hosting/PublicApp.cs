@@ -43,9 +43,14 @@ internal static partial class PublicApp
 
         PaduraksaListenOptions listen = context.Options.Listen;
         PublicListenerSetup listeners = context.Shared.PublicListeners;
-        if (listeners.Http3Requested && !listeners.Http3)
+        ILogger logger = new RoleLoggerFactory(context.Shared.LoggerFactory, HostRole.Public).CreateLogger(typeof(PublicApp).FullName!);
+        if (listeners.Http3)
         {
-            ILogger logger = new RoleLoggerFactory(context.Shared.LoggerFactory, HostRole.Public).CreateLogger(typeof(PublicApp).FullName!);
+            // The positive half of the libmsquic check: this line only appears when QUIC actually loaded (PLAN §7.5, §16).
+            LogHttp3Enabled(logger, listen.Https, listen.PublicHttpsPort);
+        }
+        else if (listeners.Http3Requested)
+        {
             LogHttp3Unavailable(logger);
         }
 
@@ -79,7 +84,13 @@ internal static partial class PublicApp
                             throw new InvalidOperationException("The HTTP/3 listener doesn't match what the snapshot compiler advertises.");
                         }
                     })
-                    .ConfigureServices(services => services.AddPaduraksaProxy(context.Shared.SnapshotPublisher, context.Shared.AdminInternal))
+                    .ConfigureServices(services =>
+        {
+            services.AddPaduraksaProxy(context.Shared.SnapshotPublisher, context.Shared.AdminInternal);
+            // YARP's AddReverseProxy registers Data Protection and a key-ring warm-up hosted service. The public app's
+            // provider is the in-memory ephemeral one (HostSetup), so the warm-up must go: it would create a key elsewhere.
+            EphemeralDataProtection.RemoveKeyRingWarmup(services);
+        })
                     .Configure(static app =>
                     {
                         // The simulator reads destination health from this app's YARP while it runs.
@@ -97,6 +108,9 @@ internal static partial class PublicApp
 
         return builder.Build();
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "HTTP/3 is on: QUIC on UDP {Port} (libmsquic loaded; Alt-Svc advertises port {PublicPort})")]
+    private static partial void LogHttp3Enabled(ILogger logger, int port, int publicPort);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "HTTP/3 is off: libmsquic isn't available on this system (public HTTPS serves HTTP/1.1 and HTTP/2 only)")]
     private static partial void LogHttp3Unavailable(ILogger logger);

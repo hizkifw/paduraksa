@@ -1,0 +1,47 @@
+# Paduraksa, bare metal (PLAN §16): a self-contained publish run as an unprivileged user.
+#
+#   dotnet publish src/Paduraksa.Server/Paduraksa.Server.csproj -c Release -r linux-x64 --self-contained true -o /opt/paduraksa
+#
+# Then copy this file to /etc/systemd/system/paduraksa.service, create /var/lib/paduraksa and a master key in
+# /etc/paduraksa/master.key (0600, root:root), and:
+#
+#   systemctl daemon-reload && systemctl enable --now paduraksa
+
+[Unit]
+Description=Paduraksa reverse proxy and WAF
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=paduraksa
+Group=paduraksa
+WorkingDirectory=/opt/paduraksa
+ExecStart=/opt/paduraksa/paduraksa serve
+Restart=on-failure
+RestartSec=5s
+# Exit 3 is invalid configuration: restarting would only repeat it.
+RestartPreventExitStatus=3
+# Kestrel's shared drain budget is 30 s; give it room before systemd kills the process.
+TimeoutStopSec=40s
+
+# Bind 80/443 without root (PLAN §16). Nothing else needs a capability.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+Environment=Paduraksa__DataDirectory=/var/lib/paduraksa
+# %d is the credential directory systemd creates for this unit's LoadCredential (readable only by the service user).
+Environment=PADURAKSA_MASTER_KEY_FILE=%d/master.key
+LoadCredential=master.key:/etc/paduraksa/master.key
+
+StateDirectory=paduraksa
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/paduraksa
+
+[Install]
+WantedBy=multi-user.target

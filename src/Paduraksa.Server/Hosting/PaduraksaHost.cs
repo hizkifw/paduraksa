@@ -95,6 +95,13 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             PaduraksaOptions options = BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
             shared = SharedServices.Create(configuration, options, hostOptions.ConfigureShared, hostOptions.ConfigureLogging);
 
+            // Configuration shapes that would otherwise be silently ignored (a list child that is not an array index).
+            ILogger startupLogger = new RoleLoggerFactory(shared.LoggerFactory, HostRole.Core).CreateLogger(typeof(PaduraksaHost).FullName!);
+            foreach (string warning in options.ListBindingWarnings)
+            {
+                LogConfigurationWarning(startupLogger, warning);
+            }
+
             HostContext context = new(
                 typeof(PaduraksaHost).Assembly.GetName().Name ?? "paduraksa",
                 environmentName,
@@ -348,6 +355,10 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             throw new OptionsValidationException(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), [ex.Message]);
         }
 
+        // The binder ignores a scalar where an IList<string> is expected (and anything that isn't an array index):
+        // normalise both environment forms here, before the validator reads the lists.
+        ConfigurationListOptions.Bind(configuration, options);
+
         // Before the validator reads it: a relative trust file is relative to the content root, like the data directory below.
         if (options.Acme is { TrustedRootsFile: { Length: > 0 } trustedRoots }
             && trustedRoots.AsSpan().IndexOfAny(Path.GetInvalidPathChars()) < 0
@@ -590,6 +601,9 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Paduraksa stopped")]
     private static partial void LogStopped(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Configuration: {Warning}")]
+    private static partial void LogConfigurationWarning(ILogger logger, string warning);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The {App} host failed to stop cleanly")]
     private static partial void LogStopFailed(ILogger logger, string app, Exception exception);

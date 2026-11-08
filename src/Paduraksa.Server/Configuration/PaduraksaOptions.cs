@@ -44,6 +44,12 @@ internal sealed class PaduraksaOptions
     /// <c>TimeoutStopSec</c> defaults to 90 s.
     /// </summary>
     public TimeSpan ShutdownTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// What <see cref="ConfigurationListOptions"/> had to ignore while normalising list settings (a scalar set beside
+    /// indexed keys, where the scalar wins). Not bound from configuration; logged once at startup as a warning.
+    /// </summary>
+    internal List<string> ListBindingWarnings { get; } = [];
 }
 
 /// <summary>

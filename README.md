@@ -26,7 +26,25 @@ last live. The server falls back to that file (degraded) when the database can't
 database from it when the database has no revisions (deleted or replaced). So to start over with an empty config, stop
 the server and delete both. One data directory serves one server at a time.
 
-### Database migrations
+## Install
+
+Docker is the supported deployment: the [`Dockerfile`](Dockerfile) builds a non-root, Ubuntu Noble image with
+libmsquic for HTTP/3, and [`deploy/compose.yaml`](deploy/compose.yaml) is a one-node example.
+
+```sh
+cp deploy/compose.yaml /srv/paduraksa/ && cd /srv/paduraksa
+docker compose up -d
+docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"   # the one-time setup token
+```
+
+Map **80/tcp, 443/tcp, 443/udp and 9443/tcp 1:1** (the UDP port is HTTP/3; without it clients use HTTP/2). Then trust the
+local CA root from `https://<host>:9443/api/v1/ca/root.crt` and open `https://<host>:9443/`.
+
+The full guide — the master key and Docker secrets, reading or reprinting the setup token, trusting the CA root,
+backups and where data lives, upgrades, UDP notes, external health checks, and a systemd unit for a bare-metal
+self-contained publish ([`deploy/paduraksa.service`](deploy/paduraksa.service)) — is in [docs/install.md](docs/install.md).
+
+## Database migrations
 
 The config database schema (`ConfigDbContext` in `src/Paduraksa.Data`) comes from EF Core migrations in
 `src/Paduraksa.Data/Migrations`, applied at startup by `ConfigDatabase.InitializeAsync` (the server's startup recompile

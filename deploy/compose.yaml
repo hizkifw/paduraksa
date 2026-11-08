@@ -1,0 +1,50 @@
+# Paduraksa v0.1, single node (PLAN §16). Copy this file next to where you keep the master key, then:
+#
+#   docker compose up -d
+#
+# The ports are mapped 1:1 on purpose: Paduraksa advertises 443 in Alt-Svc and in its HTTP->HTTPS redirect, so a
+# translated in-container port would send clients to the wrong place. 443/udp is HTTP/3; without it the proxy still
+# serves H1/H2 over 443/tcp.
+services:
+  paduraksa:
+    # Use the published image, or build this checkout with `build: { context: .., dockerfile: Dockerfile }`.
+    image: ghcr.io/paduraksa/paduraksa:latest
+    # build:
+    #   context: ..
+    #   dockerfile: Dockerfile
+    container_name: paduraksa
+    restart: unless-stopped
+    stop_grace_period: 35s
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+      - "9443:9443"
+    volumes:
+      - paduraksa-data:/data
+
+    # Master key (PLAN §8.3). Recommended for anything reachable: with PADURAKSA_MASTER_KEY_FILE pointing at a Docker
+    # secret, the key never sits in the data directory, so a copy of the volume is not a copy of all your keys. Create
+    # the file with `head -c 32 /dev/urandom | base64 > master.key && chmod 600 master.key` first.
+    #
+    # WARNING: whichever key the vault is created under is the only key that opens it. Back the key up somewhere
+    # separate from the volume; losing it loses every certificate key, secret and the Data Protection key ring.
+    #
+    # secrets:
+    #   - paduraksa-master-key
+    # environment:
+    #   PADURAKSA_MASTER_KEY_FILE: /run/secrets/paduraksa-master-key
+
+    logging:
+      driver: json-file
+      options:
+        # Keep the setup-token banner long enough to read it out of `docker logs`, without an unbounded file.
+        max-size: "10m"
+        max-file: "5"
+
+# secrets:
+#   paduraksa-master-key:
+#     file: ./master.key
+
+volumes:
+  paduraksa-data:

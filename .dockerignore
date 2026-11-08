@@ -1,0 +1,31 @@
+# Build context for the container (PLAN §16). The publish needs src/, Directory.Build.props, Directory.Packages.props and
+# the tool manifest; tests, benchmarks, docs, local data and keys do not go in.
+.git
+.gitignore
+.gitattributes
+.github
+.claude
+spikes
+.vs
+.idea
+.vscode
+**/bin
+**/obj
+**/TestResults
+**/*.user
+tests
+bench
+docs
+deploy
+**/data/
+data
+*.md
+*.slnx
+Dockerfile
+.dockerignore
+.env
+**/master.key*
+**/*.db*
+**/setup-token
+**/*.pfx
+**/*.key
