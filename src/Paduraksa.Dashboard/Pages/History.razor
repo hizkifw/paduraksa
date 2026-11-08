@@ -219,7 +219,7 @@ else
 
         _mayWrite = user.Has(Permission.ConfigWrite);
         _maySimulate = user.Has(Permission.Simulate);
-        _me = user.Session.Session.UserId;
+        _me = user.UserId;
         if (user.Has(Permission.UsersRead))
         {
             _users = (await Config.ListUsersAsync(user.Session.OriginFor(Channel.Dashboard))).ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.DisplayName) ? u.Username : u.DisplayName);

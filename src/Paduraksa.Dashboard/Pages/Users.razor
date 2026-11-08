@@ -295,7 +295,7 @@ else
             return;
         }
 
-        _me = user.Session.Session.UserId;
+        _me = user.UserId;
         _mayWrite = user.Has(Permission.UsersWrite);
         _now = Time.GetUtcNow();
         CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);

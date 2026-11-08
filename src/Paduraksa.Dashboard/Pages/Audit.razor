@@ -340,7 +340,7 @@ else
         }
 
         _mayRead = true;
-        _me = user.Session.Session.UserId;
+        _me = user.UserId;
         await LoadNamesAsync(user);
         _configWatch = Config.Watch(_ => InvokeAsync(OnNewEventsAsync));
         _identityWatch = Identity.Watch(() => InvokeAsync(OnNewEventsAsync));

@@ -338,7 +338,7 @@
         _held = user.Permissions;
         _mayIssue = user.Has(Permission.TokensOwn);
         _mayAll = user.Has(Permission.TokensAll);
-        UserId me = user.Session.Session.UserId;
+        UserId me = user.UserId;
         CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
         List<TokenRow> rows = [];
         if (_everyone && _mayAll)

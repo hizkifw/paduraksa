@@ -98,7 +98,7 @@
         }
 
         _now = Time.GetUtcNow();
-        SessionListResult result = await Identity.ListSessionsAsync(user.Session.OriginFor(Channel.Dashboard), user.Session.Session.UserId, user.Session.Session.SessionId);
+        SessionListResult result = await Identity.ListSessionsAsync(user.Session.OriginFor(Channel.Dashboard), user.UserId, user.SessionId);
         _sessions = [.. result.Sessions.Where(s => s.SecondFactorCompleted).OrderByDescending(s => s.Current).ThenByDescending(s => s.LastSeenAt)];
     }
 
@@ -137,7 +137,7 @@
         }
 
         CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
-        IdentityResult result = await Identity.RevokeOtherSessionsAsync(origin, user.Session.Session.SessionId);
+        IdentityResult result = await Identity.RevokeOtherSessionsAsync(origin, user.SessionId);
         Snackbar.Add(result.Succeeded ? "Signed out everywhere else." : $"That didn't work. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
         await LoadAsync();
     }

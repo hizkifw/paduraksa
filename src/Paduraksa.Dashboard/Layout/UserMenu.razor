@@ -12,7 +12,7 @@
         <ChildContent>
             <div class="pdk-user-card">
                 <MudText Typo="Typo.subtitle1">@_user.DisplayName</MudText>
-                <MudText Typo="Typo.caption" Class="pdk-muted pdk-mono">@_user.Session.Session.Username</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted pdk-mono">@_user.Username</MudText>
                 <div class="pdk-user-roles">
                     @foreach (Role role in _user.Session.Session.Roles)
                     {
