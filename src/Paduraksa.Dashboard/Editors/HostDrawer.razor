@@ -77,11 +77,46 @@
             @if (_staged.Count > 0 || _stagedProfiles.Count > 0)
             {
                 <div class="pdk-staged" data-section="staged">
-                    <MudIcon Icon="@Icons.Material.Outlined.Layers" Size="Size.Small" />
-                    <span>
-                        Made here, applied with this host: @string.Join(", ", [.. _staged.Select(u => $"upstream {u.Name}"), .. _stagedProfiles.Select(p => $"profile {p.Name}")]).
-                        Cancel the host and they go too.
-                    </span>
+                    <div class="pdk-staged-head">
+                        <MudIcon Icon="@Icons.Material.Outlined.Layers" Size="Size.Small" />
+                        <span>Made here, applied with this host in one revision. Cancel the host and they go too.</span>
+                    </div>
+                    <ul class="pdk-staged-list">
+                        @foreach (UpstreamConfig upstream in _staged)
+                        {
+                            <li data-staged="@upstream.Name">
+                                <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
+                                <span class="pdk-staged-name">@upstream.Name</span>
+                                <span class="pdk-staged-detail pdk-mono">@HostOverview.AddressOf(upstream)</span>
+                                @if (_stagedErrors.ContainsKey(upstream.Id))
+                                {
+                                    <StatusChip Tone="Tone.Error" Dot="true" Text="Needs a fix" Name="staged-error" />
+                                }
+                                @if (_mayWrite)
+                                {
+                                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => EditStagedUpstreamAsync(upstream)"
+                                               data-action="edit-staged">Edit</MudButton>
+                                }
+                            </li>
+                        }
+                        @foreach (ProfileConfig profile in _stagedProfiles)
+                        {
+                            <li data-staged="@profile.Name">
+                                <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
+                                <span class="pdk-staged-name">@profile.Name</span>
+                                <span class="pdk-staged-detail">profile</span>
+                                @if (_stagedErrors.ContainsKey(profile.Id))
+                                {
+                                    <StatusChip Tone="Tone.Error" Dot="true" Text="Needs a fix" Name="staged-error" />
+                                }
+                                @if (_mayWrite)
+                                {
+                                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => EditStagedProfileAsync(profile)"
+                                               data-action="edit-staged">Edit</MudButton>
+                                }
+                            </li>
+                        }
+                    </ul>
                 </div>
             }
         }
@@ -115,6 +150,10 @@
     private IReadOnlyList<CertificateSummary>? _certificates;
     private readonly List<UpstreamConfig> _staged = [];
     private readonly List<ProfileConfig> _stagedProfiles = [];
+
+    // The dry run's errors about a staged object (relative to it), shown at its fields when it is opened again.
+    private readonly Dictionary<object, IReadOnlyDictionary<string, string>> _stagedErrors = [];
+    private ConfigDocument? _reviewed;
     private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
     private IReadOnlyDictionary<string, string> _serverErrors = new Dictionary<string, string>();
     private string _opened = string.Empty;
@@ -218,6 +257,7 @@
 
         _staged.Clear();
         _stagedProfiles.Clear();
+        _stagedErrors.Clear();
         _opened = Fingerprint();
         Validate();
     }
@@ -364,12 +404,14 @@
 
             ConfigDocument after = StagedChange.Apply(head.Document, host, upstreams, profiles);
             string with = string.Join(" and ", [.. upstreams.Select(u => $"upstream {u.Name}"), .. profiles.Select(p => $"profile {p.Name}")]);
+            _reviewed = after;
             request = new ReviewRequest(_model.IsNew ? $"New host {name}" : $"Edit {name}", new ReplaceConfigCommand(after, head.Revision?.Id)
             {
                 Message = $"{(_model.IsNew ? "New host" : "Edit")} {name} with {with}",
             })
             {
                 AfterDocument = after,
+                OnInvalidDocument = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalidDocument),
             };
         }
 
@@ -425,6 +467,79 @@
             {
                 await ReloadAsync();
             }
+        }
+    }
+
+    /// <summary>
+    /// The dry run refused the one revision of the host and what was staged with it: the host's errors go to its fields, a staged object's
+    /// are kept for it (marked "Needs a fix", and shown at its fields when it is opened again).
+    /// </summary>
+    private void OnInvalidDocument(IReadOnlyList<ConfigError> errors)
+    {
+        if (_reviewed is not { } document || _model is null)
+        {
+            return;
+        }
+
+        int host = document.Hosts.ToList().FindIndex(h => h.Id == _model.Id);
+        if (host >= 0)
+        {
+            OnInvalid([.. errors.Where(e => e.Path.StartsWith($"/hosts/{host}/", StringComparison.Ordinal) || e.Path == $"/hosts/{host}")
+                .Select(e => e with { Path = e.Path[$"/hosts/{host}".Length..] })]);
+        }
+
+        for (int i = 0; i < document.Upstreams.Count; i++)
+        {
+            if (_staged.Any(u => u.Id == document.Upstreams[i].Id) && InlineValidation.Relative(errors, $"/upstreams/{i}") is { Count: > 0 } found)
+            {
+                _stagedErrors[document.Upstreams[i].Id] = found;
+            }
+        }
+
+        for (int i = 0; i < document.Profiles.Count; i++)
+        {
+            if (_stagedProfiles.Any(p => p.Id == document.Profiles[i].Id) && InlineValidation.Relative(errors, $"/profiles/{i}") is { Count: > 0 } found)
+            {
+                _stagedErrors[document.Profiles[i].Id] = found;
+            }
+        }
+    }
+
+    private async Task EditStagedUpstreamAsync(UpstreamConfig staged)
+    {
+        DrawerResult result = await Drawers.OpenAsync<UpstreamDrawer>(
+            new Dictionary<string, object?>
+            {
+                [nameof(UpstreamDrawer.Stage)] = true,
+                [nameof(UpstreamDrawer.Draft)] = Draft,
+                [nameof(UpstreamDrawer.Staged)] = staged,
+                [nameof(UpstreamDrawer.Errors)] = _stagedErrors.GetValueOrDefault(staged.Id),
+            },
+            DrawerWidth.Medium);
+        if (result.As<UpstreamConfig>() is { } edited && _staged.FindIndex(u => u.Id == staged.Id) is >= 0 and var index)
+        {
+            _staged[index] = edited;
+            _stagedErrors.Remove(staged.Id);
+            Changed();
+        }
+    }
+
+    private async Task EditStagedProfileAsync(ProfileConfig staged)
+    {
+        DrawerResult result = await Drawers.OpenAsync<ProfileDrawer>(
+            new Dictionary<string, object?>
+            {
+                [nameof(ProfileDrawer.Stage)] = true,
+                [nameof(ProfileDrawer.Draft)] = Draft,
+                [nameof(ProfileDrawer.Staged)] = staged,
+                [nameof(ProfileDrawer.Errors)] = _stagedErrors.GetValueOrDefault(staged.Id),
+            },
+            DrawerWidth.Medium);
+        if (result.As<ProfileConfig>() is { } edited && _stagedProfiles.FindIndex(p => p.Id == staged.Id) is >= 0 and var index)
+        {
+            _stagedProfiles[index] = edited;
+            _stagedErrors.Remove(staged.Id);
+            Changed();
         }
     }
 

@@ -67,7 +67,7 @@ public sealed class ConfigPagesEndToEndTests
         await ChooseAsync(page, "route-upstream-0", "New upstream...");
         await ExpectDrawerTitleAsync(page, "New upstream");
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(2);
-        await Expect(page.Locator(".pdk-sheet[data-top] [data-drawer-action=back]")).ToContainTextAsync("New host");
+        await Expect(page.Locator(".pdk-sheet[data-top] [data-drawer=trail]")).ToContainTextAsync("New host");
         await page.Keyboard.PressAsync("Escape");
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(1);
         await ExpectDrawerTitleAsync(page, "New host");
@@ -83,8 +83,16 @@ public sealed class ConfigPagesEndToEndTests
         // Back in the host's drawer with the new upstream picked, and marked as going along with the host.
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(1);
         await Expect(page.Locator("input[data-field='route-upstream-0'], [data-field='route-upstream-0'] input").First).ToHaveValueAsync("app");
-        await Expect(page.Locator("[data-section=staged]")).ToContainTextAsync("upstream app");
+        await Expect(page.Locator("[data-staged=app]")).ToContainTextAsync("http://127.0.0.1:18080");
         await PlaywrightBrowser.ScreenshotAsync(page, "drawer-host", fullPage: false);
+
+        // The staged upstream opens again, as it was given, to be changed before anything is applied.
+        await page.Locator("[data-staged=app] [data-action=edit-staged]").ClickAsync();
+        await ExpectDrawerTitleAsync(page, "app");
+        await Expect(page.Locator(".pdk-sheet[data-top] input[data-field='destination-0']")).ToHaveValueAsync("http://127.0.0.1:18080");
+        await PlaywrightBrowser.ScreenshotAsync(page, "drawer-staged-edit", fullPage: false);
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(1);
 
         // One review for both, one revision.
         await ReviewAndApplyAsync(page, "review-host-and-upstream");
@@ -148,6 +156,8 @@ public sealed class ConfigPagesEndToEndTests
         await ExpectDrawerTitleAsync(page, HostName);
         await ChooseAsync(page, "certificate", "New certificate...");
         await ExpectDrawerTitleAsync(page, "New certificate");
+        // The host's picker keeps what it had while the certificate is made.
+        await Expect(page.Locator(".pdk-sheet[data-level='0'] input[data-field='certificate']")).ToHaveValueAsync("Automatic: one that covers the names");
         await Expect(page.Locator(".pdk-sheet[data-top] [data-drawer=certificate-new]")).ToContainTextAsync($"For {HostName}");
         await PlaywrightBrowser.ScreenshotAsync(page, "drawer-stack-certificate", fullPage: false);
         await page.Locator(".pdk-sheet[data-top] [data-method=localcaleaf]").ClickAsync();
@@ -194,7 +204,10 @@ public sealed class ConfigPagesEndToEndTests
             await PlaywrightBrowser.ScreenshotAsync(page, shot);
         }
 
-        await page.GotoAsync("/hosts/new");
+        // From the list, inside the app, so the browser's back stays in it.
+        await page.GotoAsync("/hosts");
+        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
+        await page.Locator("[data-action=add-host]").First.ClickAsync();
         await Expect(page.Locator(".pdk-sheet [data-drawer=host]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await FillAsync(page, "name-0", "phone.home.test");
         await ChooseAsync(page, "route-upstream-0", "New upstream...");
@@ -205,6 +218,15 @@ public sealed class ConfigPagesEndToEndTests
         await page.Locator(".pdk-sheet[data-top] [data-drawer-action=back]").ClickAsync();
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(1);
         await PlaywrightBrowser.ScreenshotAsync(page, "drawer-host-phone", fullPage: false);
+
+        // The browser's back button with unsaved changes asks too, and "Keep editing" stays where it was.
+        await page.GoBackAsync();
+        await Expect(page.Locator("[data-drawer=discard]")).ToBeVisibleAsync();
+        await Expect(page.Locator("[data-drawer=discard]")).ToContainTextAsync("Leave and discard your changes?");
+        await Expect(page).ToHaveURLAsync(new Regex("/hosts/new$"));
+        await page.Locator("[data-drawer=keep]").ClickAsync();
+        await Expect(page.Locator("[data-drawer=discard]")).ToHaveCountAsync(0);
+        await Expect(page.Locator(".pdk-sheet[data-top] input[data-field='name-0']")).ToHaveValueAsync("phone.home.test");
 
         // The host form holds a change now: leaving asks first.
         await page.Locator(".pdk-sheet[data-top] [data-drawer-action=close]").ClickAsync();

@@ -202,13 +202,14 @@ public sealed class ProfileEditModel
 {
     private readonly ProfileConfig? _original;
 
-    private ProfileEditModel(ProfileConfig? original, ProfileId id)
+    private ProfileEditModel(ProfileConfig? original, ProfileId id, ProfileConfig? source = null)
     {
         _original = original;
         Id = id;
-        Name = original?.Name ?? string.Empty;
-        Notes = original?.Notes;
-        Settings = HostSettingsModel.From(original?.Settings ?? new HostSettings());
+        source ??= original;
+        Name = source?.Name ?? string.Empty;
+        Notes = source?.Notes;
+        Settings = HostSettingsModel.From(source?.Settings ?? new HostSettings());
     }
 
     public ProfileId Id { get; }
@@ -230,6 +231,13 @@ public sealed class ProfileEditModel
     {
         ArgumentNullException.ThrowIfNull(profile);
         return new ProfileEditModel(profile, profile.Id);
+    }
+
+    /// <summary>A form for a profile made earlier and not applied yet (staged in a host's draft): still new, with what it was given.</summary>
+    public static ProfileEditModel FromDraft(ProfileConfig profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        return new ProfileEditModel(null, profile.Id, profile);
     }
 
     public ProfileConfig ToConfig() => new(

@@ -60,7 +60,11 @@
     private int _rendered;
     private string? _leavingTo;
 
-    protected override void OnInitialized() => Stack.Changed += OnStackChanged;
+    protected override void OnInitialized()
+    {
+        Stack.Changed += OnStackChanged;
+        Navigation.LocationChanged += OnLocationChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -108,6 +112,7 @@
     public async ValueTask DisposeAsync()
     {
         Stack.Changed -= OnStackChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
         if (_attached)
         {
             try
@@ -132,8 +137,34 @@
         {
             _leavingTo = null;
         }
+        else if (Stack.Levels[0].OwnerPath is null)
+        {
+            Stack.Levels[0].OwnerPath = PathOf(Navigation.Uri);
+        }
 
         _ = InvokeAsync(StateHasChanged);
+    }
+
+    private string PathOf(string uri) => "/" + Navigation.ToBaseRelativePath(uri).Split('?', '#')[0];
+
+    /// <summary>
+    /// A drawer opened on a page goes when the person goes to another page (the browser's back included). A drawer with an address
+    /// (<see cref="RoutedDrawer"/>) is the page's to close: its address changing is how it opens and closes.
+    /// </summary>
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        if (Stack.Levels.Count > 0 && Stack.Levels[0] is { Routed: false, OwnerPath: { } owner } root && owner != PathOf(args.Location))
+        {
+            _ = InvokeAsync(() =>
+            {
+                foreach (DrawerLevel level in Stack.Levels)
+                {
+                    level.IsDirty = false;
+                }
+
+                root.Cancel();
+            });
+        }
     }
 
     /// <summary>Leaving the page while a drawer holds unsaved changes asks first; anything else goes ahead (the page closes its drawers).</summary>

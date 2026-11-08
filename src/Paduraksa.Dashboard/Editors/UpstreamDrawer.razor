@@ -283,6 +283,14 @@
     [Parameter]
     public bool Stage { get; set; }
 
+    /// <summary>With <see cref="Stage"/>: a upstream made earlier and not applied yet, to change (null: a new one).</summary>
+    [Parameter]
+    public UpstreamConfig? Staged { get; set; }
+
+    /// <summary>Errors about <see cref="Staged"/> (relative to it) from a review that refused it, shown at its fields at once.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, string>? Errors { get; set; }
+
     /// <summary>With <see cref="Stage"/>: the host form's draft, which the upstream is checked against (a name another new one took).</summary>
     [Parameter]
     public ConfigDocument? Draft { get; set; }
@@ -291,7 +299,7 @@
     [Parameter]
     public string? SuggestedName { get; set; }
 
-    private string Title => _missing ? "Upstream not found" : _model is null ? (Id is null ? "New upstream" : "Upstream") : _model.IsNew ? "New upstream" : _storedName;
+    private string Title => _missing ? "Upstream not found" : Staged is { } staged ? staged.Name : _model is null ? (Id is null ? "New upstream" : "Upstream") : _model.IsNew ? "New upstream" : _storedName;
 
     private string Subtitle => Stage
         ? "It is applied together with the host, in one revision."
@@ -371,12 +379,16 @@
         }
         else
         {
-            _model = UpstreamEditModel.New();
-            _model.Name = SuggestedName ?? string.Empty;
+            _model = Stage && Staged is { } staged ? UpstreamEditModel.FromDraft(staged) : UpstreamEditModel.New();
+            if (Staged is null)
+            {
+                _model.Name = SuggestedName ?? string.Empty;
+            }
         }
 
         _opened = StagedChange.Fingerprint(new ConfigDocument(Upstreams: [_model.ToConfig()]));
         Validate();
+        ShowGivenErrors();
     }
 
     private string? E(string path) => (_attempted || _touched.Contains(path)) && _errors.TryGetValue(path, out string? message) ? message : null;
@@ -401,6 +413,22 @@
     {
         _probes.Remove(destination);
         Set(() => destination.Address = value, $"/destinations/{index}/address");
+    }
+
+    /// <summary>The errors a review found about this staged upstream, at their fields from the start.</summary>
+    private void ShowGivenErrors()
+    {
+        if (Errors is { Count: > 0 } given)
+        {
+            Dictionary<string, string> merged = new(_errors, StringComparer.Ordinal);
+            foreach ((string path, string message) in given)
+            {
+                merged[path] = message;
+            }
+
+            _errors = merged;
+            _attempted = true;
+        }
     }
 
     private void Validate()

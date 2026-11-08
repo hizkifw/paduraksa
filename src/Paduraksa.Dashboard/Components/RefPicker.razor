@@ -1,8 +1,8 @@
 @typeparam T
 @* A field that references another object (an upstream, a certificate, a profile, an ACME account): a select of what exists, and last a
    "New ..." choice that makes one. Choosing it calls OnNew instead of changing the value (the caller stacks a drawer for the new object
-   and sets the value to it when the drawer hands one back). *@
-<MudSelect @key="_generation" T="T" Value="Value" ValueChanged="OnChangedAsync" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+   and sets the value to it when the drawer hands one back); meanwhile the field keeps showing what was picked before. *@
+<MudSelect T="T" Value="@(_choosingNew ? NewValue : Value)" ValueChanged="OnChangedAsync" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
            ReadOnly="ReadOnly" Disabled="Disabled" HelperText="@HelperText" Error="Error" ErrorText="@ErrorText" ToStringFunc="Display" Class="@Class"
            Placeholder="@Placeholder" @attributes="Attributes">
     @ChildContent
@@ -15,7 +15,7 @@
 </MudSelect>
 
 @code {
-    private int _generation;
+    private bool _choosingNew;
 
     [Parameter]
     public T? Value { get; set; }
@@ -76,10 +76,14 @@
     {
         if (value is not null && EqualityComparer<T>.Default.Equals(value, NewValue))
         {
+            // The select took "New ..." as its value: it is handed the same once, then the value as it is, which it shows again (a
+            // value it was given before would not count as a change).
+            _choosingNew = true;
+            StateHasChanged();
+            await Task.Yield();
+            _choosingNew = false;
+            StateHasChanged();
             await OnNew.InvokeAsync();
-
-            // The select shows what it was last set to: made again, it shows the value as it is now (the new object, or the old one).
-            _generation++;
             return;
         }
 

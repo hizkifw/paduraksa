@@ -62,20 +62,29 @@ public sealed class UpstreamEditModel
     public static UpstreamEditModel From(UpstreamConfig upstream)
     {
         ArgumentNullException.ThrowIfNull(upstream);
-        UpstreamEditModel model = new(upstream, upstream.Id)
-        {
-            Name = upstream.Name,
-            LoadBalancing = upstream.LoadBalancing,
-            SessionAffinity = upstream.SessionAffinity,
-            PassiveHealth = upstream.PassiveHealth is not null,
-            ReactivationSeconds = upstream.PassiveHealth?.ReactivationPeriod is { } period ? (int)period.TotalSeconds : null,
-            ActiveHealth = upstream.ActiveHealth is not null,
-            HealthPath = upstream.ActiveHealth?.Path ?? "/",
-            HealthIntervalSeconds = (int)(upstream.ActiveHealth?.Interval ?? ActiveHealthConfig.DefaultInterval).TotalSeconds,
-            HealthTimeoutSeconds = (int)(upstream.ActiveHealth?.Timeout ?? ActiveHealthConfig.DefaultTimeout).TotalSeconds,
-            MaxConnectionsPerServer = upstream.MaxConnectionsPerServer,
-            Notes = upstream.Notes,
-        };
+        return Load(new UpstreamEditModel(upstream, upstream.Id), upstream);
+    }
+
+    /// <summary>A form for an upstream made earlier and not applied yet (staged in a host's draft): still new, with what it was given.</summary>
+    public static UpstreamEditModel FromDraft(UpstreamConfig upstream)
+    {
+        ArgumentNullException.ThrowIfNull(upstream);
+        return Load(new UpstreamEditModel(null, upstream.Id), upstream);
+    }
+
+    private static UpstreamEditModel Load(UpstreamEditModel model, UpstreamConfig upstream)
+    {
+        model.Name = upstream.Name;
+        model.LoadBalancing = upstream.LoadBalancing;
+        model.SessionAffinity = upstream.SessionAffinity;
+        model.PassiveHealth = upstream.PassiveHealth is not null;
+        model.ReactivationSeconds = upstream.PassiveHealth?.ReactivationPeriod is { } period ? (int)period.TotalSeconds : null;
+        model.ActiveHealth = upstream.ActiveHealth is not null;
+        model.HealthPath = upstream.ActiveHealth?.Path ?? "/";
+        model.HealthIntervalSeconds = (int)(upstream.ActiveHealth?.Interval ?? ActiveHealthConfig.DefaultInterval).TotalSeconds;
+        model.HealthTimeoutSeconds = (int)(upstream.ActiveHealth?.Timeout ?? ActiveHealthConfig.DefaultTimeout).TotalSeconds;
+        model.MaxConnectionsPerServer = upstream.MaxConnectionsPerServer;
+        model.Notes = upstream.Notes;
         model.Destinations.AddRange(upstream.Destinations.Select(d => new DestinationEntry(d.Id) { Address = d.Address, Enabled = d.Enabled }));
         return model;
     }

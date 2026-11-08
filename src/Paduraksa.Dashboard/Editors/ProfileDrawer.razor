@@ -178,11 +178,19 @@
     [Parameter]
     public bool Stage { get; set; }
 
+    /// <summary>With <see cref="Stage"/>: a profile made earlier and not applied yet, to change (null: a new one).</summary>
+    [Parameter]
+    public ProfileConfig? Staged { get; set; }
+
+    /// <summary>Errors about <see cref="Staged"/> (relative to it) from a review that refused it, shown at its fields at once.</summary>
+    [Parameter]
+    public IReadOnlyDictionary<string, string>? Errors { get; set; }
+
     /// <summary>With <see cref="Stage"/>: the host form's draft, which the profile is checked against.</summary>
     [Parameter]
     public ConfigDocument? Draft { get; set; }
 
-    private string Title => _missing ? "Profile not found" : _model is null ? (Id is null ? "New profile" : "Profile") : _model.IsNew ? "New profile" : _storedName;
+    private string Title => _missing ? "Profile not found" : Staged is { } staged ? staged.Name : _model is null ? (Id is null ? "New profile" : "Profile") : _model.IsNew ? "New profile" : _storedName;
 
     private IReadOnlyList<HostConfig> Hosts =>
         _model is null || _document is null || _model.IsNew ? [] : ProfileEditModel.HostsUsing(_document, _model.Id);
@@ -244,11 +252,22 @@
         }
         else
         {
-            _model = ProfileEditModel.New();
+            _model = Stage && Staged is { } staged ? ProfileEditModel.FromDraft(staged) : ProfileEditModel.New();
         }
 
         _opened = Fingerprint();
         Validate();
+        if (Errors is { Count: > 0 } given)
+        {
+            Dictionary<string, string> merged = new(_errors, StringComparer.Ordinal);
+            foreach ((string path, string message) in given)
+            {
+                merged[path] = message;
+            }
+
+            _errors = merged;
+            _attempted = true;
+        }
     }
 
     private string Fingerprint() => _model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(Profiles: [_model.ToConfig()]));

@@ -166,6 +166,12 @@ public sealed class DrawerLevel
     /// <summary>The drawer holds changes that closing would lose: Escape, the backdrop and the close button ask first.</summary>
     public bool IsDirty { get; set; }
 
+    /// <summary>The page's address when this level opened at the bottom of the stack (set by <c>DrawerHost</c>).</summary>
+    public string? OwnerPath { get; set; }
+
+    /// <summary>The level has an address of its own (<see cref="RoutedDrawer"/>): the page opens and closes it as its address changes.</summary>
+    public bool Routed { get; set; }
+
     /// <summary>The drawer is busy (an apply in flight): it can't be closed until it is done.</summary>
     public bool Busy { get; set; }
 

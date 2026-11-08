@@ -60,6 +60,12 @@ else
     [Parameter]
     public EventCallback OnSubmit { get; set; }
 
+    /// <summary>
+    /// False: no close button (a drawer that must be left through its own action, as the one showing a new token's secret once).
+    /// </summary>
+    [Parameter]
+    public bool Closable { get; set; } = true;
+
     /// <summary>Closing without a level around it (a test rendering the drawer on its own).</summary>
     [Parameter]
     public EventCallback OnClose { get; set; }
@@ -69,6 +75,17 @@ else
     {
         ArgumentNullException.ThrowIfNull(level);
         return $"pdk-drawer-title-{level.Id}";
+    }
+
+    private static IEnumerable<DrawerLevel> Ancestors(DrawerLevel level)
+    {
+        Stack<DrawerLevel> below = new();
+        for (DrawerLevel? parent = level.Parent; parent is not null; parent = parent.Parent)
+        {
+            below.Push(parent);
+        }
+
+        return below;
     }
 
     protected override void OnParametersSet()
@@ -84,10 +101,19 @@ else
         <header class="pdk-drawer-head">
             @if (Level?.Parent is { } parent)
             {
-                <button type="button" class="pdk-drawer-back" @onclick="CloseAsync" aria-label="@($"Back to {parent.Title}")" data-drawer-action="back">
-                    <MudIcon Icon="@Icons.Material.Rounded.ChevronLeft" Size="Size.Small" />
-                    <span>@parent.Title</span>
-                </button>
+                @* The levels under this one, oldest first: on a phone they are hidden behind it, so the trail is how the stack reads. *@
+                <nav class="pdk-drawer-trail" aria-label="Open drawers" data-drawer="trail">
+                    <button type="button" class="pdk-drawer-back" @onclick="CloseAsync" aria-label="@($"Back to {parent.Title}")" data-drawer-action="back">
+                        <MudIcon Icon="@Icons.Material.Rounded.ChevronLeft" Size="Size.Small" />
+                    </button>
+                    <ol>
+                        @foreach (DrawerLevel below in Ancestors(Level))
+                        {
+                            <li class="@(ReferenceEquals(below, parent) ? "pdk-drawer-trail-parent" : null)">@below.Title</li>
+                        }
+                        <li aria-current="page">@Title</li>
+                    </ol>
+                </nav>
             }
             <div class="pdk-drawer-heading">
                 @if (Icon is not null)
@@ -107,7 +133,10 @@ else
                 </div>
                 <div class="pdk-drawer-head-actions">
                     @HeaderActions
-                    <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="CloseAsync" aria-label="Close" data-drawer-action="close" />
+                    @if (Closable)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="CloseAsync" aria-label="Close" data-drawer-action="close" />
+                    }
                 </div>
             </div>
         </header>

@@ -150,7 +150,7 @@ public sealed class DrawerStackTests
         UpstreamConfig upstream = await MakeUpstreamAsync(drawers, "jellyfin", "http://10.0.0.5:8096");
 
         Assert.Single(drawers.FindAll(".pdk-sheet"));
-        Assert.Contains("upstream jellyfin", drawers.Find("[data-section=staged]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("jellyfin", drawers.Find("[data-staged=jellyfin]").TextContent, StringComparison.Ordinal);
         Assert.Empty(config.Executed);
 
         // Review changes stacks on the host and holds the host's submit until it closes.
@@ -171,6 +171,64 @@ public sealed class DrawerStackTests
         Assert.Equal(upstream.Id, Assert.Single(host.Routes).UpstreamId);
         Assert.Equal("New host jelly.home.test with upstream jellyfin", applied.Message);
         await drawers.WaitForStateAsync(() => drawers.FindAll(".pdk-sheet").Count == 0);
+    }
+
+    [Fact]
+    public async Task AStagedUpstream_OpensAgainToBeChanged_AndAReviewsRefusalOfIt_ShowsAtItsFields()
+    {
+        await using DashboardTestContext context = new();
+        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument();
+        context.Render<MudPopoverProvider>();
+        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "app.home.test");
+        UpstreamConfig made = await MakeUpstreamAsync(drawers, "app", "http://10.0.0.7:8080");
+
+        // Opened again from the host's drawer: still the same new upstream, with what it was given; the change comes back staged.
+        Task editing = drawers.Find("[data-staged=app] [data-action=edit-staged]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=upstream] input[data-field=name]").Count == 1);
+        Assert.Equal("app", drawers.Find("[data-drawer=upstream] input[data-field=name]").GetAttribute("value"));
+        await TypeAsync(drawers, "[data-drawer=upstream] input[data-field=name]", "app-backend");
+        await drawers.Find("form[data-drawer=upstream]").SubmitAsync();
+        await editing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        Assert.Single(drawers.FindAll("[data-staged=app-backend]"));
+        Assert.Equal(made.Id, drawers.FindComponent<HostForm>().Instance.Model.Routes[0].UpstreamId);
+
+        // The dry run refuses the staged upstream's address: the review names it, and the upstream is marked and shows it at its field.
+        config.Results = command => command is ReplaceConfigCommand { DryRun: true }
+            ? new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [new ConfigError("/upstreams/0/destinations/0/address", "upstream.address.invalid", "the address points at this proxy")])
+            : new ConfigCommandResult(ConfigCommandStatus.DryRun);
+        Task reviewing = drawers.Find("form[data-drawer=host]").SubmitAsync();
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=invalid]").Count == 1);
+        Assert.Contains("app-backend", drawers.Find("[data-review=invalid] .pdk-error-where").TextContent, StringComparison.Ordinal);
+        await drawers.InvokeAsync(drawers.Instance.EscapeAsync);
+        await reviewing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+        Assert.Single(drawers.FindAll("[data-staged=app-backend] [data-chip=staged-error]"));
+
+        _ = drawers.Find("[data-staged=app-backend] [data-action=edit-staged]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=upstream]").Count == 1);
+        Assert.Contains("The address points at this proxy.", drawers.Find("[data-drawer=upstream]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ADrawersTrail_NamesEveryLevelUnderIt()
+    {
+        await using DashboardTestContext context = new();
+        context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        IRenderedComponent<DrawerHost> host = context.Render<DrawerHost>();
+        DrawerStack stack = context.Services.GetRequiredService<DrawerStack>();
+        await host.InvokeAsync(() =>
+        {
+            stack.Push<NotFoundDrawer>(NotFoundDrawer.For("app.home.test", "a"), DrawerWidth.Wide);
+            stack.Push<NotFoundDrawer>(NotFoundDrawer.For("New certificate", "b"));
+            stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Add an ACME account", "c"), DrawerWidth.Narrow);
+        });
+
+        Assert.Equal(["app.home.test", "New certificate", "Add an ACME account"], host.FindAll(".pdk-sheet[data-top] [data-drawer=trail] li").Select(li => li.TextContent));
+        Assert.Equal("Back to New certificate", host.Find(".pdk-sheet[data-top] [data-drawer-action=back]").GetAttribute("aria-label"));
+        Assert.Empty(host.FindAll(".pdk-sheet[data-level='0'] [data-drawer=trail]"));
     }
 
     [Fact]

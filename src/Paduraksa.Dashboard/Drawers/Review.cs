@@ -27,6 +27,9 @@ public sealed record ReviewRequest(string Title, ConfigCommand Command)
 
     /// <summary>The dry run's errors about what was sent (object-relative paths), for the form below to show at its fields.</summary>
     public EventCallback<IReadOnlyList<ConfigError>> OnInvalid { get; init; }
+
+    /// <summary>For a whole-document command: the dry run's errors (document paths), for the form below to place at its objects' fields.</summary>
+    public EventCallback<IReadOnlyList<ConfigError>> OnInvalidDocument { get; init; }
 }
 
 /// <summary>How a review ended: applied (live, or stored but not live), or the person asked to reload after a conflict.</summary>

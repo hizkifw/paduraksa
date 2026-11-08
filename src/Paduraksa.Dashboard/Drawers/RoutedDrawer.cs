@@ -37,6 +37,7 @@ public sealed class RoutedDrawer(NavigationManager navigation, string listAddres
         }
 
         DrawerLevel level = open(key);
+        level.Routed = true;
         Key = key;
         _root = level;
         _ = FollowAsync(level);
