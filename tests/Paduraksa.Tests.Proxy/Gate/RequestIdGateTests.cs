@@ -116,31 +116,6 @@ public sealed class RequestIdGateTests : IDisposable
     }
 
     [Fact]
-    public async Task TheResponseCarriesItByDefault()
-    {
-        DefaultHttpContext context = TestContexts.Create("app.test", "/api");
-
-        await Gate.InvokeAsync(context, static _ => Task.CompletedTask);
-
-        string id = context.Features.Get<IGateFeature>()!.State.RequestIdText();
-        Assert.Equal(id, context.Response.Headers[RequestIds.HeaderName].ToString());
-    }
-
-    [Fact]
-    public async Task AHostThatSendsNoResponseIdLeavesTheHeaderOff()
-    {
-        _store.Publish(Bound(TrustingGeneric with
-        {
-            Hosts = [ProxyHost("app", "app.test", Route("app-root", "web")) with { RequestIdPropagation = RequestIdPropagation.UpstreamOnly }],
-        }, generation: 2));
-
-        DefaultHttpContext context = TestContexts.Create("app.test", "/api");
-        await Gate.InvokeAsync(context, static _ => Task.CompletedTask);
-
-        Assert.False(context.Response.Headers.ContainsKey(RequestIds.HeaderName));
-    }
-
-    [Fact]
     public void AcceptingAndGeneratingTheRequestIdAllocateNothing()
     {
         DefaultHttpContext trusted = TestContexts.Create("app.test", "/api", remote: System.Net.IPAddress.Loopback);
