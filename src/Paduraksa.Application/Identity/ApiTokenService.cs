@@ -21,15 +21,11 @@ public sealed record ApiTokenResult(IdentityStatus Status, IssuedApiToken? Issue
     public bool Succeeded => Status == IdentityStatus.Succeeded;
 }
 
-/// <summary>The outcome of listing API tokens.</summary>
 /// <param name="Status">How it ended.</param>
 /// <param name="Tokens">The tokens, newest first; never a secret.</param>
 public sealed record ApiTokenListResult(IdentityStatus Status, IReadOnlyList<ApiTokenSummary> Tokens);
 
 /// <summary>The identity a valid token carries.</summary>
-/// <param name="TokenId">The token (the audit actor).</param>
-/// <param name="UserId">The user it acts as.</param>
-/// <param name="Permissions">What it may do now: its scopes narrowed to what its owner may do now.</param>
 public sealed record ApiTokenPrincipal(ApiTokenId TokenId, UserId UserId, IReadOnlySet<Permission> Permissions);
 
 /// <summary>The outcome of <see cref="ApiTokenService.VerifyAsync"/>.</summary>
@@ -168,9 +164,7 @@ public sealed class ApiTokenService
         }
     }
 
-    /// <summary>
-    /// Every user's tokens in one read, newest first, revoked ones included, never with a secret. Needs <see cref="Permission.TokensAll"/>.
-    /// </summary>
+    /// <summary>Every user's tokens in one read, newest first, revoked ones included, never with a secret.</summary>
     public async Task<ApiTokenListResult> ListAllAsync(CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);

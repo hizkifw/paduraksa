@@ -35,12 +35,9 @@ public enum SetupOutcome
 /// <param name="Problem">Why the input was refused (for <see cref="SetupOutcome.Invalid"/>), safe to show.</param>
 public sealed record SetupResult(SetupOutcome Outcome, UserSummary? Owner = null, string? Problem = null);
 
-/// <summary>
-/// First-run setup. Setup is <i>incomplete</i> while no Owner exists. Until then the admin app serves only the setup
-/// flow, and that flow needs a one-time <b>setup token</b>: 256 random bits, kept in <c>&lt;data dir&gt;/setup-token</c> (owner-only,
-/// like <c>master.key</c>), logged at Warning when the server starts, and reprinted by <c>paduraksa setup-token</c>. Whoever can
-/// read the log, the file or the shell on the host can claim the instance; nobody on the network can.
-/// </summary>
+/// <summary>First-run setup. Until then the admin app serves only the setup flow, and that flow needs a one-time
+/// <b>setup token</b>: 256 random bits, kept in <c>&lt;data dir&gt;/setup-token</c> (owner-only, like
+/// <c>master.key</c>), logged at Warning when the server starts, and reprinted by <c>paduraksa setup-token</c>.</summary>
 /// <remarks>
 /// Creating the Owner is atomic: the check that no Owner exists and the insert are one write transaction, so two simultaneous
 /// attempts cannot make two. The token is compared in constant time and is deleted when setup completes. The last-Owner guard
@@ -104,10 +101,8 @@ public sealed partial class SetupService
     public async Task<SetupStatus> GetStatusAsync(CancellationToken cancellationToken = default) =>
         new(await IsCompleteAsync(cancellationToken).ConfigureAwait(false));
 
-    /// <summary>
-    /// The setup token while setup is incomplete (creating the file if there is none), or null once it is complete (a stale file is
-    /// removed then). A file that other users can read is not trusted: it is replaced.
-    /// </summary>
+    /// <summary>The setup token while setup is incomplete (creating the file if there is none), or null once it is
+    /// complete (a stale file is removed then).</summary>
     public async Task<string?> EnsureTokenAsync(CancellationToken cancellationToken = default)
     {
         if (await IsCompleteAsync(cancellationToken).ConfigureAwait(false))

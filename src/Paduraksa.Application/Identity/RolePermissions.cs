@@ -4,11 +4,8 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Application.Identity;
 
-/// <summary>
-/// Which <see cref="Permission"/>s each <see cref="Role"/> grants. Roles are data here, not code paths, so custom
-/// roles can be added later by supplying another set. A user's permissions are the union of their roles'; an API token's are
-/// that union narrowed to its scopes (<see cref="Narrow"/>).
-/// </summary>
+/// <summary>Which <see cref="Permission"/>s each <see cref="Role"/> grants. Roles are data here, not code paths, so
+/// custom roles can be added later by supplying another set.</summary>
 public static class RolePermissions
 {
     private static readonly FrozenSet<Permission> AllPermissions = Enum.GetValues<Permission>().ToFrozenSet();
@@ -34,7 +31,6 @@ public static class RolePermissions
     public static IReadOnlySet<Permission> All => AllPermissions;
 
     /// <summary>What <paramref name="role"/> grants.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The role is undefined.</exception>
     public static IReadOnlySet<Permission> Of(Role role) =>
         ByRole.TryGetValue(role, out var set) ? set : throw new ArgumentOutOfRangeException(nameof(role), role, "Undefined role.");
 

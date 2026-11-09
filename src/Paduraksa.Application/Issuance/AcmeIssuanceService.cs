@@ -119,11 +119,9 @@ public sealed partial class AcmeIssuanceService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Registers a new pending certificate with a fresh ID and runs its first issuance to the end: new order, challenges,
-    /// key and CSR in the vault, finalize, download (the preferred chain if the CA offers it), attach, register. Returns
-    /// when it is issued or has failed; a failure is kept for the scheduler to retry.
-    /// </summary>
+    /// <summary>Registers a new pending certificate with a fresh ID and runs its first issuance to the end: new
+    /// order, challenges, key and CSR in the vault, finalize, download (the preferred chain if the CA offers it),
+    /// attach, register.</summary>
     public Task<IssuanceResult> RequestCertificateAsync(CertificateIssueRequest request, CommandOrigin origin, CancellationToken cancellationToken = default) =>
         RequestCertificateAsync(request, origin, null, cancellationToken);
 
@@ -191,12 +189,10 @@ public sealed partial class AcmeIssuanceService
         return await RunAsync(id, origin, progress, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Takes the certificate's next step by its state: a certificate whose last issuance finished gets a new order (a
-    /// renewal: same ID, names, account and settings, with the CA told which certificate it replaces); one whose issuance
-    /// is unfinished or failed continues the order it has, or makes a new one if the CA no longer accepts it. This is what
-    /// the scheduler calls, and what "renew now" is.
-    /// </summary>
+    /// <summary>Takes the certificate's next step by its state: a certificate whose last issuance finished gets a new
+    /// order (a renewal: same ID, names, account and settings, with the CA told which certificate it replaces); one
+    /// whose issuance is unfinished or failed continues the order it has, or makes a new one if the CA no longer
+    /// accepts it.</summary>
     public Task<IssuanceResult> RenewAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default) =>
         RenewAsync(id, origin, null, cancellationToken);
 
@@ -221,14 +217,12 @@ public sealed partial class AcmeIssuanceService
     /// </summary>
     public AcmeOrderProgress? GetProgress(CertificateId id) => _progress.GetValueOrDefault(id);
 
-    /// <summary>
-    /// What the scheduler calls for a certificate: does what is <b>due now</b>, if anything. Under the certificate's guard it reads the
-    /// order again and applies the due rules to that fresh row, so a manual renewal or a retry that ran since the scheduler listed the
-    /// orders is not repeated, and a failed order is not retried before its <c>RetryAt</c>: an unfinished order is resumed; a failed one
-    /// whose <c>RetryAt</c> has passed is retried; an issued one whose <c>NextRenewalAt</c> has passed is renewed, else its ARI window
-    /// is refreshed once <c>AriCheckAt</c> has passed. Returns whether it acted (false also when the certificate is busy or the config
-    /// store is unavailable).
-    /// </summary>
+    /// <summary>What the scheduler calls for a certificate: does what is <b>due now</b>, if anything. Under the
+    /// certificate's guard it reads the order again and applies the due rules to that fresh row, so a manual renewal
+    /// or a retry that ran since the scheduler listed the orders is not repeated, and a failed order is not retried
+    /// before its <c>RetryAt</c>: an unfinished order is resumed; a failed one whose <c>RetryAt</c> has passed is
+    /// retried; an issued one whose <c>NextRenewalAt</c> has passed is renewed, else its ARI window is refreshed once
+    /// <c>AriCheckAt</c> has passed.</summary>
     public async Task<bool> RunDueAsync(CertificateId id, CancellationToken cancellationToken = default)
     {
         if (_config.Status is { AcceptsCommands: false } || !_running.TryAdd(id, 0))
@@ -267,11 +261,9 @@ public sealed partial class AcmeIssuanceService
         }
     }
 
-    /// <summary>
-    /// Asks the CA again for the renewal window (ARI, RFC 9773) of an issued certificate and updates the schedule: the
-    /// window and the next check are stored, and the renewal time is picked again only if it fell outside the new window.
-    /// A CA without ARI clears the window. Returns the state afterwards; null when the certificate has no order.
-    /// </summary>
+    /// <summary>Asks the CA again for the renewal window (ARI, RFC 9773) of an issued certificate and updates the
+    /// schedule: the window and the next check are stored, and the renewal time is picked again only if it fell
+    /// outside the new window. Returns the state afterwards; null when the certificate has no order.</summary>
     public async Task<AcmeOrderSummary?> RefreshRenewalInfoAsync(CertificateId id, CancellationToken cancellationToken = default)
     {
         // Under the certificate's guard, so a late write cannot overwrite the schedule an issuance just made; busy: it shows what is stored.
@@ -721,10 +713,8 @@ public sealed partial class AcmeIssuanceService
     private partial void LogDnsCleanupFailed(CertificateId certificate, string errorType);
 }
 
-/// <summary>
-/// An issuance cannot go on for a reason Paduraksa itself found (not a CA problem document): the CA offers no challenge of
-/// the chosen type, an authorization or order went invalid, an account is gone. Permanent unless made otherwise.
-/// </summary>
+/// <summary>An issuance cannot go on for a reason Paduraksa itself found (not a CA problem document): the CA offers
+/// no challenge of the chosen type, an authorization or order went invalid, an account is gone.</summary>
 internal sealed class IssuanceFailureException(string message, AcmeFailureKind kind = AcmeFailureKind.Permanent, bool dropsOrder = false) : Exception(message)
 {
     public AcmeFailureKind Kind { get; } = kind;

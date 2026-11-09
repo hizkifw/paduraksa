@@ -102,7 +102,6 @@ internal sealed class ConfigRevisionStore
     }
 
     /// <summary>The latest revision with its document, or null before the first commit.</summary>
-    /// <exception cref="RevisionIntegrityException">The stored document is corrupt.</exception>
     public static async Task<StoredRevision?> GetLatestAsync(ConfigDbContext context, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -114,7 +113,6 @@ internal sealed class ConfigRevisionStore
     }
 
     /// <summary>A revision with its document, or null if there is none with that ID.</summary>
-    /// <exception cref="RevisionIntegrityException">The stored document is corrupt.</exception>
     public static async Task<StoredRevision?> GetAsync(ConfigDbContext context, ConfigRevisionId id, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);

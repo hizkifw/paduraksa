@@ -98,8 +98,7 @@ public sealed partial class ConfigService : IDisposable
     private static readonly TimeSpan MaxTimerDelay = TimeSpan.FromDays(20);
     private volatile bool _disposed;
 
-    /// <summary>Internal: the context factory is a Data type, which Application's public surface never shows. Register
-    /// it with <see cref="ConfigServiceCollectionExtensions.AddPaduraksaConfigService"/>.</summary>
+    /// <summary>Internal: the context factory is a Data type, which Application's public surface never shows.</summary>
     internal ConfigService(
         IDbContextFactory<ConfigDbContext> contexts,
         IConfigCompiler compiler,
@@ -158,7 +157,6 @@ public sealed partial class ConfigService : IDisposable
     /// <paramref name="cancellationToken"/> stops a command until it is decided; once rejected or committed, it reports
     /// that.
     /// </summary>
-    /// <exception cref="ObjectDisposedException">The service is disposed.</exception>
     public async Task<ConfigCommandResult> ExecuteAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -525,8 +523,7 @@ public sealed partial class ConfigService : IDisposable
     }
 
     /// <summary>The warnings of the snapshot that is live (startup, a commit, a certificate change): hosts without
-    /// certificate coverage, bindings to certificates that went bad. Set when a publish goes live, not when it is
-    /// queued. Empty before the first one.</summary>
+    /// certificate coverage, bindings to certificates that went bad. Empty before the first one.</summary>
     public IReadOnlyList<ConfigWarning> Warnings => _warnings;
 
     /// <summary>

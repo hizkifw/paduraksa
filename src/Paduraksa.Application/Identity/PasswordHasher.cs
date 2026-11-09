@@ -114,6 +114,4 @@ internal sealed class PasswordHasher
 }
 
 /// <summary>The outcome of <see cref="PasswordHasher.Verify"/>.</summary>
-/// <param name="Matches">The password is right.</param>
-/// <param name="NeedsRehash">It is right, and the stored hash is weaker than the current settings: store a new one.</param>
 internal readonly record struct PasswordCheck(bool Matches, bool NeedsRehash);

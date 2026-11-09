@@ -99,10 +99,6 @@ public sealed partial class RequestSimulator : IDisposable
     /// Asks what <paramref name="request"/> would get against <paramref name="target"/>, and why. A target or request
     /// that can't be simulated is a result (<see cref="SimulationResult.Status"/>), not an exception.
     /// </summary>
-    /// <param name="target">The config to ask about.</param>
-    /// <param name="request">The request.</param>
-    /// <param name="origin">Who asks, as the surface authenticated them.</param>
-    /// <param name="cancellationToken">Stops the draft's compile or the revision's read.</param>
     public async Task<SimulationResult> SimulateAsync(
         SimulationTarget target, SimulationRequest request, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
@@ -251,8 +247,7 @@ public sealed partial class RequestSimulator : IDisposable
 
     private const string InventoryNote = "The certificate table couldn't be read, so only the built-in certificates were considered: hosts may show no certificate.";
 
-    /// <summary>A whole document is a replace on the current head. The head is read just before: a commit in between is a
-    /// conflict, which is retried once on the new head (the document doesn't depend on the head's content).</summary>
+    /// <summary>A whole document is a replace on the current head.</summary>
     private async Task<Resolved> ResolveDraftDocumentAsync(ConfigDocument document, CommandOrigin origin, CancellationToken cancellationToken)
     {
         Resolved resolved = default!;

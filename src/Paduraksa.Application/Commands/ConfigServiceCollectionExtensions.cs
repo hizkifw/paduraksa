@@ -21,17 +21,17 @@ namespace Paduraksa.Application.Commands;
 
 public static class ConfigServiceCollectionExtensions
 {
-    /// <summary>
-    /// Registers <see cref="ConfigService"/> as a singleton (the single writer), with <see cref="TimeProvider.System"/>,
-    /// the allow-everything <see cref="IConfigCommandAuthorizer"/> (replaced by <c>AddPaduraksaIdentity</c>) and default <see cref="ConfigServiceOptions"/>
-    /// unless those are already registered. The config database's context factory, an <see cref="IConfigCompiler"/>
-    /// and the <see cref="SnapshotPublisher"/> must be registered too; a <see cref="LastKnownGoodFile"/>, an
-    /// <see cref="IServerCertificateSource"/> and <see cref="IBuiltInCertificates"/> are used when registered. Also
-    /// registers the read-only <see cref="RevisionQueryService"/> and <see cref="AuditQueryService"/> of the surfaces, the <see cref="CertificateService"/>, which shares the service's writer, and the <see cref="RequestSimulator"/>
-    ///, which uses the live snapshot (the publisher's store) and, when registered, <see cref="IUpstreamHealth"/>, an
-    /// <see cref="ISimulationAuthorizer"/>, the <see cref="AcmeChallengeStore"/> and the public listeners' <see cref="ListenerFacts"/>.
-    /// Drafts and revisions are judged through the vault's <see cref="ICertificateCatalog"/> when one is registered.
-    /// </summary>
+    /// <summary>Registers <see cref="ConfigService"/> as a singleton (the single writer), with <see
+    /// cref="TimeProvider.System"/>, the allow-everything <see cref="IConfigCommandAuthorizer"/> (replaced by
+    /// <c>AddPaduraksaIdentity</c>) and default <see cref="ConfigServiceOptions"/> unless those are already
+    /// registered. The config database's context factory, an <see cref="IConfigCompiler"/> and the <see
+    /// cref="SnapshotPublisher"/> must be registered too; a <see cref="LastKnownGoodFile"/>, an <see
+    /// cref="IServerCertificateSource"/> and <see cref="IBuiltInCertificates"/> are used when registered. Also
+    /// registers the read-only <see cref="RevisionQueryService"/> and <see cref="AuditQueryService"/> of the
+    /// surfaces, the <see cref="CertificateService"/>, which shares the service's writer, and the <see
+    /// cref="RequestSimulator"/> , which uses the live snapshot (the publisher's store) and, when registered, <see
+    /// cref="IUpstreamHealth"/>, an <see cref="ISimulationAuthorizer"/>, the <see cref="AcmeChallengeStore"/> and the
+    /// public listeners' <see cref="ListenerFacts"/>.</summary>
     public static IServiceCollection AddPaduraksaConfigService(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

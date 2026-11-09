@@ -40,7 +40,6 @@ public sealed class SessionIdentity : ClaimsIdentity
     /// <summary>The session and its user.</summary>
     public SessionPrincipal Session { get; }
 
-    /// <summary>The client's address.</summary>
     public IPAddress? ClientIp { get; }
 
     /// <summary>Set when the request came through the proxy's internal admin listener.</summary>

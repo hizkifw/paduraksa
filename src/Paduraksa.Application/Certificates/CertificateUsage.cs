@@ -4,11 +4,9 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Application.Certificates;
 
-/// <summary>
-/// Which hosts of a config use which certificates, for the dashboard's certificate list and detail: the same selection the
-/// compiler makes (a Specific binding, the best certificate per name of every enabled Auto host, the named default), judged against the
-/// clock from the inventory's public metadata. A display aid: what is served is the compiler's to decide.
-/// </summary>
+/// <summary>Which hosts of a config use which certificates, for the dashboard's certificate list and detail: the same
+/// selection the compiler makes (a Specific binding, the best certificate per name of every enabled Auto host, the
+/// named default), judged against the clock from the inventory's public metadata.</summary>
 public static class CertificateUsage
 {
     /// <summary>

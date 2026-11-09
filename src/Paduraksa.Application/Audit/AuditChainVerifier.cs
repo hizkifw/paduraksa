@@ -168,13 +168,8 @@ internal static class AuditChainVerifier
         return query.OrderBy(r => r.Id);
     }
 
-    /// <summary>
-    /// A row value that can't be materialised, and nothing else: anything other (a disposed context, a cancelled read,
-    /// an EF usage error, SQLite I/O) propagates. Without detailed errors EF rethrows the value converter's own
-    /// exception as is (verified: <see cref="FormatException"/> from <c>ModelNames</c> or the timestamp parser,
-    /// <see cref="ArgumentException"/> from a Guid of the wrong length); with <c>EnableDetailedErrors</c> it wraps it
-    /// in an <see cref="InvalidOperationException"/>.
-    /// </summary>
+    /// <summary>A row value that can't be materialised, and nothing else: anything other (a disposed context, a
+    /// cancelled read, an EF usage error, SQLite I/O) propagates.</summary>
     private static bool IsUnreadable(Exception e) => e switch
     {
         FormatException or InvalidCastException => true,

@@ -36,19 +36,11 @@ public enum SessionStatus
 }
 
 /// <summary>The user behind a session.</summary>
-/// <param name="UserId">The user.</param>
-/// <param name="SessionId">The session.</param>
-/// <param name="Username">The sign-in name.</param>
-/// <param name="DisplayName">The name for the UI.</param>
-/// <param name="Roles">The user's roles.</param>
 public sealed record SessionPrincipal(UserId UserId, SessionId SessionId, string Username, string DisplayName, IReadOnlyList<Role> Roles);
 
 /// <summary>The outcome of <see cref="SessionService.ValidateAsync"/>.</summary>
-/// <param name="Status">What the cookie amounts to.</param>
-/// <param name="Principal">The user, for <see cref="SessionStatus.Valid"/> and <see cref="SessionStatus.SecondFactorRequired"/>.</param>
 public sealed record SessionValidation(SessionStatus Status, SessionPrincipal? Principal = null);
 
-/// <summary>The outcome of listing sessions.</summary>
 /// <param name="Status">How it ended.</param>
 /// <param name="Sessions">The active sessions, newest first; empty unless it succeeded.</param>
 public sealed record SessionListResult(IdentityStatus Status, IReadOnlyList<SessionSummary> Sessions);
@@ -111,11 +103,8 @@ public sealed class SessionService
         }
     }
 
-    /// <summary>
-    /// Re-checks a session that was already authenticated by its cookie, by its ID: for a long-lived connection (a dashboard
-    /// circuit) that holds no cookie of its own. Ending the session, its expiry (absolute or idle), and disabling or deleting
-    /// its user all make it <see cref="SessionStatus.Invalid"/>; the roles in the principal are read afresh.
-    /// </summary>
+    /// <summary>Re-checks a session that was already authenticated by its cookie, by its ID: for a long-lived
+    /// connection (a dashboard circuit) that holds no cookie of its own.</summary>
     /// <param name="id">The session the connection authenticated with.</param>
     /// <param name="countAsUse">
     /// True when the check is made for something the person did (it keeps an idle session alive, like a request with the cookie);

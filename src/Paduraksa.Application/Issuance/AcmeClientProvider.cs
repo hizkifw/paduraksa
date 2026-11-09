@@ -15,10 +15,8 @@ public interface IAcmeClientProvider
     AcmeClient GetClient(Uri directoryUrl);
 }
 
-/// <summary>
-/// The default <see cref="IAcmeClientProvider"/>: one <see cref="AcmeClient"/> per directory URL, all signing through the
-/// vault's <see cref="IJwsSigner"/> and <see cref="IMacKeySource"/>. Disposes the clients it made.
-/// </summary>
+/// <summary>The default <see cref="IAcmeClientProvider"/>: one <see cref="AcmeClient"/> per directory URL, all
+/// signing through the vault's <see cref="IJwsSigner"/> and <see cref="IMacKeySource"/>.</summary>
 public sealed class AcmeClientProvider : IAcmeClientProvider, IDisposable
 {
     private readonly ConcurrentDictionary<string, Lazy<AcmeClient>> _clients = new(StringComparer.Ordinal);

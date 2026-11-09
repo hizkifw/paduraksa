@@ -5,11 +5,9 @@ using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Application.Compilation;
 
-/// <summary>
-/// Compiles a validated config document into an unbound <see cref="RuntimeSnapshot"/> candidate: resolves the settings layers into the proxy's compiler input, resolves certificate bindings against the
-/// certificate inventory and runs the snapshot compiler. Cold path, synchronous and pure: the inventory
-/// carries everything the vault would have to be asked for.
-/// </summary>
+/// <summary>Compiles a validated config document into an unbound <see cref="RuntimeSnapshot"/> candidate: resolves
+/// the settings layers into the proxy's compiler input, resolves certificate bindings against the certificate
+/// inventory and runs the snapshot compiler.</summary>
 /// <remarks>The command pipeline runs <see cref="Config.ConfigValidator"/> first; the compiler is the backstop. The
 /// implementation is <see cref="ConfigCompiler"/> (the mapping itself: <see cref="ProxyConfigMapping"/>).</remarks>
 public interface IConfigCompiler

@@ -77,10 +77,8 @@ internal static class CertificateSelection
         return best;
     }
 
-    /// <summary>
-    /// A host's DNS names, normalised: the names that can arrive as SNI and so the ones certificates are chosen for.
-    /// IP literals and invalid names are left out (clients send no SNI for an IP, and the validator rejects the rest).
-    /// </summary>
+    /// <summary>A host's DNS names, normalised: the names that can arrive as SNI and so the ones certificates are
+    /// chosen for.</summary>
     public static IReadOnlyList<string> ServerNames(IReadOnlyList<string> hostNames)
     {
         List<string> names = new(hostNames.Count);

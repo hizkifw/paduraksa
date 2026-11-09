@@ -11,10 +11,8 @@ using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Application.Certificates;
 
-/// <summary>
-/// Decides whether an origin may run a certificate operation (<c>AddPaduraksaIdentity</c> registers the permission-based one).
-/// Denials are not audited here; the surface that asks reports them.
-/// </summary>
+/// <summary>Decides whether an origin may run a certificate operation (<c>AddPaduraksaIdentity</c> registers the
+/// permission-based one).</summary>
 public interface ICertificateOperationAuthorizer
 {
     /// <summary>True if <paramref name="origin"/> may run <paramref name="operation"/>.</summary>
@@ -30,11 +28,8 @@ internal sealed class AllowAllCertificateOperations : ICertificateOperationAutho
         ValueTask.FromResult(true);
 }
 
-/// <summary>
-/// The certificate use cases that touch the vault: upload, self-signed, the local CA root and its leaves, re-issue and
-/// delete. Each calls the vault, then records the result in the inventory through <see cref="CertificateService"/>, which audits
-/// it and republishes the config; the three surfaces (dashboard, API, CLI) call this and nothing else.
-/// </summary>
+/// <summary>The certificate use cases that touch the vault: upload, self-signed, the local CA root and its leaves,
+/// re-issue and delete.</summary>
 /// <remarks>
 /// <para>
 /// <b>Ordering between the vault and the metadata</b> decides what a failure leaves behind, so it is chosen to leave nothing
@@ -252,10 +247,8 @@ public sealed partial class CertificateOperations
             cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Re-issues a self-signed or local-CA certificate: a new key and chain under the same ID, for the same names. Other sources
-    /// are renewed elsewhere (ACME by its scheduler, uploads by uploading again).
-    /// </summary>
+    /// <summary>Re-issues a self-signed or local-CA certificate: a new key and chain under the same ID, for the same
+    /// names.</summary>
     public async Task<CertificateOperationResult> ReissueAsync(CertificateId id, ReissueRequest? request, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
@@ -304,10 +297,7 @@ public sealed partial class CertificateOperations
         return await RegisterVaultResultAsync(id, summary.Source, info, label: null, isNew: false, pendingFirst: false, origin, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Deletes a certificate and its key. Refused, before the vault is touched, while a Specific binding or the default
-    /// certificate uses it (and for the local CA root while leaves issued by it exist).
-    /// </summary>
+    /// <summary>Deletes a certificate and its key.</summary>
     public async Task<CertificateOperationResult> DeleteAsync(CertificateId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
@@ -456,10 +446,7 @@ public sealed partial class CertificateOperations
         return FromChange(registered);
     }
 
-    /// <summary>
-    /// Undoes a creation that did not complete: the vault's key (if it was made) and the pending row. Best effort and
-    /// not cancellable (a cancelled request still has to clean up); a failure is logged and leaves a pending row the user can delete.
-    /// </summary>
+    /// <summary>Undoes a creation that did not complete: the vault's key (if it was made) and the pending row.</summary>
     /// <remarks>
     /// <paramref name="deleteKey"/> is false for the admin listener's certificate: its ID is fixed and the vault may already
     /// hold the pair that is being served (a re-issue that failed halfway, or a database loss), so deleting it would leave

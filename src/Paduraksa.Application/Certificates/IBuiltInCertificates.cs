@@ -3,12 +3,8 @@ using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Application.Certificates;
 
-/// <summary>
-/// Certificates the process itself provides, next to the ones in the inventory table: until the vault exists, the
-/// placeholder certificate the dev binary serves HTTPS with. They take part in the inventory like any
-/// other certificate (Auto matching, Specific bindings) but have no row, no audit trail and no renewal; the
-/// <see cref="IServerCertificateSource"/> loads their serving contexts like everyone else's.
-/// </summary>
+/// <summary>Certificates the process itself provides, next to the ones in the inventory table: until the vault
+/// exists, the placeholder certificate the dev binary serves HTTPS with.</summary>
 /// <remarks>The list is read before every compile and may change over time (tests add certificates at run time).</remarks>
 public interface IBuiltInCertificates
 {

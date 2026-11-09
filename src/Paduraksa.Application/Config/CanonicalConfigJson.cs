@@ -39,8 +39,7 @@ public static class CanonicalConfigJson
     public static byte[] Serialize(ConfigDocument document) =>
         JsonSerializer.SerializeToUtf8Bytes(Canonicalize(document), ConfigJsonContext.Default.ConfigDocument);
 
-    /// <summary>Reads a document strictly (see <see cref="ConfigJsonContext"/>), as written: not canonicalised. Null
-    /// list elements are rejected too.</summary>
+    /// <summary>Reads a document strictly (see <see cref="ConfigJsonContext"/>), as written: not canonicalised.</summary>
     /// <exception cref="JsonException">Not valid JSON, or not a valid document shape.</exception>
     public static ConfigDocument Deserialize(ReadOnlySpan<byte> utf8Json)
     {
@@ -148,11 +147,9 @@ public static class CanonicalConfigJson
         };
     }
 
-    /// <summary>
-    /// The checks reading applies, for a document that didn't come from reading (a draft handed in as an object): the
-    /// <c>apiVersion</c> this build reads, and no null list elements. Null: it passes. Without them a null element is a
-    /// <see cref="NullReferenceException"/> deep inside the pipeline instead of an error with a path.
-    /// </summary>
+    /// <summary>The checks reading applies, for a document that didn't come from reading (a draft handed in as an
+    /// object): the <c>apiVersion</c> this build reads, and no null list elements. Without them a null element is a
+    /// <see cref="NullReferenceException"/> deep inside the pipeline instead of an error with a path.</summary>
     internal static ConfigError? Preflight(ConfigDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);

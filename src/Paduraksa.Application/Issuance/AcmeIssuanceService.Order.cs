@@ -349,13 +349,10 @@ public sealed partial class AcmeIssuanceService
         }
     }
 
-    /// <summary>
-    /// Removes the published challenge answers. Runs on failure and on cancellation too, and does not stop at one failing delete: a
-    /// stale TXT record is only clutter, but a stale token would keep being answered. The DNS deletes are one batch with their own
-    /// three minutes, independent of the caller's token (which may be the very cancellation that brought us here); a hung provider
-    /// cannot hold a shutdown longer. A transient failure (a throttle, say) is tried again up to three times, waiting as long as the
-    /// provider asked, up to a minute.
-    /// </summary>
+    /// <summary>Removes the published challenge answers. Runs on failure and on cancellation too, and does not stop
+    /// at one failing delete: a stale TXT record is only clutter, but a stale token would keep being answered. The
+    /// DNS deletes are one batch with their own three minutes, independent of the caller's token (which may be the
+    /// very cancellation that brought us here); a hung provider cannot hold a shutdown longer.</summary>
     private async Task CleanUpAsync(CertificateId certificate, IDnsProvider? dns, List<string> tokens, List<(string Name, string Value)> records)
     {
         foreach (string token in tokens)

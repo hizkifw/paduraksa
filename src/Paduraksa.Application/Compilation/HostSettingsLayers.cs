@@ -12,10 +12,9 @@ namespace Paduraksa.Application.Compilation;
 /// turns the result into the concrete values the compiler, the validator and the dashboard work with.
 /// </summary>
 /// <remarks>
-/// <para><b>Adding a setting</b> means the property on <see cref="HostSettings"/> (at the
-/// end, so existing documents keep their key order), its line in <c>Merge</c> (and in the nested record's own merge), its
-/// value in <see cref="Concrete"/>, and its built-in default among the constants below, which nowhere else states one.
-/// Then its validator rules, its dashboard field and the tests that checklist names.</para>
+/// <para><b>Adding a setting</b> follows the checklist in PLAN §5.3: the property, its line in <c>Merge</c> (and in
+/// the nested record's own merge), its value in <see cref="Concrete"/> and its built-in default among the constants
+/// below, then its validator rules, its dashboard field and the tests.</para>
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>) merge field by field and stay absent when neither layer sets a field of
@@ -38,11 +37,7 @@ public static class HostSettingsLayers
     private const RequestIdPropagation BuiltInRequestIdPropagation = RequestIdPropagation.UpstreamAndResponse;
     private const ServerHeaderMode BuiltInServerHeaderMode = ServerHeaderMode.Paduraksa;
 
-    /// <summary>
-    /// The built-in defaults under every layer: no HTTPS redirect, TLS 1.2, HTTP/2 and HTTP/1.1, HTTP/3 on, no allow
-    /// list, HSTS off with a year of <c>max-age</c> waiting for whoever turns it on, the access log on, the request ID
-    /// sent upstream and to the client, and the <c>Paduraksa</c> server name with no version.
-    /// </summary>
+    /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
     {
         ForceHttps = BuiltInForceHttps,
@@ -54,10 +49,7 @@ public static class HostSettingsLayers
         ServerHeader = new ServerHeaderSettings { Mode = BuiltInServerHeaderMode },
     };
 
-    /// <summary>
-    /// <paramref name="upper"/> laid over <paramref name="lower"/>: every field the upper layer sets wins, and one it
-    /// leaves unset keeps the lower layer's. Null-preserving, so the result is a layer too.
-    /// </summary>
+    /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
     public static HostSettings Merge(HostSettings? lower, HostSettings? upper)
     {
         if (lower is null)
@@ -243,13 +235,10 @@ public enum SettingsLayer
     /// <summary>Nothing set it, so the built-in default (<see cref="HostSettingsLayers.BuiltIn"/>) holds.</summary>
     BuiltIn,
 
-    /// <summary>The global defaults.</summary>
     GlobalDefaults,
 
-    /// <summary>The host's profile.</summary>
     Profile,
 
-    /// <summary>The host itself.</summary>
     Host,
 }
 

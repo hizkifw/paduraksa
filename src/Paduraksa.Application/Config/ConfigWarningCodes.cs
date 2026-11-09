@@ -3,14 +3,13 @@ namespace Paduraksa.Application.Config;
 /// <summary>The stable <see cref="Contracts.Config.ConfigWarning.Code"/>s of the config compiler.</summary>
 public static class ConfigWarningCodes
 {
-    /// <summary>A host with the Auto binding has names that no valid certificate covers. They are served with the default
-    /// certificate if there is one, otherwise rejected. The dashboard's "hosts without coverage".</summary>
+    /// <summary>A host with the Auto binding has names that no valid certificate covers.</summary>
     public const string CertificateAutoNoCoverage = "certificate.auto.noCoverage";
 
-    /// <summary>A host's Specific binding names a certificate that is missing, expired, not yet valid, pending, failed or
-    /// without a key in the vault. The host's names are served with the default certificate if there is one. A command
-    /// that <i>introduces</i> such a binding is invalid (<see cref="ConfigErrorCodes.HostCertificateUnusable"/>); one that
-    /// finds it already there (the certificate expired since) only warns, so one bad certificate never blocks the rest.</summary>
+    /// <summary>A host's Specific binding names a certificate that is missing, expired, not yet valid, pending,
+    /// failed or without a key in the vault. A command that <i>introduces</i> such a binding is invalid (<see
+    /// cref="ConfigErrorCodes.HostCertificateUnusable"/>); one that finds it already there (the certificate expired
+    /// since) only warns, so one bad certificate never blocks the rest.</summary>
     public const string CertificateSpecificUnusable = "certificate.specific.unusable";
 
     /// <summary>A host's Specific certificate doesn't cover some of the host's names (clients will see a name mismatch).</summary>

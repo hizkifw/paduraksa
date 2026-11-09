@@ -5,11 +5,9 @@ using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Application.Certificates;
 
-/// <summary>
-/// One certificate as the compiler sees it: the names it covers, its validity period and, when it can be
-/// served, the preloaded <see cref="ServerCertificate"/>. Immutable. Carries public facts and the sanctioned serving
-/// handle only; never key material.
-/// </summary>
+/// <summary>One certificate as the compiler sees it: the names it covers, its validity period and, when it can be
+/// served, the preloaded <see cref="ServerCertificate"/>. Carries public facts and the sanctioned serving handle
+/// only; never key material.</summary>
 /// <param name="Id">The certificate.</param>
 /// <param name="Names">The names it covers, normalised: DNS names, <c>*.parent</c> wildcards, IP addresses.</param>
 /// <param name="NotBefore">Start of validity.</param>
@@ -33,12 +31,9 @@ public sealed record InventoryCertificate(
     public bool IsValid => UnusableReason is null;
 }
 
-/// <summary>
-/// The certificate inventory the compiler resolves bindings against: the certificates the process knows
-/// about, which of them are valid at the time it was built, and a resolver over those that were preloaded for serving.
-/// Immutable; built before each compile (<see cref="CertificateInventoryLoader"/>), which is how the synchronous
-/// compiler meets the asynchronous vault.
-/// </summary>
+/// <summary>The certificate inventory the compiler resolves bindings against: the certificates the process knows
+/// about, which of them are valid at the time it was built, and a resolver over those that were preloaded for
+/// serving.</summary>
 /// <remarks>
 /// Certificate changes never mutate an inventory: the next compile gets a new one. The serving contexts inside are the
 /// vault's instances (the same instance for an unchanged certificate, so the proxy's certificate table keeps one
@@ -78,12 +73,8 @@ public sealed class CertificateInventory
     /// <summary>Every certificate the process knows about, in no particular order.</summary>
     public IReadOnlyList<InventoryCertificate> Certificates { get; }
 
-    /// <summary>
-    /// The default certificate for a config that names none, or whose named one is unusable: the placeholder until the
-    /// vault's certificates replace it. Null: such a config has no default (unknown names are rejected, hosts
-    /// without a certificate of their own aren't served over HTTPS), which is what an installation with real
-    /// certificates wants.
-    /// </summary>
+    /// <summary>The default certificate for a config that names none, or whose named one is unusable: the placeholder
+    /// until the vault's certificates replace it.</summary>
     public CertificateId? FallbackDefault { get; }
 
     /// <summary>

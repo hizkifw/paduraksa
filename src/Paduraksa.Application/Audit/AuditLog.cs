@@ -57,7 +57,6 @@ internal sealed partial class AuditLog
     /// restart on a clock that went back), the generator observes the latest ID and issues the next one above it,
     /// with a warning; the event's timestamp still says what the clock said.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">No transaction is active.</exception>
     /// <exception cref="ArgumentException">The entry is invalid (see <see cref="AuditEntry"/>).</exception>
     public async Task<AuditRecord> AppendAsync(ConfigDbContext context, AuditEntry entry, CancellationToken cancellationToken = default)
     {
@@ -194,10 +193,8 @@ internal sealed partial class AuditLog
         return segments.Length >= 2 && segments.All(s => s.Length > 0 && s.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_'));
     }
 
-    /// <summary>
-    /// The shape of any typed ID's string form: a lowercase prefix, <c>_</c>, then 22 (UUID kinds) or 11 (Int64Ordered)
-    /// base62 characters. The prefix isn't checked against the known ID types: a target can name any of them.
-    /// </summary>
+    /// <summary>The shape of any typed ID's string form: a lowercase prefix, <c>_</c>, then 22 (UUID kinds) or 11
+    /// (Int64Ordered) base62 characters.</summary>
     private static bool IsTypedIdString(string value)
     {
         var separator = value.LastIndexOf('_');

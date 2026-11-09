@@ -165,8 +165,7 @@ public sealed partial class ConfigService
                 Errors: compilation.Errors.Count > 0 ? compilation.Errors : [new ConfigError(string.Empty, ConfigErrorCodes.CompileFailed, "the config didn't compile")]));
     }
 
-    /// <summary>The checks reading applies, for the document or object a command carries; null: it passes. An object command's
-    /// path is relative to the object.</summary>
+    /// <summary>The checks reading applies, for the document or object a command carries; null: it passes.</summary>
     private static ConfigError? Preflight(ConfigCommand command)
     {
         (ConfigDocument Document, string Prefix)? payload = command switch

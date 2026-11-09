@@ -12,26 +12,19 @@ namespace Paduraksa.Application.Certificates;
 
 /// <summary>
 /// Builds the <see cref="CertificateInventory"/> for one compile: the cold-path preload that lets the synchronous
-/// snapshot compiler resolve certificates the vault only serves asynchronously.
+/// snapshot compiler resolve certificates the vault only serves asynchronously. Only the valid certificates the document
+/// can choose are loaded, through <see cref="IServerCertificateSource"/>.
 /// </summary>
 /// <remarks>
-/// <para><b>Steps.</b> (1) Read the certificate metadata (the inventory table, plus the process's
-/// <see cref="IBuiltInCertificates"/>). (2) Judge each against the clock (<see cref="TimeProvider"/>): only an
-/// <see cref="CertificateStatus.Active"/> certificate inside its validity period is valid. (3) Work out which valid
-/// certificates the document can choose (<see cref="CertificateSelection.Needed"/>: the named default, Specific
-/// bindings, the best match per name of each enabled Auto host) and load exactly those through
-/// <see cref="IServerCertificateSource"/>. (4) Wrap each context in a <see cref="ServerCertificate"/> and hand back the
-/// immutable inventory.</para>
 /// <para><b>A certificate that can't be loaded</b> (the source returns null: no key, no chain; or throws) is unusable,
 /// not fatal: its reason is recorded, a warning is logged, and the selection runs again without it, so an Auto host
-/// falls back to the next best certificate and a Specific binding to it degrades to a compile warning (see
-/// <c>ProxyConfigMapping</c>). A certificate that is valid but needed by nothing isn't loaded at all.</para>
-/// <para><b>Dedup.</b> Contexts come from the source as they are: the vault returns the same instance for an unchanged
-/// certificate, and the proxy's certificate table deduplicates by that instance, so recompiling with an unchanged
-/// inventory reuses every options object, while a renewed certificate (a new instance) takes effect with the next publish.
-/// The loader never disposes a context.</para>
-/// <para><b>Failures reading the table</b> (the database is unusable, which is also why startup may be degraded) give an
-/// inventory of the built-in certificates only. A caller that must not fail on that (startup) passes no context.</para>
+/// falls back to the next best certificate and a Specific binding to it degrades to a compile warning. A certificate
+/// that is valid but needed by nothing isn't loaded at all.</para>
+/// <para><b>Dedup.</b> The vault returns the same context instance for an unchanged certificate and the proxy's
+/// certificate table deduplicates by instance, so recompiling reuses every options object while a renewed certificate
+/// takes effect with the next publish. The loader never disposes a context.</para>
+/// <para><b>Failures reading the table</b> (a degraded start) give an inventory of the built-in certificates only; a
+/// caller that must not fail on that passes no context.</para>
 /// </remarks>
 internal sealed partial class CertificateInventoryLoader
 {
@@ -160,12 +153,10 @@ internal sealed partial class CertificateInventoryLoader
     /// <summary>What the real loader says when the vault can't serve a certificate.</summary>
     private const string NoUsableKeyAndChain = "the vault has no usable key and chain for it";
 
-    /// <summary>
-    /// The simulation's stand-in for <see cref="LoadOneAsync"/>: usable exactly when the real load would succeed, judged from
-    /// public facts. A built-in certificate is served by this process's placeholder. Otherwise the vault must describe the
-    /// certificate (not the local CA root, whose key never serves) and the chain it holds must be inside its validity
-    /// period (the same reasons as <see cref="Judge"/>: the table's row can be older than the vault's renewed pair).
-    /// </summary>
+    /// <summary>The simulation's stand-in for <see cref="LoadOneAsync"/>: usable exactly when the real load would
+    /// succeed, judged from public facts. Otherwise the vault must describe the certificate (not the local CA root,
+    /// whose key never serves) and the chain it holds must be inside its validity period (the same reasons as <see
+    /// cref="Judge"/>: the table's row can be older than the vault's renewed pair).</summary>
     private async Task<(ServerCertificate? Serving, string? Reason)> ServeForSimulationAsync(CertificateId id, DateTimeOffset now, CancellationToken cancellationToken)
     {
         bool builtIn = false;

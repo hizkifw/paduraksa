@@ -75,11 +75,8 @@ public sealed partial class CertificateService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Records a certificate the vault holds: adds it, or replaces the metadata of the one with the same ID (a renewal).
-    /// Names are normalised like host names; names that aren't DNS names, wildcards or IP addresses are dropped (logged),
-    /// and a certificate left with no name is invalid, except the local CA root, which is a CA and has no names.
-    /// </summary>
+    /// <summary>Records a certificate the vault holds: adds it, or replaces the metadata of the one with the same ID
+    /// (a renewal).</summary>
     public async Task<CertificateChangeResult> RegisterAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(registration);
@@ -149,10 +146,8 @@ public sealed partial class CertificateService
         return step;
     }
 
-    /// <summary>
-    /// Records a certificate that is requested but has no chain yet (an ACME order in progress): <see cref="CertificateStatus.Pending"/>,
-    /// never served. <see cref="RegisterAsync"/> with the issued chain completes it. Registering an ID that exists is invalid.
-    /// </summary>
+    /// <summary>Records a certificate that is requested but has no chain yet (an ACME order in progress): <see
+    /// cref="CertificateStatus.Pending"/>, never served.</summary>
     public async Task<CertificateChangeResult> RegisterPendingAsync(
         CertificateId id, CertificateSource source, IReadOnlyList<string> names, string? label, CommandOrigin origin, CancellationToken cancellationToken = default)
     {

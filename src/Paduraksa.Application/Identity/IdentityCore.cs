@@ -16,9 +16,6 @@ using Paduraksa.Data.Identity;
 namespace Paduraksa.Application.Identity;
 
 /// <summary>Where a request came from, for the audit log and the session record.</summary>
-/// <param name="Channel">The surface it came in through.</param>
-/// <param name="ClientIp">The client address as the surface resolved it.</param>
-/// <param name="UserAgent">The client's user agent, kept (truncated) with a new session.</param>
 public sealed record ClientContext(Channel Channel, IPAddress? ClientIp = null, string? UserAgent = null)
 {
     /// <summary>The origin of a command by <paramref name="actor"/> from here.</summary>
@@ -28,7 +25,6 @@ public sealed record ClientContext(Channel Channel, IPAddress? ClientIp = null, 
 /// <summary>How an identity operation ended.</summary>
 public enum IdentityStatus
 {
-    /// <summary>It happened.</summary>
     Succeeded = 1,
 
     /// <summary>The user, token or session does not exist (or is not the caller's to see).</summary>
@@ -70,7 +66,6 @@ public sealed record UserResult(IdentityStatus Status, UserSummary? User = null,
     public bool Succeeded => Status == IdentityStatus.Succeeded;
 }
 
-/// <summary>The outcome of listing users.</summary>
 /// <param name="Status">How it ended.</param>
 /// <param name="Users">The users, oldest first; empty unless it succeeded.</param>
 public sealed record UserListResult(IdentityStatus Status, IReadOnlyList<UserSummary> Users);
@@ -160,10 +155,8 @@ internal sealed class PermissionCertificateOperationAuthorizer(IPermissionEvalua
         permissions.IsAllowedAsync(origin, Permission.CertificatesWrite, cancellationToken);
 }
 
-/// <summary>
-/// Runs request simulations for origins holding <see cref="Permission.Simulate"/>; a draft or a stored revision shows
-/// what the config contains, so those also need <see cref="Permission.ConfigRead"/>. The system and the CLI hold everything.
-/// </summary>
+/// <summary>Runs request simulations for origins holding <see cref="Permission.Simulate"/>; a draft or a stored
+/// revision shows what the config contains, so those also need <see cref="Permission.ConfigRead"/>.</summary>
 internal sealed class PermissionSimulationAuthorizer(IPermissionEvaluator permissions) : Simulation.ISimulationAuthorizer
 {
     public async ValueTask<bool> IsAllowedAsync(Contracts.Simulation.SimulationTarget target, CommandOrigin origin, CancellationToken cancellationToken)

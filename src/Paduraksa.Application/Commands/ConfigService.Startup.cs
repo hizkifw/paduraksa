@@ -38,36 +38,24 @@ public sealed partial class ConfigService
     internal Task StartupPublishFollowed => Volatile.Read(ref _startupPublish);
 
     /// <summary>
-    /// The startup recompile: brings the database up to date (<see cref="ConfigDatabase.InitializeAsync"/>),
-    /// loads the latest revision (none: <see cref="InitialDocument"/>), rewrites the projection if it doesn't show that
-    /// revision, compiles it and queues the publish. Run once, before anything reads or writes config.
+    /// The startup recompile: brings the database up to date, loads the latest revision, rewrites the projection when it
+    /// doesn't show that revision, compiles it and queues the publish. Run once, before anything reads or writes config.
     /// </summary>
     /// <remarks>
     /// <para><b>Never awaits the publish.</b> A snapshot with YARP content can only go live once the public app attaches
-    /// YARP, which starts after this returns: the publish is queued and followed in the background (logged; on success
-    /// the document is written to the <see cref="LastKnownGoodFile"/>). The empty config needs no YARP and is live at
-    /// once; it isn't written to the last-known-good file, which only ever holds a revision.</para>
-    /// <para><b>Restore.</b> A database without revisions next to a usable last-known-good file has lost its config (a
-    /// deleted or replaced file): the file's document is committed as revision #1 through the replace path (actor
-    /// System, message "Restored from last-known-good #N (...)", audited) and startup goes on from there. If that commit is
-    /// rejected or fails, the start is degraded on the last-known-good config (or, if that doesn't compile either, on the
-    /// empty config), accepting commands.</para>
-    /// <para><b>Degraded starts.</b> When the database can't be opened or migrated, or its latest revision can't be read
-    /// (corrupt, unreadable by this build, damaged columns), or it doesn't compile, the last-known-good document is
-    /// compiled and published instead, and <see cref="Status"/> says so. Commands are refused
-    /// (<see cref="ConfigCommandStatus.Unavailable"/>) while the store itself is unusable. When only the compile failed,
-    /// the database is fine and commands are accepted: they are planned on the latest revision as always (its errors
-    /// show up on whatever they touch), and the first one that goes live ends the degraded state.</para>
-    /// <para><b>A failed startup publish</b> (YARP rejects it, times out, ...) leaves no live config: if the last-known-good
-    /// file holds another revision and no command has committed since, that is published instead, degraded and accepting
-    /// commands. A superseded startup publish isn't a failure (a newer commit's publish carries the config).</para>
-    /// <para>With neither a usable database revision nor a usable last-known-good document there is nothing to serve:
-    /// this throws <see cref="ConfigStartupException"/>, and the process fails to start.</para>
-    /// <para>A damaged last-known-good file never stops a start: it is logged as a warning, and replaced at the next
-    /// publish.</para>
+    /// YARP, which starts after this returns, so the publish is queued and followed in the background. The empty config needs
+    /// no YARP and is live at once, and is never written to the last-known-good file, which only holds a revision.</para>
+    /// <para><b>Restore.</b> A database without revisions next to a usable last-known-good file has lost its config: the
+    /// file's document is committed as revision #1 through the replace path, audited, and startup goes on from there. A
+    /// rejected or failed restore commit degrades the start on the last-known-good config (or the empty one).</para>
+    /// <para><b>Degraded starts.</b> When the database can't be opened or migrated, or its latest revision can't be read or
+    /// doesn't compile, the last-known-good document is compiled and published instead and <see cref="Status"/> says so.
+    /// Commands are refused only while the store itself is unusable; when just the compile failed they are accepted, and the
+    /// first one that goes live ends the degraded state. A failed or superseded startup publish falls back the same way, and a
+    /// damaged last-known-good file never stops a start.</para>
+    /// <para>With neither a usable database revision nor a usable last-known-good document there is nothing to serve: this
+    /// throws <see cref="ConfigStartupException"/>.</para>
     /// </remarks>
-    /// <exception cref="ConfigStartupException">Nothing can be served.</exception>
-    /// <exception cref="InvalidOperationException">Already started.</exception>
     public async Task<ConfigStoreStatus> StartAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -290,10 +278,9 @@ public sealed partial class ConfigService
     }
 
     /// <summary>
-    /// Rewrites the projection whole when it doesn't show <paramref name="latest"/> (a crash can't cause that, the
-    /// projection commits with its revision, but a restored or hand-edited database can), including when its settings
-    /// row can't even be read. Any failure is logged and startup goes on: the projection only serves queries, and the
-    /// next commit rewrites it whole anyway.
+    /// Rewrites the projection whole when it doesn't show <paramref name="latest"/> (a crash can't cause that, the projection
+    /// commits with its revision, but a restored or hand-edited database can), including when its settings row can't be read.
+    /// Any failure is logged and startup goes on: the next commit rewrites it whole anyway.
     /// </summary>
     private async Task HealProjectionAsync(ConfigDbContext context, StoredRevision latest, ConfigDocument document, CancellationToken cancellationToken)
     {
@@ -402,9 +389,8 @@ public sealed partial class ConfigService
     }
 
     /// <summary>
-    /// A commit's publish succeeded: records its document as last-known-good (in the background) and ends a degraded
-    /// start that still accepted commands (the database's config is live again). Runs before the command that waited for
-    /// the publish returns; idempotent, since a superseded command may run it for the newer publish too.
+    /// A commit's publish succeeded: records its document as last-known-good in the background and ends a degraded start that
+    /// still accepted commands. Idempotent, since a superseded command may run it for the newer publish too.
     /// </summary>
     private void WentLive(PublishTicket ticket)
     {
@@ -429,11 +415,10 @@ public sealed partial class ConfigService
     private sealed record LiveCompile(ConfigCompilation Compilation, RevisionRef Revision, LastKnownGoodEntry? Entry, bool FromDatabase);
 
     /// <summary>
-    /// Compiles the config that is live, against the inventory as <paramref name="context"/> sees it, for a republish
-    /// that no command asked for (a certificate change, a certificate's validity boundary passing). The live config is the
-    /// database's latest revision, except when the start is degraded on the last-known-good file, or the database has no
-    /// revision (it was lost): then it is the last-known-good document, and <b>never the empty config</b>. Null (logged)
-    /// when there is nothing to republish: no last-known-good document, or the one to compile doesn't compile.
+    /// Compiles the config that is live, against the inventory as <paramref name="context"/> sees it, for a republish no
+    /// command asked for. The live config is the database's latest revision, except when the start is degraded on the
+    /// last-known-good file or the database has no revision: then it is the last-known-good document, and never the empty
+    /// config. Null (logged) when there is nothing to republish.
     /// </summary>
     private async Task<LiveCompile?> CompileLiveAsync(ConfigDbContext context, CancellationToken cancellationToken)
     {
@@ -538,10 +523,9 @@ public sealed partial class ConfigService
     }
 
     /// <summary>
-    /// Recompiles the live config against the current inventory and <b>queues</b> its publish without waiting for it, for a
-    /// startup step that changed the inventory before the web apps serve (<see cref="CertificateRecovery"/>). The publish is
-    /// ordered with every other one and completes while the public app starts, so the first snapshot includes what changed;
-    /// nothing here waits for YARP, which does not exist yet.
+    /// Recompiles the live config against the current inventory and queues its publish without waiting, for a startup step
+    /// that changed the inventory before the web apps serve (<see cref="CertificateRecovery"/>): the publish completes while
+    /// the public app starts, so the first snapshot includes what changed.
     /// </summary>
     public async Task RepublishLiveAsync()
     {
@@ -592,10 +576,8 @@ public sealed partial class ConfigService
 
     /// <summary>
     /// Compiles <paramref name="document"/> against the certificate inventory as it is now, for the startup paths: a
-    /// certificate table that can't be read gives an inventory of the built-in certificates only, never an exception
-    /// (a start must not fail over certificates: hosts whose certificates are unknown degrade to the default certificate,
-    /// with warnings). Unusable certificates are warnings, not errors, here (<see cref="IntroducedUnusableBindings"/> is
-    /// for commands only).
+    /// certificate table that can't be read gives an inventory of the built-in certificates only, never an exception, because a
+    /// start must not fail over certificates. Unusable certificates are warnings here, not errors.
     /// </summary>
     private async Task<ConfigCompilation> CompileWithCurrentInventoryAsync(ConfigDocument document, ConfigRevisionId revision, CancellationToken cancellationToken)
     {
@@ -705,7 +687,6 @@ public sealed partial class ConfigService
     private sealed record DatabaseStart(StoredRevision? Latest, ConfigDocument? Document, string? Problem);
 }
 
-/// <summary>Where the running config came from at startup.</summary>
 public enum ConfigSource
 {
     /// <summary><see cref="ConfigService.StartAsync"/> hasn't run (a process that only writes, like the CLI).</summary>

@@ -147,12 +147,10 @@ public sealed partial class UserService
         }
     }
 
-    /// <summary>
-    /// Changes the display name, replaces the roles and/or disables or re-enables the user, all in one transaction: it succeeds or fails
-    /// as a whole (the last-Owner guard included, so a refusal leaves the name unchanged too). Disabling ends the user's sessions
-    /// and, because tokens are checked against their owner on every use, their tokens; enabling clears a lockout. Needs
-    /// <see cref="Permission.UsersWrite"/>.
-    /// </summary>
+    /// <summary>Changes the display name, replaces the roles and/or disables or re-enables the user, all in one
+    /// transaction: it succeeds or fails as a whole (the last-Owner guard included, so a refusal leaves the name
+    /// unchanged too). Disabling ends the user's sessions and, because tokens are checked against their owner on
+    /// every use, their tokens; enabling clears a lockout.</summary>
     public async Task<UserResult> UpdateAsync(CommandOrigin origin, UserId id, UpdateUserRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
@@ -237,10 +235,8 @@ public sealed partial class UserService
         cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Disables or re-enables a user. Disabling ends their sessions and (because tokens are checked against their owner on every
-    /// use) their tokens; enabling clears a lockout. Needs <see cref="Permission.UsersWrite"/>.
-    /// </summary>
+    /// <summary>Disables or re-enables a user. Disabling ends their sessions and (because tokens are checked against
+    /// their owner on every use) their tokens; enabling clears a lockout.</summary>
     public Task<UserResult> SetDisabledAsync(CommandOrigin origin, UserId id, bool disabled, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
@@ -392,10 +388,8 @@ public sealed partial class UserService
         return new IdentityResult(IdentityStatus.Succeeded);
     }
 
-    /// <summary>
-    /// Sets a user's password without the old one (the CLI's <c>admin reset-password</c>): ends all their sessions and clears a
-    /// lockout. Needs <see cref="Permission.UsersWrite"/>, which the CLI has.
-    /// </summary>
+    /// <summary>Sets a user's password without the old one (the CLI's <c>admin reset-password</c>): ends all their
+    /// sessions and clears a lockout.</summary>
     public async Task<IdentityResult> ResetPasswordAsync(CommandOrigin origin, string username, string newPassword, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);

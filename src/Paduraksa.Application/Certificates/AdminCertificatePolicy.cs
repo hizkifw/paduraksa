@@ -39,10 +39,8 @@ public static class AdminCertificatePolicy
         return now < info.NotAfter && now >= info.NotBefore - CertificateInventoryLoader.NotBeforeTolerance;
     }
 
-    /// <summary>
-    /// The two name sets are equal, ignoring order and case (both are normalised, so case only guards a surprise). The
-    /// admin flow uses it to decide whether a leaf the vault holds is exactly the one it would ask for.
-    /// </summary>
+    /// <summary>The two name sets are equal, ignoring order and case (both are normalised, so case only guards a
+    /// surprise).</summary>
     public static bool SameNames(IReadOnlyList<string> left, IReadOnlyList<string> right)
     {
         ArgumentNullException.ThrowIfNull(left);

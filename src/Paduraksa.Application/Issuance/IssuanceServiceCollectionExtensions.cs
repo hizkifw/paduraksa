@@ -18,16 +18,14 @@ namespace Paduraksa.Application.Issuance;
 
 public static class IssuanceServiceCollectionExtensions
 {
-    /// <summary>
-    /// Registers ACME issuance: the account and DNS provider services, the <see cref="AcmeIssuanceService"/> and
-    /// the <see cref="AcmeRenewalScheduler"/> hosted service, with the client provider that signs through the vault.
-    /// Needs <see cref="ConfigServiceCollectionExtensions.AddPaduraksaConfigService"/>, the vault's <see cref="IJwsSigner"/>,
-    /// <see cref="ICertificateIssuance"/> and <see cref="ISecretStore"/>, and an <see cref="IAcmeChallengeStore"/>. Used when
-    /// registered: <see cref="IMacKeySource"/> (external account binding), <see cref="IDnsProviderFactory"/> and
-    /// <see cref="IDnsPropagationCheck"/> (DNS-01; both come from <see cref="DnsProviderServiceCollectionExtensions.AddPaduraksaDnsProviders"/>,
-    /// and without a factory a DNS-01 request fails as not supported), <see cref="ICertificateCatalog"/> (repairs an attach whose record a crash lost),
-    /// <see cref="AcmeIssuanceOptions"/> and <see cref="AcmeClientOptions"/>, and an <see cref="IAcmeClientProvider"/> of your own.
-    /// </summary>
+    /// <summary>Registers ACME issuance: the account and DNS provider services, the <see cref="AcmeIssuanceService"/>
+    /// and the <see cref="AcmeRenewalScheduler"/> hosted service, with the client provider that signs through the
+    /// vault. Used when registered: <see cref="IMacKeySource"/> (external account binding), <see
+    /// cref="IDnsProviderFactory"/> and <see cref="IDnsPropagationCheck"/> (DNS-01; both come from <see
+    /// cref="DnsProviderServiceCollectionExtensions.AddPaduraksaDnsProviders"/>, and without a factory a DNS-01
+    /// request fails as not supported), <see cref="ICertificateCatalog"/> (repairs an attach whose record a crash
+    /// lost), <see cref="AcmeIssuanceOptions"/> and <see cref="AcmeClientOptions"/>, and an <see
+    /// cref="IAcmeClientProvider"/> of your own.</summary>
     public static IServiceCollection AddPaduraksaIssuance(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

@@ -13,12 +13,9 @@ using Paduraksa.Data.Issuance;
 
 namespace Paduraksa.Application.Issuance;
 
-/// <summary>
-/// The configured DNS providers for DNS-01. A provider row is a kind, a label and the
-/// <see cref="SecretId"/> of its credential in the vault; <b>there is no credential here</b>, and the hosts the token may be sent
-/// to are metadata of that secret, set when the secret was stored. Changes are audited (<c>acme.dns_provider.create</c>,
-/// <c>acme.dns_provider.delete</c>), create no revision and publish nothing.
-/// </summary>
+/// <summary>The configured DNS providers for DNS-01. A provider row is a kind, a label and the <see cref="SecretId"/>
+/// of its credential in the vault; <b>there is no credential here</b>, and the hosts the token may be sent to are
+/// metadata of that secret, set when the secret was stored.</summary>
 public sealed partial class DnsProviderService
 {
     /// <summary>The longest label.</summary>
@@ -182,11 +179,9 @@ public sealed partial class DnsProviderService
         }
     }
 
-    /// <summary>
-    /// "Test credentials": asks the provider to check its credential with a read-only call, for an origin holding <c>providers:write</c> (the call
-    /// uses the credential, so it is not a read). A bad credential is a result, not an exception. The test is audited as
-    /// <c>acme.dns_provider.test</c> with its verdict, never the credential or what the provider said.
-    /// </summary>
+    /// <summary>"Test credentials": asks the provider to check its credential with a read-only call, for an origin
+    /// holding <c>providers:write</c> (the call uses the credential, so it is not a read). The test is audited as
+    /// <c>acme.dns_provider.test</c> with its verdict, never the credential or what the provider said.</summary>
     public async Task<DnsProviderTestResult> TestAsync(DnsProviderId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);

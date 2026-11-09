@@ -118,12 +118,7 @@ public static class ProxyConfigMapping
         return inventory.FallbackDefault;
     }
 
-    /// <summary>
-    /// Resolves a host's certificate binding against the inventory. Auto: each DNS name gets the best valid
-    /// certificate covering it (<see cref="CertificateSelection"/>), per name, and names nothing covers get none of their
-    /// own: they ride the default certificate, or are rejected, and the host is reported without coverage. Specific: that
-    /// certificate for every name when it is usable; otherwise the host has none of its own (reported). None: no HTTPS.
-    /// </summary>
+    /// <summary>Resolves a host's certificate binding against the inventory.</summary>
     private static (CertificateId? Certificate, IReadOnlyDictionary<string, CertificateId>? ByName) BindCertificate(
         HostConfig host, CertificateInventory inventory, List<MappedWarning> warnings)
     {

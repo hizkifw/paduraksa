@@ -32,8 +32,6 @@ public enum LoginStatus
 }
 
 /// <summary>The outcome of a sign-in step.</summary>
-/// <param name="Status">How it ended.</param>
-/// <param name="Session">The session to set the cookie for, for <see cref="LoginStatus.Succeeded"/> and <see cref="LoginStatus.SecondFactorRequired"/>.</param>
 public sealed record LoginResult(LoginStatus Status, SessionGrant? Session = null);
 
 /// <summary>
@@ -272,11 +270,9 @@ public sealed class LoginService
     /// </summary>
     private readonly record struct Attempt(bool Granted, DateTimeOffset? Engaged);
 
-    /// <summary>
-    /// Counts an attempt against the account <b>before</b> it is evaluated, in a write transaction of its own: refused if the account
-    /// is locked (audited), otherwise the count goes up and reaching the limit locks the account for everyone after this attempt.
-    /// A success clears the count again.
-    /// </summary>
+    /// <summary>Counts an attempt against the account <b>before</b> it is evaluated, in a write transaction of its
+    /// own: refused if the account is locked (audited), otherwise the count goes up and reaching the limit locks the
+    /// account for everyone after this attempt.</summary>
     private async Task<Attempt> ReserveAsync(ConfigDbContext context, CommandOrigin system, UserId id, string action, CancellationToken cancellationToken)
     {
         context.ChangeTracker.Clear();

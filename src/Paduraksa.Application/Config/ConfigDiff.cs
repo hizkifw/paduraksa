@@ -7,10 +7,8 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Application.Config;
 
-/// <summary>
-/// Structural diff of two config documents: the object-level change list (<see cref="ConfigChange"/>)
-/// behind the dashboard's review sheet, <c>dryRun</c> responses and revision summaries. Pure and deterministic.
-/// </summary>
+/// <summary>Structural diff of two config documents: the object-level change list (<see cref="ConfigChange"/>) behind
+/// the dashboard's review sheet, <c>dryRun</c> responses and revision summaries.</summary>
 /// <remarks>
 /// Both documents are canonicalised first, so re-spelling and reordering sets are no change, and every path indexes the
 /// canonical document. Routes are the exception among lists: their order is config (first match wins), so when the

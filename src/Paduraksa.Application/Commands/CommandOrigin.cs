@@ -21,6 +21,5 @@ public sealed record CommandOrigin(Actor Actor, Channel Channel, IPAddress? Clie
     /// <summary>Paduraksa itself.</summary>
     public static CommandOrigin System { get; } = new(Actor.System, Channel.System);
 
-    /// <summary>The local CLI.</summary>
     public static CommandOrigin Cli { get; } = new(Actor.Cli, Channel.Cli);
 }

@@ -1,9 +1,6 @@
 namespace Paduraksa.Application.Identity;
 
-/// <summary>
-/// The knobs of the identity services. The server binds them from <c>Paduraksa:Admin</c> and validates the bounds;
-/// the defaults are the values it ships with.
-/// </summary>
+/// <summary>The knobs of the identity services.</summary>
 public sealed class IdentityOptions
 {
     /// <summary>Consecutive wrong passwords or codes before an account is locked.</summary>

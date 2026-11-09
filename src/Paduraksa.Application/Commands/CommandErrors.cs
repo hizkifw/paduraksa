@@ -68,10 +68,8 @@ internal static class CommandErrors
         _ => throw new ArgumentOutOfRangeException(nameof(list), list, "Not an object list."),
     };
 
-    /// <summary>
-    /// Maps the top-level object index of a pointer (<c>/hosts/<b>3</b>/routes/0</c>) from one arrangement of a
-    /// document to another, by object ID. Only the top-level index moves: the objects' insides are the same in both.
-    /// </summary>
+    /// <summary>Maps the top-level object index of a pointer (<c>/hosts/<b>3</b>/routes/0</c>) from one arrangement
+    /// of a document to another, by object ID.</summary>
     internal sealed class IndexMap
     {
         private readonly Dictionary<string, Dictionary<int, int>> _byList = new(StringComparer.Ordinal);

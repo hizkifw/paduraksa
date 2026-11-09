@@ -24,36 +24,32 @@ public sealed record CertificateRecoveryResult(IReadOnlyList<CertificateId> Reco
 
 /// <summary>
 /// Gets back the certificates the config database lost: the database was deleted or restored from an older backup while
-/// the vault still holds the keys, so restored Specific bindings would degrade for want of a row. The vault describes what it holds
-/// (<see cref="ICertificateCatalog"/>, public data only) and every certificate with no row is registered again through
-/// <see cref="CertificateService.RegisterRecoveredAsync"/> without republishing per certificate: the startup step publishes the live
-/// config once after the run, so the first snapshot includes what came back.
+/// the vault still holds the keys, so restored Specific bindings would otherwise degrade for want of a row. The vault
+/// describes what it holds (public data only) and every certificate with no row is registered again; the startup step
+/// publishes the live config once after the run.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>The source is not known</b>, since the row that said it is gone, so it is inferred from public facts and never guessed in the
-/// direction of more capability: the vault's local CA root is <see cref="CertificateSource.LocalCaRoot"/>; a certificate whose
-/// <b>signature verifies under that root's public key</b> (a matching name alone is not enough) is <see cref="CertificateSource.LocalCa"/>;
-/// everything else is <see cref="CertificateSource.Uploaded"/>. A self-signed certificate is therefore recorded as uploaded (it cannot
-/// be told from an uploaded self-signed one, and an upload is never replaced by a re-issue), and an ACME certificate is recorded as
-/// uploaded too: its order, account and schedule were in the lost database, so it is not renewed and expires, until it is requested again.
-/// Each recovered row carries the label <see cref="Label"/>, so the dashboard can say what happened.
+/// <b>The source is not known</b>, since the row that said it is gone, so it is inferred from public facts and never
+/// guessed in the direction of more capability: the vault's local CA root is
+/// <see cref="CertificateSource.LocalCaRoot"/>; a certificate whose signature verifies under that root's public key (a
+/// matching name alone is not enough) is <see cref="CertificateSource.LocalCa"/>; everything else is
+/// <see cref="CertificateSource.Uploaded"/>. A self-signed certificate is therefore recorded as uploaded, and an ACME
+/// certificate too, because its order, account and schedule were in the lost database: it is not renewed and expires
+/// until it is requested again. Each recovered row carries the label <see cref="Label"/>.
 /// </para>
 /// <para>
-/// <b>A deleted certificate is not resurrected.</b> Deleting removes the row (audited as <c>certificate.delete</c>) and then the key; if
-/// the key's deletion failed, the vault still holds it, and the database is intact. Before registering, the audit trail is asked: a
-/// successful <c>certificate.delete</c> for the ID means the database was not lost, so the deletion is finished (the vault's key is
-/// deleted) instead. The same trail covers a creation that was rolled back (its pending row was deleted and audited). A key whose
-/// registration was refused, or that no flow ever recorded (an upload interrupted between the vault and the row), has no such
-/// trail: it is registered, visible, and can be deleted. When the database itself is lost the trail is lost too, so nothing is
-/// ever treated as deleted then.
+/// <b>A deleted certificate is not resurrected.</b> Before registering, the audit trail is asked: a successful
+/// <c>certificate.delete</c> for the ID means the database was not lost, so the deletion is finished instead (the
+/// vault's key is deleted), as is a rolled-back creation (its pending row was deleted and audited). A key whose
+/// registration was refused, or that no flow ever recorded, has no such trail and is registered. When the database itself
+/// is lost the trail is lost too, so nothing is treated as deleted then.
 /// </para>
 /// <para>
-/// <b>Safe next to other writers.</b> Whether a row exists, and whether a delete is on record, is checked under the config writer's lock,
-/// per certificate, right before registering: a certificate an upload registers at that moment is never overwritten, and an
-/// existing row (its label included) is never changed. One remaining window: an upload that has reached the vault but not yet
-/// registered when this runs is registered as recovered, and its own registration then replaces the metadata (an upload
-/// without a label keeps the recovered one). It runs at startup, where that is rare, and never changes what is served.
+/// <b>Safe next to other writers.</b> The row check and the delete check happen under the config writer's lock, per
+/// certificate, right before registering, so a simultaneous upload's row is never overwritten. The one window left: an
+/// upload that has reached the vault but not yet registered is registered as recovered, and its own registration then
+/// replaces the metadata. It runs at startup, and never changes what is served.
 /// </para>
 /// </remarks>
 public sealed partial class CertificateRecovery
@@ -238,10 +234,7 @@ public sealed partial class CertificateRecovery
 /// <summary>Registration of <see cref="CertificateRecovery"/>.</summary>
 public static class CertificateRecoveryServiceCollectionExtensions
 {
-    /// <summary>
-    /// Registers <see cref="CertificateRecovery"/>. Needs the <see cref="CertificateService"/> (<c>AddPaduraksaConfigService</c>) and the
-    /// vault's <see cref="ICertificateCatalog"/> and <see cref="ICertificateIssuance"/>.
-    /// </summary>
+    /// <summary>Registers <see cref="CertificateRecovery"/>.</summary>
     public static IServiceCollection AddPaduraksaCertificateRecovery(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);

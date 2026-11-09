@@ -17,12 +17,9 @@ using ServerHeader = Paduraksa.Proxy.Http.ServerHeader;
 
 namespace Paduraksa.Application.Config;
 
-/// <summary>
-/// Validates a config document: field rules and cross-object rules, every error with the JSON
-/// pointer of the field it's about. Pure and cold-path. The snapshot compiler still runs afterwards as the backstop,
-/// so this doesn't re-implement YARP's validator; it catches what the document can say on its own, where the
-/// compiler can only name keys.
-/// </summary>
+/// <summary>Validates a config document: field rules and cross-object rules, every error with the JSON pointer of the
+/// field it's about. The snapshot compiler still runs afterwards as the backstop, so this doesn't re-implement YARP's
+/// validator; it catches what the document can say on its own, where the compiler can only name keys.</summary>
 /// <remarks>
 /// <para>Validate the document <i>as the client sent it</i>, before <see cref="CanonicalConfigJson.Canonicalize"/>:
 /// the paths then index what the client wrote, like those of <see cref="CanonicalConfigJson.TryDeserialize"/>. Values

@@ -15,8 +15,6 @@ using Paduraksa.Data.Identity;
 namespace Paduraksa.Application.Identity;
 
 /// <summary>The outcome of starting a TOTP enrolment.</summary>
-/// <param name="Status">How it ended.</param>
-/// <param name="Enrollment">The provisioning URI, shown once.</param>
 public sealed record TotpEnrollmentResult(IdentityStatus Status, TotpEnrollmentStarted? Enrollment = null);
 
 /// <summary>The outcome of an operation that issues recovery codes.</summary>
@@ -70,11 +68,9 @@ public sealed partial class TwoFactorService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Starts enrolling the calling user: the vault makes a secret and the result carries its provisioning URI (for the QR code),
-    /// the one time it is shown. Needs the current password (a stolen session must not be able to bind its own authenticator). An
-    /// earlier abandoned enrolment is discarded. Conflict if the second factor is already on.
-    /// </summary>
+    /// <summary>Starts enrolling the calling user: the vault makes a secret and the result carries its provisioning
+    /// URI (for the QR code), the one time it is shown. Needs the current password (a stolen session must not be able
+    /// to bind its own authenticator).</summary>
     public async Task<TotpEnrollmentResult> BeginEnrollmentAsync(CommandOrigin origin, string password, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
@@ -133,10 +129,8 @@ public sealed partial class TwoFactorService
         }
     }
 
-    /// <summary>
-    /// Finishes enrolling with a code from the authenticator: turns the second factor on and returns ten recovery codes, once.
-    /// A wrong code (<see cref="IdentityStatus.InvalidCredentials"/>) changes nothing and can be retried.
-    /// </summary>
+    /// <summary>Finishes enrolling with a code from the authenticator: turns the second factor on and returns ten
+    /// recovery codes, once.</summary>
     public async Task<RecoveryCodesResult> ConfirmEnrollmentAsync(CommandOrigin origin, string code, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
