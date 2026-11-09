@@ -569,13 +569,29 @@ public sealed partial class ConfigService : IDisposable
         _ = publishing.ContinueWith(
             task =>
             {
-                if (task.Result.Status == PublishStatus.Published)
+                if (task.IsCompletedSuccessfully)
                 {
-                    WentLiveWith(task.Result.Generation, compilation);
+                    if (task.Result.Status == PublishStatus.Published)
+                    {
+                        WentLiveWith(task.Result.Generation, compilation);
+                    }
+
+                    return;
+                }
+
+                // The publisher answered with a failed result for the failures it knows; only a cancel or a thrown fault gets
+                // here, and either would otherwise leave the publish unrecorded.
+                if (task.IsCanceled)
+                {
+                    LogPublishCancelled();
+                }
+                else
+                {
+                    LogPublishFaulted(task.Exception!.GetBaseException());
                 }
             },
             CancellationToken.None,
-            TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
+            TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
         return publishing;
     }
@@ -1049,6 +1065,12 @@ public sealed partial class ConfigService : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Config revision #{Seq} ({Revision}) is committed but not live after {Wait}; it is still queued for publishing.")]
     private partial void LogPublishPending(long seq, ConfigRevisionId revision, TimeSpan wait);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Publishing the config snapshot was cancelled; the previous snapshot stays live.")]
+    private partial void LogPublishCancelled();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Publishing the config snapshot threw instead of returning a result; the previous snapshot stays live.")]
+    private partial void LogPublishFaulted(Exception exception);
 
     /// <summary>What a rejected command is audited as: its action name and target.</summary>
     private sealed record Audited(string Action, string? Target, bool Force = false);
