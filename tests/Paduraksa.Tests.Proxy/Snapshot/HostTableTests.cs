@@ -1,3 +1,4 @@
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;

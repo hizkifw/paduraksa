@@ -199,7 +199,7 @@ public sealed class HostSettingsHstsTests
     private static HostSettings Inherited(bool enabled, bool subdomains = false, bool preload = false, int? maxAge = null) => new()
     {
         ForceHttps = false,
-        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = Contracts.Config.TcpAlpn.Http2AndHttp11, Http3 = true },
+        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = TcpAlpn.Http2AndHttp11, Http3 = true },
         Hsts = new HstsSettings { Enabled = enabled, MaxAge = maxAge ?? HstsMaxAgePresets.OneYear, IncludeSubDomains = subdomains, Preload = preload },
     };
 

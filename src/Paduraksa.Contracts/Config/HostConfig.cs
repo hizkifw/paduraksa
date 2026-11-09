@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+using Paduraksa.Core.Json;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Config;
@@ -47,26 +48,6 @@ public sealed record HostConfig(
     public IReadOnlyList<string> Tags { get; init; } = Tags ?? [];
 }
 
-/// <summary>What a host does with requests.</summary>
-[JsonConverter(typeof(ConfigEnumConverter<HostKind>))]
-public enum HostKind
-{
-    /// <summary>Proxies to upstreams through its routes.</summary>
-    Proxy,
-
-    /// <summary>Redirects every request (<see cref="HostConfig.Redirect"/>).</summary>
-    Redirect,
-
-    /// <summary>Answers every request with a fixed response (<see cref="HostConfig.Respond"/>).</summary>
-    Respond,
-
-    /// <summary>
-    /// Serves the admin app through the internal listener (PLAN §3.1): every path is forwarded to <c>__admin</c>, HTTPS is
-    /// forced, and it has no routes or fixed answer of its own. At most one exists.
-    /// </summary>
-    Admin,
-}
-
 /// <summary>A host's certificate binding (PLAN §5.1).</summary>
 public sealed record CertificateBinding
 {
@@ -108,17 +89,6 @@ public sealed record RouteConfig(
     RouteSettings? Settings = null)
 {
     public RouteSettings Settings { get; init; } = Settings ?? new();
-}
-
-/// <summary>How a route's path matches the request path (segment-aware, case-insensitive).</summary>
-[JsonConverter(typeof(ConfigEnumConverter<RouteMatchKind>))]
-public enum RouteMatchKind
-{
-    /// <summary>The path or anything below it (<c>/api</c> matches <c>/api</c> and <c>/api/x</c>, not <c>/apix</c>).</summary>
-    Prefix,
-
-    /// <summary>The path only.</summary>
-    Exact,
 }
 
 /// <summary>A Redirect host's target.</summary>

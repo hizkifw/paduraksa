@@ -124,7 +124,7 @@ public sealed class HostSettingsServerHeaderTests
     private static HostSettings Inherited(ServerHeaderMode mode, string? value) => new()
     {
         ForceHttps = false,
-        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = Contracts.Config.TcpAlpn.Http2AndHttp11, Http3 = true },
+        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = TcpAlpn.Http2AndHttp11, Http3 = true },
         Hsts = new HstsSettings { Enabled = false, MaxAge = HstsMaxAgePresets.OneYear, IncludeSubDomains = false, Preload = false },
         ServerHeader = new ServerHeaderSettings { Mode = mode, Value = value },
     };

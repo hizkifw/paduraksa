@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 
+using Paduraksa.Core.Json;
+
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>What the upstream probe found.</summary>

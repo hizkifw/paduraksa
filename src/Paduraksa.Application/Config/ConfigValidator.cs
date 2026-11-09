@@ -8,12 +8,10 @@ using Paduraksa.Core.Model;
 
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 
-using ContractServerHeaderMode = Paduraksa.Contracts.Config.ServerHeaderMode;
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
 using HostServerHeaderSpec = Paduraksa.Proxy.Config.HostServerHeaderSpec;
 using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
-using ProxyServerHeaderMode = Paduraksa.Proxy.Config.ServerHeaderMode;
 using RoutePath = Paduraksa.Proxy.Snapshot.RoutePath;
 using ServerHeader = Paduraksa.Proxy.Http.ServerHeader;
 
@@ -599,7 +597,7 @@ public static class ConfigValidator
                 }
 
                 // A value is only used by the custom mode. Validate it where it is set, so an error points at the layer.
-                if (serverHeader is { Mode: ContractServerHeaderMode.Custom, Value: { Length: > 0 } value } && !ServerHeader.IsValidValue(value))
+                if (serverHeader is { Mode: ServerHeaderMode.Custom, Value: { Length: > 0 } value } && !ServerHeader.IsValidValue(value))
                 {
                     Add($"{path}/serverHeader/value", ServerHeaderValueInvalid, InvalidServerHeaderValue);
                 }
@@ -646,7 +644,7 @@ public static class ConfigValidator
 
         /// <summary>
         /// The <c>Server</c> header's cross-field rule, judged on each host's resolved settings like HSTS's preload pair: a
-        /// resolved <see cref="ProxyServerHeaderMode.Custom"/> needs a value, wherever the mode came from. A value's shape
+        /// resolved <see cref="ServerHeaderMode.Custom"/> needs a value, wherever the mode came from. A value's shape
         /// is checked at the layer that set it; this catches a mode that inherited none, or inherited a value set by a
         /// layer whose mode didn't use it, naming that layer because the host's admin can't change it there.
         /// </summary>
@@ -655,7 +653,7 @@ public static class ConfigValidator
             HostServerHeaderSpec resolved = HostSettingsLayers.Merge(
                 HostSettingsLayers.Merge(HostSettingsLayers.Merge(HostServerHeaderSpec.Default, defaults?.ServerHeader), profile?.ServerHeader),
                 host.Settings?.ServerHeader);
-            if (resolved.Mode != ProxyServerHeaderMode.Custom)
+            if (resolved.Mode != ServerHeaderMode.Custom)
             {
                 return;
             }
@@ -673,10 +671,10 @@ public static class ConfigValidator
             bool ownValue = host.Settings?.ServerHeader?.Value is not null;
             bool profileValue = !ownValue && profile?.ServerHeader?.Value is not null;
             bool checkedAtItsLayer = ownValue
-                ? host.Settings!.ServerHeader!.Mode == ContractServerHeaderMode.Custom
+                ? host.Settings!.ServerHeader!.Mode == ServerHeaderMode.Custom
                 : profileValue
-                    ? profile!.ServerHeader!.Mode == ContractServerHeaderMode.Custom
-                    : defaults?.ServerHeader?.Mode == ContractServerHeaderMode.Custom;
+                    ? profile!.ServerHeader!.Mode == ServerHeaderMode.Custom
+                    : defaults?.ServerHeader?.Mode == ServerHeaderMode.Custom;
             if (!checkedAtItsLayer && !ServerHeader.IsValidValue(resolved.Value))
             {
                 string from = ownValue ? string.Empty

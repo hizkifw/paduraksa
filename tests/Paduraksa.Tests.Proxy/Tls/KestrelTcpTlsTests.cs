@@ -3,11 +3,10 @@ using System.Net.Security;
 using System.Runtime.Versioning;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Tests.Proxy.Tls;

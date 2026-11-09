@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;

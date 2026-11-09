@@ -1,8 +1,7 @@
 using System.Net;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
@@ -12,9 +11,7 @@ using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
-
 using Yarp.ReverseProxy.Transforms;
-
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Http;

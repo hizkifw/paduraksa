@@ -25,8 +25,6 @@ using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 
-using ContractHostKind = Paduraksa.Contracts.Config.HostKind;
-
 namespace Paduraksa.Application.Commands;
 
 /// <summary>
@@ -418,7 +416,7 @@ public sealed partial class ConfigService : IDisposable
         AdminRequestFacts request,
         IReadOnlyList<ConfigWarning> warnings)
     {
-        HostConfig? admin = current.Hosts.FirstOrDefault(static h => h is { Kind: ContractHostKind.Admin, Enabled: true });
+        HostConfig? admin = current.Hosts.FirstOrDefault(static h => h is { Kind: HostKind.Admin, Enabled: true });
         if (admin is null || !ForwardsToAdmin(before, request))
         {
             return null;
@@ -430,7 +428,7 @@ public sealed partial class ConfigService : IDisposable
             return Lockout("/settings/trustedProxies", "changing the trusted proxies while the command arrives through the proxy");
         }
 
-        HostConfig? adminAfter = candidate.Hosts.FirstOrDefault(static h => h.Kind == ContractHostKind.Admin);
+        HostConfig? adminAfter = candidate.Hosts.FirstOrDefault(static h => h.Kind == HostKind.Admin);
         if (adminAfter is not null
             && CommandErrors.PathOf(candidate, "hosts", adminAfter.Id.ToString()) is { } afterPath
             && warnings.Any(w => w.Code == ConfigWarningCodes.CertificateSpecificNoCoverage && IsAtOrBelow(w.Path, afterPath)))

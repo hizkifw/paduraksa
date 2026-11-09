@@ -49,10 +49,10 @@ public sealed class SimulatorParityTests : IDisposable
     public void Dispose() => _pki.Dispose();
 
     [Theory]
-    [InlineData(UnknownHostMode.NotFound)]
-    [InlineData(UnknownHostMode.MisdirectedRequest)]
-    [InlineData(UnknownHostMode.Close)]
-    public async Task EveryHostAndRouteOutcomeMatches(UnknownHostMode unknownHost)
+    [InlineData(UnknownHostBehaviour.NotFound)]
+    [InlineData(UnknownHostBehaviour.MisdirectedRequest)]
+    [InlineData(UnknownHostBehaviour.Close)]
+    public async Task EveryHostAndRouteOutcomeMatches(UnknownHostBehaviour unknownHost)
     {
         using Fixture fixture = new(Model(new DefaultsSpec { UnknownHost = unknownHost, Certificate = TestIds.Certificate("shared") }), _pki);
         int compared = 0;

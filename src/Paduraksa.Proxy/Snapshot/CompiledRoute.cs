@@ -3,19 +3,6 @@ using Paduraksa.Proxy.Gate;
 
 namespace Paduraksa.Proxy.Snapshot;
 
-/// <summary>How a route's <see cref="CompiledRoute.Path"/> is compared with the request path.</summary>
-public enum RouteMatchKind : byte
-{
-    /// <summary>
-    /// Segment-aware prefix: <c>/api</c> matches <c>/api</c>, <c>/api/</c> and <c>/api/x</c>, not <c>/apix</c>.
-    /// A prefix ending in <c>/</c> matches by plain prefix, so <c>/</c> matches everything.
-    /// </summary>
-    Prefix,
-
-    /// <summary>The whole path, nothing more.</summary>
-    Exact,
-}
-
 /// <summary>
 /// One entry of a proxy host's ordered route list (PLAN §6.2, §7.2 C). Matching runs in the gate on the request
 /// path span; YARP never matches anything.

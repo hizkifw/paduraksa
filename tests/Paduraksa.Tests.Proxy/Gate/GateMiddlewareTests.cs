@@ -102,7 +102,7 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void UnknownHostsCanBeClosed()
     {
-        _store.Publish(Bound(Config with { Defaults = new DefaultsSpec { UnknownHost = UnknownHostMode.Close } }, generation: 2));
+        _store.Publish(Bound(Config with { Defaults = new DefaultsSpec { UnknownHost = UnknownHostBehaviour.Close } }, generation: 2));
 
         Assert.Equal(GateAction.Abort, _gate.Decide(TestContexts.Create("unknown.test")).Action);
     }

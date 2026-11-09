@@ -47,7 +47,7 @@ public sealed record SnapshotCompilerOptions
     public bool AdminUpstream { get; init; }
 
     /// <summary>
-    /// Cloudflare's edge ranges for <see cref="TrustedProxyMode.CloudflareProxy"/>; null for the baked-in
+    /// Cloudflare's edge ranges for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>; null for the baked-in
     /// <see cref="CloudflareIpRanges.Default"/>. The range refresh job (M7) passes its latest list here; tests use it to
     /// put loopback "at the edge".
     /// </summary>

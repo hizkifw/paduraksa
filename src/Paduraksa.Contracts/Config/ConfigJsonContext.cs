@@ -1,9 +1,8 @@
-using System.Collections.Frozen;
-using System.Globalization;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 using Paduraksa.Core.Ids;
+using Paduraksa.Core.Json;
+using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Config;
 
@@ -22,6 +21,10 @@ namespace Paduraksa.Contracts.Config;
 /// explicit null for an optional list or nested record reads as absent (empty); null list elements are rejected by
 /// <c>CanonicalConfigJson.Deserialize</c>. Compatibility is one way only: newer builds read every older document, and
 /// downgrades are unsupported (an older build rejects a document with fields it doesn't know).
+/// <para><b>The shared enums' converters.</b> <see cref="ConfigEnumConverter{TEnum}"/> is attached to each enum in
+/// <see cref="Paduraksa.Core.Model"/>, which is what reflection-based serialization honours. The source generator can't
+/// see an attribute that sits in a referenced assembly, so the enums' spellings are registered here too; a new shared
+/// enum needs its one line in this list (and in the admin API's), and <c>SharedEnumWireTests</c> fails without it.</para>
 /// </remarks>
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
@@ -30,47 +33,20 @@ namespace Paduraksa.Contracts.Config;
     AllowDuplicateProperties = false,
     RespectNullableAnnotations = true,
     RespectRequiredConstructorParameters = true,
-    Converters = [typeof(TypedIdJsonConverterFactory)])]
+    Converters =
+    [
+        typeof(TypedIdJsonConverterFactory),
+        typeof(ConfigEnumConverter<HostKind>),
+        typeof(ConfigEnumConverter<RouteMatchKind>),
+        typeof(ConfigEnumConverter<TrustedProxyMode>),
+        typeof(ConfigEnumConverter<UnknownHostBehaviour>),
+        typeof(ConfigEnumConverter<TlsMinimumVersion>),
+        typeof(ConfigEnumConverter<TcpAlpn>),
+        typeof(ConfigEnumConverter<ServerHeaderMode>),
+        typeof(ConfigEnumConverter<RequestIdPropagation>),
+    ])]
 [JsonSerializable(typeof(ConfigDocument))]
 [JsonSerializable(typeof(ConfigError))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigError>))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigChange>))]
 public sealed partial class ConfigJsonContext : JsonSerializerContext;
-
-/// <summary>
-/// Enums as their exact camelCase member names (<c>proxy</c>, <c>misdirectedRequest</c>). Reading accepts nothing else:
-/// no other casing, no numbers, no flag combinations (<c>"proxy,redirect"</c>). Writing uses the same table; an
-/// undefined value, which only a hand-built (and invalid) document has, is written as its number so that serializing
-/// and diffing never throw, and reading such bytes back fails.
-/// </summary>
-public sealed class ConfigEnumConverter<TEnum> : JsonConverter<TEnum>
-    where TEnum : struct, Enum
-{
-    private static readonly FrozenDictionary<string, TEnum> ByName =
-        Enum.GetValues<TEnum>().ToFrozenDictionary(v => JsonNamingPolicy.CamelCase.ConvertName(v.ToString()), StringComparer.Ordinal);
-
-    private static readonly FrozenDictionary<TEnum, string> NameOf = ByName.ToFrozenDictionary(p => p.Value, p => p.Key);
-
-    public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        if (reader.TokenType == JsonTokenType.String && reader.GetString() is { } name && ByName.TryGetValue(name, out TEnum value))
-        {
-            return value;
-        }
-
-        throw new JsonException($"Expected one of {string.Join(", ", ByName.Keys.Order(StringComparer.Ordinal).Select(k => $"'{k}'"))} for {typeof(TEnum).Name}.");
-    }
-
-    public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(writer);
-        if (NameOf.TryGetValue(value, out string? name))
-        {
-            writer.WriteStringValue(name);
-        }
-        else
-        {
-            writer.WriteNumberValue(Convert.ToInt64(value, CultureInfo.InvariantCulture));
-        }
-    }
-}

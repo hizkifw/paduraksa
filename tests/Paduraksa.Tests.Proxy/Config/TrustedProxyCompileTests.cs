@@ -1,3 +1,4 @@
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 

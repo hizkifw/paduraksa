@@ -15,6 +15,7 @@ using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Hosting;
+using Paduraksa.Core.Model;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Shared;

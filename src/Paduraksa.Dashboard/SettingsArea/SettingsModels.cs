@@ -16,10 +16,10 @@ public sealed class HostSettingsModel
     public static HostSettings BuiltIn { get; } = new()
     {
         ForceHttps = false,
-        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = Contracts.Config.TcpAlpn.Http2AndHttp11, Http3 = true },
+        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = Paduraksa.Core.Model.TcpAlpn.Http2AndHttp11, Http3 = true },
         Hsts = new HstsSettings { Enabled = false, MaxAge = HstsMaxAgePresets.OneYear, IncludeSubDomains = false, Preload = false },
         AccessLog = true,
-        RequestIdPropagation = Contracts.Config.RequestIdPropagation.UpstreamAndResponse,
+        RequestIdPropagation = Paduraksa.Core.Model.RequestIdPropagation.UpstreamAndResponse,
         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Paduraksa },
     };
 
@@ -246,7 +246,7 @@ public sealed class HostSettingsModel
 
     public static string TlsText(TlsMinimumVersion version) => version == TlsMinimumVersion.Tls13 ? "TLS 1.3" : "TLS 1.2";
 
-    public static string AlpnText(TcpAlpn alpn) => alpn == Contracts.Config.TcpAlpn.Http11Only ? "HTTP/1.1 only" : "HTTP/2 and HTTP/1.1";
+    public static string AlpnText(TcpAlpn alpn) => alpn == Paduraksa.Core.Model.TcpAlpn.Http11Only ? "HTTP/1.1 only" : "HTTP/2 and HTTP/1.1";
 
     /// <summary>A <c>max-age</c> in words: "5 minutes", "1 day", "6 months", "1 year", "2 years", else its seconds
     /// ("0 seconds" included: "forget it" is the help under the field, not the value).</summary>
@@ -263,9 +263,9 @@ public sealed class HostSettingsModel
     /// <summary>Where the request ID goes, in the words of the form's "inherited from ..." option.</summary>
     public static string PropagationText(RequestIdPropagation propagation) => propagation switch
     {
-        Contracts.Config.RequestIdPropagation.UpstreamOnly => "upstream only",
-        Contracts.Config.RequestIdPropagation.ResponseOnly => "the client only",
-        Contracts.Config.RequestIdPropagation.Off => "off",
+        Paduraksa.Core.Model.RequestIdPropagation.UpstreamOnly => "upstream only",
+        Paduraksa.Core.Model.RequestIdPropagation.ResponseOnly => "the client only",
+        Paduraksa.Core.Model.RequestIdPropagation.Off => "off",
         _ => "upstream and the client",
     };
 }

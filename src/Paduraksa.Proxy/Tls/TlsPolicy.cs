@@ -1,23 +1,7 @@
 using System.Net.Security;
+using Paduraksa.Core.Model;
 
 namespace Paduraksa.Proxy.Tls;
-
-/// <summary>Lowest TLS version a host accepts over TCP. QUIC is always TLS 1.3, so this only affects TCP.</summary>
-public enum TlsMinimumVersion
-{
-    Tls12 = 0,
-    Tls13 = 1,
-}
-
-/// <summary>ALPN protocols a host offers over TCP. QUIC always offers <c>h3</c>.</summary>
-public enum TcpAlpn
-{
-    /// <summary><c>h2</c>, then <c>http/1.1</c>.</summary>
-    Http2AndHttp11 = 0,
-
-    /// <summary><c>http/1.1</c> only (for clients or upstream setups that misbehave on HTTP/2).</summary>
-    Http11Only = 1,
-}
 
 /// <summary>
 /// Per-host TLS settings (PLAN §7.2 B). A value type in spirit: two hosts with equal policies (and the same
@@ -38,7 +22,7 @@ public sealed record TlsPolicy
             : throw new ArgumentOutOfRangeException(nameof(value), value, "Not a defined TlsMinimumVersion.");
     } = TlsMinimumVersion.Tls12;
 
-    /// <exception cref="ArgumentOutOfRangeException">On init, a value that isn't a defined <see cref="Tls.TcpAlpn"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">On init, a value that isn't a defined <see cref="TcpAlpn"/>.</exception>
     public TcpAlpn TcpAlpn
     {
         get;

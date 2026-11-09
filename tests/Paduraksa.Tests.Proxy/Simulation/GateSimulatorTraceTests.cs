@@ -87,10 +87,10 @@ public sealed class GateSimulatorTraceTests : IDisposable
     }
 
     [Theory]
-    [InlineData(UnknownHostMode.NotFound, GateOutcomeAction.Respond, 404)]
-    [InlineData(UnknownHostMode.MisdirectedRequest, GateOutcomeAction.Respond, 421)]
-    [InlineData(UnknownHostMode.Close, GateOutcomeAction.Abort, null)]
-    public void AnUnknownHostIsAnsweredByTheDefaultBehaviour(UnknownHostMode mode, GateOutcomeAction action, int? status)
+    [InlineData(UnknownHostBehaviour.NotFound, GateOutcomeAction.Respond, 404)]
+    [InlineData(UnknownHostBehaviour.MisdirectedRequest, GateOutcomeAction.Respond, 421)]
+    [InlineData(UnknownHostBehaviour.Close, GateOutcomeAction.Abort, null)]
+    public void AnUnknownHostIsAnsweredByTheDefaultBehaviour(UnknownHostBehaviour mode, GateOutcomeAction action, int? status)
     {
         RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { UnknownHost = mode });
 
@@ -102,7 +102,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         GateStep step = Assert.Single(run.Steps, s => s.Verdict == GateStepVerdict.Stopped);
         Assert.Equal(GateStepKind.HostMatch, step.Kind);
         Assert.Contains("nobody.test", step.Summary, StringComparison.Ordinal);
-        Assert.Equal(mode == UnknownHostMode.Close ? "close" : $"respond {status}", Fact(step, "defaultHost"));
+        Assert.Equal(mode == UnknownHostBehaviour.Close ? "close" : $"respond {status}", Fact(step, "defaultHost"));
     }
 
     [Theory]

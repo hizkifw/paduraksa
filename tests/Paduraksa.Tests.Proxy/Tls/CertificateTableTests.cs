@@ -1,6 +1,6 @@
 using System.Net.Security;
 using System.Security.Authentication;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Testing;
 

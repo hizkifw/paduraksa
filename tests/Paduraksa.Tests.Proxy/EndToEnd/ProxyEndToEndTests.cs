@@ -1,10 +1,9 @@
 using System.Net;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;
@@ -62,10 +61,10 @@ public sealed class ProxyEndToEndTests(TestUpstream upstream) : IClassFixture<Te
         Assert.Equal(HttpStatusCode.NotFound, notFound.StatusCode);
         Assert.Equal("no host configured\n", await notFound.Content.ReadAsStringAsync(ct));
 
-        Assert.True((await server.PublishAsync(Config with { Defaults = new DefaultsSpec { UnknownHost = UnknownHostMode.Close } })).Succeeded);
+        Assert.True((await server.PublishAsync(Config with { Defaults = new DefaultsSpec { UnknownHost = UnknownHostBehaviour.Close } })).Succeeded);
         await Assert.ThrowsAsync<HttpRequestException>(() => client.SendAsync(server.Request("nobody.test"), ct));
 
-        Assert.True((await server.PublishAsync(Config with { Defaults = new DefaultsSpec { UnknownHost = UnknownHostMode.MisdirectedRequest } })).Succeeded);
+        Assert.True((await server.PublishAsync(Config with { Defaults = new DefaultsSpec { UnknownHost = UnknownHostBehaviour.MisdirectedRequest } })).Succeeded);
         using HttpResponseMessage misdirected = await client.SendAsync(server.Request("nobody.test"), ct);
         Assert.Equal(HttpStatusCode.MisdirectedRequest, misdirected.StatusCode);
     }

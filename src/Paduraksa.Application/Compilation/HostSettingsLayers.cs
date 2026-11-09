@@ -1,7 +1,7 @@
 using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 
-using ProxyLogging = Paduraksa.Proxy.Logging;
 using ProxyTls = Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Application.Compilation;
@@ -20,7 +20,7 @@ internal static class HostSettingsLayers
     {
         bool forceHttps = false;
         bool accessLog = true;
-        ProxyLogging.RequestIdPropagation requestIdPropagation = ProxyLogging.RequestIdPropagation.UpstreamAndResponse;
+        RequestIdPropagation requestIdPropagation = RequestIdPropagation.UpstreamAndResponse;
         HostTlsSpec tls = HostTlsSpec.Default;
         HostHstsSpec hsts = HostHstsSpec.Off;
         HostServerHeaderSpec serverHeader = HostServerHeaderSpec.Default;
@@ -34,7 +34,7 @@ internal static class HostSettingsLayers
 
             forceHttps = layer.ForceHttps ?? forceHttps;
             accessLog = layer.AccessLog ?? accessLog;
-            requestIdPropagation = layer.RequestIdPropagation is { } propagation ? (ProxyLogging.RequestIdPropagation)propagation : requestIdPropagation;
+            requestIdPropagation = layer.RequestIdPropagation is { } propagation ? (RequestIdPropagation)propagation : requestIdPropagation;
             tls = Merge(tls, layer.Tls);
             hsts = Merge(hsts, layer.Hsts);
             serverHeader = Merge(serverHeader, layer.ServerHeader);
@@ -53,8 +53,8 @@ internal static class HostSettingsLayers
         ? tls
         : tls with
         {
-            MinimumVersion = layer.MinimumVersion is { } minimum ? (ProxyTls.TlsMinimumVersion)minimum : tls.MinimumVersion,
-            TcpAlpn = layer.TcpAlpn is { } alpn ? (ProxyTls.TcpAlpn)alpn : tls.TcpAlpn,
+            MinimumVersion = layer.MinimumVersion is { } minimum ? (TlsMinimumVersion)minimum : tls.MinimumVersion,
+            TcpAlpn = layer.TcpAlpn is { } alpn ? (TcpAlpn)alpn : tls.TcpAlpn,
             Http3 = layer.Http3 ?? tls.Http3,
         };
 
@@ -74,7 +74,7 @@ internal static class HostSettingsLayers
         ? serverHeader
         : serverHeader with
         {
-            Mode = layer.Mode is { } mode ? (Paduraksa.Proxy.Config.ServerHeaderMode)mode : serverHeader.Mode,
+            Mode = layer.Mode is { } mode ? (ServerHeaderMode)mode : serverHeader.Mode,
             Value = layer.Value ?? serverHeader.Value,
         };
 
@@ -107,5 +107,5 @@ internal sealed record EffectiveHostSettings(
     IpAllowListSettings? IpAllowList,
     HostHstsSpec Hsts,
     bool AccessLog,
-    ProxyLogging.RequestIdPropagation RequestIdPropagation,
+    RequestIdPropagation RequestIdPropagation,
     HostServerHeaderSpec ServerHeader);

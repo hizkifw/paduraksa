@@ -1,13 +1,12 @@
 using System.Net;
 using System.Text;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 
 namespace Paduraksa.Tests.Integration.Proxy;
@@ -77,8 +76,8 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         host.Shared.Certificates.Set(TestIds.Certificate("b"), certificates.Create("b.test", "b.test", "*.b.test"));
         host.Shared.Certificates.Set(TestIds.Certificate("fallback"), certificates.Create("fallback", "fallback.test"));
         ProxyConfigModel model = App(
-            new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Certificate = TestIds.Certificate("a"), Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "a" } },
-            new HostSpec { Id = TestIds.Host("b"), Names = ["b.test", "*.b.test"], Certificate = TestIds.Certificate("b"), Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "b" } });
+            new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Certificate = TestIds.Certificate("a"), Kind = HostKind.Respond, Respond = new RespondSpec { Body = "a" } },
+            new HostSpec { Id = TestIds.Host("b"), Names = ["b.test", "*.b.test"], Certificate = TestIds.Certificate("b"), Kind = HostKind.Respond, Respond = new RespondSpec { Body = "b" } });
         model = model with { Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("fallback") } };
         await PublishAsync(host, model);
 
@@ -105,7 +104,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
 
         // Compiled directly: the shared Compile helper would add the placeholder as the default certificate.
         CompileResult bare = SnapshotCompiler.Compile(
-            App(new HostSpec { Id = TestIds.Host("b"), Names = ["b.test"], Certificate = TestIds.Certificate("b"), Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { Body = "b" } }),
+            App(new HostSpec { Id = TestIds.Host("b"), Names = ["b.test"], Certificate = TestIds.Certificate("b"), Kind = HostKind.Respond, Respond = new RespondSpec { Body = "b" } }),
             host.Shared.PublicListeners.CompilerOptions with { Certificates = host.Shared.Certificates });
         Assert.True((await host.Shared.SnapshotPublisher.PublishAsync(bare.Snapshot!, TestContext.Current.CancellationToken)).Succeeded);
 
@@ -126,7 +125,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         {
             Id = TestIds.Host("strict"),
             Names = ["127.0.0.1"],
-            Tls = new HostTlsSpec { MinimumVersion = Paduraksa.Proxy.Tls.TlsMinimumVersion.Tls13 },
+            Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
             Routes = [new RouteSpec { Id = TestIds.Route("strict-root"), Upstream = TestIds.Upstream("echo") }],
         }));
 
@@ -374,7 +373,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         await using PaduraksaHost host = await StartAsync(new() { ["Paduraksa:Listen:PublicHttpsPort"] = "8443" });
         ProxyConfigModel model = App(
             new HostSpec { Id = TestIds.Host("tcp"), Names = ["tcp.test"], Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Id = TestIds.Route("tcp-root"), Upstream = TestIds.Upstream("echo") }] },
-            new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = Paduraksa.Proxy.Snapshot.HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } });
+            new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } });
         // No libmsquic here (or H3 off): tell the compiler the H3 listener exists, as it does in production.
         await PublishAsync(host, model, host.Shared.PublicListeners.CompilerOptions with { AdvertiseHttp3 = true });
 

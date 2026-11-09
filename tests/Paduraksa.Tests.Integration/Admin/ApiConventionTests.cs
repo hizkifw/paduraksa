@@ -391,6 +391,34 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     }
 
     [Fact]
+    public async Task TheSharedEnumsKeepTheirSchemaNames()
+    {
+        // The enums the config document and the proxy share live in Core, but their names are the API contract's: each is a
+        // components.schemas key, so a rename here would silently rename a published schema.
+        AdminApiHarness api = shared.Api;
+
+        using HttpResponseMessage response = await api.GetAsync("/api/v1/openapi.json", caller: null);
+        JsonObject document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
+        JsonObject schemas = document["components"]!["schemas"]!.AsObject();
+
+        // Four of them are described as a schema of their own; the other four are inlined where they are used, so their
+        // names never reach components.schemas. Both spellings are pinned: either would change the published API.
+        string[] names = [.. schemas.Select(s => s.Key)];
+        foreach (string name in (string[])["TlsMinimumVersion", "TcpAlpn", "ServerHeaderMode", "RequestIdPropagation"])
+        {
+            Assert.Contains(name, names);
+        }
+
+        Assert.DoesNotContain("UnknownHostMode", names);
+
+        // The inlined one keeps the values a client reads, and the contract's name.
+        JsonObject unknownHost = schemas["GlobalSettings"]!["properties"]!["unknownHost"]!.AsObject();
+        Assert.Equal(
+            ["notFound", "misdirectedRequest", "close"],
+            unknownHost["enum"]!.AsArray().Select(v => v!.GetValue<string>()));
+    }
+
+    [Fact]
     public async Task TheReferenceUiIsAnonymousServesItsScriptLocallyAndNeedsNothingFromOutside()
     {
         AdminApiHarness api = shared.Api;

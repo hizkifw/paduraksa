@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Json;
 
 namespace Paduraksa.Contracts.Simulation;
 

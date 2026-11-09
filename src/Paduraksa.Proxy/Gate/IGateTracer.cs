@@ -1,8 +1,7 @@
 using System.Runtime.CompilerServices;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;

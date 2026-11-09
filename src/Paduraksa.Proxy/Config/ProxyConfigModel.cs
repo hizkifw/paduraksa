@@ -29,23 +29,10 @@ public sealed record ProxyConfigModel
     public DefaultsSpec Defaults { get; init; } = new();
 }
 
-/// <summary>What an unknown host gets (PLAN §5.1 default-host behaviour).</summary>
-public enum UnknownHostMode
-{
-    /// <summary>404 with a short body.</summary>
-    NotFound,
-
-    /// <summary>421 Misdirected Request.</summary>
-    MisdirectedRequest,
-
-    /// <summary>No response: the connection (H1) or stream (H2/H3) is aborted.</summary>
-    Close,
-}
-
 /// <summary>Global settings the compiler needs.</summary>
 public sealed record DefaultsSpec
 {
-    public UnknownHostMode UnknownHost { get; init; } = UnknownHostMode.NotFound;
+    public UnknownHostBehaviour UnknownHost { get; init; } = UnknownHostBehaviour.NotFound;
 
     /// <summary>
     /// The certificate (resolved by <see cref="SnapshotCompilerOptions.Certificates"/>) served when the
@@ -169,22 +156,6 @@ public sealed record HostServerHeaderSpec
 
     /// <summary>The value <see cref="ServerHeaderMode.Custom"/> sends; ignored by every other mode.</summary>
     public string? Value { get; init; }
-}
-
-/// <summary>What a host's responses put in <c>Server</c>.</summary>
-public enum ServerHeaderMode : byte
-{
-    /// <summary><c>Server: Paduraksa</c>, with no version. Replaces an upstream's own header.</summary>
-    Paduraksa,
-
-    /// <summary><c>Server: &lt;Value&gt;</c>. Replaces an upstream's own header.</summary>
-    Custom,
-
-    /// <summary>The upstream's own header passes through untouched. Gate answers carry none.</summary>
-    Upstream,
-
-    /// <summary>No <c>Server</c> header at all: an upstream's own is removed too. HTTP/2 trailers aren't touched.</summary>
-    Remove,
 }
 
 /// <summary>A host (PLAN §5.1). Disabled hosts are validated but left out of the snapshot.</summary>

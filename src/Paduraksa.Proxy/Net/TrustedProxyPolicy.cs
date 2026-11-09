@@ -1,22 +1,6 @@
+using Paduraksa.Core.Model;
+
 namespace Paduraksa.Proxy.Net;
-
-public enum TrustedProxyMode : byte
-{
-    /// <summary>No trusted proxies: the connection-level address is the client.</summary>
-    Off = 0,
-
-    /// <summary>Configured proxy CIDRs; client from a forwarding header (default <c>X-Forwarded-For</c>), right-most
-    /// untrusted entry.</summary>
-    Generic = 1,
-
-    /// <summary>Cloudflare connects to us directly: the peer must be in Cloudflare's edge ranges; client from
-    /// <c>CF-Connecting-IP</c>.</summary>
-    CloudflareProxy = 2,
-
-    /// <summary>A local <c>cloudflared</c> connects to us: the peer must be in the configured cloudflared CIDRs;
-    /// client from <c>CF-Connecting-IP</c>.</summary>
-    CloudflareTunnel = 3,
-}
 
 /// <summary>
 /// Compiled, immutable trusted-proxy settings (PLAN §7.2 C, §7.6), consumed by <see cref="ClientIpResolver"/>.

@@ -11,6 +11,8 @@ using Paduraksa.Contracts.Logging;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Ids;
+using Paduraksa.Core.Json;
+using Paduraksa.Core.Model;
 
 namespace Paduraksa.Admin.Json;
 
@@ -43,6 +45,16 @@ namespace Paduraksa.Admin.Json;
         typeof(DnsProviderKindWireConverter),
         typeof(KeySpecWireConverter),
         typeof(JwsAlgorithmWireConverter),
+        // The enums the config document and the proxy share live in Core, and the source generator can't see their own
+        // attribute: the same list as ConfigJsonContext's, so a host setting's enum is spelled alike on every surface.
+        typeof(ConfigEnumConverter<HostKind>),
+        typeof(ConfigEnumConverter<RouteMatchKind>),
+        typeof(ConfigEnumConverter<TrustedProxyMode>),
+        typeof(ConfigEnumConverter<UnknownHostBehaviour>),
+        typeof(ConfigEnumConverter<TlsMinimumVersion>),
+        typeof(ConfigEnumConverter<TcpAlpn>),
+        typeof(ConfigEnumConverter<ServerHeaderMode>),
+        typeof(ConfigEnumConverter<RequestIdPropagation>),
     ])]
 [JsonSerializable(typeof(ApiProblem))]
 [JsonSerializable(typeof(CurrentConfig))]

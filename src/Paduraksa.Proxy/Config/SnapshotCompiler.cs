@@ -256,8 +256,8 @@ public static class SnapshotCompiler
             YarpEndpoints = [],
             Default = defaults.UnknownHost switch
             {
-                UnknownHostMode.Close => DefaultHostBehaviour.Close,
-                UnknownHostMode.MisdirectedRequest => DefaultHostBehaviour.MisdirectedRequest(),
+                UnknownHostBehaviour.Close => DefaultHostBehaviour.Close,
+                UnknownHostBehaviour.MisdirectedRequest => DefaultHostBehaviour.MisdirectedRequest(),
                 _ => DefaultHostBehaviour.NotFound(),
             },
             Certificates = certificates.Build(),

@@ -10,22 +10,6 @@ using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Snapshot;
 
-/// <summary>Host kinds in v1 (PLAN §5.1): Proxy, Redirect, Respond and Admin (PLAN §3.1).</summary>
-public enum HostKind : byte
-{
-    /// <summary>Routes to upstreams through YARP.</summary>
-    Proxy,
-
-    /// <summary>Answers every request with a precomputed redirect.</summary>
-    Redirect,
-
-    /// <summary>Answers every request with a fixed status and body.</summary>
-    Respond,
-
-    /// <summary>Forwards every request to the admin app's internal listener (the <c>__admin</c> cluster).</summary>
-    Admin,
-}
-
 /// <summary>A configured host, compiled for the gate (PLAN §6.2). Immutable; belongs to one snapshot.</summary>
 public sealed class CompiledHost
 {

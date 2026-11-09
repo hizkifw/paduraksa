@@ -1,5 +1,8 @@
 using System.Text.Json.Serialization;
 
+using Paduraksa.Core.Json;
+using Paduraksa.Core.Model;
+
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>
@@ -40,26 +43,6 @@ public sealed record HostSettings
     public ServerHeaderSettings? ServerHeader { get; init; }
 }
 
-/// <summary>
-/// Where a request's ID (<c>X-Request-Id</c>, PLAN §7.4) is sent: to the upstream, back to the client, both or neither.
-/// The ID itself always exists - the access log (and later the error pages) records it whatever this says.
-/// </summary>
-[JsonConverter(typeof(ConfigEnumConverter<RequestIdPropagation>))]
-public enum RequestIdPropagation
-{
-    /// <summary>The upstream and the client's response (the built-in default).</summary>
-    UpstreamAndResponse,
-
-    /// <summary>The upstream only: the client never learns the ID, and the app's log is the one to correlate with.</summary>
-    UpstreamOnly,
-
-    /// <summary>The client's response only: the upstream sees no header and can't confuse it with its own tracing.</summary>
-    ResponseOnly,
-
-    /// <summary>Neither: only the proxy's own log mentions it.</summary>
-    Off,
-}
-
 /// <summary>The route layer: the route-level subset of <see cref="HostSettings"/>, on top of the host's resolved
 /// settings. Null fields inherit from the host.</summary>
 public sealed record RouteSettings
@@ -90,25 +73,6 @@ public sealed record TlsSettings
 /// (canonical order: sorted, no duplicates).</param>
 /// <param name="DropDenied">Abort denied requests instead of answering 403. Needs addresses.</param>
 public sealed record IpAllowListSettings(IReadOnlyList<string> Addresses, bool DropDenied = false);
-
-/// <summary>Lowest TLS version over TCP.</summary>
-[JsonConverter(typeof(ConfigEnumConverter<TlsMinimumVersion>))]
-public enum TlsMinimumVersion
-{
-    Tls12,
-    Tls13,
-}
-
-/// <summary>ALPN protocols offered over TCP (QUIC always offers <c>h3</c>).</summary>
-[JsonConverter(typeof(ConfigEnumConverter<TcpAlpn>))]
-public enum TcpAlpn
-{
-    /// <summary><c>h2</c>, then <c>http/1.1</c>.</summary>
-    Http2AndHttp11,
-
-    /// <summary><c>http/1.1</c> only.</summary>
-    Http11Only,
-}
 
 /// <summary>
 /// HTTP Strict Transport Security (PLAN §14 M6): the host's HTTPS responses tell a browser to keep the host on HTTPS for
@@ -150,21 +114,4 @@ public sealed record ServerHeaderSettings
     /// leading or trailing space. Required once the resolved mode is <see cref="ServerHeaderMode.Custom"/>; ignored by
     /// every other mode.</summary>
     public string? Value { get; init; }
-}
-
-/// <summary>What a host's responses put in <c>Server</c>.</summary>
-[JsonConverter(typeof(ConfigEnumConverter<ServerHeaderMode>))]
-public enum ServerHeaderMode
-{
-    /// <summary><c>Server: Paduraksa</c>, with no version. Replaces an upstream's own header.</summary>
-    Paduraksa,
-
-    /// <summary><c>Server: &lt;Value&gt;</c>. Replaces an upstream's own header.</summary>
-    Custom,
-
-    /// <summary>The upstream's own header passes through untouched. Gate answers carry none.</summary>
-    Upstream,
-
-    /// <summary>No <c>Server</c> header at all: an upstream's own is removed too. HTTP/2 trailers aren't touched.</summary>
-    Remove,
 }

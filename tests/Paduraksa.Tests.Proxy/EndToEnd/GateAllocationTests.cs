@@ -1,13 +1,11 @@
 using System.Net;
-
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;

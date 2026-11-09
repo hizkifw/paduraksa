@@ -169,7 +169,7 @@ internal static class SessionCookieTransform
         }
     }
 
-    /// <summary>Whether the request is being forwarded to an admin host (<see cref="HostKind.Admin"/>), where the cookie belongs.</summary>
+    /// <summary>Whether the request is being forwarded to an admin host (<see cref="Paduraksa.Core.Model.HostKind.Admin"/>), where the cookie belongs.</summary>
     internal static bool IsAdminRoute(HttpContext context) =>
         context.Features.Get<IGateFeature>()?.State.Route is { Admin: true };
 

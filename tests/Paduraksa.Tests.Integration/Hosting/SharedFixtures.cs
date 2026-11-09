@@ -1,4 +1,5 @@
 using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Model;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Admin;
 

@@ -1,8 +1,7 @@
 using System.Net;
-
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Testing;
 

@@ -8,10 +8,8 @@ using Paduraksa.Proxy.Config;
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 using Contract = Paduraksa.Contracts.Config;
-using ContractServerHeaderMode = Paduraksa.Contracts.Config.ServerHeaderMode;
 using ProxyLogging = Paduraksa.Proxy.Logging;
 using ProxyNet = Paduraksa.Proxy.Net;
-using ProxyServerHeaderMode = Paduraksa.Proxy.Config.ServerHeaderMode;
 using ProxySnapshot = Paduraksa.Proxy.Snapshot;
 using ProxyTls = Paduraksa.Proxy.Tls;
 
@@ -27,7 +25,7 @@ public sealed class ProxyConfigMappingTests
     {
         ConfigDocument document = new(
             Settings: new GlobalSettings(
-                Defaults: new HostSettings { ForceHttps = true, Tls = new TlsSettings { MinimumVersion = Contract.TlsMinimumVersion.Tls13 } },
+                Defaults: new HostSettings { ForceHttps = true, Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls13 } },
                 UnknownHost: UnknownHostBehaviour.MisdirectedRequest,
                 DefaultCertificateId: Id<CertificateId>(1),
                 TrustedProxies: new TrustedProxySettings(TrustedProxyMode.Generic, [" 10.0.0.0/8 ", "192.168.1.1/32"], Header: "X-Real-IP")),
@@ -58,7 +56,7 @@ public sealed class ProxyConfigMappingTests
                         new RouteConfig(
                             Id<RouteId>(3),
                             AppUpstream,
-                            Match: Contract.RouteMatchKind.Exact,
+                            Match: RouteMatchKind.Exact,
                             Path: "/admin",
                             Settings: new RouteSettings { IpAllowList = new IpAllowListSettings(["192.168.1.0/24"], DropDenied: true) }),
                     ]),
@@ -71,13 +69,13 @@ public sealed class ProxyConfigMappingTests
                 new HostConfig(
                     Id<HostId>(3),
                     ["old.example.com"],
-                    Kind: Contract.HostKind.Redirect,
+                    Kind: HostKind.Redirect,
                     ProfileId: LanProfile,
                     Redirect: new RedirectConfig(" https://app.example.com ", 308)),
-                new HostConfig(Id<HostId>(4), ["soon.example.com"], Kind: Contract.HostKind.Respond, Enabled: false, Respond: new RespondConfig(503, "soon")),
+                new HostConfig(Id<HostId>(4), ["soon.example.com"], Kind: HostKind.Respond, Enabled: false, Respond: new RespondConfig(503, "soon")),
             ]);
 
-        HostTlsSpec lanTls = new() { MinimumVersion = ProxyTls.TlsMinimumVersion.Tls13, Http3 = false };
+        HostTlsSpec lanTls = new() { MinimumVersion = TlsMinimumVersion.Tls13, Http3 = false };
         ProxyConfigModel expected = new()
         {
             Revision = Revision,
@@ -97,7 +95,7 @@ public sealed class ProxyConfigMappingTests
                         new RouteSpec
                         {
                             Id = Id<RouteId>(3),
-                            Match = ProxySnapshot.RouteMatchKind.Exact,
+                            Match = RouteMatchKind.Exact,
                             Path = "/admin",
                             Upstream = AppUpstream,
                             Policies = [new IpAllowListPolicySpec(["192.168.1.0/24"], DropDenied: true)],
@@ -111,14 +109,14 @@ public sealed class ProxyConfigMappingTests
                     Id = Id<HostId>(2),
                     Names = ["plain.example.com"],
                     Https = false,
-                    Tls = new HostTlsSpec { MinimumVersion = ProxyTls.TlsMinimumVersion.Tls13 },
+                    Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
                     Routes = [new RouteSpec { Id = Id<RouteId>(4), Upstream = AppUpstream }],
                 },
                 new HostSpec
                 {
                     Id = Id<HostId>(3),
                     Names = ["old.example.com"],
-                    Kind = ProxySnapshot.HostKind.Redirect,
+                    Kind = HostKind.Redirect,
                     ForceHttps = true,
                     Tls = lanTls,
                     Policies = [new IpAllowListPolicySpec(["192.168.0.0/16"])],
@@ -128,10 +126,10 @@ public sealed class ProxyConfigMappingTests
                 {
                     Id = Id<HostId>(4),
                     Names = ["soon.example.com"],
-                    Kind = ProxySnapshot.HostKind.Respond,
+                    Kind = HostKind.Respond,
                     Enabled = false,
                     ForceHttps = true,
-                    Tls = new HostTlsSpec { MinimumVersion = ProxyTls.TlsMinimumVersion.Tls13 },
+                    Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
                     Respond = new RespondSpec { StatusCode = 503, Body = "soon" },
                 },
             ],
@@ -156,12 +154,12 @@ public sealed class ProxyConfigMappingTests
             ],
             Defaults = new DefaultsSpec
             {
-                UnknownHost = UnknownHostMode.MisdirectedRequest,
+                UnknownHost = UnknownHostBehaviour.MisdirectedRequest,
                 Certificate = Id<CertificateId>(1),
-                Tls = new HostTlsSpec { MinimumVersion = ProxyTls.TlsMinimumVersion.Tls13 },
+                Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
                 TrustedProxies = new TrustedProxySpec
                 {
-                    Mode = ProxyNet.TrustedProxyMode.Generic,
+                    Mode = TrustedProxyMode.Generic,
                     Proxies = ["10.0.0.0/8", "192.168.1.1"],
                     Header = "x-real-ip",
                 },
@@ -260,14 +258,14 @@ public sealed class ProxyConfigMappingTests
     public void LayersResolveFromTheGlobalDefaultsUpToTheHost()
     {
         ConfigDocument document = Document(
-            defaults: new HostSettings { ForceHttps = true, Tls = new TlsSettings { MinimumVersion = Contract.TlsMinimumVersion.Tls13 }, IpAllowList = Lan },
-            profile: new HostSettings { Tls = new TlsSettings { TcpAlpn = Contract.TcpAlpn.Http11Only, MinimumVersion = Contract.TlsMinimumVersion.Tls12 }, IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) },
+            defaults: new HostSettings { ForceHttps = true, Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls13 }, IpAllowList = Lan },
+            profile: new HostSettings { Tls = new TlsSettings { TcpAlpn = TcpAlpn.Http11Only, MinimumVersion = TlsMinimumVersion.Tls12 }, IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) },
             host: new HostSettings { ForceHttps = false, Tls = new TlsSettings { Http3 = false } });
 
         HostSpec host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
 
         Assert.False(host.ForceHttps);
-        Assert.Equal(new HostTlsSpec { MinimumVersion = ProxyTls.TlsMinimumVersion.Tls12, TcpAlpn = ProxyTls.TcpAlpn.Http11Only, Http3 = false }, host.Tls);
+        Assert.Equal(new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = TcpAlpn.Http11Only, Http3 = false }, host.Tls);
         Assert.Equal(["10.0.0.0/8"], Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Policies)).Addresses);
     }
 
@@ -293,13 +291,13 @@ public sealed class ProxyConfigMappingTests
     public void TheServerHeaderResolvesFieldByFieldFromTheGlobalDefaultsUpToTheHost()
     {
         ConfigDocument document = Document(
-            defaults: new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ContractServerHeaderMode.Custom, Value = "default/1.0" } },
+            defaults: new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "default/1.0" } },
             profile: new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "profile/2.0" } },
-            host: new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ContractServerHeaderMode.Upstream } });
+            host: new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Upstream } });
 
         HostSpec host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
 
-        Assert.Equal(new HostServerHeaderSpec { Mode = ProxyServerHeaderMode.Upstream, Value = "profile/2.0" }, host.ServerHeader);
+        Assert.Equal(new HostServerHeaderSpec { Mode = ServerHeaderMode.Upstream, Value = "profile/2.0" }, host.ServerHeader);
 
         // Built-in: Paduraksa, no version, and the global default an unknown host follows.
         MappedConfig plain = ProxyConfigMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty);
@@ -307,12 +305,12 @@ public sealed class ProxyConfigMappingTests
         Assert.Equal(HostServerHeaderSpec.Default, plain.Model.Defaults!.ServerHeader);
 
         ConfigDocument defaults = Document(
-            new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ContractServerHeaderMode.Custom, Value = "unknown/1.0" } },
+            new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "unknown/1.0" } },
             null,
             null);
         MappedConfig fallback = ProxyConfigMapping.Map(defaults, Revision, CertificateInventory.Empty);
-        Assert.Equal(new HostServerHeaderSpec { Mode = ProxyServerHeaderMode.Custom, Value = "unknown/1.0" }, fallback.Model.Defaults!.ServerHeader);
-        Assert.Equal(new HostServerHeaderSpec { Mode = ProxyServerHeaderMode.Custom, Value = "unknown/1.0" }, Assert.Single(fallback.Model.Hosts).ServerHeader);
+        Assert.Equal(new HostServerHeaderSpec { Mode = ServerHeaderMode.Custom, Value = "unknown/1.0" }, fallback.Model.Defaults!.ServerHeader);
+        Assert.Equal(new HostServerHeaderSpec { Mode = ServerHeaderMode.Custom, Value = "unknown/1.0" }, Assert.Single(fallback.Model.Hosts).ServerHeader);
     }
 
     [Fact]
@@ -329,7 +327,7 @@ public sealed class ProxyConfigMappingTests
 
         HostSpec host = Assert.Single(ProxyConfigMapping.Map(admin, Revision, CertificateInventory.Empty).Model.Hosts);
 
-        Assert.Equal(ProxySnapshot.HostKind.Admin, host.Kind);
+        Assert.Equal(HostKind.Admin, host.Kind);
         Assert.Equal(new HostHstsSpec { Enabled = true, MaxAgeSeconds = 86_400, IncludeSubDomains = false, Preload = false }, host.Hsts);
     }
 
@@ -356,40 +354,40 @@ public sealed class ProxyConfigMappingTests
         Assert.Null(host.Certificate);
         // PLAN §7.4: logged, and the request ID sent upstream and back, by default.
         Assert.True(host.AccessLog);
-        Assert.Equal(ProxyLogging.RequestIdPropagation.UpstreamAndResponse, host.RequestIdPropagation);
+        Assert.Equal(RequestIdPropagation.UpstreamAndResponse, host.RequestIdPropagation);
     }
 
     [Fact]
     public void TheAccessLogAndRequestIdSettingsLayerLikeEveryOther()
     {
-        const Contract.RequestIdPropagation Off = Contract.RequestIdPropagation.Off;
+        const RequestIdPropagation Off = RequestIdPropagation.Off;
         Contract.HostSettings globalDefaults = new() { AccessLog = false, RequestIdPropagation = Off };
 
         // Nothing below, nothing set: the built-in defaults (on, upstream and response).
-        Assert.Equal((true, ProxyLogging.RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(null, null, null)));
+        Assert.Equal((true, RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(null, null, null)));
 
         // The global defaults reach a host that sets nothing.
-        Assert.Equal((false, ProxyLogging.RequestIdPropagation.Off), SettingsOf(Document(globalDefaults, null, null)));
+        Assert.Equal((false, RequestIdPropagation.Off), SettingsOf(Document(globalDefaults, null, null)));
 
         // A profile over the defaults...
-        Assert.Equal((true, ProxyLogging.RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(
+        Assert.Equal((true, RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(
             globalDefaults,
-            new HostSettings { AccessLog = true, RequestIdPropagation = Contract.RequestIdPropagation.UpstreamAndResponse },
+            new HostSettings { AccessLog = true, RequestIdPropagation = RequestIdPropagation.UpstreamAndResponse },
             null)));
 
         // ...and the host over both.
-        Assert.Equal((false, ProxyLogging.RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(
+        Assert.Equal((false, RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(
             globalDefaults,
             new HostSettings { AccessLog = true, RequestIdPropagation = Off },
-            new HostSettings { AccessLog = false, RequestIdPropagation = Contract.RequestIdPropagation.UpstreamAndResponse })));
+            new HostSettings { AccessLog = false, RequestIdPropagation = RequestIdPropagation.UpstreamAndResponse })));
 
         // The global default is also what an unknown host gets (the snapshot's own value).
         ConfigDocument defaultsOnly = Document(new HostSettings { AccessLog = false, RequestIdPropagation = Off }, null, null);
         DefaultsSpec unknown = ProxyConfigMapping.Map(defaultsOnly, Revision, CertificateInventory.Empty).Model.Defaults;
         Assert.False(unknown.AccessLog);
-        Assert.Equal(ProxyLogging.RequestIdPropagation.Off, unknown.RequestIdPropagation);
+        Assert.Equal(RequestIdPropagation.Off, unknown.RequestIdPropagation);
 
-        static (bool AccessLog, ProxyLogging.RequestIdPropagation Propagation) SettingsOf(ConfigDocument document)
+        static (bool AccessLog, RequestIdPropagation Propagation) SettingsOf(ConfigDocument document)
         {
             HostSpec host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
             return (host.AccessLog, host.RequestIdPropagation);

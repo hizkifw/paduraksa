@@ -41,7 +41,7 @@ public sealed class SnapshotCompilerTests
             new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "coming soon" } },
             new HostSpec { Id = TestIds.Host("off"), Names = ["off.test"], Enabled = false, Routes = [Route("off-root", "web")] },
         ],
-        Defaults = new DefaultsSpec { UnknownHost = UnknownHostMode.MisdirectedRequest },
+        Defaults = new DefaultsSpec { UnknownHost = UnknownHostBehaviour.MisdirectedRequest },
     };
 
     [Fact]
@@ -253,7 +253,7 @@ public sealed class SnapshotCompilerTests
         Assert.True(snapshot.Yarp.IsEmpty);
         Assert.Empty(snapshot.RouteIdBySlot);
         Assert.Equal(404, snapshot.Default.Response!.StatusCode);
-        Assert.Equal(DefaultHostAction.Close, Compile(new ProxyConfigModel { Defaults = new DefaultsSpec { UnknownHost = UnknownHostMode.Close } }).Default.Action);
+        Assert.Equal(DefaultHostAction.Close, Compile(new ProxyConfigModel { Defaults = new DefaultsSpec { UnknownHost = UnknownHostBehaviour.Close } }).Default.Action);
     }
 
     public static TheoryData<string, ProxyConfigModel, string> InvalidConfigs => new()
@@ -318,7 +318,7 @@ public sealed class SnapshotCompilerTests
         { "deny 205 with body", Hosts(Respond("a", "a.test") with { Policies = [new DenyPolicySpec(205)] }), "a 205 deny response can't have a body" },
         { "unknown host kind", Hosts(Respond("a", "a.test") with { Kind = (HostKind)9 }), "unknown host kind 9" },
         { "unknown match kind", WithWeb(ProxyHost("a", "a.test", Route("r", "web") with { Match = (RouteMatchKind)9 })), "unknown match kind 9" },
-        { "unknown default-host behaviour", new ProxyConfigModel { Defaults = new DefaultsSpec { UnknownHost = (UnknownHostMode)9 } }, "unknown default-host behaviour 9" },
+        { "unknown default-host behaviour", new ProxyConfigModel { Defaults = new DefaultsSpec { UnknownHost = (UnknownHostBehaviour)9 } }, "unknown default-host behaviour 9" },
     };
 
     [Theory]
@@ -351,7 +351,7 @@ public sealed class SnapshotCompilerTests
         { "default certificate", new ProxyConfigModel { Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("c") } }, CompileErrorSource.Defaults },
         {
             "trusted proxies",
-            new ProxyConfigModel { Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = Paduraksa.Proxy.Net.TrustedProxyMode.Generic } } },
+            new ProxyConfigModel { Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic } } },
             CompileErrorSource.TrustedProxies
         },
     };

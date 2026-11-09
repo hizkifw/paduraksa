@@ -43,10 +43,13 @@ namespace Paduraksa.Application.Compilation;
 /// entry, and the command pipeline decides whether it blocks a change. Unknown host behaviour and the trusted proxies come
 /// from the global settings; the default certificate's TLS settings are the global defaults' TLS.</para>
 /// <para><b>Upstreams.</b> Disabled destinations are left out. Load balancing maps to YARP's policy names.</para>
-/// <para><b>Undefined values.</b> Enums with a proxy twin are converted by value (<c>ContractEnumTests</c> pins that
-/// both have the same members in the same order) and the compiler rejects undefined ones. The model can't carry an
-/// undefined certificate binding mode or load-balancing policy, nor a respond host without a content type, so the
-/// mapping reports those itself, as <see cref="MappedConfig.Errors"/>. A null respond body is the empty body.</para>
+/// <para><b>Undefined values.</b> The enums the document and the proxy share are one type in <c>Paduraksa.Core.Model</c>
+/// (<see cref="HostKind"/>, <see cref="RouteMatchKind"/>, <see cref="TrustedProxyMode"/>, <see cref="UnknownHostBehaviour"/>,
+/// <see cref="TlsMinimumVersion"/>, <see cref="TcpAlpn"/>, <see cref="ServerHeaderMode"/>,
+/// <see cref="RequestIdPropagation"/>), so nothing is cast and the compiler rejects an undefined value.
+/// <c>SharedEnumWireTests</c> pins their spelling. The model can't carry an undefined certificate binding mode or
+/// load-balancing policy, nor a respond host without a content type, so the mapping reports those itself, as
+/// <see cref="MappedConfig.Errors"/>. A null respond body is the empty body.</para>
 /// </remarks>
 public static class ProxyConfigMapping
 {
@@ -84,7 +87,7 @@ public static class ProxyConfigMapping
             Upstreams = [.. canonical.Upstreams.Select(u => MapUpstream(u, errors))],
             Defaults = new DefaultsSpec
             {
-                UnknownHost = (UnknownHostMode)settings.UnknownHost,
+                UnknownHost = (UnknownHostBehaviour)settings.UnknownHost,
                 Certificate = DefaultCertificate(settings.DefaultCertificateId, inventory, warnings),
                 Tls = HostSettingsLayers.Merge(HostTlsSpec.Default, settings.Defaults.Tls),
                 TrustedProxies = MapTrustedProxies(settings.TrustedProxies),
@@ -227,7 +230,7 @@ public static class ProxyConfigMapping
             routes[j] = new RouteSpec
             {
                 Id = route.Id,
-                Match = (ProxySnapshot.RouteMatchKind)route.Match,
+                Match = (RouteMatchKind)route.Match,
                 Path = route.Path,
                 Order = route.Order,
                 Upstream = route.UpstreamId,
@@ -257,7 +260,7 @@ public static class ProxyConfigMapping
         {
             Id = host.Id,
             Names = host.Names,
-            Kind = (ProxySnapshot.HostKind)host.Kind,
+            Kind = (HostKind)host.Kind,
             Enabled = host.Enabled,
             // The admin is only ever reached over HTTPS (PLAN §3.1): it forces the redirect whatever the layers say.
             ForceHttps = host.Kind == HostKind.Admin || effective.ForceHttps,
@@ -339,7 +342,7 @@ public static class ProxyConfigMapping
 
     private static TrustedProxySpec MapTrustedProxies(TrustedProxySettings trusted) => new()
     {
-        Mode = (ProxyNet.TrustedProxyMode)trusted.Mode,
+        Mode = (TrustedProxyMode)trusted.Mode,
         Proxies = trusted.Proxies,
         Header = trusted.Header,
         UseTrueClientIp = trusted.UseTrueClientIp,

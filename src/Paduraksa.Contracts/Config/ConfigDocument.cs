@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 
+using Paduraksa.Core.Json;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Config;
@@ -67,20 +68,6 @@ public sealed record GlobalSettings(
     public TrustedProxySettings TrustedProxies { get; init; } = TrustedProxies ?? new();
 }
 
-/// <summary>What a request for an unknown host gets.</summary>
-[JsonConverter(typeof(ConfigEnumConverter<UnknownHostBehaviour>))]
-public enum UnknownHostBehaviour
-{
-    /// <summary>404 with a short body.</summary>
-    NotFound,
-
-    /// <summary>421 Misdirected Request.</summary>
-    MisdirectedRequest,
-
-    /// <summary>No response: the connection (H1) or stream (H2/H3) is aborted.</summary>
-    Close,
-}
-
 /// <summary>
 /// Trusted proxies in front of Paduraksa (PLAN §7.2 C, §7.6). Only a peer inside the trusted set may supply the
 /// client IP through a header; anyone else is the client.
@@ -107,23 +94,6 @@ public sealed record TrustedProxySettings(
     bool TrustForwardedProto = false)
 {
     public IReadOnlyList<string> Proxies { get; init; } = Proxies ?? [];
-}
-
-/// <summary>How the client IP reaches us.</summary>
-[JsonConverter(typeof(ConfigEnumConverter<TrustedProxyMode>))]
-public enum TrustedProxyMode
-{
-    /// <summary>No trusted proxies: the connection-level address is the client.</summary>
-    Off,
-
-    /// <summary>Configured proxies; the client from a forwarding header.</summary>
-    Generic,
-
-    /// <summary>Cloudflare connects directly; the client from <c>CF-Connecting-IP</c>.</summary>
-    CloudflareProxy,
-
-    /// <summary>A local <c>cloudflared</c> connects; the client from <c>CF-Connecting-IP</c>.</summary>
-    CloudflareTunnel,
 }
 
 /// <summary>A named preset of host settings (PLAN §5.1), e.g. "LAN only"; a host names at most one.</summary>

@@ -1,9 +1,8 @@
 using System.Buffers;
-
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;

@@ -1,7 +1,7 @@
 using System.Security.Authentication;
-
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
+using Paduraksa.Core.Model;
 
 namespace Paduraksa.Proxy.Tls;
 
