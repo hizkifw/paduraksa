@@ -2,11 +2,8 @@ using System.Text.Json.Serialization.Metadata;
 
 using Microsoft.AspNetCore.Http;
 
-using Paduraksa.Admin.Auth;
-using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Model;
 
 namespace Paduraksa.Admin.Api;
 
@@ -18,13 +15,6 @@ namespace Paduraksa.Admin.Api;
 /// </summary>
 internal static class EndpointSupport
 {
-    /// <summary>The origin of the authenticated caller. Only valid behind <c>RequirePermission</c>, which has answered an anonymous request by now.</summary>
-    public static CommandOrigin OriginOf(HttpContext http)
-    {
-        ArgumentNullException.ThrowIfNull(http);
-        return http.GetCaller()?.Origin ?? throw new InvalidOperationException("The endpoint was reached without an authenticated caller; it must require a permission.");
-    }
-
     /// <summary>A JSON answer, written through the API's own serializer contract.</summary>
     public static IResult Json<T>(T value, JsonTypeInfo<T> typeInfo, int status = StatusCodes.Status200OK) =>
         Results.Json(value, typeInfo, statusCode: status);

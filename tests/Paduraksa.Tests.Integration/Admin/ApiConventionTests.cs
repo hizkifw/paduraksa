@@ -203,6 +203,23 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
         Assert.Contains(endpoints, e => e.RoutePattern.RawText == "/api/v1/openapi.json" && e.Metadata.GetMetadata<AdminAnonymousMetadata>() is not null);
     }
 
+    [Fact]
+    public async Task EveryCallerRequirementAlsoHasItsFilter()
+    {
+        // The filter itself isn't exposed on RouteEndpoint, so the helpers attach AdminGuardFilterMetadata with it: an
+        // endpoint that carries a caller requirement without that marker would let an anonymous request through binding
+        // to AdminCaller.BindAsync's stand-in.
+        AdminApiHarness api = shared.Api;
+
+        List<RouteEndpoint> endpoints = ApiEndpoints(api);
+        List<string> unguarded = [.. endpoints
+            .Where(e => (e.Metadata.GetMetadata<AdminAuthenticatedMetadata>() is not null
+                    || e.Metadata.GetMetadata<RequiredPermissionMetadata>() is not null)
+                && e.Metadata.GetMetadata<AdminGuardFilterMetadata>() is null)
+            .Select(Describe)];
+        Assert.Empty(unguarded);
+    }
+
     private static string Describe(RouteEndpoint endpoint) =>
         $"{string.Join(',', endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? [])} {endpoint.RoutePattern.RawText}";
 

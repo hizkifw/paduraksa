@@ -47,44 +47,42 @@ internal static class AccountEndpoints
         return builder;
     }
 
-    private static Task<IResult> ChangePasswordAsync(ChangePasswordRequest request, HttpContext http, UserService users, AdminThrottle throttle) =>
+    private static Task<IResult> ChangePasswordAsync(ChangePasswordRequest request, AdminCaller caller, HttpContext http, UserService users, AdminThrottle throttle) =>
         IdentityApi.WithPasswordCheckAsync(http, throttle, async () =>
         {
-            AdminCaller caller = http.GetCaller()!;
             IdentityResult result = await users.ChangePasswordAsync(caller.Origin, request, caller.Session, http.RequestAborted).ConfigureAwait(false);
             return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.NoContent();
         });
 
-    private static Task<IResult> BeginTotpAsync(PasswordConfirmation request, HttpContext http, TwoFactorService twoFactor, AdminThrottle throttle) =>
+    private static Task<IResult> BeginTotpAsync(PasswordConfirmation request, AdminCaller caller, HttpContext http, TwoFactorService twoFactor, AdminThrottle throttle) =>
         IdentityApi.WithPasswordCheckAsync(http, throttle, async () =>
         {
-            TotpEnrollmentResult result = await twoFactor.BeginEnrollmentAsync(http.GetCaller()!.Origin, request.Password, http.RequestAborted).ConfigureAwait(false);
+            TotpEnrollmentResult result = await twoFactor.BeginEnrollmentAsync(caller.Origin, request.Password, http.RequestAborted).ConfigureAwait(false);
             return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Enrollment);
         });
 
-    private static async Task<IResult> ConfirmTotpAsync(TotpConfirmation request, HttpContext http, TwoFactorService twoFactor)
+    private static async Task<IResult> ConfirmTotpAsync(TotpConfirmation request, AdminCaller caller, HttpContext http, TwoFactorService twoFactor)
     {
-        RecoveryCodesResult result = await twoFactor.ConfirmEnrollmentAsync(http.GetCaller()!.Origin, request.Code, http.RequestAborted).ConfigureAwait(false);
+        RecoveryCodesResult result = await twoFactor.ConfirmEnrollmentAsync(caller.Origin, request.Code, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "enrollment") ?? Results.Ok(result.Codes);
     }
 
-    private static Task<IResult> DisableTotpAsync([FromBody] PasswordConfirmation request, HttpContext http, TwoFactorService twoFactor, AdminThrottle throttle) =>
+    private static Task<IResult> DisableTotpAsync([FromBody] PasswordConfirmation request, AdminCaller caller, HttpContext http, TwoFactorService twoFactor, AdminThrottle throttle) =>
         IdentityApi.WithPasswordCheckAsync(http, throttle, async () =>
         {
-            IdentityResult result = await twoFactor.DisableAsync(http.GetCaller()!.Origin, request.Password, http.RequestAborted).ConfigureAwait(false);
+            IdentityResult result = await twoFactor.DisableAsync(caller.Origin, request.Password, http.RequestAborted).ConfigureAwait(false);
             return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.NoContent();
         });
 
-    private static Task<IResult> RegenerateRecoveryCodesAsync(PasswordConfirmation request, HttpContext http, TwoFactorService twoFactor, AdminThrottle throttle) =>
+    private static Task<IResult> RegenerateRecoveryCodesAsync(PasswordConfirmation request, AdminCaller caller, HttpContext http, TwoFactorService twoFactor, AdminThrottle throttle) =>
         IdentityApi.WithPasswordCheckAsync(http, throttle, async () =>
         {
-            RecoveryCodesResult result = await twoFactor.RegenerateRecoveryCodesAsync(http.GetCaller()!.Origin, request.Password, http.RequestAborted).ConfigureAwait(false);
+            RecoveryCodesResult result = await twoFactor.RegenerateRecoveryCodesAsync(caller.Origin, request.Password, http.RequestAborted).ConfigureAwait(false);
             return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Codes);
         });
 
-    private static async Task<IResult> ListSessionsAsync(HttpContext http, SessionService sessions, string? userId = null)
+    private static async Task<IResult> ListSessionsAsync(AdminCaller caller, HttpContext http, SessionService sessions, string? userId = null)
     {
-        AdminCaller caller = http.GetCaller()!;
         if (!OwnerOf(caller, userId, out UserId owner))
         {
             return userId is null ? AdminProblems.Forbidden("Permission required", "This caller has no sessions of its own.") : AdminProblems.NotFound("user");
@@ -94,24 +92,22 @@ internal static class AccountEndpoints
         return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Sessions);
     }
 
-    private static async Task<IResult> RevokeSessionAsync(SessionId id, HttpContext http, SessionService sessions)
+    private static async Task<IResult> RevokeSessionAsync(SessionId id, AdminCaller caller, HttpContext http, SessionService sessions)
     {
-        IdentityResult result = await sessions.RevokeAsync(http.GetCaller()!.Origin, id, http.RequestAborted).ConfigureAwait(false);
+        IdentityResult result = await sessions.RevokeAsync(caller.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "session", result.Problem) ?? Results.NoContent();
     }
 
-    private static async Task<IResult> RevokeOtherSessionsAsync(HttpContext http, SessionService sessions)
+    private static async Task<IResult> RevokeOtherSessionsAsync(AdminCaller caller, HttpContext http, SessionService sessions)
     {
         // RequireSessionCaller has answered a token caller with its 403 already, so the session to keep is always here.
-        AdminCaller caller = http.GetCaller()!;
         SessionId keep = caller.Session!.Value;
         IdentityResult result = await sessions.RevokeOthersAsync(caller.Origin, keep, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "session", result.Problem) ?? Results.NoContent();
     }
 
-    private static async Task<IResult> ListTokensAsync(HttpContext http, ApiTokenService tokens, string? userId = null)
+    private static async Task<IResult> ListTokensAsync(AdminCaller caller, HttpContext http, ApiTokenService tokens, string? userId = null)
     {
-        AdminCaller caller = http.GetCaller()!;
         UserId? owner = null;
         if (userId is not null)
         {
@@ -127,16 +123,16 @@ internal static class AccountEndpoints
         return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Tokens);
     }
 
-    private static async Task<IResult> IssueTokenAsync(IssueApiTokenRequest request, HttpContext http, ApiTokenService tokens)
+    private static async Task<IResult> IssueTokenAsync(IssueApiTokenRequest request, AdminCaller caller, HttpContext http, ApiTokenService tokens)
     {
-        ApiTokenResult result = await tokens.IssueAsync(http.GetCaller()!.Origin, request, http.RequestAborted).ConfigureAwait(false);
+        ApiTokenResult result = await tokens.IssueAsync(caller.Origin, request, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem)
             ?? Results.Created($"/api/v1/tokens/{result.Issued!.Summary.Id}", result.Issued);
     }
 
-    private static async Task<IResult> RevokeTokenAsync(ApiTokenId id, HttpContext http, ApiTokenService tokens)
+    private static async Task<IResult> RevokeTokenAsync(ApiTokenId id, AdminCaller caller, HttpContext http, ApiTokenService tokens)
     {
-        ApiTokenResult result = await tokens.RevokeAsync(http.GetCaller()!.Origin, id, http.RequestAborted).ConfigureAwait(false);
+        ApiTokenResult result = await tokens.RevokeAsync(caller.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "token", result.Problem) ?? Results.NoContent();
     }
 

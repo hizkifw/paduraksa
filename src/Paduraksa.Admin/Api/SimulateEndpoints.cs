@@ -20,7 +20,7 @@ internal static class SimulateEndpoints
             .WithAdminBodyLimit(ApiEndpointConventions.SimulateBodyLimit)
             .RequirePermission(Permission.Simulate);
 
-    private static async Task<IResult> SimulateAsync(HttpContext http, RequestSimulator simulator, CancellationToken ct)
+    private static async Task<IResult> SimulateAsync(HttpContext http, AdminCaller caller, RequestSimulator simulator, CancellationToken ct)
     {
         BodyResult<SimulateBody> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.SimulateBody).ConfigureAwait(false);
         if (!body.Ok)
@@ -28,7 +28,7 @@ internal static class SimulateEndpoints
             return body.Problem!;
         }
 
-        SimulationResult result = await simulator.SimulateAsync(body.Value!.Target ?? SimulationTarget.Live, body.Value.Request, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+        SimulationResult result = await simulator.SimulateAsync(body.Value!.Target ?? SimulationTarget.Live, body.Value.Request, caller.Origin, ct).ConfigureAwait(false);
         int status = ApiStatusMapping.Of(result.Status);
         if (ApiStatusMapping.IsSuccess(status))
         {

@@ -119,18 +119,18 @@ internal static class ConfigEndpoints
         return EndpointSupport.Json(host, AdminJsonContext.Default.HostConfig);
     }
 
-    private static Task<IResult> CreateHostAsync(HttpContext http, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.HostConfig,
+    private static Task<IResult> CreateHostAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.HostConfig,
             (host, _, _) => (host with { Version = 0 }, null), (host, dry, message) => new UpsertHostCommand(host) { DryRun = dry, Message = message },
             host => EndpointSupport.Path("hosts", host.Id), ct);
 
-    private static Task<IResult> ReplaceHostAsync(HttpContext http, HostId id, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.HostConfig,
+    private static Task<IResult> ReplaceHostAsync(HttpContext http, HostId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.HostConfig,
             (host, version, _) => host.Id == id ? (host with { Version = version }, null) : (host, IdMismatch()),
             (host, dry, message) => new UpsertHostCommand(host) { DryRun = dry, Message = message }, null, ct);
 
-    private static Task<IResult> DeleteHostAsync(HttpContext http, HostId id, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, config, version => new DeleteHostCommand(id, version), ct);
+    private static Task<IResult> DeleteHostAsync(HttpContext http, HostId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        DeleteAsync(http, caller, config, version => new DeleteHostCommand(id, version), ct);
 
     private static async Task<IResult> ListRoutesAsync(HttpContext http, HostId hostId, ConfigService config, CancellationToken ct)
     {
@@ -161,7 +161,7 @@ internal static class ConfigEndpoints
         return EndpointSupport.Json(route, AdminJsonContext.Default.RouteConfig);
     }
 
-    private static async Task<IResult> PutRouteAsync(HttpContext http, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
+    private static async Task<IResult> PutRouteAsync(HttpContext http, AdminCaller caller, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
         if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
             || !Preconditions.TryGetForce(http, out bool force, out problem)
@@ -200,13 +200,13 @@ internal static class ConfigEndpoints
         ConfigCommand command = new UpsertHostCommand(host with { Routes = routes, Version = version }) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
         return ConfigCommandResponses.ToResult(
             http,
-            await config.ExecuteAsync(command, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false),
+            await config.ExecuteAsync(command, caller.Origin, ct).ConfigureAwait(false),
             MutationKind.Change,
             $"/api/v1/hosts/{hostId}/routes/{routeId}",
             created: at < 0);
     }
 
-    private static async Task<IResult> DeleteRouteAsync(HttpContext http, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
+    private static async Task<IResult> DeleteRouteAsync(HttpContext http, AdminCaller caller, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
         if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
             || !Preconditions.TryGetForce(http, out bool force, out problem)
@@ -226,7 +226,7 @@ internal static class ConfigEndpoints
         }
 
         ConfigCommand command = new UpsertHostCommand(host with { Routes = [.. host.Routes.Where(r => r.Id != routeId)], Version = version }) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
-        return ConfigCommandResponses.ToResult(http, await config.ExecuteAsync(command, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Change, noContent: true);
+        return ConfigCommandResponses.ToResult(http, await config.ExecuteAsync(command, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change, noContent: true);
     }
 
     private static async Task<IResult> ListUpstreamsAsync(HttpContext http, ConfigService config, CancellationToken ct)
@@ -248,18 +248,18 @@ internal static class ConfigEndpoints
         return EndpointSupport.Json(upstream, AdminJsonContext.Default.UpstreamConfig);
     }
 
-    private static Task<IResult> CreateUpstreamAsync(HttpContext http, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.UpstreamConfig,
+    private static Task<IResult> CreateUpstreamAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.UpstreamConfig,
             (upstream, _, _) => (upstream with { Version = 0 }, null), (upstream, dry, message) => new UpsertUpstreamCommand(upstream) { DryRun = dry, Message = message },
             upstream => EndpointSupport.Path("upstreams", upstream.Id), ct);
 
-    private static Task<IResult> ReplaceUpstreamAsync(HttpContext http, UpstreamId id, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.UpstreamConfig,
+    private static Task<IResult> ReplaceUpstreamAsync(HttpContext http, UpstreamId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.UpstreamConfig,
             (upstream, version, _) => upstream.Id == id ? (upstream with { Version = version }, null) : (upstream, IdMismatch()),
             (upstream, dry, message) => new UpsertUpstreamCommand(upstream) { DryRun = dry, Message = message }, null, ct);
 
-    private static Task<IResult> DeleteUpstreamAsync(HttpContext http, UpstreamId id, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, config, version => new DeleteUpstreamCommand(id, version), ct);
+    private static Task<IResult> DeleteUpstreamAsync(HttpContext http, UpstreamId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        DeleteAsync(http, caller, config, version => new DeleteUpstreamCommand(id, version), ct);
 
     private static async Task<IResult> ListProfilesAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {
@@ -280,18 +280,18 @@ internal static class ConfigEndpoints
         return EndpointSupport.Json(profile, AdminJsonContext.Default.ProfileConfig);
     }
 
-    private static Task<IResult> CreateProfileAsync(HttpContext http, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.ProfileConfig,
+    private static Task<IResult> CreateProfileAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.ProfileConfig,
             (profile, _, _) => (profile with { Version = 0 }, null), (profile, dry, message) => new UpsertProfileCommand(profile) { DryRun = dry, Message = message },
             profile => EndpointSupport.Path("profiles", profile.Id), ct);
 
-    private static Task<IResult> ReplaceProfileAsync(HttpContext http, ProfileId id, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.ProfileConfig,
+    private static Task<IResult> ReplaceProfileAsync(HttpContext http, ProfileId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.ProfileConfig,
             (profile, version, _) => profile.Id == id ? (profile with { Version = version }, null) : (profile, IdMismatch()),
             (profile, dry, message) => new UpsertProfileCommand(profile) { DryRun = dry, Message = message }, null, ct);
 
-    private static Task<IResult> DeleteProfileAsync(HttpContext http, ProfileId id, ConfigService config, CancellationToken ct) =>
-        DeleteAsync(http, config, version => new DeleteProfileCommand(id, version), ct);
+    private static Task<IResult> DeleteProfileAsync(HttpContext http, ProfileId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        DeleteAsync(http, caller, config, version => new DeleteProfileCommand(id, version), ct);
 
     private static async Task<IResult> GetSettingsAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {
@@ -300,8 +300,8 @@ internal static class ConfigEndpoints
         return EndpointSupport.Json(settings, AdminJsonContext.Default.GlobalSettings);
     }
 
-    private static Task<IResult> PutSettingsAsync(HttpContext http, ConfigService config, CancellationToken ct) =>
-        MutateAsync(http, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.GlobalSettings,
+    private static Task<IResult> PutSettingsAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.GlobalSettings,
             (settings, version, _) => (settings with { Version = version }, null),
             (settings, dry, message) => new UpdateSettingsCommand(settings) { DryRun = dry, Message = message }, null, ct);
 
@@ -311,6 +311,7 @@ internal static class ConfigEndpoints
     /// </summary>
     private static async Task<IResult> MutateAsync<T>(
         HttpContext http,
+        AdminCaller caller,
         ConfigService config,
         MutationKind kind,
         bool requireVersion,
@@ -346,11 +347,11 @@ internal static class ConfigEndpoints
             return rejected;
         }
 
-        ConfigCommandResult result = await config.ExecuteAsync(command(value, dryRun, message) with { Force = force }, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+        ConfigCommandResult result = await config.ExecuteAsync(command(value, dryRun, message) with { Force = force }, caller.Origin, ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, kind, location?.Invoke(value));
     }
 
-    private static async Task<IResult> DeleteAsync(HttpContext http, ConfigService config, Func<long, ConfigCommand> command, CancellationToken ct)
+    private static async Task<IResult> DeleteAsync(HttpContext http, AdminCaller caller, ConfigService config, Func<long, ConfigCommand> command, CancellationToken ct)
     {
         if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
             || !Preconditions.TryGetForce(http, out bool force, out problem)
@@ -360,7 +361,7 @@ internal static class ConfigEndpoints
         }
 
         ConfigCommand delete = command(version) with { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
-        ConfigCommandResult result = await config.ExecuteAsync(delete, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+        ConfigCommandResult result = await config.ExecuteAsync(delete, caller.Origin, ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, MutationKind.Change, noContent: true);
     }
 

@@ -66,7 +66,7 @@ internal static class ProviderEndpoints
             ? EndpointSupport.Json(account, AdminJsonContext.Default.AcmeAccountSummary)
             : ApiProblems.Problem(StatusCodes.Status404NotFound, "There is no such ACME account.");
 
-    private static async Task<IResult> CreateAccountAsync(HttpContext http, AcmeAccountService accounts, CancellationToken ct)
+    private static async Task<IResult> CreateAccountAsync(HttpContext http, AdminCaller caller, AcmeAccountService accounts, CancellationToken ct)
     {
         BodyResult<CreateAcmeAccountBody> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CreateAcmeAccountBody).ConfigureAwait(false);
         if (!body.Ok)
@@ -95,7 +95,7 @@ internal static class ProviderEndpoints
                 await accounts.CreateWithEabAsync(
                     new CreateAcmeAccountRequest(request.DirectoryUrl, request.Contacts ?? [], request.TermsOfServiceAgreed, request.Algorithm, request.EabKid, null, request.Label),
                     key.AsMemory(0, keyLength),
-                    EndpointSupport.OriginOf(http),
+                    caller.Origin,
                     ct).ConfigureAwait(false),
                 MutationKind.Create);
         }
@@ -105,8 +105,8 @@ internal static class ProviderEndpoints
         }
     }
 
-    private static async Task<IResult> DeactivateAccountAsync(HttpContext http, AcmeAccountId id, AcmeAccountService accounts, CancellationToken ct) =>
-        AccountAnswer(await accounts.DeactivateAsync(id, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Change);
+    private static async Task<IResult> DeactivateAccountAsync(HttpContext http, AdminCaller caller, AcmeAccountId id, AcmeAccountService accounts, CancellationToken ct) =>
+        AccountAnswer(await accounts.DeactivateAsync(id, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
 
     private static IResult AccountAnswer(AcmeAccountResult result, MutationKind kind)
     {
@@ -136,7 +136,7 @@ internal static class ProviderEndpoints
             ? EndpointSupport.Json(provider, AdminJsonContext.Default.DnsProviderSummary)
             : ApiProblems.Problem(StatusCodes.Status404NotFound, "There is no such DNS provider.");
 
-    private static async Task<IResult> CreateProviderAsync(HttpContext http, DnsProviderService providers, CancellationToken ct)
+    private static async Task<IResult> CreateProviderAsync(HttpContext http, AdminCaller caller, DnsProviderService providers, CancellationToken ct)
     {
         BodyResult<CreateDnsProviderBody> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CreateDnsProviderBody).ConfigureAwait(false);
         if (!body.Ok)
@@ -147,7 +147,7 @@ internal static class ProviderEndpoints
         byte[] credential = Encoding.UTF8.GetBytes(body.Value!.Credential);
         try
         {
-            return ProviderAnswer(await providers.CreateWithCredentialAsync(body.Value.Kind, body.Value.Label, credential, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Create);
+            return ProviderAnswer(await providers.CreateWithCredentialAsync(body.Value.Kind, body.Value.Label, credential, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create);
         }
         finally
         {
@@ -155,7 +155,7 @@ internal static class ProviderEndpoints
         }
     }
 
-    private static async Task<IResult> RotateProviderAsync(HttpContext http, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
+    private static async Task<IResult> RotateProviderAsync(HttpContext http, AdminCaller caller, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
     {
         BodyResult<RotateDnsCredentialBody> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.RotateDnsCredentialBody).ConfigureAwait(false);
         if (!body.Ok)
@@ -166,7 +166,7 @@ internal static class ProviderEndpoints
         byte[] credential = Encoding.UTF8.GetBytes(body.Value!.Credential);
         try
         {
-            return ProviderAnswer(await providers.RotateCredentialAsync(id, credential, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Change);
+            return ProviderAnswer(await providers.RotateCredentialAsync(id, credential, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
         }
         finally
         {
@@ -174,15 +174,15 @@ internal static class ProviderEndpoints
         }
     }
 
-    private static async Task<IResult> DeleteProviderAsync(HttpContext http, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
+    private static async Task<IResult> DeleteProviderAsync(HttpContext http, AdminCaller caller, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
     {
-        DnsProviderResult result = await providers.DeleteWithCredentialAsync(id, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+        DnsProviderResult result = await providers.DeleteWithCredentialAsync(id, caller.Origin, ct).ConfigureAwait(false);
         return result.Status == IssuanceChangeStatus.Committed ? Results.NoContent() : ProviderAnswer(result, MutationKind.Change);
     }
 
-    private static async Task<IResult> TestProviderAsync(HttpContext http, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
+    private static async Task<IResult> TestProviderAsync(HttpContext http, AdminCaller caller, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
     {
-        DnsProviderTestResult result = await providers.TestAsync(id, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+        DnsProviderTestResult result = await providers.TestAsync(id, caller.Origin, ct).ConfigureAwait(false);
         return result switch
         {
             { Denied: true } => ApiProblems.Problem(StatusCodes.Status403Forbidden, "You may not test DNS provider credentials.", code: ApiCodes.Auth.PermissionRequired),

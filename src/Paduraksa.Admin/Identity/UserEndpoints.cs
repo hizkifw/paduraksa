@@ -24,39 +24,39 @@ internal static class UserEndpoints
         users.MapDelete("{id:UserId}", DeleteAsync).RequirePermission(Permission.UsersWrite).WithName("DeleteUser");
     }
 
-    private static async Task<IResult> ListAsync(HttpContext http, UserService users)
+    private static async Task<IResult> ListAsync(AdminCaller caller, HttpContext http, UserService users)
     {
-        UserListResult result = await users.ListAsync(http.GetCaller()!.Origin, http.RequestAborted).ConfigureAwait(false);
+        UserListResult result = await users.ListAsync(caller.Origin, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Users);
     }
 
-    private static async Task<IResult> GetAsync(UserId id, HttpContext http, UserService users)
+    private static async Task<IResult> GetAsync(UserId id, AdminCaller caller, HttpContext http, UserService users)
     {
-        UserResult result = await users.GetAsync(http.GetCaller()!.Origin, id, http.RequestAborted).ConfigureAwait(false);
+        UserResult result = await users.GetAsync(caller.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.Ok(result.User);
     }
 
-    private static async Task<IResult> CreateAsync(CreateUserRequest request, HttpContext http, UserService users)
+    private static async Task<IResult> CreateAsync(CreateUserRequest request, AdminCaller caller, HttpContext http, UserService users)
     {
-        UserResult result = await users.CreateAsync(http.GetCaller()!.Origin, request, http.RequestAborted).ConfigureAwait(false);
+        UserResult result = await users.CreateAsync(caller.Origin, request, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.Created($"/api/v1/users/{result.User!.Id}", result.User);
     }
 
     /// <summary>Changes the display name, roles and enabled state in one service call: all of it applies, or none.</summary>
-    private static async Task<IResult> UpdateAsync(UserId id, UpdateUserRequest request, HttpContext http, UserService users)
+    private static async Task<IResult> UpdateAsync(UserId id, UpdateUserRequest request, AdminCaller caller, HttpContext http, UserService users)
     {
         if (request.DisplayName is null && request.Roles is null && request.Disabled is null)
         {
             return AdminProblems.Invalid("Nothing to change: give a displayName, roles or disabled.");
         }
 
-        UserResult result = await users.UpdateAsync(http.GetCaller()!.Origin, id, request, http.RequestAborted).ConfigureAwait(false);
+        UserResult result = await users.UpdateAsync(caller.Origin, id, request, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.Ok(result.User);
     }
 
-    private static async Task<IResult> DeleteAsync(UserId id, HttpContext http, UserService users)
+    private static async Task<IResult> DeleteAsync(UserId id, AdminCaller caller, HttpContext http, UserService users)
     {
-        IdentityResult result = await users.DeleteAsync(http.GetCaller()!.Origin, id, http.RequestAborted).ConfigureAwait(false);
+        IdentityResult result = await users.DeleteAsync(caller.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.NoContent();
     }
 }

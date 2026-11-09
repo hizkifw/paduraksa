@@ -74,9 +74,8 @@ internal static class SignInEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> GetMeAsync(HttpContext http, UserService users, IPermissionEvaluator permissions)
+    private static async Task<IResult> GetMeAsync(AdminCaller caller, HttpContext http, UserService users, IPermissionEvaluator permissions)
     {
-        AdminCaller caller = http.GetCaller()!;
         if (caller.User is not { } userId)
         {
             return AdminProblems.Unauthorized(http, "The caller is not a user.", ApiCodes.Auth.Required);

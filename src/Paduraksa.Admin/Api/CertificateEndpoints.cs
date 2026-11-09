@@ -109,17 +109,17 @@ internal static class CertificateEndpoints
             ? EndpointSupport.Json(detail, AdminJsonContext.Default.CertificateDetail)
             : ApiProblems.Problem(StatusCodes.Status404NotFound, "There is no such certificate.");
 
-    private static Task<IResult> UploadAsync(HttpContext http, CertificateOperations operations, CancellationToken ct) =>
-        UploadCoreAsync(http, operations, null, ct);
+    private static Task<IResult> UploadAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct) =>
+        UploadCoreAsync(http, caller, operations, null, ct);
 
-    private static Task<IResult> ReplaceUploadAsync(HttpContext http, CertificateId id, CertificateOperations operations, CancellationToken ct) =>
-        UploadCoreAsync(http, operations, id, ct);
+    private static Task<IResult> ReplaceUploadAsync(HttpContext http, CertificateId id, AdminCaller caller, CertificateOperations operations, CancellationToken ct) =>
+        UploadCoreAsync(http, caller, operations, id, ct);
 
     /// <summary>
     /// Reads the multipart body part by part. 'password' and 'label' are small and come first; the 'file' part's stream goes straight to the
     /// vault's import and nothing is read ahead of it. The password lives in a char array that is cleared when the request is done.
     /// </summary>
-    private static async Task<IResult> UploadCoreAsync(HttpContext http, CertificateOperations operations, CertificateId? replace, CancellationToken ct)
+    private static async Task<IResult> UploadCoreAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CertificateId? replace, CancellationToken ct)
     {
         if (!MediaTypeHeaderValue.TryParse(http.Request.ContentType, out MediaTypeHeaderValue? contentType)
             || !contentType.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase))
@@ -182,7 +182,7 @@ internal static class CertificateEndpoints
                         label = labelBytes.Length == 0 ? null : Encoding.UTF8.GetString(labelBytes);
                         break;
                     case "file":
-                        CertificateOperationResult result = await operations.UploadAsync(section.Body, password, label, replace, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+                        CertificateOperationResult result = await operations.UploadAsync(section.Body, password, label, replace, caller.Origin, ct).ConfigureAwait(false);
                         return OperationResult(result, replace is null ? MutationKind.Create : MutationKind.Change);
                     default:
                         return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The parts are 'password', 'label' and 'file'.");
@@ -201,15 +201,15 @@ internal static class CertificateEndpoints
         }
     }
 
-    private static async Task<IResult> SelfSignedAsync(HttpContext http, CertificateOperations operations, CancellationToken ct)
+    private static async Task<IResult> SelfSignedAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
     {
         BodyResult<SelfSignedCertificateRequest> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.SelfSignedCertificateRequest).ConfigureAwait(false);
         return body.Ok
-            ? OperationResult(await operations.IssueSelfSignedAsync(body.Value!, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Create)
+            ? OperationResult(await operations.IssueSelfSignedAsync(body.Value!, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create)
             : body.Problem!;
     }
 
-    private static async Task<IResult> LocalCaAsync(HttpContext http, CertificateOperations operations, CancellationToken ct)
+    private static async Task<IResult> LocalCaAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
     {
         LocalCaRequest request = new();
         if (HasBody(http))
@@ -223,18 +223,18 @@ internal static class CertificateEndpoints
             request = body.Value!;
         }
 
-        return OperationResult(await operations.EnsureLocalCaAsync(request, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Create);
+        return OperationResult(await operations.EnsureLocalCaAsync(request, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create);
     }
 
-    private static async Task<IResult> LocalCaLeafAsync(HttpContext http, CertificateOperations operations, CancellationToken ct)
+    private static async Task<IResult> LocalCaLeafAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
     {
         BodyResult<LocalCaLeafRequest> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.LocalCaLeafRequest).ConfigureAwait(false);
         return body.Ok
-            ? OperationResult(await operations.IssueFromLocalCaAsync(body.Value!, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Create)
+            ? OperationResult(await operations.IssueFromLocalCaAsync(body.Value!, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create)
             : body.Problem!;
     }
 
-    private static async Task<IResult> ReissueAsync(HttpContext http, CertificateId id, CertificateOperations operations, CancellationToken ct)
+    private static async Task<IResult> ReissueAsync(HttpContext http, AdminCaller caller, CertificateId id, CertificateOperations operations, CancellationToken ct)
     {
         ReissueRequest? request = null;
         if (HasBody(http))
@@ -248,26 +248,26 @@ internal static class CertificateEndpoints
             request = body.Value;
         }
 
-        return OperationResult(await operations.ReissueAsync(id, request, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false), MutationKind.Change);
+        return OperationResult(await operations.ReissueAsync(id, request, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
     }
 
-    private static async Task<IResult> DeleteAsync(HttpContext http, CertificateId id, CertificateOperations operations, CancellationToken ct)
+    private static async Task<IResult> DeleteAsync(HttpContext http, AdminCaller caller, CertificateId id, CertificateOperations operations, CancellationToken ct)
     {
-        CertificateOperationResult result = await operations.DeleteAsync(id, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+        CertificateOperationResult result = await operations.DeleteAsync(id, caller.Origin, ct).ConfigureAwait(false);
         // Gone is 204; when something needs the operator's eye (the vault key could not be removed) the result is the body.
         return result is { Status: CertificateOperationStatus.Completed, Warnings.Count: 0 } ? Results.NoContent() : OperationResult(result, MutationKind.Change);
     }
 
-    private static async Task<IResult> RequestAcmeAsync(HttpContext http, AcmeIssuanceService issuance, IHostApplicationLifetime lifetime)
+    private static async Task<IResult> RequestAcmeAsync(HttpContext http, AdminCaller caller, AcmeIssuanceService issuance, IHostApplicationLifetime lifetime)
     {
         BodyResult<CertificateIssueRequest> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CertificateIssueRequest).ConfigureAwait(false);
         return body.Ok
-            ? IssuanceAnswer(http, await issuance.RequestCertificateAsync(body.Value!, EndpointSupport.OriginOf(http), lifetime.ApplicationStopping).ConfigureAwait(false), MutationKind.Create)
+            ? IssuanceAnswer(http, await issuance.RequestCertificateAsync(body.Value!, caller.Origin, lifetime.ApplicationStopping).ConfigureAwait(false), MutationKind.Create)
             : body.Problem!;
     }
 
-    private static async Task<IResult> RenewAsync(HttpContext http, CertificateId id, AcmeIssuanceService issuance, IHostApplicationLifetime lifetime) =>
-        IssuanceAnswer(http, await issuance.RenewAsync(id, EndpointSupport.OriginOf(http), lifetime.ApplicationStopping).ConfigureAwait(false), MutationKind.Change);
+    private static async Task<IResult> RenewAsync(HttpContext http, AdminCaller caller, CertificateId id, AcmeIssuanceService issuance, IHostApplicationLifetime lifetime) =>
+        IssuanceAnswer(http, await issuance.RenewAsync(id, caller.Origin, lifetime.ApplicationStopping).ConfigureAwait(false), MutationKind.Change);
 
     private static async Task<IResult> GetOrderAsync(CertificateId id, AcmeIssuanceService issuance, CancellationToken ct) =>
         await issuance.GetOrderAsync(id, ct).ConfigureAwait(false) is { } order

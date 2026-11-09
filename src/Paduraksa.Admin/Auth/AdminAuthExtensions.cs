@@ -9,11 +9,25 @@ using Paduraksa.Contracts.Identity;
 namespace Paduraksa.Admin.Auth;
 
 /// <summary>Endpoint metadata: the endpoint needs a signed-in caller but no particular permission (the services check those). For the API description and tests.</summary>
-public sealed class AdminAuthenticatedMetadata
+internal sealed class AdminAuthenticatedMetadata
 {
-    public static AdminAuthenticatedMetadata Instance { get; } = new();
+    internal static AdminAuthenticatedMetadata Instance { get; } = new();
 
     private AdminAuthenticatedMetadata()
+    {
+    }
+}
+
+/// <summary>
+/// Marks that the caller-guard filter is attached. The helpers add it with their metadata, so an endpoint that carries
+/// the metadata without the filter - which would let an anonymous request reach <see cref="AdminCaller.BindAsync"/>'s
+/// stand-in - is visible in the endpoint table.
+/// </summary>
+internal sealed class AdminGuardFilterMetadata
+{
+    internal static AdminGuardFilterMetadata Instance { get; } = new();
+
+    private AdminGuardFilterMetadata()
     {
     }
 }
@@ -71,6 +85,7 @@ public static class AdminAuthExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.WithMetadata(AdminAuthenticatedMetadata.Instance);
+        builder.WithMetadata(AdminGuardFilterMetadata.Instance);
         builder.AddEndpointFilter(static (invocation, next) => invocation.HttpContext.GetCaller() is null
             ? ValueTask.FromResult<object?>(AdminProblems.Unauthorized(invocation.HttpContext, "Sign in, or send a bearer token.", ApiCodes.Auth.Required))
             : next(invocation));

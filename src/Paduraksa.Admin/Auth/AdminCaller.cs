@@ -21,6 +21,36 @@ public sealed record AdminCaller(CommandOrigin Origin, SessionId? Session = null
 {
     /// <summary>The caller's user: the session's user, or the token's owner as recorded by authentication.</summary>
     public UserId? User { get; init; }
+
+    /// <summary>
+    /// The stand-in an anonymous request is bound to: argument binding runs before endpoint filters, so returning nothing
+    /// would answer 400 where the endpoint's <c>RequireAuthenticated</c>/<c>RequirePermission</c> filter gives 401. No
+    /// handler can use it - its actor is undefined, which every authorization check refuses.
+    /// </summary>
+    private static readonly AdminCaller Anonymous = new(new CommandOrigin(default, Channel.Api));
+
+    /// <summary>
+    /// Binds the authenticated caller as a handler parameter (it is never taken from the body or the query). The endpoint
+    /// must require a caller; an anonymous request gets <see cref="Anonymous"/> only for that filter to answer, and an
+    /// endpoint that takes a caller without one is a wiring bug.
+    /// </summary>
+    public static ValueTask<AdminCaller> BindAsync(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        if (context.GetCaller() is { } caller)
+        {
+            return ValueTask.FromResult(caller);
+        }
+
+        Endpoint? endpoint = context.GetEndpoint();
+        if (endpoint?.Metadata.GetMetadata<AdminAuthenticatedMetadata>() is null
+            && endpoint?.Metadata.GetMetadata<RequiredPermissionMetadata>() is null)
+        {
+            throw new InvalidOperationException("An AdminCaller parameter needs an endpoint with RequireAuthenticated or RequirePermission.");
+        }
+
+        return ValueTask.FromResult(Anonymous);
+    }
 }
 
 /// <summary>The request feature carrying the <see cref="AdminCaller"/>.</summary>
@@ -80,9 +110,10 @@ public static class AdminCallerExtensions
             return await next(invocation).ConfigureAwait(false);
         });
         builder.WithMetadata(new RequiredPermissionMetadata(permission));
+        builder.WithMetadata(AdminGuardFilterMetadata.Instance);
         return builder;
     }
 }
 
 /// <summary>Endpoint metadata naming the permission an endpoint requires (for OpenAPI and tests).</summary>
-public sealed record RequiredPermissionMetadata(Permission Permission);
+internal sealed record RequiredPermissionMetadata(Permission Permission);

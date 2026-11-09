@@ -77,7 +77,7 @@ internal static class RevisionEndpoints
             : ApiProblems.Problem(StatusCodes.Status404NotFound, "One of the revisions doesn't exist.");
     }
 
-    private static async Task<IResult> RollbackAsync(HttpContext http, ConfigRevisionId id, ConfigService config, CancellationToken ct)
+    private static async Task<IResult> RollbackAsync(HttpContext http, AdminCaller caller, ConfigRevisionId id, ConfigService config, CancellationToken ct)
     {
         if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
             || !Preconditions.TryGetForce(http, out bool force, out problem)
@@ -87,7 +87,7 @@ internal static class RevisionEndpoints
         }
 
         ConfigCommand command = new RollbackConfigCommand(id, latest) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
-        ConfigCommandResult result = await config.ExecuteAsync(command, EndpointSupport.OriginOf(http), ct).ConfigureAwait(false);
+        ConfigCommandResult result = await config.ExecuteAsync(command, caller.Origin, ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, MutationKind.Change);
     }
 
