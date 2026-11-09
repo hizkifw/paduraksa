@@ -27,7 +27,7 @@ internal sealed class DashboardTestContext : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddMudServices();
         Services.AddSingleton<AntiforgeryStateProvider>(new FixedAntiforgery());
-        Services.AddSingleton(new DashboardOptions { InstanceName = "test", MinPasswordLength = 12 });
+        Services.AddSingleton(new DashboardOptions { MinPasswordLength = 12 });
         Services.AddScoped<ThemeState>();
         Services.AddScoped<DrawerStack>();
     }

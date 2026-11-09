@@ -47,7 +47,6 @@ internal sealed class DashboardHost : IAsyncDisposable
             ["Paduraksa:Development:PlaceholderCertificate"] = "true",
             ["Paduraksa:Admin:PasswordIterations"] = "100000",
             ["Paduraksa:Admin:SessionRecheckInterval"] = "00:00:01",
-            ["Paduraksa:Admin:InstanceName"] = "homelab",
             ["Logging:LogLevel:Default"] = "Warning",
         };
 

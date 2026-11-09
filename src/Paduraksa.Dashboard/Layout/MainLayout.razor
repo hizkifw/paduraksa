@@ -1,7 +1,6 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject ThemeState Theme
-@inject DashboardOptions Options
 @inject Paduraksa.Application.Commands.ConfigService Config
 @inject NavigationManager Navigation
 @inject DrawerStack Drawers
@@ -19,10 +18,6 @@
             <BrandMark Size="26" Class="pdk-brand-mark" />
             <span class="pdk-brand-name">Paduraksa</span>
         </a>
-        @if (!string.IsNullOrWhiteSpace(Options.InstanceName))
-        {
-            <span class="pdk-instance" title="Instance">@Options.InstanceName</span>
-        }
         <MudSpacer />
         <ThemeToggle />
         <UserMenu />

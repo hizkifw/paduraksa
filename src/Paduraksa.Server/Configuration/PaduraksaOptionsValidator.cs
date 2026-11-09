@@ -305,11 +305,6 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         Span(nameof(AdminOptions.CertificateStartupTimeout), admin.CertificateStartupTimeout, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5));
 
-        if (admin.InstanceName is { } instance && (string.IsNullOrWhiteSpace(instance) || instance.Length > 64 || instance.Any(char.IsControl)))
-        {
-            failures.Add($"{Key}:{nameof(AdminOptions.InstanceName)} must be 1 to 64 characters without control characters.");
-        }
-
         Span(nameof(AdminOptions.SessionRecheckInterval), admin.SessionRecheckInterval, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5));
     }
 

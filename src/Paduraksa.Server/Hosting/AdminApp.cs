@@ -136,7 +136,6 @@ internal static partial class AdminApp
         builder.Services.AddPaduraksaAdminWeb(DashboardWeb);
         builder.Services.AddPaduraksaDashboard(new DashboardOptions
         {
-            InstanceName = context.Options.Admin.InstanceName ?? Environment.MachineName,
             MinPasswordLength = context.Options.Admin.MinPasswordLength,
             SessionRecheckInterval = context.Options.Admin.SessionRecheckInterval,
         });

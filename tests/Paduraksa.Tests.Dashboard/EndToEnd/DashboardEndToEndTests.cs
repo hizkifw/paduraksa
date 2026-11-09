@@ -75,7 +75,6 @@ public sealed partial class DashboardEndToEndTests
         await page.ClickAsync("button[type=submit]");
         await ExpectOverviewAsync(page);
         await Expect(page.Locator(".pdk-user-chip")).ToContainTextAsync("Ada Lovelace");
-        await Expect(page.Locator(".pdk-instance")).ToHaveTextAsync("homelab");
         await Expect(page.GetByRole(AriaRole.Link, new() { Name = "Audit" })).ToBeVisibleAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "home");
 

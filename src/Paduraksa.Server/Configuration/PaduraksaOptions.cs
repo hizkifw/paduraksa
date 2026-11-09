@@ -194,12 +194,6 @@ internal sealed class AdminOptions
     public TimeSpan CertificateStartupTimeout { get; set; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// The name the dashboard shows in its top bar, so instances can be told apart (<c>Paduraksa:Admin:InstanceName</c>, 1 to 64
-    /// characters). Unset, it is the machine's host name (in Docker, the container's: set <c>hostname:</c> in compose, or this).
-    /// </summary>
-    public string? InstanceName { get; set; }
-
-    /// <summary>
     /// How often an open dashboard page re-checks its session in the background (<c>Paduraksa:Admin:SessionRecheckInterval</c>, 1 second
     /// to 5 minutes): a revoked or expired session, a disabled user or a password change elsewhere ends the page within this interval.
     /// </summary>

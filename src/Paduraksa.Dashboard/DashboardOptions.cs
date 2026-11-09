@@ -3,9 +3,6 @@ namespace Paduraksa.Dashboard;
 /// <summary>The dashboard's knobs. The composition root builds one; tests shorten the intervals.</summary>
 public sealed class DashboardOptions
 {
-    /// <summary>The name shown in the top bar beside the product's, so several instances can be told apart. Null shows none.</summary>
-    public string? InstanceName { get; init; }
-
     /// <summary>The shortest password the identity services accept, for the setup form's hint and its browser-side check.</summary>
     public int MinPasswordLength { get; init; } = 12;
 
