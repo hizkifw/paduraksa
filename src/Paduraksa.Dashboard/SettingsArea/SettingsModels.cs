@@ -194,7 +194,7 @@ public sealed class HostSettingsModel
 
         if (settings.AccessLog is { } accessLog)
         {
-            parts.Add(accessLog ? "Access log on" : "No access log");
+            parts.Add(accessLog ? "Access log on" : "Access log off");
         }
 
         if (settings.RequestIdPropagation is { } propagation)

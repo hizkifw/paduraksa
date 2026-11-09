@@ -147,7 +147,7 @@ public sealed class HostFormTests
         Assert.Contains("Inherit (upstream and the client)", form.Find("[data-field=request-id-propagation]").TextContent, StringComparison.Ordinal);
         // Each says what it is for in a line: what the log holds, and what the ID ties together.
         Assert.Contains("One line per request, whatever answered it.", form.Markup, StringComparison.Ordinal);
-        Assert.Contains("ties a request to the app's log", form.Markup, StringComparison.Ordinal);
+        Assert.Contains("ties a line in the access log to the same request in the app's own log", form.Markup, StringComparison.Ordinal);
 
         await form.InvokeAsync(async () =>
         {

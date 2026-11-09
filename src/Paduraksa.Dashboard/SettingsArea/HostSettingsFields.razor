@@ -167,7 +167,7 @@
     <div class="pdk-setting">
         <div class="pdk-setting-text">
             <span class="pdk-setting-title">Request ID</span>
-            <span class="pdk-setting-help">One ID ties a request to the app's log, this log and an error page.</span>
+            <span class="pdk-setting-help">One ID ties a line in the access log to the same request in the app's own log.</span>
         </div>
         <MudSelect T="RequestIdPropagation?" Value="Model.RequestIdPropagation" ValueChanged="@(value => SetAsync(() => Model.RequestIdPropagation = value, "/requestIdPropagation"))"
                    Label="Request ID" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"

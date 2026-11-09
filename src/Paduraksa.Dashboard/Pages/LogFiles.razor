@@ -28,7 +28,7 @@
 {
     <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
         <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the logs"
-                    Description="An Owner can give you the Auditor role." />
+                    Description="An Owner can give you a role that reads the logs." />
     </MudPaper>
 }
 else if (_failed)
@@ -55,7 +55,7 @@ else if (_files.Count == 0)
 {
     <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
         <EmptyState Icon="@Icons.Material.Outlined.Article" Title="No log files yet"
-                    Description="@($"They appear in {Store.Directory} with the first line Paduraksa logs.")" />
+                    Description="@($"The first line Paduraksa logs creates them in {Store.Directory}.")" />
     </MudPaper>
 }
 else
