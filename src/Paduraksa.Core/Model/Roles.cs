@@ -71,4 +71,7 @@ public enum Permission
 
     /// <summary>Run the request simulator.</summary>
     Simulate = 14,
+
+    /// <summary>Browse, tail and download the access and error log files.</summary>
+    LogsRead = 15,
 }

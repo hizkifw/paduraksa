@@ -27,10 +27,10 @@ public static class IdentityText
     public static string Describe(Role role) => role switch
     {
         Role.Owner => "Everything: users and roles, the vault, and every token and session.",
-        Role.Admin => "All config, certificates and providers, and the audit log. Sees users but can't change them.",
+        Role.Admin => "All config, certificates, providers and logs, and the audit log. Sees users but can't change them.",
         Role.Operator => "Hosts, upstreams and certificates. No users, secrets or audit log.",
         Role.Viewer => "Reads the config and certificates and runs the simulator. Changes nothing.",
-        Role.Auditor => "Reads the audit log and the config. Changes nothing.",
+        Role.Auditor => "Reads the audit log, the logs and the config. Changes nothing.",
         _ => string.Empty,
     };
 
@@ -46,6 +46,7 @@ public static class IdentityText
         Permission.UsersRead => "List users and their roles",
         Permission.UsersWrite => "Create, change and delete users",
         Permission.AuditRead => "Read the audit log",
+        Permission.LogsRead => "Browse, tail and download the log files",
         Permission.Simulate => "Run the request simulator",
         Permission.VaultManage => "Manage secrets in the vault",
         Permission.TokensOwn => "Manage one's own API tokens",
@@ -62,6 +63,7 @@ public static class IdentityText
         ("ACME and DNS", [Permission.ProvidersRead, Permission.ProvidersWrite]),
         ("Simulator", [Permission.Simulate]),
         ("Audit", [Permission.AuditRead]),
+        ("Logs", [Permission.LogsRead]),
         ("Users", [Permission.UsersRead, Permission.UsersWrite]),
         ("Vault", [Permission.VaultManage]),
     ];
@@ -69,7 +71,7 @@ public static class IdentityText
     /// <summary>Whether a scope only reads.</summary>
     public static bool IsRead(Permission permission) =>
         permission is Permission.ConfigRead or Permission.CertificatesRead or Permission.ProvidersRead or Permission.UsersRead
-            or Permission.AuditRead or Permission.Simulate;
+            or Permission.AuditRead or Permission.Simulate or Permission.LogsRead;
 
     /// <summary>Why an identity change was refused, in a sentence; <paramref name="problem"/> is the service's own reason when it gave one.</summary>
     public static string Refusal(IdentityStatus status, string? problem = null) => status switch

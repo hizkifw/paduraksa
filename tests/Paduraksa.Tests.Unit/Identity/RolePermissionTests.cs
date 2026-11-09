@@ -28,17 +28,21 @@ public sealed class RolePermissionTests
     [InlineData(Role.Admin, Permission.ConfigWrite, true)]
     [InlineData(Role.Admin, Permission.ProvidersWrite, true)]
     [InlineData(Role.Admin, Permission.AuditRead, true)]
+    [InlineData(Role.Admin, Permission.LogsRead, true)]
     [InlineData(Role.Operator, Permission.ConfigWrite, true)]
     [InlineData(Role.Operator, Permission.CertificatesWrite, true)]
     [InlineData(Role.Operator, Permission.ProvidersWrite, false)]
     [InlineData(Role.Operator, Permission.AuditRead, false)]
+    [InlineData(Role.Operator, Permission.LogsRead, false)]
     [InlineData(Role.Operator, Permission.UsersRead, false)]
     [InlineData(Role.Viewer, Permission.ConfigRead, true)]
     [InlineData(Role.Viewer, Permission.Simulate, true)]
     [InlineData(Role.Viewer, Permission.ConfigWrite, false)]
     [InlineData(Role.Viewer, Permission.CertificatesWrite, false)]
     [InlineData(Role.Viewer, Permission.AuditRead, false)]
+    [InlineData(Role.Viewer, Permission.LogsRead, false)]
     [InlineData(Role.Auditor, Permission.AuditRead, true)]
+    [InlineData(Role.Auditor, Permission.LogsRead, true)]
     [InlineData(Role.Auditor, Permission.ConfigRead, true)]
     [InlineData(Role.Auditor, Permission.ConfigWrite, false)]
     [InlineData(Role.Auditor, Permission.Simulate, false)]
@@ -92,7 +96,7 @@ public sealed class RolePermissionTests
         Assert.Equal(
             [
                 "config:read", "config:write", "certificates:read", "certificates:write", "providers:read", "providers:write",
-                "users:read", "users:write", "tokens:own", "tokens:all", "sessions:all", "audit:read", "vault:manage", "simulate",
+                "users:read", "users:write", "tokens:own", "tokens:all", "sessions:all", "audit:read", "vault:manage", "simulate", "logs:read",
             ],
             Enum.GetValues<Permission>().Select(p => p.ToName()));
         Assert.All(Enum.GetValues<Role>(), r => Assert.Equal(r, ModelNames.ParseRole(r.ToName())));

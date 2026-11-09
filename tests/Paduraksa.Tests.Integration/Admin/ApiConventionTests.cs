@@ -263,6 +263,9 @@ public sealed class ApiConventionTests
             ("POST /api/v1/dns-providers/{id:DnsProviderId}/test", Permission.ProvidersWrite),
             ("GET /api/v1/audit", Permission.AuditRead),
             ("GET /api/v1/audit/verify", Permission.AuditRead),
+            ("GET /api/v1/logs", Permission.LogsRead),
+            ("GET /api/v1/logs/{name}/tail", Permission.LogsRead),
+            ("GET /api/v1/logs/{name}", Permission.LogsRead),
             ("POST /api/v1/simulate", Permission.Simulate),
         ];
 
