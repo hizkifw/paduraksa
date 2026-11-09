@@ -25,7 +25,6 @@ internal static class SourceEmitter
                 Value = value;
             }
 
-            /// <summary>The underlying value.</summary>
             public $VALUE$ Value { get; }
 
             /// <summary>The prefix (without the trailing underscore): <c>$PREFIX$</c>.</summary>
@@ -40,7 +39,6 @@ internal static class SourceEmitter
 
             public bool IsEmpty => Value == default;
 
-            /// <summary>Creates a new $KIND$ ID.</summary>
             public static $TYPE$ New() => new($FACTORY$);
 
             public static $TYPE$ FromValue($VALUE$ value) => new(value);

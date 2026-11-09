@@ -2,7 +2,6 @@ using Microsoft.CodeAnalysis;
 
 namespace Paduraksa.Ids.Generator;
 
-/// <summary>Diagnostics reported by <see cref="TypedIdGenerator"/>.</summary>
 public static class Diagnostics
 {
     private const string Category = "Paduraksa.TypedId";
