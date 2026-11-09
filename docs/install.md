@@ -237,8 +237,10 @@ Every request gets one line in the access log, whatever answered it (a forwarded
 proxy** sent, and sends it upstream and back to the client depending on the host (Settings → a host, a profile or the
 global defaults → Request ID). A client that isn't a trusted proxy can't choose its own ID.
 
-The hot path only writes a struct into a fixed-size ring; a background writer formats and writes the lines, so a slow
-disk never stalls a request. A full ring drops lines and counts them, reported at Warning in the process log.
+The hot path only writes a struct into a fixed-size ring; a background writer formats the lines and appends them to
+`access.log` (the log above: it rotates, compresses and is trimmed like `error.log`, and the dashboard's **Logs** page can
+tail it), so a slow disk never stalls a request. A full ring drops lines and counts them, reported at Warning in the
+process log.
 
 | Setting | Default | What |
 |---|---|---|

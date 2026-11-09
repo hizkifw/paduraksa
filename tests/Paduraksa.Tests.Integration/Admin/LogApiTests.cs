@@ -27,7 +27,8 @@ public sealed class LogApiTests
     public async Task TheListNamesEachFileWithItsLogSizeAndCompression()
     {
         await using AdminApiHarness api = await StartAsync();
-        // The access log has no writer until the access-log branch lands, so nothing else appends to it while the test reads it.
+        // Nothing in this test makes a public request, so the access log's writer (fed by the access-log drain) adds no line
+        // while the test reads the file it wrote itself.
         Create(api, "access.log", "GET / 200\n");
         CreateGzip(api, LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Access, DateTimeOffset.UtcNow.AddDays(-1))), "GET /two 404\n");
 

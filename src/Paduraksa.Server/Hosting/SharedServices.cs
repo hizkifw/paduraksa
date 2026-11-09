@@ -270,11 +270,11 @@ internal sealed class SharedServices : IAsyncDisposable
             DevelopmentWarnings.Check(coreLoggers, options);
 
             // The access log (PLAN §7.4): the public app's hot path fills the ring, the core host's drain service is its
-            // one reader and writes into this sink. The rotating file writer above is wired to it in a later round, so
-            // until then the sink writes nothing.
+            // one reader, and it writes the lines into access.log through the writer above. Built after the log files, so
+            // the writers outlive the drain's last flush (they are disposed after the hosts have stopped).
             builder.Add(new AccessLogRing(options.AccessLog.RingSize));
             builder.Add(options.AccessLog.ToFormatOptions());
-            builder.Add<IAccessLogSink>(NullAccessLogSink.Instance);
+            builder.Add<IAccessLogSink>(new AccessLogFileSink(logFiles));
 
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate and the
             // request simulator read the class.

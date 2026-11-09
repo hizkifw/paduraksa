@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Paduraksa.Core.Logging;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
@@ -199,6 +200,85 @@ public sealed class AccessLogEndToEndTests
         // The upstream leg was attempted: it has a duration up to the failure, and names the destination that failed.
         Assert.Matches(@"^\d+\.\d{3}$", fields[7]);
         Assert.Equal($"\"{dead.Address}\"", fields[8]);
+    }
+
+    [Fact]
+    public async Task RealRequestsLandInTheAccessLogUnderTheDataDirectory()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
+        string data = TestDataDirectories.NewPath();
+        // No sink is swapped here: the process's own writer, over <data>/logs/access.log, is what the drain writes into.
+        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        await host.StartAsync(ct);
+        await PublishAsync(host, upstream, ct);
+        using HttpClient client = TestHost.CreateClient(host);
+        string tag = NextTag();
+
+        using HttpResponseMessage response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/on-disk?token=s3cret"), ct);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        string line = await WaitForLogAsync(data, tag, ct);
+        string[] fields = Fields(line);
+        Assert.Equal(13, fields.Length);
+        Assert.Equal("\"app.test\"", fields[2]);
+        Assert.Equal($"\"GET /{tag}/on-disk?token=REDACTED HTTP/1.1\"", fields[3]);
+        Assert.Equal("200", fields[4]);
+        Assert.DoesNotContain("s3cret", line, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ALineWrittenJustBeforeStoppingReachesTheFile()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
+        string data = TestDataDirectories.NewPath();
+        PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        await host.StartAsync(ct);
+        await PublishAsync(host, upstream, ct);
+        using HttpClient client = TestHost.CreateClient(host);
+        string tag = NextTag();
+
+        using HttpResponseMessage response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/at-stop"), ct);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        // The drain's last pass and its flush happen while the core host stops; the log files are only disposed afterwards, with
+        // the shared services. So the line is on disk the moment StopAsync returns, which is what proves the order: a writer
+        // disposed before the drain, or a drain that skipped its last flush, would leave it in a buffer (the writer's own flush
+        // tick is a second away) instead.
+        await host.StopAsync(ct);
+        string path = Path.Combine(data, LogFileNames.DefaultDirectoryName, LogFileNames.Live(LogFileKind.Access));
+        Assert.True(File.Exists(path), $"no access log at {path}");
+        string log = await File.ReadAllTextAsync(path, ct);
+        Assert.Contains($"GET /{tag}/at-stop", log, StringComparison.Ordinal);
+
+        await host.DisposeAsync();
+    }
+
+    /// <summary>The access log's contents once a line carrying <paramref name="tag"/> is in it; the writer flushes once a second.</summary>
+    private static async Task<string> WaitForLogAsync(string data, string tag, CancellationToken ct)
+    {
+        string path = Path.Combine(data, LogFileNames.DefaultDirectoryName, LogFileNames.Live(LogFileKind.Access));
+        long deadline = Environment.TickCount64 + 15_000;
+        while (true)
+        {
+            if (File.Exists(path))
+            {
+                string log = await File.ReadAllTextAsync(path, ct);
+                string[] lines = [.. log.Split('\n', StringSplitOptions.RemoveEmptyEntries)];
+                if (lines.FirstOrDefault(line => line.Contains(tag, StringComparison.Ordinal)) is { } found)
+                {
+                    return found;
+                }
+            }
+
+            if (Environment.TickCount64 >= deadline)
+            {
+                Assert.Fail($"nothing carrying '{tag}' reached {path} in 15 s");
+            }
+
+            await Task.Delay(100, ct);
+        }
     }
 
     /// <summary>A path segment unique to one test: the drain may also see a stray connection, never one carrying this.</summary>
