@@ -60,10 +60,10 @@ public static class AdminAuthExtensions
     }
 
     /// <summary>
-    /// Adds the admin middleware, in this order: the loopback listener's host check, security headers, the internal listener's
-    /// forwarded headers (trusted there only), the first-run setup gate, routing, the request body limit, the CSRF check,
-    /// authentication. Call it first, before any endpoint is mapped (it adds <c>UseRouting</c>, so the middleware can read each
-    /// endpoint's metadata; nothing else should). Endpoints are served after the last middleware.
+    /// Adds the admin middleware: the loopback listener's host check, security headers, the internal listener's forwarded
+    /// headers (trusted there only), the first-run setup gate, routing, the request body limit, the CSRF check, authentication.
+    /// Call it first, before any endpoint is mapped: it adds <c>UseRouting</c>, which the middleware needs to read each
+    /// endpoint's metadata, and nothing else should add it.
     /// </summary>
     public static WebApplication UsePaduraksaAdminAuth(this WebApplication app)
     {

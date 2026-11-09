@@ -11,7 +11,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Admin.Identity;
 
-/// <summary>Setup and the two sign-in steps, sign-out, and who-am-I. The only endpoints that take no credentials (PLAN §10.1, §12.1).</summary>
+/// <summary>Setup and the two sign-in steps, sign-out, and who-am-I. The only endpoints that take no credentials.</summary>
 internal static class SignInEndpoints
 {
     public static void Map(IEndpointRouteBuilder api)

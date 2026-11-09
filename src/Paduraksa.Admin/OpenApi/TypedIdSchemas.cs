@@ -5,14 +5,13 @@ using Paduraksa.Core.Ids;
 
 namespace Paduraksa.Admin.OpenApi;
 
-/// <summary>What the OpenAPI schema of a typed ID says (PLAN §4.1): a string with the ID's prefix and fixed length.</summary>
+/// <summary>What the OpenAPI schema of a typed ID says: a string with the ID's prefix and fixed length.</summary>
 /// <param name="Name">The ID type's name (<c>HostId</c>).</param>
 /// <param name="Prefix">The prefix before the underscore (<c>host</c>).</param>
 /// <param name="Pattern">The regular expression of its string form.</param>
 /// <param name="Example">An example value.</param>
 internal sealed record TypedIdSchema(string Name, string Prefix, string Pattern, string Example);
 
-/// <summary>Describes typed ID types to the OpenAPI generator.</summary>
 internal static class TypedIdSchemas
 {
     private static readonly MethodInfo DescribeMethod = typeof(TypedIdSchemas).GetMethod(nameof(Describe), BindingFlags.NonPublic | BindingFlags.Static)!;

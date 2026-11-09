@@ -24,7 +24,6 @@ public sealed class PublishFailureMetadata
     }
 }
 
-/// <summary>Conventions of the API's endpoints.</summary>
 public static class ApiEndpointConventions
 {
     /// <summary>The most a certificate upload request may be: the vault reads at most 1 MiB of key and chain, the rest is multipart framing.</summary>
@@ -105,9 +104,9 @@ internal readonly record struct BodyResult<T>(T? Value, IResult? Problem)
 }
 
 /// <summary>
-/// Optimistic concurrency (PLAN §11.1): a read carries an <c>ETag</c> (an object's version, or the latest revision for the whole config),
-/// and a change must send it back in <c>If-Match</c>. A missing header is 428 (a client that doesn't say what it read could overwrite what
-/// it never saw), a stale one 412.
+/// Optimistic concurrency: a read carries an <c>ETag</c> (an object's version, or the latest revision for the whole config),
+/// and a change must send it back in <c>If-Match</c>. A missing header is 428 (a client that doesn't say what it read could
+/// overwrite what it never saw), a stale one 412.
 /// </summary>
 internal static class Preconditions
 {
@@ -230,8 +229,8 @@ internal static class Preconditions
     }
 
     /// <summary>
-    /// Reads <c>?force=</c> (<c>true</c> or <c>false</c>; absent is false): the explicit permission the admin host's lock-out guard
-    /// needs for a change that would remove the caller's own way in (PLAN §3.1).
+    /// Reads <c>?force=</c> (<c>true</c> or <c>false</c>; absent is false): the explicit permission the admin host's lock-out
+    /// guard needs for a change that would remove the caller's own way in.
     /// </summary>
     public static bool TryGetForce(HttpContext http, out bool force, out IResult? problem)
     {
@@ -254,7 +253,6 @@ internal static class Preconditions
     }
 }
 
-/// <summary>How an <c>If-Match</c> header parsed.</summary>
 internal enum IfMatchState
 {
     Missing,

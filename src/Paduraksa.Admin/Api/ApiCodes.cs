@@ -1,15 +1,15 @@
 namespace Paduraksa.Admin.Api;
 
 /// <summary>
-/// The stable machine-readable <c>code</c>s of the admin API's problems (PLAN §11.1), grouped by area. A code is dotted segments in
-/// lowerCamelCase - an area, then what happened - the same shape as the config errors (<c>host.certificate.unusable</c>), so a client
-/// can branch on it and the words never have to change meaning. The config, issuance, certificate, simulation and identity error
-/// codes (<c>ConfigError.Code</c>) live beside their validators in Application; these are the problem-level ones.
+/// The stable machine-readable <c>code</c>s of the admin API's problems, grouped by area: dotted lowerCamelCase segments, an
+/// area and then what happened, the shape the config errors use too (<c>host.certificate.unusable</c>), so a client can
+/// branch on them and the words never have to change meaning. The config, issuance, certificate, simulation and identity
+/// error codes (<c>ConfigError.Code</c>) live beside their validators in Application; these are the problem-level ones.
 /// </summary>
 /// <remarks>
-/// A unit test (<c>ProblemCodeConventionTests</c>) scans every constant here and in the Application code classes and rejects anything
-/// that doesn't match <c>^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$</c>. The OAuth <c>WWW-Authenticate</c> <c>error=</c> values are
-/// not codes (RFC 6750 defines them) and stay <c>invalid_token</c>/<c>invalid_request</c>.
+/// A unit test (<c>ProblemCodeConventionTests</c>) scans every constant here and in the Application code classes and rejects
+/// anything that doesn't match <c>^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$</c>. The OAuth <c>WWW-Authenticate</c>
+/// <c>error=</c> values are not codes (RFC 6750 defines them) and stay <c>invalid_token</c>/<c>invalid_request</c>.
 /// </remarks>
 internal static class ApiCodes
 {
@@ -53,7 +53,6 @@ internal static class ApiCodes
         public const string Busy = "auth.busy";
     }
 
-    /// <summary>First-run setup (PLAN §12.1).</summary>
     public static class Setup
     {
         /// <summary>503: no Owner exists yet, so only the setup flow is served.</summary>
@@ -72,14 +71,13 @@ internal static class ApiCodes
         public const string ViaProxy = "setup.viaProxy";
     }
 
-    /// <summary>Cross-site request forgery defence.</summary>
     public static class Csrf
     {
         /// <summary>403: a cookie-authenticated unsafe request that a browser could have forged.</summary>
         public const string Refused = "csrf.refused";
     }
 
-    /// <summary>The internal listener between the proxy and the admin app (PLAN §3.1).</summary>
+    /// <summary>The internal listener between the proxy and the admin app.</summary>
     public static class Admin
     {
         /// <summary>403: the internal listener's hop header is missing or wrong.</summary>
@@ -89,14 +87,12 @@ internal static class ApiCodes
         public const string SourceDenied = "admin.sourceDenied";
     }
 
-    /// <summary>The local CA root's download endpoints.</summary>
     public static class Ca
     {
         /// <summary>404: this process holds no local CA root.</summary>
         public const string NotFound = "ca.notFound";
     }
 
-    /// <summary>Config changes.</summary>
     public static class Config
     {
         /// <summary>500: the change is stored but could not go live; the previous config still serves.</summary>

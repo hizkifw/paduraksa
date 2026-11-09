@@ -1,34 +1,29 @@
 namespace Paduraksa.Admin.Web;
 
 /// <summary>
-/// Where the browser side of the admin lives (PLAN §12): the dashboard's pages, the form endpoints its sign-in pages post to, and its
-/// circuit hub. The dashboard owns the names; the composition root hands them to <see cref="AdminWebExtensions.AddPaduraksaAdminWeb"/>, so
-/// neither project references the other.
+/// Where the browser side of the admin lives: the dashboard's pages, the form endpoints its sign-in pages post to, and its
+/// circuit hub. The dashboard owns the names; the composition root hands them to
+/// <see cref="AdminWebExtensions.AddPaduraksaAdminWeb"/>, so neither project references the other.
 /// </summary>
 public sealed class AdminWebOptions
 {
     /// <summary>The page a signed-in browser lands on (and where an unsafe <c>returnUrl</c> is replaced by).</summary>
     public required string HomePage { get; init; }
 
-    /// <summary>The sign-in page (username and password).</summary>
     public required string SignInPage { get; init; }
 
     /// <summary>The second-factor page (a TOTP code or a recovery code).</summary>
     public required string SecondFactorPage { get; init; }
 
-    /// <summary>The first-run setup page.</summary>
     public required string SetupPage { get; init; }
 
     /// <summary>Where the setup form sends the new Owner once signed in (the rest of the first-run wizard); null for <see cref="HomePage"/>.</summary>
     public string? SetupCompletedPage { get; init; }
 
-    /// <summary>Where the sign-in page posts the username and password.</summary>
     public required string SignInAction { get; init; }
 
-    /// <summary>Where the second-factor page posts the code.</summary>
     public required string SecondFactorAction { get; init; }
 
-    /// <summary>Where the dashboard's sign-out button posts.</summary>
     public required string SignOutAction { get; init; }
 
     /// <summary>Where the setup page posts the setup token and the Owner.</summary>
@@ -40,13 +35,12 @@ public sealed class AdminWebOptions
     /// <summary>Path prefixes of the static files the sign-in and setup pages need (open during setup).</summary>
     public required IReadOnlyList<string> StaticAssetPathPrefixes { get; init; }
 
-    /// <summary>The CSP of the dashboard's HTML documents.</summary>
     public required string ContentSecurityPolicy { get; init; }
 }
 
 /// <summary>
-/// The names the dashboard's sign-in forms and the endpoints behind them agree on: the form fields, the query parameters a redirect
-/// carries, and the error codes it can name (the API's problem codes, PLAN §11.1, plus <see cref="PasswordMismatch"/>).
+/// The names the dashboard's sign-in forms and the endpoints behind them agree on: the form fields, the query parameters a
+/// redirect carries, and the error codes it can name (the API's problem codes, plus <see cref="PasswordMismatch"/>).
 /// </summary>
 public static class AdminWebForm
 {

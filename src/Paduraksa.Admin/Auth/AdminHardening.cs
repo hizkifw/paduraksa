@@ -5,11 +5,12 @@ using Microsoft.AspNetCore.Http.Features;
 namespace Paduraksa.Admin.Auth;
 
 /// <summary>
-/// Security headers on every admin response (PLAN §10.1): <c>nosniff</c>, no referrer, no framing, a CSP of
-/// <c>default-src 'none'; frame-ancestors 'none'</c> (an HTML page outside <c>/api</c> gets <see cref="AdminPipelineHooks.HtmlContentSecurityPolicy"/>, the
-/// dashboard's, when one is set), <c>no-store</c> on <c>/api/</c>, on HTML pages and under <see cref="AdminPipelineHooks.AuthenticatedPathPrefixes"/>, and HSTS
-/// where the request came in over TLS (not for a loopback host name). Headers are added when the response starts, and a response that set its own CSP (the docs
-/// page) keeps it.
+/// Security headers on every admin response: <c>nosniff</c>, no referrer, no framing, a CSP of
+/// <c>default-src 'none'; frame-ancestors 'none'</c> (an HTML page outside <c>/api</c> gets
+/// <see cref="AdminPipelineHooks.HtmlContentSecurityPolicy"/>, the dashboard's, when one is set), <c>no-store</c> on
+/// <c>/api/</c>, on HTML pages and under <see cref="AdminPipelineHooks.AuthenticatedPathPrefixes"/>, and HSTS where the
+/// request came in over TLS (not for a loopback host name). Headers are added when the response starts, and a response that
+/// set its own CSP (the docs page) keeps it.
 /// </summary>
 internal sealed class AdminSecurityHeadersMiddleware(RequestDelegate next, AdminPipelineHooks hooks)
 {
@@ -159,7 +160,7 @@ internal sealed class AdminLoopbackHostMiddleware(RequestDelegate next, AdminSec
     public Task InvokeAsync(HttpContext context)
     {
         // The internal listener is loopback by construction and its forwarded Host is the public name: the DNS-rebinding
-        // check belongs to the plain-HTTP loopback fallback listener alone (PLAN §3.1).
+        // check belongs to the plain-HTTP loopback fallback listener alone.
         if (options.LoopbackHttpPort > 0
             && !context.IsOnInternalListener()
             && context.Connection.LocalPort == options.LoopbackHttpPort

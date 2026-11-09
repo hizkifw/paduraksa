@@ -19,10 +19,8 @@ public sealed class AdminAnonymousMetadata
 }
 
 /// <summary>A session whose second factor is still owed: it authenticates nothing but the second-factor step and logout.</summary>
-/// <param name="Principal">The user behind the session.</param>
 public sealed record PartialSession(SessionPrincipal Principal);
 
-/// <summary>The request feature carrying the <see cref="PartialSession"/>.</summary>
 public interface IPartialSessionFeature
 {
     PartialSession Session { get; }
@@ -84,27 +82,23 @@ public static class AdminAuthEndpointExtensions
 }
 
 /// <summary>
-/// Authenticates <c>/api/</c> requests (PLAN §10.1): a session cookie or a <c>Bearer pdk_...</c> token, checked through
+/// Authenticates <c>/api/</c> requests: a session cookie or a <c>Bearer pdk_...</c> token, checked through
 /// <see cref="SessionService"/> and <see cref="ApiTokenService"/> on every request, so a revoked token or a revoked session stops
 /// working at once. On success it sets the <see cref="AdminCaller"/>.
 /// </summary>
 /// <remarks>
-/// <para>It only ever <i>sets</i> a caller: a request that already has one (set ahead of the pipeline) is left as it is.</para>
-/// <para><b>Never anonymous by accident.</b> A credential that is presented and wrong is a 401, not an anonymous request: a bad token,
-/// an unknown or expired session cookie, an <c>Authorization</c> header of any scheme but Bearer, two <c>Authorization</c> headers, the
-/// session cookie twice, or <i>both</i> a cookie and a bearer token (which one is meant is not guessed). The one exception is an
-/// endpoint marked with <see cref="AdminAnonymousMetadata"/> (sign-in, setup): a browser with a stale cookie must still be able to
-/// sign in, so a cookie that does not validate is ignored there (a bad bearer token still is not).</para>
-/// <para>A session that still owes its second factor sets no caller; it is available as <see cref="PartialSession"/> to the endpoints that
-/// accept it, and every other endpoint sees an anonymous request.</para>
-/// <para><b>Outside <c>/api</c></b> (the dashboard, its sign-in forms and its circuit hub) only the session cookie counts, and it is
-/// lenient: a valid full session sets the caller (channel <see cref="Channel.Dashboard"/>), a partial one the <see cref="PartialSession"/>,
-/// and anything else leaves the request anonymous for the endpoint (or its authorization metadata) to decide. A bearer token is never
-/// a dashboard credential. Under <see cref="AdminPipelineHooks.AuthenticatedPathPrefixes"/> (the circuit hub) a request without a
-/// signed-in caller is a bare 401. Under <see cref="AdminPipelineHooks.StaticAssetPathPrefixes"/> (the dashboard's scripts and
-/// stylesheets) the cookie is not looked at at all: a static file needs no identity, and a page load pulls dozens of them.</para>
-/// <para>A signed-in session also becomes the request's <see cref="HttpContext.User"/> (a <see cref="SessionIdentity"/>), which is what
-/// the dashboard's authorization and the circuits it opens read.</para>
+/// It only ever <i>sets</i> a caller: a request that already has one (set ahead of the pipeline) is left as it is.
+/// <b>Never anonymous by accident:</b> a credential that is presented and wrong is a 401, not an anonymous request (a bad
+/// token, an unknown or expired session cookie, an <c>Authorization</c> header of any scheme but Bearer, two of them, the
+/// session cookie twice, or <i>both</i> a cookie and a bearer token, since which one is meant is not guessed). The one
+/// exception is an endpoint marked with <see cref="AdminAnonymousMetadata"/> (sign-in, setup), where a stale cookie is
+/// ignored so that a browser can still sign in (a bad bearer token still is not). A session that still owes its second
+/// factor sets no caller; it is
+/// available as <see cref="PartialSession"/>. Outside <c>/api</c> only the session cookie counts and it is lenient,
+/// except under <see cref="AdminPipelineHooks.AuthenticatedPathPrefixes"/> (a bare 401) and
+/// <see cref="AdminPipelineHooks.StaticAssetPathPrefixes"/>, where the cookie is not looked at at all because a static
+/// file needs no identity and a page load pulls dozens of them. A signed-in session also becomes the request's
+/// <see cref="HttpContext.User"/>, which is what the dashboard's authorization reads.
 /// </remarks>
 internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, SessionService sessions, ApiTokenService tokens, AdminPipelineHooks hooks)
 {

@@ -15,9 +15,10 @@ using Paduraksa.Application.Identity;
 namespace Paduraksa.Admin.Web;
 
 /// <summary>
-/// The browser side of the admin app (PLAN §12): the authentication scheme the dashboard's pages are authorized against, antiforgery,
-/// the sign-in form endpoints, and the pipeline hooks that open the setup page and its static files during setup, guard the circuit hub
-/// and give HTML pages the dashboard's CSP. The dashboard itself (its components and render modes) is mapped by the composition root.
+/// The browser side of the admin app: the authentication scheme the dashboard's pages are authorized against, antiforgery,
+/// the sign-in form endpoints, and the pipeline hooks that open the setup page and its static files during setup, guard the
+/// circuit hub and give HTML pages the dashboard's CSP. The dashboard itself (its components and render modes) is mapped by
+/// the composition root.
 /// </summary>
 public static class AdminWebExtensions
 {

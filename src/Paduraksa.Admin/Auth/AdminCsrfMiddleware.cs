@@ -44,22 +44,22 @@ public static class AdminCsrfExtensions
 }
 
 /// <summary>
-/// Cross-site request forgery defence for the session cookie (PLAN §3.1, §10.1), on top of <c>SameSite=Strict</c>. For an unsafe
-/// method on <c>/api/</c>:
+/// Cross-site request forgery defence for the session cookie, on top of <c>SameSite=Strict</c>. For an unsafe method on
+/// <c>/api/</c>:
 /// <list type="bullet">
 /// <item>A bearer-token request is exempt: a browser never adds an <c>Authorization</c> header by itself.</item>
-/// <item>A browser that sends <c>Sec-Fetch-Site</c> must say <c>same-origin</c>; one that sends only <c>Origin</c> must send the request's own
-/// <c>scheme://host:port</c> (<c>null</c> never matches). Anything else is a 403.</item>
-/// <item>A request with neither header comes from something that is not a browser: it is allowed when it carries no session cookie
-/// (sign-in from a script), and refused when it does.</item>
-/// <item>A request that carries the session cookie and a body must say <c>application/json</c> (or <c>+json</c>), or a content type the
-/// endpoint listed with <see cref="AdminCsrfExtensions.AcceptsAdminContentTypes"/>: a cross-site form cannot send JSON without a
-/// preflight.</item>
+/// <item>A browser that sends <c>Sec-Fetch-Site</c> must say <c>same-origin</c>; one that sends only <c>Origin</c> must send
+/// the request's own <c>scheme://host:port</c> (<c>null</c> never matches). Anything else is a 403.</item>
+/// <item>A request with neither header comes from something that is not a browser: it is allowed when it carries no session
+/// cookie (sign-in from a script), and refused when it does.</item>
+/// <item>A request that carries the session cookie and a body must say <c>application/json</c> (or <c>+json</c>), or a
+/// content type the endpoint listed with <see cref="AdminCsrfExtensions.AcceptsAdminContentTypes"/>: a cross-site form
+/// cannot send JSON without a preflight.</item>
 /// </list>
-/// The same applies to an unsafe method on an endpoint marked <see cref="AdminCsrfExtensions.RequireSameOrigin"/> (the dashboard's sign-in
-/// forms, which also carry an antiforgery token), and to every request, whatever its method, under
-/// <see cref="AdminPipelineHooks.SameOriginPathPrefixes"/> (the circuit hub, whose WebSocket handshake is a <c>GET</c>; the body rule does not
-/// apply there).
+/// The same applies to an unsafe method on an endpoint marked <see cref="AdminCsrfExtensions.RequireSameOrigin"/> (the
+/// dashboard's sign-in forms, which also carry an antiforgery token), and to every request, whatever its method, under
+/// <see cref="AdminPipelineHooks.SameOriginPathPrefixes"/> (the circuit hub, whose WebSocket handshake is a <c>GET</c>; the
+/// body rule does not apply there).
 /// </summary>
 internal sealed class AdminCsrfMiddleware(RequestDelegate next, AdminPipelineHooks hooks)
 {

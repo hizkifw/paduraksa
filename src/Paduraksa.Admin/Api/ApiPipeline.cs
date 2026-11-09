@@ -65,7 +65,6 @@ internal sealed partial class ApiPipelineMiddleware(RequestDelegate next, ILogge
         }
     }
 
-    /// <summary><c>/api</c> and anything below it.</summary>
     internal static bool IsApiPath(PathString path) =>
         path.StartsWithSegments(ApiPrefix, StringComparison.OrdinalIgnoreCase);
 

@@ -12,7 +12,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Admin.Api;
 
 /// <summary>
-/// The log files (PLAN §7.4, §11.1): what is in the logs directory, the last lines of one file, and a download. Reading the logs is a
+/// The log files: what is in the logs directory, the last lines of one file, and a download. Reading the logs is a
 /// read like the audit log's, so it needs <c>logs:read</c> and is not itself audited. Only names the writer produces are served
 /// (<see cref="LogFileNames"/>), never a path, a link or anything else in the directory.
 /// </summary>

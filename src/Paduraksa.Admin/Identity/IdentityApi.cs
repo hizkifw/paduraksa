@@ -10,7 +10,7 @@ using Paduraksa.Contracts.Identity;
 
 namespace Paduraksa.Admin.Identity;
 
-/// <summary>The identity endpoints of <c>/api/v1</c> (PLAN §10.1, §11.1): setup, sign-in, the caller's own account, sessions, tokens and users.</summary>
+/// <summary>The identity endpoints of <c>/api/v1</c>: setup, sign-in, the caller's own account, sessions, tokens and users.</summary>
 public static class IdentityApi
 {
     /// <summary>

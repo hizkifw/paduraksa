@@ -14,16 +14,16 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Admin.Web;
 
 /// <summary>
-/// The form endpoints behind the dashboard's sign-in, second-factor, sign-out and setup pages (PLAN §12). The session cookie can only be
-/// set on an ordinary HTTP response, never over a circuit, so the pages are plain HTML forms that post here; each answer is a 303 to the
-/// next page (post/redirect/get), carrying an error code (<see cref="AdminWebForm.ErrorCodes"/>) when a step failed and never any of the
-/// values that were posted.
+/// The form endpoints behind the dashboard's sign-in, second-factor, sign-out and setup pages. The session cookie can only be
+/// set on an ordinary HTTP response, never over a circuit, so the pages are plain HTML forms that post here; each answer is a
+/// 303 to the next page (post/redirect/get), carrying an error code (<see cref="AdminWebForm.ErrorCodes"/>) when a step
+/// failed and never any of the values that were posted.
 /// </summary>
 /// <remarks>
-/// They run the same steps as the JSON API (<see cref="SignInFlow"/>: throttle, bounded password derivation, lockout, audit, the same
-/// cookie), audited as the dashboard channel. Every one needs the antiforgery token the page rendered and passes the same-origin check
-/// (<see cref="AdminCsrfExtensions.RequireSameOrigin"/>). A browser that is already signed in is sent on (its anonymous page's token
-/// would not validate for the signed-in user anyway).
+/// They run the same steps as the JSON API (<see cref="SignInFlow"/>: throttle, bounded password derivation, lockout, audit,
+/// the same cookie), audited as the dashboard channel. Every one needs the antiforgery token the page rendered and passes the
+/// same-origin check (<see cref="AdminCsrfExtensions.RequireSameOrigin"/>). A browser that is already signed in is sent on
+/// (its anonymous page's token would not validate for the signed-in user anyway).
 /// </remarks>
 internal static class AdminWebSignInEndpoints
 {

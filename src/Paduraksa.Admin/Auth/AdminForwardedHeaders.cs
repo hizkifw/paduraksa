@@ -11,8 +11,8 @@ using Paduraksa.Core.Hosting;
 namespace Paduraksa.Admin.Auth;
 
 /// <summary>
-/// Marks a request that arrived on the admin app's <b>internal</b> listener (PLAN §3.1): the public proxy forwarded it, the hop
-/// secret checked out, so its client address, scheme and host were taken from the <c>X-Forwarded-*</c> headers the proxy wrote.
+/// Marks a request that arrived on the admin app's <b>internal</b> listener: the public proxy forwarded it, the hop secret
+/// checked out, so its client address, scheme and host were taken from the <c>X-Forwarded-*</c> headers the proxy wrote.
 /// </summary>
 internal interface IInternalAdminRequestFeature
 {
@@ -48,8 +48,8 @@ public static class AdminInternalRequestExtensions
     }
 
     /// <summary>
-    /// The caller's request facts the config lock-out guard needs (PLAN §3.1), or null on any other listener. Taken after the
-    /// forwarded headers were applied: the public host, its scheme and the resolved client address.
+    /// The caller's request facts the config lock-out guard needs, or null on any other listener. Taken after the forwarded
+    /// headers were applied: the public host, its scheme and the resolved client address.
     /// </summary>
     public static AdminRequestFacts? GetAdminRequestFacts(this HttpContext context)
     {
@@ -68,22 +68,23 @@ public static class AdminInternalRequestExtensions
 }
 
 /// <summary>
-/// Trusts <c>X-Forwarded-For</c>, <c>-Proto</c> and <c>-Host</c> <b>only</b> on the admin app's internal listener (PLAN §3.1), and
-/// nowhere else: on the main admin port and the loopback plain-HTTP fallback listener those headers are ignored, as before.
+/// Trusts <c>X-Forwarded-For</c>, <c>-Proto</c> and <c>-Host</c> <b>only</b> on the admin app's internal listener, and
+/// nowhere else: on the main admin port and the loopback plain-HTTP fallback listener those headers are ignored.
 /// </summary>
 /// <remarks>
-/// <para><b>Authenticated hop.</b> The listener can be reached by local processes (and the TCP fallback by anything that can reach
-/// loopback), so the forwarded headers are trusted only after <see cref="AdminInternalListener.HeaderName"/> carries this process's
-/// secret. The proxy stamps it on admin routes for the same process; a missing or wrong value is a 403 and nothing is rewritten.
-/// The secret is compared in fixed time.</para>
-/// <para>The public proxy always overwrites the forwarded headers before forwarding (one address, the trusted scheme, the host as
-/// received), so the internal listener takes a single value and never a chain: a comma, a repeated header line, an unparsable
-/// address or a scheme other than <c>http</c>/<c>https</c> is ignored rather than guessed. With no usable <c>X-Forwarded-For</c>
-/// the client address becomes unknown (never loopback), so a restricted <c>Paduraksa:Listen:AdminAllowedSources</c> still refuses
-/// it and the sign-in throttle does not lump every client into a loopback bucket.</para>
-/// <para><b>The allowlist on this listener</b> is applied per request to the forwarded client address. That is the only place it
-/// can run there (the socket's peer is always the process itself); the public host's own policies are the primary gate. The main
-/// admin port keeps its per-connection, before-TLS check.</para>
+/// <b>Authenticated hop.</b> The listener can be reached by local processes (and the TCP fallback by anything that can
+/// reach loopback), so the forwarded headers are trusted only after <see cref="AdminInternalListener.HeaderName"/> carries
+/// this process's secret. The proxy stamps it on admin routes for the same process; a missing or wrong value is a 403 and
+/// nothing is rewritten. The secret is compared in fixed time.
+///
+/// The public proxy always overwrites the forwarded headers before forwarding, so the internal listener takes a single
+/// value and never a chain: a comma, a repeated header line, an unparsable address or a scheme other than
+/// <c>http</c>/<c>https</c> is ignored rather than guessed. With no usable <c>X-Forwarded-For</c> the client address
+/// becomes unknown (never loopback), so a restricted <c>Paduraksa:Listen:AdminAllowedSources</c> still refuses it and the
+/// sign-in throttle does not lump every client into a loopback bucket. <b>The allowlist on this listener</b> is applied per
+/// request to the forwarded client address, the only place it can run there (the socket's peer is always the process
+/// itself), and it is a second gate: the public host's own policies are the primary one. The main admin port keeps its
+/// per-connection, before-TLS check.
 /// </remarks>
 internal sealed class AdminForwardedHeadersMiddleware(RequestDelegate next, AdminInternalListener listener, AdminSourcePolicy sources)
 {

@@ -14,7 +14,6 @@ public sealed class AdminSourcePolicy
 {
     private readonly IPNetwork[] _networks;
 
-    /// <summary>Builds the policy from addresses and CIDR blocks.</summary>
     /// <exception cref="FormatException">An entry is neither an address nor a CIDR block.</exception>
     public AdminSourcePolicy(IEnumerable<string> sources)
     {
@@ -22,7 +21,6 @@ public sealed class AdminSourcePolicy
         _networks = [.. sources.Select(s => TryParseBlock(s, out IPNetwork network) ? network : throw new FormatException($"'{s}' is not an IP address or CIDR block."))];
     }
 
-    /// <summary>Whether any restriction is configured.</summary>
     public bool IsRestricted => _networks.Length > 0;
 
     /// <summary>

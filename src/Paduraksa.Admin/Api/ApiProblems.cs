@@ -20,17 +20,6 @@ public static class ApiProblems
     public const string ContentType = "application/problem+json";
 
     /// <summary>A problem with <paramref name="status"/>, as a result.</summary>
-    /// <param name="status">The HTTP status.</param>
-    /// <param name="detail">A sentence for the caller.</param>
-    /// <param name="instance">The resource the problem is about.</param>
-    /// <param name="errors">Validation errors.</param>
-    /// <param name="relatedErrors">Errors elsewhere in the config.</param>
-    /// <param name="warnings">What compiles but is probably not intended.</param>
-    /// <param name="conflict">What is current, for a version mismatch.</param>
-    /// <param name="code">A stable machine-readable kind.</param>
-    /// <param name="title">A title other than the status's fixed one (the auth pipeline's, for example).</param>
-    /// <param name="revision">The stored revision (publish failed).</param>
-    /// <param name="version">The object's new version (publish failed).</param>
     public static IResult Problem(
         int status,
         string? detail = null,
@@ -65,8 +54,8 @@ public static class ApiProblems
         long? version = null)
     {
         ArgumentNullException.ThrowIfNull(http);
-        // Every 403 names a code: a client can tell a missing permission from a CSRF or internal-hop refusal without reading the
-        // sentence (PLAN §11.1).
+        // Every 403 names a code: a client can tell a missing permission from a CSRF or internal-hop refusal without reading
+        // the sentence.
         code ??= status == StatusCodes.Status403Forbidden ? ApiCodes.Auth.PermissionRequired : null;
         return new ApiProblem(
             TypeOf(status),

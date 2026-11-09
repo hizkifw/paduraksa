@@ -10,22 +10,17 @@ using Paduraksa.Contracts.Certificates;
 namespace Paduraksa.Admin.Api;
 
 /// <summary>
-/// The local CA root's download endpoints (PLAN §3, §12.1): the first-run wizard offers the root so the owner trusts it
-/// once and the admin UI is then trusted by their browsers.
+/// The local CA root's download endpoints: the first-run wizard offers the root so the owner trusts it once and the admin UI
+/// is then trusted by their browsers.
 /// </summary>
 /// <remarks>
-/// <para>
 /// All three are anonymous (<see cref="AdminAuthEndpointExtensions.AllowAnonymousAdmin"/>) and reachable while first-run
 /// setup is incomplete (<see cref="AdminPipelineHooks.SetupAllowedPathPrefixes"/> lists the prefix by default): the wizard
 /// asks for them before an Owner exists. They serve the <b>public</b> root certificate only, from <see cref="CaRootSource"/>
-/// (published by the core host's admin certificate service) - never a key, never any other certificate, never a chain.
-/// </para>
-/// <para>
-/// <c>GET /api/v1/ca/root.pem</c> (PEM, <c>application/x-pem-file</c>), <c>GET /api/v1/ca/root.crt</c> (DER,
-/// <c>application/x-x509-ca-cert</c>, the type Android and iOS offer to install) and <c>GET /api/v1/ca</c> (the
-/// fingerprint, subject and validity as JSON). Each also answers <c>HEAD</c>. With no local CA yet each answers 404 with
-/// code <c>ca.notFound</c>; the process creates it shortly after startup.
-/// </para>
+/// (published by the core host's admin certificate service): never a key, never any other certificate, never a chain.
+/// <c>/root.pem</c> is PEM, <c>/root.crt</c> is DER (<c>application/x-x509-ca-cert</c>, the type Android and iOS offer to
+/// install) and <c>/ca</c> is the fingerprint, subject and validity as JSON. With no local CA yet each answers 404 with code
+/// <c>ca.notFound</c>; the process creates it shortly after startup.
 /// </remarks>
 internal static class CaEndpoint
 {
@@ -35,7 +30,6 @@ internal static class CaEndpoint
     /// <summary>The path prefix of the endpoints as the setup gate lists it.</summary>
     public const string PathPrefix = "/api/v1" + Prefix;
 
-    /// <summary>The problem's code when the process has no local CA yet.</summary>
     private const string PemContentType = "application/x-pem-file";
     private const string DerContentType = "application/x-x509-ca-cert";
 

@@ -9,7 +9,7 @@ using Paduraksa.Application.Identity;
 namespace Paduraksa.Admin.Auth;
 
 /// <summary>
-/// The first-run gate (PLAN §12.1): while <see cref="SetupService"/> says no Owner exists, the admin app serves only the health
+/// The first-run gate: while <see cref="SetupService"/> says no Owner exists, the admin app serves only the health
 /// endpoints, the setup endpoints (<c>/api/v1/setup</c>) and whatever <see cref="AdminPipelineHooks.SetupAllowedPathPrefixes"/> lists
 /// (the OpenAPI document and the docs), and the browser's setup page and form (<see cref="AdminPipelineHooks.SetupPaths"/>); everything else
 /// is a 503 problem naming the setup step, except that a browser opening a page is redirected to <see cref="AdminPipelineHooks.SetupPagePath"/>. The state is read on every request
@@ -85,7 +85,7 @@ internal sealed partial class AdminSetupGateMiddleware(RequestDelegate next, Set
         || hooks.SetupPaths.Any(setupPath => path.Equals(setupPath, StringComparison.OrdinalIgnoreCase))
         || hooks.SetupAllowedPathPrefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>The API's setup endpoint (and below it, as before), or one of the browser's setup paths.</summary>
+    /// <summary>The API's setup endpoint (and anything below it), or one of the browser's setup paths.</summary>
     private bool IsSetupSurface(PathString path) =>
         path.StartsWithSegments(SetupPath, StringComparison.OrdinalIgnoreCase)
         || hooks.SetupPaths.Any(setupPath => path.Equals(setupPath, StringComparison.OrdinalIgnoreCase));

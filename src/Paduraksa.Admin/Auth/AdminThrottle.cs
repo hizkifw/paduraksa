@@ -7,13 +7,10 @@ namespace Paduraksa.Admin.Auth;
 /// <summary>What is being throttled; each has its own budget per client.</summary>
 public enum AdminThrottleScope
 {
-    /// <summary>The first sign-in step.</summary>
     Login = 1,
 
-    /// <summary>The second sign-in step.</summary>
     SecondFactor = 2,
 
-    /// <summary>First-run setup.</summary>
     Setup = 3,
 }
 
@@ -45,7 +42,6 @@ public sealed class AdminThrottle : IDisposable
     private readonly SemaphoreSlim _passwordChecks;
     private readonly TimeSpan _passwordCheckWait;
 
-    /// <summary>Creates a throttle with the budgets in <paramref name="options"/>.</summary>
     public AdminThrottle(AdminSecurityOptions options, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(options);

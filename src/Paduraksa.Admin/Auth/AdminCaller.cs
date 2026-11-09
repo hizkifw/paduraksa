@@ -53,13 +53,11 @@ public sealed record AdminCaller(CommandOrigin Origin, SessionId? Session = null
     }
 }
 
-/// <summary>The request feature carrying the <see cref="AdminCaller"/>.</summary>
 public interface IAdminCallerFeature
 {
     AdminCaller Caller { get; }
 }
 
-/// <summary>The default <see cref="IAdminCallerFeature"/>.</summary>
 public sealed class AdminCallerFeature(AdminCaller caller) : IAdminCallerFeature
 {
     public AdminCaller Caller { get; } = caller;

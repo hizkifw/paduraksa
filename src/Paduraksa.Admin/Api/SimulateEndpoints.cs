@@ -10,7 +10,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Admin.Api;
 
-/// <summary>"Why was this blocked?" (PLAN §7.7): what a request would get, and why, against the live config, a revision or a draft.</summary>
+/// <summary>"Why was this blocked?": what a request would get, and why, against the live config, a revision or a draft.</summary>
 internal static class SimulateEndpoints
 {
     public static void Map(RouteGroupBuilder api) =>

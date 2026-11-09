@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 namespace Paduraksa.Admin.Auth;
 
 /// <summary>
-/// The admin session cookie (PLAN §3.1, §10.1): <c>__Host-paduraksa-session</c>, <c>Secure</c>, <c>HttpOnly</c>, <c>SameSite=Strict</c>,
+/// The admin session cookie: <c>__Host-paduraksa-session</c>, <c>Secure</c>, <c>HttpOnly</c>, <c>SameSite=Strict</c>,
 /// <c>Path=/</c>, no <c>Domain</c>. The value is the opaque 256-bit session secret and nothing else.
 /// </summary>
 /// <remarks>

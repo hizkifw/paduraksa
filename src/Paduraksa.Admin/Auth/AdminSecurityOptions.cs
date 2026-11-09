@@ -1,9 +1,9 @@
 namespace Paduraksa.Admin.Auth;
 
 /// <summary>
-/// The admin app's security knobs (PLAN §10.1). The server binds them from <c>Paduraksa:Admin</c> and <c>Paduraksa:Listen</c> and
-/// validates the bounds; the defaults are what ships. A plain object, not <c>IOptions</c>: the server serves one fixed instance for
-/// its own options type only.
+/// The admin app's security knobs. The server binds them from <c>Paduraksa:Admin</c> and <c>Paduraksa:Listen</c> and
+/// validates the bounds; the defaults are what ships. A plain object, not <c>IOptions</c>: the server serves one fixed
+/// instance for its own options type only.
 /// </summary>
 public sealed class AdminSecurityOptions
 {
@@ -16,7 +16,6 @@ public sealed class AdminSecurityOptions
     /// <summary>Failed attempts per <see cref="RateLimitWindow"/> against one username (or, for the second factor, one user); successes do not count. On top of the account lockout.</summary>
     public int RateLimitPermitsPerUser { get; init; } = 10;
 
-    /// <summary>The length of the rate-limit window.</summary>
     public TimeSpan RateLimitWindow { get; init; } = TimeSpan.FromMinutes(1);
 
     /// <summary>The most clients (and, separately, usernames) tracked at once; past it new ones share one bucket.</summary>
@@ -39,7 +38,7 @@ public sealed class AdminSecurityOptions
 
     /// <summary>
     /// <c>Paduraksa:Listen:AdminAllowedSources</c>: the addresses and CIDR blocks allowed to reach the admin. The main port applies
-    /// it per connection before TLS; the internal listener applies it per request to the forwarded client address (PLAN §3.1).
+    /// it per connection before TLS; the internal listener applies it per request to the forwarded client address.
     /// Empty means no restriction.
     /// </summary>
     public IReadOnlyList<string> AdminAllowedSources { get; init; } = [];
@@ -68,7 +67,7 @@ public sealed class AdminPipelineHooks
 
     /// <summary>
     /// The browser's setup surface besides <c>/api/v1/setup</c> (exact paths, case-insensitive): the setup page and the form it posts to.
-    /// Like the API's setup endpoint they are open while setup is incomplete and refused on the internal admin listener (PLAN §3.1).
+    /// Like the API's setup endpoint they are open while setup is incomplete and refused on the internal admin listener.
     /// </summary>
     public IList<string> SetupPaths { get; } = [];
 
