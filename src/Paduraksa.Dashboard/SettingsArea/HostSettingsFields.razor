@@ -61,7 +61,7 @@
 
     <div class="pdk-setting-heading">
         <span class="pdk-setting-heading-title">HSTS</span>
-        <span class="pdk-setting-heading-note">A browser that has been told keeps this host on HTTPS for as long as the max-age.</span>
+        <span class="pdk-setting-heading-note">Tells browsers to reach this host over HTTPS only, for as long as the max-age.</span>
     </div>
 
     <div class="pdk-setting">
@@ -84,8 +84,7 @@
             <div class="pdk-setting-text">
                 <span class="pdk-setting-title">Remembered for</span>
                 <span class="pdk-setting-help">
-                    Counted from the browser's last visit. A browser that has been told only hears a change over HTTPS, so
-                    a wrong value is felt for as long as it says.
+                    Counted from the browser's last visit, and kept even if it's wrong: start short while you test.
                 </span>
             </div>
             <div class="pdk-setting-control pdk-hsts-age">
