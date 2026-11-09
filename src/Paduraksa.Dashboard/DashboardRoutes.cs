@@ -38,6 +38,9 @@ public static class DashboardRoutes
 
     public const string Audit = "/audit";
 
+    /// <summary>The access and error log files: browse, read the last lines, download.</summary>
+    public const string Logs = "/logs";
+
     public const string Simulator = "/simulator";
 
     public const string Settings = "/settings";

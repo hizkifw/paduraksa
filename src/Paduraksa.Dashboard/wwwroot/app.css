@@ -882,6 +882,57 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-tokens-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.8fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
 .pdk-tokens-table.pdk-tokens-everyone { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.6fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
 .pdk-certs-table { --pdk-dt-cols: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr); }
+.pdk-logs-table { --pdk-dt-cols: minmax(0, 2.2fr) minmax(110px, 0.9fr) minmax(70px, 0.5fr) 80px; }
+
+/* The logs page (PLAN §7.4, §12): a card per log, and a drawer showing one file's last lines in monospace. */
+.pdk-log-groups {
+    display: grid;
+    gap: 16px;
+}
+
+.pdk-card-head .pdk-log-total {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.pdk-log-filter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 130px;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 12px;
+}
+
+.pdk-log-tail {
+    max-height: 58vh;
+    margin: 0;
+    padding: 12px 14px;
+    overflow: auto;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 8px;
+    background: var(--mud-palette-background-gray);
+    font-family: var(--pdk-mono);
+    font-size: 0.75rem;
+    line-height: 1.55;
+    white-space: pre;
+    overflow-wrap: normal;
+    tab-size: 4;
+}
+
+.pdk-log-note {
+    margin-top: 8px;
+}
+
+@media (max-width: 600px) {
+    .pdk-log-filter {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pdk-logs-table .pdk-dt-cell[data-label] {
+        grid-column: 1 / -1;
+    }
+}
 
 /* Where a host's requests go: "/api -> app  http://10.0.0.5:8080", a line per route. */
 .pdk-dest-list {

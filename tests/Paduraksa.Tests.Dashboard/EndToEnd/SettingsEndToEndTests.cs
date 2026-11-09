@@ -195,6 +195,49 @@ public sealed class SettingsEndToEndTests
         Assert.Empty(problems);
     }
 
+    [Fact]
+    public async Task TheLogsPageListsAFileReadsItsLastLinesAndDownloadsIt()
+    {
+        (IPlaywright playwright, IBrowser browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
+        using IPlaywright ownedPlaywright = playwright;
+        await using IBrowser ownedBrowser = browser;
+        await using DashboardHost host = await DashboardHost.StartAsync(Ct);
+        await using IBrowserContext context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = host.Admin.ToString(),
+            IgnoreHTTPSErrors = true,
+            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
+            ColorScheme = ColorScheme.Dark,
+            AcceptDownloads = true,
+        });
+        IPage page = await context.NewPageAsync();
+        await SetUpAsync(page, host);
+
+        // A line in the error log, as the process itself would have written it.
+        string directory = host.Host.Options.Logs.ResolvedDirectory;
+        Directory.CreateDirectory(directory);
+        await File.AppendAllTextAsync(Path.Combine(directory, "error.log"), "warn: the browser test's own line\n", Ct);
+
+        await OpenFromNavigationAsync(page, "Logs");
+        await ExpectHeadingAsync(page, "Logs");
+        await Expect(page.Locator("[data-file=\"error.log\"]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
+
+        // The last lines open in a drawer, and the file downloads through the authenticated endpoint.
+        await page.ClickAsync("[data-file=\"error.log\"]");
+        await Expect(page.Locator(".pdk-drawer [data-section=tail]")).ToContainTextAsync("the browser test's own line", new() { Timeout = 15_000 });
+        await PlaywrightBrowser.ScreenshotAsync(page, "logs", fullPage: false);
+
+        IDownload download = await page.RunAndWaitForDownloadAsync(() => page.ClickAsync(".pdk-drawer [data-action=download]"));
+        Assert.Equal("error.log", download.SuggestedFilename);
+
+        // Phone width: the log page fits without scrolling sideways.
+        await page.SetViewportSizeAsync(390, 844);
+        await page.GotoAsync("/logs");
+        await Expect(page.Locator("[data-file=\"error.log\"]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
+        Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"), "/logs scrolls sideways at 390 px");
+        await PlaywrightBrowser.ScreenshotAsync(page, "logs-phone");
+    }
+
     private static async Task ExpectInsideWindowAsync(IPage page, ILocator element)
     {
         LocatorBoundingBoxResult? box = await element.BoundingBoxAsync();

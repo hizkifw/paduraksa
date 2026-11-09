@@ -42,6 +42,7 @@ public static class DashboardNavigation
         new("Simulator", DashboardRoutes.Simulator, Icons.Material.Outlined.Science, InsightGroup, Permission.Simulate, true),
         new("History", DashboardRoutes.History, Icons.Material.Outlined.History, InsightGroup, Permission.ConfigRead, true),
         new("Audit", DashboardRoutes.Audit, Icons.Material.Outlined.FactCheck, InsightGroup, Permission.AuditRead, true),
+        new("Logs", DashboardRoutes.Logs, Icons.Material.Outlined.Article, InsightGroup, Permission.LogsRead, true),
         new("Global defaults", SettingsRoutes.Defaults, Icons.Material.Outlined.Tune, SettingsGroup, Permission.ConfigRead, true),
         new("Users and roles", SettingsRoutes.Users, Icons.Material.Outlined.Group, SettingsGroup, Permission.UsersRead, true),
         new("API tokens", SettingsRoutes.Tokens, Icons.Material.Outlined.Key, SettingsGroup, Permission.TokensOwn, true),

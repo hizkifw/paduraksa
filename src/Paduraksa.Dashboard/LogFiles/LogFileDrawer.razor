@@ -1,0 +1,121 @@
+@* One log file's last lines (the design language, PLAN §12): a drawer over the logs list, with the filter, the lines and the download.
+   The tail is read from the last part of the file only (a compressed one is decompressed up to a cap), never the whole thing. *@
+@using Paduraksa.Application.Logging
+@using Paduraksa.Contracts.Logging
+@inject ILogFileStore Store
+@inject TimeProvider Time
+
+<DrawerShell Title="@File.Name" Name="log-file" Icon="@Icons.Material.Outlined.Article"
+            Subtitle="@($"Last written {RevisionText.Ago(File.LastModified, Time.GetUtcNow())}")">
+    <ChildContent>
+        <div class="pdk-log-filter">
+            <MudTextField T="string" Value="_filter" ValueChanged="SetFilterAsync" Label="Only lines containing" Placeholder="e.g. 500 or example.com"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" DebounceInterval="300" Clearable="true"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Rounded.Search" Class="pdk-search" data-field="filter" />
+            <MudSelect T="int" Value="_count" ValueChanged="SetCountAsync" Label="Lines" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
+                       data-field="count">
+                <MudSelectItem T="int" Value="@LogFileStore.DefaultTailLines">Last @LogFileStore.DefaultTailLines</MudSelectItem>
+                <MudSelectItem T="int" Value="500">Last 500</MudSelectItem>
+                <MudSelectItem T="int" Value="1000">Last 1000</MudSelectItem>
+            </MudSelect>
+        </div>
+
+        @if (_failed)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" data-section="tail-error">
+                The file couldn't be read; it may have been rotated away. Try the list again.
+            </MudAlert>
+        }
+        else if (_loading && _tail is null)
+        {
+            <div class="pdk-row-skeleton">
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="65%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="72%" />
+            </div>
+        }
+        else if (_tail is { Lines.Count: 0 })
+        {
+            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Article" Title="Nothing to show"
+                        Description="@(_filter.Length > 0 ? "No line here contains that. Clear the filter to see the file's last lines." : "The file is empty.")" />
+        }
+        else if (_tail is { } tail)
+        {
+            <pre class="pdk-log-tail" data-section="tail" aria-label="@($"The last lines of {File.Name}")">@string.Join("\n", tail.Lines)</pre>
+            @if (tail.Truncated)
+            {
+                <MudText Typo="Typo.caption" Class="pdk-muted pdk-log-note" data-section="tail-truncated">
+                    Only the end was read: the last 1 MiB, or 8 Mi characters of a compressed file, with lines cut at 4096.
+                    Download the file for all of it.
+                </MudText>
+            }
+        }
+    </ChildContent>
+
+    <Footer>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.FileDownload"
+                   Href="@DownloadUrl" data-action="download">Download</MudButton>
+    </Footer>
+</DrawerShell>
+
+@code {
+    private const int MaxLines = LogFileStore.MaxTailLines;
+
+    private LogFileTail? _tail;
+    private string _filter = string.Empty;
+    private int _count = LogFileStore.DefaultTailLines;
+    private bool _loading;
+    private bool _failed;
+    private int _loads;
+
+    [Parameter, EditorRequired]
+    public LogFileSummary File { get; set; } = default!;
+
+    /// <summary>The file through the API's authenticated download, which the browser fetches with its session cookie.</summary>
+    private string DownloadUrl => "/api/v1/logs/" + Uri.EscapeDataString(File.Name);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task SetFilterAsync(string? filter)
+    {
+        _filter = filter ?? string.Empty;
+        await LoadAsync();
+    }
+
+    private async Task SetCountAsync(int count)
+    {
+        _count = Math.Clamp(count, 1, MaxLines);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        int load = ++_loads;
+        _loading = true;
+        _failed = false;
+        try
+        {
+            LogFileTail? tail = await Task.Run(() => Store.ReadTail(File.Name, _count, _filter));
+            if (load != _loads)
+            {
+                // A later keystroke's read is the one to show.
+                return;
+            }
+
+            _tail = tail;
+            _failed = tail is null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _failed = true;
+            _tail = null;
+        }
+        finally
+        {
+            if (load == _loads)
+            {
+                _loading = false;
+            }
+        }
+    }
+}

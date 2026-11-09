@@ -1,0 +1,186 @@
+@attribute [Route(DashboardRoutes.Logs)]
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Logging
+@using Paduraksa.Contracts.Logging
+@using Paduraksa.Core.Logging
+@using Paduraksa.Dashboard.LogFiles
+@inject ILogFileStore Store
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject TimeProvider Time
+@inject ILogger<LogFiles> Logger
+@* The log files (PLAN §7.4, §12): what is in the logs directory, grouped by log, newest first. A file opens in a drawer with its last
+   lines and a filter; downloading goes through the API's authenticated endpoint, which needs logs:read too. *@
+
+<PageTitle>Logs · Paduraksa</PageTitle>
+
+<PageHeader Title="Logs">
+    <Actions>
+        @if (_mayRead)
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Refresh" OnClick="LoadAsync" Disabled="_loading"
+                       data-action="refresh">Refresh</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Your role can't read the logs"
+                    Description="An Owner can give you the Auditor role." />
+    </MudPaper>
+}
+else if (_failed)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
+        The logs directory couldn't be read. The details are in the server log.
+        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+    </MudAlert>
+}
+else if (_files is null)
+{
+    <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
+        @for (int i = 0; i < 3; i++)
+        {
+            <div class="pdk-row-skeleton">
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="22%" />
+                <MudSkeleton SkeletonType="SkeletonType.Text" Width="16%" />
+            </div>
+        }
+    </MudPaper>
+}
+else if (_files.Count == 0)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Article" Title="No log files yet"
+                    Description="@($"They appear in {Store.Directory} with the first line Paduraksa logs.")" />
+    </MudPaper>
+}
+else
+{
+    <div class="pdk-log-groups">
+        @foreach (IGrouping<string, LogFileSummary> group in _files.GroupBy(file => file.Log))
+        {
+            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-log="@group.Key">
+                <div class="pdk-card-head">
+                    <MudText Typo="Typo.subtitle2" HtmlTag="h2">@LogTitle(group.Key)</MudText>
+                    <span class="pdk-muted pdk-log-total">@Count(group.Count(), "file") · @SizeText(group.Sum(file => file.Size))</span>
+                </div>
+                <div class="pdk-dt pdk-logs-table" role="table" aria-label="@LogTitle(group.Key)">
+                    <div class="pdk-dt-row pdk-dt-head" role="row">
+                        <span role="columnheader">File</span>
+                        <span role="columnheader">Last written</span>
+                        <span role="columnheader">Size</span>
+                        <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
+                    </div>
+                    @foreach (LogFileSummary file in group)
+                    {
+                        <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(file)" data-file="@file.Name" @key="file.Name">
+                            <div role="cell" class="pdk-dt-main">
+                                <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@(file.Compressed ? Icons.Material.Outlined.FolderZip : Icons.Material.Outlined.Description)" Size="Size.Small" /></span>
+                                <div class="pdk-dt-titles">
+                                    <a class="pdk-row-link pdk-mono" href="#" @onclick:preventDefault="true" @onclick:stopPropagation="true" @onclick="() => Open(file)">@file.Name</a>
+                                    <span class="pdk-dt-note">@(Live(file) ? "Live: being written now" : file.Compressed ? "Rotated, compressed" : "Rotated")</span>
+                                </div>
+                            </div>
+                            <div role="cell" class="pdk-dt-cell" data-label="Last written" title="@file.LastModified.ToString("u")">
+                                @RevisionText.Ago(file.LastModified, Time.GetUtcNow())
+                            </div>
+                            <div role="cell" class="pdk-dt-cell pdk-mono" data-label="Size">@SizeText(file.Size)</div>
+                            <div role="cell" class="pdk-dt-cell pdk-dt-actions" @onclick:stopPropagation="true">
+                                <MudTooltip Text="Read the last lines" Arrow="true">
+                                    <MudIconButton Icon="@Icons.Material.Rounded.Subject" Size="Size.Small" OnClick="() => Open(file)"
+                                                   aria-label="@($"Read {file.Name}")" data-action="read" />
+                                </MudTooltip>
+                                <MudTooltip Text="Download" Arrow="true">
+                                    <MudIconButton Icon="@Icons.Material.Rounded.FileDownload" Size="Size.Small" Href="@DownloadUrl(file)"
+                                                   aria-label="@($"Download {file.Name}")" data-action="download" />
+                                </MudTooltip>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </MudPaper>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<LogFileSummary>? _files;
+    private bool _mayRead;
+    private bool _denied;
+    private bool _failed;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayRead = user.Has(Permission.LogsRead);
+        if (!_mayRead)
+        {
+            _denied = true;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (!_mayRead)
+        {
+            return;
+        }
+
+        _loading = true;
+        _failed = false;
+        try
+        {
+            // One directory listing; the bounded reads (a tail, a download) are the disk work that stays off the circuit.
+            _files = Store.List();
+            await Task.CompletedTask;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Logger.LogWarning(ex, "Couldn't list the log files.");
+            _failed = true;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Open(LogFileSummary file) =>
+        Drawers.Push<LogFileDrawer>(new Dictionary<string, object?> { ["File"] = file }, DrawerWidth.Wide);
+
+    private static string DownloadUrl(LogFileSummary file) => "/api/v1/logs/" + Uri.EscapeDataString(file.Name);
+
+    private static bool Live(LogFileSummary file) => LogFileNames.KindOfLive(file.Name) is not null;
+
+    private static string LogTitle(string log) => log == "access" ? "Access log" : "Error log";
+
+    private static string Count(int count, string one) => count == 1 ? $"1 {one}" : $"{count} {one}s";
+
+    private static string SizeText(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024.0:0.#} KB";
+        }
+
+        return bytes < 1024L * 1024 * 1024 ? $"{bytes / (1024.0 * 1024):0.#} MB" : $"{bytes / (1024.0 * 1024 * 1024):0.#} GB";
+    }
+}
