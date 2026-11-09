@@ -135,6 +135,12 @@ internal enum HeaderOutcome : byte
 /// </summary>
 internal static class ResponseHeaders
 {
+    /// <summary>
+    /// The most operations a host's list may hold: the gate keeps their outcomes in a stack buffer of this size, so the
+    /// compiler refuses a longer list rather than the gate overrunning it.
+    /// </summary>
+    public const int MaxResponseHeaderOperations = 16;
+
     /// <summary>The response <c>X-Request-Id</c>'s name, and the operations that carry it.</summary>
     public static bool IsRequestId(in ResponseHeaderOperation operation) => operation.Source == ResponseHeaderValue.RequestId;
 

@@ -143,7 +143,8 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
     public void ResponseHeaders(HttpContext context, CompiledHost? host, ReadOnlySpan<ResponseHeaderOperation> operations, ReadOnlySpan<HeaderOutcome> outcomes)
     {
         List<GateFact> facts = [];
-        for (int i = 0; i < operations.Length; i++)
+        // A hand-built list past the gate's buffer has outcomes only for its head: report what it has rather than throw.
+        for (int i = 0; i < operations.Length && i < outcomes.Length; i++)
         {
             if (outcomes[i] == HeaderOutcome.None)
             {

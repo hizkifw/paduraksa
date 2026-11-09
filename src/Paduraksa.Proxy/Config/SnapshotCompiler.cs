@@ -963,19 +963,21 @@ public static class SnapshotCompiler
         string hstsReason,
         RequestIdPropagation propagation,
         CompileErrorSource where,
-        List<CompileError> errors) =>
-    [
-        CompileServerHeader(serverHeader, where, errors),
-        StringValues.IsNullOrEmpty(altSvc)
+        List<CompileError> errors)
+    {
+        ResponseHeaderOperationBuilder operations = new(where, errors);
+        operations.Add(CompileServerHeader(serverHeader, where, errors));
+        operations.Add(StringValues.IsNullOrEmpty(altSvc)
             ? new ResponseHeaderOperation(AltSvcHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.NotSent, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.None, Reason: altSvcReason)
-            : new ResponseHeaderOperation(AltSvcHeader.HeaderName, altSvc, ResponseHeaderKind.Set, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.Tls | ResponseHeaderConditions.NotHttp3),
-        hsts is { Enabled: true }
+            : new ResponseHeaderOperation(AltSvcHeader.HeaderName, altSvc, ResponseHeaderKind.Set, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.Tls | ResponseHeaderConditions.NotHttp3));
+        operations.Add(hsts is { Enabled: true }
             ? new ResponseHeaderOperation(HstsHeader.HeaderName, CompileHsts(hsts, where, errors), ResponseHeaderKind.Set, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.TrustedHttps | ResponseHeaderConditions.NotExemptName)
-            : new ResponseHeaderOperation(HstsHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.NotSent, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.None, Reason: hstsReason),
-        propagation.SendsResponse()
+            : new ResponseHeaderOperation(HstsHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.NotSent, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.None, Reason: hstsReason));
+        operations.Add(propagation.SendsResponse()
             ? new ResponseHeaderOperation(Logging.RequestIds.HeaderName, StringValues.Empty, ResponseHeaderKind.ReplaceUpstream, ResponseHeaderStage.AfterDecision, ResponseHeaderConditions.None, ResponseHeaderValue.RequestId)
-            : new ResponseHeaderOperation(Logging.RequestIds.HeaderName, StringValues.Empty, ResponseHeaderKind.Remove, ResponseHeaderStage.AfterDecision, ResponseHeaderConditions.None, Reason: "the host doesn't send the ID to the client"),
-    ];
+            : new ResponseHeaderOperation(Logging.RequestIds.HeaderName, StringValues.Empty, ResponseHeaderKind.Remove, ResponseHeaderStage.AfterDecision, ResponseHeaderConditions.None, Reason: "the host doesn't send the ID to the client"));
+        return operations.Build();
+    }
 
     /// <summary>
     /// The <c>Server</c> operation: ours for the name or the custom value, a removal for <see cref="ServerHeaderMode.Remove"/>,

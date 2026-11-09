@@ -631,6 +631,8 @@ operation per header - <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>, <c>Serv
 replace the upstream's, remove, leave to the upstream, or not sent with the reason), when (after host lookup, after the TLS
 check, or with the answer), and what has to hold (the connection is TLS; the trusted scheme is HTTPS; the name is no IP
 literal or loopback; not over HTTP/3). A host that doesn't send a header still has its entry, so the trace can say why.
+The list is capped at 16 operations (`ResponseHeaders.MaxResponseHeaderOperations`), which the compiler enforces with an
+error: the gate's per-request outcomes live in a stack buffer of exactly that size, so a longer list can never reach it.
 The gate applies a stage of that list and nothing else: `Server` right after host lookup, so gate answers (403, the HTTPS
 redirect, Redirect/Respond, 404, 421) and forwards all carry it at 0 B; then `Alt-Svc` and HSTS, so a 421 carries neither.
 The default is `Server: Paduraksa`, with no version, and Kestrel's own header stays off on both listeners. YARP 2.3's

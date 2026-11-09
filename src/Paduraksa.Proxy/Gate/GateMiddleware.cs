@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Diagnostics;
+
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
@@ -222,18 +224,24 @@ public sealed class GateMiddleware
         TTracer tracer)
         where TTracer : struct, IGateTracer
     {
-        Span<HeaderOutcome> outcomes = stackalloc HeaderOutcome[headers.Length];
+        // The compiler caps a host's list at this size, so the buffer needs no length from the snapshot to be safe. If a
+        // hand-built list ever gets past it, the trace loses the tail rather than the request failing.
+        Debug.Assert(
+            headers.Length <= ResponseHeaders.MaxResponseHeaderOperations,
+            "The compiler must cap a host's response headers at the gate's buffer size.");
+        Span<HeaderOutcome> outcomes = stackalloc HeaderOutcome[ResponseHeaders.MaxResponseHeaderOperations];
         outcomes.Clear();
-        ResponseHeaders.ApplyStage(context, headers, stage, state, outcomes, applyRequestId: false);
+        Span<HeaderOutcome> used = outcomes[..Math.Min(headers.Length, ResponseHeaders.MaxResponseHeaderOperations)];
+        ResponseHeaders.ApplyStage(context, headers, stage, state, used, applyRequestId: false);
         if (stage == ResponseHeaderStage.AfterHostLookup)
         {
             // Every answer this step reaches carries the last stage's header (the request ID, whose string the answer
             // materialises), so it is described here: the first pass runs on every traced exit, the 421 and an unknown
             // host included.
-            ResponseHeaders.DescribeDeferred(headers, ResponseHeaderStage.AfterDecision, outcomes);
+            ResponseHeaders.DescribeDeferred(headers, ResponseHeaderStage.AfterDecision, used);
         }
 
-        tracer.ResponseHeaders(context, host, headers, outcomes);
+        tracer.ResponseHeaders(context, host, headers, used);
     }
 
     /// <summary>Carries out <paramref name="decision"/>: forward, write the precomputed response, or abort.</summary>
