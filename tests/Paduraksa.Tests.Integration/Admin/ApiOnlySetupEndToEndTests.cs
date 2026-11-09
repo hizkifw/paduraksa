@@ -28,7 +28,7 @@ using Paduraksa.Tests.Shared;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// PLAN §14 M4's exit criterion: an API-only end-to-end setup. A real host on a fresh data directory is taken from first
+/// Exit criterion: an API-only end-to-end setup. A real host on a fresh data directory is taken from first
 /// start to a proxied HTTPS host using nothing but HTTP calls on the admin listener (plus traffic on the public listener):
 /// the closed setup gate, the Owner, TOTP, an API token, a certificate, an upstream, a host, the proxy, the simulator,
 /// revisions and the audit chain. No service is reached directly except the setup-token file a headless install reads too.

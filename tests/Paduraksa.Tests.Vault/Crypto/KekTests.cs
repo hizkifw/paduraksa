@@ -3,7 +3,6 @@ using Paduraksa.Vault.Crypto;
 
 namespace Paduraksa.Tests.Vault.Crypto;
 
-/// <summary>The text form and identity of the key-encryption key.</summary>
 public sealed class KekTests
 {
     [Fact]

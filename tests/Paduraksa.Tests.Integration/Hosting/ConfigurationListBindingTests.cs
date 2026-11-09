@@ -5,11 +5,6 @@ using Paduraksa.Server.Hosting;
 
 namespace Paduraksa.Tests.Integration.Hosting;
 
-/// <summary>
-/// List options from the environment (PLAN §3, §16): the binder ignores a scalar where an <c>IList&lt;string&gt;</c> is
-/// expected, so <see cref="ConfigurationListOptions"/> normalises both the indexed and the comma-separated form, and
-/// anything it cannot use becomes a startup warning instead of a silently ignored setting.
-/// </summary>
 public sealed class ConfigurationListBindingTests
 {
     [Fact]

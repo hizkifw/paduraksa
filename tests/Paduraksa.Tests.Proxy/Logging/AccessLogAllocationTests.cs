@@ -9,11 +9,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Logging;
 
-/// <summary>
-/// The access log costs the gate nothing (PLAN §7.1, §7.4): with the outermost middleware recording a line for every
-/// request, the gate's own decision is still 0 B on Kestrel, in steady state, keep-alive and HTTP/2 included, and every
-/// outcome (forwarded, refused, answered, unknown host) is logged.
-/// </summary>
 public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixture<TestUpstream>
 {
     private const int Connections = 4;

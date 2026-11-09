@@ -16,7 +16,7 @@ using static Paduraksa.Tests.Issuance.IssuanceHarness;
 
 namespace Paduraksa.Tests.Issuance;
 
-/// <summary>The up-front permission checks of issuance, accounts and DNS providers (PLAN §10.1): refused before anything is started.</summary>
+/// <summary>The up-front permission checks of issuance, accounts and DNS providers: refused before anything is started.</summary>
 public sealed class IssuancePermissionTests
 {
     private static readonly CommandOrigin Stranger = new(Actor.ForUser(UserId.New()), Channel.Api, System.Net.IPAddress.Loopback);

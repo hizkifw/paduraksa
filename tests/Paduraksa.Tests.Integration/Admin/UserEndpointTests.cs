@@ -4,7 +4,6 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
-/// <summary>The users endpoints: the permission matrix per role, and the status mapping.</summary>
 public sealed class UserEndpointTests(SharedOwnerSession shared) : IClassFixture<SharedOwnerSession>
 {
     private static readonly string[] Roles = ["owner", "admin", "operator", "viewer", "auditor"];

@@ -7,7 +7,7 @@ using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Tls;
 
-/// <summary>The HSTS header itself (PLAN §14 M6): what a value looks like, when it is sent, and the names it never goes to.</summary>
+/// <summary>The HSTS header itself: what a value looks like, when it is sent, and the names it never goes to.</summary>
 public sealed class HstsHeaderTests
 {
     [Fact]

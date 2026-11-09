@@ -9,7 +9,7 @@ using static Microsoft.Playwright.Assertions;
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
-/// The settings, account and audit pages in a real browser against a real <c>PaduraksaHost</c> (PLAN §12, M5): a Viewer created from the
+/// The settings, account and audit pages in a real browser against a real <c>PaduraksaHost</c>: a Viewer created from the
 /// users page sees no edit actions in a second browser; an API token made on the tokens page answers <c>/api/v1/auth/me</c>; a global
 /// default changed through review and apply; the audit page shows all of it and the chain is intact; My account enrols TOTP and ends the
 /// Owner's other session, whose page goes to the sign-in page. Skipped without Chromium (see <see cref="PlaywrightBrowser"/>).

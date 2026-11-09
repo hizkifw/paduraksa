@@ -9,7 +9,6 @@ using static Paduraksa.Tests.Data.Commands.Objects;
 
 namespace Paduraksa.Tests.Data.Commands;
 
-/// <summary>The file mechanics of <see cref="LastKnownGoodFile"/>: format, atomic replace, symbolic links, ordering.</summary>
 public sealed class LastKnownGoodFileTests : IDisposable
 {
     private readonly string _directory = Directory.CreateTempSubdirectory("paduraksa-lastgood-").FullName;

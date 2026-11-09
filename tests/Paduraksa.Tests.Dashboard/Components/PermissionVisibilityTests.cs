@@ -11,7 +11,6 @@ using Paduraksa.Dashboard.Layout;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>What a user may not do is not offered (PLAN §12): the navigation and actions follow the user's permissions.</summary>
 public sealed class PermissionVisibilityTests
 {
     [Theory]

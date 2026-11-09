@@ -3,7 +3,6 @@ using Paduraksa.Vault.Crypto;
 
 namespace Paduraksa.Tests.Vault.Crypto;
 
-/// <summary>The format, AAD binding, tamper detection and rewrap of <see cref="EnvelopeCipher"/> (PLAN §8.3). Offsets are those of format 1.</summary>
 public sealed class EnvelopeCipherTests : IDisposable
 {
     private static readonly SealContext Context = new("sec_0001", "dns-api-token", 1);

@@ -19,10 +19,10 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 namespace Paduraksa.Tests.Proxy.EndToEnd;
 
 /// <summary>
-/// Spike S6, YARP-health part (PLAN §6.3, §13): under steady load, with a publish every 100 ms, (a) no request fails and
+/// Spike S6, YARP-health part: under steady load, with a publish every 100 ms, (a) no request fails and
 /// (b) YARP destination health survives every publish that doesn't touch its cluster: a destination marked unhealthy
 /// actively (probe) or passively (transport failures) stays unhealthy, and no healthy destination flaps. Rate-limit and
-/// metric continuity are tested when the rate-limit table (M7) and metric slots (M9) exist.
+/// metric continuity are not covered yet: neither a rate-limit table nor metric slots exist to follow.
 /// </summary>
 public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<TestUpstream>
 {

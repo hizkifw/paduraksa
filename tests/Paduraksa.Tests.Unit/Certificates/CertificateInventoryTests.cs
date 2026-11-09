@@ -14,11 +14,6 @@ using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 namespace Paduraksa.Tests.Unit.Certificates;
 
-/// <summary>
-/// Choosing certificates for names (PLAN §9.1): the covering rules, the Auto selection matrix, per-name selection for
-/// multi-name hosts, and how the loader and compiler degrade for certificates that are expired, not yet valid or can't
-/// be loaded.
-/// </summary>
 public sealed class CertificateInventoryTests : IDisposable
 {
     private static readonly DateTimeOffset Now = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);

@@ -16,7 +16,6 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Commands;
 
-/// <summary>The pipeline around the commands: audit, the single writer, publishing, notifications, the projection.</summary>
 public sealed class ConfigServicePipelineTests
 {
     [Fact]
@@ -248,7 +247,7 @@ public sealed class ConfigServicePipelineTests
     [Fact]
     public async Task AChangeGoesLiveWellWithinTheBudget()
     {
-        // PLAN §14 M2: change → revision → live in < 100 ms. Real SQLite file and a real publisher (no YARP attached,
+        // Exit criterion: change → revision → live in < 100 ms. Real SQLite file and a real publisher (no YARP attached,
         // so the swap is immediate; the S2 spike measured YARP's apply separately), with a 200-host config. Measured
         // on a dev machine: median 15-21 ms, p90 18-41 ms, max 50-71 ms. The asserted budget is 500 ms rather than
         // 100: this suite runs every test project in parallel on a shared 4-vCPU CI runner, where the same pipeline

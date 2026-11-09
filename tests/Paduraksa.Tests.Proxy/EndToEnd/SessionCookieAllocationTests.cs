@@ -13,7 +13,7 @@ using Yarp.ReverseProxy.Transforms;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;
 
-/// <summary>The cookie transforms' steady-state paths allocate nothing (PLAN §7.1): the admin route returns early, and a non-admin
+/// <summary>The cookie transforms' steady-state paths allocate nothing: the admin route returns early, and a non-admin
 /// response without the session cookie only looks for the header.</summary>
 public sealed class SessionCookieAllocationTests
 {

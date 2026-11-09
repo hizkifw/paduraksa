@@ -9,7 +9,6 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Tests.Unit.Simulation;
 
-/// <summary>Who may simulate (PLAN §7.7, §10.1): <c>simulate</c> for any target, plus <c>config:read</c> for a draft or a revision.</summary>
 public sealed class SimulationAuthorizerTests
 {
     private static readonly CommandOrigin User = new(Actor.ForUser(UserId.New()), Channel.Api, IPAddress.Loopback);

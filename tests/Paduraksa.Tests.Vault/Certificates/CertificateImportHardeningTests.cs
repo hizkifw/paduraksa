@@ -8,7 +8,6 @@ using Paduraksa.Vault.Certificates;
 
 namespace Paduraksa.Tests.Vault.Certificates;
 
-/// <summary>What an upload may not do to the vault: leak an exception, cost unbounded CPU, or bring in a certificate nothing can use.</summary>
 public sealed class CertificateImportHardeningTests : IDisposable
 {
     private const string Password = "correct horse";

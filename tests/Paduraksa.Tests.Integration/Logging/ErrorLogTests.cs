@@ -9,7 +9,7 @@ using Paduraksa.Server.Logging;
 namespace Paduraksa.Tests.Integration.Logging;
 
 /// <summary>
-/// The error log (PLAN §7.4): every entry at its own minimum level, in plain text with the app's scope and an exception's stack, queued so a
+/// The error log: every entry at its own minimum level, in plain text with the app's scope and an exception's stack, queued so a
 /// logging call never waits for the disk.
 /// </summary>
 public sealed class ErrorLogTests : IDisposable

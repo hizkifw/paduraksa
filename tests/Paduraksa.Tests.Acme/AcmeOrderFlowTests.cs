@@ -6,7 +6,6 @@ using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme;
 
-/// <summary>Orders, challenges, polling, finalization, download and revocation end to end against the fake CA.</summary>
 public sealed class AcmeOrderFlowTests
 {
     private static readonly AcmeIdentifier[] Identifiers =

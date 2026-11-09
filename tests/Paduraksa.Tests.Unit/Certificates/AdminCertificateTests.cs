@@ -7,7 +7,7 @@ using Paduraksa.Tests.Unit.Ids;
 namespace Paduraksa.Tests.Unit.Certificates;
 
 /// <summary>
-/// The admin certificate's name set and renewal decision (PLAN §3, §10.1): pure arithmetic over the inventory's public
+/// The admin certificate's name set and renewal decision: pure arithmetic over the inventory's public
 /// facts, driven here by a fake clock so the threshold is pinned without waiting months.
 /// </summary>
 public sealed class AdminCertificateTests

@@ -19,7 +19,7 @@ using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 namespace Paduraksa.Tests.Integration.Config;
 
 /// <summary>
-/// The simulator against the real server over real sockets (PLAN §7.7): what Kestrel does with a malformed Host, a dot-segment
+/// The simulator against the real server over real sockets: what Kestrel does with a malformed Host, a dot-segment
 /// path, a TLS 1.2 client or an h2 client to a name that offers only http/1.1 is written down here as what the socket
 /// answered, not derived from the simulator's own rules, and the simulation must say the same.
 /// </summary>

@@ -15,7 +15,6 @@ using static Paduraksa.Tests.Issuance.IssuanceHarness;
 
 namespace Paduraksa.Tests.Issuance;
 
-/// <summary>ACME accounts (PLAN §9.3): the key is born in the vault, the CA registers it, the row records it, and a failure leaves nothing behind.</summary>
 public sealed class AcmeAccountServiceTests
 {
     private static CreateAcmeAccountRequest Request(string directory = "https://acme.test/directory") =>

@@ -10,7 +10,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Gate;
 
-/// <summary>The gate's default client-address source: ClientInfo (or the socket) through the snapshot's trusted proxies.</summary>
 public sealed class ClientAddressSourceTests
 {
     private static readonly SnapshotCompilerOptions LoopbackEdge = new() { CloudflareEdgeRanges = CidrSet.Parse(["127.0.0.0/8", "::1"]) };

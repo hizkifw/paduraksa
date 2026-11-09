@@ -7,7 +7,7 @@ using static Paduraksa.Tests.Issuance.IssuanceHarness;
 namespace Paduraksa.Tests.Issuance;
 
 /// <summary>
-/// The steps an issuance reports while it runs (the dashboard's progress dialog, PLAN §12.1): in order, with the certificate's ID from the
+/// The steps an issuance reports while it runs (the dashboard's progress dialog): in order, with the certificate's ID from the
 /// first report, the CA's message on a failure, nothing secret, and kept for other watchers only while the run lasts.
 /// </summary>
 public sealed class IssuanceProgressTests

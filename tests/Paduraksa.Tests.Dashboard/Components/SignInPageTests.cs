@@ -15,7 +15,7 @@ using Paduraksa.Dashboard.Pages.Account;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// The sign-in pages (PLAN §12): plain HTML forms that post, with an antiforgery token, to the admin app's form endpoints; they show only
+/// The sign-in pages: plain HTML forms that post, with an antiforgery token, to the admin app's form endpoints; they show only
 /// known messages for the codes a failed step redirects with, and never carry a return address that leaves the site.
 /// </summary>
 public sealed class SignInPageTests

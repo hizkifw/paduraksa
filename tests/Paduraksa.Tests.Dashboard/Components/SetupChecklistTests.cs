@@ -6,7 +6,7 @@ using Paduraksa.Dashboard.Setup;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>The overview's checklist after first-run setup (PLAN §12.1): what is left, and the page each task links to.</summary>
+/// <summary>The overview's checklist after first-run setup: what is left, and the page each task links to.</summary>
 public sealed class SetupChecklistTests
 {
     [Fact]

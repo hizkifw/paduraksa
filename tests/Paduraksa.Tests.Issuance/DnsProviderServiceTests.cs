@@ -9,7 +9,6 @@ using static Paduraksa.Tests.Issuance.IssuanceHarness;
 
 namespace Paduraksa.Tests.Issuance;
 
-/// <summary>DNS providers (PLAN §9.3): a kind, a label and the vault secret of the credential, nothing more.</summary>
 public sealed class DnsProviderServiceTests
 {
     [Fact]

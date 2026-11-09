@@ -6,7 +6,6 @@ using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;
 
-/// <summary>Edge cases of the convention: overrides, inheritance, unmappable members and unsupported shapes.</summary>
 public sealed class TypedIdConventionTests
 {
     [Fact]

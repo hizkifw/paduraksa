@@ -5,7 +5,7 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Config;
 
-/// <summary>The certificate inventory tables (PLAN §5.1, §9.1): stable names, the name index, public data only.</summary>
+/// <summary>The certificate inventory tables: stable names, the name index, public data only.</summary>
 public sealed class CertificateStorageTests
 {
     [Fact]

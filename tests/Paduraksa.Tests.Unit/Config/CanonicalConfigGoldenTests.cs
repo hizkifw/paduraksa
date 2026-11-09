@@ -10,7 +10,7 @@ using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 namespace Paduraksa.Tests.Unit.Config;
 
 /// <summary>
-/// The safety net for a refactor of the settings layers (PLAN §5.3): the canonical bytes of a few documents that set
+/// The safety net for a refactor of the settings layers: the canonical bytes of a few documents that set
 /// <b>every</b> host setting at every layer are pinned by their SHA-256, which is what a stored revision keeps as its hash.
 /// A change that alters one byte - key order, a dropped empty record, an enum's spelling - fails here rather than silently
 /// rewriting every stored revision.

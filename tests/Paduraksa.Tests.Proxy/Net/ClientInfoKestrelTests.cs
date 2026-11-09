@@ -16,11 +16,6 @@ using static Paduraksa.Tests.Proxy.Net.ProxyProtocolTestData;
 
 namespace Paduraksa.Tests.Proxy.Net;
 
-/// <summary>
-/// Real Kestrel on loopback: PROXY protocol v1/v2 through <see cref="ClientInfoListenOptionsExtensions.UseClientInfo"/>
-/// reaches <c>HttpContext.Features</c> on HTTP/1.1 and HTTP/2 (cleartext, prior knowledge, and over TLS with the
-/// header ahead of the handshake).
-/// </summary>
 public sealed class ClientInfoKestrelTests : IAsyncLifetime
 {
     // Policies for the /alloc endpoint: the PROXY-protocol source 203.0.113.42 is the trusted proxy.

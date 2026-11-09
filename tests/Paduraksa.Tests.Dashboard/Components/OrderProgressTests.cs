@@ -9,7 +9,7 @@ using Paduraksa.Dashboard.Certificates;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// The ACME progress list (PLAN §12.1): one rendering per state of the run, the DNS-only propagation step, skipped steps on a resumed
+/// The ACME progress list: one rendering per state of the run, the DNS-only propagation step, skipped steps on a resumed
 /// order, and a failure with the CA's message and the retry.
 /// </summary>
 public sealed class OrderProgressTests

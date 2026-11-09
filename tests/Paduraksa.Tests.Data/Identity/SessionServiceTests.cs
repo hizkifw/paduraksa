@@ -5,7 +5,6 @@ using static Paduraksa.Tests.Data.Identity.IdentityHarness;
 
 namespace Paduraksa.Tests.Data.Identity;
 
-/// <summary>Session lifetime (absolute and idle), the throttled last-seen write, listing and revoking.</summary>
 public sealed class SessionServiceTests
 {
     private static readonly IdentityOptions Short = new()

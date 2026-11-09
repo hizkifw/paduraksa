@@ -16,7 +16,6 @@ using Paduraksa.Server.Placeholders;
 
 namespace Paduraksa.Tests.Integration.Hosting;
 
-/// <summary>Spike S5: the real core + public + admin hosts in one process, on ephemeral ports.</summary>
 public sealed class DualHostTests(SharedHost shared) : IClassFixture<SharedHost>
 {
     private const string NoHostConfigured = "no host configured\n";
@@ -43,7 +42,7 @@ public sealed class DualHostTests(SharedHost shared) : IClassFixture<SharedHost>
         using HttpResponseMessage headResponse = await client.SendAsync(head, ct);
         Assert.Equal(HttpStatusCode.OK, headResponse.StatusCode);
 
-        // Until first-run setup is complete the admin app serves only the health endpoints and the setup flow (PLAN §12.1).
+        // Until first-run setup is complete the admin app serves only the health endpoints and the setup flow.
         using HttpResponseMessage gated = await client.GetAsync(admin, ct);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, gated.StatusCode);
         string token = await host.Shared.Setup.EnsureTokenAsync(ct) ?? throw new InvalidOperationException("Setup is already complete.");

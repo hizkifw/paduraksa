@@ -4,7 +4,6 @@ using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;
 
-/// <summary>Every ID kind survives a save and a fresh read as key, foreign key, nullable and JSON member.</summary>
 public sealed class TypedIdRoundTripTests
 {
     [Fact]

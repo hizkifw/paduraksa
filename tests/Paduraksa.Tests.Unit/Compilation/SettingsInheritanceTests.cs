@@ -10,7 +10,7 @@ using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 namespace Paduraksa.Tests.Unit.Compilation;
 
 /// <summary>
-/// Every field of <see cref="HostSettings"/> through the one merge (PLAN §5.3): set only at the global defaults, only at
+/// Every field of <see cref="HostSettings"/> through the one merge: set only at the global defaults, only at
 /// the profile, only at the host; overridden at each level; and the built-in default when no layer sets it. It runs the
 /// real path - the validator accepts each document, and the mapping, which is what the compiler compiles, resolves it.
 /// <para><b>Adding a setting</b> is one row here: a field accessor, what a layer that sets it looks like, the value the

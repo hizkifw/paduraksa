@@ -6,7 +6,6 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
-/// <summary>Sessions (list, revoke, revoke others) and API tokens (scope narrowing, revocation, admin-wide listing).</summary>
 public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixture<SharedOwnerSession>
 {
     [Fact]

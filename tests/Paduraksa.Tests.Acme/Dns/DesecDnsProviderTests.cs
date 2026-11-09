@@ -7,7 +7,6 @@ using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme.Dns;
 
-/// <summary>The deSEC provider against an in-memory deSEC, over a fake of the vault's authenticating handler.</summary>
 public sealed class DesecDnsProviderTests : IDisposable
 {
     private const string Challenge = "_acme-challenge.example.com";

@@ -17,7 +17,7 @@ using static Paduraksa.Tests.Integration.Admin.AdminApiHarness;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// The log files over the API (PLAN §7.4, §11.1): the list, a bounded tail, the download, the permission, and the names that are refused
+/// The log files over the API: the list, a bounded tail, the download, the permission, and the names that are refused
 /// before the file system is asked anything.
 /// </summary>
 public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>

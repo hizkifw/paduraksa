@@ -6,7 +6,6 @@ using static Paduraksa.Tests.Architecture.SolutionLayers;
 
 namespace Paduraksa.Tests.Architecture;
 
-/// <summary>PLAN §2, §5.2, §8: the identity DTOs leak no hash, no secret reference and no raw secret by accident; the TOTP capability returns no secret.</summary>
 public sealed partial class IdentityContractTests
 {
     private const string IdentityNamespace = "Paduraksa.Contracts.Identity";

@@ -15,7 +15,7 @@ using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 namespace Paduraksa.Tests.Unit.Compilation;
 
 /// <summary>
-/// PLAN §7.7 parity over generated documents (the <see cref="CompiledBehaviourTests"/> harness is the seed): for every
+/// Parity over generated documents (the <see cref="CompiledBehaviourTests"/> harness is the seed): for every
 /// document that validates and every request, what the request simulator says equals what the real gate answers
 /// (<see cref="GateHarness"/> runs <c>GateMiddleware.InvokeAsync</c> over the same compiled snapshot).
 /// </summary>

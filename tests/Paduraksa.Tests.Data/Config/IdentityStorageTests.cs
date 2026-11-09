@@ -5,7 +5,6 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Config;
 
-/// <summary>The identity tables (PLAN §5.2) on real SQLite: typed IDs, stable names, constraints, cascades, no secret columns.</summary>
 public sealed class IdentityStorageTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 8, 12, 0, 0, TimeSpan.Zero);

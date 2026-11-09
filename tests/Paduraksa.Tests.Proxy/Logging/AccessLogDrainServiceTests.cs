@@ -6,7 +6,7 @@ using Paduraksa.Proxy.Logging;
 namespace Paduraksa.Tests.Proxy.Logging;
 
 /// <summary>
-/// The background drain (PLAN §7.4): it formats what the ring holds into the sink, flushes on shutdown, reports dropped
+/// The background drain: it formats what the ring holds into the sink, flushes on shutdown, reports dropped
 /// lines without repeating itself, and survives a sink that throws.
 /// </summary>
 public sealed class AccessLogDrainServiceTests

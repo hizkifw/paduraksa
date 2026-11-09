@@ -10,7 +10,7 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;
 
-/// <summary>The admin session cookie never reaches a proxied upstream (PLAN §3.1); every other cookie does, as sent.</summary>
+/// <summary>The admin session cookie never reaches a proxied upstream; every other cookie does, as sent.</summary>
 public sealed class SessionCookieTests(HeaderEchoUpstream upstream) : IClassFixture<HeaderEchoUpstream>
 {
     private const string Session = "__Host-paduraksa-session";

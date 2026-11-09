@@ -72,7 +72,7 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
     }
 
     /// <summary>
-    /// Client-IP resolution behind trusted proxies is part of the 0 B decision (PLAN §7.6): the connection's ClientInfo
+    /// Client-IP resolution behind trusted proxies is part of the 0 B decision: the connection's ClientInfo
     /// (stage A on the listener), the peer check against the edge ranges and the header parse. The host only admits the
     /// address the header carries, so a 200 proves the header was honoured.
     /// </summary>

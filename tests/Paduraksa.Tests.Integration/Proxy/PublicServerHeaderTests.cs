@@ -24,10 +24,6 @@ using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 
 namespace Paduraksa.Tests.Integration.Proxy;
 
-/// <summary>
-/// The host's <c>Server</c> header through the whole process (PLAN §14 M6): each mode on forwarded responses, gate
-/// answers, failed forwards and WebSocket upgrades, with Kestrel's own header always off.
-/// </summary>
 public sealed class PublicServerHeaderTests : IAsyncLifetime
 {
     private const string Header = "Server";

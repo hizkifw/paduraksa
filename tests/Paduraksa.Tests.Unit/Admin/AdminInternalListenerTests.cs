@@ -5,7 +5,6 @@ using Paduraksa.Core.Hosting;
 
 namespace Paduraksa.Tests.Unit.Admin;
 
-/// <summary>The app's internal listener (PLAN §3.1): socket selection, permissions, the hop secret and the fallback.</summary>
 public sealed class AdminInternalListenerTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("paduraksa-admin-internal-").FullName;

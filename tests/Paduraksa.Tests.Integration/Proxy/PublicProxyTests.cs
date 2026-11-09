@@ -24,7 +24,6 @@ using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Proxy;
 
-/// <summary>The real public app (generic host, gate → routing → YARP) inside the whole process.</summary>
 public sealed class PublicProxyTests
 {
     [Fact]

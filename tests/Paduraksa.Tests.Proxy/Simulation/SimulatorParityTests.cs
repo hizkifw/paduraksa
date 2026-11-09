@@ -23,7 +23,7 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 namespace Paduraksa.Tests.Proxy.Simulation;
 
 /// <summary>
-/// PLAN §7.7 parity: the simulator's outcome equals the real gate's for the same request, over every kind of answer
+/// Parity: the simulator's outcome equals the real gate's for the same request, over every kind of answer
 /// the gate has. The real side builds its own <see cref="HttpContext"/> from the wire facts and runs
 /// <see cref="GateMiddleware.InvokeAsync"/> over a published store, as the server does; the simulator side gets the
 /// same facts as a <see cref="GateProbe"/>.

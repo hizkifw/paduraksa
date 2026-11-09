@@ -2,7 +2,6 @@ using Paduraksa.Core.Logging;
 
 namespace Paduraksa.Tests.Unit.Logging;
 
-/// <summary>The names the log writer produces and the reader serves (PLAN §7.4).</summary>
 public sealed class LogFileNamesTests
 {
     private static readonly DateTimeOffset Noon = new(2026, 11, 9, 12, 0, 0, TimeSpan.Zero);

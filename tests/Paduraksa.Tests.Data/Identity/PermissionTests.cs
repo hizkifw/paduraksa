@@ -16,7 +16,6 @@ using static Paduraksa.Tests.Data.Identity.IdentityHarness;
 
 namespace Paduraksa.Tests.Data.Identity;
 
-/// <summary>The real authorizers: config commands and certificate changes are decided by the actor's permissions.</summary>
 public sealed class PermissionTests
 {
     private static UpsertHostCommand NewHost(string name) => new(Objects.RespondHost(HostId.New(), name));

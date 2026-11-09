@@ -12,7 +12,7 @@ using Paduraksa.Dashboard.Drawers;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// "Review changes" (PLAN §12): the dry run's diff and warnings before anything commits, its errors handed back to the form, a stale
+/// "Review changes": the dry run's diff and warnings before anything commits, its errors handed back to the form, a stale
 /// version as a friendly conflict, Apply with the version the form opened with, and a commit that couldn't go live said plainly.
 /// </summary>
 public sealed class ReviewDrawerTests

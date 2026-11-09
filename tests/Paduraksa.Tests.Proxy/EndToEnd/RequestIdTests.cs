@@ -11,7 +11,7 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 namespace Paduraksa.Tests.Proxy.EndToEnd;
 
 /// <summary>
-/// The request ID end to end (PLAN §7.4): which value is adopted, and where
+/// The request ID end to end: which value is adopted, and where
 /// <see cref="RequestIdPropagation"/> sends it - upstream, back to the client, both or neither. An upstream's own
 /// <c>X-Request-Id</c> is replaced or stripped, never passed through.
 /// </summary>

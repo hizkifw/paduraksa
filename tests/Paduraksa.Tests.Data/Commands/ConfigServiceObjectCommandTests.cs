@@ -8,7 +8,6 @@ using static Paduraksa.Tests.Data.Commands.Objects;
 
 namespace Paduraksa.Tests.Data.Commands;
 
-/// <summary>Object commands through the whole pipeline on real SQLite: versions, conflicts, dry runs, rejections.</summary>
 public sealed class ConfigServiceObjectCommandTests : IAsyncLifetime
 {
     private ConfigServiceHarness _h = null!;

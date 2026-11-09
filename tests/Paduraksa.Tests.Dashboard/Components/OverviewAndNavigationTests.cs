@@ -13,10 +13,6 @@ using Paduraksa.Dashboard.Setup;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>
-/// The overview says what needs the person and where to fix it (PLAN §12), and the navigation and the areas' tabs mark where a page
-/// belongs: a profile with the hosts, an ACME account or DNS provider with the certificates, My account with the settings.
-/// </summary>
 public sealed class OverviewAndNavigationTests
 {
     [Fact]

@@ -13,7 +13,6 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Acme;
 
-/// <summary>How the process hosts ACME (PLAN §9.3): the scheduler's switch and lifecycle, the trusted-roots file, and the plain-http development switch. No CA is involved.</summary>
 public sealed class AcmeHostingTests
 {
     /// <summary>A self-signed certificate that is not a CA (public data only: the key was thrown away), for a "root" file that holds no root.</summary>

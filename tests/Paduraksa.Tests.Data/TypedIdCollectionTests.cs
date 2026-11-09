@@ -4,7 +4,6 @@ using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;
 
-/// <summary>Lists of typed IDs (primitive collections) as their own column and inside a JSON complex type.</summary>
 public sealed class TypedIdCollectionTests
 {
     [Fact]

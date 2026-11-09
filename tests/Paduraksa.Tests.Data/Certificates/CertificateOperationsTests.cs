@@ -13,10 +13,6 @@ using Paduraksa.Tests.Data.Commands;
 
 namespace Paduraksa.Tests.Data.Certificates;
 
-/// <summary>
-/// The vault flows (<see cref="CertificateOperations"/>) over a real config database and writer, with a fake vault that
-/// records what it was asked and can be told to fail: what is left behind when a step fails, and the order of the steps.
-/// </summary>
 public sealed class CertificateOperationsTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -535,7 +531,7 @@ public sealed class CertificateOperationsTests
         var (operations, _, _) = Create(harness);
         await harness.RunAsync(new UpsertHostCommand(Objects.RespondHost(HostId.New(), "seed.example.com")));
 
-        // The state the admin certificate service exists to prevent (PLAN §3); the API maps this Invalid to a 422 carrying the
+        // The state the admin certificate service exists to prevent; the API maps this Invalid to a 422 carrying the
         // code, so it is asserted here, where it can still arise.
         CertificateOperationResult refused = await operations.IssueFromLocalCaAsync(new LocalCaLeafRequest(["leaf.test"]), ConfigServiceHarness.Admin, Ct);
 

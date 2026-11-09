@@ -16,11 +16,6 @@ using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
 namespace Paduraksa.Tests.Integration.Config;
 
-/// <summary>
-/// The certificate inventory through a real <see cref="PaduraksaHost"/> (PLAN §9.1): the certificate service records
-/// metadata, the source (the placeholder's, standing in for the vault) provides the keys, and a TLS client sees the
-/// result.
-/// </summary>
 public sealed class CertificateInventoryEndToEndTests
 {
     private static readonly CertificateId A = TestIds.Certificate("inv-a");

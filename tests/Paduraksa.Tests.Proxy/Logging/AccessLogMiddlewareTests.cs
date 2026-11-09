@@ -14,10 +14,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Logging;
 
-/// <summary>
-/// Recording one request (PLAN §7.4): the fields an entry carries, the per-host switch, the Cloudflare rule for
-/// <c>CF-Ray</c>, and that a request with the access log on still costs nothing on its own thread.
-/// </summary>
 public sealed class AccessLogMiddlewareTests : IDisposable
 {
     private readonly SnapshotStore _store = new();

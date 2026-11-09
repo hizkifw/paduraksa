@@ -7,7 +7,6 @@ using Paduraksa.Tests.Vault.Testing;
 
 namespace Paduraksa.Tests.Vault.Certificates;
 
-/// <summary><see cref="ICertificateImport"/>: the formats it reads, the limits it keeps, and every way an upload can be refused.</summary>
 public sealed class CertificateImportTests : IDisposable
 {
     private const string Password = "correct horse";

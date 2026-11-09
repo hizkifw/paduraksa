@@ -7,7 +7,6 @@ using Paduraksa.Vault.Crypto;
 
 namespace Paduraksa.Tests.Vault;
 
-/// <summary>Startup of the vault: key sources, the KEK check, the status and the shape of the public surface.</summary>
 public sealed class VaultLifecycleTests : IDisposable
 {
     private readonly VaultHarness _vault = new();

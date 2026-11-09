@@ -10,7 +10,6 @@ using Paduraksa.Vault.Secrets;
 
 namespace Paduraksa.Tests.Vault.Secrets;
 
-/// <summary><see cref="ISecretStore"/>: metadata rules, versions, what is on disk, and the binding of a sealed value to its row.</summary>
 public sealed class SecretStoreTests : IDisposable
 {
     private static readonly byte[] Value = "tok-PLAINTEXT-MARKER-0123456789"u8.ToArray();

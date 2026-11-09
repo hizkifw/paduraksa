@@ -7,7 +7,6 @@ using static Paduraksa.Tests.Issuance.IssuanceHarness;
 
 namespace Paduraksa.Tests.Issuance;
 
-/// <summary>An account or a DNS provider that certificates are ordered with cannot be taken away from under them.</summary>
 public sealed class ResourcesInUseTests
 {
     [Fact]

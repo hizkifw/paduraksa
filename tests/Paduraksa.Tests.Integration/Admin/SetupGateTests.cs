@@ -5,7 +5,7 @@ using Paduraksa.Server.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
-/// <summary>PLAN §12.1: until the first Owner exists the admin app serves only the setup flow, which needs the setup token.</summary>
+/// <summary>Until the first Owner exists the admin app serves only the setup flow, which needs the setup token.</summary>
 public sealed class SetupGateTests
 {
     [Fact]

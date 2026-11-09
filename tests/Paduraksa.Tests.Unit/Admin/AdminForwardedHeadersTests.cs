@@ -12,7 +12,6 @@ using Paduraksa.Core.Hosting;
 
 namespace Paduraksa.Tests.Unit.Admin;
 
-/// <summary>The authenticated internal hop and the single-valued forwarded headers it protects (PLAN §3.1).</summary>
 public sealed class AdminForwardedHeadersTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("paduraksa-forwarded-").FullName;

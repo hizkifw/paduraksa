@@ -6,7 +6,6 @@ using static Paduraksa.Tests.Data.Commands.Objects;
 
 namespace Paduraksa.Tests.Data.Commands;
 
-/// <summary>Whole-document commands: replace (the import path) and rollback.</summary>
 public sealed class ConfigServiceDocumentCommandTests : IAsyncLifetime
 {
     private ConfigServiceHarness _h = null!;

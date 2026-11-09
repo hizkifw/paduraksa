@@ -12,7 +12,6 @@ using Paduraksa.Vault.Totp;
 
 namespace Paduraksa.Tests.Vault.Totp;
 
-/// <summary>RFC 6238 arithmetic and <see cref="ITotpAuthenticator"/>: enrolment, verification, replay protection, deletion.</summary>
 public sealed class TotpTests : IDisposable
 {
     private static readonly byte[] Rfc6238Key = "12345678901234567890"u8.ToArray();

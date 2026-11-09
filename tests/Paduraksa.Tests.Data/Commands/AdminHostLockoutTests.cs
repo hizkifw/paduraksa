@@ -17,7 +17,7 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Tests.Data.Commands;
 
 /// <summary>
-/// PLAN §3.1's lock-out guard: a command that arrives through the admin host is put through the real gate over the compiled
+/// The lock-out guard: a command that arrives through the admin host is put through the real gate over the compiled
 /// candidate. When the caller's own request would no longer be forwarded to the admin app (deleted, disabled, renamed, changed
 /// kind, excluded by a policy, a non-covering certificate, changed trusted proxies), it is refused unless it carries
 /// <c>Force</c>. The admin port is an ordinary origin and needs no force.

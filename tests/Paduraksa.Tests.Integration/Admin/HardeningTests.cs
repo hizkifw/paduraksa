@@ -17,7 +17,6 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
-/// <summary>Security headers, the request body limit, the source allowlist, the loopback fallback listener, and the caller contract.</summary>
 public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHost smallBody, SharedLoopbackHost loopback)
     : IClassFixture<SharedOwnerSession>, IClassFixture<SharedSmallBodyHost>, IClassFixture<SharedLoopbackHost>
 {

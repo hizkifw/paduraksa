@@ -2,7 +2,6 @@ using Paduraksa.Proxy.Logging;
 
 namespace Paduraksa.Tests.Proxy.Logging;
 
-/// <summary>The generated request ID's shape and the values it may adopt from a trusted proxy (PLAN §7.4).</summary>
 public sealed class RequestIdsTests
 {
     private const string Alphabet = "0123456789abcdefghjkmnpqrstvwxyz-";

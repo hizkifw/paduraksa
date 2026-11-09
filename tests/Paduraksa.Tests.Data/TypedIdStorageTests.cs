@@ -8,7 +8,6 @@ using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;
 
-/// <summary>What actually lands in SQLite, inspected with raw SQL (<c>typeof</c>, <c>hex</c>, <c>json_*</c>, schema).</summary>
 public sealed class TypedIdStorageTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 6, 12, 34, 56, 789, TimeSpan.Zero);

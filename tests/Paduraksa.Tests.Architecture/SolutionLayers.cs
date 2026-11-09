@@ -33,7 +33,7 @@ public static class Layer
 /// </remarks>
 public static class SolutionLayers
 {
-    /// <summary>Allowed direct dependencies per layer (PLAN §1). A layer may always use itself.</summary>
+    /// <summary>Allowed direct dependencies per layer. A layer may always use itself.</summary>
     public static readonly IReadOnlyDictionary<string, string[]> AllowedDependencies = new Dictionary<string, string[]>
     {
         [Layer.Core] = [],

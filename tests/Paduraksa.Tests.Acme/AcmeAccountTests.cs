@@ -6,7 +6,6 @@ using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme;
 
-/// <summary>Directory, accounts and EAB against the fake CA, which verifies every JWS the client signs.</summary>
 public sealed class AcmeAccountTests
 {
     [Fact]

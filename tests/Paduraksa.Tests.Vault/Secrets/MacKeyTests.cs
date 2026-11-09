@@ -11,7 +11,6 @@ using Paduraksa.Vault.Secrets;
 
 namespace Paduraksa.Tests.Vault.Secrets;
 
-/// <summary><see cref="IMacKeySource"/> and <see cref="IMacKey"/>: kind checks, correctness, rotation and the grace window.</summary>
 public sealed class MacKeyTests : IDisposable
 {
     private static readonly byte[] KeyA = RandomNumberGenerator.GetBytes(32);

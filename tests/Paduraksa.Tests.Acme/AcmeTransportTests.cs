@@ -8,7 +8,6 @@ using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme;
 
-/// <summary>Nonces, retries, problem documents, redirects, limits, timeouts, ARI and what gets logged.</summary>
 public sealed class AcmeTransportTests
 {
     private static readonly AcmeNewOrderRequest OneName = new([AcmeIdentifier.Dns("example.com")]);

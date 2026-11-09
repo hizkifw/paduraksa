@@ -6,7 +6,6 @@ using Paduraksa.Vault.Crypto;
 
 namespace Paduraksa.Tests.Vault.Crypto;
 
-/// <summary>Where the KEK comes from: priority, validation, <c>master.key</c> creation and the checks on it (PLAN §8.3).</summary>
 public sealed class KekProviderTests : IDisposable
 {
     private readonly TempDirectory _data = new();

@@ -19,7 +19,7 @@ using Paduraksa.Dashboard.Pages;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// The settings pages (PLAN §12, page 10): global defaults and profiles through the review drawer, users with the last-Owner guard's
+/// The settings pages: global defaults and profiles through the review drawer, users with the last-Owner guard's
 /// refusal, API tokens whose secret is shown once and dropped, and what each role is offered.
 /// </summary>
 public sealed class SettingsPagesTests

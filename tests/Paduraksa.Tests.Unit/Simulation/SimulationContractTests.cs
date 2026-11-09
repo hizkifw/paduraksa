@@ -12,7 +12,6 @@ using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 namespace Paduraksa.Tests.Unit.Simulation;
 
-/// <summary>The simulator's wire shapes and how a request turns into the facts the gate takes.</summary>
 public sealed class SimulationContractTests
 {
     [Fact]

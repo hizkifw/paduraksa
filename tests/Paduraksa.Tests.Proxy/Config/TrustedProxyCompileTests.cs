@@ -6,7 +6,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Config;
 
-/// <summary>The trusted-proxy settings compile into the snapshot's <see cref="TrustedProxyPolicy"/>.</summary>
 public sealed class TrustedProxyCompileTests
 {
     private static ProxyConfigModel With(TrustedProxySpec spec) => new() { Defaults = new DefaultsSpec { TrustedProxies = spec } };

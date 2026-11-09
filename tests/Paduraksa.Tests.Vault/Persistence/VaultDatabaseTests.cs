@@ -10,7 +10,6 @@ using Paduraksa.Vault.Persistence;
 
 namespace Paduraksa.Tests.Vault.Persistence;
 
-/// <summary>The vault database: schema, migrations, startup and the KEK check (PLAN §5, §8.3).</summary>
 public sealed class VaultDatabaseTests : IDisposable
 {
     private readonly TempDirectory _data = new();

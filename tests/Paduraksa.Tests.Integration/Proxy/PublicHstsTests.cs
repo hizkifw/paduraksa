@@ -12,7 +12,7 @@ using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 namespace Paduraksa.Tests.Integration.Proxy;
 
 /// <summary>
-/// HSTS through the whole process (PLAN §14 M6): ours on every HTTPS response for the host, replacing the upstream's own;
+/// HSTS through the whole process: ours on every HTTPS response for the host, replacing the upstream's own;
 /// the upstream's passed through when the host has it off; never over plain HTTP, to an IP literal or to a loopback name.
 /// </summary>
 public sealed class PublicHstsTests : IAsyncLifetime

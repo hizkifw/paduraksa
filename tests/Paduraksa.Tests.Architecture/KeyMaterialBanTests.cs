@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Text;
 namespace Paduraksa.Tests.Architecture;
 
 /// <summary>
-/// Guards <c>BannedSymbols.KeyMaterial.txt</c> (PLAN §8: Vault is the only key-material boundary).
+/// Guards <c>BannedSymbols.KeyMaterial.txt</c>.
 /// BannedApiAnalyzers matches <c>M:</c> entries by exact doc-ID, and an entry without a parameter list matches only
 /// the parameterless overload, so every overload must be listed (no wildcard form exists). These tests:
 /// <list type="number">

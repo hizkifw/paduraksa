@@ -11,7 +11,6 @@ using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Tests.Proxy.Tls;
 
-/// <summary>Per-SNI selection, chain, rejection and hot swap on a real Kestrel TCP listener (H1 and H2).</summary>
 public sealed class KestrelTcpTlsTests : IDisposable
 {
     private readonly TestPki _pki = TestPki.Create();

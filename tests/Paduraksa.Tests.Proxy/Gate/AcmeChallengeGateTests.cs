@@ -15,7 +15,7 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 namespace Paduraksa.Tests.Proxy.Gate;
 
 /// <summary>
-/// The HTTP-01 answer in the gate (PLAN §7.2 C, §9.3): exact token, plain HTTP, answered before host lookup and the
+/// The HTTP-01 answer in the gate: exact token, plain HTTP, answered before host lookup and the
 /// host's policies, 0 B, and nothing else under the path is served from the store.
 /// </summary>
 public sealed class AcmeChallengeGateTests : IDisposable

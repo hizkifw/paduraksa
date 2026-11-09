@@ -2,7 +2,6 @@ using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Tests.Unit.Vault;
 
-/// <summary>The small pieces of logic in the vault contracts: stable names, host normalisation, injection validation.</summary>
 public sealed class VaultContractsTests
 {
     [Fact]

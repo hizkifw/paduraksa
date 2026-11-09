@@ -10,10 +10,6 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Cli;
 
-/// <summary>
-/// <c>paduraksa doctor --liveness</c> (PLAN §11.4, §16): the container healthcheck, against a real admin listener, over the
-/// loopback plain-HTTP fallback when it is on and over HTTPS to the admin port otherwise.
-/// </summary>
 public sealed class DoctorCommandsTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

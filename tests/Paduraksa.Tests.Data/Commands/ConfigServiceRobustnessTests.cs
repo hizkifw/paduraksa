@@ -10,8 +10,6 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Commands;
 
-/// <summary>What the pipeline does when the world misbehaves: another writer on the file, a broken audit table, a
-/// cancelled caller.</summary>
 public sealed class ConfigServiceRobustnessTests
 {
     [Fact]

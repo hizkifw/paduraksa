@@ -16,12 +16,6 @@ using Paduraksa.Vault.Secrets;
 
 namespace Paduraksa.Tests.Vault.Secrets;
 
-/// <summary>
-/// The authenticating handler over the vault's real <see cref="SocketsHttpHandler"/> against a local Kestrel HTTPS server:
-/// the credential really is on the wire, a redirect really is not followed, and a request to the redirect's target is
-/// refused. The one thing the test changes is certificate validation (the server's certificate is self-signed), through the
-/// vault's internal transport seam.
-/// </summary>
 public sealed class AuthenticatingHandlerWireTests : IAsyncLifetime
 {
     private const string Token = "wire-token-s3cr3t";

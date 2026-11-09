@@ -12,7 +12,6 @@ using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
-/// <summary>The config resources of the API through the real host: CRUD, concurrency, dry runs, validation, revisions and who may do what.</summary>
 public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;

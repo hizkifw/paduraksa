@@ -5,7 +5,7 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Logging;
 
-/// <summary>The log settings (PLAN §7.4): validated before anything binds, and the directory resolved against the data directory.</summary>
+/// <summary>The log settings: validated before anything binds, and the directory resolved against the data directory.</summary>
 public sealed class LogOptionsTests
 {
     [Theory]

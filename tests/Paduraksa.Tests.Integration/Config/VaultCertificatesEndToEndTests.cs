@@ -21,7 +21,7 @@ using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 namespace Paduraksa.Tests.Integration.Config;
 
 /// <summary>
-/// The vault through a real <see cref="PaduraksaHost"/> (PLAN §8, §9): certificates the application creates through the vault are
+/// The vault through a real <see cref="PaduraksaHost"/>: certificates the application creates through the vault are
 /// what a TLS client gets from the public listener, the vault must start or the process doesn't, the placeholder is a switch,
 /// and the CLI rotates the master key.
 /// </summary>
@@ -85,7 +85,7 @@ public sealed class VaultCertificatesEndToEndTests
         CertificateOperations operations = host.Shared.CertificateOperations;
         CertificateOperationResult root = await operations.EnsureLocalCaAsync(new LocalCaRequest(), Origin, Ct);
         CertificateOperationResult leaf = await operations.IssueFromLocalCaAsync(new LocalCaLeafRequest([name]), Origin, Ct);
-        // The process's own admin certificate may have created the local CA root already (PLAN §3), so "ensure" can be Unchanged.
+        // The process's own admin certificate may have created the local CA root already, so "ensure" can be Unchanged.
         Assert.True(root.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged, root.Status.ToString());
         Assert.Equal(CertificateOperationStatus.Completed, leaf.Status);
         CertificateDetail rootDetail = (await host.Shared.CertificateService.GetAsync(root.Certificate!.Id, Ct))!;

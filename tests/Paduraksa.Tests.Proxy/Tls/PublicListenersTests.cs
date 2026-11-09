@@ -7,7 +7,6 @@ using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Tests.Proxy.Tls;
 
-/// <summary>The listener layout on TCP. Runs everywhere; the QUIC half is in <see cref="KestrelQuicTlsTests"/>.</summary>
 public sealed class PublicListenersTests : IDisposable
 {
     private readonly TestPki _pki = TestPki.Create();

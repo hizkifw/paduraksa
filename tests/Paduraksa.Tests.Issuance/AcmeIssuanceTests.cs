@@ -21,10 +21,6 @@ using static Paduraksa.Tests.Issuance.IssuanceHarness;
 
 namespace Paduraksa.Tests.Issuance;
 
-/// <summary>
-/// The issuance orchestrator (PLAN §9.3) against the fake CA, on a real database: the happy paths for both challenge types,
-/// failures and what they leave behind, resuming where a crash stopped, renewals and the one-at-a-time rule.
-/// </summary>
 public sealed partial class AcmeIssuanceTests
 {
     [GeneratedRegex("BEGIN CERTIFICATE")]

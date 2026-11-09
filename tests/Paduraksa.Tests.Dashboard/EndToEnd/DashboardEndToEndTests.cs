@@ -8,7 +8,7 @@ using static Microsoft.Playwright.Assertions;
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
-/// The dashboard in a real browser against a real <c>PaduraksaHost</c> (PLAN §12, M5): first-run setup through the setup page, sign-in with
+/// The dashboard in a real browser against a real <c>PaduraksaHost</c>: first-run setup through the setup page, sign-in with
 /// a password and a TOTP code, the overview, a revoked session ending the open page, sign-in with a recovery code, and sign-out. Skipped
 /// when no Chromium is installed (see <see cref="PlaywrightBrowser"/>).
 /// </summary>

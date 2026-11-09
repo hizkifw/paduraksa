@@ -16,7 +16,7 @@ using static Paduraksa.Tests.Issuance.IssuanceHarness;
 namespace Paduraksa.Tests.Issuance;
 
 /// <summary>
-/// The renewal scheduler (PLAN §9, §9.3) on a virtual clock: nothing happens before an order's time, the ARI window and the
+/// The renewal scheduler on a virtual clock: nothing happens before an order's time, the ARI window and the
 /// lifetime rule decide when, failures wait out their backoff, a rate limit waits for the CA's Retry-After, and an
 /// unfinished order is resumed.
 /// </summary>

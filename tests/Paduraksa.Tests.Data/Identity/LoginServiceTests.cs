@@ -7,7 +7,6 @@ using static Paduraksa.Tests.Data.Identity.IdentityHarness;
 
 namespace Paduraksa.Tests.Data.Identity;
 
-/// <summary>Signing in: generic refusals, lockout, the second factor, recovery codes, and what is audited.</summary>
 public sealed class LoginServiceTests
 {
     [Fact]

@@ -5,7 +5,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;
 
-/// <summary>The upstream receives the path exactly as the client sent it (review finding: <c>%2F</c> became <c>%252F</c>).</summary>
 public sealed class RawPathForwardingTests(TestUpstream upstream) : IClassFixture<TestUpstream>
 {
     [Theory]

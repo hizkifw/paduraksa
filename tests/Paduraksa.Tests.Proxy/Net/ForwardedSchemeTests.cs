@@ -6,7 +6,7 @@ using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Net;
 
-/// <summary>The trusted request scheme (PLAN §7.6): CF-Visitor / X-Forwarded-Proto only from trusted peers.</summary>
+/// <summary>The trusted request scheme: CF-Visitor / X-Forwarded-Proto only from trusted peers.</summary>
 public sealed class ForwardedSchemeTests
 {
     private static readonly TrustedProxyPolicy Tunnel = TrustedProxyPolicy.CloudflareTunnel(CidrSet.Parse(["127.0.0.0/8"]));

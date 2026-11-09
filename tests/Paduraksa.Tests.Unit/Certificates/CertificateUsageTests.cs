@@ -5,7 +5,6 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Tests.Unit.Certificates;
 
-/// <summary>Which hosts use which certificate, as the dashboard lists it: the compiler's selection over the inventory's metadata.</summary>
 public sealed class CertificateUsageTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 8, 12, 0, 0, TimeSpan.Zero);

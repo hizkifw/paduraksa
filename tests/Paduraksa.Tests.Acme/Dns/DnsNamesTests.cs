@@ -2,7 +2,6 @@ using Paduraksa.Acme.Dns;
 
 namespace Paduraksa.Tests.Acme.Dns;
 
-/// <summary>Record names, zone candidates and TXT quoting.</summary>
 public sealed class DnsNamesTests
 {
     [Fact]

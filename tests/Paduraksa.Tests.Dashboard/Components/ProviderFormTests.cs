@@ -9,7 +9,7 @@ using Paduraksa.Dashboard.Providers;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// The ACME account and DNS provider forms (PLAN §9.3, §12): the CA's terms are required, secrets are password fields that are emptied as
+/// The ACME account and DNS provider forms: the CA's terms are required, secrets are password fields that are emptied as
 /// the form is sent and never shown again, and "Test credentials" shows its verdict plainly.
 /// </summary>
 public sealed class ProviderFormTests

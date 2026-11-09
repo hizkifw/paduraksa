@@ -5,7 +5,6 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
-/// <summary>Signing in: both steps, lockout, logout, the cookie, and what a partial session may reach.</summary>
 public sealed class SignInTests(SharedOwnerSession shared) : IClassFixture<SharedOwnerSession>
 {
     private static string WithoutTrace(string body) => System.Text.RegularExpressions.Regex.Replace(body, "\"traceId\":\"[^\"]*\"", string.Empty);

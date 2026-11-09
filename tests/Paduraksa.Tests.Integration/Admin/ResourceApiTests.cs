@@ -18,7 +18,6 @@ using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
-/// <summary>Certificates, ACME accounts, DNS providers, the audit log and the simulator through the real host.</summary>
 public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private const string DnsToken = "SUPER-SECRET-DNS-TOKEN-12345";
@@ -184,7 +183,7 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         Assert.Equal(HttpStatusCode.UnprocessableEntity, noNames.StatusCode);
         Assert.NotEmpty((await AdminApiHarness.ProblemAsync(noNames, Ct)).Errors!);
 
-        // The local CA root exists from the first start (the admin listener's own certificate is issued from it, PLAN §3), so a
+        // The local CA root exists from the first start (the admin listener's own certificate is issued from it), so a
         // leaf can always be issued and the "no local CA yet" answer (certificate.localCa.missing) is no longer reachable
         // through the API; CertificateOperationsTests asserts it where it can still arise.
         using HttpResponseMessage ca = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/local-ca");

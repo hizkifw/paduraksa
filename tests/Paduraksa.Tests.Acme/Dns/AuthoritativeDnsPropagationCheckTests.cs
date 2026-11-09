@@ -5,11 +5,6 @@ using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme.Dns;
 
-/// <summary>
-/// The propagation check against a fake resolver and two fake authoritative servers (127.0.0.2 and 127.0.0.3, one port), over
-/// real UDP and TCP. The pauses between rounds run on a virtual clock where a test is about timing, and in a few milliseconds of real
-/// time where it is about a server catching up.
-/// </summary>
 public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
 {
     private const string Challenge = "_acme-challenge.example.com";

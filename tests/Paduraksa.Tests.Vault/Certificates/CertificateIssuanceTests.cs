@@ -9,7 +9,6 @@ using Paduraksa.Vault.Persistence;
 
 namespace Paduraksa.Tests.Vault.Certificates;
 
-/// <summary><see cref="ICertificateIssuance"/>: CSR and chain, self-signed, local CA, atomic replacement and deletion.</summary>
 public sealed class CertificateIssuanceTests : IDisposable
 {
     private static readonly string[] AppNames = ["app.example.com"];

@@ -6,7 +6,7 @@ using static Paduraksa.Tests.Architecture.SolutionLayers;
 namespace Paduraksa.Tests.Architecture;
 
 /// <summary>
-/// PLAN §4: a typed ID's string prefix identifies its type, so prefixes must be unique across the whole solution.
+/// A typed ID's string prefix identifies its type, so prefixes must be unique across the whole solution.
 /// The generator (PDKID004) only sees one assembly at a time; this test covers IDs declared in different
 /// assemblies (Core, Data, Contracts...).
 /// </summary>

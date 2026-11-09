@@ -11,9 +11,6 @@ using static Paduraksa.Tests.Architecture.SolutionLayers;
 
 namespace Paduraksa.Tests.Architecture;
 
-/// <summary>
-/// PLAN §8.2: nothing in Core can carry raw key material out of the vault.
-/// </summary>
 /// <remarks>
 /// <para>
 /// <b>Deny by default in <c>Paduraksa.Core.Vault</c>.</b> A public member there may use only: typed IDs, enums, primitives
@@ -37,7 +34,7 @@ public sealed class VaultContractTests
     private const BindingFlags Declared =
         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
-    /// <summary>The capability interfaces of PLAN §8.2 (as built, §8.2 and §9.1).</summary>
+    /// <summary>The capability interfaces the vault exposes.</summary>
     public static readonly Type[] CapabilityInterfaces =
     [
         typeof(IServerCertificateSource),
@@ -81,7 +78,7 @@ public sealed class VaultContractTests
         $"{nameof(CsrResult)}.{nameof(CsrResult.Pem)}",
         $"{nameof(CertificateInfo)}.{nameof(CertificateInfo.PublicChainPem)}",
 
-        // The third sanctioned egress: Data Protection must parse and use the key element in-process (PLAN §8.2).
+        // The third sanctioned egress: Data Protection must parse and use the key element in-process.
         $"{nameof(DataProtectionKey)}.{nameof(DataProtectionKey.KeyXml)}",
     ];
 
@@ -104,7 +101,7 @@ public sealed class VaultContractTests
     {
         var declared = VaultTypes().Where(t => t.IsInterface).OrderBy(t => t.Name, StringComparer.Ordinal).ToList();
 
-        // A new capability interface must be added here too, so that PLAN §8.2 and these checks are updated together.
+        // A new capability interface must be added here too, so that it and these checks change together.
         Assert.Equal(CapabilityInterfaces.OrderBy(t => t.Name, StringComparer.Ordinal), declared);
     }
 

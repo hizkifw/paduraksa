@@ -10,7 +10,6 @@ using Paduraksa.Vault.Persistence;
 
 namespace Paduraksa.Tests.Vault.Keys;
 
-/// <summary><see cref="IJwsSigner"/>: key creation, the public JWK and thumbprint, JWS signatures that verify, and what is refused.</summary>
 public sealed class JwsSignerTests : IDisposable
 {
     private readonly VaultHarness _vault = new();

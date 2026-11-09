@@ -11,7 +11,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Config;
 
-/// <summary>The compiler builds the snapshot's certificate table; the store serves it to the handshake selector.</summary>
 public sealed class CertificateCompileTests : IDisposable
 {
     private readonly TestPki _pki = TestPki.Create();

@@ -14,7 +14,7 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 namespace Paduraksa.Tests.Proxy.Gate;
 
 /// <summary>
-/// <c>X-Request-Id</c> (PLAN §7.4): honoured from a trusted proxy only, replaced otherwise, and always ours on the way out.
+/// <c>X-Request-Id</c>: honoured from a trusted proxy only, replaced otherwise, and always ours on the way out.
 /// The trust decision is the forwarding headers' own (<see cref="ClientIpResolution.PeerTrusted"/>).
 /// </summary>
 public sealed class RequestIdGateTests : IDisposable

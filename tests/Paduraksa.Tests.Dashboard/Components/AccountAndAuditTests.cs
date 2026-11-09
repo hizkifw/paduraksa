@@ -16,10 +16,6 @@ using Paduraksa.Dashboard.Pages;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>
-/// My account (the TOTP enrolment's steps, recovery codes shown once, sessions, the password) and the audit page (filters, the chain
-/// card), with the identity and audit seams in memory.
-/// </summary>
 public sealed class AccountAndAuditTests
 {
     [Fact]

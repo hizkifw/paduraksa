@@ -649,7 +649,7 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void TheAdminListenersCertificateCannotBeBound()
     {
-        // It is reserved for the admin port (PLAN §3, §10.1): the process's own certificate is not the config's to serve.
+        // It is reserved for the admin port: the process's own certificate is not the config's to serve.
         ConfigDocument document = Valid();
         ConfigDocument specific = document with
         {

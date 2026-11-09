@@ -4,11 +4,6 @@ using Paduraksa.Proxy.Logging;
 
 namespace Paduraksa.Tests.Proxy.Logging;
 
-/// <summary>
-/// The access-log ring (PLAN §7.4): a fixed-size, lock-free, multi-producer single-consumer queue. What matters is that
-/// no producer ever waits (a full ring drops and counts), that entries come out whole, and that each producer's entries
-/// keep their own order under contention.
-/// </summary>
 public sealed class AccessLogRingTests
 {
     [Fact]

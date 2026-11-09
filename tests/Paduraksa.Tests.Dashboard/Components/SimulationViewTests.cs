@@ -7,7 +7,6 @@ using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>The simulator's answer (PLAN §7.7): the outcome up front, then the trace as steps with a verdict, a summary and facts.</summary>
 public sealed class SimulationViewTests
 {
     [Fact]

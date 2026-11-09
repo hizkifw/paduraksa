@@ -15,7 +15,7 @@ using Paduraksa.Tests.Integration.Hosting;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// Data Protection in the admin app with its key ring in the vault (PLAN §8.1, §8.2): protect in one host, unprotect after a
+/// Data Protection in the admin app with its key ring in the vault: protect in one host, unprotect after a
 /// restart over the same data directory, and a wrong master key fails exactly like the rest of the vault. Also holds the
 /// registration to the admin host and to the vault repository (never the file-system one, never an XML encryptor).
 /// </summary>

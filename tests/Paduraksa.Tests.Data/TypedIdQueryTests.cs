@@ -157,7 +157,7 @@ public sealed class TypedIdQueryTests : IAsyncLifetime
     [Fact]
     public async Task JsonIdsNeverEqualColumnIdsInSql()
     {
-        // Hard rule (PLAN §4.2/§5.3): an ID inside a JSON document is TEXT, a column ID is a BLOB/INTEGER, so SQL never
+        // Hard rule: an ID inside a JSON document is TEXT, a column ID is a BLOB/INTEGER, so SQL never
         // finds them equal. References inside JSON settings are resolved in memory by the snapshot compiler, never
         // joined in SQL. This pins the behaviour so a change is noticed.
         var host = _hosts[2];

@@ -11,10 +11,6 @@ using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 
 namespace Paduraksa.Tests.Integration.Proxy;
 
-/// <summary>
-/// The integrated M1 edge through the whole process: per-SNI certificates from the snapshot, the redirect to the public
-/// port, PROXY protocol, trusted-proxy client IPs, clean upstream headers and <c>Alt-Svc</c>.
-/// </summary>
 public sealed class PublicEdgeTests : IAsyncLifetime
 {
     private static readonly CidrSet LoopbackEdge = CidrSet.Parse(["127.0.0.0/8", "::1"]);

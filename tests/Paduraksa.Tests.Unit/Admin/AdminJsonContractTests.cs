@@ -5,7 +5,6 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Tests.Unit.Admin;
 
-/// <summary>The identity DTOs read and write through the admin's HTTP JSON options as they do through their own context.</summary>
 public sealed class AdminJsonContractTests
 {
     private static JsonSerializerOptions Http()

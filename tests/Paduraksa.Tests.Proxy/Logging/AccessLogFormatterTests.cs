@@ -2,10 +2,6 @@ using Paduraksa.Proxy.Logging;
 
 namespace Paduraksa.Tests.Proxy.Logging;
 
-/// <summary>
-/// The access-log line (PLAN §7.4): the exact field order and spelling, escaping that makes forging a line impossible,
-/// query redaction, caps, and the odd inputs a real client sends.
-/// </summary>
 public sealed class AccessLogFormatterTests
 {
     private static readonly AccessLogFormatOptions Defaults = AccessLogFormatOptions.Default;

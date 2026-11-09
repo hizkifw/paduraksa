@@ -8,7 +8,7 @@ using Paduraksa.Tests.Shared;
 namespace Paduraksa.Tests.Integration.Containers;
 
 /// <summary>
-/// The container smoke test (PLAN §16, M5): builds the image, runs it on an empty volume with random host ports, and checks
+/// The container smoke test: builds the image, runs it on an empty volume with random host ports, and checks
 /// the healthcheck, the setup banner, the admin setup API, the public listeners, HTTP/3 loading and a clean stop within the
 /// grace period. It is slow (an image build and two 30-second health probes), so it is <b>off by default</b>: set
 /// <c>PADURAKSA_CONTAINER_TESTS=1</c> and filter on the trait if you want only this:

@@ -4,12 +4,6 @@ using static Paduraksa.Tests.Architecture.SolutionLayers;
 
 namespace Paduraksa.Tests.Architecture;
 
-/// <summary>
-/// PLAN §2/§4: typed IDs all the way to EF. In Contracts (DTOs) and Data (entities), no public
-/// property named <c>Id</c> or <c>*Id</c> may be a primitive (<c>Guid</c>, <c>string</c>,
-/// <c>long</c>, <c>int</c>, or their nullable forms). Plain reflection: no dependency on the
-/// typed-ID types themselves.
-/// </summary>
 public sealed class TypedIdRuleTests
 {
     private static readonly HashSet<Type> UntypedIdTypes = [typeof(Guid), typeof(string), typeof(long), typeof(int)];

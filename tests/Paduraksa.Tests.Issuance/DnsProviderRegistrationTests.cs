@@ -11,7 +11,6 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Issuance;
 
-/// <summary>The DI seam that installs the real DNS providers and the propagation check, and the "Test credentials" path through them.</summary>
 public sealed class DnsProviderRegistrationTests
 {
     private static ServiceCollection Services(ISecretHttpHandlerFactory handlers)

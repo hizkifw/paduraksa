@@ -125,7 +125,7 @@ internal static class TestHost
     }
 
     /// <summary>
-    /// HTTP client for the <b>admin</b> listener (PLAN §3): it trusts <b>only</b> a certificate chaining to the process's local CA
+    /// HTTP client for the <b>admin</b> listener: it trusts <b>only</b> a certificate chaining to the process's local CA
     /// root, and by default still checks the name it connects to, so a test cannot pass on the placeholder fallback by
     /// accident (its SANs include <c>localhost</c> and the loopback addresses, which is what every test connects to). The
     /// root is read lazily, so a client built before the admin certificate exists still works once it does. The strict TLS

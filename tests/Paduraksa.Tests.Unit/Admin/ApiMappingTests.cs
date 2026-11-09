@@ -20,7 +20,6 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Tests.Unit.Admin;
 
-/// <summary>The admin API's mapping logic: result statuses to HTTP, preconditions, cursors, typed-ID routing and schemas, the JSON contract.</summary>
 public sealed class ApiMappingTests
 {
     [Fact]

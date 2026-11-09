@@ -5,10 +5,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;
 
-/// <summary>
-/// Route policies can't be bypassed by spelling the path differently (review finding: <c>/admin</c> denied, <c>/</c>
-/// open). Sent over a raw socket so Kestrel sees the target exactly as written.
-/// </summary>
 public sealed class PathMatchingEndToEndTests(TestUpstream upstream) : IClassFixture<TestUpstream>
 {
     private ProxyConfigModel Config => new()

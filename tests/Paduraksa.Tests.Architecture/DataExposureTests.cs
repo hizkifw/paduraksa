@@ -4,12 +4,6 @@ using static Paduraksa.Tests.Architecture.SolutionLayers;
 
 namespace Paduraksa.Tests.Architecture;
 
-/// <summary>
-/// PLAN §2: DTOs are decoupled from entities. No <c>Paduraksa.Data*</c> type may appear in the
-/// public surface (properties, fields, method/constructor parameters and returns, events, base
-/// types, interfaces, including generic arguments and arrays) of Contracts, Admin, Dashboard or
-/// Application.
-/// </summary>
 /// <remarks>
 /// The dependency-graph rule already forbids Contracts, Admin and Dashboard from using Data at all;
 /// this check is the explicit DTO-isolation guard and also covers exposure via inherited/generic

@@ -14,7 +14,6 @@ using Paduraksa.Dashboard.Pages;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>The logs page (PLAN §7.4, §12): the files grouped by log, the tail in a drawer, the filter, the download and the permission.</summary>
 public sealed class LogFilesPageTests
 {
     [Fact]

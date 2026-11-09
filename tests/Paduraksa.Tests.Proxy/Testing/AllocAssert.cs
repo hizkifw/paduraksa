@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace Paduraksa.Tests.Proxy.Testing;
 
 /// <summary>
-/// Asserts that synchronous hot-path code allocates nothing on the current thread (PLAN §7.1, spike S3).
+/// Asserts that synchronous hot-path code allocates nothing on the current thread.
 /// </summary>
 /// <remarks>
 /// Only meaningful for code that runs start to finish on one thread: an <c>await</c> that actually suspends moves

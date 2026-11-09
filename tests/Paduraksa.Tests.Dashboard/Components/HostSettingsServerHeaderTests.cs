@@ -13,7 +13,7 @@ using Paduraksa.Dashboard.SettingsArea;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>The Server header group of the settings fields (PLAN §14 M6): the mode, the inherited words, the custom
+/// <summary>The Server header group of the settings fields: the mode, the inherited words, the custom
 /// value only when it applies, and the card summary.</summary>
 public sealed class HostSettingsServerHeaderTests
 {

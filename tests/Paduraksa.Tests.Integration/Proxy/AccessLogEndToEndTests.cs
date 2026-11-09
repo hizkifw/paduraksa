@@ -24,7 +24,7 @@ using Paduraksa.Tests.Shared;
 namespace Paduraksa.Tests.Integration.Proxy;
 
 /// <summary>
-/// The access log end to end (PLAN §7.4): a real process, real Kestrel and YARP, and the core host's drain writing lines
+/// The access log end to end: a real process, real Kestrel and YARP, and the core host's drain writing lines
 /// into a sink. Every outcome gets one line - forwarded, refused, redirected, an unknown host - in the documented order,
 /// with the request ID, the durations and the upstream, and never a cookie, an <c>Authorization</c> header or a secret in
 /// a query parameter.

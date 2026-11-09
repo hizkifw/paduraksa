@@ -2,7 +2,6 @@ using Paduraksa.Application.Identity;
 
 namespace Paduraksa.Tests.Unit.Identity;
 
-/// <summary>PLAN §12.1: the setup token is logged as one boxed banner whose borders line up whatever the token and path are.</summary>
 public sealed class SetupBannerTests
 {
     [Theory]

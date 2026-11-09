@@ -3,7 +3,6 @@ using Paduraksa.Proxy.Http;
 
 namespace Paduraksa.Tests.Proxy.Config;
 
-/// <summary>The compiler's bound on a host's response-header list, which the gate's stack buffer relies on.</summary>
 public sealed class ResponseHeaderOperationBuilderTests
 {
     [Fact]

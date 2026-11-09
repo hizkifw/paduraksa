@@ -12,28 +12,17 @@ namespace Paduraksa.Tests.Architecture;
 /// <see cref="Forbidden"/>, what stays allowed and why is below, and the exclusions are
 /// <see cref="ExcludedDirectories"/>.
 /// <para>
-/// Why a test and not a build-time analyzer: nothing available flags these in C#. Roslyn has no diagnostic for
-/// the contents of a literal (BannedApiAnalyzers bans API symbols, not characters) and this repository built
-/// with zero warnings while it was full of en dashes. An architecture test runs in the normal
-/// <c>dotnet test</c> and in CI, covers every tracked file (Markdown, YAML and shell too, which no C# analyzer
-/// reads) and can say exactly where each offender is - so the test is the rule.
+/// Why a test and not a build-time analyzer: Roslyn has no diagnostic for the contents of a literal
+/// (BannedApiAnalyzers bans API symbols, not characters), and this repository built with zero warnings while it was full
+/// of en dashes. A test runs in <c>dotnet test</c> and CI, covers every tracked file (Markdown, YAML and shell too) and
+/// says exactly where each offender is.
 /// </para>
 /// <para>
-/// Allowed, on purpose, and why:
+/// Allowed on purpose: box drawing and arrows (the setup-token banner is drawn with them and has an ASCII fallback);
+/// SECTION SIGN and the other symbols that do not read as ASCII letters or digits; accented Latin and other scripts in
+/// test data. Greek and Cyrillic are <b>not</b> allowed, being the homoglyphs this rule is about: a test that needs one
+/// writes it as a <c>\uXXXX</c> escape with a comment.
 /// </para>
-/// <list type="bullet">
-/// <item>Box drawing (U+2500-U+257F) and the arrows used heavily in <c>docs/PLAN.md</c> (U+2190-U+21FF). The
-/// setup-token banner is drawn with box drawing on purpose and has an ASCII fallback, and no reader
-/// confuses either with ASCII.</item>
-/// <item>SECTION SIGN (U+00A7), used for <c>PLAN</c> section references, and the other symbols that do not
-/// read as ASCII letters, digits or punctuation: plus-minus, approximately, less-or-equal, greater-or-equal,
-/// division, the degree sign, vulgar fractions, the middle dot, check marks, the key and the grinning face in
-/// test data.</item>
-/// <item>Accented Latin letters (prose and names) and the other scripts in test data (CJK, Arabic-Indic
-/// digits): a reader sees those as non-ASCII, which is the point. Greek and Cyrillic letters are <b>not</b>
-/// allowed - they are the homoglyphs this rule is about - so a test that needs one writes it as a
-/// <c>\uXXXX</c> escape with a comment, as <c>Paduraksa.Tests.Proxy.Snapshot.HostNamesTests</c> does.</item>
-/// </list>
 /// </summary>
 public sealed class NoConfusableCharactersTests
 {

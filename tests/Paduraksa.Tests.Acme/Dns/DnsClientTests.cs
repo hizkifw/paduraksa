@@ -4,7 +4,6 @@ using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme.Dns;
 
-/// <summary>The DNS message codec (well-formed, malformed and hostile messages) and the UDP/TCP client against a fake server.</summary>
 public sealed class DnsClientTests
 {
     private const string Name = "_acme-challenge.example.com";

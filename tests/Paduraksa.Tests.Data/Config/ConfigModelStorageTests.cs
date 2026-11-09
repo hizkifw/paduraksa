@@ -7,7 +7,6 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Config;
 
-/// <summary>What the revision and audit tables store, inspected with raw SQL, and the invariants SQLite enforces.</summary>
 public sealed class ConfigModelStorageTests
 {
     // Not UTC, with sub-millisecond ticks: both must survive.

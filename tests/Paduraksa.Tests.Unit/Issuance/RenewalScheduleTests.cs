@@ -3,7 +3,6 @@ using Paduraksa.Application.Issuance;
 
 namespace Paduraksa.Tests.Unit.Issuance;
 
-/// <summary>The scheduler's arithmetic (PLAN §9.3): ARI against the lifetime rule, ARI recheck bounds, and the backoff per failure kind.</summary>
 public sealed class RenewalScheduleTests
 {
     private static readonly AcmeIssuanceOptions Options = new();

@@ -12,7 +12,6 @@ using Paduraksa.Vault.Persistence;
 
 namespace Paduraksa.Tests.Vault.Certificates;
 
-/// <summary>What the issuance and serving side refuses or survives: stale chains, strays, a changed master key, a failing write.</summary>
 public sealed class CertificateIssuanceHardeningTests : IDisposable
 {
     private static readonly string[] AppNames = ["app.example.com"];

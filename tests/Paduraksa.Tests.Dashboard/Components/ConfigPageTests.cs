@@ -17,7 +17,7 @@ using Paduraksa.Dashboard.Pages;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// The config pages with a user in a role (PLAN §12): what the role may not do is not offered (the services still refuse), an ID in the
+/// The config pages with a user in a role: what the role may not do is not offered (the services still refuse), an ID in the
 /// address that isn't one is a not-found, and a commit made elsewhere shows without a reload.
 /// </summary>
 public sealed class ConfigPageTests

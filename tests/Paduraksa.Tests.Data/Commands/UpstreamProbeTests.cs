@@ -11,7 +11,7 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Commands;
 
-/// <summary>The first-run wizard's upstream check (PLAN §12.1): a bare TCP connection, reachable or not, for a caller who may add a host.</summary>
+/// <summary>The first-run wizard's upstream check: a bare TCP connection, reachable or not, for a caller who may add a host.</summary>
 public sealed class UpstreamProbeTests
 {
     [Fact]

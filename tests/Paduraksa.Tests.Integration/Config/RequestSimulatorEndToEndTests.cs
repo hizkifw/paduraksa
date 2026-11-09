@@ -20,10 +20,6 @@ using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
 namespace Paduraksa.Tests.Integration.Config;
 
-/// <summary>
-/// The request simulator through a real <see cref="PaduraksaHost"/> (PLAN §7.7): the live snapshot, a stored revision and
-/// drafts, none of which is ever stored or published, and live destination health from the running YARP.
-/// </summary>
 public sealed class RequestSimulatorEndToEndTests
 {
     private static readonly SimulationRequest Request = new("http://app.test/api/x", "203.0.113.7");

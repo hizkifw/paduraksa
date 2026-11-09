@@ -4,10 +4,6 @@ using static Paduraksa.Tests.Architecture.SolutionLayers;
 
 namespace Paduraksa.Tests.Architecture;
 
-/// <summary>
-/// The ArchUnitNET rules select layers by namespace; this keeps that honest by requiring every
-/// type in a src assembly to live in its layer's namespace (<c>Paduraksa.&lt;Layer&gt;[.*]</c>).
-/// </summary>
 public sealed class NamespaceConsistencyTests
 {
     public static TheoryData<string> Layers => [.. All];

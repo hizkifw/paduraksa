@@ -7,7 +7,6 @@ using Paduraksa.Core.Logging;
 
 namespace Paduraksa.Tests.Unit.Logging;
 
-/// <summary>The read side the dashboard and the API share (PLAN §7.4, §12): listing, tails, filters, gzip and the name rules.</summary>
 public sealed class LogFileStoreTests : IDisposable
 {
     private static readonly DateTimeOffset Noon = new(2026, 11, 9, 12, 0, 0, TimeSpan.Zero);

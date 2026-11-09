@@ -9,7 +9,6 @@ using Paduraksa.Dashboard.Theme;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>The palette (PLAN §12): dark by default, the system's setting when the person has made no choice, their choice over both, remembered.</summary>
 public sealed class ThemeTests
 {
     [Theory]

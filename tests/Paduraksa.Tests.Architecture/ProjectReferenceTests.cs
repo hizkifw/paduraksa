@@ -5,7 +5,7 @@ using static Paduraksa.Tests.Architecture.SolutionLayers;
 namespace Paduraksa.Tests.Architecture;
 
 /// <summary>
-/// Enforces the PLAN §1 graph at the <b>project</b> level, so it holds even before there is any
+/// Enforces the layer graph at the <b>project</b> level, so it holds even before there is any
 /// code (type-level rules pass vacuously on empty projects, and the compiler drops unused
 /// references from <c>Assembly.GetReferencedAssemblies()</c>).
 /// </summary>
@@ -48,7 +48,7 @@ public sealed class ProjectReferenceTests
             .ToList();
         var expected = All.Select(l => $"Paduraksa.{l}").Append($"Paduraksa.{IdsGenerator}").Order(StringComparer.Ordinal);
 
-        // A new src project must be added to the graph in SolutionLayers (and PLAN §1).
+        // A new project must also be added to the graph in SolutionLayers.
         Assert.Equal(expected, projects);
     }
 

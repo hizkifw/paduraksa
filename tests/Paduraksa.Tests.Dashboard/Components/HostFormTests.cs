@@ -9,7 +9,6 @@ using Paduraksa.Dashboard.Config;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>The host form (PLAN §12): kind switching, inline validation at the fields, and what it sends.</summary>
 public sealed class HostFormTests
 {
     private static readonly UpstreamConfig App = new(UpstreamId.New(), "app", Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);

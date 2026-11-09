@@ -21,7 +21,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Yarp;
 
-/// <summary>PLAN §6.1 step 6 against real YARP: validate, apply, capture endpoints, swap.</summary>
 public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixture<TestUpstream>
 {
     private ProxyConfigModel FlipTo(string target, string revision) => new()

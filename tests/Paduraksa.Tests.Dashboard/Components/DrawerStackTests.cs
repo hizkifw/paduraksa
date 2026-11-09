@@ -18,7 +18,7 @@ using Paduraksa.Dashboard.Pages;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// The drawer stack (PLAN §12): levels push and pop and hand a result back to the level below, Escape and the backdrop act on the top
+/// The drawer stack: levels push and pop and hand a result back to the level below, Escape and the backdrop act on the top
 /// level only, a level with unsaved changes asks before it goes, and an upstream made from a host's drawer is staged into the host's
 /// draft and applied with it as one revision (and goes with it when the host is cancelled).
 /// </summary>

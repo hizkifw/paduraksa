@@ -7,7 +7,7 @@ using static Microsoft.Playwright.Assertions;
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
-/// The config pages in a real browser against a real <c>PaduraksaHost</c> (PLAN §12): a proxy host made in its drawer with a new upstream
+/// The config pages in a real browser against a real <c>PaduraksaHost</c>: a proxy host made in its drawer with a new upstream
 /// stacked on it (Escape closing only the top drawer), both reviewed and applied as one revision, the host and upstream in their lists, a
 /// simulated request that forwards to it, an edit undone from the toast, the history showing every revision, addresses that open a drawer,
 /// and a phone width with no sideways scroll. Skipped when no Chromium is installed (see <see cref="PlaywrightBrowser"/>); screenshots of each

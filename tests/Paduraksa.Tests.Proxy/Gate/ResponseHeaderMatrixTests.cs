@@ -24,7 +24,7 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 namespace Paduraksa.Tests.Proxy.Gate;
 
 /// <summary>
-/// The per-host response headers (PLAN §7.2 C, §14 M6) as one table: <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>,
+/// The per-host response headers as one table: <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>,
 /// <c>Server</c> and the response <c>X-Request-Id</c> over every kind of answer, scheme, connection and exempt name. They
 /// are one compiled list per host, and the gate, the reapply after a forward and YARP's response transform all apply it.
 /// <para><b>The expected headers are data, not parameters.</b> A row names every header the host has an operation for: a

@@ -8,7 +8,6 @@ using Paduraksa.Dashboard.Config;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>The diff of the review drawer and the history (PLAN §6.1): grouped by object, fields old and new, references by name.</summary>
 public sealed class ChangeListTests
 {
     private static readonly UpstreamConfig App = new(UpstreamId.New(), "app", Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);

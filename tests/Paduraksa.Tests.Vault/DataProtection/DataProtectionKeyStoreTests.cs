@@ -13,10 +13,6 @@ using Paduraksa.Vault.Persistence;
 
 namespace Paduraksa.Tests.Vault.DataProtection;
 
-/// <summary>
-/// The Data Protection key ring in the vault (PLAN §8.1, §8.2): round-trip, sealing at rest, the AAD binding, KEK rotation and
-/// survival of a restart.
-/// </summary>
 public sealed class DataProtectionKeyStoreTests : IDisposable
 {
     private static readonly string ElementA = "<key id=\"a\"><creationDate>2026-11-08T00:00:00Z</creationDate><descriptor><encryption>secret-a</encryption></descriptor></key>";

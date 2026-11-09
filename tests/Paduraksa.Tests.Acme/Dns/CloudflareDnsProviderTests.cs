@@ -7,7 +7,6 @@ using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme.Dns;
 
-/// <summary>The Cloudflare provider against an in-memory Cloudflare, over a fake of the vault's authenticating handler.</summary>
 public sealed class CloudflareDnsProviderTests : IDisposable
 {
     private const string Challenge = "_acme-challenge.example.com";

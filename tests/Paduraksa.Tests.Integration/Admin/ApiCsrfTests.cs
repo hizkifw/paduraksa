@@ -34,7 +34,7 @@ public sealed class ApiCsrfTests(SharedAdminApi shared) : IClassFixture<SharedAd
         }
 
         // Nothing was uploaded: the inventory holds only what the process itself made at startup (the local CA root and the
-        // admin listener's certificate, PLAN §3).
+        // admin listener's certificate).
         using HttpResponseMessage inventory = await api.GetAsync("/api/v1/certificates?source=uploaded");
         Assert.Empty((await NodeOf(inventory)).AsArray());
 

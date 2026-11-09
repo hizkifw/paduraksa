@@ -5,7 +5,6 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Config;
 
-/// <summary>Migrations and the startup helper, on a real database file.</summary>
 public sealed class ConfigDatabaseTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 7, 12, 0, 0, TimeSpan.Zero);

@@ -13,7 +13,7 @@ using Paduraksa.Dashboard.Certificates;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// The upload form (PLAN §9, §12): the file is required and capped, the stream and password reach the vault call, the password field is
+/// The upload form: the file is required and capped, the stream and password reach the vault call, the password field is
 /// emptied as soon as the form is sent and its array cleared after the call, and a refusal is shown with the service's words.
 /// </summary>
 public sealed class CertificateFormTests

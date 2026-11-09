@@ -10,7 +10,6 @@ using Paduraksa.Vault.Persistence;
 
 namespace Paduraksa.Tests.Vault;
 
-/// <summary>KEK rotation (PLAN §8.3): every DEK re-wrapped under the new KEK in one transaction.</summary>
 public sealed class KekRotationTests : IDisposable
 {
     private static readonly byte[] KeyA = RandomNumberGenerator.GetBytes(32);

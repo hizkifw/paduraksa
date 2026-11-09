@@ -13,7 +13,7 @@ using Paduraksa.Dashboard.SettingsArea;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// Every field of <see cref="HostSettings"/> through the settings components (PLAN §5.3, §12): setting it yields the record the
+/// Every field of <see cref="HostSettings"/> through the settings components: setting it yields the record the
 /// form would send, the inherit choice names the value the layer below has, clearing it collapses the nested record away, and an
 /// error at its path shows at it. One row per field; the completeness test walks the contract, so a new setting can't be missing.
 /// </summary>

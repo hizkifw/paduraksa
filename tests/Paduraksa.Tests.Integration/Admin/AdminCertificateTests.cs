@@ -26,7 +26,7 @@ using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// The admin listener's certificate (PLAN §3, §10.1): issued by the local CA, served through the vault, kept current
+/// The admin listener's certificate: issued by the local CA, served through the vault, kept current
 /// without a restart, never the proxy's to serve, and offered as a root the owner trusts once. All against the real host,
 /// vault and config database.
 /// </summary>

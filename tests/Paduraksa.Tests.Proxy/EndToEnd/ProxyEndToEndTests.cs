@@ -8,7 +8,6 @@ using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.EndToEnd;
 
-/// <summary>Real Kestrel + YARP to an in-process upstream: what the gate answers and where it forwards.</summary>
 public sealed class ProxyEndToEndTests(TestUpstream upstream) : IClassFixture<TestUpstream>
 {
     private ProxyConfigModel Config => new()

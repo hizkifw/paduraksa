@@ -7,7 +7,6 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Config;
 
-/// <summary>The ACME account, order and DNS provider tables (PLAN §5.1, §9.3): stable names, one order row per certificate, no secret columns.</summary>
 public sealed class IssuanceStorageTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);

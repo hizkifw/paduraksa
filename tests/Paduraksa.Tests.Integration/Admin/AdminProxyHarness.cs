@@ -14,7 +14,7 @@ namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
 /// A real host with first-run setup done on the <b>normal</b> admin port and a config whose admin host is reached through the
-/// <b>public</b> listener (PLAN §3.1). The public client pins the placeholder certificate the tests serve and sends the public
+/// <b>public</b> listener. The public client pins the placeholder certificate the tests serve and sends the public
 /// name as its <c>Host</c>; the helper exposes the proxied admin for the tests.
 /// </summary>
 internal sealed class AdminProxyHarness : IAsyncDisposable

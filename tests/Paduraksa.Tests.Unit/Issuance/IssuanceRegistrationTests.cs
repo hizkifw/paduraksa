@@ -5,7 +5,6 @@ using Paduraksa.Application.Issuance;
 
 namespace Paduraksa.Tests.Unit.Issuance;
 
-/// <summary>Registering issuance (PLAN §9.3): however often it is asked for, one scheduler runs.</summary>
 public sealed class IssuanceRegistrationTests
 {
     [Fact]

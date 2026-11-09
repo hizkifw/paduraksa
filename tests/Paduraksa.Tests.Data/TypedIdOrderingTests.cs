@@ -5,10 +5,6 @@ using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;
 
-/// <summary>
-/// <c>ORDER BY id</c> in SQLite (memcmp for BLOBs, numeric for INTEGER) agrees with <see cref="IComparable{T}"/>, with
-/// ordinal string order and, for time-ordered kinds, with creation order.
-/// </summary>
 public sealed class TypedIdOrderingTests
 {
     private static readonly DateTimeOffset Start = new(2026, 11, 6, 0, 0, 0, TimeSpan.Zero);

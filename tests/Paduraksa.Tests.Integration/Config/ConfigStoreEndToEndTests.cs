@@ -21,17 +21,12 @@ using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
 namespace Paduraksa.Tests.Integration.Config;
 
-/// <summary>
-/// The config store wired into the real process (PLAN §6.1, §14 M2): commands through <see cref="ConfigService"/> on a
-/// real SQLite file, published through real YARP behind real Kestrel; restarts recompile the latest revision, and a
-/// database that can't be used falls back to <c>last-good.json</c>.
-/// </summary>
 public sealed class ConfigStoreEndToEndTests
 {
     [Fact]
     public async Task ACommandGoesLiveThroughYarpWithinTheBudget()
     {
-        // PLAN §14 M2: change → revision → live in < 100 ms. Each round creates an upstream and a host routed to it (two
+        // Exit criterion: change → revision → live in < 100 ms. Each round creates an upstream and a host routed to it (two
         // commits, two YARP applies) and ends when the first request for the new host comes back from the upstream.
         // Measured on a dev machine, with the rest of the suite running alongside: median 11-15 ms, max 25 ms. Only the
         // median is asserted, after a warm-up, and a slow round (a loaded CI machine) gets one more try, like the

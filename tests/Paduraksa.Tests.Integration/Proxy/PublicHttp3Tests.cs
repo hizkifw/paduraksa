@@ -20,7 +20,7 @@ using static Paduraksa.Tests.Integration.Proxy.PublicProxyTests;
 namespace Paduraksa.Tests.Integration.Proxy;
 
 /// <summary>
-/// HTTP/3 end to end through the whole process (PLAN §7.5): the UDP listener next to TCP on one port, per-SNI
+/// HTTP/3 end to end through the whole process: the UDP listener next to TCP on one port, per-SNI
 /// certificates on QUIC, ClientInfo from the QUIC handshake reaching the request, and <c>Alt-Svc</c> with the public
 /// port. Needs libmsquic: skipped elsewhere, run in Docker by <c>tests/Paduraksa.Tests.Proxy/Tls/run-quic-tests.sh</c>.
 /// </summary>
@@ -83,7 +83,7 @@ public sealed class PublicHttp3Tests
         Assert.Equal("127.0.0.1", seen["X-Forwarded-For"]);
         Assert.Equal("https", seen["X-Forwarded-Proto"]);
 
-        // The ClientInfo attached in the QUIC handshake callback is what the H3 request sees (PLAN §7.5 open item).
+        // The ClientInfo attached in the QUIC handshake callback is what the H3 request sees.
         (string _, ClientInfo? info) = Assert.Single(probe.Seen, s => s.Protocol == "HTTP/3");
         Assert.NotNull(info);
         Assert.Equal(IpKey.Parse("127.0.0.1"), info.Address);

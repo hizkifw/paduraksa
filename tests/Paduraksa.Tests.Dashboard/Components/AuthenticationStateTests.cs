@@ -13,7 +13,7 @@ using Paduraksa.Dashboard.Auth;
 namespace Paduraksa.Tests.Dashboard.Components;
 
 /// <summary>
-/// The dashboard's authentication state (PLAN §12): it starts from the request's session, carries the user's permissions, and follows the
+/// The dashboard's authentication state: it starts from the request's session, carries the user's permissions, and follows the
 /// session: a revoked one makes the state anonymous (and is announced), changed roles change the permissions, and a circuit whose session
 /// ended is torn down after its grace period.
 /// </summary>

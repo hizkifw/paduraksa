@@ -10,10 +10,6 @@ using Paduraksa.Server.Logging;
 
 namespace Paduraksa.Tests.Integration.Logging;
 
-/// <summary>
-/// The rotating log file writer (PLAN §7.4): appending, flushing, rotation by size and by day, background gzip, retention, recovery and
-/// the promise that nothing a disk does reaches the caller.
-/// </summary>
 public sealed class RotatingLogFileTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

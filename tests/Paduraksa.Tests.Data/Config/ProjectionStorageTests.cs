@@ -6,7 +6,6 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Config;
 
-/// <summary>The invariants SQLite enforces on the config projection (PLAN §6.4): unique names, foreign keys.</summary>
 public sealed class ProjectionStorageTests
 {
     [Fact]

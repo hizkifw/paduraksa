@@ -13,10 +13,6 @@ using Paduraksa.Vault.Persistence;
 
 namespace Paduraksa.Tests.Vault.Certificates;
 
-/// <summary>
-/// The serving and upstream egresses (<see cref="IServerCertificateSource"/>, <see cref="IClientCertificateSource"/>), and the
-/// guarantees around the key at rest: sealed, rotated with the KEK, and unreachable through any public surface.
-/// </summary>
 public sealed class CertificateContextTests : IDisposable
 {
     private static readonly string[] AppNames = ["app.example.com"];

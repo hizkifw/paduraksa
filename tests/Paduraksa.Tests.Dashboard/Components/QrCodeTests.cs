@@ -4,11 +4,6 @@ using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>
-/// The QR encoder behind the TOTP enrolment (no image service, no package): the smallest version that fits, the structure a scanner looks
-/// for, valid format information, and an inline SVG. (A scanner's reading of codes from version 1 to 40 was checked with zbarimg when the
-/// encoder was written; set <c>PADURAKSA_QR_DUMP</c> to a directory to write the SVGs again.)
-/// </summary>
 public sealed class QrCodeTests
 {
     public static TheoryData<int, int> Lengths => new()

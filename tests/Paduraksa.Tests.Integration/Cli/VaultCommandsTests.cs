@@ -11,7 +11,6 @@ using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
 namespace Paduraksa.Tests.Integration.Cli;
 
-/// <summary><c>paduraksa vault rotate-kek</c> against a real data directory the vault created.</summary>
 public sealed class VaultCommandsTests
 {
     private static readonly Dictionary<string, string?> NoPlaceholder = new() { ["Paduraksa:Development:PlaceholderCertificate"] = "false" };

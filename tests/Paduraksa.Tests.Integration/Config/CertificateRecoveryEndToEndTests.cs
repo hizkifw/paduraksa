@@ -17,7 +17,7 @@ using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 namespace Paduraksa.Tests.Integration.Config;
 
 /// <summary>
-/// The vault describing what it holds after the config database is lost (PLAN §9.2): the process registers the certificates again
+/// The vault describing what it holds after the config database is lost: the process registers the certificates again
 /// at startup, and a restored Specific binding serves the certificate it named.
 /// </summary>
 public sealed class CertificateRecoveryEndToEndTests
@@ -65,7 +65,7 @@ public sealed class CertificateRecoveryEndToEndTests
 
         CertificateRecoveryResult recovery = await RecoveredAsync(host);
         Assert.Empty(recovery.Failed);
-        // The admin listener's own certificate (PLAN §3) is in the vault too: the recovery skips it and the admin
+        // The admin listener's own certificate is in the vault too: the recovery skips it and the admin
         // certificate service adopts it, so only the certificates this test made are pinned to the recovery's list.
         Assert.Contains(leaf.Id, recovery.Recovered);
         Assert.Contains(selfSigned.Id, recovery.Recovered);

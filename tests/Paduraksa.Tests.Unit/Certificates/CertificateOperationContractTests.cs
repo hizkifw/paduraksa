@@ -6,7 +6,6 @@ using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Tests.Unit.Certificates;
 
-/// <summary>The request DTOs of the vault flows on the wire, and the name rule the vault shares with the inventory.</summary>
 public sealed class CertificateOperationContractTests
 {
     [Fact]

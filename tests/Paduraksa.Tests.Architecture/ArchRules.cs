@@ -19,7 +19,7 @@ namespace Paduraksa.Tests.Architecture;
 public static class ArchRules
 {
     /// <summary>
-    /// The PLAN §1 graph: types in <paramref name="layer"/> may only use solution types from the
+    /// The layer graph: types in <paramref name="layer"/> may only use solution types from the
     /// layer itself and its allowed dependencies. This single rule covers: Core depends on nothing;
     /// Contracts/Acme/Proxy only on Core; Storage on Core; Data and Vault on Core and Storage; Admin and Dashboard never on Data; nothing on Server.
     /// </summary>
@@ -45,14 +45,14 @@ public static class ArchRules
             .Because("PLAN §1: the hot path can't reach the DB")
             .WithoutRequiringPositiveResults();
 
-    /// <summary>Hot-path allocation discipline (PLAN §15): no LINQ in Proxy.</summary>
+    /// <summary>Hot-path allocation discipline: no LINQ in Proxy.</summary>
     /// <remarks>
-    /// TODO(M4/M7): further PLAN §15 hot-path bans, not yet encoded:
+    /// TODO: further hot-path bans, not yet encoded:
     /// - (M7, when the WAF path/UA policies bring the first regexes) <c>System.Text.RegularExpressions.Regex</c>
     ///   constructed without <c>RegexOptions.NonBacktracking</c> (needs a call-argument check, not just a type
     ///   dependency);
     /// - (M4, with the Admin API's serializer contexts) no <c>Paduraksa.Data</c> type registered in a
-    ///   <c>System.Text.Json</c> serializer context (PLAN §2).
+    ///   <c>System.Text.Json</c> serializer context.
     /// </remarks>
     public static IArchRule ProxyDoesNotUseLinq { get; } =
         Types().That().ResideInNamespaceMatching(NamespacePattern(Layer.Proxy))

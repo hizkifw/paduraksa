@@ -13,7 +13,7 @@ using Paduraksa.Dashboard.SettingsArea;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
-/// <summary>The HSTS group of the settings fields (PLAN §14 M6): the switch, the max-age choices, the preload pair, and
+/// <summary>The HSTS group of the settings fields: the switch, the max-age choices, the preload pair, and
 /// what "inherit" says the layer would get.</summary>
 public sealed class HostSettingsHstsTests
 {

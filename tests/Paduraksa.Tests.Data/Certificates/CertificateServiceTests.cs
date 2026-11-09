@@ -17,7 +17,7 @@ using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 namespace Paduraksa.Tests.Data.Certificates;
 
 /// <summary>
-/// The certificate service (PLAN §9.1) on a real database and the real config writer: metadata changes are audited
+/// The certificate service on a real database and the real config writer: metadata changes are audited
 /// in the transaction that makes them, never create a revision, and (when they affect serving) publish the latest
 /// revision again.
 /// </summary>

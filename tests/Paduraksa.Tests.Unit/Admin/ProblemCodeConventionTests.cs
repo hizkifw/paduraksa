@@ -11,7 +11,7 @@ using Paduraksa.Application.Simulation;
 namespace Paduraksa.Tests.Unit.Admin;
 
 /// <summary>
-/// PLAN §11.1: every problem code and every error code is dotted segments in lowerCamelCase, so a client can branch on it and the words
+/// Every problem code and every error code is dotted segments in lowerCamelCase, so a client can branch on it and the words
 /// don't change shape between areas. This scans the code classes themselves, so a new flat or dotted_lower code fails here.
 /// </summary>
 public sealed partial class ProblemCodeConventionTests

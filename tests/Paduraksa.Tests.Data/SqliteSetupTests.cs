@@ -8,7 +8,6 @@ using static Paduraksa.Tests.Data.Sample.SampleDatabase;
 
 namespace Paduraksa.Tests.Data;
 
-/// <summary>PLAN §5 connection settings on a real database file, through the registered context factory.</summary>
 public sealed class SqliteSetupTests : IAsyncLifetime
 {
     private readonly string _directory = Directory.CreateTempSubdirectory("paduraksa-data-").FullName;

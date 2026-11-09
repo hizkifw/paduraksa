@@ -23,7 +23,7 @@ using Paduraksa.Tests.Shared;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// PLAN §3.1 end to end: an admin host on the public HTTPS listener serves the real admin app through its internal listener,
+/// End to end: an admin host on the public HTTPS listener serves the real admin app through its internal listener,
 /// with the public certificate, the public origin's CSRF, the real client IP and the session cookie; and the lock-out guard
 /// refuses to cut the caller off from it unless the request says so.
 /// </summary>
@@ -261,7 +261,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     public async Task TheAdminHostsOwnHstsSettingReplacesTheApps()
     {
         // The admin app sets its own header on the internal listener; the host's resolved HSTS, when it has one, is the
-        // one the browser sees (PLAN §3.1, §14 M6). The class's own host is the one with no setting of its own.
+        // one the browser sees. The class's own host is the one with no setting of its own.
         AdminProxyHarness plain = shared.Harness;
         using (HttpResponseMessage untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
         {
@@ -278,7 +278,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task TheAdminHostsOwnServerHeaderSettingWinsThroughTheProxy()
     {
-        // An admin host through the proxy follows its own resolved Server setting, like any other host (PLAN §3.1, §14 M6).
+        // An admin host through the proxy follows its own resolved Server setting, like any other host.
         AdminProxyHarness plain = shared.Harness;
         using (HttpResponseMessage untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
         {
@@ -553,8 +553,8 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
 
 /// <summary>
 /// A test-only endpoint on the admin app: accepts a WebSocket upgrade at <c>/ws-echo</c> and closes it. It is registered after
-/// the admin middleware, so the upgrade passes the forwarded-header hop check, the source allowlist and the new hop secret, not
-/// just YARP (PLAN §3.1). The Blazor dashboard needs the same path in M5.
+/// the admin middleware, so the upgrade passes the forwarded-header hop check, the source allowlist and the hop secret, not
+/// just YARP. The Blazor dashboard's circuit hub is the same case.
 /// </summary>
 internal sealed class AdminWebSocketEcho : IStartupFilter
 {

@@ -13,7 +13,6 @@ using SnapshotStore = Paduraksa.Proxy.Snapshot.SnapshotStore;
 
 namespace Paduraksa.Tests.Data.Commands;
 
-/// <summary><see cref="ConfigService.StartAsync"/> on a real database: the startup recompile and its fallbacks.</summary>
 public sealed class ConfigServiceStartupTests
 {
     [Fact]

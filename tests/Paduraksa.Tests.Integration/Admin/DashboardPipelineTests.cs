@@ -10,7 +10,7 @@ using Paduraksa.Tests.Integration.Hosting;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
-/// The dashboard in the admin pipeline (PLAN §12): the setup gate sends a browser to the setup page and opens only it, its form and the
+/// The dashboard in the admin pipeline: the setup gate sends a browser to the setup page and opens only it, its form and the
 /// static files; pages need a signed-in session and send everyone else to the sign-in page; the sign-in forms need their antiforgery
 /// token and the same origin and set the same session cookie as the API; the circuit hub takes only signed-in, same-origin callers; HTML
 /// pages get the dashboard's CSP and the API keeps its own.

@@ -10,7 +10,6 @@ using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme;
 
-/// <summary>The pure values of the protocol: key authorization, DNS-01, the ARI ID, the JWS header and EAB envelope.</summary>
 public sealed class ProtocolValueTests
 {
     // Computed independently of this code (Python hashlib over the same string), not by calling the implementation.

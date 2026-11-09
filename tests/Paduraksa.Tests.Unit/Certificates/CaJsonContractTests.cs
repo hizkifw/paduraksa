@@ -5,7 +5,6 @@ using Paduraksa.Contracts.Certificates;
 
 namespace Paduraksa.Tests.Unit.Certificates;
 
-/// <summary>The local CA DTO reads and writes through the API's JSON contract, like every other resource of <c>/api/v1</c>.</summary>
 public sealed class CaJsonContractTests
 {
     private static JsonSerializerOptions Http()

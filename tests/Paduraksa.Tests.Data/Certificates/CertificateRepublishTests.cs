@@ -25,10 +25,6 @@ using SnapshotStore = Paduraksa.Proxy.Snapshot.SnapshotStore;
 
 namespace Paduraksa.Tests.Data.Certificates;
 
-/// <summary>
-/// What a certificate change and the passing of a certificate's validity boundary do to the live config (PLAN §9.2):
-/// the real compiler and inventory, a manual clock with timers, a fake certificate source.
-/// </summary>
 public sealed class CertificateRepublishTests
 {
     private static readonly DateTimeOffset Start = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);

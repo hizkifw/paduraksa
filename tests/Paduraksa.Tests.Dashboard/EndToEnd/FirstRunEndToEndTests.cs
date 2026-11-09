@@ -8,7 +8,7 @@ using static Microsoft.Playwright.Assertions;
 namespace Paduraksa.Tests.Dashboard.EndToEnd;
 
 /// <summary>
-/// First-run setup in a real browser from a fresh instance (PLAN §12.1, M5): setup token and Owner, then straight to the overview, whose
+/// First-run setup in a real browser from a fresh instance: setup token and Owner, then straight to the overview, whose
 /// checklist names what is left and links to the pages that do it; two-step sign-in turned on from My account (the QR step, the recovery
 /// codes once); a local-CA certificate and an uploaded PEM from the certificates page; a DNS provider added and tested (only with
 /// PADURAKSA_E2E_LIVE_DNS=1). Skipped without Chromium; screenshots of each page when <see cref="PlaywrightBrowser.ScreenshotVariable"/> is set.
