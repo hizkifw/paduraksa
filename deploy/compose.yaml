@@ -27,6 +27,8 @@ services:
       - "9443:9443"
     volumes:
       - paduraksa-data:/data
+      # /data/logs holds access.log and error.log: rotated by size and day, older files gzipped, trimmed by count, age
+      # and total size (Paduraksa__Logs__*). They are 0700/0600, because the access log holds client IPs.
       # A bind mount instead of the named volume: the container runs as uid 10001, so the host directory must be its:
       #   sudo install -d -o 10001 -g 10001 -m 0750 ./data
       # - ./data:/data

@@ -6,8 +6,8 @@ install guide; the design is in [PLAN.md](PLAN.md) §3, §8 and §16.
 - **Ports:** 80/tcp (HTTP, ACME HTTP-01, redirects), 443/tcp (HTTP/1.1 and HTTP/2) and **443/udp** (HTTP/3), and
   9443/tcp (the admin app).
 - **Data:** one directory, mounted at `/data` in the container. It holds `paduraksa.db` (config, users, audit),
-  `vault.db` (certificate keys, secrets, the Data Protection key ring), `last-good.json`, the admin socket under `run/`
-  and, unless you supply the master key another way, `master.key`.
+  `vault.db` (certificate keys, secrets, the Data Protection key ring), `last-good.json`, the admin socket under `run/`,
+  the logs under `logs/` and, unless you supply the master key another way, `master.key`.
 - **Master key:** the one key that opens `vault.db`. Keep a copy somewhere other than the data volume; losing it loses
   every certificate key, DNS credential, TOTP secret and the Data Protection key ring. Admin sessions do **not** depend on
   it: the admin session cookie is Paduraksa's own random value, stored hashed in `paduraksa.db`. See PLAN §8.3.
@@ -135,10 +135,44 @@ The named volume `paduraksa-data` holds everything:
 | `/data/last-good.json` | the last live config, used for a degraded start |
 | `/data/setup-token` | until the first Owner exists |
 | `/data/run/admin.sock` | the internal listener the public proxy uses for an admin host |
+| `/data/logs/` | `access.log` and `error.log` (0700 directory, 0600 files), with rotated, gzip-compressed older files |
 
 Back up the **data directory and the master key separately**. A copy of `vault.db` without the key is useless, and a copy
 of the key without the volume opens nothing; together they are every credential the proxy holds. `paduraksa backup`
 arrives in M10. To move or restore, stop the container and copy the whole volume.
+
+### Logs
+
+The process writes two plaintext logs into `/data/logs/`: `error.log` (its own entries, Warning and above by default) and
+`access.log` (one line per request, per host). Both rotate by size and by UTC day; a rotated file is named after the
+moment (`error-20261109T120000Z.log`), gzip-compressed in the background (`....log.gz`), and trimmed by count, age and total
+size. A request never waits for a disk, and a log write that fails is retried and reported to the console, never to the
+error log itself. The directory is created 0700 and the files 0600, because the access log holds client IPs. It appears
+with the first log line, so a fresh install that has logged nothing has no `logs/` directory.
+
+Browse, tail and download the files from **Logs** in the dashboard (Insight), or through `GET /api/v1/logs`,
+`GET /api/v1/logs/{name}/tail` and `GET /api/v1/logs/{name}`. All of it needs `logs:read`, which Owner, Admin and
+Auditor hold (and a token can be scoped to it). Reading a log is not an audited event, like every other read. A tail is
+bounded: at most 1000 lines (200 unless asked otherwise), read from the last 1 MiB of a plain file or, for a compressed
+one, from what 8 Mi characters of decompression yields, with each line cut at 4096 characters; downloading gives the whole
+file.
+
+The first-run setup token's banner is logged at Warning, so on a fresh instance it is also written to `error.log` (the one
+exception documented in PLAN §2). Until an Owner exists it can therefore be found in the logs, rotated `.gz` files
+included; it is single-use and worthless once an Owner exists, and the process deletes the token file when setup completes.
+
+| Setting | Default | What |
+|---|---|---|
+| `Paduraksa__Logs__Directory` | empty (`/data/logs`) | Where the logs live; a relative path resolves against the data directory |
+| `Paduraksa__Logs__ErrorLevel` | `Warning` | Lowest level `error.log` keeps (`Information`, `Warning`, `Error`, `Critical`); independent of `Logging__LogLevel`, which is the console's |
+| `Paduraksa__Logs__MaxFileSize` | `67108864` (64 MiB) | Rotate when the next line would pass this (1 KiB to 16 GiB) |
+| `Paduraksa__Logs__RetainedFiles` | `30` | Rotated files kept per log, newest first (1 to 10 000) |
+| `Paduraksa__Logs__MaxAge` | `30.00:00:00` | Delete rotated files older than this (1 minute to 10 years) |
+| `Paduraksa__Logs__MaxTotalSize` | `1073741824` (1 GiB) | Delete the oldest rotated files until each log's rotated files total at most this (1 MiB to 1 TiB) |
+
+The logs are inside the data volume, so a backup of it carries them, and they are not part of the proxy's state: deleting
+them loses history, nothing else. If you would rather keep them elsewhere (a bigger disk), mount that directory too and
+point `Paduraksa__Logs__Directory` at it; it must be writable by uid 10001.
 
 ### Upgrading
 
