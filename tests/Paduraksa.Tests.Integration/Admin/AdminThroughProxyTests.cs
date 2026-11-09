@@ -268,8 +268,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
             Assert.Equal("max-age=31536000", Assert.Single(untouched.Headers.GetValues("Strict-Transport-Security")));
         }
 
-        await using AdminProxyHarness configured = await AdminProxyHarness.StartAsync(
-            adminHostSettings: new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = 600 } });
+        AdminProxyHarness configured = shared.Configured;
         using HttpResponseMessage ours = await configured.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: configured.SessionHeader);
         Assert.Equal(HttpStatusCode.OK, ours.StatusCode);
         Assert.Equal("max-age=600", Assert.Single(ours.Headers.GetValues("Strict-Transport-Security")));
@@ -292,11 +291,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
         Assert.Equal(HttpStatusCode.OK, (HttpStatusCode)status);
         Assert.DoesNotContain("Server:", headers, StringComparison.OrdinalIgnoreCase);
 
-        await using AdminProxyHarness configured = await AdminProxyHarness.StartAsync(
-            adminHostSettings: new HostSettings
-            {
-                ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "admin-edge/1.0" },
-            });
+        AdminProxyHarness configured = shared.Configured;
         using HttpResponseMessage ours = await configured.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: configured.SessionHeader);
         Assert.Equal(HttpStatusCode.OK, ours.StatusCode);
         Assert.Equal("admin-edge/1.0", Assert.Single(ours.Headers.GetValues("Server")));

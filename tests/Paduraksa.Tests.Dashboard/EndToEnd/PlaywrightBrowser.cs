@@ -92,7 +92,7 @@ internal static class PlaywrightBrowser
         IsCircuitReconnect(text) || expected.Any(fragment => text.Contains(fragment, StringComparison.Ordinal));
 
     /// <summary>
-    /// Blazor's "Error: Connection disconnected with error …": the circuit lost its WebSocket and the page reconnects. Under
+    /// Blazor's "Error: Connection disconnected with error ...": the circuit lost its WebSocket and the page reconnects. Under
     /// a loaded machine that happens, and it is the transport's business, not an app error.
     /// </summary>
     private static bool IsCircuitReconnect(string text) => text.Contains("Connection disconnected", StringComparison.Ordinal);

@@ -126,17 +126,16 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
             return;
         }
 
-        // Its own host: it replaces the log directory's error.log with a symlink, which would outlive the test.
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
-        System.IO.Directory.CreateDirectory(DirectoryOf(api));
+        AdminApiHarness api = StartAsync(shared);
         string outside = Path.Combine(api.Host.Options.DataDirectory, "outside.txt");
         await System.IO.File.WriteAllTextAsync(outside, "warn: from outside\n", Ct);
-        string link = Path.Combine(DirectoryOf(api), "error.log");
-        System.IO.File.Delete(link);
+        // A rotated name of its own: the link it plants must not stand in for a file the class's other tests write.
+        string name = LogFileNames.Rotated(LogFileKind.Error, new DateTimeOffset(2026, 11, 9, 6, 0, 0, TimeSpan.Zero));
+        string link = Path.Combine(DirectoryOf(api), name);
         System.IO.File.CreateSymbolicLink(link, outside);
 
-        using HttpResponseMessage tail = await api.GetAsync("/api/v1/logs/error.log/tail");
-        using HttpResponseMessage download = await api.GetAsync("/api/v1/logs/error.log");
+        using HttpResponseMessage tail = await api.GetAsync("/api/v1/logs/" + name + "/tail");
+        using HttpResponseMessage download = await api.GetAsync("/api/v1/logs/" + name);
 
         Assert.Equal(HttpStatusCode.NotFound, tail.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, download.StatusCode);

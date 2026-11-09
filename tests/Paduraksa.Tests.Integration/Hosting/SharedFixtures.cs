@@ -1,3 +1,4 @@
+using Paduraksa.Contracts.Config;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Admin;
 
@@ -16,9 +17,12 @@ public sealed class SharedHost : IAsyncLifetime
     /// <summary>The running host, with ephemeral ports, a loopback admin listener and its own data directory.</summary>
     internal PaduraksaHost Host => _host ?? throw new InvalidOperationException("The shared host has not started.");
 
+    /// <summary>The lifecycle probe's record: the host is built with one, so a test can read what it saw.</summary>
+    internal EventLog Events { get; } = new();
+
     public async ValueTask InitializeAsync()
     {
-        _host = TestHost.Create();
+        _host = TestHost.Create(Events);
         await _host.StartAsync(TestContext.Current.CancellationToken);
     }
 
@@ -76,13 +80,65 @@ public sealed class SharedOwnerSession : IAsyncLifetime
 public sealed class SharedAdminProxy : IAsyncLifetime
 {
     private AdminProxyHarness? _harness;
+    private AdminProxyHarness? _configured;
 
     internal AdminProxyHarness Harness => _harness ?? throw new InvalidOperationException("The shared admin proxy has not started.");
+
+    /// <summary>
+    /// A second host whose admin host carries its own HSTS and <c>Server</c> header settings, for the tests of those two
+    /// layers through the proxy: one host serves both of them, and neither starts one of its own.
+    /// </summary>
+    internal AdminProxyHarness Configured => _configured ?? throw new InvalidOperationException("The shared admin proxy has not started.");
 
     /// <summary>A session of this test's own, as a <c>Cookie</c> header value, for a test that signs out.</summary>
     internal async Task<string> NewSessionAsync() => await Harness.NewSessionAsync();
 
-    public async ValueTask InitializeAsync() => _harness = await AdminProxyHarness.StartAsync();
+    public async ValueTask InitializeAsync()
+    {
+        _harness = await AdminProxyHarness.StartAsync();
+        _configured = await AdminProxyHarness.StartAsync(adminHostSettings: new HostSettings
+        {
+            Hsts = new HstsSettings { Enabled = true, MaxAge = 600 },
+            ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "admin-edge/1.0" },
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_configured is not null)
+        {
+            await _configured.DisposeAsync();
+        }
+
+        if (_harness is not null)
+        {
+            await _harness.DisposeAsync();
+        }
+    }
+}
+
+/// <summary>
+/// A started admin host whose plain-HTTP loopback fallback listener is on <see cref="Port"/>: that listener treats 0 as
+/// "off", so it needs a fixed number, and the shared helper retries the start with a new one if the port is taken.
+/// </summary>
+public sealed class SharedLoopbackHost : IAsyncLifetime
+{
+    private AdminHarness? _harness;
+
+    internal AdminHarness Harness => _harness ?? throw new InvalidOperationException("The shared loopback host has not started.");
+
+    /// <summary>The loopback listener's port.</summary>
+    internal int Port { get; private set; }
+
+    public async ValueTask InitializeAsync()
+    {
+        (PaduraksaHost host, int port) = await TestPorts.StartOnFreePortAsync(port => TestHost.Create(settings: new Dictionary<string, string?>
+        {
+            ["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        }));
+        Port = port;
+        _harness = AdminHarness.For(host);
+    }
 
     public async ValueTask DisposeAsync()
     {

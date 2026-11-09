@@ -159,15 +159,14 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
     [Fact]
     public async Task UpstreamsAndProfilesAreManagedAndAnUpstreamInUseCannotBeDeleted()
     {
-        // Its own host: it asserts the lists hold exactly what it created, so it must start with none.
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
-        UpstreamConfig upstream = ConfigTestSupport.Upstream("u", "http://127.0.0.1:9");
+        AdminApiHarness api = shared.Api;
+        UpstreamConfig upstream = ConfigTestSupport.Upstream("u-profiles", "http://127.0.0.1:9");
         using HttpResponseMessage createdUpstream = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/upstreams", upstream, AdminJsonContext.Default.UpstreamConfig);
         string upstreamVersion = AdminApiHarness.ETag(createdUpstream)!;
-        ProfileConfig profile = new(ProfileId.New(), "strict");
+        ProfileConfig profile = new(ProfileId.New(), "strict-profiles");
         using HttpResponseMessage createdProfile = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/profiles", profile, AdminJsonContext.Default.ProfileConfig);
         Assert.Equal(HttpStatusCode.Created, createdProfile.StatusCode);
-        using HttpResponseMessage proxied = await PostHostAsync(api, ConfigTestSupport.ProxyHost("h", "h.test", "u"));
+        using HttpResponseMessage proxied = await PostHostAsync(api, ConfigTestSupport.ProxyHost("h-profiles", "h-profiles.test", "u-profiles"));
         Assert.Equal(HttpStatusCode.Created, proxied.StatusCode);
 
         using HttpResponseMessage inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: upstreamVersion);
@@ -178,7 +177,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         using HttpResponseMessage profiles = await api.GetAsync("/api/v1/profiles");
         Assert.Single(await AdminApiHarness.ReadAsync(profiles, AdminJsonContext.Default.IReadOnlyListProfileConfig, Ct));
         using HttpResponseMessage upstreams = await api.GetAsync("/api/v1/upstreams");
-        Assert.Single(await AdminApiHarness.ReadAsync(upstreams, AdminJsonContext.Default.IReadOnlyListUpstreamConfig, Ct));
+        Assert.Contains(await AdminApiHarness.ReadAsync(upstreams, AdminJsonContext.Default.IReadOnlyListUpstreamConfig, Ct), u => u.Id == upstream.Id);
         using HttpResponseMessage profileGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/profiles/{profile.Id}", ifMatch: AdminApiHarness.ETag(createdProfile));
         Assert.Equal(HttpStatusCode.NoContent, profileGone.StatusCode);
     }

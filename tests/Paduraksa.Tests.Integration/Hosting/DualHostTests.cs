@@ -112,9 +112,7 @@ public sealed class DualHostTests(SharedHost shared) : IClassFixture<SharedHost>
     public async Task SharedSingletonsAreTheSameInstancesInEveryHost()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
-        EventLog events = new();
-        await using PaduraksaHost host = TestHost.Create(events);
-        await host.StartAsync(ct);
+        PaduraksaHost host = shared.Host;
 
         IServiceProvider[] containers = [host.GetServices(HostRole.Core), host.GetServices(HostRole.Public), host.GetServices(HostRole.Admin)];
         AssertSameEverywhere(host.Shared.SnapshotStore, containers);

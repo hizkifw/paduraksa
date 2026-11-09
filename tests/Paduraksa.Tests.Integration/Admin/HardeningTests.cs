@@ -18,8 +18,8 @@ using Paduraksa.Tests.Integration.Hosting;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>Security headers, the request body limit, the source allowlist, the loopback fallback listener, and the caller contract.</summary>
-public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHost smallBody)
-    : IClassFixture<SharedOwnerSession>, IClassFixture<SharedSmallBodyHost>
+public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHost smallBody, SharedLoopbackHost loopback)
+    : IClassFixture<SharedOwnerSession>, IClassFixture<SharedSmallBodyHost>, IClassFixture<SharedLoopbackHost>
 {
     [Fact]
     public async Task EveryAdminResponseCarriesTheSecurityHeaders()
@@ -183,8 +183,8 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     [Fact]
     public async Task TheLoopbackListenerAnswersOnlyToALoopbackHostName()
     {
-        (AdminHarness started, int port) = await StartWithLoopbackListenerAsync();
-        await using AdminHarness h = started;
+        AdminHarness h = loopback.Harness;
+        int port = loopback.Port;
         using HttpClient http = new(new SocketsHttpHandler { UseCookies = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
         foreach ((string host, HttpStatusCode expected) in new[]
@@ -213,8 +213,8 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     [Fact]
     public async Task TheLoopbackFallbackListenerServesTheSameAppOverPlainHttp()
     {
-        (AdminHarness started, int port) = await StartWithLoopbackListenerAsync();
-        await using AdminHarness h = started;
+        AdminHarness h = loopback.Harness;
+        int port = loopback.Port;
         string token = await h.SetupTokenAsync();
         using HttpClient http = new(new SocketsHttpHandler { UseCookies = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
