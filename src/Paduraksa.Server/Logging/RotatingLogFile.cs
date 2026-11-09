@@ -279,32 +279,52 @@ internal sealed class RotatingLogFile : IDisposable
         }
     }
 
-    private void Write(string line)
+    /// <summary>
+    /// Runs work that must never throw: a logger's own failure is counted and reported, never propagated, and this is the
+    /// one place that policy is stated. <see cref="Compress"/> keeps its own catch because it deletes its temp file
+    /// before reporting.
+    /// </summary>
+    /// <param name="doing">What the work does, for the report (see <see cref="Failed"/>).</param>
+    /// <param name="action">The work.</param>
+    /// <param name="path">The file it works on, when it isn't the live file.</param>
+    /// <param name="onFailure">What to do after a failure is reported, such as dropping the handle so the next line
+    /// reopens it.</param>
+    private void BestEffort(string doing, Action action, string? path = null, Action? onFailure = null)
     {
-        _taken?.Set();
-        _pause?.Wait();
         try
         {
-            byte[] bytes = Utf8.GetBytes(line);
-            EnsureStream(bytes.Length + 1);
-            if (_stream is null)
-            {
-                // Opening failed (reported already): the line is lost, as it would be on a full disk.
-                return;
-            }
-
-            _stream.Write(bytes);
-            _stream.WriteByte((byte)'\n');
-            _length += bytes.Length + 1;
+            action();
         }
 #pragma warning disable CA1031 // A log line must never take the process (or a request's background drain) down.
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            // Close it: the next line opens a fresh handle, which is how a full disk or a vanished directory is recovered from.
-            Failed("write to", ex);
-            CloseStream();
+            Failed(doing, ex, path);
+            onFailure?.Invoke();
         }
+    }
+
+    private void Write(string line)
+    {
+        _taken?.Set();
+        _pause?.Wait();
+        BestEffort(
+            "write to",
+            () =>
+            {
+                byte[] bytes = Utf8.GetBytes(line);
+                EnsureStream(bytes.Length + 1);
+                if (_stream is null)
+                {
+                    // Opening failed (reported already): the line is lost, as it would be on a full disk.
+                    return;
+                }
+
+                _stream.Write(bytes);
+                _stream.WriteByte((byte)'\n');
+                _length += bytes.Length + 1;
+            },
+            onFailure: CloseStream);
     }
 
     /// <summary>Rotates first when this line would pass the size limit or the UTC date has changed, then opens the live file if needed.</summary>
@@ -356,25 +376,20 @@ internal sealed class RotatingLogFile : IDisposable
     {
         FlushStream();
         CloseStream();
-        string? rotated = null;
-        try
-        {
-            EnsureDirectory();
-            DateTimeOffset now = _time.GetUtcNow();
-            if (!TryMoveAside(now, out rotated) || rotated is not { } file)
+        BestEffort(
+            "rotate",
+            () =>
             {
-                // Keep appending to the old file: the next line reopens it, and the next interval tries again.
-                return;
-            }
+                EnsureDirectory();
+                DateTimeOffset now = _time.GetUtcNow();
+                if (!TryMoveAside(now, out string? rotated) || rotated is not { } file)
+                {
+                    // Keep appending to the old file: the next line reopens it, and the next interval tries again.
+                    return;
+                }
 
-            _compressions.TryAdd(file);
-        }
-#pragma warning disable CA1031 // Same rule as a write: the log keeps going, the failure is counted and reported.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            Failed("rotate", ex);
-        }
+                _compressions.TryAdd(file);
+            });
     }
 
     /// <summary>
@@ -423,37 +438,33 @@ internal sealed class RotatingLogFile : IDisposable
     /// <summary>Startup work: stale temp files go, rotated files a previous run left uncompressed are gzipped, retention runs.</summary>
     private void Recover()
     {
-        try
-        {
-            if (!Directory.Exists(_settings.Directory))
+        BestEffort(
+            "tidy the files left from the last run of",
+            () =>
             {
-                // Nothing was ever logged: the directory (and the live file) appear with the first line, so a process that never logs
-                // leaves no trace in the data directory.
-                return;
-            }
-
-            foreach (string temp in Directory.EnumerateFiles(_settings.Directory, "*.log.gz.tmp"))
-            {
-                TryDelete(temp);
-            }
-
-            foreach (string name in Directory.EnumerateFiles(_settings.Directory))
-            {
-                string fileName = Path.GetFileName(name);
-                if (!LogFileNames.TryParseRotated(fileName, out LogFileKind kind, out _, out bool compressed) || kind != _settings.Kind || compressed)
+                if (!Directory.Exists(_settings.Directory))
                 {
-                    continue;
+                    // Nothing was ever logged: the directory (and the live file) appear with the first line, so a process that never logs
+                    // leaves no trace in the data directory.
+                    return;
                 }
 
-                Compress(name);
-            }
-        }
-#pragma warning disable CA1031 // Recovery is best effort: a file it can't touch stays for the next start.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            Failed("tidy the files left from the last run of", ex);
-        }
+                foreach (string temp in Directory.EnumerateFiles(_settings.Directory, "*.log.gz.tmp"))
+                {
+                    TryDelete(temp);
+                }
+
+                foreach (string name in Directory.EnumerateFiles(_settings.Directory))
+                {
+                    string fileName = Path.GetFileName(name);
+                    if (!LogFileNames.TryParseRotated(fileName, out LogFileKind kind, out _, out bool compressed) || kind != _settings.Kind || compressed)
+                    {
+                        continue;
+                    }
+
+                    Compress(name);
+                }
+            });
 
         Trim();
     }
@@ -507,6 +518,7 @@ internal sealed class RotatingLogFile : IDisposable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            // The temp file goes before the report, which is why this catch isn't BestEffort.
             TryDelete(temp);
             Failed("compress", ex, path);
         }
@@ -519,94 +531,64 @@ internal sealed class RotatingLogFile : IDisposable
     /// </summary>
     private void Trim()
     {
-        try
-        {
-            if (!Directory.Exists(_settings.Directory))
+        BestEffort(
+            "trim the old files of",
+            () =>
             {
-                return;
-            }
-
-            List<(string Path, long Size, DateTimeOffset At)> rotated = [];
-            foreach (string path in Directory.EnumerateFiles(_settings.Directory))
-            {
-                string name = Path.GetFileName(path);
-                if (!LogFileNames.TryParseRotated(name, out LogFileKind kind, out DateTimeOffset at, out _) || kind != _settings.Kind)
+                if (!Directory.Exists(_settings.Directory))
                 {
-                    continue;
+                    return;
                 }
 
-                long size;
-                try
+                List<(string Path, long Size, DateTimeOffset At)> rotated = [];
+                foreach (string path in Directory.EnumerateFiles(_settings.Directory))
                 {
-                    size = new FileInfo(path).Length;
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    continue;
+                    string name = Path.GetFileName(path);
+                    if (!LogFileNames.TryParseRotated(name, out LogFileKind kind, out DateTimeOffset at, out _) || kind != _settings.Kind)
+                    {
+                        continue;
+                    }
+
+                    long size;
+                    try
+                    {
+                        size = new FileInfo(path).Length;
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        continue;
+                    }
+
+                    rotated.Add((path, size, at));
                 }
 
-                rotated.Add((path, size, at));
-            }
-
-            rotated.Sort(static (left, right) => left.At.CompareTo(right.At));
-            DateTimeOffset cutoff = _time.GetUtcNow() - _settings.MaxAge;
-            long total = rotated.Sum(static file => file.Size);
-            int remaining = rotated.Count;
-            foreach ((string path, long size, DateTimeOffset at) in rotated)
-            {
-                if (remaining <= _settings.RetainedFiles && total <= _settings.MaxTotalSizeBytes && at >= cutoff)
+                rotated.Sort(static (left, right) => left.At.CompareTo(right.At));
+                DateTimeOffset cutoff = _time.GetUtcNow() - _settings.MaxAge;
+                long total = rotated.Sum(static file => file.Size);
+                int remaining = rotated.Count;
+                foreach ((string path, long size, DateTimeOffset at) in rotated)
                 {
-                    break;
-                }
+                    if (remaining <= _settings.RetainedFiles && total <= _settings.MaxTotalSizeBytes && at >= cutoff)
+                    {
+                        break;
+                    }
 
-                if (TryDelete(path))
-                {
-                    remaining--;
-                    total -= size;
+                    if (TryDelete(path))
+                    {
+                        remaining--;
+                        total -= size;
+                    }
                 }
-            }
-        }
-#pragma warning disable CA1031 // Retention is housekeeping: a failure is reported and retried after the next rotation.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            Failed("trim the old files of", ex);
-        }
+            });
     }
 
-    private void FlushStream()
-    {
-        try
-        {
-            _stream?.Flush();
-        }
-#pragma warning disable CA1031 // Counted and reported; the writer reopens and tries again.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            // Same rule as a write: drop the handle so the next line starts again.
-            Failed("flush", ex);
-            CloseStream();
-        }
-    }
+    private void FlushStream() => BestEffort("flush", () => _stream?.Flush(), onFailure: CloseStream);
 
     private void CloseStream()
     {
-        try
-        {
-            _stream?.Dispose();
-        }
-#pragma warning disable CA1031 // A close failure is counted and reported; the stream is dropped either way.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            Failed("close", ex);
-        }
-        finally
-        {
-            _stream = null;
-            _length = 0;
-        }
+        BestEffort("close", () => _stream?.Dispose());
+        _stream = null;
+        _length = 0;
     }
 
     /// <summary>Creates the directory owner-only (0700, like the run directory and the vault's), and enforces it when it exists.</summary>
