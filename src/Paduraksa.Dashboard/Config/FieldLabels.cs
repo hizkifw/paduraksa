@@ -25,6 +25,8 @@ public static class FieldLabels
         ["minimumVersion"] = "Minimum TLS version",
         ["tcpAlpn"] = "Protocols over TCP",
         ["http3"] = "HTTP/3",
+        ["serverHeader"] = "Server header",
+        ["value"] = "Value",
         ["ipAllowList"] = "IP allow list",
         ["addresses"] = "Addresses",
         ["dropDenied"] = "Drop denied requests",
@@ -96,6 +98,10 @@ public static class FieldLabels
         ["upstreamAndResponse"] = "Upstream and the client",
         ["upstreamOnly"] = "Upstream only",
         ["responseOnly"] = "The client only",
+        ["paduraksa"] = "Paduraksa",
+        ["custom"] = "Custom value",
+        ["upstream"] = "The upstream's header",
+        ["remove"] = "Remove",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>The label of a field name.</summary>

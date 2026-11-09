@@ -180,6 +180,41 @@
         </MudSelect>
     </div>
 
+    <div class="pdk-setting-heading">
+        <span class="pdk-setting-heading-title">Server header</span>
+        <span class="pdk-setting-heading-note">Hiding the upstream's header stops it advertising its software and version.</span>
+    </div>
+
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">Server header</span>
+        </div>
+        <MudSelect T="ServerHeaderMode?" Value="Model.ServerMode" ValueChanged="@(value => SetAsync(() => Model.ServerMode = value, "/serverHeader/mode"))"
+                   Label="Server header" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
+                   Error="@(E("/serverHeader/mode") is not null)" ErrorText="@E("/serverHeader/mode")" data-field="server-header-mode">
+            <MudSelectItem T="ServerHeaderMode?" Value="null">
+                @InheritOption(HostSettingsModel.ServerHeaderText(Inherited.ServerHeader?.Mode ?? ServerHeaderMode.Paduraksa, Inherited.ServerHeader?.Value))
+            </MudSelectItem>
+            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Paduraksa">Paduraksa (no version)</MudSelectItem>
+            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Custom">Custom value</MudSelectItem>
+            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Upstream">The upstream's header</MudSelectItem>
+            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Remove">Remove</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    @if (ServerValueVisible)
+    {
+        <div class="pdk-setting">
+            <div class="pdk-setting-text">
+                <span class="pdk-setting-title">Custom value</span>
+            </div>
+            <MudTextField T="string" Value="Model.ServerValue" ValueChanged="@(value => SetAsync(() => Model.ServerValue = value ?? string.Empty, "/serverHeader/value"))"
+                          Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="ReadOnly" MaxLength="128"
+                          HelperText="1-128 visible ASCII characters" Class="pdk-mono-input"
+                          Error="@(E("/serverHeader/value") is not null)" ErrorText="@E("/serverHeader/value")" data-field="server-header-value" />
+        </div>
+    }
+
     <div class="pdk-setting pdk-setting-wide">
         <div class="pdk-setting-text">
             <span class="pdk-setting-title">IP allow list</span>
@@ -261,6 +296,10 @@
 
     /// <summary>Whether the HSTS fields under the switch apply: this layer's choice, else what it inherits.</summary>
     private bool HstsOn => Model.HstsEnabled ?? (Inherited.Hsts?.Enabled ?? false);
+
+    /// <summary>The custom value shows for a custom mode, or when this layer or an error has one to show.</summary>
+    private bool ServerValueVisible =>
+        Model.ServerMode == ServerHeaderMode.Custom || Model.ServerValue.Length > 0 || E("/serverHeader/value") is not null;
 
     private string? E(string path)
     {

@@ -11,8 +11,8 @@ namespace Paduraksa.Dashboard.SettingsArea;
 public sealed class HostSettingsModel
 {
     /// <summary>The built-in defaults under every layer (PLAN §6.4): no HTTPS redirect, TLS 1.2, HTTP/2 and HTTP/1.1,
-    /// HTTP/3 on, no allow list, HSTS off with a year of max-age waiting for whoever turns it on, the access log on, and
-    /// the request ID sent upstream and to the client.</summary>
+    /// HTTP/3 on, no allow list, HSTS off with a year of max-age waiting for whoever turns it on, the access log on,
+    /// the request ID sent upstream and to the client, and the <c>Paduraksa</c> server name with no version.</summary>
     public static HostSettings BuiltIn { get; } = new()
     {
         ForceHttps = false,
@@ -20,6 +20,7 @@ public sealed class HostSettingsModel
         Hsts = new HstsSettings { Enabled = false, MaxAge = HstsMaxAgePresets.OneYear, IncludeSubDomains = false, Preload = false },
         AccessLog = true,
         RequestIdPropagation = Contracts.Config.RequestIdPropagation.UpstreamAndResponse,
+        ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Paduraksa },
     };
 
     public bool? ForceHttps { get; set; }
@@ -57,11 +58,17 @@ public sealed class HostSettingsModel
     /// <summary>Where the request ID is sent; null inherits.</summary>
     public RequestIdPropagation? RequestIdPropagation { get; set; }
 
+    public ServerHeaderMode? ServerMode { get; set; }
+
+    /// <summary>The custom <c>Server</c> value; kept even when the mode doesn't use it, so a refused value keeps its field.</summary>
+    public string ServerValue { get; set; } = string.Empty;
+
     /// <summary>How many fields this layer sets.</summary>
     public int Overrides =>
         (ForceHttps is null ? 0 : 1) + (MinimumTls is null ? 0 : 1) + (TcpAlpn is null ? 0 : 1) + (Http3 is null ? 0 : 1) + (AllowListSet ? 1 : 0)
         + (HstsEnabled is null ? 0 : 1) + (HstsMaxAge == HstsMaxAgeChoice.Inherit ? 0 : 1) + (HstsIncludeSubDomains is null ? 0 : 1)
-        + (HstsPreload is null ? 0 : 1) + (AccessLog is null ? 0 : 1) + (RequestIdPropagation is null ? 0 : 1);
+        + (HstsPreload is null ? 0 : 1) + (AccessLog is null ? 0 : 1) + (RequestIdPropagation is null ? 0 : 1)
+        + (ServerMode is null ? 0 : 1) + (ServerValue.Length == 0 ? 0 : 1);
 
     public static HostSettingsModel From(HostSettings settings)
     {
@@ -83,6 +90,8 @@ public sealed class HostSettingsModel
             HstsPreload = settings.Hsts?.Preload,
             AccessLog = settings.AccessLog,
             RequestIdPropagation = settings.RequestIdPropagation,
+            ServerMode = settings.ServerHeader?.Mode,
+            ServerValue = settings.ServerHeader?.Value ?? string.Empty,
         };
     }
 
@@ -101,6 +110,9 @@ public sealed class HostSettingsModel
                 : new HstsSettings { Enabled = HstsEnabled, MaxAge = maxAge, IncludeSubDomains = HstsIncludeSubDomains, Preload = HstsPreload },
             AccessLog = AccessLog,
             RequestIdPropagation = RequestIdPropagation,
+            ServerHeader = ServerMode is null && ServerValue.Length == 0
+                ? null
+                : new ServerHeaderSettings { Mode = ServerMode, Value = ServerValue.Length == 0 ? null : ServerValue },
         };
     }
 
@@ -128,6 +140,11 @@ public sealed class HostSettingsModel
             },
             AccessLog = upper.AccessLog ?? lower.AccessLog,
             RequestIdPropagation = upper.RequestIdPropagation ?? lower.RequestIdPropagation,
+            ServerHeader = new ServerHeaderSettings
+            {
+                Mode = upper.ServerHeader?.Mode ?? lower.ServerHeader?.Mode,
+                Value = upper.ServerHeader?.Value ?? lower.ServerHeader?.Value,
+            },
         };
     }
 
@@ -185,8 +202,30 @@ public sealed class HostSettingsModel
             parts.Add($"Request ID: {PropagationText(propagation)}");
         }
 
+        if (settings.ServerHeader is { } server)
+        {
+            if (server.Mode is { } mode)
+            {
+                parts.Add($"Server header: {(mode == ServerHeaderMode.Custom && !string.IsNullOrEmpty(server.Value) ? server.Value : ServerHeaderText(mode, server.Value))}");
+            }
+            else if (!string.IsNullOrEmpty(server.Value))
+            {
+                parts.Add($"Server header value: {server.Value}");
+            }
+        }
+
         return parts;
     }
+
+    /// <summary>A <c>Server</c> mode in words; the custom mode names its value when it has one.</summary>
+    public static string ServerHeaderText(ServerHeaderMode? mode, string? value) => mode switch
+    {
+        ServerHeaderMode.Paduraksa => "Paduraksa",
+        ServerHeaderMode.Custom => string.IsNullOrEmpty(value) ? "custom" : $"custom: {value}",
+        ServerHeaderMode.Upstream => "the upstream's header",
+        ServerHeaderMode.Remove => "none",
+        _ => "the layer below's",
+    };
 
     /// <summary>At least its age, and what it covers: "1 year, subdomains, preload".</summary>
     private static string HstsSummary(HstsSettings hsts)
