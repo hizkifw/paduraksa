@@ -239,7 +239,7 @@ internal static partial class AdminApp
     /// <summary>Unauthenticated, status only, never any detail.</summary>
     /// <remarks>
     /// A degraded start (the proxy serves the last-known-good config because the config database can't be used, PLAN
-    /// §6.1) is still <b>ready</b>: the proxy serves traffic, and taking it out of rotation would turn a config-store
+    /// §6.4) is still <b>ready</b>: the proxy serves traffic, and taking it out of rotation would turn a config-store
     /// problem into an outage. <c>/readyz</c> then answers 200 with the body <c>degraded</c> instead of <c>ready</c>, a
     /// status a keyword monitor can alert on, and the cause is logged at Critical.
     /// </remarks>
