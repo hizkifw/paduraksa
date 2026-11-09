@@ -300,7 +300,21 @@ dashboard shows where each value comes from ("inherited from Global" or "from pr
    `[JsonConverter(typeof(ConfigEnumConverter<T>))]`, and is registered in **both** `ConfigJsonContext` and
    `AdminJsonContext` (the source generator can't see a converter attribute in another assembly);
    `SharedEnumWireTests` fails until the row in its shared list and both registrations exist.
-8. The dashboard field, and the §5.3/§7 notes here.
+8. The dashboard field: one row in `HostSettingsFields.razor` (with its title, help, `data-field` and error path), its phrase in
+   `SettingsSummary`, and its row in `HostSettingsFieldsTests` (the "Adding a field to the settings UI" checklist below). The
+   tests' completeness check fails until the row exists.
+
+**Adding a field to the settings UI** is the same kind of checklist, and nothing else:
+
+1. One `InheritSelect<T>` row in `HostSettingsFields.razor` (or the field's own small component, as `AllowListField` and
+   `HstsMaxAgeField` are for the two settings that keep state of their own): its title and help, its label and `data-field`, its
+   path for errors, its inherited value, and its options.
+2. Its summary phrase in `SettingsSummary.Phrases`, in the contract's field order.
+3. Its row in `HostSettingsFieldsTests`, which the completeness test walks the contract for: how the component sets it, the
+   record that leaves, how it clears, and the words of its inherit choice. A new setting cannot be forgotten in the UI.
+
+Nothing else in the dashboard names a field: the form binds to the contract's record, and the merge and the built-in defaults are
+the backend's (`HostSettingsLayers`).
 
 For comparison, the header refactor left adding a header setting at six files: the contract property, the merge, the
 compiled operation (`ResponseHeaders`/`CompileResponseHeaders`), the matrix rows, the end-to-end test and these notes.
@@ -1085,6 +1099,8 @@ For declarative deployments (Kubernetes manifests, Helm, Compose with a mounted 
 **As built (M6): HSTS fields.** `HostSettingsFields` gained an **HSTS** group, shared by the global defaults, the profiles (and the profile drawer) and the host form, so an admin sets it once and every layer says where its value would come from. A switch ("Inherit (off)", On, Off) brings the rest with it: **Remembered for**, a select of 5 minutes (for testing), a day, six months, a year and two years plus custom seconds (`HstsMaxAgePresets`, kept as the number of seconds the config holds), **Every subdomain** and **Preload list**, each "Inherit (...)" with the inherited value in words. The copy says what a browser remembers and for how long, that a subdomain without a certificate stops working over plain HTTP, and that preload is hard to undo; the validator's errors show at the field they are about (the preload pair, the custom seconds). The group shows the rows that apply: inheriting "on" shows them, an explicit Off hides the preload pair, and **Remembered for** also shows when the layer sets an age with the switch off, so a number the validator refuses has a field to appear at. Cards and profile summaries say "HSTS: 1 year, subdomains, preload", "HSTS when on: ..." when the switch is left to the layer below, or "HSTS off".
 
 **As built (M6): Server header fields.** The same form has a **Server header** group: a select with "Inherit (...)" naming the inherited mode in words (a custom value is named), then `Paduraksa (no version)`, `Custom value`, `The upstream's header` and `Remove`. A **Custom value** text field appears for the custom mode, and also when the layer already sets a value or the validator refuses one, so an error always has a field to appear at. The one helper line says that hiding the upstream's header stops it advertising its software and version; nothing repeats the label. Cards and profile summaries say "Server header: Paduraksa", "Server header: edge/1.0", "Server header: the upstream's header" or "Server header: none", and a value without a mode says "Server header value: ...".
+
+**As built (M6): the settings fields bind to the contract.** `HostSettingsFields` works on the contract layer itself - a `HostSettings` where null means inherit - plus what that layer would inherit, and hands back a changed record with `SettingsChanged`; the form page owns it (the global defaults, a profile, a host), and there is no flat form model in between. The inherited values are `HostSettingsLayers.MergeAll` of the layers below over `BuiltIn`, so the form can't promise a default or a merge the proxy would not apply. Each field changes its own record with `with`, and `HostSettingsEdit.WithTls`/`WithHsts`/`WithServerHeader` collapses a nested record that sets nothing back to null by `ISettingsLayer.SetsNothing`, so clearing a field leaves no key behind. `SettingRow` is the row's title, help and control; `InheritSelect<T>` is a nullable value as a select whose first option says "Inherit (...)" - or "Built-in default (...)" on the global defaults - in the words of the value the layer below has, with the label, `data-field`, error and read-only state every field shares. The IP allow list and HSTS's "Remembered for" keep state of their own in small components (`AllowListField`: the text and drop flag while the switch is off; `HstsMaxAgeField`: the preset-or-custom choice, derived from the stored seconds, with a custom number remembered while a preset is picked, as before). `SettingsSummary` holds one phrase per setting in the contract's order, so the cards and profile summaries need no per-field code elsewhere. The per-field `From`/`ApplyTo`/`Overrides` round trips are gone; `HostSettingsFieldsTests` is one table over every field - setting it through the control, the record that leaves, the inherited words, clearing it, and an error at its path - with a reflection completeness check over the contract, the dashboard's counterpart to `SettingsInheritanceTests`. The §5.3 "Adding a field to the settings UI" checklist is the whole cost of a new setting here.
 
 ### 12.1 First-run setup
 Security: until setup completes, the admin app serves **only** the wizard. That requires a one-time **setup token** printed to the logs and the console (`paduraksa setup-token` reprints it), which stops anyone else on the LAN from claiming the instance.
