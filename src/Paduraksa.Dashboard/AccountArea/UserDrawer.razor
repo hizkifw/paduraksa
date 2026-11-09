@@ -10,7 +10,6 @@
    The initial password lives only in this drawer and is cleared as it is sent. *@
 
 <DrawerShell Title="@(IsNew ? "Add a user" : User!.DisplayName)"
-             Subtitle="@(IsNew ? "They sign in with this username and password." : "Name, roles and whether they can sign in.")"
              Icon="@Icons.Material.Outlined.Group" Name="user" OnSubmit="SaveAsync">
     <Banner>
         @if (_error is { } error)
@@ -24,7 +23,7 @@
     </Banner>
     <ChildContent>
         <div class="pdk-form" data-form="user">
-            <FormSection Title="Who" Description="@(IsNew ? "The name they sign in with, and how they show up." : "Their username can't be changed.")" Name="who">
+            <FormSection Title="Who" Description="@(IsNew ? null : "Their username can't be changed.")" Name="who">
                 <div class="pdk-field-grid">
                     <MudTextField T="string" Value="_username" ValueChanged="SetUsername" Label="Username" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!IsNew"
                                   Immediate="true" AutoFocus="IsNew" Class="pdk-mono-input" spellcheck="false" autocomplete="off"
@@ -44,7 +43,7 @@
                 </div>
             </FormSection>
 
-            <FormSection Title="Roles" Description="What they may do. Several roles allow what any of them allows." Name="roles">
+            <FormSection Title="Roles" Description="Several roles allow what any of them allows." Name="roles">
                 <div class="pdk-role-picker">
                     @foreach (Role role in IdentityText.Roles)
                     {

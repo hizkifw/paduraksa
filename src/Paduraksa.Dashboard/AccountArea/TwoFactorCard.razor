@@ -20,7 +20,7 @@
     @if (Enabled)
     {
         <MudText Typo="Typo.body2" Class="mb-3">
-            Signing in asks for a code from your authenticator app. If you lose it, a recovery code gets you in once.
+            If you lose the authenticator, a recovery code gets you in once.
         </MudText>
         <div class="pdk-form-actions pdk-form-actions-start">
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.Autorenew" OnClick="() => Open(TwoFactorStep.Regenerate)" data-action="regenerate">New recovery codes</MudButton>

@@ -17,7 +17,7 @@
                 <span class="pdk-stat-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Checklist" Size="Size.Small" /></span>
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">Finish setting up</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">@CertificateDisplay.Plural(open.Count, "thing is", "things are") left to set up. Do them when you're ready.</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">@CertificateDisplay.Plural(open.Count, "thing is", "things are") left to set up.</MudText>
                 </div>
             </div>
             <MudIconButton Icon="@Icons.Material.Rounded.Close" Size="Size.Small" OnClick="DismissAsync" aria-label="Dismiss the checklist" Class="pdk-checklist-dismiss" />

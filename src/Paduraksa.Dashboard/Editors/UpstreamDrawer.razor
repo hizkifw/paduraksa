@@ -74,7 +74,7 @@
                     </MudAlert>
                 }
 
-                <FormSection Title="Where requests go" Description="A name hosts pick it by, and the addresses of the service." Name="destinations">
+                <FormSection Title="Where requests go" Name="destinations">
                     <MudTextField T="string" Value="_model.Name" ValueChanged="@(value => Set(() => _model.Name = value, "/name"))" Immediate="true" DebounceInterval="250"
                                   Label="Name" Placeholder="jellyfin" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite" AutoFocus="_model.IsNew"
                                   Error="@(E("/name") is not null)" ErrorText="@E("/name")" data-field="name" spellcheck="false" autocomplete="off" />
@@ -126,7 +126,7 @@
                     </div>
                 </FormSection>
 
-                <FormSection Title="Load balancing and health" Description="How requests are spread over the destinations, and when one is taken out of rotation." Name="health">
+                <FormSection Title="Load balancing and health" Name="health">
                     <div class="pdk-field-grid">
                         <MudSelect T="LoadBalancingPolicy?" Value="_model.LoadBalancing" ValueChanged="@(value => Set(() => _model.LoadBalancing = value, "/loadBalancing"))" Label="Load balancing"
                                    Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!_mayWrite">
@@ -173,7 +173,6 @@
                         <TitleContent>
                             <div class="pdk-advanced-title">
                                 <MudText Typo="Typo.subtitle1">Advanced</MudText>
-                                <MudText Typo="Typo.caption" Class="pdk-muted">A connection limit and notes.</MudText>
                             </div>
                         </TitleContent>
                         <ChildContent>
@@ -190,7 +189,7 @@
 
                 @if (!Stage && !_model.IsNew)
                 {
-                    <FormSection Title="Used by" Description="The hosts and routes that send requests here." Name="usage">
+                    <FormSection Title="Used by" Name="usage">
                         @if (Uses.Count == 0)
                         {
                             <MudText Typo="Typo.body2" Class="pdk-muted">No host sends requests here yet. Pick it for a route in a host.</MudText>
@@ -301,9 +300,9 @@
 
     private string Title => _missing ? "Upstream not found" : Staged is { } staged ? staged.Name : _model is null ? (Id is null ? "New upstream" : "Upstream") : _model.IsNew ? "New upstream" : _storedName;
 
-    private string Subtitle => Stage
+    private string? Subtitle => Stage
         ? Staged is null ? "It is applied together with the host, in one revision." : "Not applied yet: it goes in with the host, in one revision."
-        : _model is { IsNew: true } || Id is null ? "A service on your network that hosts send requests to." : "Its destinations, load balancing and health checks.";
+        : null;
 
     private IReadOnlyList<(HostConfig Host, RouteConfig Route)> Uses =>
         _model is null || _document is null || _model.IsNew ? [] : HostOverview.UsesOf(_document, _model.Id);

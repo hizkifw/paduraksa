@@ -159,7 +159,7 @@
         }
     </FormSection>
 
-    <FormSection Title="Certificate" Description="Which certificate the hostnames are served with over HTTPS." Name="certificate">
+    <FormSection Title="Certificate" Name="certificate">
         <RefPicker T="string" Value="CertificateChoice" ValueChanged="SetCertificateChoiceAsync" Label="Certificate" ReadOnly="ReadOnly" ToStringFunc="CertificateChoiceText"
                    NewValue="NewCertificateValue" NewLabel="New certificate..." OnNew="OnNewCertificate"
                    HelperText="@CertificateHelp" Error="@(CertificateError is not null)" ErrorText="@CertificateError" data-field="certificate">
@@ -212,7 +212,7 @@
         </HostSettingsFields>
     </FormSection>
 
-    <FormSection Title="Tags and notes" Description="For finding the host in the list, and for whoever edits it next." Name="notes">
+    <FormSection Title="Tags and notes" Name="notes">
         <div class="pdk-field-grid">
             <MudTextField T="string" Value="Model.Tags" ValueChanged="@(value => SetAsync(() => Model.Tags = value, "/tags"))" Label="Tags" Placeholder="media, lan"
                           Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-span-2" ReadOnly="ReadOnly" HelperText="Separated by commas." Error="@(TagError is not null)" ErrorText="@TagError" />

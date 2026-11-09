@@ -143,7 +143,7 @@
         AddCertificateKind.Upload => "The key goes straight into the vault and is never shown again.",
         AddCertificateKind.SelfSigned => "Trusted by nothing; fine for testing or a client you configure by hand.",
         AddCertificateKind.LocalCaLeaf => "For LAN names: trusted wherever the local CA's root is installed.",
-        _ => "Where should it come from?",
+        _ => null,
     };
 
     private string Icon => _method switch

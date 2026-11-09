@@ -189,7 +189,7 @@
     private string Title => _missing ? "Host not found" : _model is null ? (Id is null ? "New host" : "Host") : _model.IsNew ? "New host" : ChangeView.HostTitle(_stored ?? _model.ToConfig());
 
     private string Subtitle => _model is { IsNew: true } || Id is null
-        ? "Give a service on your network a name. Nothing changes until you review and apply."
+        ? "Nothing changes until you review and apply."
         : "Every change is reviewed as a diff before it goes live, and can be undone.";
 
     /// <summary>The config as the form sees it: what is stored, and what was made in this drawer.</summary>

@@ -71,7 +71,7 @@
                     </MudAlert>
                 }
 
-                <FormSection Title="Profile" Description="A name hosts pick it by, and a note on what it is for." Name="profile">
+                <FormSection Title="Profile" Name="profile">
                     <div class="pdk-field-grid">
                         <MudTextField T="string" Value="_model.Name" ValueChanged="@(value => Set(() => _model.Name = value, "/name"))" Immediate="true" DebounceInterval="250"
                                       Label="Name" Placeholder="LAN only" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!_mayWrite" AutoFocus="_model.IsNew"
@@ -93,7 +93,7 @@
 
                 @if (!Stage && !_model.IsNew)
                 {
-                    <FormSection Title="Used by" Description="The hosts that pick this profile." Name="usage">
+                    <FormSection Title="Used by" Name="usage">
                         @if (Hosts.Count == 0)
                         {
                             <MudText Typo="Typo.body2" Class="pdk-muted">No host uses it yet. Pick it in a host's HTTPS settings.</MudText>

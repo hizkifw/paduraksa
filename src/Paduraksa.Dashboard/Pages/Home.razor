@@ -46,7 +46,7 @@
             <div class="pdk-card-head">
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">@(count == 1 ? "One thing needs you" : $"{count} things need you")</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">Most serious first. Each opens where it is fixed.</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">Most serious first.</MudText>
                 </div>
             </div>
             <ul class="pdk-attention-list">
@@ -97,8 +97,7 @@
                   Detail="@(Snapshot is { Hosts: > 0 } ? $"{Snapshot.Online} online · {Snapshot.Off} off" : "None yet")">
             <Value>@(Snapshot?.Hosts ?? 0)</Value>
         </StatCard>
-        <StatCard Label="Upstreams" Icon="@Icons.Material.Outlined.Hub" Loading="Snapshot is null" Href="@DashboardRoutes.Upstreams" LinkText="Upstreams"
-                  Detail="The services behind the hosts">
+        <StatCard Label="Upstreams" Icon="@Icons.Material.Outlined.Hub" Loading="Snapshot is null" Href="@DashboardRoutes.Upstreams" LinkText="Upstreams">
             <Value>@(Snapshot?.Upstreams ?? 0)</Value>
         </StatCard>
     }
@@ -115,7 +114,7 @@
     {
         <StatCard Label="Live revision" Icon="@Icons.Material.Outlined.History" Loading="Snapshot is null" Href="@DashboardRoutes.History" LinkText="History"
                   Tone="@(Status.IsDegraded ? Color.Warning : Color.Primary)"
-                  Detail="@(Status.IsDegraded ? "On the last-known-good config" : Snapshot?.Revision is null ? "No change has been made yet" : "Every change is a revision")">
+                  Detail="@(Status.IsDegraded ? "On the last-known-good config" : Snapshot?.Revision is null ? "No change has been made yet" : null)">
             <Value>@(Snapshot?.Revision is { } revision ? $"#{revision.ToString(CultureInfo.InvariantCulture)}" : "None yet")</Value>
         </StatCard>
     }
@@ -128,7 +127,6 @@
             <div class="pdk-card-head pdk-card-head-padded">
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">Hosts</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">Where each hostname's requests go</MudText>
                 </div>
                 <MudButton Href="@DashboardRoutes.Hosts" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">All hosts</MudButton>
             </div>
@@ -171,7 +169,7 @@
             <div class="pdk-card-head pdk-card-head-padded">
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">Recent changes</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">The latest revisions; each can be rolled back</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">Each can be rolled back.</MudText>
                 </div>
                 <MudButton Href="@DashboardRoutes.History" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">History</MudButton>
             </div>
