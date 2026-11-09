@@ -172,6 +172,11 @@ public sealed class PublicEdgeTests : IAsyncLifetime
             Hosts = [App().Hosts[0] with { Policies = [new IpAllowListPolicySpec(["203.0.113.0/24"])] }],
         });
 
+        // Counted as deltas around each of this test's own connections, like the HTTPS listener's test: another test's stray
+        // connection to this host's reused port would otherwise move an absolute count.
+        ProxyProtocolCounters counters = host.Shared.PublicListeners.HttpProxyProtocol!.Counters;
+
+        long accepted = counters.Accepted;
         string response = await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes(
             "PROXY TCP4 203.0.113.7 192.0.2.1 50000 80\r\nGET /pp HTTP/1.1\r\nHost: app.test\r\nX-Forwarded-For: 1.2.3.4\r\nConnection: close\r\n\r\n"));
 
@@ -179,12 +184,12 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         Dictionary<string, string> seen = EdgeUpstream.Parse(response);
         Assert.Equal("203.0.113.7", seen["X-Forwarded-For"]);
         Assert.Equal("203.0.113.7", seen["X-Real-IP"]);
+        Assert.Equal(accepted + 1, counters.Accepted);
 
         // The header is mandatory on this listener: a plain request is dropped unanswered.
+        long invalid = counters.Invalid;
         Assert.Equal(string.Empty, await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: app.test\r\nConnection: close\r\n\r\n")));
-        ProxyProtocolCounters counters = host.Shared.PublicListeners.HttpProxyProtocol!.Counters;
-        Assert.Equal(1, counters.Accepted);
-        Assert.Equal(1, counters.Invalid);
+        Assert.Equal(invalid + 1, counters.Invalid);
         Assert.Null(host.Shared.PublicListeners.HttpsProxyProtocol);
     }
 
@@ -202,19 +207,24 @@ public sealed class PublicEdgeTests : IAsyncLifetime
             Hosts = [App().Hosts[0] with { Policies = [new IpAllowListPolicySpec(["198.51.100.0/24"])] }],
         });
 
+        // Counted as deltas around each of this test's own connections: under a parallel run another test can reach this
+        // host's reused port, and an absolute count would then depend on it (the invalid count used to read 3, not 1).
+        ProxyProtocolCounters counters = host.Shared.PublicListeners.HttpsProxyProtocol!.Counters;
+
         // The header arrives in clear ahead of the ClientHello; TLS and HTTP follow on the same connection.
+        long accepted = counters.Accepted;
         string response = await EdgeClient.RawHttpsAsync(host, Encoding.ASCII.GetBytes("PROXY TCP4 198.51.100.20 192.0.2.1 40404 443\r\n"), "app.test", "/pp");
 
         Assert.StartsWith("HTTP/1.1 200", response, StringComparison.Ordinal); // the allow-list saw the PROXY protocol client
+        Assert.Equal(accepted + 1, counters.Accepted);
         Dictionary<string, string> seen = EdgeUpstream.Parse(response);
         Assert.Equal("198.51.100.20", seen["X-Forwarded-For"]);
         Assert.Equal("https", seen["X-Forwarded-Proto"]);
 
         // Mandatory on this listener: TLS straight away is dropped, and the plain HTTP listener is unaffected.
+        long invalid = counters.Invalid;
         Assert.Equal(string.Empty, await EdgeClient.RawHttpsAsync(host, [], "app.test"));
-        ProxyProtocolCounters counters = host.Shared.PublicListeners.HttpsProxyProtocol!.Counters;
-        Assert.Equal(1, counters.Accepted);
-        Assert.Equal(1, counters.Invalid);
+        Assert.Equal(invalid + 1, counters.Invalid);
         Assert.Null(host.Shared.PublicListeners.HttpProxyProtocol);
     }
 
