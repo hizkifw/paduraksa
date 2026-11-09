@@ -1,7 +1,7 @@
 @implements IDisposable
 @inject NavigationManager Navigation
-@* The side navigation: only the pages the user may see, the area of the page that is open marked (a profile is the hosts' area, an ACME
-   account the certificates'); a page that is still a placeholder carries a "soon" badge. *@
+@* The side navigation: only the pages the user may see, the open page's area marked, and a "soon" badge on a page that
+   is still a placeholder. *@
 <nav class="pdk-nav" aria-label="Main">
     @foreach (IGrouping<string?, NavigationEntry> group in _entries.GroupBy(entry => entry.Group))
     {

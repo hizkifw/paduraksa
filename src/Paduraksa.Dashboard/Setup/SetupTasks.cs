@@ -2,7 +2,7 @@ using MudBlazor;
 
 namespace Paduraksa.Dashboard.Setup;
 
-/// <summary>What is worth setting up after the Owner exists (PLAN §12.1), in the order the overview's checklist lists it.</summary>
+/// <summary>What is worth setting up after the Owner exists, in the order the overview's checklist lists it.</summary>
 public enum SetupTask
 {
     TwoStep,

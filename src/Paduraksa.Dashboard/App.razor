@@ -19,7 +19,7 @@
 <body>
     <Routes @rendermode="PageRenderMode" Preference="_preference" SystemPrefersLight="_systemPrefersLight" />
     @* Shown while the live connection is down, in place of Blazor's own dialog: Blazor puts a state class on it
-       (components-reconnect-show, -retrying, -failed, -rejected, -paused, -resume-failed) and paduraksa.js runs the buttons. *@
+       (components-reconnect-show, -retrying, -failed, ...) and paduraksa.js runs the buttons. *@
     <div id="components-reconnect-modal" class="pdk-reconnect">
         <div class="pdk-reconnect-card" role="status" aria-live="polite">
             <span class="pdk-reconnect-spinner" aria-hidden="true"></span>

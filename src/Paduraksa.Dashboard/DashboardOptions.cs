@@ -7,7 +7,7 @@ public sealed class DashboardOptions
     public int MinPasswordLength { get; init; } = 12;
 
     /// <summary>
-    /// How often an open circuit re-checks its session in the background (PLAN §12): a revoked or expired session, a disabled user or a
+    /// How often an open circuit re-checks its session in the background: a revoked or expired session, a disabled user or a
     /// password change elsewhere ends the page within this interval. The background check does not count as use, so an unattended page
     /// still idles out.
     /// </summary>

@@ -3,8 +3,8 @@ using System.Globalization;
 namespace Paduraksa.Dashboard.Pages.Account;
 
 /// <summary>
-/// What the sign-in and setup pages say for the error code a failed step redirects with (the admin API's problem codes, PLAN §11.1).
-/// Only known codes are shown, as fixed text: nothing from the address bar is echoed into the page.
+/// What the sign-in and setup pages say for the error code a failed step redirects with (the admin API's problem codes). Only known
+/// codes are shown, as fixed text: nothing from the address bar is echoed into the page.
 /// </summary>
 public static class SignInMessages
 {

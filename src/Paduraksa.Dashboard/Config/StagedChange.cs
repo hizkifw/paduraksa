@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// A host together with the objects made for it in its drawer (PLAN §12): an upstream or a profile created from the host form is not
+/// A host together with the objects made for it in its drawer: an upstream or a profile created from the host form is not
 /// applied on its own but staged into the host's draft, so the host and what it needs are reviewed and applied as one revision, and
 /// cancelling the host leaves nothing behind. Without staged objects the host goes as its own object command, as before.
 /// </summary>

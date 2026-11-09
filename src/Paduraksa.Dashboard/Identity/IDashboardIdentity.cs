@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Identity;
 
 /// <summary>
-/// What the settings and account pages ask of the identity services (PLAN §5.2, §10.1): users, the caller's own password, second factor
+/// What the settings and account pages ask of the identity services: users, the caller's own password, second factor
 /// and sessions, and API tokens. A seam so the pages can be tested without a database; <see cref="DashboardIdentity"/> is the real one.
 /// Everything it hands out is a Contracts DTO or an Application result over one.
 /// </summary>

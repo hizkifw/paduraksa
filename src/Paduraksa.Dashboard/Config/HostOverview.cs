@@ -18,9 +18,6 @@ public enum Tone
 }
 
 /// <summary>How a host's names are served over HTTPS, in a word and a tone.</summary>
-/// <param name="Label">The short state ("Covered", "Expires in 5 days").</param>
-/// <param name="Tone">Its colour.</param>
-/// <param name="Detail">The longer explanation, for a tooltip.</param>
 public sealed record CertificateState(string Label, Tone Tone, string Detail);
 
 /// <summary>One line of where a host's requests go, as the hosts list shows it: a route to an upstream and its address, or a redirect.</summary>
@@ -52,7 +49,7 @@ public sealed record HostRow(
         || Destinations.Any(d => d.Label.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase) || d.Detail?.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase) == true);
 }
 
-/// <summary>Builds the hosts list (PLAN §12): per host its kind, certificate state, HTTPS behaviour, routes and a status dot.</summary>
+/// <summary>Builds the hosts list: per host its kind, certificate state, HTTPS behaviour, routes and a status dot.</summary>
 public static class HostOverview
 {
     /// <summary>A certificate that ends within this many days is shown as expiring.</summary>
@@ -88,7 +85,6 @@ public static class HostOverview
         return [.. rows.OrderBy(r => r.Host.Names.Count > 0 ? r.Host.Names[0] : string.Empty, StringComparer.Ordinal)];
     }
 
-    /// <summary>A host kind in words.</summary>
     public static string KindLabel(HostKind kind) => kind switch
     {
         HostKind.Proxy => "Proxy",

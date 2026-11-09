@@ -1,5 +1,4 @@
 @using Paduraksa.Contracts.Simulation
-@* A simulation's answer (PLAN §7.7): the outcome up front, then what the gate did, step by step, with its facts. *@
 @if (Result.Status != SimulationStatus.Simulated || Result.Outcome is null)
 {
     <MudAlert Severity="@(Result.Status == SimulationStatus.Denied ? Severity.Error : Severity.Warning)" Variant="Variant.Outlined" Class="pdk-sim-problem">

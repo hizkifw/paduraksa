@@ -6,7 +6,7 @@ using Paduraksa.Dashboard.Components;
 
 namespace Paduraksa.Dashboard.Drawers;
 
-/// <summary>A change to review and apply (PLAN §12: every change goes through review), as a form hands it to "Review changes".</summary>
+/// <summary>A change to review and apply, as a form hands it to "Review changes".</summary>
 /// <param name="Title">What is being reviewed, in words ("New host app.example.com").</param>
 /// <param name="Command">The command to run as a dry run, then to apply.</param>
 public sealed record ReviewRequest(string Title, ConfigCommand Command)

@@ -884,7 +884,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-certs-table { --pdk-dt-cols: minmax(220px, 2.4fr) minmax(90px, 0.9fr) minmax(90px, 0.9fr) minmax(130px, 1.2fr) minmax(90px, 1fr) minmax(110px, 1.2fr); }
 .pdk-logs-table { --pdk-dt-cols: minmax(0, 2.2fr) minmax(110px, 0.9fr) minmax(70px, 0.5fr) 80px; }
 
-/* The logs page (PLAN §7.4, §12): a card per log, and a drawer showing one file's last lines in monospace. */
+/* The logs page: a card per log, and a drawer showing one file's last lines in monospace. */
 .pdk-log-groups {
     display: grid;
     gap: 16px;

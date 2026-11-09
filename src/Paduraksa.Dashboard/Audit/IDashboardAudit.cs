@@ -5,7 +5,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Audit;
 
 /// <summary>
-/// What the audit page asks of the Application layer (PLAN §5.2): filtered pages of the log, newest first, and the hash-chain check. A
+/// What the audit page asks of the Application layer: filtered pages of the log, newest first, and the hash-chain check. A
 /// seam so the page can be tested without a database; <see cref="DashboardAudit"/> is the real one. Not authorized here, as on the API:
 /// the page checks <c>audit:read</c> first.
 /// </summary>

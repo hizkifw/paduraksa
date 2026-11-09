@@ -68,7 +68,7 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     }
 
     /// <summary>
-    /// What needs the person (PLAN §12: the overview says what is wrong and what to do): hosts the live config warns about or whose
+    /// What needs the person: hosts the live config warns about or whose
     /// certificate is a problem, upstreams a host uses with no destination switched on, certificates that failed, and certificates in use
     /// that end soon. Each with the drawer that fixes it.
     /// </summary>

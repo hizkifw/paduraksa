@@ -3,8 +3,8 @@ using Paduraksa.Contracts.Commands;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// The change last opened in the review drawer and not applied yet, per circuit: the simulator offers it as a target ("the change under
-/// review", PLAN §7.7), so a request can be tried against it before it goes live. Applying or discarding it clears it.
+/// The change last opened in the review drawer and not applied yet, per circuit: the simulator offers it as a target, so a request
+/// can be tried against it before it goes live. Applying or discarding it clears it.
 /// </summary>
 public sealed class ReviewedDraft
 {

@@ -10,7 +10,7 @@ using Paduraksa.Dashboard.Auth;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// The toast after a change is applied (PLAN §12): what was saved, as which revision, with <b>Undo</b>. Undo rolls the config back to the
+/// The toast after a change is applied: what was saved, as which revision, with <b>Undo</b>. Undo rolls the config back to the
 /// revision before it through the rollback command (a new revision; history is never rewritten), based on the revision it undoes, so it
 /// is refused when someone changed the config in between. One per circuit, so the toast's button outlives the page that applied.
 /// </summary>

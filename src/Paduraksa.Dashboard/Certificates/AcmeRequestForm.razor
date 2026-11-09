@@ -1,5 +1,5 @@
-@* What to ask an ACME CA for: the names, the account, and how the names are proven (HTTP-01 through this proxy's public port, or DNS-01
-   through a DNS provider, which wildcards need). The run itself, with its progress, is the parent's. *@
+@* What to ask an ACME CA for: the names, the account, and how they are proven (HTTP-01 through this proxy's public port,
+   or DNS-01, which wildcards need). The run and its progress belong to the parent. *@
 
 <div class="pdk-form-stack">
     <MudTextField T="string" @bind-Value="_names" Label="Hostnames" Variant="Variant.Outlined" Lines="2" Sizing="InputSizing.Auto" MaxLines="8"

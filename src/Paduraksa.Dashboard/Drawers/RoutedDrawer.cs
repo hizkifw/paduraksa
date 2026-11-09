@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components;
 namespace Paduraksa.Dashboard.Drawers;
 
 /// <summary>
-/// A list page's drawer that has an address (PLAN §12): <c>/hosts/host_...</c> is the hosts list with that host's drawer open, so links
+/// A list page's drawer that has an address: <c>/hosts/host_...</c> is the hosts list with that host's drawer open, so links
 /// from other pages, the audit log and the tests keep working. The page hands over its route's key on every parameter change; the key
 /// opens the drawer it names (the page parses it, typed at the edge), no key closes it, and closing the drawer goes back to the list's
 /// address. The page disposes it with itself, which closes the drawer (and every level stacked on it).

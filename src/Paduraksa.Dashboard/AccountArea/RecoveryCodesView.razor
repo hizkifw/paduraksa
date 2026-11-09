@@ -1,7 +1,7 @@
 @inject DashboardBrowser Browser
 @inject ISnackbar Snackbar
-@* Recovery codes, shown once (after enrolment, after a regeneration): the list, Copy, and Download as a .txt file made in the page
-   (nothing is served from a URL). The owner drops the codes from its state as soon as the step moves on. *@
+@* Recovery codes, shown once (after enrolment, after a regeneration): the list, Copy and Download as a .txt made in the
+   page, nothing served from a URL. *@
 <div class="pdk-recovery" data-section="recovery-codes">
     <ol class="pdk-recovery-codes pdk-mono">
         @foreach (string recovery in Codes)

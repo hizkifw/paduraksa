@@ -1,6 +1,6 @@
-@* A drawer's frame (the design language, PLAN §12): the way back to the level it opened from, the title (what screen readers
-   name the drawer by, focused as it opens) with an optional icon and line under it, actions beside the close button, a body that
-   scrolls, and a footer for the drawer's actions that stays in view. With OnSubmit the whole drawer is one form, so Enter in a field submits. *@
+@* A drawer's frame: the way back to the level it opened from, the title (what screen readers name the drawer by, focused
+   as it opens), actions beside the close button, a scrolling body and a footer. With OnSubmit the whole drawer is one
+   form, so Enter in a field submits. *@
 
 @if (OnSubmit.HasDelegate)
 {
@@ -97,7 +97,6 @@ else
         <header class="pdk-drawer-head">
             @if (Level?.Parent is { } parent)
             {
-                @* The levels under this one, oldest first: on a phone they are hidden behind it, so the trail is how the stack reads. *@
                 <nav class="pdk-drawer-trail" aria-label="Open drawers" data-drawer="trail">
                     <button type="button" class="pdk-drawer-back" @onclick="CloseAsync" aria-label="@($"Back to {parent.Title}")" data-drawer-action="back">
                         <MudIcon Icon="@Icons.Material.Rounded.ChevronLeft" Size="Size.Small" />

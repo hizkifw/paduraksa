@@ -1,5 +1,5 @@
-@* One log file's last lines (the design language, PLAN §12): a drawer over the logs list, with the filter, the lines and the download.
-   The tail is read from the last part of the file only (a compressed one is decompressed up to a cap), never the whole thing. *@
+@* One log file's last lines, in a drawer: the filter, the lines and the download. The tail is read from the last part of
+   the file only (a compressed one decompressed up to a cap), never the whole thing. *@
 @using Paduraksa.Application.Logging
 @using Paduraksa.Contracts.Logging
 @inject ILogFileStore Store

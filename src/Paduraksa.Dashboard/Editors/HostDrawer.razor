@@ -4,10 +4,9 @@
 @inject ILogger<HostDrawer> Logger
 @inherits DraftDrawer<HostEditModel, HostConfig>
 
-@* A host in a drawer (PLAN §12): the form, and Review changes on top of it. "New upstream..." and "New profile..." stack the other form
-   and stage what it makes into this host's draft: the host and the objects it needs are reviewed and applied as one revision, and
-   cancelling the host leaves nothing behind. "New certificate..." stacks the certificate flow, which issues or uploads at once (a
-   certificate lives in the vault, not in the config) and comes back with it selected. Hands back the commit's result when applied. *@
+@* A host in a drawer: the form, with Review changes on top. "New upstream...", "New profile..." and "New certificate..."
+   stack their own flows: the host and the config objects it needs are reviewed and applied as one revision, while a
+   certificate (a vault object) is issued or uploaded at once. *@
 
 <DrawerShell Title="@Title" Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Language"
              Name="host" OnSubmit="ReviewAsync">

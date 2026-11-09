@@ -4,7 +4,7 @@ using Paduraksa.Contracts.Config;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// The warnings the review drawer shows above Apply (PLAN §12): the compiler's (a host no certificate covers, a binding to a certificate
+/// The warnings the review drawer shows above Apply: the compiler's (a host no certificate covers, a binding to a certificate
 /// that expired), placed by object name, and what a change does that is easy to miss: a host losing HTTPS, being switched off or removed,
 /// or giving up a name.
 /// </summary>

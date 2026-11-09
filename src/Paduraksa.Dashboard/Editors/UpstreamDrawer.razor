@@ -4,9 +4,9 @@
 @inject Microsoft.Extensions.Logging.ILogger<UpstreamDrawer> Logger
 @inherits DraftDrawer<UpstreamEditModel, UpstreamConfig>
 
-@* An upstream in a drawer (PLAN §12): name, destinations (each can be checked: a TCP connection, reachable or not), load balancing and
-   health. On its own it goes through Review changes and hands back the commit; opened from a host's form (Stage) it is checked against
-   that form's draft and handed back as it is, to be applied with the host in one revision. *@
+@* An upstream in a drawer: name, destinations (each checkable with a TCP connection), load balancing and health. On its
+   own it goes through Review changes; opened from a host's form it is checked against that form's draft and handed back,
+   to be applied with the host in one revision. *@
 
 <DrawerShell Title="@Title"
              Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Hub" Name="upstream" OnSubmit="SubmitAsync">
@@ -134,7 +134,6 @@
                             <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.PowerOfTwoChoices">Power of two choices (pinned)</MudSelectItem>
                             <MudSelectItem T="LoadBalancingPolicy?" Value="LoadBalancingPolicy.FirstAlphabetical">First alphabetical (failover)</MudSelectItem>
                         </MudSelect>
-                        @* The switches stack under the select, one per line, so they share one left edge. *@
                         <div class="pdk-span-2 pdk-health">
                             <MudSwitch T="bool" Value="Model.SessionAffinity" ValueChanged="@(value => Set(() => Model.SessionAffinity = value, "/sessionAffinity"))" Color="Color.Primary"
                                        Label="Sticky sessions (cookie)" Disabled="!MayWrite" />

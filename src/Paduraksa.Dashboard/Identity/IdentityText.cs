@@ -55,7 +55,7 @@ public static class IdentityText
         _ => permission.ToName(),
     };
 
-    /// <summary>The scopes a token may be given, by area. Tokens can't manage tokens or sessions (PLAN §11.1), so those aren't offered.</summary>
+    /// <summary>The scopes a token may be given, by area. Tokens can't manage tokens or sessions, so those aren't offered.</summary>
     public static IReadOnlyList<(string Area, IReadOnlyList<Permission> Scopes)> ScopeAreas { get; } =
     [
         ("Config", [Permission.ConfigRead, Permission.ConfigWrite]),

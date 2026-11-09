@@ -31,7 +31,7 @@ public sealed record DrawerResult(bool Canceled, object? Value)
 }
 
 /// <summary>
-/// The drawers open in a circuit, one above the other (PLAN §12): a form opens in a drawer, and a form it references (a new upstream from
+/// The drawers open in a circuit, one above the other: a form opens in a drawer, and a form it references (a new upstream from
 /// the host form, a new certificate, an ACME account from the certificate form, "Review changes") stacks a drawer on top; finishing it
 /// hands its result back to the level below and closes it. Only the top level is live: the ones below are dimmed, shifted aside and inert.
 /// One per circuit; <see cref="DrawerHost"/> renders it.

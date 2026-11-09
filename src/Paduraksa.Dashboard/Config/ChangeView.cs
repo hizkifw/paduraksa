@@ -11,7 +11,6 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Dashboard.Config;
 
-/// <summary>What kind of object a change is about.</summary>
 public enum ChangedObject
 {
     Document,
@@ -39,8 +38,6 @@ public sealed record FieldChange(string Path, string Label, string? Before, stri
 public sealed record ObjectChange(ConfigChangeKind? Kind, ChangedObject What, string Title, IReadOnlyList<FieldChange> Fields, string Key = "");
 
 /// <summary>A top-level object's change with its routes' or destinations' changes under it: one card of the diff.</summary>
-/// <param name="Head">The object itself.</param>
-/// <param name="Children">Its routes (a host) or destinations (an upstream) that changed.</param>
 public sealed record ChangeGroup(ObjectChange Head, IReadOnlyList<ObjectChange> Children);
 
 /// <summary>

@@ -1,7 +1,6 @@
-@* A new certificate, in a drawer (PLAN §9, §12): from an ACME CA (with live progress), from the local CA, self-signed, or uploaded; or a
-   renewal now. Opened from the certificates page, or stacked on a host's form for its names. A certificate lives in the vault, not in
-   the config, so this really issues or uploads (there is nothing to review); the drawer hands back the new certificate. "New ACME
-   account..." and "New DNS provider..." stack their own drawers and come back with it selected. *@
+@* A new certificate, in a drawer: from an ACME CA (with live progress), the local CA, self-signed, or uploaded. A
+   certificate lives in the vault, not in the config, so this really issues or uploads and hands back the new
+   certificate. "New ACME account..." and "New DNS provider..." stack their own drawers. *@
 @inject AcmeIssuanceService Issuance
 @inject AcmeAccountService AcmeAccounts
 @inject DnsProviderService DnsProviders

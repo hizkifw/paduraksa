@@ -1,6 +1,5 @@
-@* Runs one ACME issuance or renewal and shows its live progress: the service reports each step through IProgress, pushed to this
-   component's dispatcher (no polling). The run belongs to the server, not to this page: closing the page doesn't stop it, and its
-   result shows on the certificate. *@
+@* Runs one ACME issuance or renewal and shows its live progress, pushed to this component's dispatcher (no polling). The
+   run belongs to the server: closing the page doesn't stop it. *@
 @implements IDisposable
 
 <OrderProgressView ChallengeType="ChallengeType" Reports="_reports" Attempts="Attempts" Now="_now" />

@@ -1,6 +1,6 @@
-@* Upload a certificate with its key (PEM or PFX). The file is streamed from the browser into the vault's import during the call and never
-   read into memory here; the password is handed over as a char array that is cleared afterwards, and the field is emptied as soon as the
-   form is sent, whatever the outcome. *@
+@* Upload a certificate with its key (PEM or PFX): streamed from the browser into the vault's import during the call,
+   never read into memory here. The password is a char array, cleared afterwards, and the field is emptied as the form is
+   sent. *@
 @using Microsoft.Extensions.Logging
 @inject ILogger<UploadCertificateForm> Logger
 @using Microsoft.AspNetCore.Components.Forms

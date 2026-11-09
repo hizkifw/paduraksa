@@ -1,8 +1,8 @@
 namespace Paduraksa.Dashboard.AccountArea;
 
 /// <summary>
-/// A hint at how strong a new password is, for the meter under the field: length counts most (PLAN §5.2: the only rule is a minimum
-/// length), then variety. A hint only; the service checks the length, nothing else.
+/// A hint at how strong a new password is, for the meter under the field: length counts most (the only rule the service enforces is
+/// a minimum length), then variety. A hint only.
 /// </summary>
 public static class PasswordStrength
 {

@@ -19,8 +19,8 @@
 @inject TimeProvider Time
 @inject IServiceProvider Services
 @inject ILogger<Certificates> Logger
-@* The certificates (PLAN §9, §12): everything this instance can serve, where it came from, who uses it and when it ends. A certificate
-   opens in a drawer (its address, /certificates/crt_..., is the list with that drawer open); a new one is made in a drawer too. *@
+@* The certificates: everything this instance can serve, where it came from, who uses it and when it ends. The address
+   /certificates/crt_... is this list with that drawer open. *@
 
 <PageTitle>Certificates · Paduraksa</PageTitle>
 
@@ -42,7 +42,6 @@
     </MudAlert>
 }
 
-@* The states as filters: each says how many certificates are in it, and picking it shows only those (again: all of them). *@
 <div class="pdk-cert-summary" role="group" aria-label="Show only">
     @foreach (CertificateFilter filter in Filters)
     {

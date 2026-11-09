@@ -1,6 +1,6 @@
-@* A certificate in a drawer (PLAN §9, §12): its facts, who uses it, its ACME state, and renew, re-issue and delete. It reads the inventory
-   itself and follows changes to it (a renewal by the scheduler, another tab), so its address (/certificates/crt_...) opens it from
-   anywhere. Renew now stacks the progress on top; re-issue and delete ask first. *@
+@* A certificate in a drawer: its facts, who uses it, its ACME state, and renew, re-issue and delete. Its address
+   (/certificates/crt_...) opens it from anywhere; it follows changes to the inventory, so a renewal by the scheduler
+   shows. *@
 @implements IDisposable
 @inject CertificateService CertificateInventory
 @inject CertificateOperations Operations

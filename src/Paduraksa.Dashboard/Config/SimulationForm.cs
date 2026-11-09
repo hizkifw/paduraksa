@@ -5,7 +5,7 @@ using Paduraksa.Contracts.Simulation;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// The simulator's request form (PLAN §7.7): a URL and a client IP are enough; method, headers, how the request arrives and the TLS
+/// The simulator's request form: a URL and a client IP are enough; method, headers, how the request arrives and the TLS
 /// context are optional and default as a browser on the LAN would.
 /// </summary>
 public sealed class SimulationForm
@@ -75,7 +75,6 @@ public sealed class SimulationForm
         };
     }
 
-    /// <summary>A trace step's name.</summary>
     public static string StepTitle(SimulationStep step)
     {
         ArgumentNullException.ThrowIfNull(step);

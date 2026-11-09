@@ -7,9 +7,9 @@
 @inject ReviewedDraft Draft
 @inject ISnackbar Snackbar
 @inject ILogger<ReviewPanel> Logger
-@* "Review changes" (PLAN §12), a level of the drawer stack: every edit is run as a dry run first and shown as a diff with its warnings
-   and errors; Apply commits it with the version the form opened with. A stale version is a friendly conflict, a commit that couldn't go
-   live says so, and a successful one leaves a toast with Undo. The level hands back a ReviewOutcome. *@
+@* "Review changes", a level of the drawer stack: every edit is run as a dry run first and shown as a diff with its
+   warnings and errors; Apply commits it with the version the form opened with. A stale version is a friendly conflict, a
+   commit that couldn't go live says so, and a successful one leaves a toast with Undo. *@
 
 <DrawerShell Title="@Request.Title" Icon="@Icons.Material.Outlined.FactCheck" Name="review">
     <ChildContent>

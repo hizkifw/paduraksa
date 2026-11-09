@@ -23,7 +23,6 @@
     <Actions>
         @if (_mayRead && _verification is not { Intact: false } && !_verifyFailed)
         {
-            @* A chain that verifies is the normal case: a quiet line, and a way to check again. A broken one is a banner below. *@
             <span class="pdk-chain-status" data-section="chain" data-chain="@ChainState">
                 @if (_verifying)
                 {
@@ -92,7 +91,6 @@ else
     <MudPaper Class="pdk-card pdk-audit-filters" Elevation="0" Outlined="true" data-section="filters">
         <div class="pdk-card-head">
             <MudText Typo="Typo.subtitle2" HtmlTag="h2">Filter</MudText>
-            @* Always there, hidden while nothing is filtered, so the card doesn't change height when it shows. *@
             <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearAsync" Disabled="!Filtered" Class="@(Filtered ? null : "pdk-hidden")"
                        aria-hidden="@(Filtered ? null : "true")" data-action="clear-filters">Clear filters</MudButton>
         </div>

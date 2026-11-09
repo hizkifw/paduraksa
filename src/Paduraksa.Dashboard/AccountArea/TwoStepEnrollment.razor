@@ -1,8 +1,8 @@
 @using Paduraksa.Application.Commands
 @using Paduraksa.Application.Identity
-@* Two-step sign-in (TOTP) for the signed-in user, shared by the first-run wizard and My account: confirm the password, scan the QR code
-   (drawn here as SVG; the secret goes nowhere else), enter a code, keep the recovery codes. The password is dropped as it is sent, the
-   secret once the code is confirmed, the codes once they are acknowledged, and all of it when the component goes away. *@
+@* Two-step sign-in (TOTP), shared by the first-run wizard and My account: confirm the password, scan the QR code (drawn
+   here; the secret goes nowhere else), enter a code, keep the recovery codes. The password is dropped as it is sent, the
+   secret once the code is confirmed, the codes once they are acknowledged. *@
 @implements IDisposable
 @inject IDashboardIdentity Identity
 @inject DashboardCaller Caller

@@ -1,6 +1,6 @@
 @typeparam T where T : struct
-@* A settings field with an "inherit" choice (PLAN §5.3): a nullable value where null means the layer below's, and an option that
-   says in words what that inherited value would be. Renders the same row, control and classes wherever it is used. *@
+@* A settings field with an "inherit" choice: a nullable value where null means the layer below's, and an option that
+   says in words what that inherited value would be. *@
 <SettingRow Title="@Title" Help="@Help" HelpContent="@HelpContent">
     <MudSelect T="T?" Value="Value" ValueChanged="OnValueChanged" Label="@Label"
                Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="@ReadOnly" Disabled="@Disabled"

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 namespace Paduraksa.Dashboard.Auth;
 
 /// <summary>
-/// Ties a circuit to its session (PLAN §12). When the circuit opens it starts the background re-check; on inbound activity (an event, a
+/// Ties a circuit to its session. When the circuit opens it starts the background re-check; on inbound activity (an event, a
 /// navigation, a JavaScript call) it re-checks the session at most every <see cref="DashboardOptions.ActivityRecheckInterval"/>, and an
 /// activity that finds the session ended is dropped (the state change sends the page to the sign-in page). Once the session has ended,
 /// the circuit gets <see cref="DashboardOptions.EndedCircuitGrace"/> to follow that redirect; any activity after it tears the circuit

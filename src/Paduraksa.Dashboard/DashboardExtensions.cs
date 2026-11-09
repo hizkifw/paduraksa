@@ -20,7 +20,7 @@ using Paduraksa.Dashboard.Theme;
 
 namespace Paduraksa.Dashboard;
 
-/// <summary>Registers and maps the dashboard (PLAN §12): a Blazor Web App in the interactive server render mode, with MudBlazor.</summary>
+/// <summary>Registers and maps the dashboard: a Blazor Web App in the interactive server render mode, with MudBlazor.</summary>
 public static class DashboardExtensions
 {
     /// <summary>

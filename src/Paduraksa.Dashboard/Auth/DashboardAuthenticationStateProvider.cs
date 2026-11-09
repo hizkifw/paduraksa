@@ -9,7 +9,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Auth;
 
 /// <summary>
-/// The dashboard's authentication state (PLAN §12), one per page render and one per circuit. It starts from the request that rendered
+/// The dashboard's authentication state, one per page render and one per circuit. It starts from the request that rendered
 /// the page or opened the circuit, whose user the admin app's authentication set from the session cookie (a <see cref="SessionIdentity"/>),
 /// adds the user's permissions, and then keeps checking that the session is still live: in the background every
 /// <see cref="DashboardOptions.SessionRecheckInterval"/>, and whenever a component or the circuit asks (<see cref="RecheckAsync"/>). When

@@ -1,7 +1,7 @@
 @implements IDisposable
 @inject DrawerStack Drawers
-@* "Review changes" for a page whose form isn't a drawer itself (the global defaults, a rollback from the history, the wizard's first
-   host): Open puts ReviewPanel on the drawer stack, and how it ends comes back through the callbacks. Renders nothing itself. *@
+@* "Review changes" for a page whose form isn't a drawer itself: Open puts ReviewPanel on the drawer stack and how it
+   ends comes back through the callbacks. *@
 
 @code {
     private DrawerLevel? _level;

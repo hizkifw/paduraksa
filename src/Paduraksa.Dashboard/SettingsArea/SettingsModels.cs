@@ -6,7 +6,7 @@ using Paduraksa.Dashboard.Config;
 namespace Paduraksa.Dashboard.SettingsArea;
 
 /// <summary>
-/// The layers of host settings as the forms edit them (PLAN §5.3): the contract's own <see cref="HostSettings"/> records, where a null
+/// The layers of host settings as the forms edit them: the contract's own <see cref="HostSettings"/> records, where a null
 /// field means <i>inherit</i>. The forms bind to them directly; the built-in defaults and the merge are the backend's
 /// (<see cref="HostSettingsLayers"/>), so the dashboard can never promise a value the proxy would not apply.
 /// </summary>
@@ -178,7 +178,7 @@ public static class SettingsSummary
     }
 }
 
-/// <summary>The common <c>max-age</c> values a form offers, plus a custom number of seconds (PLAN §14 M6).</summary>
+/// <summary>The common <c>max-age</c> values a form offers, plus a custom number of seconds.</summary>
 public enum HstsMaxAgeChoice
 {
     /// <summary>The layer below's value.</summary>
@@ -187,10 +187,8 @@ public enum HstsMaxAgeChoice
     /// <summary>300 seconds: long enough to try it, short enough to undo.</summary>
     FiveMinutes,
 
-    /// <summary>A day.</summary>
     OneDay,
 
-    /// <summary>About half a year.</summary>
     SixMonths,
 
     /// <summary>A year, the built-in default and the shortest a preload list accepts.</summary>
@@ -258,7 +256,7 @@ public static class HstsMaxAgePresets
 }
 
 /// <summary>
-/// The global settings as the defaults form edits them (PLAN §5.1, §7.6): the bottom layer of host settings, what an unknown name gets,
+/// The global settings as the defaults form edits them: the bottom layer of host settings, what an unknown name gets,
 /// the default certificate and who may tell us the client's address. Options that don't apply to the chosen trusted-proxy mode are
 /// dropped when the settings are built, so switching modes never leaves a field the validator refuses.
 /// </summary>
@@ -283,7 +281,7 @@ public sealed class GlobalSettingsEditModel
     /// <summary>The version the form opened with.</summary>
     public long Version => _original.Version;
 
-    /// <summary>The layer of host settings, each field null to inherit the built-in default (PLAN §5.3). Shared with the
+    /// <summary>The layer of host settings, each field null to inherit the built-in default. Shared with the
     /// stored document: replace it with <c>with</c>, never mutate it in place.</summary>
     public HostSettings Defaults { get; set; }
 
@@ -361,7 +359,7 @@ public sealed class ProfileEditModel
 
     public string? Notes { get; set; }
 
-    /// <summary>Its layer of host settings, each field null to inherit the global defaults (PLAN §5.3). Shared with the
+    /// <summary>Its layer of host settings, each field null to inherit the global defaults. Shared with the
     /// stored document: replace it with <c>with</c>, never mutate it in place.</summary>
     public HostSettings Settings { get; set; }
 

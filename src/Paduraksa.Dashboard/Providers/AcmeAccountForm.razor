@@ -1,6 +1,6 @@
-@* Register an account with an ACME CA: a preset (Let's Encrypt, its staging, CAs with external account binding) or any directory URL,
-   a contact email, the CA's terms (required) and, for CAs that need it, the binding's key ID and HMAC key. The HMAC key is write-only:
-   the field is emptied as the form is sent and the key is never shown again. *@
+@* Register an account with an ACME CA: a preset or any directory URL, a contact email, the CA's terms, and for CAs that
+   need it the binding's key ID and HMAC key. The HMAC key is write-only: the field is emptied as the form is sent and
+   the key is never shown again. *@
 @using Microsoft.Extensions.Logging
 @inject ILogger<AcmeAccountForm> Logger
 

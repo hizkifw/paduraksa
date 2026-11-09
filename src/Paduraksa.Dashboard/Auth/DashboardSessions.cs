@@ -16,7 +16,6 @@ public interface IDashboardSessions
     ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(UserId user, CancellationToken cancellationToken);
 }
 
-/// <summary>The identity services behind <see cref="IDashboardSessions"/>: <see cref="SessionService.CheckAsync"/> and <see cref="IPermissionEvaluator"/>.</summary>
 internal sealed class DashboardSessions(SessionService sessions, IPermissionEvaluator permissions) : IDashboardSessions
 {
     public async Task<SessionPrincipal?> CheckAsync(SessionId session, bool countAsUse, CancellationToken cancellationToken)

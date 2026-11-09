@@ -1,7 +1,6 @@
 @using Paduraksa.Application.Compilation
-@* The fields of one layer of host settings (PLAN §5.3), shared by the global defaults, the profiles and the hosts: each binds to the
-   contract's own record, where null means inherit, and says what it would inherit. Paths are relative to the layer (/forceHttps,
-   /tls, /ipAllowList), under PathPrefix. Rows of the same shape can go first (a host's profile, which decides what the rest inherit). *@
+@* The fields of one layer of host settings, shared by the global defaults, the profiles and the hosts: each binds to the
+   contract's own record, where null means inherit, and says what it would inherit. Paths are relative to the layer. *@
 <div class="pdk-setting-list">
     @ChildContent
     @if (ShowForceHttps)
@@ -122,7 +121,7 @@
 </div>
 
 @code {
-    /// <summary>The layer being edited (PLAN §5.3); a null field inherits.</summary>
+    /// <summary>The layer being edited; a null field inherits.</summary>
     [Parameter, EditorRequired]
     public HostSettings Settings { get; set; } = new();
 

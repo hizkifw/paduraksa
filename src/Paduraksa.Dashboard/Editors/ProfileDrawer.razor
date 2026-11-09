@@ -1,8 +1,8 @@
 @using Paduraksa.Application.Compilation
 @inherits DraftDrawer<ProfileEditModel, ProfileConfig>
 
-@* A profile in a drawer (PLAN §5.3, §12): a name, notes and the host settings it sets, each "Inherit" otherwise. On its own it goes
-   through Review changes; opened from a host's form (Stage) it is handed back, to be applied with the host in one revision. *@
+@* A profile in a drawer: a name, notes and the host settings it sets. On its own it goes through Review changes; opened
+   from a host's form it is handed back, to be applied with the host in one revision. *@
 
 <DrawerShell Title="@Title"
              Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : "Settings that every host with this profile inherits, on top of the global defaults. A host can still set its own.")"

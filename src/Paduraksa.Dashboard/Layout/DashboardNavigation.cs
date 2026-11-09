@@ -15,7 +15,7 @@ namespace Paduraksa.Dashboard.Layout;
 public sealed record NavigationEntry(string Title, string Href, string Icon, string? Group, Permission? Requires, bool Available, params string[] Also);
 
 /// <summary>
-/// The side navigation (PLAN §12): the one way between pages. Every page has its own entry, grouped by what it is about, and a page's
+/// The side navigation: the one way between pages. Every page has its own entry, grouped by what it is about, and a page's
 /// address starts with its group's (/certificates/acme under TLS, /settings/users under Settings), so the address and the marked entry
 /// always agree. A page's entry is the one with the longest address that its own address starts with.
 /// </summary>

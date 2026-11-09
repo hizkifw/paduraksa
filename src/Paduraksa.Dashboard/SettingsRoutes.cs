@@ -1,6 +1,6 @@
 namespace Paduraksa.Dashboard;
 
-/// <summary>The settings pages (PLAN §12, page 10): the instance-wide defaults and who may use the instance.</summary>
+/// <summary>The settings pages: the instance-wide defaults and who may use the instance.</summary>
 public static class SettingsRoutes
 {
     /// <summary>The global defaults: the bottom layer of host settings, unknown names, the default certificate, trusted proxies.</summary>

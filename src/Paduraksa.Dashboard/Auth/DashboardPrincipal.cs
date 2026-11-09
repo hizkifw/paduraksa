@@ -23,26 +23,20 @@ public sealed class DashboardPrincipal : ClaimsPrincipal
     /// <summary>The session, its user and the client it was opened from.</summary>
     public SessionIdentity Session { get; }
 
-    /// <summary>The signed-in user's ID.</summary>
     public UserId UserId => Session.Session.UserId;
 
-    /// <summary>The signed-in user's username.</summary>
     public string Username => Session.Session.Username;
 
-    /// <summary>The session's ID.</summary>
     public SessionId SessionId => Session.Session.SessionId;
 
-    /// <summary>What the user may do.</summary>
     public IReadOnlySet<Permission> Permissions { get; }
 
     /// <summary>The name to show: the display name, or the username.</summary>
     public string DisplayName => string.IsNullOrWhiteSpace(Session.Session.DisplayName) ? Username : Session.Session.DisplayName;
 
-    /// <summary>Whether the user holds <paramref name="permission"/>.</summary>
     public bool Has(Permission permission) => Permissions.Contains(permission);
 }
 
-/// <summary>Reading the <see cref="DashboardPrincipal"/> off an authentication state's user.</summary>
 public static class DashboardPrincipalExtensions
 {
     /// <summary>The dashboard user, or null when <paramref name="user"/> is anonymous.</summary>

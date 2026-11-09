@@ -1,8 +1,8 @@
 @attribute [Authorize]
 @attribute [Route(DashboardRoutes.Settings)]
 @inject NavigationManager Navigation
-@* /settings has no page of its own: every settings page is in the side navigation. The address goes to the first of them the user may
-   see, and to their own account when there is none. *@
+@* /settings has no page of its own: the address goes to the first settings page the user may see, and to their own
+   account when there is none. *@
 
 @code {
     [CascadingParameter]

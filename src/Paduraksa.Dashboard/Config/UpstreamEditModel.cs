@@ -4,8 +4,8 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// The upstream form's state (PLAN §5.1): name, destinations, load balancing and health. Destinations keep their IDs, so YARP's health
-/// state survives the edit (PLAN §6.3); a new destination gets a fresh one.
+/// The upstream form's state: name, destinations, load balancing and health. Destinations keep their IDs, so YARP's health
+/// state survives the edit; a new destination gets a fresh one.
 /// </summary>
 public sealed class UpstreamEditModel
 {

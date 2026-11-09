@@ -3,7 +3,6 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Dashboard.Certificates;
 
-/// <summary>Where one step of the progress list stands.</summary>
 public enum StepState
 {
     Waiting,
@@ -13,7 +12,6 @@ public enum StepState
     Skipped,
 }
 
-/// <summary>One line of the ACME progress list.</summary>
 /// <param name="Title">What the step is.</param>
 /// <param name="State">Where it stands.</param>
 /// <param name="Detail">The service's line for it (counts, record names), or the failure message.</param>
@@ -21,7 +19,7 @@ public enum StepState
 public sealed record ProgressStep(string Title, StepState State, string? Detail = null, DateTimeOffset? At = null);
 
 /// <summary>
-/// The ACME progress list (PLAN §12.1): order → authorizations → challenge published → propagation check (DNS-01 only) → validated →
+/// The ACME progress list: order → authorizations → challenge published → propagation check (DNS-01 only) → validated →
 /// finalized → issued, worked out from the reports a run sent (<see cref="AcmeOrderProgress"/>). A step is done once a later one was
 /// reached, active while it is the latest, and the step a failed run was on is marked failed.
 /// </summary>

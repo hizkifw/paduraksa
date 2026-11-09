@@ -159,7 +159,7 @@ public static class AuditText
 
     /// <summary>
     /// Writes one event as a line of JSON Lines: the fields the API returns, enums and actors by their names, the details as stored. The
-    /// details never hold a secret (PLAN §5.2), so neither does the export.
+    /// details never hold a secret, so neither does the export.
     /// </summary>
     public static void WriteLine(IBufferWriter<byte> output, AuditEventSummary e)
     {

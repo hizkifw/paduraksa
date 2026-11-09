@@ -4,7 +4,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// The host form's state (PLAN §5.1): what a person edits, turned into a <see cref="HostConfig"/> for the command. It starts from the host
+/// The host form's state: what a person edits, turned into a <see cref="HostConfig"/> for the command. It starts from the host
 /// as stored (its <see cref="Version"/> is the one the form opened with, so Apply conflicts when someone changed it since) and keeps what
 /// the form doesn't show (a route's own settings), so saving never drops a field set elsewhere. A new host gets fresh typed IDs.
 /// </summary>
@@ -21,7 +21,6 @@ public sealed class HostEditModel
     /// <summary>The host's ID: the stored one, or a new one for a host that doesn't exist yet.</summary>
     public HostId Id { get; }
 
-    /// <summary>Whether the form creates the host (version 0).</summary>
     public bool IsNew => _original is null;
 
     /// <summary>The version the form was opened with (0 for a new host).</summary>
@@ -39,7 +38,7 @@ public sealed class HostEditModel
 
     public CertificateId? CertificateId { get; set; }
 
-    /// <summary>The host's own layer of settings (PLAN §5.3): each field left null inherits from the profile or the global
+    /// <summary>The host's own layer of settings: each field left null inherits from the profile or the global
     /// defaults. Shared with the stored document: replace it with <c>with</c>, never mutate it in place.</summary>
     public HostSettings Settings { get; set; } = new();
 
@@ -116,10 +115,8 @@ public sealed class HostEditModel
         return model;
     }
 
-    /// <summary>Adds an empty name field.</summary>
     public void AddName() => Names.Add(new TextEntry());
 
-    /// <summary>Adds a route for <paramref name="upstream"/>, ordered after the others.</summary>
     public void AddRoute(UpstreamId? upstream) =>
         Routes.Add(new RouteEntry(RouteId.New()) { UpstreamId = upstream, Order = Routes.Count == 0 ? 0 : Routes.Max(r => r.Order), Path = "/" });
 

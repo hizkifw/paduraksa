@@ -104,7 +104,6 @@ public static class FieldLabels
         ["remove"] = "Remove",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
-    /// <summary>The label of a field name.</summary>
     public static string Of(string field)
     {
         ArgumentNullException.ThrowIfNull(field);

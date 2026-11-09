@@ -1,5 +1,5 @@
-@* Add a DNS provider for DNS-01 (Cloudflare or deSEC), or replace an existing one's credential. The credential is write-only: a password
-   field, emptied as the form is sent; it goes into the vault, usable only against the provider's own API host, and is never shown again. *@
+@* Add a DNS provider for DNS-01 (Cloudflare or deSEC), or replace its credential. The credential is write-only: a
+   password field, emptied as the form is sent, usable only against the provider's own API host, never shown again. *@
 @using Microsoft.Extensions.Logging
 @inject ILogger<DnsProviderForm> Logger
 

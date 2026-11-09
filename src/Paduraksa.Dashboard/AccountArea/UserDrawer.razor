@@ -5,9 +5,8 @@
 @inject DashboardOptions Options
 @inject ISnackbar Snackbar
 @inject Microsoft.Extensions.Logging.ILogger<UserDrawer> Logger
-@* A user in a drawer (PLAN §10.1): add one (username, display name, initial password, roles), or change one's name, roles and whether
-   they may sign in, sent as one update of only what changed. The service decides, the last-Owner guard included; its refusal shows here.
-   The initial password lives only in this drawer and is cleared as it is sent. *@
+@* A user in a drawer: add one, or change a name, roles and whether they may sign in, as one update of only what changed.
+   The service decides, the last-Owner guard included; the initial password lives only here. *@
 
 <DrawerShell Title="@(IsNew ? "Add a user" : User!.DisplayName)"
              Icon="@Icons.Material.Outlined.Group" Name="user" OnSubmit="SaveAsync">

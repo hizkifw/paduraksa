@@ -13,7 +13,7 @@ using Paduraksa.Dashboard.Drawers;
 namespace Paduraksa.Dashboard.Editors;
 
 /// <summary>
-/// The shared life of the three draft drawers (PLAN §5.3, §12): the caller and its permissions, the document they edit,
+/// The shared life of the three draft drawers: the caller and its permissions, the document they edit,
 /// inline validation, the dirty guard, review-before-apply, "changed elsewhere" and the reload that starts over. A drawer
 /// supplies what makes it a host, an upstream or a profile through the abstract hooks.
 /// <para>A base class rather than a helper the drawers compose: the state is the component's own (the drawer's level
@@ -92,13 +92,10 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
 
     protected ILogger Log => _log ??= Loggers.CreateLogger(GetType());
 
-    /// <summary>The message a failed load is logged under.</summary>
     protected abstract string LoadFailureMessage { get; }
 
-    /// <summary>The message a failed refresh after someone else's commit is logged under.</summary>
     protected abstract string RefreshFailureMessage { get; }
 
-    /// <summary>Loads the document to edit, or the draft the drawer was opened against.</summary>
     protected abstract Task<ConfigDocument> LoadSourceAsync();
 
     /// <summary>Finds the object in <paramref name="document"/>, or starts a new one; false when it isn't there (<see cref="Missing"/> is set).</summary>
@@ -122,22 +119,18 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
     /// <summary>Whether a commit elsewhere re-reads the document here: a new object has no stored version to report.</summary>
     protected virtual bool TracksCommits => true;
 
-    /// <summary>Hook for what a drawer sets from the caller beyond <see cref="MayWrite"/>.</summary>
     protected virtual void OnPrincipal(DashboardPrincipal user)
     {
     }
 
-    /// <summary>Hook for what a drawer clears before a load.</summary>
     protected virtual void OnReset()
     {
     }
 
-    /// <summary>Hook for what a drawer derives from the loaded document.</summary>
     protected virtual void OnDocumentLoaded()
     {
     }
 
-    /// <summary>Hook for what a drawer clears before reloading from scratch.</summary>
     protected virtual void OnReload()
     {
     }
@@ -206,7 +199,6 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
         }
     }
 
-    /// <summary>The field's error, once it has been touched or the form submitted.</summary>
     protected string? E(string path) =>
         (Attempted || Touched.Contains(path)) && FieldErrors.TryGetValue(path, out string? message) ? message : null;
 

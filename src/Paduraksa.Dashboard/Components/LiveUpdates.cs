@@ -4,7 +4,7 @@ using Paduraksa.Contracts.Commands;
 namespace Paduraksa.Dashboard.Components;
 
 /// <summary>
-/// Keeps a page's list current without polling (PLAN §12: live by default): it listens to the operational change feed (certificates, ACME
+/// Keeps a page's list current without polling: it listens to the operational change feed (certificates, ACME
 /// accounts, DNS providers, orders) and, when asked, to the config change feed (a host that starts or stops using a certificate), and calls
 /// the page's refresh once per burst of changes. The refresh runs through the page's own dispatcher (the callback is the page's
 /// <c>InvokeAsync</c>); a failing refresh is the page's to report. Dispose it with the page.

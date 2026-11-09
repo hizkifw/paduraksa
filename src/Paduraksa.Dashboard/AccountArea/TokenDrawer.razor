@@ -6,9 +6,8 @@
 @inject DashboardCaller Caller
 @inject TimeProvider Time
 @inject Microsoft.Extensions.Logging.ILogger<TokenDrawer> Logger
-@* A new API token, in a drawer (PLAN §10.1, §11.1): name, expiry and scopes (only what the owner holds, never the token or session
-   permissions). Its secret is shown once, here: the drawer then closes only through "I've copied it" (not Escape or a click beside it),
-   and the secret goes with the drawer. *@
+@* A new API token, in a drawer: scopes only what the owner holds, never the token or session permissions. Its secret is
+   shown once and the drawer then closes only through "I've copied it", which also takes the secret away. *@
 
 <DrawerShell Title="@(_issued is null ? "Create an API token" : "Your new token")"
              Subtitle="@(_issued is null ? "A credential for the REST API that acts as you." : "Shown once. Copy it before you close this.")"

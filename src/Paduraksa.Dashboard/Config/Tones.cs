@@ -7,7 +7,6 @@ namespace Paduraksa.Dashboard.Config;
 /// <summary>Tones as the theme's CSS classes and MudBlazor colours, and the tones of what a change does.</summary>
 public static class Tones
 {
-    /// <summary>The <c>pdk-tone-*</c> class suffix.</summary>
     public static string Css(this Tone tone) => tone switch
     {
         Tone.Primary => "primary",
@@ -18,7 +17,6 @@ public static class Tones
         _ => "default",
     };
 
-    /// <summary>The MudBlazor colour.</summary>
     public static Color Color(this Tone tone) => tone switch
     {
         Tone.Primary => MudBlazor.Color.Primary,
@@ -38,7 +36,6 @@ public static class Tones
         _ => Tone.Default,
     };
 
-    /// <summary>What happened, in a word.</summary>
     public static string Word(ConfigChangeKind? kind) => kind switch
     {
         ConfigChangeKind.Added => "Added",
@@ -47,7 +44,6 @@ public static class Tones
         _ => "Unchanged",
     };
 
-    /// <summary>The icon of a kind of object.</summary>
     public static string IconOf(ChangedObject what) => what switch
     {
         ChangedObject.Host => Icons.Material.Outlined.Language,

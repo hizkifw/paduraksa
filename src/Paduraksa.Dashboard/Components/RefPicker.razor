@@ -1,7 +1,6 @@
 @typeparam T
-@* A field that references another object (an upstream, a certificate, a profile, an ACME account): a select of what exists, and last a
-   "New ..." choice that makes one. Choosing it calls OnNew instead of changing the value (the caller stacks a drawer for the new object
-   and sets the value to it when the drawer hands one back); meanwhile the field keeps showing what was picked before. *@
+@* A field that references another object: a select of what exists, and last a "New ..." choice that calls OnNew instead
+   of changing the value, the caller stacking a drawer and setting the value when it hands one back. *@
 <MudSelect T="T" Value="@(_choosingNew ? NewValue : Value)" ValueChanged="OnChangedAsync" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
            ReadOnly="ReadOnly" Disabled="Disabled" HelperText="@HelperText" Error="Error" ErrorText="@ErrorText" ToStringFunc="Display" Class="@Class"
            Placeholder="@Placeholder" @attributes="Attributes">

@@ -11,8 +11,8 @@
 @inject IDialogService Dialogs
 @inject DrawerStack Drawers
 @inject Microsoft.Extensions.Logging.ILogger<Users> Logger
-@* Settings: users and roles (PLAN §10.1). The list for users:read; adding and changing (in a drawer) and deleting for users:write (the
-   Owner). The services decide, the last-Owner guard included; its refusal is shown where the change was asked for. *@
+@* Settings: users and roles. The list needs users:read; adding, changing and deleting need users:write (the Owner). The
+   services decide, the last-Owner guard included, and its refusal shows where the change was asked for. *@
 
 <PageTitle>Users and roles · Settings · Paduraksa</PageTitle>
 

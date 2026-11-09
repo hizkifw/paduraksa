@@ -1,6 +1,5 @@
-@* The HSTS "Remembered for" field (PLAN §5.3, §14 M6): the common max-age values plus custom seconds. The config holds seconds only, so
-   the preset-or-custom choice is this component's own state; it is derived from the value, and remembers a custom number while a preset
-   is picked, as the form always has. *@
+@* The HSTS "Remembered for" field: the common max-age values plus custom seconds, which is the only form the config
+   holds. *@
 @if (Visible)
 {
     <div class="pdk-setting">
@@ -44,7 +43,7 @@
     private HstsSettings? _seen;
     private bool _initialised;
 
-    /// <summary>The layer's HSTS record (PLAN §5.3); its <c>MaxAge</c> is the one this field edits, null inheriting.</summary>
+    /// <summary>The layer's HSTS record; its <c>MaxAge</c> is the one this field edits, null inheriting.</summary>
     [Parameter]
     public HstsSettings? Value { get; set; }
 

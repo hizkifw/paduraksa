@@ -10,7 +10,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// What the config pages ask of the Application layer (PLAN §6, §7.7): the current config and its commands (dry runs included), the
+/// What the config pages ask of the Application layer: the current config and its commands (dry runs included), the
 /// history, the certificate inventory's public listing, the simulator, and the change feed for live updates. A seam so the pages can be
 /// tested without a database; <see cref="DashboardConfig"/> is the real one. Everything it hands out is a Contracts DTO.
 /// </summary>
@@ -26,7 +26,6 @@ public interface IDashboardConfig
     /// <summary>The live snapshot's warnings (hosts without certificate coverage, bindings that went bad); paths index the live document.</summary>
     IReadOnlyList<ConfigWarning> LiveWarnings { get; }
 
-    /// <summary>The latest revision and its document.</summary>
     Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Runs a command (a dry run when it says so) for <paramref name="origin"/>.</summary>

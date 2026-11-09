@@ -1,6 +1,6 @@
 @inject DrawerStack Drawers
-@* My account: two-step verification. Off: set up an authenticator (the same enrolment as the first-run wizard). On: new recovery codes
-   or turn it off, each behind the current password, in a drawer (TwoFactorDrawer) that holds the password and the codes. *@
+@* My account: two-step verification: set up an authenticator, change the recovery codes or turn it off, each behind the
+   current password. *@
 <MudPaper Class="pdk-card pdk-account-card" Elevation="0" Outlined="true" data-card="two-factor" data-state="@(Enabled ? "on" : "off")">
     <div class="pdk-card-head">
         <div>

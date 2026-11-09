@@ -5,9 +5,9 @@
 @inject DashboardCaller Caller
 @inject ISnackbar Snackbar
 @inject Microsoft.Extensions.Logging.ILogger<TwoFactorDrawer> Logger
-@* My account's two-step verification, in a drawer: set up an authenticator (the same enrolment as the first-run wizard), or new recovery
-   codes, or turn it off, each behind the current password. The password and the codes live only in this drawer; once new codes show,
-   only "I have saved them" closes it. Hands back true when the second factor changed. *@
+@* My account's two-step verification, in a drawer: set up an authenticator, new recovery codes, or turn it off, each
+   behind the current password. The password and the codes live only here; once new codes show, only "I have saved them"
+   closes it. *@
 
 <DrawerShell Title="@Title" Icon="@Icons.Material.Outlined.PhonelinkLock"
              IconTone="@(Step == TwoFactorStep.Disable ? Tone.Error : Tone.Primary)" Name="two-factor" Closable="_codes is null">

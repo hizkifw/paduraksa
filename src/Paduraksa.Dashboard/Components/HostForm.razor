@@ -1,11 +1,10 @@
 @using Paduraksa.Application.Compilation
 @using Paduraksa.Contracts.Certificates
 @using Paduraksa.Dashboard.SettingsArea
-@* The host form (PLAN §5.1, §12), in the host drawer: names and kind first, then what the kind needs (routes to upstreams, a redirect, a
-   fixed answer), the certificate, the settings (the profile, then the layer the profile and the global defaults are under, laid out as
-   on those pages), and tags and notes. Every reference is a picker of what exists with "New ..." last: the drawer stacks a
-   drawer for the new object and puts it in. Errors show at their fields: the inline validator's once a field is touched (all of them
-   after a review attempt), and the dry run's. *@
+@* The host form, in the host drawer: names and kind first, then what the kind needs, the certificate, the settings
+   layers, tags and notes. Every reference is a picker of what exists with "New ..." last, which stacks a drawer and puts
+   the new object in. Errors show at their fields, from the inline validator once a field is touched and from the dry
+   run. *@
 <div class="pdk-form" data-kind="@Model.Kind.ToString().ToLowerInvariant()">
     @if (ShowAll && Errors.Count > 0)
     {

@@ -1,6 +1,6 @@
 namespace Paduraksa.Dashboard;
 
-/// <summary>The dashboard's content security policy (PLAN §10.1, §12), for its HTML documents only; the API keeps its own.</summary>
+/// <summary>The dashboard's content security policy, for its HTML documents only; the API keeps its own.</summary>
 public static class DashboardSecurity
 {
     /// <summary>
