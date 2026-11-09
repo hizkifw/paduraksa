@@ -149,7 +149,7 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>
     /// The process's log files (PLAN §7.4): the error log's writer and provider, and the access log's writer, which the access log's
-    /// background drain writes into once it is wired (M6). Both are disposed after the hosts have stopped, which flushes them.
+    /// background drain writes into. Both are disposed after the hosts have stopped, which flushes them.
     /// </summary>
     public ServerLogFiles LogFiles { get; }
 

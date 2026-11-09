@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// The access-log buffer between the request path and the writer (PLAN §7.4, §5.3 of this branch's plan): a fixed-size,
+/// The access-log buffer between the request path and the writer (PLAN §7.4): a fixed-size,
 /// lock-free, <b>multi-producer single-consumer</b> ring of <see cref="AccessLogEntry"/> structs. The hot path only
 /// reserves a slot and writes a struct into it; a background service is the one reader
 /// (<c>AccessLogDrainService</c>).

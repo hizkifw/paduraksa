@@ -244,13 +244,12 @@ process log.
 
 | Setting | Default | What |
 |---|---|---|
-| `Paduraksa:AccessLog:RingSize` | `16384` | Slots between the request path and the writer: a power of two from 1024 to 1048576 (about 3 MiB at the default: each slot is padded to three cache lines) |
-| `Paduraksa:AccessLog:LogQueryString` | `true` | Write the query string. `false` logs the path only. |
-| `Paduraksa:AccessLog:SensitiveQueryKeys` | the well-known names | Query parameters whose value becomes `name=REDACTED`: `token`, `access_token`, `refresh_token`, `id_token`, `code`, `password`, `passwd`, `pwd`, `secret`, `client_secret`, `key`, `api_key`, `apikey`, `signature`, `sig`, `auth`, `session` (ignoring case). Setting it **replaces** that list. |
+| `Paduraksa__AccessLog__RingSize` | `16384` | Slots between the request path and the writer: a power of two from 1024 to 1048576 (about 3 MiB at the default: each slot is padded to three cache lines) |
+| `Paduraksa__AccessLog__LogQueryString` | `true` | Write the query string. `false` logs the path only. |
+| `Paduraksa__AccessLog__SensitiveQueryKeys` | the well-known names | Query parameters whose value becomes `name=REDACTED`: `token`, `access_token`, `refresh_token`, `id_token`, `code`, `password`, `passwd`, `pwd`, `secret`, `client_secret`, `key`, `api_key`, `apikey`, `signature`, `sig`, `auth`, `session` (ignoring case). Setting it **replaces** that list. |
 
 Cookies and `Authorization` never reach the log, and a value that would break a line (a CR or LF in a path or user agent)
-is escaped. One host can turn its access log off (Settings → the host → Access log → Off); the request ID, and later the
-error pages, still work.
+is escaped. One host can turn its access log off (Settings → the host → Access log → Off); its requests still get a request ID.
 
 ```sh
 Paduraksa__AccessLog__RingSize=65536
