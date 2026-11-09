@@ -112,7 +112,7 @@ public sealed record RevisionRef(ConfigRevisionId Id, long Seq)
 public sealed record ConfigConflict(IReadOnlyList<ConfigChange> ChangedSinceBase, RevisionRef? CurrentRevision = null, long? CurrentVersion = null);
 
 /// <summary>
-/// How the snapshot publish after a commit went (PLAN §6.1 step 6). The publisher only publishes the latest snapshot:
+/// How the snapshot publish after a commit went. The publisher only publishes the latest snapshot:
 /// when a newer revision is queued before this one went live, this one is superseded, and its outcome is that of the
 /// publish that carries it (<paramref name="Revision"/> then names the newer revision).
 /// </summary>
@@ -154,7 +154,7 @@ public enum PublishOutcomeStatus
 /// <param name="Document">Its canonical document, versions included.</param>
 public sealed record CurrentConfig(ConfigDocument Document, RevisionRef? Revision = null);
 
-/// <summary>A change notification (PLAN §6.1 step 7): a revision was committed.</summary>
+/// <summary>A change notification: a revision was committed.</summary>
 /// <param name="Revision">The new revision.</param>
 /// <param name="Changes">What it changed.</param>
 public sealed record ConfigCommitted(RevisionRef Revision, IReadOnlyList<ConfigChange> Changes);

@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>
-/// One layer of host settings (PLAN §5.3, §6.4). Every field is nullable and null (absent in JSON) means
+/// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
 /// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>) merge field by field; list-valued settings
 /// (<see cref="IpAllowList"/>) replace as a whole.
@@ -27,7 +27,7 @@ public sealed record HostSettings
     public HstsSettings? Hsts { get; init; }
 
     /// <summary>
-    /// Write a line for every request of this host to the access log (PLAN §7.4). Built-in default: on. A host that turns
+    /// Write a line for every request of this host to the access log. Built-in default: on. A host that turns
     /// it off is still proxied, and its requests still carry a request ID; they just aren't logged (the drop counter and
     /// the error log are unaffected).
     /// </summary>
@@ -64,7 +64,7 @@ public sealed record RouteSettings
     public IpAllowListSettings? IpAllowList { get; init; }
 }
 
-/// <summary>TLS settings (PLAN §7.2 B); each field inherits on its own. A layer that sets none is the same as no layer.</summary>
+/// <summary>TLS settings; each field inherits on its own. A layer that sets none is the same as no layer.</summary>
 public sealed record TlsSettings : ISettingsLayer
 {
     /// <summary>Lowest TLS version over TCP (QUIC is always 1.3). Built-in default: TLS 1.2.</summary>
@@ -91,7 +91,7 @@ public sealed record TlsSettings : ISettingsLayer
 public sealed record IpAllowListSettings(IReadOnlyList<string> Addresses, bool DropDenied = false);
 
 /// <summary>
-/// HTTP Strict Transport Security (PLAN §14 M6): the host's HTTPS responses tell a browser to keep the host on HTTPS for
+/// HTTP Strict Transport Security: the host's HTTPS responses tell a browser to keep the host on HTTPS for
 /// <see cref="MaxAge"/> seconds, and with <see cref="IncludeSubDomains"/> every subdomain too. Each field inherits on its
 /// own. Paduraksa sends it only to HTTPS requests, and never for an IP literal or a loopback name.
 /// </summary>
@@ -120,7 +120,7 @@ public sealed record HstsSettings : ISettingsLayer
 }
 
 /// <summary>
-/// What the host's responses say in <c>Server</c> (PLAN §14 M6). <see cref="Mode"/> and <see cref="Value"/> inherit on
+/// What the host's responses say in <c>Server</c>. <see cref="Mode"/> and <see cref="Value"/> inherit on
 /// their own, like every other nested setting.
 /// </summary>
 public sealed record ServerHeaderSettings : ISettingsLayer

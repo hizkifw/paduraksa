@@ -7,7 +7,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Simulation;
 
-/// <summary>Which config the simulator runs the request against (PLAN §7.7).</summary>
+/// <summary>Which config the simulator runs the request against.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<SimulationTargetKind>))]
 public enum SimulationTargetKind
 {

@@ -5,12 +5,12 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Config;
 
-/// <summary>An upstream (PLAN §5.1): a set of destinations that routes proxy to, compiled into a YARP cluster.</summary>
+/// <summary>An upstream: a set of destinations that routes proxy to, compiled into a YARP cluster.</summary>
 /// <param name="Id">Identity; also the YARP cluster ID.</param>
 /// <param name="Name">Human label, unique ignoring case.</param>
-/// <param name="Version">Concurrency version (PLAN §6.4).</param>
+/// <param name="Version">Concurrency version.</param>
 /// <param name="Destinations">At least one. Canonical order: by ID. Their IDs must stay stable for YARP health state to
-/// survive (PLAN §6.3).</param>
+/// survive.</param>
 /// <param name="LoadBalancing">Null: whatever YARP's default is (today power of two choices); a value pins the
 /// policy, so null and <see cref="LoadBalancingPolicy.PowerOfTwoChoices"/> are kept apart.</param>
 /// <param name="SessionAffinity">Cookie-based session affinity.</param>

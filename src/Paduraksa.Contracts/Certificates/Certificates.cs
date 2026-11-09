@@ -9,7 +9,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Contracts.Certificates;
 
 /// <summary>
-/// Where a certificate stands against the clock (PLAN §9.2). Derived from <c>NotBefore</c>/<c>NotAfter</c> at the time of
+/// Where a certificate stands against the clock. Derived from <c>NotBefore</c>/<c>NotAfter</c> at the time of
 /// the query, never stored.
 /// </summary>
 [JsonConverter(typeof(ConfigEnumConverter<CertificateValidity>))]
@@ -28,7 +28,7 @@ public enum CertificateValidity
 /// <summary>
 /// What the vault (or the import flow) reports about a certificate it created, replaced or imported, to be recorded in
 /// the inventory (<c>CertificateService.RegisterAsync</c>). Registering an ID that exists replaces its metadata:
-/// renewals and re-issues keep their <see cref="Id"/> (PLAN §9.2). Public data only.
+/// renewals and re-issues keep their <see cref="Id"/>. Public data only.
 /// </summary>
 /// <param name="Id">The certificate's ID, as chosen by the caller and used for the vault's key.</param>
 /// <param name="Source">Where it came from.</param>

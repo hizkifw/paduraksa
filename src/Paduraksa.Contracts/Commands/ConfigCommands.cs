@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Commands;
 
 /// <summary>
-/// A change to the config (PLAN §6.1, §6.4), as every surface (dashboard, API, MCP, CLI, YAML import) hands it to the
+/// A change to the config, as every surface (dashboard, API, MCP, CLI, YAML import) hands it to the
 /// command pipeline. Who sent it is not part of the command: the surface passes the authenticated origin alongside.
 /// </summary>
 /// <remarks>
@@ -34,7 +34,7 @@ public abstract record ConfigCommand
     public bool DryRun { get; init; }
 
     /// <summary>
-    /// Do the change even though it cuts the caller's own way into the admin (PLAN §3.1). When a command arrives through the
+    /// Do the change even though it cuts the caller's own way into the admin. When a command arrives through the
     /// admin's internal listener, a change that deletes the admin host, disables it or removes its HTTPS is refused unless
     /// this is set (the API's <c>?force=true</c>, a command's <c>force</c>); on any other surface it has no effect.
     /// </summary>
@@ -76,7 +76,7 @@ public sealed record DeleteProfileCommand(ProfileId ProfileId, long Version) : C
 public sealed record UpdateSettingsCommand(GlobalSettings Settings) : ConfigCommand;
 
 /// <summary>
-/// Replaces the whole document: the import path (PLAN §11.5). The versions in <paramref name="Document"/> are ignored:
+/// Replaces the whole document: the import path. The versions in <paramref name="Document"/> are ignored:
 /// an object whose config doesn't change keeps its version, every other one gets a new one.
 /// </summary>
 /// <param name="Document">The config as it should be.</param>
@@ -85,7 +85,7 @@ public sealed record UpdateSettingsCommand(GlobalSettings Settings) : ConfigComm
 public sealed record ReplaceConfigCommand(ConfigDocument Document, ConfigRevisionId? BaseRevision = null) : ConfigCommand;
 
 /// <summary>
-/// Restores the config of an earlier revision as a <b>new</b> revision (PLAN §6.1); history is never rewritten. The
+/// Restores the config of an earlier revision as a <b>new</b> revision; history is never rewritten. The
 /// default <see cref="ConfigCommand.Message"/> is "Rollback to #N".
 /// </summary>
 /// <param name="Target">The revision whose config to restore.</param>

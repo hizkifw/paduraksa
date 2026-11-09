@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Identity;
 
-// The wire shapes of the identity services (PLAN §5.2, §10.1). They carry typed IDs and names, never a hash, a secret reference or
+// The wire shapes of the identity services. They carry typed IDs and names, never a hash, a secret reference or
 // a stored token. Requests that hold a credential print a redacted ToString, so a stray log line cannot leak one.
 
 /// <summary>An admin user as the admin surfaces see them.</summary>
@@ -146,7 +146,7 @@ public sealed record SetupStatus(bool Complete);
 /// <param name="ExpiresAt">When the session ends (when the partial session ends, if a second factor is owed).</param>
 public sealed record SessionStarted(SessionId SessionId, bool SecondFactorRequired, DateTimeOffset ExpiresAt);
 
-/// <summary>Creates the first Owner (PLAN §12.1).</summary>
+/// <summary>Creates the first Owner.</summary>
 /// <param name="SetupToken">The one-time token from the server log or <c>paduraksa setup-token</c>.</param>
 /// <param name="Username">The Owner's sign-in name.</param>
 /// <param name="Password">The Owner's password.</param>

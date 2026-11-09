@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Certificates;
 
-/// <summary>Why the config serves a certificate for a host (PLAN §9.2).</summary>
+/// <summary>Why the config serves a certificate for a host.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<CertificateUseKind>))]
 public enum CertificateUseKind
 {

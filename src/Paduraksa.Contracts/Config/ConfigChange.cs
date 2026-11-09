@@ -6,14 +6,12 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>
-/// One entry of the structural diff between two config documents (PLAN §6.1): an object added, removed or modified,
+/// One entry of the structural diff between two config documents: an object added, removed or modified,
 /// keyed by its typed ID. It feeds the dashboard's review sheet, <c>dryRun</c> responses and revision summaries.
 /// </summary>
 /// <remarks>
-/// <para>Routes and destinations are entries of their own, keyed by their parent's ID too, and listed right after
-/// their parent. They are only listed when the parent exists on both sides: an added or removed host carries its
-/// routes, an added or removed upstream its destinations. A route that moves to another host is removed from one and
-/// added to the other. Route order is config (first match wins): when the routes a host keeps come in a different
+/// <para>Routes and destinations are entries of their own, listed right after their parent and only when the parent
+/// exists on both sides. Route order is config (first match wins): when the routes a host keeps come in a different
 /// relative order, the host lists its <c>routes</c> field.</para>
 /// <para>Version changes alone aren't changes: the version is concurrency metadata, not config.</para>
 /// </remarks>

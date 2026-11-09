@@ -1,6 +1,6 @@
 namespace Paduraksa.Contracts.Config;
 
-/// <summary>A validation or compile error in a config document (PLAN §6.4).</summary>
+/// <summary>A validation or compile error in a config document.</summary>
 /// <param name="Path">JSON pointer (RFC 6901) into the document, e.g. <c>/hosts/3/routes/0/path</c>; <c>""</c> is the
 /// whole document. Indices count in the document as validated: as the client sent it, before canonicalisation;
 /// validation and compile errors both point at what the client wrote, and an object command's errors are relative to

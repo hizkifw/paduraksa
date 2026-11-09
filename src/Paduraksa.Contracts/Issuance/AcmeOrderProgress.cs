@@ -7,7 +7,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Issuance;
 
 /// <summary>
-/// Where a running ACME issuance stands (PLAN §9.3), finer than the stored order status: the steps a person watching the dashboard sees
+/// Where a running ACME issuance stands, finer than the stored order status: the steps a person watching the dashboard sees
 /// go by. In order; a run that resumes an order may start past the first steps, and a run whose authorizations are already valid skips
 /// from <see cref="OrderCreated"/> to <see cref="Validated"/>.
 /// </summary>

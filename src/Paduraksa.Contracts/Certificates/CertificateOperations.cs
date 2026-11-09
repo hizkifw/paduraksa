@@ -9,7 +9,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Contracts.Certificates;
 
 /// <summary>
-/// A new self-signed certificate (PLAN §9). Public data only: the key is made in the vault and never appears here.
+/// A new self-signed certificate. Public data only: the key is made in the vault and never appears here.
 /// </summary>
 /// <param name="Names">DNS names, <c>*.</c> wildcards and IP addresses; at least one. The first is the common name when it is a DNS name of at most 64 characters.</param>
 /// <param name="KeySpec">The kind of key the vault generates, on the wire its stable name (<c>ecdsa-p256</c>, <c>ecdsa-p384</c>, <c>rsa-2048</c>, <c>rsa-3072</c>, <c>rsa-4096</c>).</param>
@@ -22,14 +22,14 @@ public sealed record SelfSignedCertificateRequest(
     string? Label = null);
 
 /// <summary>
-/// Creates the local CA root, if there is none (PLAN §9). There is one local CA: asking again returns the existing root.
+/// Creates the local CA root, if there is none. There is one local CA: asking again returns the existing root.
 /// </summary>
 /// <param name="KeySpec">The kind of key the vault generates for the root.</param>
 /// <param name="Validity">How long the root is valid from now; null for the default (ten years).</param>
 /// <param name="Label">A display name.</param>
 public sealed record LocalCaRequest([property: JsonConverter(typeof(KeySpecNameConverter))] KeySpec KeySpec = KeySpec.EcdsaP256, TimeSpan? Validity = null, string? Label = null);
 
-/// <summary>A new leaf certificate signed by the local CA (PLAN §9).</summary>
+/// <summary>A new leaf certificate signed by the local CA.</summary>
 /// <param name="Names">DNS names, <c>*.</c> wildcards and IP addresses; at least one.</param>
 /// <param name="KeySpec">The kind of key the vault generates.</param>
 /// <param name="Validity">How long it is valid from now (the vault caps it at the root's remaining validity); null for the default (90 days).</param>
@@ -41,14 +41,14 @@ public sealed record LocalCaLeafRequest(
     string? Label = null);
 
 /// <summary>
-/// Re-issues a self-signed or local-CA certificate under the same <see cref="CertificateId"/> and a new key (the
-/// one-click re-issue of PLAN §9): its names stay, and Specific bindings survive.
+/// Re-issues a self-signed or local-CA certificate under the same <see cref="CertificateId"/> and a new key: its names
+/// stay, and Specific bindings survive.
 /// </summary>
 /// <param name="KeySpec">The new key's kind; null keeps the current kind.</param>
 /// <param name="Validity">How long the new certificate is valid from now; null for the default of its source.</param>
 public sealed record ReissueRequest([property: JsonConverter(typeof(NullableKeySpecNameConverter))] KeySpec? KeySpec = null, TimeSpan? Validity = null);
 
-/// <summary>What a certificate operation (<c>CertificateOperations</c>) is, for authorization (M4) and audit.</summary>
+/// <summary>What a certificate operation (<c>CertificateOperations</c>) is, for authorization and audit.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<CertificateOperation>))]
 public enum CertificateOperation
 {

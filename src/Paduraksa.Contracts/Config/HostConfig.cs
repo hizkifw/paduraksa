@@ -5,12 +5,12 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Config;
 
-/// <summary>A host (PLAN §5.1): the names it answers for and what it does with requests.</summary>
+/// <summary>A host: the names it answers for and what it does with requests.</summary>
 /// <param name="Id">Identity.</param>
 /// <param name="Names">Exact names, <c>*.parent</c> wildcards or IP literals; a set. Canonical form: normalised
 /// (trimmed, lowercase, IDN → punycode, no trailing dot), sorted ordinally, no duplicates. Unique across enabled
 /// hosts.</param>
-/// <param name="Version">Concurrency version (PLAN §6.4).</param>
+/// <param name="Version">Concurrency version.</param>
 /// <param name="Kind">What the host does with requests.</param>
 /// <param name="Enabled">False: validated, but serves nothing; its names may then repeat an enabled host's.</param>
 /// <param name="ProfileId">The profile layer, between the global defaults and this host; null = none.</param>
@@ -48,7 +48,7 @@ public sealed record HostConfig(
     public IReadOnlyList<string> Tags { get; init; } = Tags ?? [];
 }
 
-/// <summary>A host's certificate binding (PLAN §5.1).</summary>
+/// <summary>A host's certificate binding.</summary>
 public sealed record CertificateBinding
 {
     public CertificateBindingMode Mode { get; init; }
@@ -71,7 +71,7 @@ public enum CertificateBindingMode
     None,
 }
 
-/// <summary>One route of a proxy host (PLAN §5.1).</summary>
+/// <summary>One route of a proxy host.</summary>
 /// <param name="Id">Identity; unique across all hosts.</param>
 /// <param name="UpstreamId">The upstream to proxy to.</param>
 /// <param name="Order">Lower runs first; equal orders keep their listed order.</param>

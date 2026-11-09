@@ -1,7 +1,7 @@
 namespace Paduraksa.Contracts.Certificates;
 
 /// <summary>
-/// The local CA root as the download endpoints describe it (PLAN §3, §12.1): public data only, so the first-run wizard
+/// The local CA root as the download endpoints describe it: public data only, so the first-run wizard
 /// can show the fingerprint of the certificate the browser is asked to trust, next to the certificate itself.
 /// </summary>
 /// <param name="Sha256Fingerprint">SHA-256 of the root's DER encoding, lowercase hex without separators.</param>

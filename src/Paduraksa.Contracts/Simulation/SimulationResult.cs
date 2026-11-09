@@ -209,7 +209,7 @@ public sealed record SimulationUpstream(UpstreamId Id, IReadOnlyList<SimulationD
 public sealed record SimulationSource(SimulationTargetKind Kind, ConfigRevisionId? Revision = null);
 
 /// <summary>
-/// The answer to "what would this request get, and why" (PLAN §7.7): the outcome and the ordered trace of what the real
+/// The answer to "what would this request get, and why": the outcome and the ordered trace of what the real
 /// gate did, or, when there was nothing to simulate against, why not.
 /// </summary>
 /// <param name="Status">Whether it ran.</param>

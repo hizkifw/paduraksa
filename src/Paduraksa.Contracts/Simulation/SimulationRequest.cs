@@ -5,7 +5,7 @@ using Paduraksa.Core.Json;
 
 namespace Paduraksa.Contracts.Simulation;
 
-/// <summary>How the simulated request reaches Paduraksa (PLAN §7.6, §7.7).</summary>
+/// <summary>How the simulated request reaches Paduraksa.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<SimulationArrival>))]
 public enum SimulationArrival
 {
@@ -58,7 +58,7 @@ public sealed record SimulationTls(
     SimulationTlsVersion? TlsVersion = null);
 
 /// <summary>
-/// A request to ask "what would this get, and why" about (PLAN §7.7). A URL and a client IP are enough; everything else
+/// A request to ask "what would this get, and why" about. A URL and a client IP are enough; everything else
 /// defaults to a plain GET from a client that connects directly.
 /// </summary>
 /// <param name="Url">The absolute <c>http</c> or <c>https</c> URL: scheme, host, port, path and query. The <c>Host</c>

@@ -6,22 +6,19 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>
-/// The whole proxy config (PLAN §6.4): global settings, profiles, upstreams and hosts with their routes. It is the
+/// The whole proxy config: global settings, profiles, upstreams and hosts with their routes. It is the
 /// source of truth: each revision stores it as canonical JSON (<see cref="ConfigJsonContext"/>), and startup, rollback,
 /// diff and YAML export all read it. It holds references only, never secrets.
 /// </summary>
 /// <remarks>
 /// <para><b>Evolving it.</b> A new field goes at the end of its record's parameters, is nullable, means "as before"
-/// when null, and is omitted when null. Then every stored revision still reads, and re-serialises byte for byte, so its
-/// hash still matches. (A revision's hash is always the hash of its stored bytes, never of a re-serialisation.) Adding
-/// a field never reorders the existing ones. Removing or renaming a field, or changing what an existing value means,
-/// needs a new <see cref="ApiVersion"/>. Downgrades are unsupported: reading stays strict, so an older build rejects a
-/// document with a field it doesn't know rather than silently dropping it.</para>
+/// when null, and is omitted when null; then every stored revision still reads and re-serialises byte for byte, so its
+/// hash still matches. Removing or renaming a field, or changing what an existing value means, needs a new
+/// <see cref="ApiVersion"/>.</para>
 /// <para><b>Defaults are constructor defaults.</b> The JSON source generator sets init-only properties in an object
-/// initializer, so a property initializer would be overwritten when the property is absent. A field whose default isn't
-/// <c>default(T)</c> is therefore a constructor parameter; lists and nested records default to null there and the
-/// property turns that into empty.</para>
-/// <para><b>Equality.</b> The records hold lists, so <c>==</c> compares them by reference. Two documents mean the same
+/// initializer, so a property initializer would be overwritten when the property is absent; a field whose default isn't
+/// <c>default(T)</c> is therefore a constructor parameter.</para>
+/// <para><b>Equality.</b> The records hold lists, so <c>==</c> compares them by reference: two documents mean the same
 /// config exactly when their canonical bytes are equal.</para>
 /// </remarks>
 /// <param name="ApiVersion">Always <see cref="V1"/> for now; required in JSON.</param>
@@ -49,13 +46,13 @@ public sealed record ConfigDocument(
 }
 
 /// <summary>The global settings: one per document.</summary>
-/// <param name="Version">Concurrency version, incremented by the command pipeline on every change (PLAN §6.4).</param>
+/// <param name="Version">Concurrency version, incremented by the command pipeline on every change.</param>
 /// <param name="Defaults">The bottom settings layer: what every host inherits unless its profile, itself or a route
 /// overrides it. Unset fields fall back to the built-in defaults.</param>
 /// <param name="UnknownHost">What a request for a name that no enabled host serves gets.</param>
 /// <param name="DefaultCertificateId">Certificate served when the SNI matches no host or is absent, and to hosts whose
 /// binding resolves to no certificate of their own. Null: such handshakes are rejected.</param>
-/// <param name="TrustedProxies">Who may tell us the client IP and scheme (PLAN §7.6).</param>
+/// <param name="TrustedProxies">Who may tell us the client IP and scheme.</param>
 public sealed record GlobalSettings(
     long Version = 0,
     HostSettings? Defaults = null,
@@ -69,7 +66,7 @@ public sealed record GlobalSettings(
 }
 
 /// <summary>
-/// Trusted proxies in front of Paduraksa (PLAN §7.2 C, §7.6). Only a peer inside the trusted set may supply the
+/// Trusted proxies in front of Paduraksa. Only a peer inside the trusted set may supply the
 /// client IP through a header; anyone else is the client.
 /// </summary>
 /// <param name="Mode">How the client IP reaches us.</param>
@@ -96,10 +93,10 @@ public sealed record TrustedProxySettings(
     public IReadOnlyList<string> Proxies { get; init; } = Proxies ?? [];
 }
 
-/// <summary>A named preset of host settings (PLAN §5.1), e.g. "LAN only"; a host names at most one.</summary>
+/// <summary>A named preset of host settings, e.g. "LAN only"; a host names at most one.</summary>
 /// <param name="Id">Identity.</param>
 /// <param name="Name">Human label, unique ignoring case.</param>
-/// <param name="Version">Concurrency version (PLAN §6.4).</param>
+/// <param name="Version">Concurrency version.</param>
 /// <param name="Settings">The profile layer: between the global defaults and the host.</param>
 /// <param name="Notes">Free text.</param>
 public sealed record ProfileConfig(
