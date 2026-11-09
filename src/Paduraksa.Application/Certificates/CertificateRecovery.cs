@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -86,49 +87,70 @@ public sealed partial class CertificateRecovery
         List<CertificateId> recovered = [];
         List<CertificateId> deleted = [];
         List<CertificateId> failed = [];
-        foreach (VaultCertificate certificate in held.OrderByDescending(c => c.IsLocalCaRoot))
+
+        // Each root is parsed once for the whole pass, not once per certificate it might have signed.
+        List<X509Certificate2> rootCertificates = [];
+        try
         {
-            // A stop is observed between certificates, never inside one: the registration transaction runs with
-            // CancellationToken.None so an abort cannot cancel a commit partway through (and EF log it at Error).
-            cancellationToken.ThrowIfCancellationRequested();
-            if (certificate.Id == AdminCertificate.Id)
+            foreach (VaultCertificate root in roots)
             {
-                // The process's own admin certificate (PLAN §3, §10.1): the core host's AdminCertificateService owns its row
-                // and adopts the vault's leaf itself, so a database loss cannot make two writers race over one fixed ID (nor
-                // leave a delete on record for it, which would make this branch finish the "deletion" of a fresh key).
-                continue;
+                if (TryLoadRoot(root.Info) is { } certificate)
+                {
+                    rootCertificates.Add(certificate);
+                }
             }
 
-            CertificateSource source = certificate.IsLocalCaRoot ? CertificateSource.LocalCaRoot
-                : roots.Any(root => IsSignedBy(certificate.Info, root.Info)) ? CertificateSource.LocalCa
-                : CertificateSource.Uploaded;
-            CertificateRecoveryStep step = await _certificates.RegisterRecoveredAsync(
-                new CertificateRegistration(certificate.Id, source, certificate.Info, CertificateStatus.Active, Label),
-                CommandOrigin.System, republish: false, CancellationToken.None).ConfigureAwait(false);
-            switch (step)
+            foreach (VaultCertificate certificate in held.OrderByDescending(c => c.IsLocalCaRoot))
             {
-                case CertificateRecoveryStep.Registered:
-                    recovered.Add(certificate.Id);
-                    LogRecovered(certificate.Id, source);
-                    break;
-                case CertificateRecoveryStep.WasDeleted:
-                    if (await TryDeleteKeyAsync(certificate.Id, CancellationToken.None).ConfigureAwait(false))
-                    {
-                        deleted.Add(certificate.Id);
-                    }
-                    else
-                    {
-                        failed.Add(certificate.Id);
-                    }
+                // A stop is observed between certificates, never inside one: the registration transaction runs with
+                // CancellationToken.None so an abort cannot cancel a commit partway through (and EF log it at Error).
+                cancellationToken.ThrowIfCancellationRequested();
+                if (certificate.Id == AdminCertificate.Id)
+                {
+                    // The process's own admin certificate (PLAN §3, §10.1): the core host's AdminCertificateService owns its row
+                    // and adopts the vault's leaf itself, so a database loss cannot make two writers race over one fixed ID (nor
+                    // leave a delete on record for it, which would make this branch finish the "deletion" of a fresh key).
+                    continue;
+                }
 
-                    break;
-                case CertificateRecoveryStep.Failed:
-                    failed.Add(certificate.Id);
-                    LogNotRecovered(certificate.Id);
-                    break;
-                default:
-                    // AlreadyRegistered: nothing to do.
-                    break;
+                CertificateSource source = certificate.IsLocalCaRoot ? CertificateSource.LocalCaRoot
+                    : IsSignedBy(certificate.Info, rootCertificates) ? CertificateSource.LocalCa
+                    : CertificateSource.Uploaded;
+                CertificateRecoveryStep step = await _certificates.RegisterRecoveredAsync(
+                    new CertificateRegistration(certificate.Id, source, certificate.Info, CertificateStatus.Active, Label),
+                    CommandOrigin.System, republish: false, CancellationToken.None).ConfigureAwait(false);
+                switch (step)
+                {
+                    case CertificateRecoveryStep.Registered:
+                        recovered.Add(certificate.Id);
+                        LogRecovered(certificate.Id, source);
+                        break;
+                    case CertificateRecoveryStep.WasDeleted:
+                        if (await TryDeleteKeyAsync(certificate.Id, CancellationToken.None).ConfigureAwait(false))
+                        {
+                            deleted.Add(certificate.Id);
+                        }
+                        else
+                        {
+                            failed.Add(certificate.Id);
+                        }
+
+                        break;
+                    case CertificateRecoveryStep.Failed:
+                        failed.Add(certificate.Id);
+                        LogNotRecovered(certificate.Id);
+                        break;
+                    default:
+                        // AlreadyRegistered: nothing to do.
+                        break;
+                }
+            }
+        }
+        finally
+        {
+            foreach (X509Certificate2 root in rootCertificates)
+            {
+                root.Dispose();
             }
         }
 
@@ -156,21 +178,42 @@ public sealed partial class CertificateRecovery
         }
     }
 
-    /// <summary>Whether <paramref name="leaf"/>'s certificate verifies against <paramref name="root"/>'s public key (time and revocation are not judged: a recovered certificate may have expired).</summary>
-    private static bool IsSignedBy(CertificateInfo leaf, CertificateInfo root)
+    /// <summary>Loads a root for the pass; one the vault's description can't yield is skipped, like a leaf that can't be parsed.</summary>
+    private static X509Certificate2? TryLoadRoot(CertificateInfo info)
     {
         try
         {
+            return X509CertificateLoader.LoadCertificate(AcmePem.LeafDer(info.PublicChainPem));
+        }
+        catch (Exception ex) when (ex is FormatException or CryptographicException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Whether <paramref name="leaf"/>'s certificate verifies against any of the pre-parsed roots (time and revocation are not judged: a recovered certificate may have expired).</summary>
+    private static bool IsSignedBy(CertificateInfo leaf, List<X509Certificate2> roots)
+    {
+        if (roots.Count == 0)
+        {
+            return false;
+        }
+
+        try
+        {
             using X509Certificate2 leafCertificate = X509CertificateLoader.LoadCertificate(AcmePem.LeafDer(leaf.PublicChainPem));
-            using X509Certificate2 rootCertificate = X509CertificateLoader.LoadCertificate(AcmePem.LeafDer(root.PublicChainPem));
             using X509Chain chain = new();
             chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-            chain.ChainPolicy.CustomTrustStore.Add(rootCertificate);
+            foreach (X509Certificate2 root in roots)
+            {
+                chain.ChainPolicy.CustomTrustStore.Add(root);
+            }
+
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
             chain.ChainPolicy.VerificationFlags = X509VerificationFlags.IgnoreNotTimeValid;
             return chain.Build(leafCertificate);
         }
-        catch (Exception ex) when (ex is FormatException or System.Security.Cryptography.CryptographicException)
+        catch (Exception ex) when (ex is FormatException or CryptographicException)
         {
             return false;
         }
