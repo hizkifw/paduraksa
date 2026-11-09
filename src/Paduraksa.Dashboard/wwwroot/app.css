@@ -2435,11 +2435,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     letter-spacing: -0.01em;
 }
 
-.pdk-auth-tagline {
-    color: var(--pdk-muted);
-    font-size: 0.75rem;
-}
-
 .pdk-auth-title {
     margin: 0 0 4px;
     font-size: 1.5rem;
