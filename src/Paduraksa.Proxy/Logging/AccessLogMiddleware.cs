@@ -103,6 +103,8 @@ public sealed class AccessLogMiddleware
 
         AccessLogEntry entry = new()
         {
+            // One clock read, not the injected TimeProvider: this runs on every request, and a timestamp needs neither its
+            // virtual call nor a DateTimeOffset. Either is 0 B.
             TimestampUtcTicks = DateTime.UtcNow.Ticks,
             ClientAddress = state is not null && state.ClientAddress != IpKey.Unspecified ? state.FormattedClientAddress() : null,
             Host = host.Count == 1 ? host[0] : null,
