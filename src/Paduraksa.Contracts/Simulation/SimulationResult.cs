@@ -110,6 +110,9 @@ public enum SimulationStepKind
     /// <summary>The host lookup: exact, wildcard, or the default host.</summary>
     HostMatch,
 
+    /// <summary>The host's <c>Server</c> header, sent, removed, or left to the upstream.</summary>
+    ServerHeader,
+
     /// <summary>The connection against the host's TLS settings (the 421 reasons).</summary>
     TlsPolicy,
 
