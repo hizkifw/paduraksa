@@ -58,7 +58,8 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
         Action<HostRole, IServiceCollection>? configureServices = null,
         string? upstreamAddress = null,
         TrustedProxySettings? trustedProxies = null,
-        LogCapture? logs = null)
+        LogCapture? logs = null,
+        HostSettings? adminHostSettings = null)
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         AdminHarness admin = await AdminHarness.StartAsync(settings, configureServices, logs);
@@ -66,7 +67,7 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
 
         List<HostConfig> hosts =
         [
-            new HostConfig(TestIds.Host("admin-proxy"), [AdminHost], Kind: HostKind.Admin),
+            new HostConfig(TestIds.Host("admin-proxy"), [AdminHost], Kind: HostKind.Admin, Settings: adminHostSettings ?? new HostSettings()),
         ];
         List<UpstreamConfig> upstreams = [];
         if (upstreamAddress is not null)

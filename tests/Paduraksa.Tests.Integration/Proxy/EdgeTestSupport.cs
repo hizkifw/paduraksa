@@ -194,12 +194,14 @@ internal static class EdgeClient
 }
 
 /// <summary>
-/// The upstream of the edge tests: a <see cref="HeaderEchoUpstreamHost"/> that also sets its own <c>Alt-Svc</c>, which
-/// must never reach the client.
+/// The upstream of the edge tests: a <see cref="HeaderEchoUpstreamHost"/> that also sets its own <c>Alt-Svc</c> and
+/// <c>Strict-Transport-Security</c>, which must never reach the client as its own (ours replace them, or pass the
+/// HSTS one through when the host has HSTS off).
 /// </summary>
 internal sealed class EdgeUpstream : IAsyncDisposable
 {
     public const string UpstreamAltSvc = "h2=\":9999\"";
+    public const string UpstreamHsts = "max-age=60";
 
     private readonly IHost _host;
 
@@ -214,7 +216,12 @@ internal sealed class EdgeUpstream : IAsyncDisposable
     public static async Task<EdgeUpstream> StartAsync()
     {
         (IHost host, string address) = await HeaderEchoUpstreamHost.StartAsync(
-            static response => response.Headers.AltSvc = UpstreamAltSvc, TestContext.Current.CancellationToken);
+            static response =>
+            {
+                response.Headers.AltSvc = UpstreamAltSvc;
+                response.Headers.StrictTransportSecurity = UpstreamHsts;
+            },
+            TestContext.Current.CancellationToken);
         return new EdgeUpstream(host, address);
     }
 

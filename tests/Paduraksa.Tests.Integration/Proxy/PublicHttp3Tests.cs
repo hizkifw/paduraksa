@@ -45,7 +45,14 @@ public sealed class PublicHttp3Tests
             Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("echo"), Destinations = [new(TestIds.Destination("echo-1"), upstream.Address)] }],
             Hosts =
             [
-                new HostSpec { Id = TestIds.Host("app"), Names = ["app.test"], Certificate = TestIds.Certificate("app"), Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("echo") }] },
+                new HostSpec
+                {
+                    Id = TestIds.Host("app"),
+                    Names = ["app.test"],
+                    Certificate = TestIds.Certificate("app"),
+                    Hsts = new HostHstsSpec { Enabled = true },
+                    Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("echo") }],
+                },
                 new HostSpec { Id = TestIds.Host("tcp"), Names = ["tcp.test"], Certificate = TestIds.Certificate("app"), Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Id = TestIds.Route("tcp-root"), Upstream = TestIds.Upstream("echo") }] },
                 new HostSpec { Id = TestIds.Host("literal"), Names = ["127.0.0.1"], Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Id = TestIds.Route("literal-root"), Upstream = TestIds.Upstream("echo") }] },
             ],
@@ -59,6 +66,7 @@ public sealed class PublicHttp3Tests
         {
             Assert.Equal(HttpVersion.Version20, h2.Version);
             Assert.Equal("h3=\":443\"", string.Join(", ", h2.Headers.GetValues("Alt-Svc")));
+            Assert.Equal("max-age=31536000", Assert.Single(h2.Headers.GetValues("Strict-Transport-Security")));
         }
 
         // H3 over QUIC: the host's certificate, forwarded upstream with the client from the QUIC connection.
@@ -69,6 +77,7 @@ public sealed class PublicHttp3Tests
         Assert.Equal(HttpStatusCode.OK, h3.StatusCode);
         Assert.Equal("app.test", served.Value);
         Assert.False(h3.Headers.Contains("Alt-Svc")); // already on H3
+        Assert.Equal("max-age=31536000", Assert.Single(h3.Headers.GetValues("Strict-Transport-Security"))); // HSTS does go on H3
         Assert.Equal("/h3?x=1", seen["target"]);
         Assert.Equal("127.0.0.1", seen["X-Forwarded-For"]);
         Assert.Equal("https", seen["X-Forwarded-Proto"]);

@@ -38,7 +38,8 @@ public sealed class SimulatorParityTests : IDisposable
     private static readonly string[] Hosts =
     [
         "app.test", "APP.test:8080", "x.app.test", "a.b.app.test", "secure.test", "old.test", "soon.test", "strict.test", "h1.test",
-        "noh3.test", "plain.test", "locked.test", "unknown.test", "admin.test", "[::1]", string.Empty,
+        "noh3.test", "plain.test", "locked.test", "unknown.test", "admin.test", "[::1]", "full.test", "localhost", "app.localhost",
+        "127.0.0.1", "127.0.0.1:8443", string.Empty,
     ];
 
     private static readonly string[] Paths = ["/", "/api/x", "/health", "/health/x", "/blocked", "/drop", "/API/../api", "/%2Fapi", "/nothing", "/a;b/api"];
@@ -268,7 +269,13 @@ public sealed class SimulatorParityTests : IDisposable
                     Route("app-root", "web"),
                 ],
             },
-            ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true },
+            ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true, Hsts = new HostHstsSpec { Enabled = true } },
+            ProxyHost("full", "full.test", Route("full-root", "web")) with
+            {
+                Hsts = new HostHstsSpec { Enabled = true, MaxAgeSeconds = 63_072_000, IncludeSubDomains = true, Preload = true },
+            },
+            ProxyHost("local", "localhost", Route("local-root", "web")) with { Hsts = new HostHstsSpec { Enabled = true } },
+            ProxyHost("v4", "127.0.0.1", Route("v4-root", "web")) with { Hsts = new HostHstsSpec { Enabled = true } },
             new HostSpec { Id = TestIds.Host("old"), Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test", StatusCode = 308 } },
             new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
             ProxyHost("strict", "strict.test", Route("strict-root", "web")) with { Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 } },
@@ -376,12 +383,21 @@ public sealed class SimulatorParityTests : IDisposable
                 return 0;
             }
 
-            (GateOutcomeAction action, int? status, string? location) = await RealAsync(wire, negotiated, tlsVersion);
+            (GateOutcomeAction action, int? status, string? location, string? hsts) = await RealAsync(wire, negotiated, tlsVersion);
             Assert.True(
                 action == simulated.Outcome.Action && status == simulated.Outcome.StatusCode && location == simulated.Outcome.Location,
                 $"{label}: the real gate gave {action} {status} {location}, the simulation {simulated.Outcome.Action} {simulated.Outcome.StatusCode} {simulated.Outcome.Location} ({simulated.Outcome.Reason})");
             Assert.NotEmpty(simulated.Steps);
             Assert.Equal(action == GateOutcomeAction.Forward, simulated.Upstream is not null);
+
+            // The trace's HSTS step says what the response carries, so "why" views can't disagree with the wire.
+            string? simulatedHsts = simulated.Steps
+                .Where(s => s.Kind == GateStepKind.Hsts)
+                .SelectMany(s => s.Facts)
+                .Where(f => f.Name == "value")
+                .Select(f => f.Value)
+                .FirstOrDefault();
+            Assert.True((hsts ?? string.Empty) == (simulatedHsts ?? string.Empty), $"{label}: the response carried HSTS '{hsts}', the trace said '{simulatedHsts}'");
             return 1;
         }
 
@@ -418,7 +434,7 @@ public sealed class SimulatorParityTests : IDisposable
             return (true, wire.Version == ProbeHttpVersion.Http2 && !h2 ? ProbeHttpVersion.Http11 : wire.Version, probe.TlsVersion);
         }
 
-        private async Task<(GateOutcomeAction Action, int? Status, string? Location)> RealAsync(Wire wire, ProbeHttpVersion version, SslProtocols tls)
+        private async Task<(GateOutcomeAction Action, int? Status, string? Location, string? Hsts)> RealAsync(Wire wire, ProbeHttpVersion version, SslProtocols tls)
         {
             string target = wire.Path + (wire.Query is null ? string.Empty : "?" + wire.Query);
             DefaultHttpContext context = TestContexts.Create(
@@ -466,17 +482,23 @@ public sealed class SimulatorParityTests : IDisposable
 
             if (forwarded)
             {
-                return (GateOutcomeAction.Forward, null, null);
+                return (GateOutcomeAction.Forward, null, null, HstsOf(context));
             }
 
             if (lifetime.Aborted)
             {
-                return (GateOutcomeAction.Abort, null, null);
+                return (GateOutcomeAction.Abort, null, null, HstsOf(context));
             }
 
             string location = context.Response.Headers.Location.ToString();
-            return (GateOutcomeAction.Respond, context.Response.StatusCode, context.Response.StatusCode / 100 == 3 && location.Length > 0 ? location : null);
+            return (GateOutcomeAction.Respond, context.Response.StatusCode, context.Response.StatusCode / 100 == 3 && location.Length > 0 ? location : null, HstsOf(context));
         }
+
+        /// <summary>The <c>Strict-Transport-Security</c> the real response carries, or null.</summary>
+        private static string? HstsOf(HttpContext context) =>
+            context.Response.Headers.TryGetValue("Strict-Transport-Security", out Microsoft.Extensions.Primitives.StringValues value) && value.Count > 0
+                ? value.ToString()
+                : null;
     }
 
     private sealed class Lifetime : IHttpRequestLifetimeFeature

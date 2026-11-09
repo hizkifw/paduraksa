@@ -255,6 +255,25 @@ public sealed class AdminThroughProxyTests
     }
 
     [Fact]
+    public async Task TheAdminHostsOwnHstsSettingReplacesTheApps()
+    {
+        // The admin app sets its own header on the internal listener; the host's resolved HSTS, when it has one, is the
+        // one the browser sees (PLAN §3.1, §14 M6).
+        await using AdminProxyHarness plain = await AdminProxyHarness.StartAsync();
+        using (HttpResponseMessage untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
+        {
+            Assert.Equal(HttpStatusCode.OK, untouched.StatusCode);
+            Assert.Equal("max-age=31536000", Assert.Single(untouched.Headers.GetValues("Strict-Transport-Security")));
+        }
+
+        await using AdminProxyHarness configured = await AdminProxyHarness.StartAsync(
+            adminHostSettings: new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = 600 } });
+        using HttpResponseMessage ours = await configured.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: configured.SessionHeader);
+        Assert.Equal(HttpStatusCode.OK, ours.StatusCode);
+        Assert.Equal("max-age=600", Assert.Single(ours.Headers.GetValues("Strict-Transport-Security")));
+    }
+
+    [Fact]
     public async Task SetupIsRefusedThroughTheInternalListener()
     {
         await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();

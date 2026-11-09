@@ -344,6 +344,30 @@ public sealed class ApiConventionTests
     }
 
     [Fact]
+    public async Task TheOpenApiDocumentDescribesHstsInTheSettings()
+    {
+        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+
+        using HttpResponseMessage response = await api.GetAsync("/api/v1/openapi.json", caller: null);
+        JsonObject document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
+        JsonObject schemas = document["components"]!["schemas"]!.AsObject();
+
+        // HostSettings carries it beside the TLS layer, and the schema says what each field means.
+        JsonObject hostSettings = schemas["HostSettings"]!.AsObject();
+        Assert.Contains("hsts", hostSettings["properties"]!.AsObject().Select(p => p.Key));
+        JsonNode property = hostSettings["properties"]!["hsts"]!;
+        string? reference = property["$ref"]?.GetValue<string>() ?? property["oneOf"]?[1]?["$ref"]?.GetValue<string>();
+        Assert.NotNull(reference);
+        Assert.Contains("HstsSettings", reference!, StringComparison.Ordinal);
+
+        JsonObject hsts = schemas["HstsSettings"]!.AsObject();
+        JsonObject properties = hsts["properties"]!.AsObject();
+        Assert.Equal(["enabled", "maxAge", "includeSubDomains", "preload"], properties.Select(p => p.Key));
+        Assert.Contains("max-age", properties["maxAge"]!["description"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("preload", properties["preload"]!["description"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task TheReferenceUiIsAnonymousServesItsScriptLocallyAndNeedsNothingFromOutside()
     {
         await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
