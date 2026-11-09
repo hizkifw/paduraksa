@@ -19,9 +19,9 @@ namespace Paduraksa.Server.Cli;
 
 /// <summary>
 /// <c>paduraksa setup-token</c>, <c>paduraksa admin reset-password &lt;user&gt;</c> and <c>paduraksa admin disable-2fa &lt;user&gt;</c>
-/// (PLAN §11.4, §12.1): what an operator with shell access does when the admin app can't be used (nobody can sign in yet, a password or
-/// an authenticator is lost). They work on the data directory directly, so they run with or without the server, and every change is
-/// audited under the <c>cli</c> actor.
+/// are what an operator with shell access uses when the admin app can't be used (nobody can sign in yet, a password or
+/// an authenticator is lost). They work on the data directory directly, so they run with or without the server, and every
+/// change is audited under the <c>cli</c> actor.
 /// </summary>
 /// <remarks>
 /// <b>A new password never comes through the command line</b> (argv shows in process listings and shell history): it is read from

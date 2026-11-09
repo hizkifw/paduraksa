@@ -27,18 +27,14 @@ using Paduraksa.Server.Placeholders;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// The process-lifetime singletons shared by the core host, the public app and the admin app (PLAN §3).
+/// The process-lifetime singletons shared by the core host, the public app and the admin app.
 /// <para>
-/// Rules this type enforces:
-/// <list type="bullet">
-/// <item>Every shared service is <b>constructed here, exactly once</b>. <see cref="Builder.Add{TService}"/>
-/// only accepts ready-made instances: there's no factory overload, so no container can ever build its own copy.</item>
-/// <item><see cref="RegisterInto"/> registers those <b>same instances</b> into a container. Microsoft.Extensions.DependencyInjection
-/// never disposes instances it didn't create, so disposing the three containers leaves them alone.</item>
-/// <item><see cref="SharedServices"/> owns them: <see cref="DisposeAsync"/> disposes each one exactly once, in reverse
-/// creation order, and only after every host has stopped (<see cref="PaduraksaHost"/> guarantees the ordering).
-/// The logger factory is created first, so it's disposed last and shutdown logs still get flushed.</item>
-/// </list>
+/// Every one is <b>constructed here, exactly once</b>: <see cref="Builder.Add{TService}"/> accepts ready-made instances
+/// only, with no factory overload, so no container can build its own copy. <see cref="RegisterInto"/> registers those same
+/// instances into a container, and since Microsoft.Extensions.DependencyInjection never disposes an instance it didn't
+/// create, disposing the three containers leaves them alone. <see cref="DisposeAsync"/> disposes each one exactly once, in
+/// reverse creation order, after every host has stopped; the logger factory is created first, so it is disposed last and
+/// shutdown logs still get flushed.
 /// </para>
 /// </summary>
 internal sealed class SharedServices : IAsyncDisposable
@@ -87,19 +83,16 @@ internal sealed class SharedServices : IAsyncDisposable
         Permissions = Get<IPermissionEvaluator>();
     }
 
-    /// <summary>User management (PLAN §10.1), the first of the identity services below that the admin app and the REST API use.</summary>
+    /// <summary>User management, the first of the identity services below that the admin app and the REST API use.</summary>
     public UserService Users { get; }
 
-    /// <summary>Admin sessions: cookie validation, listing, revoking.</summary>
     public SessionService Sessions { get; }
 
-    /// <summary>TOTP enrolment and recovery codes.</summary>
     public TwoFactorService TwoFactor { get; }
 
     /// <summary>Sign-in with a password and, for users with one, a second factor.</summary>
     public LoginService Login { get; }
 
-    /// <summary>API tokens: issue, list, revoke, verify.</summary>
     public ApiTokenService ApiTokens { get; }
 
     /// <summary>First-run setup: whether an Owner exists, and the one-time setup token.</summary>
@@ -136,19 +129,19 @@ internal sealed class SharedServices : IAsyncDisposable
     public PlaceholderCertificates Certificates { get; }
 
     /// <summary>
-    /// The admin listener's certificate (PLAN §3, §10.1): the local-CA leaf the admin app serves, kept current by a background
+    /// The admin listener's certificate: the local-CA leaf the admin app serves, kept current by a background
     /// service of the core host. Its <see cref="AdminCertificateService.ServingOptions"/> are the listener's TLS options.
     /// </summary>
     public AdminCertificateService AdminCertificate { get; }
 
     /// <summary>
-    /// The admin app's internal listener (PLAN §3.1): a Unix socket (0600, in a 0700 directory) or the loopback fallback, through
+    /// The admin app's internal listener: a Unix socket (0600, in a 0700 directory) or the loopback fallback, through
     /// which the public proxy reaches the admin. Exists independent of the config, so creating an admin host needs no restart.
     /// </summary>
     public AdminInternalListener AdminInternal { get; }
 
     /// <summary>
-    /// The process's log files (PLAN §7.4): the error log's writer and provider, and the access log's writer, which the access log's
+    /// The process's log files: the error log's writer and provider, and the access log's writer, which the access log's
     /// background drain writes into. Both are disposed after the hosts have stopped, which flushes them.
     /// </summary>
     public ServerLogFiles LogFiles { get; }
@@ -160,7 +153,7 @@ internal sealed class SharedServices : IAsyncDisposable
     public ICertificateCatalog Catalog { get; }
 
     /// <summary>
-    /// The admin app's Data Protection key ring in the vault (PLAN §8.1): the only capability here that is <b>not</b> registered
+    /// The admin app's Data Protection key ring in the vault: the only capability here that is <b>not</b> registered
     /// in any container, so nothing can resolve it from DI. <see cref="HostSetup.ApplySharedServices"/> hands it straight to the
     /// admin's <c>IXmlRepository</c> (its one sanctioned reader). The public app uses an in-memory ephemeral provider, and the
     /// core host gets no protector.
@@ -173,13 +166,13 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>The config write path, started by the core host (<see cref="ConfigStartup"/>); see <see cref="ConfigStore"/>.</summary>
     public ConfigService Config { get; }
 
-    /// <summary>The certificate inventory's service (PLAN §9.2): shares <see cref="Config"/>'s writer; never calls the vault.</summary>
+    /// <summary>The certificate inventory's service: shares <see cref="Config"/>'s writer; never calls the vault.</summary>
     public CertificateService CertificateService { get; }
 
-    /// <summary>The certificate use cases that touch the vault (PLAN §9): upload, self-signed, local CA, re-issue, delete.</summary>
+    /// <summary>The certificate use cases that touch the vault: upload, self-signed, local CA, re-issue, delete.</summary>
     public CertificateOperations CertificateOperations { get; }
 
-    /// <summary>Registers the certificates the vault holds that the inventory lost again (PLAN §9.2); run once at startup by <see cref="CertificateRecoveryStartup"/>.</summary>
+    /// <summary>Registers the certificates the vault holds that the inventory lost again; run once at startup by <see cref="CertificateRecoveryStartup"/>.</summary>
     public CertificateRecovery CertificateRecovery { get; }
 
     /// <summary>Completes when the startup recovery (<see cref="CertificateRecoveryStartup"/>) has finished its run.</summary>
@@ -188,18 +181,16 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>The HTTP-01 answers: the issuance service publishes to it through <see cref="IAcmeChallengeStore"/>, the public gate reads it.</summary>
     public AcmeChallengeStore Challenges { get; }
 
-    /// <summary>ACME accounts (PLAN §9.3); built by <see cref="IssuanceStore"/> over the vault's account keys.</summary>
     public AcmeAccountService AcmeAccounts { get; }
 
-    /// <summary>DNS providers for DNS-01 (PLAN §9.3).</summary>
     public DnsProviderService DnsProviders { get; }
 
-    /// <summary>ACME issuance and renewal (PLAN §9.3): request and renew certificates; the scheduler drives it.</summary>
+    /// <summary>ACME issuance and renewal: request and renew certificates; the scheduler drives it.</summary>
     public AcmeIssuanceService AcmeIssuance { get; }
 
     /// <summary>The renewal scheduler. A hosted service of the core host only when <c>Paduraksa:Acme:Enabled</c> (see <see cref="CoreHost"/>).</summary>
     public AcmeRenewalScheduler AcmeScheduler { get; }
-    /// <summary>The request simulator (PLAN §7.7): what a request would get against the live config, a revision or a draft.</summary>
+    /// <summary>The request simulator: what a request would get against the live config, a revision or a draft.</summary>
     public RequestSimulator Simulator { get; }
 
     /// <summary><c>&lt;data dir&gt;/last-good.json</c>, written after every successful publish.</summary>
@@ -207,7 +198,7 @@ internal sealed class SharedServices : IAsyncDisposable
 
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
-    /// <summary>Builds every shared singleton. <paramref name="configure"/> may add more instances (tests, later milestones).</summary>
+    /// <summary>Builds every shared singleton. <paramref name="configure"/> may add more instances (tests).</summary>
     /// <remarks><paramref name="configureLogging"/> adds to the one logger factory of the process (tests capture logs with it).</remarks>
     public static SharedServices Create(
         IConfiguration configuration,
@@ -235,7 +226,7 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add<IOptionsSnapshot<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsFactory<PaduraksaOptions>>(fixedOptions);
 
-            // The log files (PLAN §7.4), early among the shared services so they are disposed late: everything the hosts' shutdown logs
+            // The log files, early among the shared services so they are disposed late: everything the hosts' shutdown logs
             // still reaches the error log before its writer is flushed. The writer itself is what the access log's drain will use, and
             // the store is the read side the dashboard and the API share.
             ILogger logFileReports = loggerFactory.CreateLogger("Paduraksa.Server.Logging");
@@ -269,7 +260,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 
-            // The access log (PLAN §7.4): the public app's hot path fills the ring, the core host's drain service is its
+            // The access log: the public app's hot path fills the ring, the core host's drain service is its
             // one reader, and it writes the lines into access.log through the writer above. Built after the log files, so
             // the writers outlive the drain's last flush (they are disposed after the hosts have stopped).
             builder.Add(new AccessLogRing(options.AccessLog.RingSize));
@@ -294,13 +285,13 @@ internal sealed class SharedServices : IAsyncDisposable
             // The admin API stores DNS credentials and ACME binding keys through it (write-only: there is no get).
             builder.AddOwnedElsewhere(vault.Secrets);
 
-            // The admin listener's certificate (PLAN §3, §10.1): issued by the local CA, served through the vault and kept
+            // The admin listener's certificate: issued by the local CA, served through the vault and kept
             // current by a background service of the core host (registered in CoreHost). The CA root it publishes feeds the
             // download endpoints.
             CaRootSource caRoot = builder.Add(new CaRootSource());
             builder.Add(new AdminCertificateService(
                 certificates, vault.ServerCertificates, vault.Catalog, caRoot, configStore.Operations, configStore.Config, configStore.Setup, options, timeProvider, coreLoggers));
-            // TODO(M9): MetricsRegistry.
+            // TODO: MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();
             return new SharedServices(builder, loggerFactory, vault.KeyRing);
@@ -359,7 +350,7 @@ internal sealed class SharedServices : IAsyncDisposable
                 console.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z' ";
                 console.ColorBehavior = LoggerColorBehavior.Default;
             });
-            // The error log's own minimum level (PLAN §7.4): a rule for this provider wins over the configuration's rules, which are
+            // The error log's own minimum level: a rule for this provider wins over the configuration's rules, which are
             // about the console. So `Logging:LogLevel:Default=Error` quiets the console without emptying error.log.
             LogLevel minimum = logs.ErrorLevel;
             logging.AddFilter<ErrorLogProvider>((_, level) => level >= minimum);
@@ -439,7 +430,7 @@ internal sealed class SharedServices : IAsyncDisposable
         /// <summary>
         /// Replaces the one shared <typeparamref name="TService"/> an earlier step registered (none: adds it), keeping that
         /// registration's ownership: the replacement is disposed exactly once, before or after its neighbours as the
-        /// replaced one was. This is how a test swaps in a capturing sink, and how a later milestone upgrades a default.
+        /// replaced one was. This is how a test swaps in a capturing sink, or a caller a default.
         /// </summary>
         /// <exception cref="InvalidOperationException">No <typeparamref name="TService"/> was registered.</exception>
         public TService Replace<TService>(TService instance)

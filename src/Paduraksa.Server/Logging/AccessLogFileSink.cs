@@ -3,7 +3,7 @@ using Paduraksa.Proxy.Logging;
 namespace Paduraksa.Server.Logging;
 
 /// <summary>
-/// The access log's sink (PLAN §7.4): hands each formatted line to <c>access.log</c>'s writer
+/// The access log's sink: hands each formatted line to <c>access.log</c>'s writer
 /// (<see cref="ServerLogFiles.Access"/>), which appends it, rotates the file when it has to and never blocks the drain (a
 /// full queue drops the line and counts it).
 /// </summary>

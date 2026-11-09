@@ -26,17 +26,11 @@ using Paduraksa.Server.Placeholders;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// The admin <c>WebApplication</c>: HTTPS on <c>Paduraksa:Listen:Admin</c> (default 9443), served with a certificate the
-/// process issues from the local CA and keeps current (<see cref="AdminCertificateService"/>; PLAN §3, §10.1).
-/// Health endpoints (PLAN §11.3), the local CA root's download endpoints, the security pipeline and identity API
-/// (<c>Paduraksa.Admin</c>: setup gate, authentication, CSRF defence, hardening), the optional source allowlist and the opt-in
-/// loopback plain-HTTP listener.
-/// The resource REST API (<c>/api/v1</c>, its OpenAPI document and the reference UI, PLAN §11.1).
-/// The dashboard (PLAN §12) at <c>/</c>: <c>Paduraksa.Dashboard</c>'s Blazor components, the sign-in forms behind its pages
-/// (<c>Paduraksa.Admin.Web</c>) and its static files, all from the app itself.
-/// The internal listener (PLAN §3.1): a Unix socket (0600, in a 0700 directory) or a loopback fallback, plain HTTP, through
-/// which the public proxy forwards an admin host's requests.
-/// TODO(M10): /mcp. TODO(M9): /metrics.
+/// The admin <c>WebApplication</c>: HTTPS on <c>Paduraksa:Listen:Admin</c> (default 9443) with a certificate the process
+/// issues from the local CA and keeps current (<see cref="AdminCertificateService"/>), and the internal listener the public
+/// proxy forwards an admin host's requests through. It serves the health endpoints, the local CA root's downloads, the
+/// security pipeline and identity API (<c>Paduraksa.Admin</c>), the resource REST API (<c>/api/v1</c> with its OpenAPI
+/// document and reference UI), and the dashboard at <c>/</c> with the sign-in forms behind its pages. TODO: /mcp and /metrics.
 /// </summary>
 internal static partial class AdminApp
 {
@@ -99,7 +93,7 @@ internal static partial class AdminApp
                 admin.UseHttps(adminCertificate.CreateTlsOptions());
             });
 
-            // PLAN §3.1: the internal listener the public proxy reaches. Plain HTTP by design: it is a Unix socket in the
+            // The internal listener the public proxy reaches. Plain HTTP by design: it is a Unix socket in the
             // process's 0700 run directory (0600 for the socket), or a loopback port when one can't be used. No TLS: nothing
             // leaves the process boundary, and no certificate is needed.
             if (internalListener.Enabled)
@@ -123,7 +117,7 @@ internal static partial class AdminApp
                 }
             }
 
-            // PLAN §3: opt-in, loopback only. ListenLocalhost binds 127.0.0.1 and ::1 and nothing else; no setting moves it.
+            // Opt-in, loopback only. ListenLocalhost binds 127.0.0.1 and ::1 and nothing else; no setting moves it.
             if (listen.AdminLoopbackHttp > 0)
             {
                 kestrel.ListenLocalhost(listen.AdminLoopbackHttp, fallback => fallback.Protocols = HttpProtocols.Http1);
@@ -242,12 +236,12 @@ internal static partial class AdminApp
         });
     }
 
-    /// <summary>PLAN §11.3: unauthenticated, status only, never any detail.</summary>
+    /// <summary>Unauthenticated, status only, never any detail.</summary>
     /// <remarks>
     /// A degraded start (the proxy serves the last-known-good config because the config database can't be used, PLAN
     /// §6.1) is still <b>ready</b>: the proxy serves traffic, and taking it out of rotation would turn a config-store
     /// problem into an outage. <c>/readyz</c> then answers 200 with the body <c>degraded</c> instead of <c>ready</c>, a
-    /// status a keyword monitor can alert on, and the cause is logged at Critical. The admin UI shows the banner (M5).
+    /// status a keyword monitor can alert on, and the cause is logged at Critical.
     /// </remarks>
     private static void MapHealth(WebApplication app)
     {
@@ -260,7 +254,7 @@ internal static partial class AdminApp
             WriteStatusAsync(context, snapshots.HasPublished, "ok\n", "unavailable\n"));
 
         // Ready: listeners bound, a snapshot live and not draining; degraded or not (see the remarks). The vault is implied:
-        // the core host starts it first and a vault that can't start stops the process before any listener binds (PLAN §3, §8).
+        // the core host starts it first and a vault that can't start stops the process before any listener binds.
         app.MapMethods("/readyz", GetAndHead, context =>
             WriteStatusAsync(context, health.IsReady && snapshots.HasPublished, config.Status.IsDegraded ? "degraded\n" : "ready\n", "not ready\n"));
     }

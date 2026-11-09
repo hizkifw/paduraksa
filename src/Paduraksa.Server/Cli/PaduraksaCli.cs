@@ -7,10 +7,9 @@ using Paduraksa.Server.Hosting;
 namespace Paduraksa.Server.Cli;
 
 /// <summary>
-/// The <c>paduraksa</c> command line (PLAN §11.4). <c>paduraksa</c> and <c>paduraksa serve</c> run the server.
-/// Future commands (<c>setup-token</c>, <c>admin</c>, <c>config</c>, <c>vault</c>, <c>backup</c>/<c>restore</c>,
-/// <c>doctor</c>, <c>migrate</c>) are added as subcommands in <see cref="BuildRootCommand"/>.
-/// Server settings come from appsettings and environment variables (e.g. <c>Paduraksa__Listen__Https=8443</c>).
+/// The <c>paduraksa</c> command line: <c>paduraksa</c> and <c>paduraksa serve</c> run the server, the rest are
+/// subcommands of <see cref="BuildRootCommand"/>. Server settings come from appsettings and environment variables
+/// (e.g. <c>Paduraksa__Listen__Https=8443</c>).
 /// </summary>
 internal static class PaduraksaCli
 {
@@ -48,7 +47,7 @@ internal static class PaduraksaCli
         root.Subcommands.Add(IdentityCommands.BuildAdmin());
         root.Subcommands.Add(DoctorCommands.Build());
 
-        // TODO(M10): config, backup, restore, migrate. The full doctor (ports, permissions, libmsquic, DNS, clock skew) is M11.
+        // TODO: the config, backup, restore and migrate commands, and the full doctor (ports, permissions, libmsquic, DNS, clock skew).
         return root;
     }
 

@@ -1,8 +1,5 @@
-// Paduraksa composition root (PLAN §3).
-// One process, three hosts sharing one set of core singletons (Hosting/SharedServices):
-//   - core:    non-web host owning process-wide background services; starts first, stops last
-//   - public:  :80 / :443 (H1/H2, H3 when Listen:Http3 is on) -> gate -> YARP
-//   - admin:   :9443 -> /healthz, /readyz; later dashboard, /api/v1, /mcp, /metrics
+// Paduraksa composition root: one process, three hosts (core, public, admin) sharing one set of process-wide
+// singletons, which Hosting/SharedServices builds and owns. See Hosting/PaduraksaHost for the start and stop order.
 using Paduraksa.Server.Cli;
 
 return await PaduraksaCli.InvokeAsync(args).ConfigureAwait(false);

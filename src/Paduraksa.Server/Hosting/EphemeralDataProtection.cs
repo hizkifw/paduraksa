@@ -6,21 +6,15 @@ namespace Paduraksa.Server.Hosting;
 
 /// <summary>
 /// The public app's Data Protection: YARP's <c>AddReverseProxy</c> registers Data Protection for its session-affinity cookie,
-/// but that cookie carries a destination ID, not a secret, so the public proxy has no reason to read or write the vault's key
-/// ring. An <see cref="EphemeralDataProtectionProvider"/> (one random key in memory) is enough, and keeps the public app's
-/// Data Protection out of <c>vault.db</c> and off the disk entirely.
+/// which carries a destination ID and not a secret, so an <see cref="EphemeralDataProtectionProvider"/> (one random key in
+/// memory) is enough and keeps this app's ring out of <c>vault.db</c> and off the disk.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>Two registrations, not one.</b> The provider replacement alone is not enough: <c>AddDataProtection</c> also registers
+/// <b>Two registrations, not one.</b> Replacing the provider is not enough: <c>AddDataProtection</c> also registers
 /// <c>DataProtectionHostedService</c>, which eagerly resolves the key-ring provider at startup and would create a key in the
 /// default file-system repository. <see cref="RemoveKeyRingWarmup"/> removes that one hosted service (by its framework type
-/// name) after YARP has added its services, so nothing ever asks for a key ring in this container.
-/// </para>
-/// <para>
-/// The admin app keeps the vault-backed ring (<c>AddPaduraksaDataProtection</c>): the dashboard's antiforgery and circuit
-/// state must survive a restart, and the admin session cookie itself is Paduraksa's own random value, not Data Protection.
-/// </para>
+/// name) after YARP has added its services, so nothing ever asks for a key ring here. The admin app keeps the vault-backed
+/// ring (<c>AddPaduraksaDataProtection</c>), because the dashboard's antiforgery and circuit state must survive a restart.
 /// </remarks>
 internal static class EphemeralDataProtection
 {

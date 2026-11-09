@@ -12,21 +12,21 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Server.Placeholders;
 
 /// <summary>
-/// TEMPORARY (M3): the certificate source and the built-in inventory until the vault's exist. It knows the in-memory
+/// TEMPORARY: the certificate source and the built-in inventory until the vault's exist. It knows the in-memory
 /// self-signed <see cref="PlaceholderServerCertificate"/> under <see cref="Id"/>, the default certificate of a config that
 /// names none (so the dev binary answers HTTPS out of the box), and the certificates tests add with <see cref="Set"/>.
 /// </summary>
 /// <remarks>
-/// <para><b>The two halves.</b> As an <see cref="IServerCertificateSource"/> it hands out serving contexts, the same
-/// instance every time, like the vault will. As <see cref="IBuiltInCertificates"/> it contributes inventory entries
-/// (public facts only) for what it can serve, so the compiler treats the placeholder like any other certificate: Specific
-/// bindings, Auto matching (the placeholder covers <c>localhost</c> and the loopback addresses), expiry.</para>
-/// <para><b>A stable ID.</b> <see cref="Id"/> is the same in every process (the certificate itself is new in each), so a
-/// stored document that names it, the benchmark runner's hosts for one, keeps compiling after a restart. When the vault
-/// provides real certificates the placeholder goes, and a config that still names this ID degrades like any binding to
-/// a missing certificate (its hosts fall to the default, with a warning) instead of failing to start.</para>
-/// <para>TODO(M3, vault wave): compose with the vault's <c>IServerCertificateSource</c> (the vault first, this for
-/// <see cref="Id"/> only), and drop the placeholder from the release build.</para>
+/// <b>The two halves.</b> As an <see cref="IServerCertificateSource"/> it hands out serving contexts, the same instance
+/// every time, like the vault will. As <see cref="IBuiltInCertificates"/> it contributes inventory entries (public facts
+/// only), so the compiler treats the placeholder like any other certificate: Specific bindings, Auto matching (it covers
+/// <c>localhost</c> and the loopback addresses), expiry.
+///
+/// <b>A stable ID.</b> <see cref="Id"/> is the same in every process (the certificate itself is new in each), so a stored
+/// document that names it, the benchmark runner's hosts for one, keeps compiling after a restart. When the vault provides
+/// real certificates the placeholder goes, and a config that still names this ID degrades like any binding to a missing
+/// certificate instead of failing to start. TODO: compose with the vault's <c>IServerCertificateSource</c> (the vault first,
+/// this for <see cref="Id"/> only), and drop the placeholder from the release build.
 /// </remarks>
 internal sealed class PlaceholderCertificates : IServerCertificateSource, IBuiltInCertificates, IServerCertificateResolver
 {

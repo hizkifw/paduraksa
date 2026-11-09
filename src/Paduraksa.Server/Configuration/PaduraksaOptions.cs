@@ -8,7 +8,7 @@ namespace Paduraksa.Server.Configuration;
 
 /// <summary>
 /// Bootstrap settings bound from the <c>Paduraksa</c> configuration section (appsettings, environment).
-/// Everything else (hosts, routes, certificates, ...) lives in the database from M2 on.
+/// Everything else (hosts, routes, certificates, ...) lives in the database.
 /// Bound and validated once per process; not reloadable (listeners can't move at runtime).
 /// </summary>
 internal sealed class PaduraksaOptions
@@ -16,7 +16,7 @@ internal sealed class PaduraksaOptions
     public const string SectionName = "Paduraksa";
 
     /// <summary>
-    /// Directory holding the databases, the KEK and runtime files (§16: the one volume).
+    /// Directory holding the databases, the KEK and the runtime files: the one volume to mount and back up.
     /// A relative path is resolved against the content root (the directory holding <c>appsettings.json</c>,
     /// by default the app's base directory) when the options are bound, never against the process's working
     /// directory; after binding this is always a fully qualified path. Absolute paths are used as given.
@@ -26,22 +26,22 @@ internal sealed class PaduraksaOptions
 
     public PaduraksaListenOptions Listen { get; set; } = new();
 
-    /// <summary>Sign-in, lockout, session and password settings (<c>Paduraksa:Admin</c>, PLAN §10.1).</summary>
+    /// <summary>Sign-in, lockout, session and password settings (<c>Paduraksa:Admin</c>).</summary>
     public AdminOptions Admin { get; set; } = new();
 
-    /// <summary>Certificate startup work (PLAN §9.2): how long the vault/inventory recovery may delay the core host.</summary>
+    /// <summary>Certificate startup work: how long the vault/inventory recovery may delay the core host.</summary>
     public PaduraksaCertificateOptions Certificates { get; set; } = new();
 
-    /// <summary>ACME issuance and renewal (PLAN §9.3): the scheduler, its timing and which CAs are trusted.</summary>
+    /// <summary>ACME issuance and renewal: the scheduler, its timing and which CAs are trusted.</summary>
     public PaduraksaAcmeOptions Acme { get; set; } = new();
 
-    /// <summary>The access log (PLAN §7.4): the hot path's ring size, and what the formatter writes.</summary>
+    /// <summary>The access log: the hot path's ring size, and what the formatter writes.</summary>
     public PaduraksaAccessLogOptions AccessLog { get; set; } = new();
 
     /// <summary>Switches for development and tests; off in a release build.</summary>
     public PaduraksaDevelopmentOptions Development { get; set; } = new();
 
-    /// <summary>Log files (PLAN §7.4): where the access and error logs live, how big they may get, and how much of them is kept.</summary>
+    /// <summary>Log files: where the access and error logs live, how big they may get, and how much of them is kept.</summary>
     public PaduraksaLogOptions Logs { get; set; } = new();
 
     /// <summary>
@@ -90,7 +90,7 @@ internal sealed class PaduraksaDevelopmentOptions
 }
 
 /// <summary>
-/// The access log (<c>Paduraksa:AccessLog</c>, PLAN §7.4): the ring the hot path writes and the drain reads, and what the
+/// The access log (<c>Paduraksa:AccessLog</c>): the ring the hot path writes and the drain reads, and what the
 /// formatted line may contain.
 /// </summary>
 internal sealed class PaduraksaAccessLogOptions
@@ -219,7 +219,7 @@ internal sealed class AdminOptions
     public long MaxRequestBodyBytes { get; set; } = AdminSecurityOptions.DefaultMaxRequestBodyBytes;
 
     /// <summary>
-    /// Extra names the admin listener's certificate covers (<c>Paduraksa:Admin:CertificateNames</c>, PLAN §3, §10.1):
+    /// Extra names the admin listener's certificate covers (<c>Paduraksa:Admin:CertificateNames</c>):
     /// DNS names and IP addresses the owner reaches the admin UI by. The process always adds <c>localhost</c>,
     /// <c>127.0.0.1</c>, <c>::1</c>, the machine's host name and a specific <c>Paduraksa:Listen:AdminBind</c> address, so
     /// this is only for additional names (an admin host name, say). A change re-issues the certificate under the same ID.
@@ -228,8 +228,8 @@ internal sealed class AdminOptions
     public IList<string> CertificateNames { get; } = new List<string>();
 
     /// <summary>
-    /// How long the core host waits for the admin certificate at startup (<c>Paduraksa:Admin:CertificateStartupTimeout</c>,
-    /// PLAN §3): every web app, the public proxy included, binds only after it, so this bounds how long a slow vault can
+    /// How long the core host waits for the admin certificate at startup (<c>Paduraksa:Admin:CertificateStartupTimeout</c>):
+    /// every web app, the public proxy included, binds only after it, so this bounds how long a slow vault can
     /// delay the listeners. On timeout the certificate is prepared in the background and the admin port serves what it has
     /// (the vault's existing certificate, else the placeholder) until it is ready. 1 second to 5 minutes.
     /// </summary>
@@ -293,7 +293,7 @@ internal sealed class PaduraksaListenOptions
     public int Https { get; set; } = 443;
 
     /// <summary>
-    /// The HTTPS port clients reach (PLAN §7.5, §16): advertised in <c>Alt-Svc</c> and used by the HTTP→HTTPS redirect.
+    /// The HTTPS port clients reach: advertised in <c>Alt-Svc</c> and used by the HTTP→HTTPS redirect.
     /// Differs from <see cref="Https"/> only behind a port mapping (e.g. bound to 8443, published as 443).
     /// </summary>
     public int PublicHttpsPort { get; set; } = 443;
@@ -303,7 +303,7 @@ internal sealed class PaduraksaListenOptions
     /// </summary>
     public bool Http3 { get; set; } = true;
 
-    /// <summary>PROXY protocol on the public HTTP listener (PLAN §7.2 A). Off by default.</summary>
+    /// <summary>PROXY protocol on the public HTTP listener. Off by default.</summary>
     public ProxyProtocolListenOptions HttpProxyProtocol { get; set; } = new();
 
     /// <summary>PROXY protocol on the public HTTPS TCP listener, read before TLS. QUIC has none. Off by default.</summary>
@@ -312,11 +312,10 @@ internal sealed class PaduraksaListenOptions
     /// <summary>Admin HTTPS port. 0 (OS-assigned) only with <c>PaduraksaHostOptions.AllowEphemeralPorts</c> (tests).</summary>
     public int Admin { get; set; } = 9443;
 
-    /// <summary>Bind address of the admin listener (§3: configurable).</summary>
     public string AdminBind { get; set; } = "0.0.0.0";
 
     /// <summary>
-    /// The admin app's internal listener (PLAN §3.1), through which the public proxy reaches it: a Unix socket at
+    /// The admin app's internal listener, through which the public proxy reaches it: a Unix socket at
     /// <c>&lt;data dir&gt;/run/admin.sock</c> (0600, in a 0700 directory), or <c>127.0.0.1:&lt;ephemeral&gt;</c> where one can't be
     /// bound. It is <b>on by default</b> and independent of the config, so creating an admin host later needs no restart. Off:
     /// no admin host can compile (a config with one is refused). The listener carries no TLS: it is process-local.
@@ -357,7 +356,7 @@ internal sealed class ProxyProtocolListenOptions
 }
 
 /// <summary>
-/// Log files (<c>Paduraksa:Logs</c>, PLAN §7.4): the access log and the process's own error log, both on disk under one directory, rotated
+/// Log files (<c>Paduraksa:Logs</c>): the access log and the process's own error log, both on disk under one directory, rotated
 /// by size and by day and trimmed by count, age and total size. The options here are the same for both logs; only the error log has a level
 /// of its own, because it is the only one the process writes itself.
 /// </summary>

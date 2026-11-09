@@ -16,25 +16,18 @@ using Paduraksa.Server.Configuration;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// The public app, built on the <b>generic host with an explicit pipeline</b>, not <c>WebApplication</c> (PLAN §7.1,
-/// spike S3). YARP's <c>AddReverseProxy</c> registers authorization services, and <c>WebApplication</c> would then insert
+/// The public app, built on the <b>generic host with an explicit pipeline</b>, not <c>WebApplication</c>: YARP's
+/// <c>AddReverseProxy</c> registers authorization services, and <c>WebApplication</c> would then insert
 /// <c>UseAuthorization()</c> ahead of the gate on every request; here nothing is added that isn't written below. The
-/// pipeline holds only the proxy path, so admin endpoints can't be routed here at all (PLAN §3):
+/// pipeline holds only the proxy path, so admin endpoints can't be routed here at all:
 /// <code>
 /// gate (decides; answers or sets YARP's endpoint) → UseRouting (skips matching) → YARP (affinity → LB → passive health)
 /// </code>
-/// Listeners (PLAN §3, §7.5), all on dual-mode <c>[::]</c> (<c>0.0.0.0</c> without IPv6):
-/// <list type="bullet">
-/// <item><c>Paduraksa:Listen:Http</c>/tcp, H1: ClientInfo connection middleware (PROXY protocol if enabled).</item>
-/// <item><c>Paduraksa:Listen:Https</c>/tcp, H1/H2: ClientInfo (PROXY protocol if enabled), then TLS with per-SNI
-/// options from the live snapshot.</item>
-/// <item><c>Paduraksa:Listen:Https</c>/udp, H3, when enabled and libmsquic is present: the QUIC handshake callback
-/// selects the certificate and attaches ClientInfo.</item>
-/// </list>
-/// Kestrel's own <c>Alt-Svc</c> is off; the gate sends one per host with the public port. Kestrel isn't bound to the
-/// <c>Kestrel</c> config section, and the hosting keys that could still add or replace listeners (<c>urls</c>,
-/// <c>http_ports</c>, ...) are pinned by <see cref="HostSetup.PinListenerConfiguration(IConfigurationBuilder)"/>, so
-/// these are the only listeners.
+/// The listeners (dual-mode <c>[::]</c>, or <c>0.0.0.0</c> without IPv6) are <c>Paduraksa:Listen:Http</c> and <c>:Https</c>
+/// over TCP, the latter with TLS from the live snapshot's per-SNI options, plus QUIC when HTTP/3 is available. Kestrel's own
+/// <c>Alt-Svc</c> is off (the gate sends one per host), and the hosting keys that could add or replace listeners
+/// (<c>urls</c>, <c>http_ports</c>, ...) are pinned by
+/// <see cref="HostSetup.PinListenerConfiguration(IConfigurationBuilder)"/>.
 /// </summary>
 internal static partial class PublicApp
 {
@@ -47,7 +40,7 @@ internal static partial class PublicApp
         ILogger logger = new RoleLoggerFactory(context.Shared.LoggerFactory, HostRole.Public).CreateLogger(typeof(PublicApp).FullName!);
         if (listeners.Http3)
         {
-            // The positive half of the libmsquic check: this line only appears when QUIC actually loaded (PLAN §7.5, §16).
+            // The positive half of the libmsquic check: this line only appears when QUIC actually loaded.
             LogHttp3Enabled(logger, listen.Https, listen.PublicHttpsPort);
         }
         else if (listeners.Http3Requested)
@@ -98,7 +91,7 @@ internal static partial class PublicApp
                         DeferredUpstreamHealth health = app.ApplicationServices.GetRequiredService<DeferredUpstreamHealth>();
                         health.Attach(app.ApplicationServices.GetRequiredService<IUpstreamHealth>());
                         app.ApplicationServices.GetRequiredService<IHostApplicationLifetime>().ApplicationStopped.Register(health.Detach);
-                        // The access log wraps everything, the gate included (PLAN §7.4): every outcome gets a line.
+                        // The access log wraps everything, the gate included: every outcome gets a line.
                         app.Use(app.ApplicationServices.GetRequiredService<AccessLogMiddleware>().InvokeAsync);
                         GateMiddleware gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
                         app.Use(gate.InvokeAsync);

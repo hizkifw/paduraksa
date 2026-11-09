@@ -8,13 +8,13 @@ using Paduraksa.Server.Configuration;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// Registers the certificates the vault holds that the config database lost (PLAN §9.2), in the core host after
-/// <see cref="ConfigStartup"/> and <b>before the web apps start</b>. It is an awaited start step, bounded by
+/// Registers the certificates the vault holds that the config database lost, in the core host after
+/// <see cref="ConfigStartup"/> and <b>before the web apps start</b>. An awaited start step, bounded by
 /// <c>Paduraksa:Certificates:RecoveryStartupTimeout</c>: past it the run continues in the background and the start goes on.
-/// Registrations are quiet (no republish per certificate); one publish is then queued, so the first snapshot the listeners
-/// serve already includes what came back. A stop is observed between certificates and never inside a commit.
-/// <b>Never stops the process</b>: a certificate that can't be recovered is logged and stays missing from the inventory (as it
-/// was), and a store that doesn't accept changes (a degraded start) is skipped.
+/// Registrations are quiet, then one publish is queued, so the first snapshot the listeners serve already includes what came
+/// back; a stop is observed between certificates and never inside a commit. <b>Never stops the process</b>: a certificate
+/// that can't be recovered is logged and stays missing, and a store that doesn't accept changes (a degraded start) is
+/// skipped.
 /// </summary>
 internal sealed partial class CertificateRecoveryStartup(
     CertificateRecovery recovery,

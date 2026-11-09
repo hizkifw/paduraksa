@@ -22,20 +22,19 @@ using Paduraksa.Storage.Sqlite;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// Composes the config store (PLAN §6.1, §6.4) into the shared services: the config database's context factory
+/// Composes the config store into the shared services: the config database's context factory
 /// (<c>&lt;data dir&gt;/paduraksa.db</c>), the compiler, the <see cref="LastKnownGoodFile"/>
 /// (<c>&lt;data dir&gt;/last-good.json</c>) and the one <see cref="ConfigService"/> of the process, all registered as
 /// shared instances, so the core host and both apps see the same ones. The core host's
 /// <see cref="ConfigStartup"/> starts the service.
 /// </summary>
 /// <remarks>
-/// <para>The context factory and the service are built by a small container of their own (EF Core's factory and the
-/// service's constructor are meant to be resolved, not constructed), whose instances are then shared like any other.
-/// <see cref="SharedServices"/> owns that container, and the container alone disposes them.</para>
-/// <para><b>Disposal</b> runs in reverse creation order, after every host has stopped: the container (the service
-/// refuses new commands), then the publisher the service publishes with (it stops its writer and fails whatever is
-/// still queued, so nothing goes live after this), then the last-known-good file, created before the publisher (it
-/// waits for its pending write). So the file never trails the last revision that went live.</para>
+/// The context factory and the service are built by a container of their own (EF Core's factory and the service's
+/// constructor are meant to be resolved, not constructed); <see cref="SharedServices"/> owns that container and only it
+/// disposes them. <b>Disposal</b> runs in reverse creation order, after every host has stopped: the container (the service
+/// refuses new commands), then the publisher (it stops its writer and fails whatever is still queued, so nothing goes live
+/// after this), then the last-known-good file, created before the publisher so it never trails the last revision that went
+/// live.
 /// </remarks>
 internal static class ConfigStore
 {

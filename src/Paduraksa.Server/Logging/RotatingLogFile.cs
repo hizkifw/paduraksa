@@ -9,12 +9,12 @@ using Paduraksa.Core.Logging;
 
 namespace Paduraksa.Server.Logging;
 
-/// <summary>How one log file is written: where it lives, when it rotates and how much of it is kept (PLAN §7.4).</summary>
-/// <param name="Kind">Which log this writer owns (its name's stem, its live file).</param>
-/// <param name="Directory">The directory holding the live, rotated and compressed files; created if missing.</param>
+/// <summary>How one log file is written: where it lives, when it rotates and how much of it is kept.</summary>
+/// <param name="Kind">The log it writes.</param>
+/// <param name="Directory">Where the files live.</param>
 /// <param name="MaxFileSizeBytes">Rotate when the next line would push the live file past this.</param>
 /// <param name="RetainedFiles">Keep at most this many rotated files (compressed ones included), the newest.</param>
-/// <param name="MaxAge">Delete rotated files older than this.</param>
+/// <param name="MaxAge">The age past which a rotated file goes.</param>
 /// <param name="MaxTotalSizeBytes">Delete the oldest rotated files until their total is at most this.</param>
 internal sealed record LogFileWriterSettings(
     LogFileKind Kind,
@@ -37,17 +37,13 @@ internal sealed class RotatingLogFileTestSeams
 }
 
 /// <summary>
-/// One log file, written from a background thread (PLAN §7.4): the call site formats a line and drops it in a bounded queue, and this
-/// writer appends it to a buffered <see cref="FileStream"/>, flushes once a second, rotates by size and by UTC date, gzips rotated
-/// files in the background and trims the directory to the retention limits.
+/// One log file, written from a background thread: the call site formats a line and drops it in a bounded queue, and this
+/// writer appends it to a buffered <see cref="FileStream"/>, flushes once a second, rotates by size and by UTC date, gzips
+/// rotated files in the background and trims the directory to the retention limits.
 /// <para>
-/// Nothing on the writing side waits for the disk. A full queue drops the line and counts it; an I/O failure is counted, the file is
-/// closed (so the next line opens a fresh handle) and the problem is reported to the console at most once a minute (never through the
-/// error log, which is this writer's own output).
-/// </para>
-/// <para>
-/// Only <see cref="WriteLine(ReadOnlySpan{char})"/> and <see cref="Flush"/> are used by the access log's drain; the error log's provider
-/// queues whole entries. Ordering holds: lines leave the queue in the order they were offered.
+/// Nothing on the writing side waits for the disk. A full queue drops the line and counts it; an I/O failure is counted, the
+/// file is closed (so the next line opens a fresh handle) and the problem is reported to the console at most once a minute,
+/// never through the error log, which is this writer's own output. Lines leave the queue in the order they were offered.
 /// </para>
 /// </summary>
 internal sealed class RotatingLogFile : IDisposable
@@ -125,7 +121,6 @@ internal sealed class RotatingLogFile : IDisposable
         _compressionThread.Start();
     }
 
-    /// <summary>The live file this writer appends to.</summary>
     public string LivePath => _livePath;
 
     /// <summary>The clock the writer stamps its lines and rotations with.</summary>

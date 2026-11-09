@@ -9,7 +9,7 @@ internal enum HostRole
     /// <summary>Public app (generic web host): :80 / :443, proxy pipeline only.</summary>
     Public,
 
-    /// <summary>Admin <c>WebApplication</c>: :9443, dashboard, API, MCP, health.</summary>
+    /// <summary>Admin <c>WebApplication</c>: :9443, dashboard, API, health.</summary>
     Admin,
 }
 

@@ -22,7 +22,7 @@ namespace Paduraksa.Server.Hosting;
 /// <param name="Secrets">Secret metadata and storage (DNS provider credentials).</param>
 /// <param name="SecretHandlers">The authenticating HTTP handlers DNS providers build their clients over.</param>
 /// <param name="Totp">Two-factor codes for admin users (the secret never leaves the vault).</param>
-/// <param name="KeyRing">The admin app's Data Protection key ring (the dashboard's antiforgery and circuit state; PLAN §8.1).</param>
+/// <param name="KeyRing">The admin app's Data Protection key ring (the dashboard's antiforgery and circuit state).</param>
 internal sealed record VaultCapabilities(
     IVaultLifecycle Lifecycle,
     IServerCertificateSource ServerCertificates,
@@ -37,7 +37,7 @@ internal sealed record VaultCapabilities(
     IDataProtectionKeyStore KeyRing);
 
 /// <summary>
-/// Composes the vault (PLAN §8) into the shared services: the one <c>AddPaduraksaVault</c> registration, over the data
+/// Composes the vault into the shared services: the one <c>AddPaduraksaVault</c> registration, over the data
 /// directory, in a container of its own that <see cref="SharedServices"/> owns (the container disposes the vault, which zeroes
 /// its key-encryption key, after every host and the config store have stopped). Nothing is read or created here: the core host's
 /// <see cref="VaultStartup"/> initializes it, before the config store starts.

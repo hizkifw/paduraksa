@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 namespace Paduraksa.Server.Logging;
 
 /// <summary>
-/// The log files' own messages (PLAN §7.4). They are reported through the console logger, never through the error log this writer
+/// The log files' own messages. They are reported through the console logger, never through the error log this writer
 /// produces: a failing error log that logged its failures to itself would loop.
 /// </summary>
 internal static partial class LogFileLogs

@@ -8,9 +8,9 @@ namespace Paduraksa.Server.Hosting;
 
 /// <summary>
 /// Everything the public listeners and the snapshot compiler must agree on, derived once from
-/// <see cref="PaduraksaListenOptions"/> (PLAN §3, §7.5): whether HTTP/3 is really served, the public HTTPS port, the
+/// <see cref="PaduraksaListenOptions"/>: whether HTTP/3 is really served, the public HTTPS port, the
 /// PROXY protocol settings per listener, and the one <see cref="TlsHandshakeSelector"/> of the process. A shared
-/// singleton: its counters (TLS rejections, PROXY protocol outcomes) are process-lifetime state (PLAN §6.3).
+/// singleton: its counters (TLS rejections, PROXY protocol outcomes) are process-lifetime state.
 /// </summary>
 internal sealed class PublicListenerSetup
 {

@@ -5,9 +5,9 @@ using System.Security.Cryptography.X509Certificates;
 namespace Paduraksa.Server.Placeholders;
 
 /// <summary>
-/// TEMPORARY (M3): an in-memory self-signed certificate so the public HTTPS and admin listeners have
+/// TEMPORARY: an in-memory self-signed certificate so the public HTTPS and admin listeners have
 /// something to serve before the vault exists. Replaced by <c>IServerCertificateSource</c> (public, per-SNI)
-/// and the internal-CA admin certificate from <c>Paduraksa.Vault</c> (PLAN §8.2, §9).
+/// and the internal-CA admin certificate from <c>Paduraksa.Vault</c>.
 /// The key is generated in memory and never persisted or exported (except the Windows-only round trip below).
 /// </summary>
 internal sealed class PlaceholderServerCertificate : IDisposable
@@ -41,8 +41,8 @@ internal sealed class PlaceholderServerCertificate : IDisposable
         {
             // SChannel can't serve TLS from an ephemeral CNG key, so on Windows the certificate has to be
             // round-tripped through PKCS#12. Narrowly scoped exception to the key-material ban; the vault
-            // takes over in M3 and this helper is deleted.
-#pragma warning disable RS0030 // TODO(M3): remove with the vault-backed IServerCertificateSource.
+            // takes over and this helper is deleted.
+#pragma warning disable RS0030 // TODO: remove with the vault-backed IServerCertificateSource.
             using (certificate)
             {
                 return new PlaceholderServerCertificate(

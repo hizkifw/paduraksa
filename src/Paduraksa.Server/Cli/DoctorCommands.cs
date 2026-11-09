@@ -11,27 +11,19 @@ using Paduraksa.Server.Hosting;
 namespace Paduraksa.Server.Cli;
 
 /// <summary>
-/// <c>paduraksa doctor</c> (PLAN §11.4, §16). M5 implements <c>--liveness</c>, the one check the container's
-/// <c>HEALTHCHECK</c> can run without curl: it asks the admin listener's <c>/healthz</c> over loopback and exits 0 or 1.
-/// The full doctor (ports, permissions, libmsquic, DNS, clock skew) stays M11.
+/// <c>paduraksa doctor</c>: <c>--liveness</c>, the one check the container's <c>HEALTHCHECK</c> can run without curl. It
+/// asks the admin listener's <c>/healthz</c> over loopback and exits 0 or 1. TODO: the full doctor (ports, permissions,
+/// libmsquic, DNS, clock skew).
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>Which listener.</b> The loopback plain-HTTP fallback listener (<c>Paduraksa:Listen:AdminLoopbackHttp</c>) when it is
-/// enabled: it is <c>ListenLocalhost</c>, so it is always probed on <c>127.0.0.1</c> and <c>::1</c>, never on
-/// <c>AdminBind</c> (which only applies to the main admin port). Otherwise HTTPS to the admin port: <c>0.0.0.0</c> becomes
-/// <c>127.0.0.1</c>, <c>::</c> becomes <c>::1</c> first (dual-mode) with <c>127.0.0.1</c> as the fallback, and a specific
-/// bind address is used as given, because a listener bound to one address does not listen on the others.
-/// </para>
-/// <para>
-/// <b>Certificate validation for this one call.</b> The admin certificate is issued by Paduraksa's own local CA (or, before
-/// one exists, is the in-memory placeholder), which this short-lived process has not loaded: trusting it would mean starting
-/// the vault - reading the master key and the database - just to ask one loopback question. So validation is turned off for
-/// this call only: the connection never leaves the machine (a loopback socket), the only thing learned is "a process on this
-/// host answered 200 on /healthz", and a party able to intercept loopback traffic already has the host. It cannot be
-/// redirected to another host: the URLs are built from the configured loopback/bind address and the handler follows no
-/// redirects and uses no proxy.
-/// </para>
+/// <b>Which listener.</b> The opt-in loopback plain-HTTP listener when it is enabled, else HTTPS to the admin port: a
+/// wildcard bind becomes loopback, a specific one is used as given, because a listener bound to one address does not listen
+/// on the others.
+///
+/// <b>Certificate validation is off for this one call.</b> The admin certificate is the local CA's (or the placeholder),
+/// which this short-lived process has not loaded: trusting it would mean starting the vault, reading the master key and the
+/// database, to ask one loopback question. The connection never leaves the machine, and the handler follows no redirects and
+/// uses no proxy, so it cannot be pointed elsewhere.
 /// </remarks>
 internal static class DoctorCommands
 {

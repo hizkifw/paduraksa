@@ -9,17 +9,14 @@ using Paduraksa.Core.Logging;
 namespace Paduraksa.Server.Logging;
 
 /// <summary>
-/// The process's own log, on disk (PLAN §7.4): every entry at or above <c>Paduraksa:Logs:ErrorLevel</c> (Warning by default) is queued to
-/// <c>&lt;logs dir&gt;/error.log</c> in plain text, alongside the console. The level is the provider's own, so it does not follow
-/// <c>Logging:LogLevel</c>.
+/// The process's own log, on disk: every entry at or above <c>Paduraksa:Logs:ErrorLevel</c> (Warning by default) is queued to
+/// <c>&lt;logs dir&gt;/error.log</c> in plain text, alongside the console. The level is the provider's own, so it does not
+/// follow <c>Logging:LogLevel</c>; a line has the console's shape (UTC timestamp, level, category and event ID, the scopes
+/// that carry <c>app=core|public|admin</c>, the message, then any exception indented with its stack trace).
 /// <para>
-/// The line has the console's shape: a UTC timestamp, the level, the category and event ID, the scopes (which is where the app's
-/// <c>app=core|public|admin</c> comes from) and the message. An exception's text follows indented, its stack trace included.
-/// </para>
-/// <para>
-/// The provider never blocks a logging call and never recurses: whole entries go into the writer's bounded queue (a full queue drops
-/// them and the writer counts them), and entries from the logging infrastructure's own categories are skipped, so a report about the
-/// error log can't be written into the error log.
+/// The provider never blocks a logging call and never recurses: whole entries go into the writer's bounded queue (a full
+/// queue drops them and the writer counts them), and entries from the logging infrastructure's own categories are skipped, so
+/// a report about the error log can't be written into the error log.
 /// </para>
 /// </summary>
 internal sealed class ErrorLogProvider : ILoggerProvider, ISupportExternalScope
@@ -36,7 +33,6 @@ internal sealed class ErrorLogProvider : ILoggerProvider, ISupportExternalScope
         _writer = writer;
     }
 
-    /// <summary>The file the provider writes to.</summary>
     public RotatingLogFile Writer => _writer;
 
     public ILogger CreateLogger(string categoryName) => new ErrorLogger(this, categoryName);

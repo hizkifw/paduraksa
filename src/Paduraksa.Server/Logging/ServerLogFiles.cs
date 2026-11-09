@@ -6,7 +6,7 @@ using Paduraksa.Server.Configuration;
 namespace Paduraksa.Server.Logging;
 
 /// <summary>
-/// The process's log files (PLAN §7.4): one writer per log (access and error) and the provider that feeds the error log. Built once, in
+/// The process's log files: one writer per log (access and error) and the provider that feeds the error log. Built once, in
 /// <see cref="Hosting.SharedServices"/>, and disposed after the hosts have stopped, which flushes what is buffered.
 /// </summary>
 internal sealed class ServerLogFiles : IDisposable
@@ -27,13 +27,12 @@ internal sealed class ServerLogFiles : IDisposable
         ErrorProvider = new ErrorLogProvider(Error);
     }
 
-    /// <summary>The directory both logs live in.</summary>
     public string Directory { get; }
 
     /// <summary><c>error.log</c>: the process's own entries at <c>Paduraksa:Logs:ErrorLevel</c> and above.</summary>
     public RotatingLogFile Error { get; }
 
-    /// <summary><c>access.log</c>: one line per request, written by the access log's background drain (PLAN §7.4).</summary>
+    /// <summary><c>access.log</c>: one line per request, written by the access log's background drain.</summary>
     public RotatingLogFile Access { get; }
 
     /// <summary>The error log's provider; added to the process's one logger factory.</summary>

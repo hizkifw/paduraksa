@@ -18,33 +18,24 @@ using Paduraksa.Server.Placeholders;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// The admin listener's certificate (PLAN §3, §10.1): the process ensures the local CA root exists, ensures the admin leaf
+/// The admin listener's certificate: the process ensures the local CA root exists, ensures the admin leaf
 /// is issued by it (<see cref="AdminCertificate.Id"/>) and current, then loads the serving context from the vault and hands
 /// it to Kestrel. A once-per-process <see cref="BackgroundService"/> of the core host: its start is awaited (bounded by
 /// <see cref="AdminOptions.CertificateStartupTimeout"/>), so the admin port serves the local-CA certificate from its first
 /// request, and a daily loop re-checks it.
 /// </summary>
 /// <remarks>
-/// <para>
 /// <b>Serving.</b> The listener reads <see cref="ServingOptions"/> per handshake, so replacing it swaps the certificate for
 /// the next connection. The options start over the in-memory placeholder and are only replaced by a context the vault hands
 /// out (the sanctioned egress, like the public listener); the private key never leaves the vault's process boundary.
-/// </para>
-/// <para>
-/// <b>Never a lock-out.</b> Whatever the inventory step does - it fails, or a degraded config store refuses it - the run
-/// still serves the certificate the vault holds, and only falls back to the placeholder when the vault has nothing usable.
-/// A failure must not discard a valid certificate: the admin sends HSTS for non-loopback names, so a browser that trusted
-/// the root has pinned the name and the self-signed placeholder would be a hard error with no click-through. Every failure
-/// is logged at Error.
-/// </para>
-/// <para>
-/// <b>Issuance is skipped while the config store refuses changes</b> (a degraded start), as in <c>CertificateRecoveryStartup</c>:
-/// a due re-issue would otherwise replace the vault's key and then fail to record it, every day.
-/// </para>
-/// <para>
-/// <b>Single flight.</b> <see cref="EnsureAsync"/> serialises on a gate, so the startup run, the daily run and a test can't
-/// issue two certificates at once.
-/// </para>
+///
+/// <b>Never a lock-out.</b> Whatever the inventory step does, the run still serves the certificate the vault holds and falls
+/// back to the placeholder only when the vault has nothing usable. A failure must not discard a valid certificate: the admin
+/// sends HSTS for non-loopback names, so a browser that trusted the root has pinned the name and the self-signed placeholder
+/// would be a hard error with no click-through. Issuance is skipped while the config store refuses changes (a degraded
+/// start), because a due re-issue would otherwise replace the vault's key and then fail to record it, every day.
+/// <see cref="EnsureAsync"/> serialises on a gate, so the startup run, the daily run and a test can't issue two certificates
+/// at once.
 /// </remarks>
 internal sealed partial class AdminCertificateService : BackgroundService
 {
@@ -277,7 +268,7 @@ internal sealed partial class AdminCertificateService : BackgroundService
 
     /// <summary>
     /// Serves the certificate the vault holds, whatever the inventory step did, and publishes the root for the download
-    /// endpoints. The placeholder stays only when the vault has nothing servable (PLAN §3, §10.1).
+    /// endpoints. The placeholder stays only when the vault has nothing servable.
     /// </summary>
     private async Task ServeFromVaultAsync(CancellationToken cancellationToken)
     {

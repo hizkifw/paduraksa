@@ -9,8 +9,8 @@ using Paduraksa.Server.Placeholders;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// The non-web host that owns every <see cref="IHostedService"/> that must run once per process
-/// (startup recompile, later the ACME/renewal scheduler, metric sampler, rate-limit sweeper, notifications).
+/// The non-web host that owns every <see cref="IHostedService"/> that must run once per process: the startup
+/// recompile, the renewal scheduler and whatever else is process-wide rather than per web app.
 /// <para>
 /// Why a third host instead of hanging them off the admin app: those services serve <i>both</i> apps, so their
 /// lifetime must bracket both. The core host starts before the web apps (the public app never accepts a
@@ -44,11 +44,11 @@ internal static class CoreHost
         // start step (bounded by Paduraksa:Certificates:RecoveryStartupTimeout), registers quietly and queues one publish,
         // so the first snapshot the listeners serve already includes the recovered certificates.
         builder.Services.AddHostedService<CertificateRecoveryStartup>();
-        // The admin listener's own certificate (PLAN §3, §10.1): the startup run is awaited, so the admin port serves the
+        // The admin listener's own certificate: the startup run is awaited, so the admin port serves the
         // local CA's certificate from its first request, and a daily loop renews it. It registers without republishing the
         // live config, so it never waits for the public app's YARP.
         builder.Services.AddHostedService(static services => services.GetRequiredService<AdminCertificateService>());
-        // The access log's one reader (PLAN §7.4): it formats the ring's entries into the sink, and flushes on shutdown.
+        // The access log's one reader: it formats the ring's entries into the sink, and flushes on shutdown.
         builder.Services.AddHostedService<AccessLogDrainService>();
         if (context.Options.Acme.Enabled)
         {

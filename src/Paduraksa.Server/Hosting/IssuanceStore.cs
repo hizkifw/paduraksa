@@ -16,24 +16,24 @@ using Paduraksa.Server.Configuration;
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
-/// Composes ACME issuance (PLAN §9.3) into the shared services: <c>AddPaduraksaIssuance</c> over the real vault (account keys,
+/// Composes ACME issuance into the shared services: <c>AddPaduraksaIssuance</c> over the real vault (account keys,
 /// MAC keys, secrets, the certificate catalog and issuance), the config store and the one <see cref="IAcmeChallengeStore"/> the
 /// public gate answers from, in a container of its own that <see cref="SharedServices"/> owns, like <see cref="ConfigStore"/>.
 /// The account, DNS provider and issuance services and the renewal scheduler are shared instances.
 /// </summary>
 /// <remarks>
-/// <para><b>The scheduler</b> is not started here. It is a hosted service of the core host (<see cref="CoreHost"/>), registered after
-/// <see cref="VaultStartup"/> and <see cref="ConfigStartup"/> so the vault and the config store are up first. Its first look waits
-/// <c>Paduraksa:Acme:SchedulerStartDelay</c> and then <see cref="IProcessReadiness"/> (every listener bound), so an HTTP-01 validation
-/// never runs before the public listener can answer it. The core host stops after both web apps, and stopping cancels a running
-/// look. With <c>Paduraksa:Acme:Enabled</c> off it is never started.</para>
-/// <para><b>CA trust.</b> One transport serves every ACME client of the process: <see cref="AcmeHttp.CreateHandler()"/> (no redirects), plus the
-/// roots of <c>Paduraksa:Acme:TrustedRootsFile</c> when set (a private CA, Pebble), which must be self-signed CA certificates (anything
-/// else stops the start with the file named). The file is read once, here. The handler is owned here and disposed after the
-/// container that holds the clients.</para>
-/// <para><b>DNS providers:</b> <c>AddPaduraksaDnsProviders</c> (Cloudflare, deSEC and the authoritative-NS propagation check, configured by
-/// <c>Paduraksa:Acme:DnsPropagation</c>) runs before <c>AddPaduraksaIssuance</c>, over the vault's secret handler factory: the provider code
-/// never holds a token. <c>Enabled</c> false there keeps the fixed <c>DnsPropagationDelay</c>.</para>
+/// <b>The scheduler</b> is not started here but by the core host, after <see cref="VaultStartup"/> and
+/// <see cref="ConfigStartup"/>; its first look waits <c>Paduraksa:Acme:SchedulerStartDelay</c> and then
+/// <see cref="IProcessReadiness"/> (every listener bound), so an HTTP-01 validation never runs before the public listener
+/// can answer it.
+///
+/// <b>CA trust.</b> One transport serves every ACME client of the process: <see cref="AcmeHttp.CreateHandler()"/> (no
+/// redirects), plus the roots of <c>Paduraksa:Acme:TrustedRootsFile</c> when set (a private CA, Pebble), which must be
+/// self-signed CA certificates (anything else stops the start with the file named). The file is read once, here, and the
+/// handler is owned here and disposed after the container that holds the clients.
+///
+/// <b>DNS providers</b> (<c>AddPaduraksaDnsProviders</c>: Cloudflare, deSEC and the authoritative-NS propagation check) run
+/// over the vault's secret handler factory, so provider code never holds a token.
 /// </remarks>
 internal static class IssuanceStore
 {

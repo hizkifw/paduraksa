@@ -18,15 +18,14 @@ namespace Paduraksa.Server.Hosting;
 
 /// <summary>
 /// The <c>paduraksa</c> process: one core host, the public app (generic web host) and the admin <c>WebApplication</c>, sharing one
-/// <see cref="SharedServices"/> (PLAN §3).
-/// <para><b>Start:</b> core host first (snapshot loaded), then public and admin concurrently. If either fails, the
-/// other one's start is cancelled, everything that started is stopped, and the failure is rethrown.</para>
-/// <para><b>Stop:</b> readiness flips to "not ready", then public (stops accepting, drains in-flight proxied requests),
-/// then admin, then core. Public goes first because it's the traffic-bearing side: while it drains, the admin still
-/// answers <c>/readyz</c> with 503 (so orchestrators and load balancers see the drain), operators keep the dashboard,
-/// and requests proxied to the admin's internal listener (PLAN §3.1) can still complete. Core goes last because its
-/// background services serve both apps. All three share one budget, <see cref="PaduraksaOptions.ShutdownTimeout"/>.
-/// Shared singletons are disposed after all three containers.</para>
+/// <see cref="SharedServices"/>.
+/// <para><b>Start:</b> core first (snapshot loaded), then public and admin concurrently; if either fails the other's start
+/// is cancelled, everything that started is stopped and the failure rethrown.</para>
+/// <para><b>Stop:</b> readiness flips to "not ready", then public (drains in-flight proxied requests), then admin, then core.
+/// Public goes first because it is the traffic-bearing side: the admin still answers <c>/readyz</c> with 503 while it drains,
+/// operators keep the dashboard, and requests proxied to the admin's internal listener can still complete. Core goes last
+/// because its background services serve both apps. All three share one budget, <see cref="PaduraksaOptions.ShutdownTimeout"/>;
+/// the shared singletons are disposed after all three containers.</para>
 /// </summary>
 internal sealed partial class PaduraksaHost : IAsyncDisposable
 {
@@ -243,7 +242,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     }
 
     /// <summary>Bound addresses of a web app (e.g. <c>https://[::]:443</c>); empty for the core host or before start.</summary>
-    /// <remarks>The admin app's internal listener (PLAN §3.1) is process-local plumbing, not a client endpoint, so it is left out.</remarks>
+    /// <remarks>The admin app's internal listener is process-local plumbing, not a client endpoint, so it is left out.</remarks>
     public IReadOnlyList<string> GetListenAddresses(HostRole role)
     {
         IHost? app = role switch
@@ -335,7 +334,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     {
         configuration.SetBasePath(contentRootPath);
 
-        // Bootstrap config only (the real config lives in the DB from M2), so no reload-on-change watchers.
+        // Bootstrap config only (the real config lives in the database), so no reload-on-change watchers.
         configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false);
         configuration.AddJsonFile($"appsettings.{environmentName}.json", optional: true, reloadOnChange: false);
         configuration.AddEnvironmentVariables();
@@ -651,7 +650,7 @@ internal enum ShutdownReason
 
 internal readonly record struct ShutdownRequest(ShutdownReason Reason, HostRole? Role);
 
-/// <summary>Process exit codes of <c>paduraksa serve</c> (PLAN §3).</summary>
+/// <summary>Process exit codes of <c>paduraksa serve</c>.</summary>
 internal static class ExitCodes
 {
     /// <summary>Stopped on request (signal, or a shutdown request), including during startup.</summary>

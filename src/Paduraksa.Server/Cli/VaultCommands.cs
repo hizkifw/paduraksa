@@ -16,37 +16,32 @@ using Paduraksa.Vault;
 namespace Paduraksa.Server.Cli;
 
 /// <summary>
-/// <c>paduraksa vault ...</c> (PLAN §8.3, §11.4). Today: <c>rotate-kek</c>, which re-wraps every key in <c>vault.db</c> under a new
+/// <c>paduraksa vault ...</c>. Today: <c>rotate-kek</c>, which re-wraps every key in <c>vault.db</c> under a new
 /// key-encryption key.
 /// </summary>
 /// <remarks>
-/// <para>
 /// <b>The new key never comes through the command line</b> (argv shows in process listings and shell history): it is read from a
-/// file (<c>--new-key-file path</c>) or from standard input (<c>--new-key-file -</c>, refused when standard input is a terminal, where
-/// it would be typed in the clear), as base64 of 32 bytes, e.g. from <c>head -c 32 /dev/urandom | base64</c>. It is held in character
-/// and byte arrays that are pinned where the runtime allows and zeroed after use, and is never printed or logged. A key file that
-/// other users can read is used but warned about.
-/// </para>
-/// <para>
-/// <b>The order that makes a crash safe</b> (<see cref="IVaultKekRotation"/>): the new key is stored durably before the rotation,
-/// the rotation commits in one transaction, and only then is the old key retired. With the generated <c>master.key</c> the command
-/// does the storing itself: the old file is kept as <c>master.key.old</c> (created 0600, flushed to disk), the new key is written to
-/// <c>master.key.new</c> (also 0600 and flushed) and moved over <c>master.key</c> atomically, the directory is flushed, the vault
-/// is rotated, and a failed rotation puts the old file back. A crash at any point leaves the key the database belongs to in
-/// <c>master.key</c> or beside it, and the vault's next start names the file that matches when <c>master.key</c> doesn't.
-/// <c>master.key.old</c> is left for the operator to delete once the service has started with the new key (it still opens old
-/// copies of <c>vault.db</c>). With a key file or the environment as the source the command can't store anything there, so the
-/// new key must come from a file the operator keeps (not standard input), and the command says what to change afterwards.
-/// </para>
-/// <para>
+/// file (<c>--new-key-file path</c>) or standard input (<c>--new-key-file -</c>, refused when that is a terminal), as base64 of
+/// 32 bytes, e.g. <c>head -c 32 /dev/urandom | base64</c>. It is held in pinned arrays, zeroed after use, never printed or
+/// logged; a key file other users can read is used but warned about.
+///
+/// <b>The order that makes a crash safe</b> (<see cref="IVaultKekRotation"/>): the new key is stored durably before the
+/// rotation, the rotation commits in one transaction, and only then is the old key retired. With the generated
+/// <c>master.key</c> the command does the storing itself: the old file becomes <c>master.key.old</c> (0600, flushed), the new
+/// key is written to <c>master.key.new</c> (also 0600 and flushed) and moved over <c>master.key</c> atomically, the directory
+/// is flushed, and a failed rotation puts the old file back. A crash at any point leaves the key the database belongs to in
+/// <c>master.key</c> or beside it. <c>master.key.old</c> stays until the operator deletes it, once the service has started
+/// with the new key: it still opens old copies of <c>vault.db</c>. With a key file or the environment as the source nothing
+/// can be stored there, so the new key must come from a file the operator keeps and the command says what to change
+/// afterwards.
+///
 /// <b>Stop the service first.</b> A running process keeps the old key in memory and can no longer open the keys once they are
-/// wrapped under the new one; it notices at its next write (every seal checks the database's key first) and must be restarted
-/// with the new key. A database that is locked by a running service is reported, not waited for forever.
-/// </para>
+/// wrapped under the new one; it notices at its next write and must be restarted with the new key. A locked database is
+/// reported, not waited for forever.
 /// </remarks>
 internal static class VaultCommands
 {
-    /// <summary>The name of the key file the vault generates in the data directory (PLAN §8.3).</summary>
+    /// <summary>The name of the key file the vault generates in the data directory.</summary>
     internal const string GeneratedKeyFileName = "master.key";
 
     private const int MaxKeyChars = 1024;

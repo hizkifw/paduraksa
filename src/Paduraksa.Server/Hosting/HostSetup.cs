@@ -18,7 +18,6 @@ internal sealed record HostContext(
     SharedServices Shared,
     Action<HostRole, IServiceCollection>? ConfigureServices);
 
-/// <summary>Setup common to the core host and both web apps.</summary>
 internal static class HostSetup
 {
     /// <summary>
@@ -50,7 +49,7 @@ internal static class HostSetup
 
         context.Shared.RegisterInto(services, role);
 
-        // PLAN §8.1, §8.2: the admin app's Data Protection ring lives in the vault (the dashboard's antiforgery tokens and
+        // The admin app's Data Protection ring lives in the vault (the dashboard's antiforgery tokens and
         // circuit state must survive a restart). The public app only needs YARP's session-affinity key, so it gets an
         // in-memory ephemeral provider and never touches the vault; the core host resolves none.
         if (role == HostRole.Admin)
