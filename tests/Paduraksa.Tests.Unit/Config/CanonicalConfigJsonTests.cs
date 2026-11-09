@@ -75,10 +75,10 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
-    public void TheM6HostSettingKeysFollowHsts()
+    public void NewHostSettingKeysFollowTheRecordsOrder()
     {
-        // A new field goes at the end of the record, so the keys a stored document writes keep their order: the HSTS
-        // group first (M6), then this branch's two.
+        // A new field goes at the end of the record, so the keys a stored document writes keep their order: HSTS, the
+        // access log, the request ID's destination, then the Server header.
         ConfigDocument document = new(
             Hosts:
             [
@@ -90,6 +90,7 @@ public sealed class CanonicalConfigJsonTests
                         Hsts = new HstsSettings { Enabled = true },
                         AccessLog = false,
                         RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
+                        ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Remove },
                     },
                     Routes: [new RouteConfig(RootRoute, AppUpstream)]),
             ]);
@@ -99,7 +100,8 @@ public sealed class CanonicalConfigJsonTests
         int hsts = json.IndexOf("\"hsts\":", StringComparison.Ordinal);
         int accessLog = json.IndexOf("\"accessLog\":", StringComparison.Ordinal);
         int propagation = json.IndexOf("\"requestIdPropagation\":", StringComparison.Ordinal);
-        Assert.True(hsts > 0 && accessLog > hsts && propagation > accessLog, json);
+        int serverHeader = json.IndexOf("\"serverHeader\":", StringComparison.Ordinal);
+        Assert.True(hsts > 0 && accessLog > hsts && propagation > accessLog && serverHeader > propagation, json);
     }
 
     [Fact]
@@ -295,12 +297,6 @@ public sealed class CanonicalConfigJsonTests
         };
         string json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(custom));
         Assert.Contains("\"serverHeader\":{\"mode\":\"custom\",\"value\":\"edge/1.0\"}", json, StringComparison.Ordinal);
-
-        // The document's key order is the record's: accessLog, requestIdPropagation, then serverHeader.
-        int accessLog = json.IndexOf("\"accessLog\":", StringComparison.Ordinal);
-        int propagation = json.IndexOf("\"requestIdPropagation\":", StringComparison.Ordinal);
-        int serverHeader = json.IndexOf("\"serverHeader\":", StringComparison.Ordinal);
-        Assert.True(accessLog > 0 && propagation > accessLog && serverHeader > propagation, json);
 
         Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(custom));
         Assert.Equal(CanonicalConfigJson.Serialize(custom), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(custom))));

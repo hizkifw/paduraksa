@@ -344,7 +344,7 @@ public sealed class ApiConventionTests
     }
 
     [Fact]
-    public async Task TheOpenApiDocumentDescribesHstsInTheSettings()
+    public async Task TheOpenApiDocumentDescribesTheHeaderAndLogSettings()
     {
         await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
 
@@ -380,6 +380,14 @@ public sealed class ApiConventionTests
         Assert.Contains("ServerHeaderMode", modeReference, StringComparison.Ordinal);
         Assert.Contains("remove", schemas["ServerHeaderMode"]!["enum"]!.AsArray().Select(v => v!.GetValue<string>()));
         Assert.Contains("128", serverProperties["value"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
+
+        // The access-log switch is described, and the request ID's destination is its own enum (a $ref carries no description).
+        JsonObject hostProperties = hostSettings["properties"]!.AsObject();
+        Assert.Contains("access log", hostProperties["accessLog"]!["description"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+        JsonNode propagation = hostProperties["requestIdPropagation"]!;
+        string? propagationReference = propagation["$ref"]?.GetValue<string>() ?? propagation["oneOf"]?[1]?["$ref"]?.GetValue<string>();
+        Assert.NotNull(propagationReference);
+        Assert.Contains("off", schemas["RequestIdPropagation"]!["enum"]!.AsArray().Select(v => v!.GetValue<string>()));
     }
 
     [Fact]

@@ -41,7 +41,7 @@ internal static class HostSettingsLayers
             allowList = layer.IpAllowList ?? allowList;
         }
 
-        return new EffectiveHostSettings(forceHttps, tls, hsts, Restriction(allowList), accessLog, requestIdPropagation, serverHeader);
+        return new EffectiveHostSettings(forceHttps, tls, Restriction(allowList), hsts, accessLog, requestIdPropagation, serverHeader);
     }
 
     /// <summary>The effective allow list of a route: its own when set, else the host's.</summary>
@@ -93,19 +93,19 @@ internal static class HostSettingsLayers
         allowList is { Addresses.Count: > 0 } ? allowList : null;
 }
 
-/// <summary>A host's settings with every layer resolved.</summary>
+/// <summary>A host's settings with every layer resolved, in <see cref="HostSettings"/>'s field order.</summary>
 /// <param name="ForceHttps">Redirect plain HTTP to HTTPS.</param>
 /// <param name="Tls">Concrete TLS settings.</param>
-/// <param name="Hsts">Concrete HSTS settings.</param>
 /// <param name="IpAllowList">The allow list in force, or null for no restriction (never an empty list).</param>
+/// <param name="Hsts">Concrete HSTS settings.</param>
 /// <param name="AccessLog">Write a line per request to the access log (built-in default: on).</param>
 /// <param name="RequestIdPropagation">Where the request ID is sent (built-in default: upstream and response).</param>
 /// <param name="ServerHeader">Concrete <c>Server</c> header settings.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
-    HostHstsSpec Hsts,
     IpAllowListSettings? IpAllowList,
+    HostHstsSpec Hsts,
     bool AccessLog,
     ProxyLogging.RequestIdPropagation RequestIdPropagation,
     HostServerHeaderSpec ServerHeader);

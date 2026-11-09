@@ -210,14 +210,6 @@ public sealed class ServerHeaderTests : IDisposable
         Assert.Equal(valid, ServerHeader.IsValidValue(value));
 
     [Fact]
-    public void TheCustomValueIsOneTo128Characters()
-    {
-        Assert.False(ServerHeader.IsValidValue(new string('a', 129)));
-        Assert.True(ServerHeader.IsValidValue(new string('a', 128)));
-        Assert.True(ServerHeader.IsValidValue(new string('a', 127)));
-    }
-
-    [Fact]
     public async Task TheResponseTransformMakesEachModeHoldAfterYarpCopiesTheUpstreamsHeader()
     {
         foreach ((string host, string? expected) in new (string Host, string? Expected)[]
