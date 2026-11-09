@@ -180,7 +180,8 @@ public sealed class DesecDnsProviderTests : IDisposable
 
         await Provider().CreateTxtAsync(Challenge, "v1", Token);
 
-        Assert.Contains(TimeSpan.FromSeconds(1), _time.Delays);
+        // Retry-After is the floor; the jitter adds up to a quarter more.
+        Assert.Contains(_time.Delays, delay => delay >= TimeSpan.FromSeconds(1) && delay < TimeSpan.FromSeconds(1.25));
         Assert.NotNull(_desec.Rrset("example.com", "_acme-challenge"));
     }
 
@@ -372,7 +373,8 @@ public sealed class DesecDnsProviderTests : IDisposable
 
         await Provider().CreateTxtAsync(Challenge, "v1", Token);
 
-        Assert.Contains(TimeSpan.FromSeconds(60), _time.Delays);
+        // Retry-After is the floor; the jitter adds up to a quarter more.
+        Assert.Contains(_time.Delays, delay => delay >= TimeSpan.FromSeconds(60) && delay < TimeSpan.FromSeconds(75));
         Assert.NotNull(_desec.Rrset("example.com", "_acme-challenge"));
     }
 

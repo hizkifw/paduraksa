@@ -171,7 +171,8 @@ public sealed class CloudflareDnsProviderTests : IDisposable
 
         await Provider().CreateTxtAsync(Challenge, "v1", Token);
 
-        Assert.Contains(TimeSpan.FromSeconds(2), _time.Delays);
+        // Retry-After is the floor; the jitter adds up to a quarter more.
+        Assert.Contains(_time.Delays, delay => delay >= TimeSpan.FromSeconds(2) && delay < TimeSpan.FromSeconds(2.5));
         Assert.Single(_cloudflare.Records("example.com"));
     }
 

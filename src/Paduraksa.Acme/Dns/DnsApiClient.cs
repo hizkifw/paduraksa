@@ -62,8 +62,10 @@ internal sealed partial class DnsApiClient : IDisposable
         if (response.Status == HttpStatusCode.TooManyRequests
             && response.RetryAfter is { } wait && wait > TimeSpan.Zero && wait <= _options.MaxInlineRetryAfter)
         {
-            LogThrottled(_provider, wait);
-            await Task.Delay(wait, _time, cancellationToken).ConfigureAwait(false);
+            // The provider's hint is the floor; up to 25% more keeps a burst of throttled clients from asking in lockstep.
+            TimeSpan delay = wait + TimeSpan.FromMilliseconds(wait.TotalMilliseconds * Random.Shared.NextDouble() * 0.25);
+            LogThrottled(_provider, delay);
+            await Task.Delay(delay, _time, cancellationToken).ConfigureAwait(false);
             response = await SendOnceAsync(method, url, jsonBody, cancellationToken).ConfigureAwait(false);
         }
 
