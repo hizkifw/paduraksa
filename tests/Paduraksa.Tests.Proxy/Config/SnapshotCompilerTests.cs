@@ -135,6 +135,27 @@ public sealed class SnapshotCompilerTests
     }
 
     [Fact]
+    public void TheAdminHostRulesHoldWhenTheHostStepRunsOnItsOwn()
+    {
+        // The extracted per-host step, without a document around it: an admin host forces HTTPS, is served over it, and
+        // there is only one.
+        HostSpec admin = new() { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, Https = true };
+
+        SnapshotCompiler.CompileContext withoutForcing = new(new ProxyConfigModel(), SnapshotCompilerOptions.Default);
+        withoutForcing.CompileHost(admin);
+        Assert.Contains(withoutForcing.Errors, e => e.Message == "an admin host forces HTTPS");
+
+        SnapshotCompiler.CompileContext withoutHttps = new(new ProxyConfigModel(), SnapshotCompilerOptions.Default);
+        withoutHttps.CompileHost(admin with { Https = false });
+        Assert.Contains(withoutHttps.Errors, e => e.Message == "an admin host is served over HTTPS");
+
+        SnapshotCompiler.CompileContext twice = new(new ProxyConfigModel(), SnapshotCompilerOptions.Default);
+        twice.CompileHost(admin with { ForceHttps = true });
+        twice.CompileHost(admin with { Id = TestIds.Host("admin2"), Names = ["admin2.test"], ForceHttps = true });
+        Assert.Contains(twice.Errors, e => e.Message == "only one admin host can exist");
+    }
+
+    [Fact]
     public void AdminHostsWithoutTheInternalListenerStillCompileAsUnavailable()
     {
         HostSpec admin = new() { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, ForceHttps = true };
