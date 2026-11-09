@@ -18,7 +18,6 @@ public sealed class DnsProviderFactory : IDnsProviderFactory
     private readonly TimeProvider _time;
     private readonly ILoggerFactory _logs;
 
-    /// <summary>Builds the factory.</summary>
     /// <param name="handlers">The vault's source of authenticating handlers.</param>
     /// <param name="options">Tunables; the defaults when null.</param>
     /// <param name="time">The clock for rate-limit waits; the system clock when null.</param>

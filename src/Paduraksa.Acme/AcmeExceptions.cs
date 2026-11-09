@@ -26,10 +26,8 @@ public abstract class AcmeException(string message, AcmeFailureKind kind, TimeSp
     /// <summary>Whether and how to retry; see <see cref="AcmeFailureKind"/>.</summary>
     public AcmeFailureKind Kind { get; } = kind;
 
-    /// <summary>True for <see cref="AcmeFailureKind.Transient"/> and <see cref="AcmeFailureKind.RateLimited"/>: retry soon.</summary>
     public bool IsTransient => Kind is AcmeFailureKind.Transient or AcmeFailureKind.RateLimited;
 
-    /// <summary>True for everything but <see cref="AcmeFailureKind.Permanent"/>: a retry is worth trying, at the backoff the kind calls for.</summary>
     public bool IsRetryable => Kind != AcmeFailureKind.Permanent;
 
     /// <summary>The CA's <c>Retry-After</c>, as a delay from when it was received; <see langword="null"/> if it sent none. Not capped.</summary>
@@ -58,7 +56,6 @@ public sealed class AcmeProblemException(AcmeProblem problem, Uri url, TimeSpan?
 
     public IReadOnlyList<AcmeSubproblem> Subproblems => Problem.Subproblems;
 
-    /// <summary>The URL of the request that failed.</summary>
     public Uri Url { get; } = url;
 
     /// <summary>

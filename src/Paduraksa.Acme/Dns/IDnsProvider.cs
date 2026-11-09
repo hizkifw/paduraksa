@@ -3,10 +3,10 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Acme.Dns;
 
 /// <summary>
-/// The DNS side of DNS-01 (PLAN §9): publishes and removes the TXT record a challenge asks for. A provider holds a
-/// credential only as a vault secret reference and sends it through the vault's authenticating handler, so no
-/// implementation sees the token itself. Implementations arrive per service (Cloudflare, deSEC, ...); the issuance
-/// orchestrator only knows this seam.
+/// The DNS side of DNS-01: publishes and removes the TXT record a challenge asks for. A provider holds a credential only
+/// as a vault secret reference and sends it through the vault's authenticating handler, so no implementation sees the
+/// token itself. Implementations arrive per service (Cloudflare, deSEC, ...); the issuance orchestrator only knows this
+/// seam.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -103,7 +103,6 @@ public interface IDnsProviderFactory
 /// <param name="inner">The underlying failure.</param>
 public sealed class DnsProviderException(string message, bool isTransient, Exception? inner = null) : Exception(message, inner)
 {
-    /// <summary>Whether trying again later can help.</summary>
     public bool IsTransient { get; } = isTransient;
 
     /// <summary>Whether the provider is throttling this account (HTTP 429) rather than failing; the schedule treats it like a CA rate limit.</summary>

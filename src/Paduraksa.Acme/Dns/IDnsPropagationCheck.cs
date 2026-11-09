@@ -20,8 +20,8 @@ public enum DnsPropagationOutcome
 public sealed record DnsPropagationResult(DnsPropagationOutcome Outcome, string Detail, bool AnyServerHadRecords = false);
 
 /// <summary>
-/// Waits until published DNS-01 TXT records are visible to the CA (PLAN §9.3), replacing a fixed delay. The records have already
-/// been created through <see cref="IDnsProvider"/>; this only looks.
+/// Waits until published DNS-01 TXT records are visible to the CA, replacing a fixed delay. The records have already been
+/// created through <see cref="IDnsProvider"/>; this only looks.
 /// </summary>
 public interface IDnsPropagationCheck
 {

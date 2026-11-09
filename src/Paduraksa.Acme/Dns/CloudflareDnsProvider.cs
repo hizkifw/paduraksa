@@ -11,24 +11,19 @@ namespace Paduraksa.Acme.Dns;
 /// <summary>
 /// <see cref="IDnsProvider"/> for Cloudflare's v4 API with a scoped API token (Zone:Read and DNS:Edit on the zones to issue
 /// for). The token is a vault secret: every call goes through the vault's authenticating handler, which adds
-/// <c>Authorization: Bearer</c> inside the vault and talks only to <see cref="ApiHost"/> over https (PLAN §8.2, §9).
+/// <c>Authorization: Bearer</c> inside the vault and talks only to <see cref="ApiHost"/> over https.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>Zone.</b> The zone of a record name is found by asking <c>GET /zones?name=</c> for the name and each parent, longest first,
-/// down to two labels; a token scoped to some zones simply sees no other, so a name outside them is "no zone" (permanent).
-/// Found zones are remembered for the life of the provider.
-/// </para>
-/// <para>
-/// <b>Records.</b> A wildcard and its base name share <c>_acme-challenge.example.com</c>; both TXT records exist at once. Create
-/// first lists the TXT records at the name and adds none if this value is there (and treats Cloudflare's "identical record
-/// already exists", 81058, as done, for a racing repeat). Delete lists them and removes only those whose content equals the
-/// value, with or without the quotes Cloudflare may add on output. Lists are paged.
-/// </para>
-/// <para>
+/// <b>Zone.</b> The zone of a record name is found by asking <c>GET /zones?name=</c> for the name and each parent, longest
+/// first, down to two labels; a token scoped to some zones simply sees no other, so a name outside them is "no zone"
+/// (permanent). Found zones are remembered for the life of the provider.
+///
+/// <b>Records.</b> A wildcard and its base name share <c>_acme-challenge.example.com</c>, so both TXT records exist at once.
+/// Create adds nothing if the value is there, and treats Cloudflare's "identical record already exists" (81058) as done, for
+/// a racing repeat; delete removes only those whose content equals the value, with or without the quotes Cloudflare may add.
+///
 /// <b>Errors.</b> 429 and 5xx, timeouts and network failures are transient (a 429 carries Cloudflare's <c>Retry-After</c>);
 /// everything else Cloudflare refuses is permanent.
-/// </para>
 /// </remarks>
 internal sealed partial class CloudflareDnsProvider : IDnsProvider
 {

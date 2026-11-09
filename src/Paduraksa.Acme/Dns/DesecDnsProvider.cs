@@ -9,33 +9,27 @@ namespace Paduraksa.Acme.Dns;
 /// <summary>
 /// <see cref="IDnsProvider"/> for deSEC (<c>desec.io</c>) with an API token. The token is a vault secret: every call goes
 /// through the vault's authenticating handler, which adds <c>Authorization: Token</c> inside the vault and talks only to
-/// <see cref="ApiHost"/> over https (PLAN §8.2, §9).
+/// <see cref="ApiHost"/> over https.
 /// </summary>
 /// <remarks>
-/// <para>
 /// <b>Domain.</b> <c>GET /domains/?owns_qname=</c> names the account's most specific domain that contains the record name;
-/// none is "no zone" (permanent). The <c>subname</c> is the name below that domain.
-/// </para>
-/// <para>
-/// <b>RRsets are whole.</b> deSEC has no per-record API: the TXT RRset at a name is read (404 means there is none), the values
-/// are added or removed, and the full <c>records</c> list is written back, which keeps the wildcard's and the base name's values
-/// side by side. There is no ETag, so two writers of the same set at the same moment could lose one value; the orchestrator
-/// publishes an order's values in one batch. Values are stored quoted (<c>"value"</c>) and compared unquoted.
-/// </para>
-/// <para>
-/// <b>Writes are batched.</b> deSEC limits writes per domain (2 a second, 15 a minute, 100 an hour, 300 a day), and a publish of
-/// many names would meet it. A batch (and a single call is a batch of one) is grouped by domain, and each domain gets at most
-/// two writes: one bulk <c>POST /domains/{d}/rrsets/</c> for the sets that do not exist and one bulk <c>PATCH</c> for those that
-/// do (<c>records: []</c> deletes a set). A <c>POST</c> that meets a set created in the meantime (400) re-reads and goes on
-/// as a <c>PATCH</c> once.
-/// </para>
-/// <para>
-/// <b>TTL.</b> deSEC refuses a TTL below the domain's <c>minimum_ttl</c> (3600 by default), so the TTL is at least that, and
+/// none is "no zone" (permanent).
+///
+/// <b>RRsets are whole.</b> deSEC has no per-record API: the TXT RRset is read (404 means there is none), the values added
+/// or removed, and the full <c>records</c> list written back, which keeps the wildcard's and the base name's values side
+/// by side. There is no ETag, so two writers of one set could lose a value; the orchestrator publishes an order's values
+/// in one batch. Values are stored quoted and compared unquoted.
+///
+/// <b>Writes are batched.</b> deSEC limits writes per domain (2 a second, 15 a minute, 100 an hour, 300 a day), so a batch
+/// is grouped by domain and each domain gets at most two writes: one bulk <c>POST</c> for the sets that do not exist and
+/// one <c>PATCH</c> for those that do. A <c>POST</c> that meets a set created meanwhile (400) re-reads and goes on as a
+/// <c>PATCH</c> once.
+///
+/// <b>TTL.</b> deSEC refuses a TTL below the domain's <c>minimum_ttl</c> (3600 by default), so the TTL is at least that and
 /// never lowers one the set already has. <b>Rate limits:</b> a 429 whose <c>Retry-After</c> is within
-/// <see cref="DnsProviderOptions.MaxInlineRetryAfter"/> is waited out once; a longer one is a rate-limited
-/// <see cref="DnsProviderException"/> carrying the hint. <b>CNAME:</b> a name that is a CNAME is refused (permanent), because the
-/// CA would follow it to a zone this provider is not asked about.
-/// </para>
+/// <see cref="DnsProviderOptions.MaxInlineRetryAfter"/> is waited out once, and a longer one is a rate-limited
+/// <see cref="DnsProviderException"/> carrying the hint. <b>CNAME:</b> a name that is a CNAME is refused (permanent),
+/// because the CA would follow it to a zone this provider is not asked about.
 /// </remarks>
 internal sealed partial class DesecDnsProvider : IDnsProvider
 {

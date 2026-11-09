@@ -24,10 +24,8 @@ public sealed class AcmePollException(
 {
     public AcmePollFailure Reason { get; } = reason;
 
-    /// <summary>The URL being polled.</summary>
     public Uri Url { get; } = url;
 
-    /// <summary>The status at the last poll.</summary>
     public AcmeStatus Status { get; } = status;
 
     /// <summary>The order at the last poll, when an order was being polled.</summary>

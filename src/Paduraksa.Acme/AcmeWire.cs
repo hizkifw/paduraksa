@@ -53,7 +53,6 @@ internal sealed class AcmeStatusConverter : JsonConverter<AcmeStatus>
         writer.WriteStringValue(value.ToString().ToLowerInvariant());
 }
 
-/// <summary>The checks the mappers share.</summary>
 internal static class WireChecks
 {
     /// <summary>The URL, which must be absolute: a CA's relative URL would only fail later, far from where it came from.</summary>

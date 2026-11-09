@@ -9,25 +9,22 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Acme;
 
 /// <summary>
-/// An RFC 8555 client for one CA directory (PLAN §9). It is the protocol layer only: it holds no key (the account key
-/// signs through <see cref="IJwsSigner"/>, the EAB key MACs through <see cref="IMacKeySource"/>), no state beyond a cached
-/// directory and a nonce pool, and it neither schedules, persists nor serves challenges. Callers keep the account URL
+/// An RFC 8555 client for one CA directory. It is the protocol layer only: it holds no key (the account key signs through
+/// <see cref="IJwsSigner"/>, the EAB key MACs through <see cref="IMacKeySource"/>), no state beyond a cached directory and
+/// a nonce pool, and it neither schedules, persists nor serves challenges. Callers keep the account URL
 /// (<see cref="AcmeAccountRef"/>) and the order URLs. Thread-safe; build one per CA and share it. Dispose it with the
 /// application: it owns the <see cref="HttpClient"/> it builds.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Failures are <see cref="AcmeException"/>s whose <see cref="AcmeException.Kind"/> tells a scheduler whether to retry. Caller
-/// mistakes (an account without a key, a malformed ID) are <see cref="InvalidOperationException"/> and
-/// <see cref="ArgumentException"/>. The <c>WaitFor...</c> methods return the resource in whatever terminal state it reached,
-/// <see cref="AcmeStatus.Invalid"/> included, so a caller can read the embedded problem; they throw only for a failed request
-/// or an <see cref="AcmePollException"/> when the CA stays busy or asks to be left alone longer than the poll bounds.
-/// </para>
-/// <para>
-/// Every URL the client requests or accepts must be on the directory's origin (<see cref="AcmeClientOptions.AdditionalOrigins"/>
-/// adds more). The single-shot calls (<c>GetOrderAsync</c>, <c>GetAuthorizationAsync</c>, <c>RespondToChallengeAsync</c>,
-/// <c>FinalizeOrderAsync</c>) put the CA's <c>Retry-After</c> on the model they return, for a scheduler that waits on its own.
-/// </para>
+/// Failures are <see cref="AcmeException"/>s whose <see cref="AcmeException.Kind"/> tells a scheduler whether to retry;
+/// caller mistakes (an account without a key, a malformed ID) are <see cref="InvalidOperationException"/> and
+/// <see cref="ArgumentException"/>. The <c>WaitFor...</c> methods return the resource in whatever terminal state it
+/// reached, <see cref="AcmeStatus.Invalid"/> included, so a caller can read the embedded problem; they throw only for a
+/// failed request, or an <see cref="AcmePollException"/> when the CA stays busy or asks to be left alone longer than the
+/// poll bounds. Every URL the client requests or accepts must be on the directory's origin
+/// (<see cref="AcmeClientOptions.AdditionalOrigins"/> adds more), and the single-shot calls (<c>GetOrderAsync</c>,
+/// <c>GetAuthorizationAsync</c>, <c>RespondToChallengeAsync</c>, <c>FinalizeOrderAsync</c>) put the CA's <c>Retry-After</c>
+/// on the model they return, for a scheduler that waits on its own.
 /// </remarks>
 public sealed class AcmeClient : IDisposable
 {
@@ -288,12 +285,12 @@ public sealed class AcmeClient : IDisposable
 
     /// <summary>
     /// Downloads the certificate chain (POST-as-GET, <c>application/pem-certificate-chain</c>). With
-    /// <paramref name="preferredIssuerCommonName"/> set, and the default chain not ending in a certificate issued by an issuer
-    /// of that name, the <c>rel="alternate"</c> chains are tried in order and the first match is returned; with no match
-    /// the default chain is returned. Only the topmost certificate's issuer counts, as certbot and lego match
+    /// <paramref name="preferredIssuerCommonName"/> set, and the default chain not ending in a certificate issued by an
+    /// issuer of that name, the <c>rel="alternate"</c> chains are tried in order and the first match is returned; with no
+    /// match the default chain is returned. Only the topmost certificate's issuer counts, as certbot and lego match
     /// <c>preferred_chain</c>: in [leaf, E5, X2 cross-signed by X1] the top issuer is "ISRG Root X1", although E5's issuer
-    /// is "ISRG Root X2". The alternates of the returned chain's own response are in <see cref="AcmeCertificateDownload.Alternates"/>.
-    /// Every certificate is parsed, and the returned PEM is rebuilt from the certificate blocks alone.
+    /// is "ISRG Root X2". The alternates of the returned chain's own response are in
+    /// <see cref="AcmeCertificateDownload.Alternates"/>.
     /// </summary>
     public async Task<AcmeCertificateDownload> DownloadCertificateAsync(
         AcmeAccountRef account, Uri certificateUrl, string? preferredIssuerCommonName, CancellationToken cancellationToken)

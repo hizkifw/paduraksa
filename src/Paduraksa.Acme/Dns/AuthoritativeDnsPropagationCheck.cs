@@ -7,27 +7,19 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace Paduraksa.Acme.Dns;
 
 /// <summary>
-/// <see cref="IDnsPropagationCheck"/> that asks the zone's own name servers (PLAN §9.3). A record is "propagated" when every
-/// authoritative server returns it, which is what a CA's resolvers will find once their caches hold nothing older; a recursive
-/// resolver would only tell what <i>it</i> has cached, including a stale "no such record".
+/// <see cref="IDnsPropagationCheck"/> that asks the zone's own name servers. A record counts as propagated when every
+/// authoritative server returns it, which is what a CA's resolvers will find once their caches hold nothing older; a
+/// recursive resolver would only tell what <i>it</i> has cached, including a stale "no such record".
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>Steps.</b> (1) Find the zone: ask a recursive resolver for the NS records of the name, then of each parent down to two
-/// labels, and take the first that answers; (2) resolve each name server's A and AAAA addresses through the resolver; (3) ask each
-/// server directly (no recursion, UDP and TCP on truncation) for the TXT records at the name, and accept its answer only if it is
-/// authoritative (AA bit) and NOERROR or NXDOMAIN. A server counts as done when its answer holds every expected value (a
-/// wildcard and its base name publish two values at one name; both must be there), and a name server with several addresses
-/// is done when any one address of it answers.
-/// </para>
-/// <para>
-/// <b>Timing.</b> The first round runs at once; the pause before each next round starts at
-/// <see cref="DnsPropagationOptions.InitialInterval"/> and grows by <see cref="DnsPropagationOptions.BackoffFactor"/> to
-/// <see cref="DnsPropagationOptions.MaxInterval"/>, until <see cref="DnsPropagationOptions.Timeout"/>. Servers are asked in
-/// parallel. A server that gives no authoritative answer for <see cref="DnsPropagationOptions.UnreachableRounds"/> rounds in a
-/// row is left out; if none is left, or the zone or the resolvers cannot be found, the outcome is
-/// <see cref="DnsPropagationOutcome.Unverifiable"/> and the caller waits a fixed delay instead.
-/// </para>
+/// A server counts as done when its answer is authoritative (AA bit) and NOERROR or NXDOMAIN, and holds every expected
+/// value (a wildcard and its base name publish two values at one name); a name server with several addresses is done when
+/// any one of them answers. The first round runs at once, then the pause grows from
+/// <see cref="DnsPropagationOptions.InitialInterval"/> by <see cref="DnsPropagationOptions.BackoffFactor"/> to
+/// <see cref="DnsPropagationOptions.MaxInterval"/>, until <see cref="DnsPropagationOptions.Timeout"/>. A server silent for
+/// <see cref="DnsPropagationOptions.UnreachableRounds"/> rounds in a row is left out; if none is left, or the zone or the
+/// resolvers cannot be found, the outcome is <see cref="DnsPropagationOutcome.Unverifiable"/> and the caller waits a fixed
+/// delay instead.
 /// </remarks>
 public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCheck
 {
@@ -36,9 +28,8 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
     private readonly ILogger _logger;
     private readonly DnsClient _client;
 
-    /// <summary>Builds the check.</summary>
     /// <param name="options">Tunables; the defaults when null.</param>
-    /// <param name="time">The clock for the pauses and the overall timeout; the system clock when null.</param>
+    /// <param name="time">The clock for the pauses and the timeout; the system clock when null.</param>
     /// <param name="logger">Where it logs; nowhere when null.</param>
     public AuthoritativeDnsPropagationCheck(DnsPropagationOptions? options = null, TimeProvider? time = null, ILogger<AuthoritativeDnsPropagationCheck>? logger = null)
     {
