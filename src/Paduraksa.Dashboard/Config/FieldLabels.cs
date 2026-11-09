@@ -46,7 +46,7 @@ public static class FieldLabels
         ["destinations"] = "Destinations",
         ["address"] = "Address",
         ["loadBalancing"] = "Load balancing",
-        ["sessionAffinity"] = "Session affinity",
+        ["sessionAffinity"] = "Sticky sessions",
         ["passiveHealth"] = "Passive health",
         ["reactivationPeriod"] = "Back in rotation after",
         ["activeHealth"] = "Health checks",

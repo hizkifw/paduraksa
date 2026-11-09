@@ -140,7 +140,7 @@
                         @* The switches stack under the select, one per line, so they share one left edge. *@
                         <div class="pdk-span-2 pdk-health">
                             <MudSwitch T="bool" Value="_model.SessionAffinity" ValueChanged="@(value => Set(() => _model.SessionAffinity = value, "/sessionAffinity"))" Color="Color.Primary"
-                                       Label="Keep a client on the same destination (cookie)" Disabled="!_mayWrite" />
+                                       Label="Sticky sessions (cookie)" Disabled="!_mayWrite" />
                             <MudSwitch T="bool" Value="_model.ActiveHealth" ValueChanged="@(value => Set(() => _model.ActiveHealth = value, "/activeHealth"))" Color="Color.Primary"
                                        Label="Check each destination with a request" Disabled="!_mayWrite" data-field="active-health" />
                             @if (_model.ActiveHealth)
