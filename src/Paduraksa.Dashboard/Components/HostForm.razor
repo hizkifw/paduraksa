@@ -1,3 +1,4 @@
+@using Paduraksa.Application.Compilation
 @using Paduraksa.Contracts.Certificates
 @using Paduraksa.Dashboard.SettingsArea
 @* The host form (PLAN §5.1, §12), in the host drawer: names and kind first, then what the kind needs (routes to upstreams, a redirect, a
@@ -182,7 +183,7 @@
     </FormSection>
 
     <FormSection Title="Settings" Description="The profile first: every setting under it inherits from the profile, then the global defaults, unless the host sets its own." Name="settings">
-        <HostSettingsFields Model="Model.Settings" Inherited="Inherited" InheritedFrom="@InheritedFrom" InheritWord="Inherit" PathPrefix="/settings" Errors="Errors"
+        <HostSettingsFields Settings="Model.Settings" SettingsChanged="@(settings => Model.Settings = settings)" Inherited="Inherited" InheritedFrom="@InheritedFrom" InheritWord="Inherit" PathPrefix="/settings" Errors="Errors"
                             ShowAll="ShowAll" Touched="_touched" ReadOnly="ReadOnly" ShowForceHttps="@(Model.Kind != HostKind.Admin)"
                             ForceHttpsDisabled="@(Model.CertificateMode == CertificateBindingMode.None)" OnChanged="TouchAsync">
             <div class="pdk-setting">
@@ -288,8 +289,7 @@
     private ProfileConfig? Profile => Model.ProfileId is { } id ? Profiles.FirstOrDefault(p => p.Id == id) : null;
 
     /// <summary>What the host's settings inherit: the profile's over the global defaults over the built-in ones.</summary>
-    private HostSettings Inherited =>
-        HostSettingsModel.Layer(Profile?.Settings ?? new HostSettings(), HostSettingsModel.Layer(Defaults, HostSettingsModel.BuiltIn));
+    private HostSettings Inherited => HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings);
 
     private bool InheritedForceHttps => Inherited.ForceHttps == true;
 
@@ -377,7 +377,7 @@
                 Model.CertificateId = null;
 
                 // No certificate means no HTTPS to redirect to: lift an inherited redirect rather than fail validation.
-                Model.Settings.ForceHttps = InheritedForceHttps ? false : null;
+                Model.Settings = Model.Settings with { ForceHttps = InheritedForceHttps ? false : null };
                 break;
             case AutoChoice:
                 Model.CertificateMode = CertificateBindingMode.Auto;

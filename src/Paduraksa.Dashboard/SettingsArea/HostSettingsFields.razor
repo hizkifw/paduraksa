@@ -1,254 +1,138 @@
-@* The fields of one layer of host settings (PLAN §5.3), shared by the global defaults, the profiles and the hosts: each can be left to
-   inherit, and says what it would inherit. Paths are relative to the layer (/forceHttps, /tls, /ipAllowList), under PathPrefix. Rows of
-   the same shape can go first (a host's profile, which decides what the rest inherit). *@
+@using Paduraksa.Application.Compilation
+@* The fields of one layer of host settings (PLAN §5.3), shared by the global defaults, the profiles and the hosts: each binds to the
+   contract's own record, where null means inherit, and says what it would inherit. Paths are relative to the layer (/forceHttps,
+   /tls, /ipAllowList), under PathPrefix. Rows of the same shape can go first (a host's profile, which decides what the rest inherit). *@
 <div class="pdk-setting-list">
     @ChildContent
     @if (ShowForceHttps)
     {
-        <div class="pdk-setting">
-            <div class="pdk-setting-text">
-                <span class="pdk-setting-title">HTTPS redirect</span>
-                <span class="pdk-setting-help">Send plain-HTTP requests to HTTPS before anything else. A host without a certificate can't redirect.</span>
-            </div>
-            <MudSelect T="bool?" Value="Model.ForceHttps" ValueChanged="@(value => SetAsync(() => Model.ForceHttps = value, "/forceHttps"))" Label="HTTPS redirect"
-                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Disabled="ForceHttpsDisabled" Class="pdk-setting-control"
-                       Error="@(E("/forceHttps") is not null)" ErrorText="@E("/forceHttps")" data-field="force-https">
-                <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.ForceHttps == true ? "redirect" : "don't redirect")</MudSelectItem>
-                <MudSelectItem T="bool?" Value="true">Redirect to HTTPS</MudSelectItem>
-                <MudSelectItem T="bool?" Value="false">Don't redirect</MudSelectItem>
-            </MudSelect>
-        </div>
+        <InheritSelect T="bool" Value="_current.ForceHttps" ValueChanged="@(value => Update(_current with { ForceHttps = value }, "/forceHttps"))"
+                      Inherited="@Resolved.ForceHttps!.Value" Format="@(value => value ? "redirect" : "don't redirect")"
+                      InheritWord="@InheritWord" Title="HTTPS redirect"
+                      Help="Send plain-HTTP requests to HTTPS before anything else. A host without a certificate can't redirect."
+                      Label="HTTPS redirect" Field="force-https" Error="@E("/forceHttps")" ReadOnly="@ReadOnly" Disabled="@ForceHttpsDisabled">
+            <MudSelectItem T="bool?" Value="true">Redirect to HTTPS</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Don't redirect</MudSelectItem>
+        </InheritSelect>
     }
 
-    <div class="pdk-setting">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">Minimum TLS version</span>
-            <span class="pdk-setting-help">The oldest TLS a client may use over TCP. HTTP/3 always uses TLS 1.3.</span>
-        </div>
-        <MudSelect T="TlsMinimumVersion?" Value="Model.MinimumTls" ValueChanged="@(value => SetAsync(() => Model.MinimumTls = value, "/tls"))" Label="Minimum TLS version"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control" data-field="minimum-tls">
-            <MudSelectItem T="TlsMinimumVersion?" Value="null">@InheritOption(HostSettingsModel.TlsText(Inherited.Tls?.MinimumVersion ?? TlsMinimumVersion.Tls12))</MudSelectItem>
-            <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls12">TLS 1.2</MudSelectItem>
-            <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls13">TLS 1.3</MudSelectItem>
-        </MudSelect>
-    </div>
+    <InheritSelect T="TlsMinimumVersion" Value="_current.Tls?.MinimumVersion" ValueChanged="@(value => Update(WithTls(tls => tls with { MinimumVersion = value }), "/tls"))"
+                  Inherited="@Resolved.Tls!.MinimumVersion!.Value" Format="@(value => SettingsSummary.TlsText(value))" InheritWord="@InheritWord"
+                  Title="Minimum TLS version" Help="The oldest TLS a client may use over TCP. HTTP/3 always uses TLS 1.3."
+                  Label="Minimum TLS version" Field="minimum-tls" Error="@E("/tls")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls12">TLS 1.2</MudSelectItem>
+        <MudSelectItem T="TlsMinimumVersion?" Value="TlsMinimumVersion.Tls13">TLS 1.3</MudSelectItem>
+    </InheritSelect>
 
-    <div class="pdk-setting">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">Protocols over TCP</span>
-            <span class="pdk-setting-help">What is offered in the TLS handshake. HTTP/1.1 only helps an old client or a picky upstream.</span>
-        </div>
-        <MudSelect T="TcpAlpn?" Value="Model.TcpAlpn" ValueChanged="@(value => SetAsync(() => Model.TcpAlpn = value, "/tls"))" Label="Protocols over TCP"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control" data-field="tcp-alpn">
-            <MudSelectItem T="TcpAlpn?" Value="null">@InheritOption(HostSettingsModel.AlpnText(Inherited.Tls?.TcpAlpn ?? TcpAlpn.Http2AndHttp11))</MudSelectItem>
-            <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http2AndHttp11">HTTP/2 and HTTP/1.1</MudSelectItem>
-            <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http11Only">HTTP/1.1 only</MudSelectItem>
-        </MudSelect>
-    </div>
+    <InheritSelect T="TcpAlpn" Value="_current.Tls?.TcpAlpn" ValueChanged="@(value => Update(WithTls(tls => tls with { TcpAlpn = value }), "/tls"))"
+                  Inherited="@Resolved.Tls!.TcpAlpn!.Value" Format="@(value => SettingsSummary.AlpnText(value))" InheritWord="@InheritWord"
+                  Title="Protocols over TCP" Help="What is offered in the TLS handshake. HTTP/1.1 only helps an old client or a picky upstream."
+                  Label="Protocols over TCP" Field="tcp-alpn" Error="@E("/tls")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http2AndHttp11">HTTP/2 and HTTP/1.1</MudSelectItem>
+        <MudSelectItem T="TcpAlpn?" Value="TcpAlpn.Http11Only">HTTP/1.1 only</MudSelectItem>
+    </InheritSelect>
 
-    <div class="pdk-setting">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">HTTP/3</span>
-            <span class="pdk-setting-help">Serve over QUIC as well, when the HTTP/3 listener is on. Browsers find it through Alt-Svc.</span>
-        </div>
-        <MudSelect T="bool?" Value="Model.Http3" ValueChanged="@(value => SetAsync(() => Model.Http3 = value, "/tls"))" Label="HTTP/3"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control" data-field="http3">
-            <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.Tls?.Http3 == false ? "off" : "on")</MudSelectItem>
-            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-        </MudSelect>
-    </div>
+    <InheritSelect T="bool" Value="_current.Tls?.Http3" ValueChanged="@(value => Update(WithTls(tls => tls with { Http3 = value }), "/tls"))"
+                  Inherited="@Resolved.Tls!.Http3!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                  Title="HTTP/3" Help="Serve over QUIC as well, when the HTTP/3 listener is on. Browsers find it through Alt-Svc."
+                  Label="HTTP/3" Field="http3" Error="@E("/tls")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+    </InheritSelect>
 
     <div class="pdk-setting-heading">
         <span class="pdk-setting-heading-title">HSTS</span>
         <span class="pdk-setting-heading-note">Tells browsers to reach this host over HTTPS only, for as long as the max-age.</span>
     </div>
 
-    <div class="pdk-setting">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">HSTS</span>
-        </div>
-        <MudSelect T="bool?" Value="Model.HstsEnabled" ValueChanged="@(value => SetAsync(() => Model.HstsEnabled = value, "/hsts"))" Label="HSTS"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
-                   data-field="hsts-enabled">
-            <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.Hsts?.Enabled == true ? "on" : "off")</MudSelectItem>
-            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-        </MudSelect>
-    </div>
+    <InheritSelect T="bool" Value="_current.Hsts?.Enabled" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Enabled = value }), "/hsts"))"
+                  Inherited="@Resolved.Hsts!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                  Title="HSTS" Label="HSTS" Field="hsts-enabled" Error="@E("/hsts")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+    </InheritSelect>
 
-    @if (HstsOn || Model.HstsMaxAge != HstsMaxAgeChoice.Inherit)
-    {
-        @* Shown while this layer sets an age even with the switch off, so a number the validator refuses shows at it. *@
-        <div class="pdk-setting">
-            <div class="pdk-setting-text">
-                <span class="pdk-setting-title">Remembered for</span>
-                <span class="pdk-setting-help">
-                    Counted from the browser's last visit, and kept even if it's wrong: start short while you test.
-                </span>
-            </div>
-            <div class="pdk-setting-control pdk-hsts-age">
-                <MudSelect T="HstsMaxAgeChoice" Value="Model.HstsMaxAge" ValueChanged="@(value => SetAsync(() => Model.HstsMaxAge = value, "/hsts/maxAge"))"
-                           Label="Remembered for" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly"
-                           Error="@(Model.HstsMaxAge != HstsMaxAgeChoice.Custom && E("/hsts/maxAge") is not null)"
-                           ErrorText="@(Model.HstsMaxAge == HstsMaxAgeChoice.Custom ? null : E("/hsts/maxAge"))"
-                           data-field="hsts-max-age">
-                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.Inherit">
-                        @InheritOption(HostSettingsModel.AgeText(Inherited.Hsts?.MaxAge ?? HstsMaxAgePresets.OneYear))
-                    </MudSelectItem>
-                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.FiveMinutes">5 minutes (for testing)</MudSelectItem>
-                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.OneDay">1 day</MudSelectItem>
-                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.SixMonths">6 months</MudSelectItem>
-                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.OneYear">1 year</MudSelectItem>
-                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.TwoYears">2 years</MudSelectItem>
-                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.Custom">Custom seconds</MudSelectItem>
-                </MudSelect>
-                @if (Model.HstsMaxAge == HstsMaxAgeChoice.Custom)
-                {
-                    <MudNumericField T="int?" Value="Model.HstsCustomMaxAge" ValueChanged="@(value => SetAsync(() => Model.HstsCustomMaxAge = value, "/hsts/maxAge"))"
-                                     Label="Seconds" Min="0" Max="HstsMaxAgePresets.Longest" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="ReadOnly"
-                                     HideSpinButtons="true" HelperText="0 tells a browser to forget it" Class="pdk-mono-input"
-                                     Error="@(E("/hsts/maxAge") is not null)" ErrorText="@(E("/hsts/maxAge"))" data-field="hsts-max-age-custom" />
-                }
-            </div>
-        </div>
-    }
+    <HstsMaxAgeField Value="_current.Hsts" ValueChanged="@(value => Update(WithHsts(_ => value ?? new HstsSettings()), "/hsts/maxAge"))"
+                     Inherited="@Resolved.Hsts!.MaxAge!.Value" HstsOn="HstsOn" InheritWord="@InheritWord" Error="@E("/hsts/maxAge")" ReadOnly="@ReadOnly" />
 
     @if (HstsOn)
     {
-        <div class="pdk-setting">
-            <div class="pdk-setting-text">
-                <span class="pdk-setting-title">Every subdomain</span>
-                <span class="pdk-setting-help">
-                    Pins every name under this one too (<code>includeSubDomains</code>). Only when each of them has a
-                    certificate: a plain-HTTP subdomain stops working.
-                </span>
-            </div>
-            <MudSelect T="bool?" Value="Model.HstsIncludeSubDomains" ValueChanged="@(value => SetAsync(() => Model.HstsIncludeSubDomains = value, "/hsts/includeSubDomains"))"
-                       Label="Every subdomain" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
-                       Error="@(E("/hsts/includeSubDomains") is not null)" ErrorText="@(E("/hsts/includeSubDomains"))" data-field="hsts-include-subdomains">
-                <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.Hsts?.IncludeSubDomains == true ? "on" : "off")</MudSelectItem>
-                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-            </MudSelect>
-        </div>
-
-        <div class="pdk-setting">
-            <div class="pdk-setting-text">
-                <span class="pdk-setting-title">Preload list</span>
-                <span class="pdk-setting-help">
-                    Asks the browser vendors to ship the host as HTTPS-only (<code>preload</code>). Needs every subdomain and
-                    a year, and is hard to undo: browsers that ship the list keep refusing plain HTTP.
-                </span>
-            </div>
-            <MudSelect T="bool?" Value="Model.HstsPreload" ValueChanged="@(value => SetAsync(() => Model.HstsPreload = value, "/hsts/preload"))"
-                       Label="Preload list" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
-                       Error="@(E("/hsts/preload") is not null)" ErrorText="@(E("/hsts/preload"))" data-field="hsts-preload">
-                <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.Hsts?.Preload == true ? "on" : "off")</MudSelectItem>
-                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-            </MudSelect>
-        </div>
-    }
-
-    <div class="pdk-setting">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">Access log</span>
-            <span class="pdk-setting-help">One line per request, whatever answered it. Turn it off for a host whose app keeps its own log.</span>
-        </div>
-        <MudSelect T="bool?" Value="Model.AccessLog" ValueChanged="@(value => SetAsync(() => Model.AccessLog = value, "/accessLog"))" Label="Access log"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control" data-field="access-log">
-            <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.AccessLog == false ? "off" : "on")</MudSelectItem>
+        <InheritSelect T="bool" Value="_current.Hsts?.IncludeSubDomains" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { IncludeSubDomains = value }), "/hsts/includeSubDomains"))"
+                      Inherited="@Resolved.Hsts!.IncludeSubDomains!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                      Title="Every subdomain" HelpContent="@SubdomainHelp" Label="Every subdomain" Field="hsts-include-subdomains"
+                      Error="@E("/hsts/includeSubDomains")" ReadOnly="@ReadOnly">
             <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
             <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-        </MudSelect>
-    </div>
+        </InheritSelect>
 
-    <div class="pdk-setting">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">Request ID</span>
-            <span class="pdk-setting-help">One ID ties a line in the access log to the same request in the app's own log.</span>
-        </div>
-        <MudSelect T="RequestIdPropagation?" Value="Model.RequestIdPropagation" ValueChanged="@(value => SetAsync(() => Model.RequestIdPropagation = value, "/requestIdPropagation"))"
-                   Label="Request ID" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
-                   data-field="request-id-propagation">
-            <MudSelectItem T="RequestIdPropagation?" Value="null">@InheritOption(HostSettingsModel.PropagationText(Inherited.RequestIdPropagation ?? RequestIdPropagation.UpstreamAndResponse))</MudSelectItem>
-            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamAndResponse">Upstream and the client</MudSelectItem>
-            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamOnly">Upstream only</MudSelectItem>
-            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.ResponseOnly">The client only</MudSelectItem>
-            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.Off">Off</MudSelectItem>
-        </MudSelect>
-    </div>
+        <InheritSelect T="bool" Value="_current.Hsts?.Preload" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Preload = value }), "/hsts/preload"))"
+                      Inherited="@Resolved.Hsts!.Preload!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                      Title="Preload list" HelpContent="@PreloadHelp" Label="Preload list" Field="hsts-preload" Error="@E("/hsts/preload")" ReadOnly="@ReadOnly">
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </InheritSelect>
+    }
+
+    <InheritSelect T="bool" Value="_current.AccessLog" ValueChanged="@(value => Update(_current with { AccessLog = value }, "/accessLog"))"
+                  Inherited="@Resolved.AccessLog!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                  Title="Access log" Help="One line per request, whatever answered it. Turn it off for a host whose app keeps its own log."
+                  Label="Access log" Field="access-log" Error="@E("/accessLog")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+    </InheritSelect>
+
+    <InheritSelect T="RequestIdPropagation" Value="_current.RequestIdPropagation" ValueChanged="@(value => Update(_current with { RequestIdPropagation = value }, "/requestIdPropagation"))"
+                  Inherited="@Resolved.RequestIdPropagation!.Value" Format="@(value => SettingsSummary.PropagationText(value))" InheritWord="@InheritWord"
+                  Title="Request ID" Help="One ID ties a line in the access log to the same request in the app's own log."
+                  Label="Request ID" Field="request-id-propagation" Error="@E("/requestIdPropagation")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamAndResponse">Upstream and the client</MudSelectItem>
+        <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamOnly">Upstream only</MudSelectItem>
+        <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.ResponseOnly">The client only</MudSelectItem>
+        <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.Off">Off</MudSelectItem>
+    </InheritSelect>
 
     <div class="pdk-setting-heading">
         <span class="pdk-setting-heading-title">Server header</span>
         <span class="pdk-setting-heading-note">Hiding the upstream's header stops it advertising its software and version.</span>
     </div>
 
-    <div class="pdk-setting">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">Server header</span>
-        </div>
-        <MudSelect T="ServerHeaderMode?" Value="Model.ServerMode" ValueChanged="@(value => SetAsync(() => Model.ServerMode = value, "/serverHeader/mode"))"
-                   Label="Server header" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
-                   Error="@(E("/serverHeader/mode") is not null)" ErrorText="@E("/serverHeader/mode")" data-field="server-header-mode">
-            <MudSelectItem T="ServerHeaderMode?" Value="null">
-                @InheritOption(HostSettingsModel.ServerHeaderText(Inherited.ServerHeader?.Mode ?? ServerHeaderMode.Paduraksa, Inherited.ServerHeader?.Value))
-            </MudSelectItem>
-            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Paduraksa">Paduraksa (no version)</MudSelectItem>
-            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Custom">Custom value</MudSelectItem>
-            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Upstream">The upstream's header</MudSelectItem>
-            <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Remove">Remove</MudSelectItem>
-        </MudSelect>
-    </div>
+    <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"
+                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
+                  InheritWord="@InheritWord" Title="Server header" Label="Server header" Field="server-header-mode"
+                  Error="@E("/serverHeader/mode")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Paduraksa">Paduraksa (no version)</MudSelectItem>
+        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Custom">Custom value</MudSelectItem>
+        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Upstream">The upstream's header</MudSelectItem>
+        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Remove">Remove</MudSelectItem>
+    </InheritSelect>
 
     @if (ServerValueVisible)
     {
-        <div class="pdk-setting">
-            <div class="pdk-setting-text">
-                <span class="pdk-setting-title">Custom value</span>
-            </div>
-            <MudTextField T="string" Value="Model.ServerValue" ValueChanged="@(value => SetAsync(() => Model.ServerValue = value ?? string.Empty, "/serverHeader/value"))"
-                          Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="ReadOnly" MaxLength="128"
+        <SettingRow Title="Custom value">
+            <MudTextField T="string" Value="@(_current.ServerHeader?.Value ?? string.Empty)"
+                          ValueChanged="@(value => Update(WithServerHeader(server => server with { Value = string.IsNullOrEmpty(value) ? null : value }), "/serverHeader/value"))"
+                          Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="128"
                           HelperText="1-128 visible ASCII characters" Class="pdk-mono-input"
                           Error="@(E("/serverHeader/value") is not null)" ErrorText="@E("/serverHeader/value")" data-field="server-header-value" />
-        </div>
+        </SettingRow>
     }
 
-    <div class="pdk-setting pdk-setting-wide">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">IP allow list</span>
-            <span class="pdk-setting-help">
-                Only these addresses and networks get through; others get a 403.
-                @if (!Model.AllowListSet)
-                {
-                    <text> Now: @(Inherited.IpAllowList is { Addresses.Count: > 0 } inherited ? $"inherits {inherited.Addresses.Count} {(inherited.Addresses.Count == 1 ? "entry" : "entries")} from {InheritedFrom}" : "no restriction").</text>
-                }
-            </span>
-        </div>
-        <div class="pdk-setting-control pdk-allow">
-            <MudSwitch T="bool" Value="Model.AllowListSet" ValueChanged="@(value => SetAsync(() => Model.AllowListSet = value, "/ipAllowList"))" Color="Color.Primary"
-                       Label="@(Model.AllowListSet ? "Set here" : "Inherit")" Disabled="ReadOnly" data-field="allow-list-set" />
-            @if (Model.AllowListSet)
-            {
-                <MudTextField T="string" Value="Model.AllowList" ValueChanged="@(value => SetAsync(() => Model.AllowList = value, "/ipAllowList"))" Label="Addresses and networks"
-                              Placeholder="192.168.1.0/24, 10.0.0.5" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="ReadOnly"
-                              HelperText="One per line. Empty lifts an inherited list." Error="@(FirstUnder("/ipAllowList") is not null)" ErrorText="@FirstUnder("/ipAllowList")"
-                              data-field="allow-list" />
-                <MudSwitch T="bool" Value="Model.DropDenied" ValueChanged="@(value => SetAsync(() => Model.DropDenied = value, "/ipAllowList"))" Color="Color.Primary"
-                           Label="Drop refused requests without an answer" Disabled="ReadOnly" />
-            }
-        </div>
-    </div>
+    <AllowListField Value="_current.IpAllowList" ValueChanged="@(value => Update(_current with { IpAllowList = value }, "/ipAllowList"))"
+                    Inherited="Inherited.IpAllowList" InheritedFrom="@InheritedFrom" Error="@FirstUnder("/ipAllowList")" ReadOnly="@ReadOnly" />
 </div>
 
 @code {
+    /// <summary>The layer being edited (PLAN §5.3); a null field inherits.</summary>
     [Parameter, EditorRequired]
-    public HostSettingsModel Model { get; set; } = default!;
+    public HostSettings Settings { get; set; } = new();
+
+    /// <summary>A field changed: the layer as it now is.</summary>
+    [Parameter]
+    public EventCallback<HostSettings> SettingsChanged { get; set; }
 
     /// <summary>What this layer would inherit, resolved (the global defaults over the built-in ones, for a profile).</summary>
     [Parameter, EditorRequired]
-    public HostSettings Inherited { get; set; } = HostSettingsModel.BuiltIn;
+    public HostSettings Inherited { get; set; } = HostSettingsLayers.BuiltIn;
 
     /// <summary>Where the inherited values come from, in words ("the global defaults", "the built-in defaults").</summary>
     [Parameter]
@@ -292,14 +176,54 @@
     [Parameter]
     public EventCallback<string> OnChanged { get; set; }
 
-    private string InheritOption(string value) => $"{InheritWord} ({value})";
+    private HostSettings _current = new();
+    private HostSettings? _seen;
+    private bool _initialised;
+
+    /// <summary>What the layer below says, with the one place that states the built-in defaults underneath it.</summary>
+    private HostSettings Resolved { get; set; } = HostSettingsLayers.BuiltIn;
+
+    protected override void OnParametersSet()
+    {
+        // The parent's record is the layer: a reload or an undo changes the instance, while our own edits are already
+        // _current, so a render before the page has caught up can't put an old value back.
+        if (!_initialised || !ReferenceEquals(Settings, _seen))
+        {
+            _current = Settings;
+            _seen = Settings;
+            _initialised = true;
+        }
+
+        Resolved = HostSettingsLayers.Merge(HostSettingsLayers.BuiltIn, Inherited);
+    }
 
     /// <summary>Whether the HSTS fields under the switch apply: this layer's choice, else what it inherits.</summary>
-    private bool HstsOn => Model.HstsEnabled ?? (Inherited.Hsts?.Enabled ?? false);
+    private bool HstsOn => _current.Hsts?.Enabled ?? Resolved.Hsts?.Enabled ?? false;
 
     /// <summary>The custom value shows for a custom mode, or when this layer or an error has one to show.</summary>
     private bool ServerValueVisible =>
-        Model.ServerMode == ServerHeaderMode.Custom || Model.ServerValue.Length > 0 || E("/serverHeader/value") is not null;
+        _current.ServerHeader?.Mode == ServerHeaderMode.Custom || !string.IsNullOrEmpty(_current.ServerHeader?.Value) || E("/serverHeader/value") is not null;
+
+    private RenderFragment SubdomainHelp => @<text>Pins every name under this one too (<code>includeSubDomains</code>). Only when each of them has a
+        certificate: a plain-HTTP subdomain stops working.</text>;
+
+    private RenderFragment PreloadHelp => @<text>Asks the browser vendors to ship the host as HTTPS-only (<code>preload</code>). Needs every subdomain and
+        a year, and is hard to undo: browsers that ship the list keep refusing plain HTTP.</text>;
+
+    private HostSettings WithTls(Func<TlsSettings, TlsSettings> change) => HostSettingsEdit.WithTls(_current, change);
+
+    private HostSettings WithHsts(Func<HstsSettings, HstsSettings> change) => HostSettingsEdit.WithHsts(_current, change);
+
+    private HostSettings WithServerHeader(Func<ServerHeaderSettings, ServerHeaderSettings> change) => HostSettingsEdit.WithServerHeader(_current, change);
+
+    /// <summary>Hands the changed layer to the form, then says which field changed (so its errors show and it revalidates).</summary>
+    private async Task Update(HostSettings settings, string path)
+    {
+        _current = settings;
+        _seen = settings;
+        await SettingsChanged.InvokeAsync(settings);
+        await OnChanged.InvokeAsync(PathPrefix + path);
+    }
 
     private string? E(string path)
     {
@@ -313,11 +237,5 @@
         return ShowAll || Touched.Contains(full)
             ? Errors.Where(e => e.Key == full || e.Key.StartsWith(full + "/", StringComparison.Ordinal)).Select(e => e.Value).FirstOrDefault()
             : null;
-    }
-
-    private Task SetAsync(Action apply, string path)
-    {
-        apply();
-        return OnChanged.InvokeAsync(PathPrefix + path);
     }
 }

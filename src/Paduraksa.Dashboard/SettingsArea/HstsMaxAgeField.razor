@@ -1,0 +1,109 @@
+@* The HSTS "Remembered for" field (PLAN §5.3, §14 M6): the common max-age values plus custom seconds. The config holds seconds only, so
+   the preset-or-custom choice is this component's own state; it is derived from the value, and remembers a custom number while a preset
+   is picked, as the form always has. *@
+@if (Visible)
+{
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">Remembered for</span>
+            <span class="pdk-setting-help">
+                Counted from the browser's last visit, and kept even if it's wrong: start short while you test.
+            </span>
+        </div>
+        <div class="pdk-setting-control pdk-hsts-age">
+            <MudSelect T="HstsMaxAgeChoice" Value="_choice" ValueChanged="SetChoiceAsync"
+                       Label="Remembered for" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="@ReadOnly"
+                       Error="@(_choice != HstsMaxAgeChoice.Custom && Error is not null)"
+                       ErrorText="@(_choice == HstsMaxAgeChoice.Custom ? null : Error)"
+                       data-field="hsts-max-age">
+                <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.Inherit">
+                    @InheritWord (@SettingsSummary.AgeText(Inherited))
+                </MudSelectItem>
+                <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.FiveMinutes">5 minutes (for testing)</MudSelectItem>
+                <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.OneDay">1 day</MudSelectItem>
+                <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.SixMonths">6 months</MudSelectItem>
+                <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.OneYear">1 year</MudSelectItem>
+                <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.TwoYears">2 years</MudSelectItem>
+                <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.Custom">Custom seconds</MudSelectItem>
+            </MudSelect>
+            @if (_choice == HstsMaxAgeChoice.Custom)
+            {
+                <MudNumericField T="int?" Value="_custom" ValueChanged="SetCustomAsync"
+                                 Label="Seconds" Min="0" Max="HstsMaxAgePresets.Longest" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly"
+                                 HideSpinButtons="true" HelperText="0 tells a browser to forget it" Class="pdk-mono-input"
+                                 Error="@(Error is not null)" ErrorText="@Error" data-field="hsts-max-age-custom" />
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private HstsMaxAgeChoice _choice;
+    private int? _custom;
+    private HstsSettings? _current;
+    private HstsSettings? _seen;
+    private bool _initialised;
+
+    /// <summary>The layer's HSTS record (PLAN §5.3); its <c>MaxAge</c> is the one this field edits, null inheriting.</summary>
+    [Parameter]
+    public HstsSettings? Value { get; set; }
+
+    /// <summary>The record with its <c>MaxAge</c> changed: the whole record, so the parent keeps the same instance.</summary>
+    [Parameter]
+    public EventCallback<HstsSettings?> ValueChanged { get; set; }
+
+    /// <summary>The <c>max-age</c> this layer would inherit, resolved.</summary>
+    [Parameter]
+    public int Inherited { get; set; } = HstsMaxAgePresets.OneYear;
+
+    /// <summary>Whether this layer's HSTS is on, so the row shows even when it sets no age of its own.</summary>
+    [Parameter]
+    public bool HstsOn { get; set; }
+
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    /// <summary>Shown while HSTS is on here, and also when this layer sets an age with the switch off, so a refused number has a field.</summary>
+    private bool Visible => HstsOn || _choice != HstsMaxAgeChoice.Inherit;
+
+    protected override void OnParametersSet()
+    {
+        // The parent's record is the value: when it changes underneath us (a reload, an undo), the choice follows it again.
+        // A reference check, not the seconds: Custom with nothing typed and Inherit both leave no max-age at all.
+        if (!_initialised || !ReferenceEquals(Value, _seen))
+        {
+            _current = Value;
+            _choice = HstsMaxAgePresets.ChoiceOf(Value?.MaxAge, out int? custom);
+            _custom = custom;
+            _seen = Value;
+            _initialised = true;
+        }
+    }
+
+    private Task SetChoiceAsync(HstsMaxAgeChoice choice)
+    {
+        _choice = choice;
+        return EmitAsync(HstsMaxAgePresets.SecondsOf(choice, _custom));
+    }
+
+    private Task SetCustomAsync(int? seconds)
+    {
+        _custom = seconds;
+        return EmitAsync(seconds);
+    }
+
+    /// <summary>Hands back the whole record, so the parent stores this instance and the reference check above sees no change.</summary>
+    private Task EmitAsync(int? seconds)
+    {
+        HstsSettings next = (_current ?? new HstsSettings()) with { MaxAge = seconds };
+        _current = next;
+        _seen = next;
+        return ValueChanged.InvokeAsync(next);
+    }
+}

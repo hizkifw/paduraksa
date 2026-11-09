@@ -1,4 +1,5 @@
 @implements IDisposable
+@using Paduraksa.Application.Compilation
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
 @inject DrawerStack Drawers
@@ -83,10 +84,10 @@
 
                 <FormSection Title="Settings" Description="Each one left to inherit takes the global default, shown in brackets." Name="settings">
                     <Aside>
-                        <StatusChip Tone="Tone.Primary" Text="@Overrides(_model.Settings.Overrides)" Name="overrides" />
+                        <StatusChip Tone="Tone.Primary" Text="@Overrides(SetCount())" Name="overrides" />
                     </Aside>
                     <ChildContent>
-                        <HostSettingsFields Model="_model.Settings" Inherited="_inherited" InheritedFrom="the global defaults" InheritWord="Inherit"
+                        <HostSettingsFields Settings="_model.Settings" SettingsChanged="SetSettings" Inherited="_inherited" InheritedFrom="the global defaults" InheritWord="Inherit"
                                             PathPrefix="/settings" Errors="_errors" ShowAll="_attempted" Touched="_touched" ReadOnly="!_mayWrite" OnChanged="Touch" />
                     </ChildContent>
                 </FormSection>
@@ -107,7 +108,7 @@
                                         <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
                                         <span class="pdk-list-main">
                                             <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
-                                            <span class="pdk-list-sub">@(HostSettingsModel.Summary(host.Settings) is { Count: > 0 } own ? $"Sets its own: {string.Join(", ", own).ToLowerInvariant()}" : "Takes everything from the profile")</span>
+                                            <span class="pdk-list-sub">@(SettingsSummary.Summary(host.Settings) is { Count: > 0 } own ? $"Sets its own: {string.Join(", ", own).ToLowerInvariant()}" : "Takes everything from the profile")</span>
                                         </span>
                                     </li>
                                 }
@@ -152,7 +153,9 @@
 @code {
     private ProfileEditModel? _model;
     private ConfigDocument? _document;
-    private HostSettings _inherited = HostSettingsModel.BuiltIn;
+    private HostSettings _inherited = HostSettingsLayers.BuiltIn;
+    private HostSettings? _countedSettings;
+    private int _countedSet;
     private string _storedName = string.Empty;
     private string _opened = string.Empty;
     private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
@@ -238,7 +241,7 @@
             return;
         }
 
-        _inherited = HostSettingsModel.Layer(_document.Settings.Defaults, HostSettingsModel.BuiltIn);
+        _inherited = HostSettingsLayers.Merge(HostSettingsLayers.BuiltIn, _document.Settings.Defaults);
         if (Id is { } profileId && !Stage)
         {
             if (_document.Profiles.FirstOrDefault(p => p.Id == profileId) is not { } profile)
@@ -285,6 +288,27 @@
     {
         apply();
         Touch(path);
+    }
+
+    private void SetSettings(HostSettings settings)
+    {
+        if (_model is not null)
+        {
+            _model.Settings = settings;
+        }
+    }
+
+    /// <summary>How many settings the profile sets, counted once per record instance rather than on every render.</summary>
+    private int SetCount()
+    {
+        HostSettings? settings = _model?.Settings;
+        if (!ReferenceEquals(_countedSettings, settings))
+        {
+            _countedSettings = settings;
+            _countedSet = settings is null ? 0 : HostSettingsEdit.CountSet(settings);
+        }
+
+        return _countedSet;
     }
 
     private void Touch(string path)
@@ -417,7 +441,7 @@
         try
         {
             _document = (await Config.GetCurrentAsync()).Document;
-            _inherited = HostSettingsModel.Layer(_document.Settings.Defaults, HostSettingsModel.BuiltIn);
+            _inherited = HostSettingsLayers.Merge(HostSettingsLayers.BuiltIn, _document.Settings.Defaults);
         }
         catch (Exception ex) when (StoreFailures.Survivable(ex))
         {

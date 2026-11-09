@@ -218,8 +218,8 @@ public sealed class SettingsInheritanceTests
             Assert.Equal(SampleOf(field), field.Resolved(compiled));
         }
 
-        // The dashboard folds its inherited values through the same merge; HostSettingsMergeTests (Tests.Dashboard, which
-        // references the form) holds it to the same field-for-field result.
+        // The dashboard binds the same contract directly, so its fields fold what they inherit through this merge too; its own
+        // table (HostSettingsFieldsTests, Tests.Dashboard) walks every field, and keeps the built-in defaults out of the form.
 
         // The one case the per-setting tests used to pin by hand: the host's mode over the profile's value.
         if (name == "serverHeader")

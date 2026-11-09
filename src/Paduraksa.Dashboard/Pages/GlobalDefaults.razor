@@ -1,4 +1,5 @@
 @attribute [Route(SettingsRoutes.Defaults)]
+@using Paduraksa.Application.Compilation
 @implements IDisposable
 @using Paduraksa.Contracts.Certificates
 @inject IDashboardConfig Config
@@ -59,7 +60,7 @@ else
                     <MudText Typo="Typo.caption" Class="pdk-muted">Every host inherits these unless its profile or the host itself sets its own.</MudText>
                 </div>
             </div>
-            <HostSettingsFields Model="_model.Defaults" Inherited="HostSettingsModel.BuiltIn" InheritedFrom="the built-in defaults" InheritWord="Built-in default"
+            <HostSettingsFields Settings="_model.Defaults" SettingsChanged="SetDefaults" Inherited="HostSettingsLayers.BuiltIn" InheritedFrom="the built-in defaults" InheritWord="Built-in default"
                                 PathPrefix="/defaults" Errors="_errors" ShowAll="_attempted" Touched="_touched" ReadOnly="!_mayWrite" OnChanged="Touch" />
         </MudPaper>
 
@@ -245,6 +246,14 @@ else
     {
         apply();
         Touch(path);
+    }
+
+    private void SetDefaults(HostSettings settings)
+    {
+        if (_model is not null)
+        {
+            _model.Defaults = settings;
+        }
     }
 
     private void Touch(string path)

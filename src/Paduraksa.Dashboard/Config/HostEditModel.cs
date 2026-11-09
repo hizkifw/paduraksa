@@ -1,6 +1,5 @@
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
-using Paduraksa.Dashboard.SettingsArea;
 
 namespace Paduraksa.Dashboard.Config;
 
@@ -40,8 +39,9 @@ public sealed class HostEditModel
 
     public CertificateId? CertificateId { get; set; }
 
-    /// <summary>The host's own layer of settings (PLAN §5.3): each field left null inherits from the profile or the global defaults.</summary>
-    public HostSettingsModel Settings { get; private init; } = new();
+    /// <summary>The host's own layer of settings (PLAN §5.3): each field left null inherits from the profile or the global
+    /// defaults. Shared with the stored document: replace it with <c>with</c>, never mutate it in place.</summary>
+    public HostSettings Settings { get; set; } = new();
 
     public List<RouteEntry> Routes { get; } = [];
 
@@ -82,7 +82,7 @@ public sealed class HostEditModel
             ProfileId = host.ProfileId,
             CertificateMode = host.Certificate.Mode,
             CertificateId = host.Certificate.CertificateId,
-            Settings = HostSettingsModel.From(host.Settings),
+            Settings = host.Settings,
             Tags = string.Join(", ", host.Tags),
             Notes = host.Notes,
         };
@@ -126,7 +126,7 @@ public sealed class HostEditModel
     /// <summary>The host as the form describes it: what the command sends. Only the kind's own part is included.</summary>
     public HostConfig ToConfig()
     {
-        HostSettings settings = Settings.ApplyTo(_original?.Settings ?? new HostSettings());
+        HostSettings settings = Settings;
         if (Kind == HostKind.Admin)
         {
             // The admin host is always HTTPS: the form doesn't offer the redirect, and keeps what was stored.

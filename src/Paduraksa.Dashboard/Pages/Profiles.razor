@@ -74,7 +74,7 @@ else
                 @foreach (ProfileConfig profile in _document.Profiles.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
                 {
                     IReadOnlyList<HostConfig> hosts = ProfileEditModel.HostsUsing(_document, profile.Id);
-                    IReadOnlyList<string> sets = HostSettingsModel.Summary(profile.Settings);
+                    IReadOnlyList<string> sets = SettingsSummary.Summary(profile.Settings);
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(profile)" data-profile="@profile.Name" @key="profile.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" /></span>

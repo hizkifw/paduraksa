@@ -1,0 +1,36 @@
+@* One row of a settings list (PLAN §12): the title and help on the left, the control on the right. Shared by the inherit controls, so a
+   field's row keeps the same layout and classes wherever it is used. *@
+<div class="@(Wide ? "pdk-setting pdk-setting-wide" : "pdk-setting")">
+    <div class="pdk-setting-text">
+        <span class="pdk-setting-title">@Title</span>
+        @if (Help is not null)
+        {
+            <span class="pdk-setting-help">@Help</span>
+        }
+        else if (HelpContent is not null)
+        {
+            <span class="pdk-setting-help">@HelpContent</span>
+        }
+    </div>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>The line under the title, as plain text.</summary>
+    [Parameter]
+    public string? Help { get; set; }
+
+    /// <summary>The line under the title, when it carries markup (a <c>code</c> element).</summary>
+    [Parameter]
+    public RenderFragment? HelpContent { get; set; }
+
+    /// <summary>A row that takes the whole width (a list of addresses).</summary>
+    [Parameter]
+    public bool Wide { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

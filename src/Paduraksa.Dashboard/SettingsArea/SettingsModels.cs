@@ -6,174 +6,98 @@ using Paduraksa.Dashboard.Config;
 namespace Paduraksa.Dashboard.SettingsArea;
 
 /// <summary>
-/// One layer of host settings as a form edits it (PLAN §5.3): every field may be left to inherit (null). <see cref="ApplyTo"/> writes the
-/// fields back over the stored layer, so a setting the form doesn't show is kept.
+/// The layers of host settings as the forms edit them (PLAN §5.3): the contract's own <see cref="HostSettings"/> records, where a null
+/// field means <i>inherit</i>. The forms bind to them directly; the built-in defaults and the merge are the backend's
+/// (<see cref="HostSettingsLayers"/>), so the dashboard can never promise a value the proxy would not apply.
 /// </summary>
-public sealed class HostSettingsModel
+public static class HostSettingsEdit
 {
-    /// <summary>The built-in defaults under every layer (PLAN §6.4), read from the one place that states them, so the
-    /// dashboard can never promise a default the proxy does not apply.</summary>
-    public static HostSettings BuiltIn => HostSettingsLayers.BuiltIn;
-
-    public bool? ForceHttps { get; set; }
-
-    public TlsMinimumVersion? MinimumTls { get; set; }
-
-    public TcpAlpn? TcpAlpn { get; set; }
-
-    public bool? Http3 { get; set; }
-
-    /// <summary>Whether this layer sets its own IP allow list (otherwise it inherits one).</summary>
-    public bool AllowListSet { get; set; }
-
-    /// <summary>The allow list's addresses or networks, one per line (or separated by commas).</summary>
-    public string AllowList { get; set; } = string.Empty;
-
-    public bool DropDenied { get; set; }
-
-    public bool? HstsEnabled { get; set; }
-
-    /// <summary>The common <c>max-age</c> picked from the list, or <see cref="HstsMaxAgeChoice.Custom"/> for
-    /// <see cref="HstsCustomMaxAge"/>.</summary>
-    public HstsMaxAgeChoice HstsMaxAge { get; set; }
-
-    /// <summary>The <c>max-age</c> in seconds when <see cref="HstsMaxAgeChoice.Custom"/> is picked.</summary>
-    public int? HstsCustomMaxAge { get; set; }
-
-    public bool? HstsIncludeSubDomains { get; set; }
-
-    public bool? HstsPreload { get; set; }
-
-    /// <summary>Whether this host's requests get an access-log line; null inherits.</summary>
-    public bool? AccessLog { get; set; }
-
-    /// <summary>Where the request ID is sent; null inherits.</summary>
-    public RequestIdPropagation? RequestIdPropagation { get; set; }
-
-    public ServerHeaderMode? ServerMode { get; set; }
-
-    /// <summary>The custom <c>Server</c> value; kept even when the mode doesn't use it, so a refused value keeps its field.</summary>
-    public string ServerValue { get; set; } = string.Empty;
-
-    /// <summary>How many fields this layer sets.</summary>
-    public int Overrides =>
-        (ForceHttps is null ? 0 : 1) + (MinimumTls is null ? 0 : 1) + (TcpAlpn is null ? 0 : 1) + (Http3 is null ? 0 : 1) + (AllowListSet ? 1 : 0)
-        + (HstsEnabled is null ? 0 : 1) + (HstsMaxAge == HstsMaxAgeChoice.Inherit ? 0 : 1) + (HstsIncludeSubDomains is null ? 0 : 1)
-        + (HstsPreload is null ? 0 : 1) + (AccessLog is null ? 0 : 1) + (RequestIdPropagation is null ? 0 : 1)
-        + (ServerMode is null ? 0 : 1) + (ServerValue.Length == 0 ? 0 : 1);
-
-    public static HostSettingsModel From(HostSettings settings)
+    /// <summary><paramref name="settings"/> with its TLS record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithTls(HostSettings settings, Func<TlsSettings, TlsSettings> change)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        HstsMaxAgeChoice maxAge = HstsMaxAgePresets.ChoiceOf(settings.Hsts?.MaxAge, out int? custom);
-        return new HostSettingsModel
-        {
-            ForceHttps = settings.ForceHttps,
-            MinimumTls = settings.Tls?.MinimumVersion,
-            TcpAlpn = settings.Tls?.TcpAlpn,
-            Http3 = settings.Tls?.Http3,
-            AllowListSet = settings.IpAllowList is not null,
-            AllowList = string.Join('\n', settings.IpAllowList?.Addresses ?? []),
-            DropDenied = settings.IpAllowList?.DropDenied ?? false,
-            HstsEnabled = settings.Hsts?.Enabled,
-            HstsMaxAge = maxAge,
-            HstsCustomMaxAge = custom,
-            HstsIncludeSubDomains = settings.Hsts?.IncludeSubDomains,
-            HstsPreload = settings.Hsts?.Preload,
-            AccessLog = settings.AccessLog,
-            RequestIdPropagation = settings.RequestIdPropagation,
-            ServerMode = settings.ServerHeader?.Mode,
-            ServerValue = settings.ServerHeader?.Value ?? string.Empty,
-        };
+        ArgumentNullException.ThrowIfNull(change);
+        TlsSettings changed = change(settings.Tls ?? new TlsSettings());
+        return settings with { Tls = changed.SetsNothing ? null : changed };
     }
 
-    /// <summary><paramref name="stored"/> with this form's fields in place of its own.</summary>
-    public HostSettings ApplyTo(HostSettings stored)
+    /// <summary><paramref name="settings"/> with its HSTS record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithHsts(HostSettings settings, Func<HstsSettings, HstsSettings> change)
     {
-        ArgumentNullException.ThrowIfNull(stored);
-        int? maxAge = HstsMaxAgePresets.SecondsOf(HstsMaxAge, HstsCustomMaxAge);
-        return stored with
-        {
-            ForceHttps = ForceHttps,
-            Tls = MinimumTls is null && TcpAlpn is null && Http3 is null ? null : new TlsSettings { MinimumVersion = MinimumTls, TcpAlpn = TcpAlpn, Http3 = Http3 },
-            IpAllowList = AllowListSet ? new IpAllowListSettings(HostEditModel.SplitList(AllowList), DropDenied) : null,
-            Hsts = HstsEnabled is null && maxAge is null && HstsIncludeSubDomains is null && HstsPreload is null
-                ? null
-                : new HstsSettings { Enabled = HstsEnabled, MaxAge = maxAge, IncludeSubDomains = HstsIncludeSubDomains, Preload = HstsPreload },
-            AccessLog = AccessLog,
-            RequestIdPropagation = RequestIdPropagation,
-            ServerHeader = ServerMode is null && ServerValue.Length == 0
-                ? null
-                : new ServerHeaderSettings { Mode = ServerMode, Value = ServerValue.Length == 0 ? null : ServerValue },
-        };
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        HstsSettings changed = change(settings.Hsts ?? new HstsSettings());
+        return settings with { Hsts = changed.SetsNothing ? null : changed };
     }
 
-    /// <summary><paramref name="upper"/> resolved over <paramref name="lower"/>: what a host with no setting of its own ends up with.</summary>
-    public static HostSettings Layer(HostSettings upper, HostSettings lower) => HostSettingsLayers.Merge(lower, upper);
+    /// <summary><paramref name="settings"/> with its <c>Server</c> header record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithServerHeader(HostSettings settings, Func<ServerHeaderSettings, ServerHeaderSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        ServerHeaderSettings changed = change(settings.ServerHeader ?? new ServerHeaderSettings());
+        return settings with { ServerHeader = changed.SetsNothing ? null : changed };
+    }
 
-    /// <summary>What a layer sets, in short phrases for a card ("HTTPS redirect", "TLS 1.3 minimum", "HSTS: 1 year").</summary>
+    /// <summary>
+    /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
+    /// <see cref="HostSettings"/> itself, so a new setting is counted without a hand-kept list. A preset-or-custom choice with no
+    /// seconds typed sets nothing, so it is not counted: the record really carries no value yet.
+    /// </summary>
+    public static int CountSet(HostSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        int count = 0;
+        foreach (System.Reflection.PropertyInfo property in typeof(HostSettings).GetProperties())
+        {
+            object? value = property.GetValue(settings);
+            if (value is null)
+            {
+                continue;
+            }
+
+            count += value is ISettingsLayer
+                ? property.PropertyType.GetProperties().Count(nested => nested.Name != nameof(ISettingsLayer.SetsNothing) && nested.GetValue(value) is not null)
+                : 1;
+        }
+
+        return count;
+    }
+}
+
+/// <summary>What a layer sets, in short phrases for a card ("HTTPS redirect", "TLS 1.3 minimum", "HSTS: 1 year").</summary>
+public static class SettingsSummary
+{
+    /// <summary>
+    /// One phrase per setting, in the contract's field order. A new setting adds its phrase here, beside the field it describes.
+    /// </summary>
+    private static readonly Func<HostSettings, string?>[] Phrases =
+    [
+        static settings => settings.ForceHttps is { } force ? (force ? "Redirects to HTTPS" : "No HTTPS redirect") : null,
+        static settings => settings.Tls?.MinimumVersion is { } minimum ? $"{TlsText(minimum)} minimum" : null,
+        static settings => settings.Tls?.TcpAlpn is { } alpn ? AlpnText(alpn) : null,
+        static settings => settings.Tls?.Http3 is { } http3 ? (http3 ? "HTTP/3 on" : "HTTP/3 off") : null,
+
+        // Set but empty is not "no list": it overrides whatever list the layer below sets, so every client is let through again.
+        static settings => settings.IpAllowList is { } allow
+            ? (allow.Addresses.Count == 0 ? "Allow list: none (overrides the inherited one)" : $"Allow list: {allow.Addresses.Count} {(allow.Addresses.Count == 1 ? "entry" : "entries")}")
+            : null,
+        static settings => settings.Hsts is { } hsts ? HstsText(hsts) : null,
+        static settings => settings.AccessLog is { } accessLog ? (accessLog ? "Access log on" : "Access log off") : null,
+        static settings => settings.RequestIdPropagation is { } propagation ? $"Request ID: {PropagationText(propagation)}" : null,
+        static settings => settings.ServerHeader is { } server ? ServerText(server) : null,
+    ];
+
+    /// <summary>What <paramref name="settings"/> sets, in short phrases.</summary>
     public static IReadOnlyList<string> Summary(HostSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
         List<string> parts = [];
-        if (settings.ForceHttps is { } force)
+        foreach (Func<HostSettings, string?> phrase in Phrases)
         {
-            parts.Add(force ? "Redirects to HTTPS" : "No HTTPS redirect");
-        }
-
-        if (settings.Tls?.MinimumVersion is { } minimum)
-        {
-            parts.Add($"{TlsText(minimum)} minimum");
-        }
-
-        if (settings.Tls?.TcpAlpn is { } alpn)
-        {
-            parts.Add(AlpnText(alpn));
-        }
-
-        if (settings.Tls?.Http3 is { } http3)
-        {
-            parts.Add(http3 ? "HTTP/3 on" : "HTTP/3 off");
-        }
-
-        if (settings.IpAllowList is { } allow)
-        {
-            // Set but empty is not "no list": it overrides whatever list the layer below sets, so every client is let through again.
-            parts.Add(allow.Addresses.Count == 0 ? "Allow list: none (overrides the inherited one)" : $"Allow list: {allow.Addresses.Count} {(allow.Addresses.Count == 1 ? "entry" : "entries")}");
-        }
-
-        if (settings.Hsts is { } hsts)
-        {
-            if (hsts.Enabled == false)
+            if (phrase(settings) is { } part)
             {
-                parts.Add("HSTS off");
-            }
-            else if (hsts is not { Enabled: null, MaxAge: null, IncludeSubDomains: null, Preload: null })
-            {
-                // "when on" when the switch is left to the layer below: the values only take effect if something turns it on.
-                parts.Add(hsts.Enabled == true ? $"HSTS: {HstsSummary(hsts)}" : $"HSTS when on: {HstsSummary(hsts)}");
-            }
-        }
-
-        if (settings.AccessLog is { } accessLog)
-        {
-            parts.Add(accessLog ? "Access log on" : "Access log off");
-        }
-
-        if (settings.RequestIdPropagation is { } propagation)
-        {
-            parts.Add($"Request ID: {PropagationText(propagation)}");
-        }
-
-        if (settings.ServerHeader is { } server)
-        {
-            if (server.Mode is { } mode)
-            {
-                parts.Add($"Server header: {(mode == ServerHeaderMode.Custom && !string.IsNullOrEmpty(server.Value) ? server.Value : ServerHeaderText(mode, server.Value))}");
-            }
-            else if (!string.IsNullOrEmpty(server.Value))
-            {
-                parts.Add($"Server header value: {server.Value}");
+                parts.Add(part);
             }
         }
 
@@ -189,23 +113,6 @@ public sealed class HostSettingsModel
         ServerHeaderMode.Remove => "none",
         _ => "the layer below's",
     };
-
-    /// <summary>At least its age, and what it covers: "1 year, subdomains, preload".</summary>
-    private static string HstsSummary(HstsSettings hsts)
-    {
-        List<string> parts = [AgeText(hsts.MaxAge ?? HstsMaxAgePresets.OneYear)];
-        if (hsts.IncludeSubDomains == true)
-        {
-            parts.Add("subdomains");
-        }
-
-        if (hsts.Preload == true)
-        {
-            parts.Add("preload");
-        }
-
-        return string.Join(", ", parts);
-    }
 
     public static string TlsText(TlsMinimumVersion version) => version == TlsMinimumVersion.Tls13 ? "TLS 1.3" : "TLS 1.2";
 
@@ -231,6 +138,44 @@ public sealed class HostSettingsModel
         Paduraksa.Core.Model.RequestIdPropagation.Off => "off",
         _ => "upstream and the client",
     };
+
+    /// <summary>At least its age, and what it covers: "1 year, subdomains, preload".</summary>
+    private static string? HstsText(HstsSettings hsts)
+    {
+        if (hsts.Enabled == false)
+        {
+            return "HSTS off";
+        }
+
+        if (hsts is { Enabled: null, MaxAge: null, IncludeSubDomains: null, Preload: null })
+        {
+            return null;
+        }
+
+        List<string> parts = [AgeText(hsts.MaxAge ?? HstsMaxAgePresets.OneYear)];
+        if (hsts.IncludeSubDomains == true)
+        {
+            parts.Add("subdomains");
+        }
+
+        if (hsts.Preload == true)
+        {
+            parts.Add("preload");
+        }
+
+        // "when on" when the switch is left to the layer below: the values only take effect if something turns it on.
+        return $"{(hsts.Enabled == true ? "HSTS" : "HSTS when on")}: {string.Join(", ", parts)}";
+    }
+
+    private static string? ServerText(ServerHeaderSettings server)
+    {
+        if (server.Mode is { } mode)
+        {
+            return $"Server header: {(mode == ServerHeaderMode.Custom && !string.IsNullOrEmpty(server.Value) ? server.Value : ServerHeaderText(mode, server.Value))}";
+        }
+
+        return string.IsNullOrEmpty(server.Value) ? null : $"Server header value: {server.Value}";
+    }
 }
 
 /// <summary>The common <c>max-age</c> values a form offers, plus a custom number of seconds (PLAN §14 M6).</summary>
@@ -254,7 +199,7 @@ public enum HstsMaxAgeChoice
     /// <summary>Two years, the longest Paduraksa sends.</summary>
     TwoYears,
 
-    /// <summary>Whatever <see cref="HostSettingsModel.HstsCustomMaxAge"/> says.</summary>
+    /// <summary>Whatever number of seconds the custom field holds.</summary>
     Custom,
 }
 
@@ -324,7 +269,7 @@ public sealed class GlobalSettingsEditModel
     private GlobalSettingsEditModel(GlobalSettings original)
     {
         _original = original;
-        Defaults = HostSettingsModel.From(original.Defaults);
+        Defaults = original.Defaults;
         UnknownHost = original.UnknownHost;
         DefaultCertificateId = original.DefaultCertificateId;
         ProxyMode = original.TrustedProxies.Mode;
@@ -338,7 +283,9 @@ public sealed class GlobalSettingsEditModel
     /// <summary>The version the form opened with.</summary>
     public long Version => _original.Version;
 
-    public HostSettingsModel Defaults { get; }
+    /// <summary>The layer of host settings, each field null to inherit the built-in default (PLAN §5.3). Shared with the
+    /// stored document: replace it with <c>with</c>, never mutate it in place.</summary>
+    public HostSettings Defaults { get; set; }
 
     public UnknownHostBehaviour UnknownHost { get; set; }
 
@@ -374,7 +321,7 @@ public sealed class GlobalSettingsEditModel
         bool cloudflare = ProxyMode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
         return _original with
         {
-            Defaults = Defaults.ApplyTo(_original.Defaults),
+            Defaults = Defaults,
             UnknownHost = UnknownHost,
             DefaultCertificateId = DefaultCertificateId,
             TrustedProxies = new TrustedProxySettings(
@@ -400,7 +347,7 @@ public sealed class ProfileEditModel
         source ??= original;
         Name = source?.Name ?? string.Empty;
         Notes = source?.Notes;
-        Settings = HostSettingsModel.From(source?.Settings ?? new HostSettings());
+        Settings = source?.Settings ?? new HostSettings();
     }
 
     public ProfileId Id { get; }
@@ -414,7 +361,9 @@ public sealed class ProfileEditModel
 
     public string? Notes { get; set; }
 
-    public HostSettingsModel Settings { get; }
+    /// <summary>Its layer of host settings, each field null to inherit the global defaults (PLAN §5.3). Shared with the
+    /// stored document: replace it with <c>with</c>, never mutate it in place.</summary>
+    public HostSettings Settings { get; set; }
 
     public static ProfileEditModel New() => new(null, ProfileId.New());
 
@@ -435,7 +384,7 @@ public sealed class ProfileEditModel
         Id,
         Name.Trim(),
         Version,
-        Settings.ApplyTo(_original?.Settings ?? new HostSettings()),
+        Settings,
         string.IsNullOrWhiteSpace(Notes) ? null : Notes);
 
     /// <summary>The hosts that name <paramref name="profile"/>.</summary>
