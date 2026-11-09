@@ -176,13 +176,36 @@ internal sealed class PebbleCa : IAsyncDisposable
         }
     }
 
-    /// <summary>Starts Pebble so that its validation of <paramref name="names"/> goes to the host's port <paramref name="validationPort"/>.</summary>
+    /// <summary>
+    /// Starts Pebble so that its validation of <paramref name="names"/> goes to the host's port <paramref name="validationPort"/>.
+    /// </summary>
+    /// <remarks>
+    /// Pebble's three own listeners are on the host's network, and each port is probed before Docker binds it: another test's host
+    /// (or a container that outlived its test) can take one in the gap, and Pebble then exits at once with "address already in use".
+    /// So the whole container start is retried with fresh ports, as <see cref="TestPorts.StartOnFreePortAsync"/> retries a host, and
+    /// a container that has already exited is reported at once instead of being polled until the readiness deadline.
+    /// </remarks>
     public static async Task<PebbleCa> StartAsync(int validationPort, IReadOnlyList<string> names, CancellationToken cancellationToken)
+    {
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await StartOnFreshPortsAsync(validationPort, names, cancellationToken);
+            }
+            catch (PebblePortsTakenException) when (attempt < PortAttempts)
+            {
+                // Another process won the ports: probe again.
+            }
+        }
+    }
+
+    private static async Task<PebbleCa> StartOnFreshPortsAsync(int validationPort, IReadOnlyList<string> names, CancellationToken cancellationToken)
     {
         // Its three own listeners need three different ports. Probing each one separately can hand back the same number
         // twice (the probes release it again), and Pebble then exits at once because two listeners can't share it. Every
-        // port is picked per instance: the fixed TLS port 5001 every container used to share is the same problem with
-        // anything else on the host (or a container that outlived its test).
+        // port is picked per instance (and per attempt): the fixed TLS port 5001 every container used to share is the same
+        // problem with anything else on the host (or a container that outlived its test).
         int directoryPort = FreePort();
         int managementPort = FreePortExcept(directoryPort);
         int tlsPort = FreePortExcept(directoryPort, managementPort);
@@ -234,6 +257,12 @@ internal sealed class PebbleCa : IAsyncDisposable
         System.IO.Directory.Delete(_directory, recursive: true);
     }
 
+    /// <summary>How many times a start is tried when a probed port turned out to be taken.</summary>
+    private const int PortAttempts = 5;
+
+    /// <summary>Pebble exited at once because one of its probed ports was taken between the probe and Docker's bind.</summary>
+    private sealed class PebblePortsTakenException(string diagnostics) : Exception(diagnostics);
+
     private static string ConfigFor(int validationPort, int directoryPort, int managementPort, int tlsPort) => $$"""
         {
           "pebble": {
@@ -277,8 +306,8 @@ internal sealed class PebbleCa : IAsyncDisposable
         while (Stopwatch.GetElapsedTime(started) < timeout)
         {
             // A container that already exited (a lost port race, a bad config) will never answer: say so at once instead
-            // of polling it for the whole timeout. Cheap enough to check every other second.
-            if (attempt++ % 8 == 0)
+            // of polling it for the whole timeout. Cheap enough to check about once a second.
+            if (attempt++ % 4 == 0)
             {
                 (int inspectCode, string state) = await DockerCli.RunAsync("inspect", "--format", "{{.State.Status}} {{.State.ExitCode}}", _container);
                 string status = state.Trim();
@@ -322,7 +351,13 @@ internal sealed class PebbleCa : IAsyncDisposable
         }
 
         (_, string logs) = await DockerCli.RunAsync("logs", "--tail", "40", _container);
-        throw new TimeoutException(
-            $"Pebble did not become ready within {timeout.TotalSeconds:F0} s: {last}.{Environment.NewLine}docker logs:{Environment.NewLine}{logs.Trim()}");
+        string diagnostics = $"{last}.{Environment.NewLine}docker logs:{Environment.NewLine}{logs.Trim()}";
+        if (logs.Contains("address already in use", StringComparison.Ordinal))
+        {
+            // One of the probed ports was taken between the probe and the bind: the caller retries the whole start with fresh ones.
+            throw new PebblePortsTakenException(diagnostics);
+        }
+
+        throw new TimeoutException($"Pebble did not become ready within {timeout.TotalSeconds:F0} s: {diagnostics}");
     }
 }
