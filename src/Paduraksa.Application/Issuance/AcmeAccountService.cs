@@ -15,7 +15,7 @@ using Paduraksa.Data.Issuance;
 namespace Paduraksa.Application.Issuance;
 
 /// <summary>
-/// ACME accounts (PLAN §5.1, §9.3): registers them with a CA, lists them and deactivates them. <b>The account key is
+/// ACME accounts: registers them with a CA, lists them and deactivates them. <b>The account key is
 /// born in the vault</b> (<see cref="IJwsSigner.CreateAccountKeyAsync"/>) and only its public parts and signatures come out;
 /// this service never sees a private key, and an external-account-binding MAC key is only ever a <see cref="SecretId"/>
 /// (opened as a handle by the ACME client). Changes are audited (<c>acme.account.create</c>, <c>acme.account.deactivate</c>)

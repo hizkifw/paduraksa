@@ -12,7 +12,7 @@ public static class DnsProviderServiceCollectionExtensions
     /// <summary>
     /// Registers the built-in DNS-01 providers (Cloudflare, deSEC) as the <see cref="IDnsProviderFactory"/> that
     /// <see cref="IssuanceServiceCollectionExtensions.AddPaduraksaIssuance"/> and <see cref="DnsProviderService"/> use, and (unless turned off) the authoritative
-    /// name-server <see cref="IDnsPropagationCheck"/> that replaces the fixed wait (PLAN §9). Needs the vault's
+    /// name-server <see cref="IDnsPropagationCheck"/> that replaces the fixed wait. Needs the vault's
     /// <see cref="ISecretHttpHandlerFactory"/>: a provider is given a secret ID and that factory, never a token. Used when
     /// registered: <see cref="DnsProviderOptions"/>, <see cref="DnsPropagationOptions"/>, <see cref="TimeProvider"/>,
     /// <see cref="ILoggerFactory"/>. Anything already registered for the same service is kept.

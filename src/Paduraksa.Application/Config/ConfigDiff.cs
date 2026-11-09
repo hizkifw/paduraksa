@@ -8,7 +8,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Config;
 
 /// <summary>
-/// Structural diff of two config documents (PLAN §6.1): the object-level change list (<see cref="ConfigChange"/>)
+/// Structural diff of two config documents: the object-level change list (<see cref="ConfigChange"/>)
 /// behind the dashboard's review sheet, <c>dryRun</c> responses and revision summaries. Pure and deterministic.
 /// </summary>
 /// <remarks>

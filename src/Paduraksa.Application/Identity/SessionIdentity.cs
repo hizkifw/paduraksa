@@ -28,7 +28,7 @@ public sealed class SessionIdentity : ClaimsIdentity
     /// <summary>Creates the identity of a validated session.</summary>
     /// <param name="session">The session and its user, from <see cref="SessionService"/>.</param>
     /// <param name="clientIp">The client's address as the admin app resolved it (on the internal listener, the forwarded one).</param>
-    /// <param name="adminRequest">The request facts the lock-out guard needs when the request came through the proxy (PLAN §3.1).</param>
+    /// <param name="adminRequest">The request facts the lock-out guard needs when the request came through the proxy.</param>
     public SessionIdentity(SessionPrincipal session, IPAddress? clientIp = null, AdminRequestFacts? adminRequest = null)
         : base(ClaimsOf(session), Scheme, ClaimTypes.Name, ClaimTypes.Role)
     {

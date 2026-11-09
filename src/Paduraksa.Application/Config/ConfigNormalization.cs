@@ -7,7 +7,7 @@ namespace Paduraksa.Application.Config;
 
 /// <summary>
 /// The normal forms of the document's natural keys and labels. Host names use the proxy's own rules
-/// (<see cref="HostNames"/>, PLAN §5.1), so a name the document accepts is one the compiler accepts, spelled the way the
+/// (<see cref="HostNames"/>), so a name the document accepts is one the compiler accepts, spelled the way the
 /// host table stores it.
 /// </summary>
 internal static class ConfigNormalization

@@ -14,7 +14,7 @@ using Paduraksa.Data.Identity;
 namespace Paduraksa.Application.Identity;
 
 /// <summary>
-/// User management for the admin surfaces (PLAN §5.2, §10.1): create, list, change roles, disable, delete, and the password
+/// User management for the admin surfaces: create, list, change roles, disable, delete, and the password
 /// operations. Every mutation is checked against the origin's permissions, runs in one transaction with its audit event, and
 /// refuses to leave the instance without an enabled Owner. Users come back as <see cref="UserSummary"/>, never as rows, and never with a
 /// hash or a secret reference.

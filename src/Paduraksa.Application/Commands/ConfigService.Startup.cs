@@ -38,7 +38,7 @@ public sealed partial class ConfigService
     internal Task StartupPublishFollowed => Volatile.Read(ref _startupPublish);
 
     /// <summary>
-    /// The startup recompile (PLAN §6.1): brings the database up to date (<see cref="ConfigDatabase.InitializeAsync"/>),
+    /// The startup recompile: brings the database up to date (<see cref="ConfigDatabase.InitializeAsync"/>),
     /// loads the latest revision (none: <see cref="InitialDocument"/>), rewrites the projection if it doesn't show that
     /// revision, compiles it and queues the publish. Run once, before anything reads or writes config.
     /// </summary>

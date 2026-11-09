@@ -15,7 +15,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.LastKnownGood;
 
 /// <summary>
-/// <c>&lt;data dir&gt;/last-good.json</c> (PLAN §6.1): the source document of the last snapshot that went live, so the
+/// <c>&lt;data dir&gt;/last-good.json</c>: the source document of the last snapshot that went live, so the
 /// proxy can still come up serving traffic when the config database can't be used at startup. Only ever a fallback:
 /// the database's latest revision is the source of truth whenever it can be read and compiled.
 /// </summary>
@@ -23,7 +23,7 @@ namespace Paduraksa.Application.LastKnownGood;
 /// <para><b>Format.</b> One JSON object: <c>format</c> (<see cref="Format"/>), the revision's <c>revision</c> ID and
 /// <c>seq</c>, the <c>sha256</c> (lowercase hex) of the canonical document bytes, and the <c>document</c> itself, those
 /// bytes embedded verbatim, so the file stays readable and the hash covers exactly what the revision stored. Reading
-/// checks all of it. The document holds references only, never secrets (PLAN §6.4), so the file needs no protection
+/// checks all of it. The document holds references only, never secrets, so the file needs no protection
 /// beyond the data directory's.</para>
 /// <para><b>Writes</b> run in the background, never on the caller's path: <see cref="Offer"/> records the entry and
 /// returns, one writer at a time writes the newest entry offered (older ones still waiting are skipped, and an entry

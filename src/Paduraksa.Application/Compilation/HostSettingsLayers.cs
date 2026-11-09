@@ -6,13 +6,13 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Application.Compilation;
 
 /// <summary>
-/// The settings layers (PLAN §5.3, §6.4) merged in one place: built-in defaults → global defaults → profile → host, then
+/// The settings layers merged in one place: built-in defaults → global defaults → profile → host, then
 /// the route layer on top of the host's result. <c>Merge</c> lays one layer over another and keeps the result a
 /// <i>layer</i> (a field neither layer sets stays unset); <see cref="Resolve"/> puts <see cref="BuiltIn"/> underneath and
 /// turns the result into the concrete values the compiler, the validator and the dashboard work with.
 /// </summary>
 /// <remarks>
-/// <para><b>Adding a setting</b> follows the checklist in PLAN §5.3: the property on <see cref="HostSettings"/> (at the
+/// <para><b>Adding a setting</b> means the property on <see cref="HostSettings"/> (at the
 /// end, so existing documents keep their key order), its line in <c>Merge</c> (and in the nested record's own merge), its
 /// value in <see cref="Concrete"/>, and its built-in default among the constants below, which nowhere else states one.
 /// Then its validator rules, its dashboard field and the tests that checklist names.</para>
@@ -237,7 +237,7 @@ public static class HostSettingsLayers
         allowList is { Addresses.Count: > 0 } ? allowList : null;
 }
 
-/// <summary>Which layer of a host's chain set a field (PLAN §5.3), when a message has to name it.</summary>
+/// <summary>Which layer of a host's chain set a field, when a message has to name it.</summary>
 public enum SettingsLayer
 {
     /// <summary>Nothing set it, so the built-in default (<see cref="HostSettingsLayers.BuiltIn"/>) holds.</summary>

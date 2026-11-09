@@ -4,7 +4,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// When the process-managed admin certificate must be re-issued (PLAN §3, §10.1): its names changed, or it is near expiry.
+/// When the process-managed admin certificate must be re-issued: its names changed, or it is near expiry.
 /// Pure arithmetic over the inventory's public facts, so it is decided from what is stored and unit-testable with a fake clock.
 /// </summary>
 public static class AdminCertificatePolicy
@@ -29,7 +29,7 @@ public static class AdminCertificatePolicy
 
     /// <summary>
     /// Whether a leaf the vault holds can be served at <paramref name="now"/>: not expired, and not starting so far in the
-    /// future that a handshake would fail. Used where the certificate is served without the inventory (PLAN §3, §10.1), so a
+    /// future that a handshake would fail. Used where the certificate is served without the inventory, so a
     /// failed inventory step never discards a certificate the vault already holds.
     /// </summary>
     public static bool IsServable(CertificateInfo info, DateTimeOffset now)

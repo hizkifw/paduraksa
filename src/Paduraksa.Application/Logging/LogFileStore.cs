@@ -7,7 +7,7 @@ using Paduraksa.Core.Logging;
 namespace Paduraksa.Application.Logging;
 
 /// <summary>
-/// The read side of the log files (PLAN §7.4, §12): what the dashboard browses and the API serves. It knows the writer's names (a live
+/// The read side of the log files: what the dashboard browses and the API serves. It knows the writer's names (a live
 /// <c>access.log</c>/<c>error.log</c> and the timestamped, optionally gzipped rotated ones) and nothing else in the directory, so a name
 /// can only ever reach a log file.
 /// </summary>

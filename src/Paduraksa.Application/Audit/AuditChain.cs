@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Audit;
 
 /// <summary>
-/// The audit log's hash chain (PLAN §6.4): <c>hash = SHA-256(prevHash ‖ canonical bytes of the event)</c>, where
+/// The audit log's hash chain: <c>hash = SHA-256(prevHash ‖ canonical bytes of the event)</c>, where
 /// <c>prevHash</c> is the previous event's hash in ID order and 32 zero bytes for the first event.
 /// </summary>
 /// <remarks>

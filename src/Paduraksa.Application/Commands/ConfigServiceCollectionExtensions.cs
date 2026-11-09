@@ -28,7 +28,7 @@ public static class ConfigServiceCollectionExtensions
     /// and the <see cref="SnapshotPublisher"/> must be registered too; a <see cref="LastKnownGoodFile"/>, an
     /// <see cref="IServerCertificateSource"/> and <see cref="IBuiltInCertificates"/> are used when registered. Also
     /// registers the read-only <see cref="RevisionQueryService"/> and <see cref="AuditQueryService"/> of the surfaces, the <see cref="CertificateService"/>, which shares the service's writer, and the <see cref="RequestSimulator"/>
-    /// (PLAN §7.7), which uses the live snapshot (the publisher's store) and, when registered, <see cref="IUpstreamHealth"/>, an
+    ///, which uses the live snapshot (the publisher's store) and, when registered, <see cref="IUpstreamHealth"/>, an
     /// <see cref="ISimulationAuthorizer"/>, the <see cref="AcmeChallengeStore"/> and the public listeners' <see cref="ListenerFacts"/>.
     /// Drafts and revisions are judged through the vault's <see cref="ICertificateCatalog"/> when one is registered.
     /// </summary>

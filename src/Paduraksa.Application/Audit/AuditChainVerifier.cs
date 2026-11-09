@@ -43,7 +43,7 @@ internal sealed record AuditChainReport(long VerifiedEvents, AuditEventId? Head,
     public bool IsIntact => Break is null;
 }
 
-/// <summary>Walks the audit chain in ID order and reports the first event that doesn't verify (PLAN §6.4).</summary>
+/// <summary>Walks the audit chain in ID order and reports the first event that doesn't verify.</summary>
 internal static class AuditChainVerifier
 {
     private const int BatchSize = 1000;

@@ -6,7 +6,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Application.Issuance;
 
 /// <summary>
-/// The one "delete the vault secret of the record that was not created" step of the issuance flows (PLAN §9.2): an ACME account's
+/// The one "delete the vault secret of the record that was not created" step of the issuance flows: an ACME account's
 /// external-account-binding key and a DNS credential are stored before the row that names them, and a change that fails afterwards must
 /// take the secret back out, or it is unreachable for good.
 /// </summary>

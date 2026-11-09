@@ -5,7 +5,7 @@ namespace Paduraksa.Application.Commands;
 
 /// <summary>
 /// The top-level objects a change list touches (added, removed or modified), with changes to a child (a route, a
-/// destination) counted against its parent: a top-level object's version covers its children (PLAN §6.4).
+/// destination) counted against its parent: a top-level object's version covers its children.
 /// </summary>
 internal sealed class TouchedObjects
 {

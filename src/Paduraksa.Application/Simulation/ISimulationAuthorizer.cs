@@ -4,7 +4,7 @@ using Paduraksa.Contracts.Simulation;
 namespace Paduraksa.Application.Simulation;
 
 /// <summary>
-/// Decides whether an origin may run a simulation against a target (PLAN §7.7). Every simulation needs the <c>simulate</c>
+/// Decides whether an origin may run a simulation against a target. Every simulation needs the <c>simulate</c>
 /// permission; a draft command or document, and a stored revision, show what the config contains, so they need the permission to
 /// read the config as well. Shaped like <see cref="IConfigCommandAuthorizer"/>.
 /// </summary>

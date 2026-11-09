@@ -9,7 +9,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// The process-managed admin certificate (PLAN §3, §10.1): the local-CA leaf the admin listener serves, registered in the
+/// The process-managed admin certificate: the local-CA leaf the admin listener serves, registered in the
 /// inventory under <see cref="AdminCertificate.Id"/>. It reuses the ordering of the other creation flows (pending row, the
 /// vault, then the active row), so a failure never leaves a hidden key, and it never replaces a certificate the vault
 /// already holds for itself.
@@ -145,10 +145,9 @@ public sealed partial class CertificateOperations
     /// operator: the row alone would otherwise look healthy forever, every re-issue would fail for want of a root, and every
     /// way out of it (deleting the root, deleting the admin certificate, re-issuing it by hand) is refused.
     /// </remarks>
-    // TODO: nothing renews the local CA root (open in PLAN §9.1). The vault caps a leaf at the root's remaining validity, so in the root's
+    // TODO: nothing renews the local CA root. The vault caps a leaf at the root's remaining validity, so in the root's
     // last 90 days every re-issued admin leaf gets shorter until the root expires (then the placeholder serves and the
-    // download still offers an expired root). Rotating the root needs a plan for the leaves issued under the old one; it is
-    // listed as open in PLAN §9.1.
+    // download still offers an expired root). Rotating the root needs a plan for the leaves issued under the old one.
     private async Task<CertificateOperationResult> EnsureAdminRootAsync(CommandOrigin origin, CancellationToken cancellationToken)
     {
         IReadOnlyList<CertificateSummary> roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot), cancellationToken).ConfigureAwait(false);

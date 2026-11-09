@@ -37,7 +37,7 @@ public enum LoginStatus
 public sealed record LoginResult(LoginStatus Status, SessionGrant? Session = null);
 
 /// <summary>
-/// Signing in (PLAN §10.1): username and password, then, if the user enrolled a second factor, a TOTP or recovery code. After
+/// Signing in: username and password, then, if the user enrolled a second factor, a TOTP or recovery code. After
 /// <see cref="IdentityOptions.MaxFailedAttempts"/> consecutive failures an account refuses sign-in for
 /// <see cref="IdentityOptions.LockoutDuration"/>, whatever is presented. Every success, failure and lockout is audited (failures
 /// under the system actor with the account as target, so an attacker's attempts never read as the user's own actions).

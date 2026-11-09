@@ -12,7 +12,7 @@ using Paduraksa.Data.Projection;
 namespace Paduraksa.Application.Projection;
 
 /// <summary>
-/// Writes the config projection (PLAN §6.4, <see cref="GlobalSettingsRow"/>): the rows of the latest revision's
+/// Writes the config projection: the rows of the latest revision's
 /// document, in the same transaction as the revision.
 /// </summary>
 /// <remarks>

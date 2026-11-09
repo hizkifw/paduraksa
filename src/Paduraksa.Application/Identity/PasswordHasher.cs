@@ -5,7 +5,7 @@ using System.Text;
 namespace Paduraksa.Application.Identity;
 
 /// <summary>
-/// Password hashing (PLAN §5.2, §10.1): PBKDF2-HMAC-SHA-512 through <see cref="Rfc2898DeriveBytes.Pbkdf2(byte[], byte[], int, HashAlgorithmName, int)"/>,
+/// Password hashing: PBKDF2-HMAC-SHA-512 through <see cref="Rfc2898DeriveBytes.Pbkdf2(byte[], byte[], int, HashAlgorithmName, int)"/>,
 /// a random 128-bit salt per password, a 512-bit result, compared in constant time.
 /// </summary>
 /// <remarks>

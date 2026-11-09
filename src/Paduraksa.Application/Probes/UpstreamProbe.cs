@@ -11,7 +11,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Probes;
 
 /// <summary>
-/// "Is the upstream there?" for the first-run wizard's first host (PLAN §12.1): a TCP connection to the address's host and port within a
+/// "Is the upstream there?" for the first-run wizard's first host: a TCP connection to the address's host and port within a
 /// short timeout, closed at once. Nothing is sent and nothing is read, so the answer is only reachable or not: no banner, no status code,
 /// no error text from the other side, and the probe can't be used to read anything from the network the server sits in. It needs
 /// <see cref="Permission.ConfigWrite"/> (the person who could add the host anyway); a refusal is audited like the services' others.

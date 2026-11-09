@@ -12,7 +12,7 @@ namespace Paduraksa.Application.Certificates;
 
 /// <summary>
 /// Builds the <see cref="CertificateInventory"/> for one compile: the cold-path preload that lets the synchronous
-/// snapshot compiler resolve certificates the vault only serves asynchronously (PLAN §8.2, §9.1).
+/// snapshot compiler resolve certificates the vault only serves asynchronously.
 /// </summary>
 /// <remarks>
 /// <para><b>Steps.</b> (1) Read the certificate metadata (the inventory table, plus the process's
@@ -67,7 +67,7 @@ internal sealed partial class CertificateInventoryLoader
     }
 
     /// <summary>
-    /// A loader for configs that are only simulated (PLAN §7.7): whether a certificate is usable is decided from what the
+    /// A loader for configs that are only simulated: whether a certificate is usable is decided from what the
     /// vault <b>describes</b> (<paramref name="catalog"/>: public facts, no key opened), with the reasons the real loader
     /// gives; and what is served is a placeholder context (<see cref="SimulationCertificateSource"/>), never the vault's.
     /// Without a catalog every certificate the table says is valid counts as usable: nothing can say otherwise.
@@ -89,7 +89,7 @@ internal sealed partial class CertificateInventoryLoader
         CertificateId? fallbackDefault = null;
         List<DateTimeOffset> boundaries = [];
 
-        // The admin listener's own certificate (PLAN §3, §10.1) never takes part in the proxy's selection: it is reserved
+        // The admin listener's own certificate never takes part in the proxy's selection: it is reserved
         // for the admin port, so Auto never picks it, a Specific binding to it is refused by the validator, and its validity
         // boundaries never trigger a config republish (the table query below leaves it out too).
         foreach (BuiltInCertificate builtIn in _builtIns?.Current ?? [])

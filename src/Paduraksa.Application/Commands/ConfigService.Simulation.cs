@@ -16,7 +16,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Application.Commands;
 
 /// <summary>
-/// What the request simulator (PLAN §7.7) needs from the config service: configs to compile without publishing them.
+/// What the request simulator needs from the config service: configs to compile without publishing them.
 /// None of it takes the writer's lock, audits, stores or publishes anything, and none of it asks the vault for a key
 /// (<see cref="SimulationCertificateSource"/>).
 /// </summary>
@@ -93,7 +93,7 @@ public sealed partial class ConfigService
     }
 
     /// <summary>
-    /// Runs <paramref name="command"/> through steps 1 to 4 of the write path (PLAN §6.1: load, apply, validate, compile) as
+    /// Runs <paramref name="command"/> through steps 1 to 4 of the write path as
     /// its dry run does, and hands back the compiled candidate instead of discarding it. Nothing is stored, audited or
     /// published, whatever <see cref="ConfigCommand.DryRun"/> says. <paramref name="origin"/> is who is asking (it
     /// decides, as for a real command, whether a binding to an unusable certificate is refused).

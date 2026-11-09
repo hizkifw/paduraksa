@@ -19,7 +19,7 @@ using Paduraksa.Proxy.Yarp;
 namespace Paduraksa.Application.Simulation;
 
 /// <summary>
-/// The request simulator (PLAN §7.7): "what would this request get, and why". <see cref="SimulateAsync"/> is the one
+/// The request simulator: "what would this request get, and why". <see cref="SimulateAsync"/> is the one
 /// function every surface calls (the API's <c>POST /api/v1/simulate</c>, MCP's <c>simulate_request</c>, the dashboard's
 /// simulator page).
 /// </summary>
@@ -28,7 +28,7 @@ namespace Paduraksa.Application.Simulation;
 /// <c>GateMiddleware.Decide</c> over a compiled snapshot with a recording tracer; nothing here decides anything about a
 /// request. This class only chooses the snapshot, builds the request and describes the result.</para>
 /// <para><b>Targets.</b> Live: the snapshot serving traffic. Revision: the stored document, compiled through the normal
-/// compiler. Draft document or command: run through the dry-run path (PLAN §6.1 steps 1 to 4: apply, validate, compile),
+/// compiler. Draft document or command: run through the dry-run path,
 /// so a draft that a real command would reject is reported with the dry run's errors instead of simulated. Nothing is
 /// ever stored, audited or published, and no snapshot but the live one is wired to YARP.</para>
 /// <para><b>Keys.</b> Drafts and revisions never load a key. Whether a certificate is usable is decided from what the vault

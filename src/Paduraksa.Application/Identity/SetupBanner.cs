@@ -3,7 +3,7 @@ using System.Text;
 namespace Paduraksa.Application.Identity;
 
 /// <summary>
-/// The first-run setup token as the server logs it and <c>paduraksa setup-token</c> prints it (PLAN §12.1): one boxed banner, so the
+/// The first-run setup token as the server logs it and <c>paduraksa setup-token</c> prints it: one boxed banner, so the
 /// token is impossible to miss among the startup lines, with the box sized to its longest line so the borders always line up.
 /// </summary>
 /// <remarks>
@@ -12,7 +12,7 @@ namespace Paduraksa.Application.Identity;
 /// <para><b>Plain ASCII when the output isn't UTF-8.</b> Docker log viewers and a terminal with an ASCII locale mangle box-drawing
 /// characters, so the corners become <c>+</c>, the rules <c>-</c> and the sides <c>|</c>: decided from
 /// <see cref="Console.OutputEncoding"/>, and the ASCII form is used when that can't be read.</para>
-/// <para>This is the one deliberate exception to "never log a secret" (PLAN §2): the token is single-use, worthless once an Owner exists
+/// <para>This is the one deliberate exception to "never log a secret": the token is single-use, worthless once an Owner exists
 /// (and deleted then), and whoever can read this log already has the host's shell, and with it the file.</para>
 /// </remarks>
 public static class SetupBanner

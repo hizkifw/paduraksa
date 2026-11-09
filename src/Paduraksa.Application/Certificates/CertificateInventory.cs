@@ -6,7 +6,7 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// One certificate as the compiler sees it (PLAN §9.2): the names it covers, its validity period and, when it can be
+/// One certificate as the compiler sees it: the names it covers, its validity period and, when it can be
 /// served, the preloaded <see cref="ServerCertificate"/>. Immutable. Carries public facts and the sanctioned serving
 /// handle only; never key material.
 /// </summary>
@@ -34,7 +34,7 @@ public sealed record InventoryCertificate(
 }
 
 /// <summary>
-/// The certificate inventory the compiler resolves bindings against (PLAN §9.2): the certificates the process knows
+/// The certificate inventory the compiler resolves bindings against: the certificates the process knows
 /// about, which of them are valid at the time it was built, and a resolver over those that were preloaded for serving.
 /// Immutable; built before each compile (<see cref="CertificateInventoryLoader"/>), which is how the synchronous
 /// compiler meets the asynchronous vault.
@@ -80,7 +80,7 @@ public sealed class CertificateInventory
 
     /// <summary>
     /// The default certificate for a config that names none, or whose named one is unusable: the placeholder until the
-    /// vault's certificates replace it (PLAN §3). Null: such a config has no default (unknown names are rejected, hosts
+    /// vault's certificates replace it. Null: such a config has no default (unknown names are rejected, hosts
     /// without a certificate of their own aren't served over HTTPS), which is what an installation with real
     /// certificates wants.
     /// </summary>

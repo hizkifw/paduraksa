@@ -13,7 +13,7 @@ namespace Paduraksa.Application.Identity;
 public static class IdentityServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the identity services (PLAN §10.1) and makes permissions decide who may run config commands and change certificates.
+    /// Registers the identity services and makes permissions decide who may run config commands and change certificates.
     /// It <b>replaces</b> the allow-all <see cref="IConfigCommandAuthorizer"/> that
     /// <see cref="ConfigServiceCollectionExtensions.AddPaduraksaConfigService"/> leaves behind, in whichever order the two are
     /// called, and replaces <see cref="Certificates.ICertificateOperationAuthorizer"/> the same way. Request simulations then need

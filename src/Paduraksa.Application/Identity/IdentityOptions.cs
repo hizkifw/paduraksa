@@ -1,7 +1,7 @@
 namespace Paduraksa.Application.Identity;
 
 /// <summary>
-/// The knobs of the identity services (PLAN §10.1). The server binds them from <c>Paduraksa:Admin</c> and validates the bounds;
+/// The knobs of the identity services. The server binds them from <c>Paduraksa:Admin</c> and validates the bounds;
 /// the defaults are the values it ships with.
 /// </summary>
 public sealed class IdentityOptions

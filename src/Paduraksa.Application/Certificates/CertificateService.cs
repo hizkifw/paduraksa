@@ -19,7 +19,7 @@ using Paduraksa.Data.Certificates;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// The certificate inventory's write and read side (PLAN §5.1, §9.2): metadata about the certificates the vault holds.
+/// The certificate inventory's write and read side: metadata about the certificates the vault holds.
 /// The next wave's ACME client, upload and local-CA flows call it <b>after</b> the vault created, replaced or imported a
 /// key and chain (they pass the <see cref="CertificateInfo"/> the vault returned); it never calls the vault.
 /// </summary>
@@ -36,7 +36,7 @@ namespace Paduraksa.Application.Certificates;
 /// <see cref="CertificateChangeStatus.Committed"/>. Older revisions may still name the certificate: a rollback to one
 /// that does is refused until the certificate exists again, like any binding to an unusable certificate.</para>
 /// <para><b>Replacing</b> a certificate (renewal, re-upload, re-issue) is <see cref="RegisterAsync"/> with the same ID:
-/// the metadata is swapped and, because the ID is stable, Specific bindings survive (PLAN §9.2).</para>
+/// the metadata is swapped and, because the ID is stable, Specific bindings survive.</para>
 /// <para><b>Public data only.</b> The row holds the public chain and facts; there is no key material in this layer, and
 /// nothing here logs a chain, only IDs, names and fingerprints.</para>
 /// </remarks>
@@ -94,7 +94,7 @@ public sealed partial class CertificateService
 
     /// <summary>
     /// Like <see cref="RegisterAsync"/>, but <b>never republishes</b> the live config: for a certificate nothing in the
-    /// document can bind - the admin listener's own (PLAN §3, §10.1), which the process issues and serves itself. The row is
+    /// document can bind - the admin listener's own, which the process issues and serves itself. The row is
     /// still written and audited; the next compile reads the inventory fresh, so nothing is lost.
     /// </summary>
     internal async Task<CertificateChangeResult> RegisterQuietlyAsync(CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken = default)
@@ -493,7 +493,7 @@ public sealed partial class CertificateService
 
     /// <summary>
     /// Refuses a delete or replacement that would leave an admin host name with no usable certificate, when the command arrived
-    /// through that admin host (PLAN §3.1). The admin host's own certificate is in the inventory like any other; a caller who
+    /// through that admin host. The admin host's own certificate is in the inventory like any other; a caller who
     /// removes the last one removes the TLS name the admin is reached by.
     /// </summary>
     private async Task<ConfigError?> AdminCoverageRefusalAsync(
@@ -554,7 +554,7 @@ public sealed partial class CertificateService
         ConfigDbContext context = scope.Context;
         if (id == AdminCertificate.Id)
         {
-            // The admin listener's certificate is the process's own (PLAN §3, §10.1): refused, and audited like the in-use
+            // The admin listener's certificate is the process's own: refused, and audited like the in-use
             // refusal below. It is recreated, never deleted.
             return Rejected(origin, "certificate.delete", id, new ConfigError(string.Empty, CertificateErrorCodes.Managed, "the admin listener's certificate is managed by the process and can't be deleted"));
         }
@@ -763,7 +763,7 @@ public static class CertificateErrorCodes
     public const string BuiltIn = "certificate.builtIn";
     public const string TextTooLong = "certificate.text.tooLong";
 
-    /// <summary>The admin listener's certificate is managed by the process and can't be deleted (PLAN §3, §10.1).</summary>
+    /// <summary>The admin listener's certificate is managed by the process and can't be deleted.</summary>
     public const string Managed = "certificate.managed";
 
     // The vault flows (CertificateOperations).

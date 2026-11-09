@@ -31,36 +31,29 @@ internal sealed class AllowAllCertificateOperations : ICertificateOperationAutho
 }
 
 /// <summary>
-/// The certificate use cases that touch the vault (PLAN §9): upload, self-signed, the local CA root and its leaves, re-issue and
+/// The certificate use cases that touch the vault: upload, self-signed, the local CA root and its leaves, re-issue and
 /// delete. Each calls the vault, then records the result in the inventory through <see cref="CertificateService"/>, which audits
 /// it and republishes the config; the three surfaces (dashboard, API, CLI) call this and nothing else.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Ordering between the vault and the metadata</b> decides what a failure leaves behind, so it is chosen to leave nothing
-/// that serves. The inventory only ever loads certificates from its table, and only <see cref="CertificateStatus.Active"/> ones, so
-/// a key in the vault with no active row is never served.
+/// that serves: the inventory only ever loads <see cref="CertificateStatus.Active"/> rows, so a key in the vault with no active
+/// row is never served. A new certificate is therefore registered <i>pending</i> before the vault creates it (an interrupted run
+/// leaves a visible pending row, never a hidden key), and a failed registration deletes the key again. An upload's names are
+/// only known after the vault read it, so the vault goes first and a crash between the import and the row leaves a key nothing
+/// loads.
 /// </para>
-/// <list type="bullet">
-/// <item><b>A new certificate whose names are known up front</b> (self-signed, local-CA leaf): (1) register it
-/// <i>pending</i> (validates names and label, visible, audited, never served); (2) the vault creates key and chain; (3) register
-/// the vault's facts (the same row becomes active and the config is republished). If (2) fails, the pending row is deleted. If (3) is
-/// refused or fails, the vault's key is deleted again and the pending row with it. A crash in between leaves a visible pending row,
-/// which the user deletes; there is no hidden key.</item>
-/// <item><b>An upload of a new certificate</b>: its names are known only after the vault read it, so (1) the vault imports,
-/// (2) the row is registered active, and (3) if that is refused or fails, the vault's key is deleted again. A crash between (1) and
-/// (2) leaves a key with no row, which nothing ever loads.</item>
-/// <item><b>Replacing an existing ID</b> (re-issue, a new upload over it): the vault swaps key and chain atomically first and the row
-/// is updated after. It cannot be undone, so if updating the row fails the result says so, the failure is logged, and doing the
-/// same operation again repairs it: the vault serves the new pair meanwhile, which is the pair the row's names were taken from.</item>
-/// <item><b>Delete</b>: the inventory goes first, and refuses (before anything is touched in the vault) while a Specific binding
-/// or the default certificate uses the certificate; only after it committed is the key deleted. If that deletion fails, the
-/// certificate is gone from the inventory and the key is an unreachable orphan (a warning in the result, logged).</item>
-/// </list>
+/// <para>
+/// <b>Replacing an existing ID</b> (re-issue, a new upload over it) swaps key and chain in the vault first and updates the row
+/// after: it cannot be undone, so a failed row update is reported and logged, and repeating the operation repairs it.
+/// <b>Delete</b> takes the inventory first, refusing while a Specific binding or the default certificate uses the certificate,
+/// and deletes the key only after that committed; a failed deletion leaves an unreachable orphan, reported as a warning.
+/// </para>
 /// <para>
 /// <b>The local CA.</b> There is one root (<see cref="CertificateSource.LocalCaRoot"/>); creating it again returns it (only an
-/// active row counts: a root row a crash left pending is completed under its own ID). If the vault holds the root under another ID
-/// (the inventory was lost) it is recorded under that ID. It cannot be deleted while leaves issued by it exist, since they would lose their issuer, and a leaf's re-issue needs it.
+/// active row counts). It cannot be deleted while leaves issued by it exist, since they would lose their issuer, and a leaf's
+/// re-issue needs it.
 /// </para>
 /// <para>No operation logs a key or a password; only IDs, sources and fingerprints.</para>
 /// </remarks>
@@ -133,7 +126,7 @@ public sealed partial class CertificateOperations
         CertificateId id = replaceId ?? CertificateId.New();
         if (id == AdminCertificate.Id)
         {
-            // The admin listener's certificate is the process's own (PLAN §3, §10.1): an upload may not take its ID, and the answer
+            // The admin listener's certificate is the process's own: an upload may not take its ID, and the answer
             // says why rather than calling it a source mismatch.
             return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.Managed, ManagedCertificateMessage));
         }
@@ -273,7 +266,7 @@ public sealed partial class CertificateOperations
 
         if (id == AdminCertificate.Id)
         {
-            // The admin listener's certificate is the process's own; the process re-issues it when it needs to (PLAN §3, §10.1).
+            // The admin listener's certificate is the process's own; the process re-issues it when it needs to.
             return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.Managed, "the admin listener's certificate is managed by the process and can't be re-issued here"));
         }
 
@@ -338,7 +331,7 @@ public sealed partial class CertificateOperations
             case CertificateChangeStatus.Committed:
                 break;
             case CertificateChangeStatus.NotFound:
-                // No row: the key of a certificate whose metadata was lost (PLAN §9.2) may still be in the vault, and goes too.
+                // No row: the key of a certificate whose metadata was lost may still be in the vault, and goes too.
                 return await DeleteOrphanKeyAsync(id, cancellationToken).ConfigureAwait(false);
             case CertificateChangeStatus.Unavailable:
                 return new CertificateOperationResult(CertificateOperationStatus.Unavailable);
@@ -589,7 +582,7 @@ public sealed partial class CertificateOperations
     /// <summary>A refusal of the vault's: the exception is logged, and the caller gets this sentence and the response's trace ID.</summary>
     private const string IssuanceRefusedMessage = "The vault refused to create the certificate. The details are in the server log under this response's trace ID.";
 
-    /// <summary>The admin listener's certificate is the process's own (PLAN §3, §10.1).</summary>
+    /// <summary>The admin listener's certificate is the process's own.</summary>
     private const string ManagedCertificateMessage = "the admin listener's certificate is managed by the process and can't be uploaded over";
 
     /// <summary>The key kind a certificate has, from its stored display label (<c>ECDSA P-256</c>, <c>RSA 2048</c>); P-256 for any other.</summary>

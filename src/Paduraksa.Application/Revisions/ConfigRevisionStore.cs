@@ -10,7 +10,7 @@ using Paduraksa.Data.Revisions;
 namespace Paduraksa.Application.Revisions;
 
 /// <summary>
-/// The config revision history (PLAN §6.1, §6.4): an append-only, linear list of whole config documents. Each
+/// The config revision history: an append-only, linear list of whole config documents. Each
 /// revision stores the canonical document bytes Brotli-compressed with the SHA-256 of the uncompressed bytes, and
 /// every read checks that hash. Appends need the clock (an instance); reads need nothing but a context (static).
 /// Thread-safe; the caller owns the context and, for appends, the transaction.

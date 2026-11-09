@@ -1,6 +1,6 @@
 namespace Paduraksa.Application.Config;
 
-/// <summary>The stable <see cref="Contracts.Config.ConfigWarning.Code"/>s of the config compiler (PLAN §9.1).</summary>
+/// <summary>The stable <see cref="Contracts.Config.ConfigWarning.Code"/>s of the config compiler.</summary>
 public static class ConfigWarningCodes
 {
     /// <summary>A host with the Auto binding has names that no valid certificate covers. They are served with the default

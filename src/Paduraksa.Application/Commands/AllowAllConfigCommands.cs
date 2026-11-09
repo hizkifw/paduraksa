@@ -4,7 +4,7 @@ namespace Paduraksa.Application.Commands;
 
 /// <summary>
 /// The authorizer for a config service built without the identity services (tests): allows everything. The server registers
-/// <c>AddPaduraksaIdentity</c>, which replaces it with the permission-based one (PLAN §10.1).
+/// <c>AddPaduraksaIdentity</c>, which replaces it with the permission-based one.
 /// </summary>
 internal sealed class AllowAllConfigCommands : IConfigCommandAuthorizer
 {

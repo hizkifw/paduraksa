@@ -23,7 +23,7 @@ internal sealed record AuditEntry(Actor Actor, Channel Channel, string Action, A
     /// <summary>The config revision the action committed, if any.</summary>
     public ConfigRevisionId? RevisionId { get; init; }
 
-    /// <summary>The command carried the explicit lock-out override (PLAN §3.1); written into the details JSON.</summary>
+    /// <summary>The command carried the explicit lock-out override; written into the details JSON.</summary>
     public bool Force { get; init; }
 
     /// <summary>The command arrived through the admin app's internal listener; written into the details JSON.</summary>

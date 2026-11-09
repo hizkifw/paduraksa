@@ -9,7 +9,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// The serving contexts for configs that are only simulated (PLAN §7.7): a draft, or a revision that isn't live. The
+/// The serving contexts for configs that are only simulated: a draft, or a revision that isn't live. The
 /// simulator asks which certificate entry answers a name and whether a host is served over HTTPS, never for a handshake
 /// to complete, so every certificate the config could choose is served by a throwaway self-signed placeholder, made here
 /// from a key generated here. <b>No key, no chain, nothing that belongs to a real certificate is loaded.</b> Whether a

@@ -7,7 +7,7 @@ using Paduraksa.Contracts.Config;
 namespace Paduraksa.Application.Config;
 
 /// <summary>
-/// Canonical JSON of the config document (PLAN §6.4): the bytes revisions store and hash. Two documents that mean the
+/// Canonical JSON of the config document: the bytes revisions store and hash. Two documents that mean the
 /// same config serialize to the same bytes, and <c>Serialize(Deserialize(Serialize(d)))</c> equals
 /// <c>Serialize(d)</c>. The byte-level rules are <see cref="ConfigJsonContext"/>'s; <see cref="Canonicalize"/> adds
 /// the order and spelling of the content.
@@ -77,7 +77,7 @@ public static class CanonicalConfigJson
         catch (JsonException ex)
         {
             // The reader's own text names CLR types and is not written for a caller: the path is the useful part, and the message
-            // is a fixed sentence (PLAN §11.1: an exception's message never reaches a client).
+            // is a fixed sentence.
             document = null;
             error = new ConfigError(ToJsonPointer(ex.Path), InvalidJsonCode, ReadMessage(ToJsonPointer(ex.Path)));
             return false;

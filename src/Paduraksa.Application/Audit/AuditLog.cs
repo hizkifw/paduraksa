@@ -12,7 +12,7 @@ using Paduraksa.Data.Audit;
 namespace Paduraksa.Application.Audit;
 
 /// <summary>
-/// The append-only, hash-chained audit log (PLAN §5.2, §6.4). Each event's hash covers the previous event's hash
+/// The append-only, hash-chained audit log. Each event's hash covers the previous event's hash
 /// (<see cref="AuditChain"/>), so <see cref="AuditChainVerifier"/> can tell when rows were edited, deleted or
 /// reordered. Thread-safe; the caller owns the context and the transaction.
 /// </summary>

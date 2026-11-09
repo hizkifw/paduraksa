@@ -54,10 +54,9 @@ public sealed record SessionValidation(SessionStatus Status, SessionPrincipal? P
 public sealed record SessionListResult(IdentityStatus Status, IReadOnlyList<SessionSummary> Sessions);
 
 /// <summary>
-/// Admin sessions (PLAN §4.3, §10.1). The browser holds an opaque random 256-bit value; only its SHA-256 is stored, so neither a
-/// database copy nor an audit log yields a usable cookie. (No Data Protection layer wraps the value in M4: it is already
-/// unguessable and stored hashed, so a key ring would add rotation to manage and no security. The key ring in the vault arrives
-/// with antiforgery in M5.)
+/// Admin sessions. The browser holds an opaque random 256-bit value; only its SHA-256 is stored, so neither a
+/// database copy nor an audit log yields a usable cookie. No Data Protection layer wraps the value: it is already
+/// unguessable and stored hashed, so a key ring would add rotation to manage and no security.
 /// </summary>
 /// <remarks>
 /// A session ends at its absolute expiry or after <see cref="IdentityOptions.SessionIdleTimeout"/> without use, whichever is

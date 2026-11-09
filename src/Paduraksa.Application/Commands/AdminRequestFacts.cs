@@ -3,7 +3,7 @@ using System.Net;
 namespace Paduraksa.Application.Commands;
 
 /// <summary>
-/// The caller's request facts when a config command arrived through the admin app's internal listener (PLAN §3.1). They are the
+/// The caller's request facts when a config command arrived through the admin app's internal listener. They are the
 /// minimum the request simulator needs to re-run the real gate over the candidate config: the public host, the scheme the client
 /// used and the resolved client address. No <c>HttpContext</c> or other request object crosses into Application.
 /// </summary>

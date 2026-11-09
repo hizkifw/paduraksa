@@ -28,49 +28,36 @@ using Paduraksa.Proxy.Yarp;
 namespace Paduraksa.Application.Commands;
 
 /// <summary>
-/// The config write path (PLAN §6.1, §6.4): the one entry point every surface (dashboard, API, MCP, CLI, YAML import)
+/// The config write path: the one entry point every surface (dashboard, API, MCP, CLI, YAML import)
 /// sends <see cref="ConfigCommand"/>s to. One writer at a time; reads (<see cref="GetCurrentAsync"/>) never wait.
 /// </summary>
 /// <remarks>
-/// <para><b>Steps.</b> (1) Authorize (<see cref="IConfigCommandAuthorizer"/>). (2) Load the latest revision's
-/// document, apply the command, check the version it names (object commands) or its base revision (whole-document
-/// commands), and set the versions (<see cref="ConfigVersions"/>). (3) Validate (<see cref="ConfigValidator"/>).
-/// (4) Compile (<see cref="IConfigCompiler"/>). A dry run stops here; so does any failure, and nothing is persisted.
-/// (5) In one transaction: the revision (canonical bytes, the change list as its summary), the projection
-/// (<see cref="ConfigProjection"/>) and the audit event. (6) Publish the compiled snapshot (<see cref="SnapshotPublisher"/>).
-/// (7) Notify <see cref="Changes"/>.</para>
+/// <para><b>One writer.</b> A command is authorized, planned on the latest revision, validated and compiled; a dry run
+/// stops there, and a failure of any step persists nothing. The revision, its projection and its audit event commit in
+/// one transaction, and the snapshot is queued with the publisher while the writer lock is still held, so snapshots go
+/// live in commit order. The command then waits for the outcome outside the lock, at most
+/// <see cref="ConfigServiceOptions.PublishWait"/>.</para>
 /// <para><b>The empty config.</b> Before the first commit the config is <see cref="InitialDocument"/> (no objects,
 /// default settings at version 0) and there is no revision: the first command creates revision #1. Startup writes
 /// nothing, so every revision is someone's change.</para>
-/// <para><b>Publishing.</b> The snapshot is queued with the publisher while the writer lock is held, so snapshots go
-/// live in commit order. The command then waits for the outcome outside the lock, at most
-/// <see cref="ConfigServiceOptions.PublishWait"/>. The publisher only publishes the latest snapshot: when a newer
-/// commit supersedes this one's, the command waits for the newer publish (which carries this change too) and reports
-/// that outcome. A failed publish doesn't undo the commit: the previous snapshot stays live, the command reports
-/// <see cref="ConfigCommandStatus.PublishFailed"/>, the failure is logged and audited (<c>config.publish</c>, by the
-/// command whose publish it was), and the change goes live with the next commit's publish (every snapshot is the whole
-/// config) or the next start, which compiles the latest revision. There is no retry. A publish still pending when the
-/// wait ends is followed in the background, and logged and audited if it then fails.</para>
-/// <para><b>Concurrency.</b> Within the process the writer lock serialises commands. Another process writing the same
-/// file (the CLI) can commit between a command's load and its commit; the commit transaction sees the moved head, and
-/// the command is planned, validated and compiled once more on the new head. If the head moved again, it is a
-/// conflict naming the real head.</para>
-/// <para><b>Audit.</b> A commit's event (<c>config.host.update</c> and so on, outcome success, with the revision) is
-/// written in the commit's transaction. Rejected commands are audited too, in a transaction of their own: denied,
-/// invalid, conflict, and not found (as a conflict for an object, which someone else deleted, and as invalid for an
-/// unknown rollback target). Once the decision is made the rejection is reported whatever happens to its audit event:
-/// the event is written without the caller's cancellation, and a failure to write it (the database locked past its busy
-/// timeout, which bounds how long the writer lock is held) is logged. Dry runs and commands that change nothing are
-/// not audited: they change nothing, and previews (the dashboard's review sheet, MCP's <c>preview_*</c> tools) would
+/// <para><b>Publishing.</b> The publisher only publishes the latest snapshot: when a newer commit supersedes this one's,
+/// the command waits for the newer publish (which carries this change too) and reports that outcome. A failed publish
+/// doesn't undo the commit: the previous snapshot stays live, the command reports
+/// <see cref="ConfigCommandStatus.PublishFailed"/>, the failure is logged and audited (<c>config.publish</c>), and the
+/// change goes live with the next commit's publish or the next start, which compiles the latest revision. There is no
+/// retry.</para>
+/// <para><b>Another process.</b> The CLI writing the same file can commit between a command's load and its commit; the
+/// commit transaction sees the moved head, and the command is planned, validated and compiled once more on it. If the
+/// head moved again, it is a conflict naming the real head.</para>
+/// <para><b>Audit.</b> A commit's event is written in the commit's transaction. Rejected commands are audited too, in a
+/// transaction of their own, and the rejection is reported whatever happens to that write (it runs without the caller's
+/// cancellation, and a failure is logged). Dry runs and commands that change nothing are not audited: previews would
 /// drown the log.</para>
-/// <para><b>Startup.</b> A server runs <see cref="StartAsync"/> once before anything reads or writes config: the startup
-/// recompile, with the last-known-good fallback and the degraded states it can leave the store in (<see cref="Status"/>).
-/// While the store is unusable, commands get <see cref="ConfigCommandStatus.Unavailable"/>, unaudited. A process that
-/// never starts the service (the CLI writing to a stopped server's database) accepts commands as usual.</para>
-/// <para><b>Last-known-good.</b> With a <see cref="LastKnownGoodFile"/>, the document of every revision that goes live
-/// (the startup one and each commit's) is written to it in the background, after the publish succeeds: never under the
-/// writer lock, and never holding up the command's result.</para>
-/// <para><b>Disposal.</b> <see cref="Dispose"/> stops new commands; commands in flight finish normally.</para>
+/// <para><b>Recovery.</b> <see cref="StartAsync"/> runs once before anything reads or writes config, and leaves the store
+/// either usable or in the degraded state <see cref="Status"/> reports, in which commands get
+/// <see cref="ConfigCommandStatus.Unavailable"/>, unaudited. With a <see cref="LastKnownGoodFile"/>, the document of every
+/// revision that goes live is written to it in the background, after the publish succeeds and never under the writer
+/// lock.</para>
 /// </remarks>
 public sealed partial class ConfigService : IDisposable
 {
@@ -149,7 +136,7 @@ public sealed partial class ConfigService : IDisposable
     /// <summary>The config before the first commit: no objects, default settings, every version 0.</summary>
     public static ConfigDocument InitialDocument { get; } = CanonicalConfigJson.Canonicalize(new ConfigDocument());
 
-    /// <summary>One notification per committed revision (PLAN §6.1 step 7).</summary>
+    /// <summary>One notification per committed revision.</summary>
     public ConfigChangeFeed Changes { get; } = new();
 
     /// <summary>The latest revision and its document (canonical, versions included); <see cref="InitialDocument"/>
@@ -306,7 +293,7 @@ public sealed partial class ConfigService : IDisposable
                 return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
             }
 
-            // PLAN §3.1's lock-out guard: put the caller's own request through the real gate over the current and the candidate
+            // The lock-out guard: put the caller's own request through the real gate over the current and the candidate
             // config. If it currently reaches the admin app but the change would stop that, the change cuts the caller off;
             // `force` is the explicit override. A draft simulator run never commits, so it is not guarded.
             if (!simulation && origin.ViaAdminProxy && !command.Force && origin.AdminRequest is { } requestFacts)
@@ -404,7 +391,7 @@ public sealed partial class ConfigService : IDisposable
     }
 
     /// <summary>
-    /// Whether the caller's own request would still reach the admin app under <paramref name="candidate"/> (PLAN §3.1). The
+    /// Whether the caller's own request would still reach the admin app under <paramref name="candidate"/>. The
     /// current and the compiled candidate are run through the real gate; only a request that currently forwards to the admin route
     /// and would stop doing so is a lock-out, so a condition that already exists is not blamed on this change.
     /// </summary>
@@ -492,7 +479,7 @@ public sealed partial class ConfigService : IDisposable
         path.StartsWith(prefix, StringComparison.Ordinal) && (path.Length == prefix.Length || path[prefix.Length] == '/');
 
     /// <summary>
-    /// The errors for certificate bindings that <paramref name="candidate"/> introduces and that can't be used (PLAN §9.2):
+    /// The errors for certificate bindings that <paramref name="candidate"/> introduces and that can't be used:
     /// a host whose Specific binding is new or changed, or a changed default certificate, naming a certificate that is
     /// missing, expired, pending, failed or without a key. A binding the current config already has is left alone, so a
     /// certificate that expired since doesn't block unrelated changes (it stays a warning).

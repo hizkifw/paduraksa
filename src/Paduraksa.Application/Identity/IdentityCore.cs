@@ -75,7 +75,7 @@ public sealed record UserResult(IdentityStatus Status, UserSummary? User = null,
 /// <param name="Users">The users, oldest first; empty unless it succeeded.</param>
 public sealed record UserListResult(IdentityStatus Status, IReadOnlyList<UserSummary> Users);
 
-/// <summary>What an origin may do (PLAN §10.1).</summary>
+/// <summary>What an origin may do.</summary>
 public interface IPermissionEvaluator
 {
     /// <summary>
@@ -146,7 +146,7 @@ internal sealed class PermissionEvaluator(IDbContextFactory<ConfigDbContext> con
     }
 }
 
-/// <summary>Runs config commands only for origins holding <see cref="Permission.ConfigWrite"/> (PLAN §6.1 step 1, §10.1).</summary>
+/// <summary>Runs config commands only for origins holding <see cref="Permission.ConfigWrite"/>.</summary>
 internal sealed class PermissionConfigCommandAuthorizer(IPermissionEvaluator permissions) : IConfigCommandAuthorizer
 {
     public ValueTask<bool> IsAllowedAsync(Contracts.Commands.ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken) =>
@@ -161,7 +161,7 @@ internal sealed class PermissionCertificateOperationAuthorizer(IPermissionEvalua
 }
 
 /// <summary>
-/// Runs request simulations (PLAN §7.7) for origins holding <see cref="Permission.Simulate"/>; a draft or a stored revision shows
+/// Runs request simulations for origins holding <see cref="Permission.Simulate"/>; a draft or a stored revision shows
 /// what the config contains, so those also need <see cref="Permission.ConfigRead"/>. The system and the CLI hold everything.
 /// </summary>
 internal sealed class PermissionSimulationAuthorizer(IPermissionEvaluator permissions) : Simulation.ISimulationAuthorizer

@@ -3,7 +3,7 @@ using Paduraksa.Acme;
 namespace Paduraksa.Application.Issuance;
 
 /// <summary>
-/// The scheduler's arithmetic (PLAN §9.3), free of clocks and randomness so it can be tested exactly: every random share
+/// The scheduler's arithmetic, free of clocks and randomness so it can be tested exactly: every random share
 /// is passed in as a number in [0, 1).
 /// </summary>
 internal static class RenewalSchedule

@@ -40,7 +40,7 @@ public sealed record ApiTokenVerification(ApiTokenPrincipal? Principal)
 }
 
 /// <summary>
-/// API tokens (PLAN §4.3, §10.1): <c>pdk_&lt;id&gt;_&lt;secret&gt;_&lt;checksum&gt;</c>, issued to a signed-in user with scopes and an optional expiry,
+/// API tokens: <c>pdk_&lt;id&gt;_&lt;secret&gt;_&lt;checksum&gt;</c>, issued to a signed-in user with scopes and an optional expiry,
 /// shown once, stored as <c>SHA-256(secret)</c>. A token acts as its owner with <i>at most</i> its scopes: what it may do is the
 /// intersection of its scopes and the owner's current permissions, evaluated on every use, so demoting, disabling or deleting
 /// the owner takes effect at once.

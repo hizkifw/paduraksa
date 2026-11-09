@@ -14,7 +14,7 @@ using Paduraksa.Data.Issuance;
 namespace Paduraksa.Application.Issuance;
 
 /// <summary>
-/// The configured DNS providers for DNS-01 (PLAN §5.1, §9.3). A provider row is a kind, a label and the
+/// The configured DNS providers for DNS-01. A provider row is a kind, a label and the
 /// <see cref="SecretId"/> of its credential in the vault; <b>there is no credential here</b>, and the hosts the token may be sent
 /// to are metadata of that secret, set when the secret was stored. Changes are audited (<c>acme.dns_provider.create</c>,
 /// <c>acme.dns_provider.delete</c>), create no revision and publish nothing.

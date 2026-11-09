@@ -4,7 +4,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Commands;
 
 /// <summary>
-/// The pipeline's version rule (PLAN §6.4): every top-level object a revision changes gets that revision's
+/// The pipeline's version rule: every top-level object a revision changes gets that revision's
 /// <c>Seq</c> as its version, and every other object keeps its current one. Callers never set a version.
 /// </summary>
 /// <remarks>

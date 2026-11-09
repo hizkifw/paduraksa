@@ -20,7 +20,7 @@ using Paduraksa.Data.Issuance;
 namespace Paduraksa.Application.Issuance;
 
 /// <summary>
-/// ACME issuance orchestration (PLAN §9.3): asks a CA for a certificate and keeps it renewed, on top of the ACME client, the
+/// ACME issuance orchestration: asks a CA for a certificate and keeps it renewed, on top of the ACME client, the
 /// vault's <see cref="ICertificateIssuance"/> and the certificate inventory (<see cref="CertificateService"/>).
 /// </summary>
 /// <remarks>

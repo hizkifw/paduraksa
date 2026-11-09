@@ -25,7 +25,7 @@ public sealed record TotpEnrollmentResult(IdentityStatus Status, TotpEnrollmentS
 public sealed record RecoveryCodesResult(IdentityStatus Status, RecoveryCodes? Codes = null);
 
 /// <summary>
-/// TOTP enrolment and recovery codes (PLAN §8.2, §10.1). The shared secret is generated, kept and checked by the vault
+/// TOTP enrolment and recovery codes. The shared secret is generated, kept and checked by the vault
 /// (<see cref="ITotpAuthenticator"/>); this service holds its reference in the user's record and drives the flow: begin
 /// (the provisioning URI, once), confirm with a code from the authenticator (which turns the second factor on and returns the
 /// recovery codes, once), disable. A user's second factor is on only after the confirmation, so an abandoned enrolment never
@@ -123,7 +123,7 @@ public sealed partial class TwoFactorService
             catch
             {
                 // Nothing recorded the new secret (the transaction failed or the request ended), so it would be unreachable: delete it
-                // again, uncancellable like the certificate flows' rollbacks (PLAN §9.2), before the original failure goes on.
+                // again, uncancellable like the certificate flows' rollbacks, before the original failure goes on.
                 await DeleteSecretAsync(enrollment.SecretId).ConfigureAwait(false);
                 throw;
             }

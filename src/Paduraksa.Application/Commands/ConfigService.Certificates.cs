@@ -13,7 +13,7 @@ public sealed partial class ConfigService
 {
     /// <summary>
     /// Runs a certificate change (<see cref="Certificates.CertificateService"/>) on the config writer's lock, so it is
-    /// ordered with config commands and with their publishes (PLAN §9.2). In one transaction: <paramref name="change"/>
+    /// ordered with config commands and with their publishes. In one transaction: <paramref name="change"/>
     /// edits the inventory tables and says what to audit; the audit event is appended. When
     /// <see cref="CertificateChangeOutcome.Republish"/> is set, the <b>live config is compiled again with the new
     /// inventory before the commit</b> (the transaction sees its own rows, as a command's compile sees its candidate),

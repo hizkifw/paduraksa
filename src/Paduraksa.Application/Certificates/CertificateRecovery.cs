@@ -23,7 +23,7 @@ namespace Paduraksa.Application.Certificates;
 public sealed record CertificateRecoveryResult(IReadOnlyList<CertificateId> Recovered, IReadOnlyList<CertificateId> Deleted, IReadOnlyList<CertificateId> Failed);
 
 /// <summary>
-/// Gets back the certificates the config database lost (PLAN §9.2): the database was deleted or restored from an older backup while
+/// Gets back the certificates the config database lost: the database was deleted or restored from an older backup while
 /// the vault still holds the keys, so restored Specific bindings would degrade for want of a row. The vault describes what it holds
 /// (<see cref="ICertificateCatalog"/>, public data only) and every certificate with no row is registered again through
 /// <see cref="CertificateService.RegisterRecoveredAsync"/> without republishing per certificate: the startup step publishes the live
@@ -107,7 +107,7 @@ public sealed partial class CertificateRecovery
                 cancellationToken.ThrowIfCancellationRequested();
                 if (certificate.Id == AdminCertificate.Id)
                 {
-                    // The process's own admin certificate (PLAN §3, §10.1): the core host's AdminCertificateService owns its row
+                    // The process's own admin certificate: the core host's AdminCertificateService owns its row
                     // and adopts the vault's leaf itself, so a database loss cannot make two writers race over one fixed ID (nor
                     // leave a delete on record for it, which would make this branch finish the "deletion" of a fresh key).
                     continue;

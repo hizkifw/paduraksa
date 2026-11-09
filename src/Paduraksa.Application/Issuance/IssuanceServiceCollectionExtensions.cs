@@ -19,7 +19,7 @@ namespace Paduraksa.Application.Issuance;
 public static class IssuanceServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers ACME issuance (PLAN §9.3): the account and DNS provider services, the <see cref="AcmeIssuanceService"/> and
+    /// Registers ACME issuance: the account and DNS provider services, the <see cref="AcmeIssuanceService"/> and
     /// the <see cref="AcmeRenewalScheduler"/> hosted service, with the client provider that signs through the vault.
     /// Needs <see cref="ConfigServiceCollectionExtensions.AddPaduraksaConfigService"/>, the vault's <see cref="IJwsSigner"/>,
     /// <see cref="ICertificateIssuance"/> and <see cref="ISecretStore"/>, and an <see cref="IAcmeChallengeStore"/>. Used when

@@ -5,7 +5,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Identity;
 
 /// <summary>
-/// Which <see cref="Permission"/>s each <see cref="Role"/> grants (PLAN §10.1). Roles are data here, not code paths, so custom
+/// Which <see cref="Permission"/>s each <see cref="Role"/> grants. Roles are data here, not code paths, so custom
 /// roles can be added later by supplying another set. A user's permissions are the union of their roles'; an API token's are
 /// that union narrowed to its scopes (<see cref="Narrow"/>).
 /// </summary>

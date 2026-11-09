@@ -20,7 +20,7 @@ internal enum NameMatch
 }
 
 /// <summary>
-/// Which certificate serves which name (PLAN §9.2), as pure functions over normalised names.
+/// Which certificate serves which name, as pure functions over normalised names.
 /// </summary>
 /// <remarks>
 /// <para><b>Covering.</b> A certificate covers a host name when one of its names is that name, or is the wildcard of its

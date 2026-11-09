@@ -36,7 +36,7 @@ public enum SetupOutcome
 public sealed record SetupResult(SetupOutcome Outcome, UserSummary? Owner = null, string? Problem = null);
 
 /// <summary>
-/// First-run setup (PLAN §12.1). Setup is <i>incomplete</i> while no Owner exists. Until then the admin app serves only the setup
+/// First-run setup. Setup is <i>incomplete</i> while no Owner exists. Until then the admin app serves only the setup
 /// flow, and that flow needs a one-time <b>setup token</b>: 256 random bits, kept in <c>&lt;data dir&gt;/setup-token</c> (owner-only,
 /// like <c>master.key</c>), logged at Warning when the server starts, and reprinted by <c>paduraksa setup-token</c>. Whoever can
 /// read the log, the file or the shell on the host can claim the instance; nobody on the network can.
@@ -125,7 +125,7 @@ public sealed partial class SetupService
     /// the logger on purpose: the console logger is single-line (a newline in a message becomes a space), which would flatten the box.
     /// </summary>
     /// <remarks>
-    /// <b>The one deliberate exception to "never log a credential"</b> (PLAN §2, §12.1; decided by the owner): whoever runs
+    /// <b>The one deliberate exception to "never log a credential"</b>: whoever runs
     /// <c>docker logs</c> has no other way to get the token, it is single-use, and it is worthless once an Owner exists (and then
     /// deleted). Whoever can read the log already has a shell on the host, and with it the token file. Nothing else is ever logged.
     /// </remarks>

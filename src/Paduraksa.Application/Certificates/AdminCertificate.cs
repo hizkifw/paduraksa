@@ -3,7 +3,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// The admin listener's own certificate (PLAN §3, §10.1): one leaf the process issues from the local CA and keeps current,
+/// The admin listener's own certificate: one leaf the process issues from the local CA and keeps current,
 /// so the admin UI is trusted by a browser that trusts the root once.
 /// </summary>
 /// <remarks>
@@ -22,7 +22,7 @@ namespace Paduraksa.Application.Certificates;
 /// it.
 /// </para>
 /// <para>
-/// Like the placeholder's well-known ID (PLAN §9.2), this is a fixed value a random <c>CertificateId.New()</c> practically
+/// Like the placeholder's well-known ID, this is a fixed value a random <c>CertificateId.New()</c> practically
 /// never reproduces, so no upload, issue or ACME order collides with it.
 /// </para>
 /// </remarks>

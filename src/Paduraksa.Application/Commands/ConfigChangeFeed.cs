@@ -6,8 +6,8 @@ using Paduraksa.Contracts.Commands;
 namespace Paduraksa.Application.Commands;
 
 /// <summary>
-/// The change feed (PLAN §6.1 step 7): one <see cref="ConfigCommitted"/> per committed revision, in commit order, to
-/// every subscriber (the dashboard's live updates, M5). Each subscriber reads its own bounded channel, so a slow one
+/// The change feed: one <see cref="ConfigCommitted"/> per committed revision, in commit order, to
+/// every subscriber. Each subscriber reads its own bounded channel, so a slow one
 /// never holds up the writer or the others: when it falls behind by <see cref="Capacity"/> notifications it loses the
 /// oldest, and should re-read the current config when the sequence numbers it sees skip.
 /// </summary>

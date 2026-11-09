@@ -5,7 +5,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// Normalises the names a certificate covers (its SANs) like host names (PLAN §5.1), so "which certificates cover this
+/// Normalises the names a certificate covers (its SANs) like host names, so "which certificates cover this
 /// name" compares equal strings: lowercase, punycode, no trailing dot, wildcards as <c>*.parent</c>, IP addresses in
 /// canonical text (IPv6 without brackets).
 /// </summary>

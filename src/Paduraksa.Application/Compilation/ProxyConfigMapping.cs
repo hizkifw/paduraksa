@@ -12,7 +12,7 @@ using ProxySnapshot = Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Application.Compilation;
 
 /// <summary>
-/// Maps a config document onto the snapshot compiler's input (PLAN §6.4): a pure function, cold path. It reads the
+/// Maps a config document onto the snapshot compiler's input: a pure function, cold path. It reads the
 /// canonical form (<see cref="CanonicalConfigJson.Canonicalize"/>), so two spellings of one config give the same model.
 /// It never throws: an invalid document maps to a model the compiler rejects, plus errors for the few invalid values the
 /// model can't carry (the validator reports all of them first).
@@ -20,8 +20,7 @@ namespace Paduraksa.Application.Compilation;
 /// <remarks>
 /// <para><b>Settings.</b> Each host's settings resolve built-in defaults → global defaults → its profile → itself
 /// (<see cref="HostSettingsLayers"/>), each route's allow list on top of its host's. A profile that doesn't exist adds
-/// no layer (the validator rejects it: <see cref="ConfigErrorCodes.HostProfileUnknown"/>). The admin host's resolved HSTS
-/// applies to it exactly as to any other host (it is always HTTPS, so it always has somewhere to go).</para>
+/// no layer (the validator rejects it: <see cref="ConfigErrorCodes.HostProfileUnknown"/>).</para>
 /// <para><b>Allow lists: host chain and route chains.</b> The gate runs a host's chain before its HTTPS redirect, its
 /// fixed answer and route matching, then the matched route's own chain. A route's list <i>replaces</i> the host's, so the
 /// host's list can't simply sit in the host chain: a route could tighten it but never lift it. Instead:</para>
@@ -34,7 +33,7 @@ namespace Paduraksa.Application.Compilation;
 /// some route admits is judged again by the route it hits. When some route is unrestricted, the host chain carries
 /// nothing: anyone may reach that route, so there is nothing to hide.</item>
 /// </list>
-/// <para><b>Certificates (PLAN §9.2).</b> Bindings resolve against the <see cref="CertificateInventory"/>. Auto → each DNS
+/// <para><b>Certificates.</b> Bindings resolve against the <see cref="CertificateInventory"/>. Auto → each DNS
 /// name of the host gets the most specific valid certificate covering it (<see cref="CertificateSelection"/>), per name
 /// (<see cref="HostSpec.NameCertificates"/>); names nothing covers get no certificate of their own (the default one
 /// serves them) and are reported. Specific → that certificate when it is usable, else none of its own (reported). None →
@@ -42,13 +41,9 @@ namespace Paduraksa.Application.Compilation;
 /// inventory's fallback. An unusable certificate never fails the mapping: it is a <see cref="MappedConfig.Warnings"/>
 /// entry, and the command pipeline decides whether it blocks a change. Unknown host behaviour and the trusted proxies come
 /// from the global settings; the default certificate's TLS settings are the global defaults' TLS.</para>
-/// <para><b>Upstreams.</b> Disabled destinations are left out. Load balancing maps to YARP's policy names.</para>
-/// <para><b>Undefined values.</b> The enums the document and the proxy share are one type in <c>Paduraksa.Core.Model</c>
-/// (<see cref="HostKind"/>, <see cref="RouteMatchKind"/>, <see cref="TrustedProxyMode"/>, <see cref="UnknownHostBehaviour"/>,
-/// <see cref="TlsMinimumVersion"/>, <see cref="TcpAlpn"/>, <see cref="ServerHeaderMode"/>,
-/// <see cref="RequestIdPropagation"/>), so nothing is cast and the compiler rejects an undefined value.
-/// <c>SharedEnumWireTests</c> pins their spelling. The model can't carry an undefined certificate binding mode or
-/// load-balancing policy, nor a respond host without a content type, so the mapping reports those itself, as
+/// <para><b>Undefined values.</b> The enums the document and the proxy share are one type in <c>Paduraksa.Core.Model</c>,
+/// so nothing is cast and the compiler rejects an undefined value. The model can't carry an undefined certificate binding
+/// mode or load-balancing policy, nor a respond host without a content type, so the mapping reports those itself, as
 /// <see cref="MappedConfig.Errors"/>. A null respond body is the empty body.</para>
 /// </remarks>
 public static class ProxyConfigMapping
@@ -124,7 +119,7 @@ public static class ProxyConfigMapping
     }
 
     /// <summary>
-    /// Resolves a host's certificate binding against the inventory (PLAN §9.2). Auto: each DNS name gets the best valid
+    /// Resolves a host's certificate binding against the inventory. Auto: each DNS name gets the best valid
     /// certificate covering it (<see cref="CertificateSelection"/>), per name, and names nothing covers get none of their
     /// own: they ride the default certificate, or are rejected, and the host is reported without coverage. Specific: that
     /// certificate for every name when it is usable; otherwise the host has none of its own (reported). None: no HTTPS.
@@ -262,7 +257,7 @@ public static class ProxyConfigMapping
             Names = host.Names,
             Kind = (HostKind)host.Kind,
             Enabled = host.Enabled,
-            // The admin is only ever reached over HTTPS (PLAN §3.1): it forces the redirect whatever the layers say.
+            // The admin is only ever reached over HTTPS: it forces the redirect whatever the layers say.
             ForceHttps = host.Kind == HostKind.Admin || effective.ForceHttps,
             Https = binding.Mode != CertificateBindingMode.None,
             Certificate = certificate,

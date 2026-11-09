@@ -6,7 +6,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Application.Certificates;
 
 /// <summary>
-/// The names the admin certificate must cover (PLAN §3, §10.1): the configured ones plus everything the owner can reach
+/// The names the admin certificate must cover: the configured ones plus everything the owner can reach
 /// the admin UI by, so the wizard's "trust this root once" is enough whatever name or address they use.
 /// </summary>
 public static class AdminCertificateNames

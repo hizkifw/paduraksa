@@ -18,7 +18,7 @@ using ServerHeader = Paduraksa.Proxy.Http.ServerHeader;
 namespace Paduraksa.Application.Config;
 
 /// <summary>
-/// Validates a config document (PLAN §6.1 step 3, §6.4): field rules and cross-object rules, every error with the JSON
+/// Validates a config document: field rules and cross-object rules, every error with the JSON
 /// pointer of the field it's about. Pure and cold-path. The snapshot compiler still runs afterwards as the backstop,
 /// so this doesn't re-implement YARP's validator; it catches what the document can say on its own, where the
 /// compiler can only name keys.
@@ -34,7 +34,7 @@ namespace Paduraksa.Application.Config;
 /// but its names only have to be unique within itself, so a replacement can be staged next to the live host. A host
 /// can't have two routes with the same match kind and path (ignoring case, like matching): the second could never
 /// match. References to profiles and upstreams must resolve, and an upstream that an enabled host routes to needs an
-/// enabled destination; certificate references can't be checked until certificates exist (M3). A host without HTTPS
+/// enabled destination; certificate references can't be checked here, as the validator does not read the inventory. A host without HTTPS
 /// (certificate mode none) can't force HTTPS, judged on the setting it ends up with after the profile and global
 /// layers. HSTS's preload pair is judged the same way, on each host's resolved settings, wherever its three fields
 /// were set.</para>
@@ -300,11 +300,11 @@ public static class ConfigValidator
             }
 
             CertificateBinding certificate = host.Certificate ?? new();
-            // One resolution per host: every rule that judges a value after layering reads it (PLAN §5.3, §6.4).
+            // One resolution per host: every rule that judges a value after layering reads it.
             EffectiveHostSettings resolved = HostSettingsLayers.Resolve(defaults, profile, host.Settings);
             if (CheckEnum(certificate.Mode, $"{path}/certificate/mode"))
             {
-                // Judged after layering (PLAN §6.4): the host, else its profile, else the global defaults.
+                // Judged after layering: the host, else its profile, else the global defaults.
                 if (certificate.Mode == CertificateBindingMode.None && host.Kind != HostKind.Admin && resolved.ForceHttps)
                 {
                     string from = HostSettingsLayers.InheritedSuffix(
@@ -443,7 +443,7 @@ public static class ConfigValidator
             }
         }
 
-        /// <summary>Admin hosts (PLAN §3.1): one at most, and HTTPS is required (the mapping forces the redirect).</summary>
+        /// <summary>Admin hosts: one at most, and HTTPS is required (the mapping forces the redirect).</summary>
         private void CheckAdminHost(HostConfig host, CertificateBinding certificate, string path)
         {
             if (host.Kind != HostKind.Admin)

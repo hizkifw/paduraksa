@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Application.Identity;
 
 /// <summary>
-/// The spelling of an API token (PLAN §4.3): <c>pdk_&lt;token ID base62&gt;_&lt;32 random bytes base62&gt;_&lt;CRC-32 base62&gt;</c>.
+/// The spelling of an API token: <c>pdk_&lt;token ID base62&gt;_&lt;32 random bytes base62&gt;_&lt;CRC-32 base62&gt;</c>.
 /// The fixed prefix and the checksum let secret scanners find a leaked token and let the server reject a mistyped one without
 /// touching the database; the checksum is not a security measure. The secret is two 128-bit halves, each in the 22-character
 /// base62 form of the typed IDs (44 characters), and the checksum covers everything before it, in six characters.

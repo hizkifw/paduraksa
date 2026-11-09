@@ -3,7 +3,7 @@ using Paduraksa.Application.Hosting;
 namespace Paduraksa.Application.Issuance;
 
 /// <summary>
-/// Tunables of ACME issuance and the renewal scheduler (PLAN §9.3). The defaults suit a public CA. A record, so a
+/// Tunables of ACME issuance and the renewal scheduler. The defaults suit a public CA. A record, so a
 /// variation is <c>options with { ... }</c>.
 /// </summary>
 public sealed record AcmeIssuanceOptions
