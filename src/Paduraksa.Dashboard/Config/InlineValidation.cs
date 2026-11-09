@@ -51,9 +51,10 @@ public static class InlineValidation
         ArgumentNullException.ThrowIfNull(errors);
         ArgumentNullException.ThrowIfNull(prefix);
         Dictionary<string, string> byPath = new(StringComparer.Ordinal);
+        string nested = prefix + "/";
         foreach (ConfigError error in errors)
         {
-            if (error.Path == prefix || error.Path.StartsWith(prefix + "/", StringComparison.Ordinal))
+            if (error.Path == prefix || error.Path.StartsWith(nested, StringComparison.Ordinal))
             {
                 byPath.TryAdd(error.Path[prefix.Length..], ReviewNotices.Text(error, document));
             }
