@@ -84,7 +84,7 @@ internal sealed class AdminHarness : IAsyncDisposable
             config[key] = value;
         }
 
-        PaduraksaHost host = TestHost.Create(settings: config, configureServices: configureServices, logs: logs);
+        PaduraksaHost host = TestHost.Create(settings: config, configureServices: configureServices, logs: logs, configureShared: TestHost.NoAccessLogFile);
         try
         {
             await host.StartAsync(Ct);

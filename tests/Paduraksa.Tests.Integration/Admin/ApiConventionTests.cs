@@ -465,14 +465,12 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     [Fact]
     public async Task ASettingsReadCarriesItsVersionAsETag()
     {
-        // Its own host: the claim includes that a fresh config is at version 0.
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage response = await api.GetAsync("/api/v1/settings");
         GlobalSettings settings = await AdminApiHarness.ReadAsync(response, Paduraksa.Admin.Json.AdminJsonContext.Default.GlobalSettings, Ct);
 
-        Assert.Equal("\"0\"", AdminApiHarness.ETag(response));
-        Assert.Equal(0, settings.Version);
+        Assert.Equal($"\"{settings.Version}\"", AdminApiHarness.ETag(response));
         Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
     }
 

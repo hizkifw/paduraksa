@@ -70,6 +70,55 @@ public sealed class SharedOwnerSession : IAsyncLifetime
 }
 
 /// <summary>
+/// A started admin host reached through the public listener (<see cref="AdminProxyHarness"/>): its config names the admin
+/// host, the Owner is signed in through the proxy, and a test that signs out asks for a session of its own.
+/// </summary>
+public sealed class SharedAdminProxy : IAsyncLifetime
+{
+    private AdminProxyHarness? _harness;
+
+    internal AdminProxyHarness Harness => _harness ?? throw new InvalidOperationException("The shared admin proxy has not started.");
+
+    /// <summary>A session of this test's own, as a <c>Cookie</c> header value, for a test that signs out.</summary>
+    internal async Task<string> NewSessionAsync() => await Harness.NewSessionAsync();
+
+    public async ValueTask InitializeAsync() => _harness = await AdminProxyHarness.StartAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_harness is not null)
+        {
+            await _harness.DisposeAsync();
+        }
+    }
+}
+
+/// <summary>
+/// A started admin host whose request body limit is 2 KB, so an over-limit body trips it: the hardening tests that check the
+/// limit share one instead of starting a host each.
+/// </summary>
+public sealed class SharedSmallBodyHost : IAsyncLifetime
+{
+    private AdminHarness? _harness;
+
+    internal AdminHarness Harness => _harness ?? throw new InvalidOperationException("The shared admin host has not started.");
+
+    public async ValueTask InitializeAsync()
+    {
+        _harness = await AdminHarness.StartAsync(new Dictionary<string, string?> { ["Paduraksa:Admin:MaxRequestBodyBytes"] = "2048" });
+        await _harness.SetUpOwnerAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_harness is not null)
+        {
+            await _harness.DisposeAsync();
+        }
+    }
+}
+
+/// <summary>
 /// A started host with real authentication for every role (<see cref="AdminApiHarness"/>): the Owner from first-run setup,
 /// a user per role and a token per user. For classes whose tests read the API, or make their own uniquely named resources.
 /// </summary>

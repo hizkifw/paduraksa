@@ -1,17 +1,19 @@
 using System.Net;
 
+using Paduraksa.Tests.Integration.Hosting;
+
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>The users endpoints: the permission matrix per role, and the status mapping.</summary>
-public sealed class UserEndpointTests
+public sealed class UserEndpointTests(SharedOwnerSession shared) : IClassFixture<SharedOwnerSession>
 {
     private static readonly string[] Roles = ["owner", "admin", "operator", "viewer", "auditor"];
 
     [Fact]
     public async Task PermissionsMatrixPerRole()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync(new Dictionary<string, string?> { ["Paduraksa:Admin:RateLimit:PermitsPerUser"] = "1000", ["Paduraksa:Admin:RateLimit:PermitsPerIp"] = "1000" });
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
         Dictionary<string, string> cookies = new() { ["owner"] = owner };
         Dictionary<string, string> ids = [];
         using (AdminResponse me = await h.GetAsync("/api/v1/auth/me", owner))
@@ -80,8 +82,8 @@ public sealed class UserEndpointTests
     [Fact]
     public async Task UserLifecycleAndStatusMapping()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
         string ownerId;
         using (AdminResponse me = await h.GetAsync("/api/v1/auth/me", owner))
         {
@@ -89,10 +91,10 @@ public sealed class UserEndpointTests
         }
 
         string id;
-        using (AdminResponse created = await h.PostAsync("/api/v1/users", $$"""{"username":"Dave","displayName":null,"password":"{{AdminHarness.Password}}","roles":["viewer","viewer","auditor"]}""", owner))
+        using (AdminResponse created = await h.PostAsync("/api/v1/users", $$"""{"username":"dave-lifecycle","displayName":null,"password":"{{AdminHarness.Password}}","roles":["viewer","viewer","auditor"]}""", owner))
         {
             Assert.Equal(HttpStatusCode.Created, created.Status);
-            Assert.Equal("Dave", created.Json.GetProperty("displayName").GetString());
+            Assert.Equal("dave-lifecycle", created.Json.GetProperty("displayName").GetString());
             Assert.Equal(["auditor", "viewer"], created.Json.GetProperty("roles").EnumerateArray().Select(r => r.GetString()).Order(StringComparer.Ordinal));
             Assert.EndsWith(created.Json.GetProperty("id").GetString()!, created.Header("Location") ?? "", StringComparison.Ordinal);
             Assert.DoesNotContain("hash", created.Body, StringComparison.OrdinalIgnoreCase);
@@ -101,7 +103,7 @@ public sealed class UserEndpointTests
         }
 
         // Conflict: the name is taken (case does not matter). Invalid: a weak password, no roles.
-        using (AdminResponse clash = await h.PostAsync("/api/v1/users", $$"""{"username":"dave","displayName":null,"password":"{{AdminHarness.Password}}","roles":["viewer"]}""", owner))
+        using (AdminResponse clash = await h.PostAsync("/api/v1/users", $$"""{"username":"DAVE-LIFECYCLE","displayName":null,"password":"{{AdminHarness.Password}}","roles":["viewer"]}""", owner))
         {
             Assert.Equal(HttpStatusCode.Conflict, clash.Status);
         }
@@ -182,16 +184,16 @@ public sealed class UserEndpointTests
     [Fact]
     public async Task AnUpdateAppliesNameRolesAndEnabledStateAsAWhole()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
         string ownerId;
         using (AdminResponse me = await h.GetAsync("/api/v1/auth/me", owner))
         {
             ownerId = me.Json.GetProperty("user").GetProperty("id").GetString()!;
         }
 
-        string id = await h.CreateUserAsync(owner, "dave", "viewer");
-        string session = await h.SignInAsync("dave");
+        string id = await h.CreateUserAsync(owner, "dave-update", "viewer");
+        string session = await h.SignInAsync("dave-update");
 
         using (AdminResponse update = await h.SendAsync(HttpMethod.Patch, "/api/v1/users/" + id, """{"displayName":"Dave D","roles":["operator"],"disabled":true}""", owner))
         {
@@ -236,10 +238,10 @@ public sealed class UserEndpointTests
     [Fact]
     public async Task AForbiddenUserWriteIsAProblemDocument()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
-        await h.CreateUserAsync(owner, "viewer1", "viewer");
-        string viewer = await h.SignInAsync("viewer1");
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
+        await h.CreateUserAsync(owner, "viewer-forbidden", "viewer");
+        string viewer = await h.SignInAsync("viewer-forbidden");
 
         // The endpoint's own permission check refuses before the service is asked; the service-level refusal is covered by its tests.
         using AdminResponse refused = await h.PostAsync("/api/v1/users", """{"username":"x1x","displayName":null,"password":"correct horse battery staple","roles":["viewer"]}""", viewer);

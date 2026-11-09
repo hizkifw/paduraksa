@@ -5,6 +5,8 @@ using System.Text.RegularExpressions;
 using Paduraksa.Admin.Web;
 using Paduraksa.Dashboard;
 
+using Paduraksa.Tests.Integration.Hosting;
+
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>
@@ -13,7 +15,7 @@ namespace Paduraksa.Tests.Integration.Admin;
 /// token and the same origin and set the same session cookie as the API; the circuit hub takes only signed-in, same-origin callers; HTML
 /// pages get the dashboard's CSP and the API keeps its own.
 /// </summary>
-public sealed partial class DashboardPipelineTests
+public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : IClassFixture<SharedOwnerSession>
 {
     private const string FormType = "application/x-www-form-urlencoded";
     private const string Html = "text/html,application/xhtml+xml";
@@ -119,8 +121,8 @@ public sealed partial class DashboardPipelineTests
     [Fact]
     public async Task ThePagesNeedASession_AndSendEveryoneElseToSignIn_WithTheWayBack()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
 
         using (AdminResponse home = await GetPageAsync(h, "/"))
         {
@@ -162,8 +164,7 @@ public sealed partial class DashboardPipelineTests
     [Fact]
     public async Task SignInThroughTheForm_SetsTheSessionCookie_GoesBackOnlyToThisSite_AndIsAudited()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
         Antiforgery form = await AntiforgeryAsync(h, DashboardRoutes.SignIn);
 
         using (AdminResponse wrong = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn("not the password", "/certificates")))
@@ -256,8 +257,8 @@ public sealed partial class DashboardPipelineTests
     [Fact]
     public async Task TheForms_NeedTheirAntiforgeryToken_AndTheSameOrigin()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
         Antiforgery form = await AntiforgeryAsync(h, DashboardRoutes.SignIn);
 
         using (AdminResponse noToken = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form with { Token = "" }, SignIn(AdminHarness.Password, null)))
@@ -291,8 +292,8 @@ public sealed partial class DashboardPipelineTests
     [Fact]
     public async Task TheCircuitHub_TakesOnlySignedInSameOriginCallers()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
         const string Negotiate = "/_blazor/negotiate?negotiateVersion=1";
 
         using (AdminResponse anonymous = await h.SendAsync(HttpMethod.Post, Negotiate, json: "", contentType: "text/plain"))
@@ -320,8 +321,7 @@ public sealed partial class DashboardPipelineTests
     [Fact]
     public async Task Pages_GetTheDashboardsPolicy_AndTheApiAndFilesKeepTheStrictOne()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
 
         using (AdminResponse page = await GetPageAsync(h, DashboardRoutes.SignIn))
         {
@@ -348,8 +348,8 @@ public sealed partial class DashboardPipelineTests
     [Fact]
     public async Task StaticFiles_CostNoSessionLookup_WhileTheHubAndThePagesStillDo()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
         long before = h.Host.Shared.Sessions.ValidationCount;
 
         // A page load pulls dozens of these, each with the browser's cookie on it.

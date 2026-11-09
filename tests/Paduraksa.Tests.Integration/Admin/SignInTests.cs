@@ -1,11 +1,12 @@
 using System.Net;
 
 using Paduraksa.Admin.Auth;
+using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>Signing in: both steps, lockout, logout, the cookie, and what a partial session may reach.</summary>
-public sealed class SignInTests
+public sealed class SignInTests(SharedOwnerSession shared) : IClassFixture<SharedOwnerSession>
 {
     private static string WithoutTrace(string body) => System.Text.RegularExpressions.Regex.Replace(body, "\"traceId\":\"[^\"]*\"", string.Empty);
 
@@ -18,8 +19,7 @@ public sealed class SignInTests
     [Fact]
     public async Task LoginSetsAnHttpOnlyHostPrefixedStrictCookieAndNothingSecretInTheBody()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
 
         using AdminResponse login = await h.PostAsync("/api/v1/auth/login", Body.Login("OWNER", AdminHarness.Password));
 
@@ -44,8 +44,7 @@ public sealed class SignInTests
     [Fact]
     public async Task AWrongPasswordAndAnUnknownUserAreTheSameGeneric401()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
 
         using AdminResponse wrong = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", "not the password at all"));
         using AdminResponse unknown = await h.PostAsync("/api/v1/auth/login", Body.Login("nobody", "not the password at all"));
@@ -82,8 +81,10 @@ public sealed class SignInTests
     [Fact]
     public async Task LoginWithASecondFactor_PartialSessionReachesOnlyTheSecondFactorStep_AndTheCookieRotates()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        // A user of its own: enrolling the second factor is that account's, not the Owner's the class shares.
+        AdminHarness h = shared.Harness;
+        await h.CreateUserAsync(shared.OwnerCookie, "totp-user", "viewer");
+        string owner = await h.SignInAsync("totp-user");
 
         // Enrol: the URI is shown once, the confirmation returns the recovery codes.
         string uri;
@@ -109,7 +110,7 @@ public sealed class SignInTests
 
         // Step one: a partial session.
         string partial;
-        using (AdminResponse login = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password)))
+        using (AdminResponse login = await h.PostAsync("/api/v1/auth/login", Body.Login("totp-user", AdminHarness.Password)))
         {
             Assert.Equal(HttpStatusCode.OK, login.Status);
             Assert.True(login.Json.GetProperty("secondFactorRequired").GetBoolean());
@@ -151,7 +152,7 @@ public sealed class SignInTests
 
         // A recovery code works once.
         string second2;
-        using (AdminResponse login = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password)))
+        using (AdminResponse login = await h.PostAsync("/api/v1/auth/login", Body.Login("totp-user", AdminHarness.Password)))
         {
             second2 = login.SessionCookie!;
         }
@@ -163,7 +164,7 @@ public sealed class SignInTests
         }
 
         string third;
-        using (AdminResponse login = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password)))
+        using (AdminResponse login = await h.PostAsync("/api/v1/auth/login", Body.Login("totp-user", AdminHarness.Password)))
         {
             third = login.SessionCookie!;
         }
@@ -194,8 +195,8 @@ public sealed class SignInTests
     [Fact]
     public async Task LogoutClearsTheCookieAndRevokesTheSession()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string cookie = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string cookie = await shared.SignInAsync();
 
         using AdminResponse logout = await h.PostAsync("/api/v1/auth/logout", cookie: cookie);
 
@@ -214,8 +215,7 @@ public sealed class SignInTests
     [Fact]
     public async Task AStaleCookieDoesNotStopASignIn_ButIsRefusedOnEveryOtherEndpoint()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
         string stale = new('a', 43);
 
         using AdminResponse login = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password), stale);
@@ -237,8 +237,8 @@ public sealed class SignInTests
     [Fact]
     public async Task AmbiguousOrMalformedCredentialsAreRefusedNeverTreatedAsAnonymous()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string cookie = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string cookie = shared.OwnerCookie;
         (_, string secret) = await h.IssueTokenAsync(cookie, "config:read");
 
         // Both credentials: not guessed.
@@ -277,9 +277,11 @@ public sealed class SignInTests
     [Fact]
     public async Task ChangingThePasswordNeedsTheCurrentOneAndKeepsOnlyTheCurrentSession()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string first = await h.SetUpOwnerAsync();
-        string other = await h.SignInAsync("owner");
+        // A user of its own: the change is that account's, not the Owner's the class shares.
+        AdminHarness h = shared.Harness;
+        await h.CreateUserAsync(shared.OwnerCookie, "password-user", "viewer");
+        string first = await h.SignInAsync("password-user");
+        string other = await h.SignInAsync("password-user");
 
         using (AdminResponse wrong = await h.PostAsync("/api/v1/me/password", """{"currentPassword":"wrong wrong wrong","newPassword":"a brand new passphrase"}""", first))
         {
@@ -301,12 +303,12 @@ public sealed class SignInTests
             Assert.Equal(HttpStatusCode.Unauthorized, ended.Status);
         }
 
-        using (AdminResponse old = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password)))
+        using (AdminResponse old = await h.PostAsync("/api/v1/auth/login", Body.Login("password-user", AdminHarness.Password)))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, old.Status);
         }
 
-        await h.SignInAsync("owner", "a brand new passphrase");
+        await h.SignInAsync("password-user", "a brand new passphrase");
     }
 
     [Fact]

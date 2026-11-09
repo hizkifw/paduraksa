@@ -14,11 +14,12 @@ using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Integration.Config;
+using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>Certificates, ACME accounts, DNS providers, the audit log and the simulator through the real host.</summary>
-public sealed class ResourceApiTests
+public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private const string DnsToken = "SUPER-SECRET-DNS-TOKEN-12345";
     private const string RotatedToken = "ROTATED-SECRET-DNS-TOKEN-67890";
@@ -83,7 +84,7 @@ public sealed class ResourceApiTests
     [Fact]
     public async Task ACertificateIsUploadedListedReadWithoutItsKeyAndDeleted()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         (byte[] pem, string name) = MakeCertificatePem("upload.test");
 
         using HttpResponseMessage created = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(pem, "my cert"));
@@ -96,7 +97,7 @@ public sealed class ResourceApiTests
         Assert.Equal($"/api/v1/certificates/{id}", created.Headers.Location!.ToString());
 
         using HttpResponseMessage list = await api.GetAsync("/api/v1/certificates?source=uploaded");
-        Assert.Single((await NodeAsync(list)).AsArray());
+        Assert.Contains((await NodeAsync(list)).AsArray(), certificate => certificate!["id"]!.GetValue<string>() == id.ToString());
         using HttpResponseMessage other = await api.GetAsync("/api/v1/certificates?source=acme");
         Assert.Empty((await NodeAsync(other)).AsArray());
         using HttpResponseMessage badFilter = await api.GetAsync("/api/v1/certificates?source=bogus");
@@ -120,7 +121,7 @@ public sealed class ResourceApiTests
     [Fact]
     public async Task BadAndOversizeUploadsAreRejectedAsProblems()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage huge = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(new byte[2 * 1024 * 1024]));
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, huge.StatusCode);
@@ -166,7 +167,7 @@ public sealed class ResourceApiTests
     [Fact]
     public async Task SelfSignedAndLocalCaCertificatesAreIssuedReissuedAndDeleted()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage selfSigned = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", content: Json("""{"names":["ss.test"],"keySpec":"ecdsa-p256","label":"ss"}"""));
         JsonNode created = await CertificateAsync(selfSigned);
@@ -200,15 +201,20 @@ public sealed class ResourceApiTests
     [Fact]
     public async Task AcmeRequestsAreValidatedAndOrdersReported()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         CertificateIssueRequest request = new(["a.example.com"], AcmeAccountId.New());
+
+        // Nothing this test does may make an order. Another test on the shared host may have made one, so the list is compared
+        // with itself rather than with emptiness.
+        using HttpResponseMessage before = await api.GetAsync("/api/v1/acme-orders");
+        IReadOnlyList<AcmeOrderSummary> ordersBefore = await AdminApiHarness.ReadAsync(before, AdminJsonContext.Default.IReadOnlyListAcmeOrderSummary, Ct);
 
         using HttpResponseMessage unknownAccount = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/certificates/acme", request, AdminJsonContext.Default.CertificateIssueRequest);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, unknownAccount.StatusCode);
         Assert.NotEmpty((await AdminApiHarness.ProblemAsync(unknownAccount, Ct)).Errors!);
 
         using HttpResponseMessage orders = await api.GetAsync("/api/v1/acme-orders");
-        Assert.Empty(await AdminApiHarness.ReadAsync(orders, AdminJsonContext.Default.IReadOnlyListAcmeOrderSummary, Ct));
+        Assert.Equal(ordersBefore.Select(o => o.OrderId), (await AdminApiHarness.ReadAsync(orders, AdminJsonContext.Default.IReadOnlyListAcmeOrderSummary, Ct)).Select(o => o.OrderId));
         using HttpResponseMessage noOrder = await api.GetAsync($"/api/v1/certificates/{CertificateId.New()}/order");
         Assert.Equal(HttpStatusCode.NotFound, noOrder.StatusCode);
         using HttpResponseMessage renew = await api.SendAsync(HttpMethod.Post, $"/api/v1/certificates/{CertificateId.New()}/renew");
@@ -220,7 +226,11 @@ public sealed class ResourceApiTests
     [Fact]
     public async Task AcmeAccountRequestsAreValidatedBeforeAnySecretOrCaIsTouched()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
+        // Nothing this test does may create an account, and another test on the shared host may have created one: this is a
+        // delta, not emptiness.
+        using HttpResponseMessage before = await api.GetAsync("/api/v1/acme-accounts");
+        IReadOnlyList<AcmeAccountSummary> accountsBefore = await AdminApiHarness.ReadAsync(before, AdminJsonContext.Default.IReadOnlyListAcmeAccountSummary, Ct);
 
         using HttpResponseMessage http = await api.SendAsync(HttpMethod.Post, "/api/v1/acme-accounts", content: Json("""{"directoryUrl":"http://ca.test/dir","termsOfServiceAgreed":true}"""));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, http.StatusCode);
@@ -233,7 +243,7 @@ public sealed class ResourceApiTests
         Assert.DoesNotContain("not base64", await badKey.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
 
         using HttpResponseMessage list = await api.GetAsync("/api/v1/acme-accounts");
-        Assert.Empty(await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListAcmeAccountSummary, Ct));
+        Assert.Equal(accountsBefore.Select(a => a.Id), (await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListAcmeAccountSummary, Ct)).Select(a => a.Id));
         using HttpResponseMessage unknown = await api.GetAsync($"/api/v1/acme-accounts/{AcmeAccountId.New()}");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         using HttpResponseMessage deactivate = await api.SendAsync(HttpMethod.Delete, $"/api/v1/acme-accounts/{AcmeAccountId.New()}");
@@ -243,7 +253,7 @@ public sealed class ResourceApiTests
     [Fact]
     public async Task DnsCredentialsGoIntoTheVaultAndNeverComeBackInAnyResponseOrAuditEvent()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         string kind = DnsProviderKind.Cloudflare.ToName();
         List<string> bodies = [];
 

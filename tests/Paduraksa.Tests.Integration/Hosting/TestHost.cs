@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 
 using Paduraksa.Admin.Certificates;
 using Paduraksa.Core.Vault;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Server.Hosting;
 
 namespace Paduraksa.Tests.Integration.Hosting;
@@ -20,6 +21,13 @@ namespace Paduraksa.Tests.Integration.Hosting;
 /// <summary>Builds isolated <see cref="PaduraksaHost"/>s: ephemeral ports, loopback admin, own config, no globals.</summary>
 internal static class TestHost
 {
+    /// <summary>
+    /// The access log's file writer replaced by the null sink. Its <c>Flush</c> at shutdown waits for the writer thread to
+    /// notice the request, which takes up to its one-second poll: the admin tests don't read <c>access.log</c>, and where the
+    /// process's own writer is under test (the access-log end-to-end tests) the host is built without this.
+    /// </summary>
+    public static Action<SharedServices.Builder> NoAccessLogFile { get; } = static shared => shared.Replace<IAccessLogSink>(NullAccessLogSink.Instance);
+
     public static PaduraksaHost Create(
         EventLog? events = null,
         IReadOnlyDictionary<string, string?>? settings = null,
@@ -52,6 +60,7 @@ internal static class TestHost
             ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
             ["Paduraksa:ShutdownTimeout"] = "00:00:05",
             ["Paduraksa:Development:PlaceholderCertificate"] = "true", // the tests are Release builds and serve (and provide) placeholder certificates
+            ["Paduraksa:Admin:PasswordIterations"] = "100000", // the validator's floor: a test host creates an Owner and a few users, and each hash is real work
             ["Logging:LogLevel:Default"] = "Warning",
         };
         foreach ((string key, string? value) in settings ?? new Dictionary<string, string?>())

@@ -13,17 +13,18 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Core.Model;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Hosting;
+using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>Security headers, the request body limit, the source allowlist, the loopback fallback listener, and the caller contract.</summary>
-public sealed class HardeningTests
+public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHost smallBody)
+    : IClassFixture<SharedOwnerSession>, IClassFixture<SharedSmallBodyHost>
 {
     [Fact]
     public async Task EveryAdminResponseCarriesTheSecurityHeaders()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
 
         foreach (string path in new[] { "/api/v1/auth/me", "/api/v1/setup", "/healthz", "/", "/api/v1/missing" })
         {
@@ -101,8 +102,7 @@ public sealed class HardeningTests
     [Fact]
     public async Task ARequestBodyOverTheLimitIsRefusedBeforeItIsRead()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync(new Dictionary<string, string?> { ["Paduraksa:Admin:MaxRequestBodyBytes"] = "2048" });
-        await h.SetUpOwnerAsync();
+        AdminHarness h = smallBody.Harness;
 
         using AdminResponse big = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", new string('x', 4096)));
         using AdminResponse fine = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password));
@@ -114,8 +114,7 @@ public sealed class HardeningTests
     [Fact]
     public async Task ABodyOverTheLimitIsRefusedWhateverItsLengthIsDeclared_OverHttp1AndHttp2()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync(new Dictionary<string, string?> { ["Paduraksa:Admin:MaxRequestBodyBytes"] = "2048" });
-        await h.SetUpOwnerAsync();
+        AdminHarness h = smallBody.Harness;
         string big = Body.Login("owner", new string('x', 4096));
 
         foreach (Version version in new[] { HttpVersion.Version11, HttpVersion.Version20 })
@@ -133,8 +132,7 @@ public sealed class HardeningTests
     [Fact]
     public async Task UnknownPropertiesAndMissingMembersInABodyAreRefused()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
 
         using AdminResponse unknown = await h.PostAsync("/api/v1/auth/login", """{"username":"owner","password":"x","admin":true}""");
         using AdminResponse missing = await h.PostAsync("/api/v1/auth/login", """{"username":"owner"}""");

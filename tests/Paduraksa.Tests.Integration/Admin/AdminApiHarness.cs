@@ -51,6 +51,7 @@ internal sealed class AdminApiHarness : IAsyncDisposable
     {
         PaduraksaHost host = TestHost.Create(
             logs: logs,
+            configureShared: TestHost.NoAccessLogFile,
             configureServices: (role, services) =>
             {
                 if (role == HostRole.Admin)

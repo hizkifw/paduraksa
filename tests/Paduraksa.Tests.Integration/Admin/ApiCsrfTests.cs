@@ -4,6 +4,7 @@ using Paduraksa.Admin.Json;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Core.Model;
+using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
@@ -11,7 +12,7 @@ namespace Paduraksa.Tests.Integration.Admin;
 /// The CSRF defence on the resource API for a request that authenticates with the session cookie, whatever its method or body: the multipart upload
 /// and the bodyless renew included. (A bearer token is exempt: a browser never adds an Authorization header by itself.)
 /// </summary>
-public sealed class ApiCsrfTests
+public sealed class ApiCsrfTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private const string Evil = "https://evil.example";
 
@@ -20,7 +21,7 @@ public sealed class ApiCsrfTests
     [Fact]
     public async Task ACrossSiteMultipartUploadWithTheSessionCookieIsRefusedAndASameOriginOneIsNot()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         string cookie = await api.SignInAsync("owner");
         byte[] pem = ResourceApiTests.MakeCertificatePem("csrf.test").Pem;
 
@@ -46,7 +47,7 @@ public sealed class ApiCsrfTests
     [Fact]
     public async Task ABodylessWriteWithTheSessionCookieNeedsASameOriginSignal()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         string cookie = await api.SignInAsync("owner");
         CertificateId id = CertificateId.New();
 
@@ -76,7 +77,7 @@ public sealed class ApiCsrfTests
     [Fact]
     public async Task ASessionCookieStillReadsAndABearerTokenNeedsNoOrigin()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         string cookie = await api.SignInAsync("viewer");
 
         using HttpResponseMessage read = await api.SendWithCookieAsync(HttpMethod.Get, "/api/v1/config", cookie);

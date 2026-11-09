@@ -2,18 +2,21 @@ using System.Net;
 using System.Text.Json;
 
 using Paduraksa.Core.Model;
+using Paduraksa.Tests.Integration.Hosting;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>Sessions (list, revoke, revoke others) and API tokens (scope narrowing, revocation, admin-wide listing).</summary>
-public sealed class SessionAndTokenTests
+public sealed class SessionAndTokenTests(SharedOwnerSession shared) : IClassFixture<SharedOwnerSession>
 {
     [Fact]
     public async Task SessionsAreListedAndRevokedIndividually_AndRevokedOnesDieAtOnce()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string a = await h.SetUpOwnerAsync();
-        string b = await h.SignInAsync("owner");
+        // A user of its own with two sessions: the list it counts is that user's, not a shared account's.
+        AdminHarness h = shared.Harness;
+        await h.CreateUserAsync(shared.OwnerCookie, "sessions-list", "admin");
+        string a = await h.SignInAsync("sessions-list");
+        string b = await h.SignInAsync("sessions-list");
 
         string bId;
         using (AdminResponse list = await h.GetAsync("/api/v1/sessions", a))
@@ -52,12 +55,14 @@ public sealed class SessionAndTokenTests
     [Fact]
     public async Task RevokeOthersKeepsOnlyTheCallersSession_AndASessionOfAnotherUserIsNotFound()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string a = await h.SetUpOwnerAsync();
-        string b = await h.SignInAsync("owner");
-        string c = await h.SignInAsync("owner");
-        await h.CreateUserAsync(a, "viewer1", "viewer");
-        string viewer = await h.SignInAsync("viewer1");
+        // Users of its own: revoking every other session must not reach another test's.
+        AdminHarness h = shared.Harness;
+        await h.CreateUserAsync(shared.OwnerCookie, "sessions-others", "admin");
+        string a = await h.SignInAsync("sessions-others");
+        string b = await h.SignInAsync("sessions-others");
+        string c = await h.SignInAsync("sessions-others");
+        await h.CreateUserAsync(shared.OwnerCookie, "sessions-others-viewer", "viewer");
+        string viewer = await h.SignInAsync("sessions-others-viewer");
 
         string ownerSessionId;
         using (AdminResponse list = await h.GetAsync("/api/v1/sessions", a))
@@ -96,10 +101,10 @@ public sealed class SessionAndTokenTests
     [Fact]
     public async Task ATokenNeverHasMoreThanItsScopes_AndNeverMoreThanItsUser()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
-        await h.CreateUserAsync(owner, "viewer1", "viewer");
-        string viewer = await h.SignInAsync("viewer1");
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
+        await h.CreateUserAsync(owner, "scopes-viewer", "viewer");
+        string viewer = await h.SignInAsync("scopes-viewer");
 
         (string readId, string readOnly) = await h.IssueTokenAsync(owner, "users:read");
         using (AdminResponse me = await h.GetAsync("/api/v1/auth/me", bearer: readOnly))
@@ -133,8 +138,8 @@ public sealed class SessionAndTokenTests
     [Fact]
     public async Task ATokenCannotManageTokensOrSessions_ItGetsAClear403()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
         (string id, string secret) = await h.IssueTokenAsync(owner, "tokens:own", "tokens:all", "sessions:all", "users:read");
 
         foreach ((HttpMethod method, string path) in new[]
@@ -160,9 +165,11 @@ public sealed class SessionAndTokenTests
     [Fact]
     public async Task ARevokedTokenGets401AtOnce_AndTheSecretIsShownOnlyWhenIssued()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
-        (string id, string secret) = await h.IssueTokenAsync(owner, "users:read");
+        // A user of its own: the token list it counts holds exactly the one token it issued.
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
+        string id0 = await h.CreateUserAsync(owner, "tokens-one", "admin");
+        (string id, string secret) = await h.IssueTokenAsync(await h.SignInAsync("tokens-one"), "users:read");
         Assert.StartsWith("pdk_", secret, StringComparison.Ordinal);
 
         using (AdminResponse works = await h.GetAsync("/api/v1/users", bearer: secret))
@@ -170,7 +177,7 @@ public sealed class SessionAndTokenTests
             Assert.Equal(HttpStatusCode.OK, works.Status);
         }
 
-        using (AdminResponse list = await h.GetAsync("/api/v1/tokens", owner))
+        using (AdminResponse list = await h.GetAsync("/api/v1/tokens?userId=" + id0, owner))
         {
             Assert.Equal(HttpStatusCode.OK, list.Status);
             Assert.Equal(id, Assert.Single(list.Json.EnumerateArray()).GetProperty("id").GetString());
@@ -197,10 +204,10 @@ public sealed class SessionAndTokenTests
     [Fact]
     public async Task ATokenStopsWorkingWhenItsUserIsDisabled_AndTheirSessionsEnd()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
-        string userId = await h.CreateUserAsync(owner, "viewer1", "viewer");
-        string viewer = await h.SignInAsync("viewer1");
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
+        string userId = await h.CreateUserAsync(owner, "disabled-viewer", "viewer");
+        string viewer = await h.SignInAsync("disabled-viewer");
         (_, string secret) = await h.IssueTokenAsync(viewer, "config:read");
 
         using (AdminResponse ok = await h.GetAsync("/api/v1/auth/me", bearer: secret))
@@ -228,16 +235,16 @@ public sealed class SessionAndTokenTests
     [Fact]
     public async Task OnlyTokensAllMayListAnotherUsersTokensOrSessions()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        AdminHarness h = shared.Harness;
+        string owner = shared.OwnerCookie;
         string ownerId;
         using (AdminResponse me = await h.GetAsync("/api/v1/auth/me", owner))
         {
             ownerId = me.Json.GetProperty("user").GetProperty("id").GetString()!;
         }
 
-        string viewerId = await h.CreateUserAsync(owner, "viewer1", "viewer");
-        string viewer = await h.SignInAsync("viewer1");
+        string viewerId = await h.CreateUserAsync(owner, "listed-viewer", "viewer");
+        string viewer = await h.SignInAsync("listed-viewer");
         await h.IssueTokenAsync(viewer, "config:read");
 
         using (AdminResponse denied = await h.GetAsync("/api/v1/tokens?userId=" + ownerId, viewer))

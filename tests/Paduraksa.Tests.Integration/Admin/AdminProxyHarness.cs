@@ -163,6 +163,22 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
 
     public AdminHarness Admin => _admin;
 
+    /// <summary>
+    /// Signs in through the proxied admin again and returns the new session as a <c>Cookie</c> header value: a test that
+    /// signs out or revokes sessions needs one of its own, not the one the harness started with.
+    /// </summary>
+    public async Task<string> NewSessionAsync()
+    {
+        using HttpResponseMessage login = await SendAsync(
+            HttpMethod.Post, "/api/v1/auth/login", Body.Login(AdminHarness.OwnerName, AdminPassword), origin: "https://" + AdminHost);
+        if (login.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException($"The proxied sign-in was refused: {login.StatusCode} {await login.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)}");
+        }
+
+        return "__Host-paduraksa-session=" + (SessionCookieOf(login) ?? throw new InvalidOperationException("The proxied sign-in set no session cookie."));
+    }
+
     public async Task<IReadOnlyList<AuditRecord>> AuditAsync(string action) => await _admin.AuditAsync(action);
 
     public async ValueTask DisposeAsync()

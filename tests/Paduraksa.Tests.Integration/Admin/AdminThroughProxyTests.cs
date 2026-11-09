@@ -26,14 +26,14 @@ namespace Paduraksa.Tests.Integration.Admin;
 /// with the public certificate, the public origin's CSRF, the real client IP and the session cookie; and the lock-out guard
 /// refuses to cut the caller off from it unless the request says so.
 /// </summary>
-public sealed class AdminThroughProxyTests
+public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixture<SharedAdminProxy>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task TheAdminHostServesACookieSessionThroughThePublicProxy()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
 
         using HttpResponseMessage me = await harness.SendAsync(
             HttpMethod.Get,
@@ -54,11 +54,13 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task CsrfUsesThePublicOriginAndRefusesAForeignOne()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
+        // A session of its own: the test signs out, and the class's other tests keep using the harness's.
+        string cookie = await shared.NewSessionAsync();
 
         // Origin only (no Sec-Fetch-Site): it must equal the scheme/host/port the public client used.
         using HttpResponseMessage foreign = await harness.SendAsync(
-            HttpMethod.Post, "/api/v1/auth/logout", cookie: harness.SessionHeader, origin: "https://evil.test");
+            HttpMethod.Post, "/api/v1/auth/logout", cookie: cookie, origin: "https://evil.test");
         Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
         using (JsonDocument problem = JsonDocument.Parse(await foreign.Content.ReadAsStringAsync(Ct)))
         {
@@ -66,7 +68,7 @@ public sealed class AdminThroughProxyTests
         }
 
         using HttpResponseMessage sameOrigin = await harness.SendAsync(
-            HttpMethod.Post, "/api/v1/auth/logout", cookie: harness.SessionHeader, origin: "https://" + AdminProxyHarness.AdminHost);
+            HttpMethod.Post, "/api/v1/auth/logout", cookie: cookie, origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.NoContent, sameOrigin.StatusCode);
     }
 
@@ -134,7 +136,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task ClientSentForwardedHeadersAreOverwritten()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
 
         // If the admin trusted the client's spoofed proto/host, this Origin wouldn't match; it matches the public request.
         using HttpResponseMessage accepted = await harness.SendAsync(
@@ -167,7 +169,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task TheInternalSocketIsPrivateAndReachableOnlyThroughTheAdminHost()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
 
         AdminInternalListener internalListener = harness.Host.Shared.AdminInternal;
         Assert.True(internalListener.Enabled);
@@ -199,7 +201,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task ARequestWithoutTheInternalHopSecretIsRefused()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
         AdminInternalListener listener = harness.Host.Shared.AdminInternal;
 
         (int status, string headers, string body) = await InternalAsync(
@@ -240,7 +242,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task HstsFollowsTheForwardedScheme()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
         AdminInternalListener listener = harness.Host.Shared.AdminInternal;
 
         (int httpsStatus, string httpsHeaders, _) = await InternalAsync(
@@ -258,8 +260,8 @@ public sealed class AdminThroughProxyTests
     public async Task TheAdminHostsOwnHstsSettingReplacesTheApps()
     {
         // The admin app sets its own header on the internal listener; the host's resolved HSTS, when it has one, is the
-        // one the browser sees (PLAN §3.1, §14 M6).
-        await using AdminProxyHarness plain = await AdminProxyHarness.StartAsync();
+        // one the browser sees (PLAN §3.1, §14 M6). The class's own host is the one with no setting of its own.
+        AdminProxyHarness plain = shared.Harness;
         using (HttpResponseMessage untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
         {
             Assert.Equal(HttpStatusCode.OK, untouched.StatusCode);
@@ -277,7 +279,7 @@ public sealed class AdminThroughProxyTests
     public async Task TheAdminHostsOwnServerHeaderSettingWinsThroughTheProxy()
     {
         // An admin host through the proxy follows its own resolved Server setting, like any other host (PLAN §3.1, §14 M6).
-        await using AdminProxyHarness plain = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness plain = shared.Harness;
         using (HttpResponseMessage untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
         {
             Assert.Equal(HttpStatusCode.OK, untouched.StatusCode);
@@ -303,7 +305,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task SetupIsRefusedThroughTheInternalListener()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
 
         using HttpResponseMessage get = await harness.SendAsync(
             HttpMethod.Get, "/api/v1/setup", origin: "https://" + AdminProxyHarness.AdminHost);
@@ -370,7 +372,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task TheDashboardAndItsCircuitWorkThroughTheProxy()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
 
         // The page, as a browser on the public name opens it: the dashboard's policy, and HSTS for the public HTTPS name.
         using (HttpResponseMessage page = await harness.SendAsync(
@@ -403,7 +405,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task TheSetupPageIsNotServedThroughTheProxy()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
 
         foreach ((HttpMethod method, string path) in new[] { (HttpMethod.Get, "/setup"), (HttpMethod.Post, "/auth/setup") })
         {
@@ -416,6 +418,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task TheLockoutGuardRefusesThroughTheProxyAndForceAllows()
     {
+        // Its own host: the forced delete removes the admin host from the config.
         await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
         string path = $"/api/v1/hosts/{AdminProxyHarness.AdminHostId}";
 
@@ -439,6 +442,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task TheAdminHostCanBeDeletedOverTheNormalAdminPort()
     {
+        // Its own host: the delete removes the admin host from the config.
         await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
 
         // The ordinary admin port is not the admin host, so the guard doesn't apply there.
@@ -453,7 +457,7 @@ public sealed class AdminThroughProxyTests
     [Fact]
     public async Task ClientSentForwardedHeadersAreIgnoredOnTheAdminPort()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        AdminProxyHarness harness = shared.Harness;
 
         // A spoofed Host/Proto on the admin listener must not turn the admin into another origin: the CSRF check refuses.
         using AdminResponse refused = await harness.Admin.SendAsync(

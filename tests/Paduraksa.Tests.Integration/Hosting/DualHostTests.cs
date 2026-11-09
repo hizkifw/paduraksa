@@ -17,13 +17,14 @@ using Paduraksa.Server.Placeholders;
 namespace Paduraksa.Tests.Integration.Hosting;
 
 /// <summary>Spike S5: the real core + public + admin hosts in one process, on ephemeral ports.</summary>
-public sealed class DualHostTests
+public sealed class DualHostTests(SharedHost shared) : IClassFixture<SharedHost>
 {
     private const string NoHostConfigured = "no host configured\n";
 
     [Fact]
     public async Task AdminServesHealthEndpointsAndTheDashboard()
     {
+        // Its own host: it completes first-run setup, which the class's other tests must not see.
         CancellationToken ct = TestContext.Current.CancellationToken;
         await using PaduraksaHost host = TestHost.Create();
         await host.StartAsync(ct);
@@ -80,8 +81,7 @@ public sealed class DualHostTests
     public async Task AdminEndpointsAreNotRoutedOnPublicPorts(string scheme, string path)
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
-        await host.StartAsync(ct);
+        PaduraksaHost host = shared.Host;
         using HttpClient client = TestHost.CreateClient(host);
 
         using HttpResponseMessage response = await client.GetAsync(new Uri(TestHost.Endpoint(host, HostRole.Public, scheme), path), ct);
@@ -94,8 +94,7 @@ public sealed class DualHostTests
     public async Task PublicHttpsNegotiatesHttp2()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
-        await host.StartAsync(ct);
+        PaduraksaHost host = shared.Host;
         using HttpClient client = TestHost.CreateClient(host);
 
         using HttpRequestMessage request = new(HttpMethod.Get, TestHost.Endpoint(host, HostRole.Public, "https"))
@@ -145,8 +144,10 @@ public sealed class DualHostTests
         Assert.All(loggerFactories, f => Assert.IsType<RoleLoggerFactory>(f));
         Assert.Equal(3, loggerFactories.Distinct().Count());
 
-        // The core host published the snapshot before the web apps started; everyone sees generation 1.
-        Assert.Equal(1, host.Shared.SnapshotStore.Current.Generation);
+        // The core host published the snapshot before the web apps started, so everyone sees one that exists. The exact
+        // "a fresh host's first snapshot is generation 1" claim is AdminCertificateTests.ARestartKeepsTheSameRootAndLeafAndDoesNotPublish's,
+        // on a host of its own: this one is shared, and later tests may have published more.
+        Assert.True(host.Shared.SnapshotStore.Current.Generation >= 1);
     }
 
     [Fact]
@@ -457,6 +458,7 @@ public sealed class DualHostTests
     [Fact]
     public async Task AHostStoppingOnItsOwnRequestsProcessShutdown()
     {
+        // Its own host: it stops the admin app, which takes the whole process down.
         CancellationToken ct = TestContext.Current.CancellationToken;
         await using PaduraksaHost host = TestHost.Create();
         await host.StartAsync(ct);
