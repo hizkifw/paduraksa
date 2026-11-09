@@ -269,15 +269,70 @@ SQLite settings: WAL, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout`. A
 
 ### 5.3 Global defaults → profile → host → route
 
-`HostSettings` is one record with every tunable as `Override<T>` (`Inherit` | `Value(T)`), stored as an EF Core 10 JSON complex type. New settings mean no schema migration, just a defaulted field. The **compiler** resolves the layers into a flat, fully concrete `EffectivePolicy`. IDs inside `HostSettings` (JSON, stored as strings) are resolved by the compiler in memory, never by SQL joins or comparisons against ID columns (§4.2). The dashboard shows where each value comes from ("inherited from Global" or "from profile *LAN only*") with a one-click "override here" or "reset to inherited".
+`HostSettings` is one record whose every field is nullable: null (absent in JSON) means *inherit*, and a layer is stored
+as an EF Core 10 JSON complex type, so a new setting needs no schema migration. One merge owns the layers for every
+consumer (`HostSettingsLayers`, `Paduraksa.Application`): `Merge(lower, upper)` lays one layer over another and keeps the
+result a layer, and `Resolve(layers)` puts `BuiltIn` underneath and yields the concrete values the compiler, the validator
+and the dashboard read. `BuiltIn` is the one place a built-in default is stated. IDs inside `HostSettings` (JSON, stored as
+strings) are resolved by the compiler in memory, never by SQL joins or comparisons against ID columns (§4.2). The
+dashboard shows where each value comes from ("inherited from Global" or "from profile *LAN only*") with a one-click
+"override here" or "reset to inherited", through the same merge, so a form can't promise a value the proxy wouldn't apply.
+
+**Adding a host setting** is a checklist, and nothing else:
+
+1. The property on `HostSettings` (or on a nested `TlsSettings`/`HstsSettings`/`ServerHeaderSettings` record), at the end, so
+   existing documents keep their key order.
+2. Its one line in `HostSettingsLayers.Merge` (or in the nested record's own merge) and its value in the `Concrete`
+   mapping, where the resolved contract value becomes the proxy's.
+3. Its built-in default as a field of `HostSettingsLayers.BuiltIn`. Nowhere else states one.
+4. A row in `SettingsInheritanceTests`, the table that walks the contract: the field accessor, a layer that sets it, what
+   the compiled host then carries, the built-in default and two sample values. The table's own completeness test fails
+   until the row exists. A field added to a *nested* record also has to be added to `ISettingsLayer.SetsNothing` (or
+   `EveryNestedRecordKnowsWhenItSetsNothing` fails) and to the record's line in the nested-merge cases (or
+   `EveryNestedRecordHasANestedMergeCase` fails).
+5. Its rules in `ConfigValidator` (field rules at the layer, and the resolved-value rules on the host's resolved settings
+   with the layer named by `HostSettingsLayers.LayerOf`) and the compiler's backstop for the same value.
+6. If it sends a header: its operation in `CompiledHost.ResponseHeaders` (the kind, stage and conditions in
+   `ResponseHeaders`, and its line in `SnapshotCompiler.CompileResponseHeaders`), then its value or absence in every row of
+   `ResponseHeaderMatrixTests` - the rows carry the expected header *set*, so the new header becomes a column each row must
+   state - and one end-to-end test through `PaduraksaHost` if nothing else covers it on the wire.
+7. A new **enum** the document and the proxy share goes in `Paduraksa.Core.Model` with
+   `[JsonConverter(typeof(ConfigEnumConverter<T>))]`, and is registered in **both** `ConfigJsonContext` and
+   `AdminJsonContext` (the source generator can't see a converter attribute in another assembly);
+   `SharedEnumWireTests` fails until the row in its shared list and both registrations exist.
+8. The dashboard field, and the §5.3/§7 notes here.
+
+For comparison, the header refactor left adding a header setting at six files: the contract property, the merge, the
+compiled operation (`ResponseHeaders`/`CompileResponseHeaders`), the matrix rows, the end-to-end test and these notes.
+
+**What the layers mean** (§6.4): built-in defaults → global defaults → profile → host, then a route's own subset on top of
+the host. Nested records (`Tls`, `Hsts`, `ServerHeader`) merge field by field; the IP allow list replaces as a whole, and an
+empty one means no restriction (that is how a layer lifts an inherited list); everything else is a plain override. A nested
+record that sets none of its fields is no record at all, so canonical JSON writes no key for it and a stored revision keeps
+its bytes (and its hash): `ISettingsLayer.SetsNothing`, which each record states, is the one rule that decides it.
+
+**HSTS rules.** Built-in defaults: off; once on, a year (31536000) of `max-age`, no subdomains, no preload. `MaxAge` is
+seconds, an integer, because that is the header's unit. The validator checks `max-age` from 0 (tell a browser to forget
+the host) to 63072000 (two years) per layer that sets it, and `preload` only with `includeSubDomains` and at least a year,
+judged on each host's resolved settings the way the certificate rule is: a profile may leave `includeSubDomains` to the
+hosts that use it, a layer no host uses is never refused, and the error is reported at the host (naming the layer its
+`preload` came from) because the host is the one that would send the header. Off, the preload pair is inert, since nothing
+is sent. A request for a name no host serves never carries HSTS, whatever the global defaults say: the proxy doesn't pin a
+name it doesn't serve.
+
+**`Server` header rules.** `ServerHeader` is the last field of `HostSettings`, after `AccessLog` and `RequestIdPropagation`,
+so the existing key order and hashes stay put. The modes are `Paduraksa` (built-in default: the name, never a version,
+replacing the upstream's header), `Custom` (its value, also replacing the upstream's), `Upstream` (the upstream's own passes
+through; a gate answer has none) and `Remove` (nothing at all, the upstream's included; HTTP/2 trailers aren't touched). A
+custom value is 1-128 visible ASCII characters or spaces, with no control characters and no leading or trailing space; it is
+required once the resolved mode is `Custom` (`serverHeader.value.required`) and checked as a value
+(`serverHeader.value.invalid`), with the shape checked where it is set and the resolved pair checked at the host, like
+HSTS's preload pair; an inherited bad value names the profile or global defaults it came from. Unknown hosts follow the
+global defaults' resolved mode; an admin host through the proxy uses its own like any host.
 
 Host kinds in v1: **Proxy** (YARP), **Redirect** (precomputed target), **Respond** (fixed status + body from the compiled snapshot, e.g. 404/410/"coming soon"), **Admin** (§3.1). Serving files from disk (**Static**) is **cut from v1**: it needs path-traversal, symlink, MIME and caching semantics designed properly. When it comes back, the plan is a chroot-like root under `data/www/<hostId>`, symlinks disabled, `PhysicalFileProvider` with `ExclusionFilters.Sensitive`, ETag/Last-Modified, precompressed `.br/.gz` siblings.
 
 Examples of `HostSettings` fields: force HTTPS, HSTS, HTTP/2/3 enable, min TLS version, request body limit, header timeouts, upstream timeouts, compression, rate-limit policy, geo policy, IP access list, rule sets, auth provider, error page set, robots mode, security headers preset, websocket, buffering, custom request/response headers, `X-Forwarded-*` behaviour.
-
-**As built (M6): HSTS.** `HostSettings.Hsts` is a nested `HstsSettings` record merged field by field like the TLS one: `Enabled`, `MaxAge` (seconds, an integer: it is the header's unit, and the canonical document writes it as one), `IncludeSubDomains` and `Preload`, each nullable and each inheriting on its own. Built-in defaults: off; once on, a year (31536000) of `max-age`, no subdomains, no preload. The canonical document drops a layer that sets none of the four, so a config without HSTS keeps its revision hash byte for byte. Rules, checked by the validator at the field and by the compiler as the backstop: `max-age` from 0 (tell a browser to forget the host) to 63072000 (two years) per layer that sets it, and `preload` only with `includeSubDomains` and at least a year, judged on each host's resolved settings the way the certificate rule is: a profile may leave `includeSubDomains` to the hosts that use it, a layer no host uses is never refused, and the error is reported at the host (naming the layer its `preload` came from) because the host is the one that would send the header. Off, the preload pair is inert and not judged, since nothing is sent. A request for a name no host serves never carries HSTS, whatever the global defaults say: the proxy doesn't pin a name it doesn't serve.
-
-**As built (M6): the `Server` header.** `HostSettings.ServerHeader` is a nested `ServerHeaderSettings` record with `Mode` and `Value`, merged field by field, and is the last field of `HostSettings`, after `AccessLog` and `RequestIdPropagation`, so the existing key order and hashes stay put. The modes are `Paduraksa` (built-in default: the name, never a version, replacing the upstream's header), `Custom` (its value, also replacing the upstream's), `Upstream` (the upstream's own passes through; a gate answer has none) and `Remove` (nothing at all, the upstream's included; HTTP/2 trailers aren't touched). A custom value is 1-128 visible ASCII characters or spaces, with no control characters and no leading or trailing space; it is required once the resolved mode is `Custom` (`serverHeader.value.required`) and checked as a value (`serverHeader.value.invalid`), with the shape checked where it is set and the resolved pair checked at the host, like HSTS's preload pair; an inherited bad value names the profile or global defaults it came from. The canonical document drops a layer that sets neither field, so a config without the setting keeps its revision hash byte for byte. Unknown hosts follow the global defaults' resolved mode; an admin host through the proxy uses its own like any host.
 
 ---
 
@@ -510,18 +565,19 @@ C. Gate middleware (first in pipeline), in this order (as built in M1)
      read through a span lookup, 0 B) → 200 text/plain, before everything below; a token that isn't published
      falls through to the normal pipeline (as built in M3, §9.3)
    • resolve host (span-based lookup, no string allocation); unknown → Default behaviour
-   • the host's precomputed Server header on every response, 0 B (as built in M6): before the TLS check, so a 421
-     carries it too; the unknown-host answer and an ACME challenge follow the global defaults
+   • the host's response-header list, stage 1 (as built in M6, one list since the settings refactor): its Server
+     operation, 0 B, before the TLS check, so a 421 carries it too; the unknown-host answer and an ACME challenge
+     follow the global defaults' list
    • HTTPS: the host's TlsPolicy against the request's connection (HTTP/3 = QUIC/TLS 1.3 vs Http3Enabled,
      HTTP/2 vs an HTTP/1.1-only ALPN, ITlsHandshakeFeature.Protocol vs the minimum version) → 421
      Misdirected Request when the connection is weaker, so browsers retry on a connection of their own;
      a few comparisons on per-connection data, 0 B. M7 adds the client-certificate requirement here.
-   • the host's precomputed Alt-Svc on TCP HTTPS responses (forwarded or answered), 0 B (§7.5); only for
-     hosts with names in the certificate table (not IP-literal-only hosts)
-   • the host's precomputed Strict-Transport-Security on HTTPS responses (forwarded or answered), 0 B (as built
-     in M6): only when the TRUSTED request scheme is HTTPS, and never for an IP-literal or loopback name
-     (localhost, *.localhost, 127.0.0.0/8, ::1), decided by a span check on the Host header's name. Ours
-     replaces an upstream's own header; with HSTS off, the upstream's passes through untouched.
+   • the host's response-header list, stage 2: its Alt-Svc and Strict-Transport-Security operations on the answers
+     after the TLS check (forwarded or answered), 0 B (§7.5). Alt-Svc goes on TCP HTTPS only (not over HTTP/3) and
+     only for hosts with names in the certificate table (not IP-literal-only hosts); HSTS goes only when the TRUSTED
+     request scheme is HTTPS, and never for an IP-literal or loopback name (localhost, *.localhost, 127.0.0.0/8,
+     ::1), decided by a span check on the Host header's name. Ours replaces an upstream's own header; with HSTS off,
+     the upstream's passes through untouched.
    • HOST policy chain (D), so it also guards the redirect and fixed answers (blocked → 403, not 301)
    • HTTP→HTTPS redirect / Redirect and Respond hosts answered here from precomputed bytes
    • resolve route (per-host ordered list, on the canonical matching view of the path; §6.2) → 404 if none
@@ -554,7 +610,26 @@ E. YARP (endpoint already set by the gate → affinity → load balancing → pa
 F. Telemetry (always on, lock-free): counters + latency histogram per host / status class / upstream
 ```
 
-**As built (M6): `Server` on every response.** The compiler stores one `StringValues` and one mode on `CompiledHost` (`Server`, `ServerMode`), and the gate applies them right after host lookup, before the TLS 421 check, so gate answers (403, the HTTPS redirect, Redirect/Respond, 404, 421) and forwards all carry the host's header at 0 B. The default is `Server: Paduraksa`, with no version, and Kestrel's own header stays off on both listeners. YARP 2.3's `HttpTransformer.CopyResponseHeaders` special-cases only `Strict-Transport-Security`: a destination's `Server` is concatenated with what is already there. The response transform (`ServerHeaderTransform`) therefore replaces the client-facing value with the host's after the copy for `Paduraksa` and `Custom`, removes it for `Remove`, and leaves it alone for `Upstream`; it also runs when the forward fails (the 502/504 path has no proxy response) and before a WebSocket upgrade is accepted. One YARP path clears the response without re-running it: an upstream that sends headers and then fails before the first body byte gets `context.Response.Clear()` and a bare 502. The proxy's post-forward step (`GateResponseHeaders.Reapply`) sees the response hasn't started and puts the host's `Alt-Svc`, HSTS and `Server` back through the same helpers, and its response `X-Request-Id` when the host's propagation mode sends one, 0 B. An unknown host uses the global defaults' precomputed value and mode; an ACME challenge answer uses the same default.
+**As built (M6): the response headers.** The compiler stores one array per host (`CompiledHost.ResponseHeaders`): an
+operation per header - <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>, <c>Server</c> and the response
+<c>X-Request-Id</c> - with its precomputed `StringValues` (or the request ID as its source), what to do with it (set,
+replace the upstream's, remove, leave to the upstream, or not sent with the reason), when (after host lookup, after the TLS
+check, or with the answer), and what has to hold (the connection is TLS; the trusted scheme is HTTPS; the name is no IP
+literal or loopback; not over HTTP/3). A host that doesn't send a header still has its entry, so the trace can say why.
+The gate applies a stage of that list and nothing else: `Server` right after host lookup, so gate answers (403, the HTTPS
+redirect, Redirect/Respond, 404, 421) and forwards all carry it at 0 B; then `Alt-Svc` and HSTS, so a 421 carries neither.
+The default is `Server: Paduraksa`, with no version, and Kestrel's own header stays off on both listeners. YARP 2.3's
+`HttpTransformer.CopyResponseHeaders` special-cases only `Strict-Transport-Security`: a destination's `Server` is
+concatenated with what is already there. So one response transform (`ResponseHeadersTransform`) loops over the same list
+after the copy: `Paduraksa`/`Custom` replace the client-facing value, `Remove` drops it, `Upstream` leaves it, and the
+response `X-Request-Id` is ours or gone as the host's propagation mode says. It also runs when the forward fails (the
+502/504 path has no proxy response) and before a WebSocket upgrade is accepted. One YARP path clears the response without
+re-running it: an upstream that sends headers and then fails before the first body byte gets `context.Response.Clear()` and
+a bare 502. The proxy's post-forward step (`GateResponseHeaders.Reapply`) sees the response hasn't started and walks the
+whole list again, so the host's `Alt-Svc`, HSTS, `Server` and response `X-Request-Id` all come back, 0 B. The response
+`X-Request-Id` is the one header the decision leaves to the answer, because its value is the one string a request
+materialises; the trace reports it as such. An unknown host and an ACME challenge answer use the global defaults' list,
+which carries neither `Alt-Svc` nor HSTS.
 
 ### 7.3 WAF building blocks (all compiled per snapshot)
 
@@ -590,7 +665,7 @@ F. Telemetry (always on, lock-free): counters + latency histogram per host / sta
 - **The line** (`AccessLogFormatter`, off the request path, into a reused 8 KiB buffer): `time client "host" "METHOD path[?query] protocol" status bytes total upstream "upstream" "request-id" "cf-ray" "referer" "user-agent"`, 13 space-separated fields. Time is ISO-8601 UTC with milliseconds; durations are milliseconds with three decimals (microsecond resolution); missing values are a bare `-`, the status included when the gate dropped the request. Inside a quoted field `"` becomes `\"`, `\` becomes `\\` and a control character or 0x7F becomes `\xNN`, so a hostile path, user agent or referer can't forge or break a line; non-ASCII stays readable (the sink writes UTF-8). Every field has an output cap (path 1 024, query 1 024, request target 2 048, user agent and referer 512, host 255, upstream 256, request ID 128, `CF-Ray` 64), and a capped field ends with `...`. The query's sensitive parameters (case-insensitive `token`, `access_token`, `refresh_token`, `id_token`, `code`, `password`, `passwd`, `pwd`, `secret`, `client_secret`, `key`, `api_key`, `apikey`, `signature`, `sig`, `auth`, `session`, replaceable with `Paduraksa:AccessLog:SensitiveQueryKeys`) become `name=REDACTED` - including a bare `?token`; names are matched as written, not percent-decoded; `Paduraksa:AccessLog:LogQueryString=false` leaves the query out entirely. Cookies and `Authorization` are never part of an entry. The sink owns the newline: `WriteLine` receives one line without a trailing `\n`.
 - **The drain.** `AccessLogDrainService`, a hosted service of the core host (the one reader), drains every 200 ms and on shutdown (then flushes the sink and so the file), formats each entry into its one buffer and hands it over. A sink that throws is reported at Warning (at most once a minute) and the line skipped, and a whole pass that throws (a formatter bug) is reported the same way so the next pass carries on: a faulted hosted service would stop the core host. Dropped lines are reported the same way with the count since the last report. `SharedServices` creates the one ring, the formatter's options and the sink (the process's `AccessLogFileSink`) for all three hosts; `SharedServices.Builder.Replace` is how a test swaps it.
 - **Options** (`Paduraksa:AccessLog`): `RingSize`, `SensitiveQueryKeys` (a list, comma-separated or indexed), `LogQueryString`; validated in `PaduraksaOptionsValidator` before anything is built, documented in `docs/install.md`.
-- **Not built:** the dashboard's live tail (M9), and a request-ID step in the simulator's trace, so the simulator says nothing about propagation.
+- **Not built:** the dashboard's live tail (M9). The simulator reports the response `X-Request-Id` in its response-headers step; where the ID goes *upstream* is a request transform, so the trace says nothing about that leg.
 
 ### 7.5 HTTP/3 strategy
 
@@ -641,11 +716,9 @@ Admins test their rules before or after a change by asking what a request would 
 
 **Stateful policies must not mutate when simulated (M7 rule).** The simulator calls `Evaluate` on the live policy instances. `RequestView.IsSimulation` is true on that path and a constant `false` in production (a static abstract member of the tracer type, folded away by the JIT). A policy with state peeks: a rate limit reports "would allow, N tokens left" without taking one, a challenge issues no nonce, forward-auth starts no call unless the request opts in. Built-in policies are stateless today, so this is the seam plus the rule; each M7 policy adds its `Name`/`Explain` trace hooks and a parity case that checks it left its state alone.
 
-**As built (M6): the HSTS step.** `IGateTracer.Hsts(host, HstsDecision)` reports the header the gate just set, as `GateStepKind.Hsts` (contract `SimulationStepKind.Hsts`, "HSTS" in the trace view): `Sent` with the value as a fact, or `Off`, `PlainHttp` or `ExemptName` with the reason, so a "why" view can say why a browser won't be pinned. `SimulatorParityTests` compares the header the real gate put on the response with the value the trace reports, for every host, scheme and negotiated connection it sweeps, loopback and IP-literal names included.
+**As built (M6): one response-headers step.** `IGateTracer.ResponseHeaders(context, host, operations, outcomes)` reports a stage of the host's compiled header list as `GateStepKind.ResponseHeaders` (contract `SimulationStepKind.ResponseHeaders`, "Response headers" in the trace view), and the later stage extends the step the earlier one opened: it lists each of `Alt-Svc`, `Strict-Transport-Security`, `Server` and the response `X-Request-Id` that the answer carries, with its value, and each one it doesn't, with the reason (off, no HTTP/3, plain HTTP, an IP literal or loopback name, the upstream's own, removed, or `the host's mode`). The request ID is reported as sent when the response is written, because that is when its one string is materialised. This replaced the separate HSTS and `Server` steps. `SimulatorParityTests` compares the headers the real gate put on the response with the values the trace reports, for every host, scheme and negotiated connection it sweeps, loopback and IP-literal names included; `GateSimulatorTraceTests` covers the modes and the reasons.
 
-**As built (M6): the Server header step.** `IGateTracer.ServerHeader(host, value, mode, decision)` reports the gate's `Server` header as `GateStepKind.ServerHeader` (contract `SimulationStepKind.ServerHeader`, "Server header" in the trace view). A gate answer names the mode and, when one is sent, the value; `Upstream` says the upstream's own passes through, and `Remove` says neither is sent. `SimulatorParityTests` compares the header the real gate put on an answer with the trace's value, and `GateSimulatorTraceTests` covers each mode.
-
-Decisions and gaps. (1) **No key is loaded for a draft or a revision.** Whether a certificate is usable is decided from what the vault describes (`ICertificateCatalog.DescribeAsync`: public facts, no key opened): a certificate the vault doesn't hold, the local CA root, or a chain outside its validity period is unusable with the real loader's reasons (`CertificateInventoryLoader.ForSimulation` shares the validity logic), so a draft binding to one is refused as a real command refuses it, and Auto hosts pick the same certificate. Built-in (placeholder) certificates count as served by this process. What is served is a self-signed placeholder per ID (`SimulationCertificateSource`). The handshake step names the inventory certificate (`ServerCertificate.Id`, set by `CertificateInventoryLoader`; a context not built by the loader has an empty ID and isn't named). Without a catalog (no vault registered) every certificate the table calls valid counts as usable. When the certificate table can't be read the result says so. (2) **Destination health is live YARP state** (`IUpstreamHealth`, over `IProxyStateLookup`, attached by the public app through `DeferredUpstreamHealth`): a destination of the target config reports the live proxy's answer for the destination with that ID **and address**, `Unknown` otherwise, with a note (the "can't be known for a config that isn't live" note only for non-live targets); the destination that serves a request is never named. A destination the live proxy keeps out of rotation is `Unhealthy`; YARP counts a destination with no health data yet as available. (3) **The ACME HTTP-01 answer is traced for real**: `GateSimulator.Run` takes the live `AcmeChallengeStore` and the gate's own `TryAnswerAcmeChallenge` answers or falls through; challenges are process state, not config, so every target uses the live store. (4) Trace facts use stable camelCase wire names (`TraceNames`), policies name themselves explicitly (`static`, `ipAllowList`). (5) Per-host trusted-proxy overrides don't exist yet, and stateful or outbound policies (M7) aren't there to simulate. (6) The probe takes the HTTP and TLS versions as what the client negotiates; an HTTP/2 request to a name that offers only http/1.1 is reported as the HTTP/1.1 request it becomes. A request DTO can't say "no Host header" (the probe can). (7) An admin host's implicit route (PLAN §3.1) forwards to the admin app: the trace says so and `GateUpstream.Admin` is true with the `__admin` cluster, rather than naming a user upstream; the parity suite includes one. Not in M4 core: MCP and the dashboard page.
+Decisions and gaps. (1) **No key is loaded for a draft or a revision.** Whether a certificate is usable is decided from what the vault describes (`ICertificateCatalog.DescribeAsync`: public facts, no key opened): a certificate the vault doesn't hold, the local CA root, or a chain outside its validity period is unusable with the real loader's reasons (`CertificateInventoryLoader.ForSimulation` shares the validity logic), so a draft binding to one is refused as a real command refuses it, and Auto hosts pick the same certificate. Built-in (placeholder) certificates count as served by this process. What is served is a self-signed placeholder per ID (`SimulationCertificateSource`). The handshake step names the inventory certificate (`ServerCertificate.Id`, set by `CertificateInventoryLoader`; a context not built by the loader has an empty ID and isn't named). Without a catalog (no vault registered) every certificate the table calls valid counts as usable. When the certificate table can't be read the result says so. (2) **Destination health is live YARP state** (`IUpstreamHealth`, over `IProxyStateLookup`, attached by the public app through `DeferredUpstreamHealth`): a destination of the target config reports the live proxy's answer for the destination with that ID **and address**, `Unknown` otherwise, with a note (the "can't be known for a config that isn't live" note only for non-live targets); the destination that serves a request is never named. A destination the live proxy keeps out of rotation is `Unhealthy`; YARP counts a destination with no health data yet as available. (3) **The ACME HTTP-01 answer is traced for real**: `GateSimulator.Run` takes the live `AcmeChallengeStore` and the gate's own `TryAnswerAcmeChallenge` answers or falls through; challenges are process state, not config, so every target uses the live store. (4) Trace facts use stable camelCase wire names (`TraceNames`) for the gate's own values, and header facts use the header's own name (`Server`, `Strict-Transport-Security`, ...), because that is what the person is looking at on the wire; policies name themselves explicitly (`static`, `ipAllowList`). (5) Per-host trusted-proxy overrides don't exist yet, and stateful or outbound policies (M7) aren't there to simulate. (6) The probe takes the HTTP and TLS versions as what the client negotiates; an HTTP/2 request to a name that offers only http/1.1 is reported as the HTTP/1.1 request it becomes. A request DTO can't say "no Host header" (the probe can). (7) An admin host's implicit route (PLAN §3.1) forwards to the admin app: the trace says so and `GateUpstream.Admin` is true with the `__admin` cluster, rather than naming a user upstream; the parity suite includes one. Not in M4 core: MCP and the dashboard page.
 
 ---
 
@@ -1071,6 +1144,7 @@ Each milestone ends with a working, testable increment.
 ## 15. Testing & quality
 
 - **Unit:** policies (table-driven), compiler (config → snapshot golden files), typed IDs (fuzz parse/format round-trip), YAML round-trip, diff.
+- **Settings and response headers (table-driven, since the settings refactor):** `SettingsInheritanceTests` holds one row per `HostSettings` field (nested records included) and checks it at every layer, overridden at each level and at its built-in default, through the real merge, validator and compiler; its completeness test walks the contract, so a new field fails until it has its row. `ResponseHeaderMatrixTests` is one table of answer kind × scheme × connection × name × each header's mode, asserting the exact header set a response carries, plus the compiled list, YARP's transform after a copy, the refusals the compiler makes and the 0 B assertions. One end-to-end test per header stays in `Tests.Integration` (`PublicHstsTests`, `PublicServerHeaderTests`, `PublicHttp3Tests`) with the special paths (502, WebSocket) beside them.
 - **Integration:** real Kestrel on ephemeral ports, real SQLite in a temp dir, a validating **Pebble** container for ACME (HTTP-01 through the gate, §9.3; + **pebble-challtestsrv** with the DNS providers), a fake DNS provider. `HttpClient` with H2/H3 to verify SNI/ALPN.
 - **As built (v0.20 refactor): the integration tests' shape.** A host is expensive to build and to stop (vault, config store, three listeners, the local CA and the admin leaf), so a test class whose tests only read, or whose tests make their own uniquely named resources, starts **one host for the whole class** through an xUnit class fixture (`tests/Paduraksa.Tests.Integration/Hosting/SharedFixtures.cs`: `SharedHost`, `SharedOwnerSession`, `SharedAdminProxy`, `SharedAdminApi`, `SharedSmallBodyHost`). A test keeps a host of its own when it changes global settings, users or the vault, restarts, fails or stops the host, or counts something global; a test that only needs an account of its own (a wrong password that counts toward a lockout, a session it ends, a second factor it enrols) creates a user instead of a host. IDs, names and paths are per test, so a shared host leaves no order dependence. Two test-only seams keep start and stop cheap without weakening a claim: a test host hashes passwords at the validator's floor (100 000 iterations), and `SqlitePragmas.BusyTimeout` is settable once, before the first connection opens (the Data suite runs the two busy-timeout tests at one second, with Microsoft.Data.Sqlite's own retry window pinned at its 30-second default so only the busy handler can be what fails the write). Production never sets either. A host's stop no longer waits for the log writer's tick either: `RotatingLogFile.Flush` wakes the writer at once (§7.4). The browser tests share one console collector (`PlaywrightBrowser.CollectProblems`): a Content Security Policy violation or a console error fails the test, except a failure the test asks for and Blazor's own "Connection disconnected" report, which is a circuit reconnect under load and not an app error; pages are waited on by signal (the shell's `data-circuit=live`, a finite animation finishing) rather than by delay. The two 0 B assertions (`MacKeyTests`, `AllocationTests`) measure after warm-up on a thread of their own and take the smallest of three rounds, so a one-off on that thread cannot fail them while a real allocation still does.
 - **Architecture** (`tests/Paduraksa.Tests.Architecture`), built on **ArchUnitNET** (maintained; NetArchTest is effectively unmaintained) plus plain reflection tests for the ID/DTO rules: dependency graph (§1), no `Data` types in `Contracts`/`Admin`/`Dashboard`, no untyped `*Id` properties, Vault types internal, hot-path namespace bans (`System.Linq`, `Regex` with backtracking, `DbContext`).
