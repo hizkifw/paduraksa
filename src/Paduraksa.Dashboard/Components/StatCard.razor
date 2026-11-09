@@ -12,7 +12,10 @@
     else
     {
         <div class="pdk-stat-value">@Value</div>
-        <MudText Typo="Typo.caption" Class="pdk-muted pdk-stat-detail">@Detail</MudText>
+        @if (Detail is not null)
+        {
+            <MudText Typo="Typo.caption" Class="pdk-muted pdk-stat-detail">@Detail</MudText>
+        }
     }
     @if (Href is not null && !Loading)
     {
