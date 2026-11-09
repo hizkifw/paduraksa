@@ -1,5 +1,7 @@
 using Bunit;
 
+using MudBlazor;
+
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Components;
@@ -128,6 +130,43 @@ public sealed class HostFormTests
 
         Assert.DoesNotContain(form.FindAll("button"), b => b.TextContent.Contains("Add a", StringComparison.Ordinal));
         Assert.Empty(form.FindAll("button[aria-label^=Remove]"));
+    }
+
+    [Fact]
+    public async Task TheAccessLogAndRequestIdFieldsAreInEveryLayerAndBindBackToTheHost()
+    {
+        await using DashboardTestContext context = new();
+        HostEditModel model = HostEditModel.New(App.Id);
+        model.Names[0].Value = "app.example.com";
+        IRenderedComponent<HostForm> form = Render(context, model);
+
+        // Both fields are there, inheriting by default, and say what they would inherit.
+        Assert.Single(form.FindAll("[data-field=access-log]"));
+        Assert.Single(form.FindAll("[data-field=request-id-propagation]"));
+        Assert.Contains("Inherit (on)", form.Find("[data-field=access-log]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("Inherit (upstream and the client)", form.Find("[data-field=request-id-propagation]").TextContent, StringComparison.Ordinal);
+        // Each says what it is for in a line: what the log holds, and what the ID ties together.
+        Assert.Contains("One line per request, whatever answered it.", form.Markup, StringComparison.Ordinal);
+        Assert.Contains("ties a request to the app's log", form.Markup, StringComparison.Ordinal);
+
+        await form.InvokeAsync(async () =>
+        {
+            await form.FindComponents<MudSelect<bool?>>().Single(select => select.Instance.Label == "Access log").Instance.ValueChanged.InvokeAsync(false);
+            await form.FindComponents<MudSelect<RequestIdPropagation?>>().Single(select => select.Instance.Label == "Request ID").Instance.ValueChanged.InvokeAsync(RequestIdPropagation.UpstreamOnly);
+        });
+
+        HostConfig sent = model.ToConfig();
+        Assert.False(sent.Settings.AccessLog);
+        Assert.Equal(RequestIdPropagation.UpstreamOnly, sent.Settings.RequestIdPropagation);
+
+        // Clearing them goes back to inheriting: no key in the document.
+        await form.InvokeAsync(async () =>
+        {
+            await form.FindComponents<MudSelect<bool?>>().Single(select => select.Instance.Label == "Access log").Instance.ValueChanged.InvokeAsync(null);
+            await form.FindComponents<MudSelect<RequestIdPropagation?>>().Single(select => select.Instance.Label == "Request ID").Instance.ValueChanged.InvokeAsync(null);
+        });
+        Assert.Null(model.ToConfig().Settings.AccessLog);
+        Assert.Null(model.ToConfig().Settings.RequestIdPropagation);
     }
 
     private static IRenderedComponent<HostForm> Render(

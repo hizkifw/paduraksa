@@ -151,6 +151,35 @@
         </div>
     }
 
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">Access log</span>
+            <span class="pdk-setting-help">One line per request, whatever answered it. Turn it off for a host whose app keeps its own log.</span>
+        </div>
+        <MudSelect T="bool?" Value="Model.AccessLog" ValueChanged="@(value => SetAsync(() => Model.AccessLog = value, "/accessLog"))" Label="Access log"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control" data-field="access-log">
+            <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.AccessLog == false ? "off" : "on")</MudSelectItem>
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">Request ID</span>
+            <span class="pdk-setting-help">One ID ties a request to the app's log, this log and an error page.</span>
+        </div>
+        <MudSelect T="RequestIdPropagation?" Value="Model.RequestIdPropagation" ValueChanged="@(value => SetAsync(() => Model.RequestIdPropagation = value, "/requestIdPropagation"))"
+                   Label="Request ID" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
+                   data-field="request-id-propagation">
+            <MudSelectItem T="RequestIdPropagation?" Value="null">@InheritOption(HostSettingsModel.PropagationText(Inherited.RequestIdPropagation ?? RequestIdPropagation.UpstreamAndResponse))</MudSelectItem>
+            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamAndResponse">Upstream and the client</MudSelectItem>
+            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.UpstreamOnly">Upstream only</MudSelectItem>
+            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.ResponseOnly">The client only</MudSelectItem>
+            <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.Off">Off</MudSelectItem>
+        </MudSelect>
+    </div>
+
     <div class="pdk-setting pdk-setting-wide">
         <div class="pdk-setting-text">
             <span class="pdk-setting-title">IP allow list</span>

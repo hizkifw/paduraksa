@@ -28,6 +28,8 @@ public static class FieldLabels
         ["ipAllowList"] = "IP allow list",
         ["addresses"] = "Addresses",
         ["dropDenied"] = "Drop denied requests",
+        ["accessLog"] = "Access log",
+        ["requestIdPropagation"] = "Request ID",
         ["routes"] = "Routes",
         ["redirect"] = "Redirect",
         ["target"] = "Target",
@@ -91,6 +93,9 @@ public static class FieldLabels
         ["generic"] = "Generic proxy",
         ["cloudflareProxy"] = "Cloudflare proxy",
         ["cloudflareTunnel"] = "Cloudflare Tunnel",
+        ["upstreamAndResponse"] = "Upstream and the client",
+        ["upstreamOnly"] = "Upstream only",
+        ["responseOnly"] = "The client only",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     /// <summary>The label of a field name.</summary>

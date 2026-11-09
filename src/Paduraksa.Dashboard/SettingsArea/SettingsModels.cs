@@ -11,12 +11,15 @@ namespace Paduraksa.Dashboard.SettingsArea;
 public sealed class HostSettingsModel
 {
     /// <summary>The built-in defaults under every layer (PLAN §6.4): no HTTPS redirect, TLS 1.2, HTTP/2 and HTTP/1.1,
-    /// HTTP/3 on, no allow list, and HSTS off with a year of max-age waiting for whoever turns it on.</summary>
+    /// HTTP/3 on, no allow list, HSTS off with a year of max-age waiting for whoever turns it on, the access log on, and
+    /// the request ID sent upstream and to the client.</summary>
     public static HostSettings BuiltIn { get; } = new()
     {
         ForceHttps = false,
         Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = Contracts.Config.TcpAlpn.Http2AndHttp11, Http3 = true },
         Hsts = new HstsSettings { Enabled = false, MaxAge = HstsMaxAgePresets.OneYear, IncludeSubDomains = false, Preload = false },
+        AccessLog = true,
+        RequestIdPropagation = Contracts.Config.RequestIdPropagation.UpstreamAndResponse,
     };
 
     public bool? ForceHttps { get; set; }
@@ -48,10 +51,17 @@ public sealed class HostSettingsModel
 
     public bool? HstsPreload { get; set; }
 
+    /// <summary>Whether this host's requests get an access-log line; null inherits.</summary>
+    public bool? AccessLog { get; set; }
+
+    /// <summary>Where the request ID is sent; null inherits.</summary>
+    public RequestIdPropagation? RequestIdPropagation { get; set; }
+
     /// <summary>How many fields this layer sets.</summary>
     public int Overrides =>
         (ForceHttps is null ? 0 : 1) + (MinimumTls is null ? 0 : 1) + (TcpAlpn is null ? 0 : 1) + (Http3 is null ? 0 : 1) + (AllowListSet ? 1 : 0)
-        + (HstsEnabled is null ? 0 : 1) + (HstsMaxAge == HstsMaxAgeChoice.Inherit ? 0 : 1) + (HstsIncludeSubDomains is null ? 0 : 1) + (HstsPreload is null ? 0 : 1);
+        + (HstsEnabled is null ? 0 : 1) + (HstsMaxAge == HstsMaxAgeChoice.Inherit ? 0 : 1) + (HstsIncludeSubDomains is null ? 0 : 1)
+        + (HstsPreload is null ? 0 : 1) + (AccessLog is null ? 0 : 1) + (RequestIdPropagation is null ? 0 : 1);
 
     public static HostSettingsModel From(HostSettings settings)
     {
@@ -71,6 +81,8 @@ public sealed class HostSettingsModel
             HstsCustomMaxAge = custom,
             HstsIncludeSubDomains = settings.Hsts?.IncludeSubDomains,
             HstsPreload = settings.Hsts?.Preload,
+            AccessLog = settings.AccessLog,
+            RequestIdPropagation = settings.RequestIdPropagation,
         };
     }
 
@@ -87,6 +99,8 @@ public sealed class HostSettingsModel
             Hsts = HstsEnabled is null && maxAge is null && HstsIncludeSubDomains is null && HstsPreload is null
                 ? null
                 : new HstsSettings { Enabled = HstsEnabled, MaxAge = maxAge, IncludeSubDomains = HstsIncludeSubDomains, Preload = HstsPreload },
+            AccessLog = AccessLog,
+            RequestIdPropagation = RequestIdPropagation,
         };
     }
 
@@ -112,6 +126,8 @@ public sealed class HostSettingsModel
                 IncludeSubDomains = upper.Hsts?.IncludeSubDomains ?? lower.Hsts?.IncludeSubDomains,
                 Preload = upper.Hsts?.Preload ?? lower.Hsts?.Preload,
             },
+            AccessLog = upper.AccessLog ?? lower.AccessLog,
+            RequestIdPropagation = upper.RequestIdPropagation ?? lower.RequestIdPropagation,
         };
     }
 
@@ -159,6 +175,16 @@ public sealed class HostSettingsModel
             }
         }
 
+        if (settings.AccessLog is { } accessLog)
+        {
+            parts.Add(accessLog ? "Access log on" : "No access log");
+        }
+
+        if (settings.RequestIdPropagation is { } propagation)
+        {
+            parts.Add($"Request ID: {PropagationText(propagation)}");
+        }
+
         return parts;
     }
 
@@ -193,6 +219,15 @@ public sealed class HostSettingsModel
         HstsMaxAgePresets.OneYear => "1 year",
         HstsMaxAgePresets.TwoYears => "2 years",
         _ => $"{seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)} seconds",
+    };
+
+    /// <summary>Where the request ID goes, in the words of the form's "inherited from ..." option.</summary>
+    public static string PropagationText(RequestIdPropagation propagation) => propagation switch
+    {
+        Contracts.Config.RequestIdPropagation.UpstreamOnly => "upstream only",
+        Contracts.Config.RequestIdPropagation.ResponseOnly => "the client only",
+        Contracts.Config.RequestIdPropagation.Off => "off",
+        _ => "upstream and the client",
     };
 }
 
