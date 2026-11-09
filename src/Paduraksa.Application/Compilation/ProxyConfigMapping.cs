@@ -89,12 +89,12 @@ public static class ProxyConfigMapping
             {
                 UnknownHost = (UnknownHostBehaviour)settings.UnknownHost,
                 Certificate = DefaultCertificate(settings.DefaultCertificateId, inventory, warnings),
-                Tls = HostSettingsLayers.Merge(HostTlsSpec.Default, settings.Defaults.Tls),
+                Tls = globalDefaults.Tls,
                 TrustedProxies = MapTrustedProxies(settings.TrustedProxies),
                 // An unknown host has no layer of its own, so it follows the global default.
                 AccessLog = globalDefaults.AccessLog,
                 RequestIdPropagation = globalDefaults.RequestIdPropagation,
-                ServerHeader = HostSettingsLayers.Merge(HostServerHeaderSpec.Default, settings.Defaults.ServerHeader),
+                ServerHeader = globalDefaults.ServerHeader,
             },
         };
         return new MappedConfig(model, errors, warnings);

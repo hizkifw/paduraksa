@@ -1,3 +1,4 @@
+using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Config;
@@ -10,18 +11,9 @@ namespace Paduraksa.Dashboard.SettingsArea;
 /// </summary>
 public sealed class HostSettingsModel
 {
-    /// <summary>The built-in defaults under every layer (PLAN §6.4): no HTTPS redirect, TLS 1.2, HTTP/2 and HTTP/1.1,
-    /// HTTP/3 on, no allow list, HSTS off with a year of max-age waiting for whoever turns it on, the access log on,
-    /// the request ID sent upstream and to the client, and the <c>Paduraksa</c> server name with no version.</summary>
-    public static HostSettings BuiltIn { get; } = new()
-    {
-        ForceHttps = false,
-        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = Paduraksa.Core.Model.TcpAlpn.Http2AndHttp11, Http3 = true },
-        Hsts = new HstsSettings { Enabled = false, MaxAge = HstsMaxAgePresets.OneYear, IncludeSubDomains = false, Preload = false },
-        AccessLog = true,
-        RequestIdPropagation = Paduraksa.Core.Model.RequestIdPropagation.UpstreamAndResponse,
-        ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Paduraksa },
-    };
+    /// <summary>The built-in defaults under every layer (PLAN §6.4), read from the one place that states them, so the
+    /// dashboard can never promise a default the proxy does not apply.</summary>
+    public static HostSettings BuiltIn => HostSettingsLayers.BuiltIn;
 
     public bool? ForceHttps { get; set; }
 
@@ -117,36 +109,7 @@ public sealed class HostSettingsModel
     }
 
     /// <summary><paramref name="upper"/> resolved over <paramref name="lower"/>: what a host with no setting of its own ends up with.</summary>
-    public static HostSettings Layer(HostSettings upper, HostSettings lower)
-    {
-        ArgumentNullException.ThrowIfNull(upper);
-        ArgumentNullException.ThrowIfNull(lower);
-        return new HostSettings
-        {
-            ForceHttps = upper.ForceHttps ?? lower.ForceHttps,
-            Tls = new TlsSettings
-            {
-                MinimumVersion = upper.Tls?.MinimumVersion ?? lower.Tls?.MinimumVersion,
-                TcpAlpn = upper.Tls?.TcpAlpn ?? lower.Tls?.TcpAlpn,
-                Http3 = upper.Tls?.Http3 ?? lower.Tls?.Http3,
-            },
-            IpAllowList = upper.IpAllowList ?? lower.IpAllowList,
-            Hsts = new HstsSettings
-            {
-                Enabled = upper.Hsts?.Enabled ?? lower.Hsts?.Enabled,
-                MaxAge = upper.Hsts?.MaxAge ?? lower.Hsts?.MaxAge,
-                IncludeSubDomains = upper.Hsts?.IncludeSubDomains ?? lower.Hsts?.IncludeSubDomains,
-                Preload = upper.Hsts?.Preload ?? lower.Hsts?.Preload,
-            },
-            AccessLog = upper.AccessLog ?? lower.AccessLog,
-            RequestIdPropagation = upper.RequestIdPropagation ?? lower.RequestIdPropagation,
-            ServerHeader = new ServerHeaderSettings
-            {
-                Mode = upper.ServerHeader?.Mode ?? lower.ServerHeader?.Mode,
-                Value = upper.ServerHeader?.Value ?? lower.ServerHeader?.Value,
-            },
-        };
-    }
+    public static HostSettings Layer(HostSettings upper, HostSettings lower) => HostSettingsLayers.Merge(lower, upper);
 
     /// <summary>What a layer sets, in short phrases for a card ("HTTPS redirect", "TLS 1.3 minimum", "HSTS: 1 year").</summary>
     public static IReadOnlyList<string> Summary(HostSettings settings)

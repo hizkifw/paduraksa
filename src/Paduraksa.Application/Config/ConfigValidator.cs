@@ -300,16 +300,15 @@ public static class ConfigValidator
             }
 
             CertificateBinding certificate = host.Certificate ?? new();
+            // One resolution per host: every rule that judges a value after layering reads it (PLAN §5.3, §6.4).
+            EffectiveHostSettings resolved = HostSettingsLayers.Resolve(defaults, profile, host.Settings);
             if (CheckEnum(certificate.Mode, $"{path}/certificate/mode"))
             {
                 // Judged after layering (PLAN §6.4): the host, else its profile, else the global defaults.
-                if (certificate.Mode == CertificateBindingMode.None
-                    && host.Kind != HostKind.Admin
-                    && (host.Settings?.ForceHttps ?? profile?.ForceHttps ?? defaults?.ForceHttps ?? false))
+                if (certificate.Mode == CertificateBindingMode.None && host.Kind != HostKind.Admin && resolved.ForceHttps)
                 {
-                    string from = host.Settings?.ForceHttps is not null ? string.Empty
-                        : profile?.ForceHttps is not null ? " (inherited from its profile)"
-                        : " (inherited from the global defaults)";
+                    string from = HostSettingsLayers.InheritedSuffix(
+                        HostSettingsLayers.LayerOf(defaults, profile, host.Settings, static s => s.ForceHttps));
                     Add($"{path}/certificate/mode", HostCertificateNoneWithForceHttps, $"a host without HTTPS (certificate mode none) can't force HTTPS{from}; set its forceHttps to false");
                 }
 
@@ -328,8 +327,8 @@ public static class ConfigValidator
             }
 
             CheckHostSettings(host.Settings, $"{path}/settings");
-            CheckHstsPreload(defaults, profile, host, $"{path}/settings/hsts");
-            CheckServerHeader(defaults, profile, host, $"{path}/settings/serverHeader");
+            CheckHstsPreload(resolved.Hsts, defaults, profile, host.Settings, $"{path}/settings/hsts");
+            CheckServerHeader(resolved.ServerHeader, defaults, profile, host.Settings, $"{path}/settings/serverHeader");
             if (kindDefined)
             {
                 CheckKindParts(host, path);
@@ -611,24 +610,21 @@ public static class ConfigValidator
         /// are refused only through a host that resolves to the invalid pair, so a profile no host uses can't fail a document
         /// on its own. Off, the setting is inert: nothing is sent, so nothing to refuse.
         /// </summary>
+        /// <param name="resolved">The host's resolved HSTS.</param>
         /// <param name="defaults">The global defaults layer.</param>
         /// <param name="profile">The host's profile layer, if it has one.</param>
-        /// <param name="host">The host, whose own layer is on top.</param>
+        /// <param name="host">The host's own layer, on top.</param>
         /// <param name="path">The host's HSTS path (<c>...</c>/hsts).</param>
-        private void CheckHstsPreload(HostSettings? defaults, HostSettings? profile, HostConfig host, string path)
+        private void CheckHstsPreload(HostHstsSpec resolved, HostSettings? defaults, HostSettings? profile, HostSettings? host, string path)
         {
-            HostHstsSpec resolved = HostSettingsLayers.Merge(
-                HostSettingsLayers.Merge(HostSettingsLayers.Merge(HostHstsSpec.Off, defaults?.Hsts), profile?.Hsts),
-                host.Settings?.Hsts);
             if (!resolved.Enabled || !resolved.Preload || HstsPreloadIsValid(resolved))
             {
                 return;
             }
 
             // Where the preload came from, when it isn't this host's own: that is the layer to go and change.
-            string inherited = host.Settings?.Hsts?.Preload is not null ? string.Empty
-                : profile?.Hsts?.Preload is not null ? " (inherited from its profile)"
-                : " (inherited from the global defaults)";
+            string inherited = HostSettingsLayers.InheritedSuffix(
+                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Hsts?.Preload));
 
             if (!resolved.IncludeSubDomains)
             {
@@ -648,39 +644,38 @@ public static class ConfigValidator
         /// is checked at the layer that set it; this catches a mode that inherited none, or inherited a value set by a
         /// layer whose mode didn't use it, naming that layer because the host's admin can't change it there.
         /// </summary>
-        private void CheckServerHeader(HostSettings? defaults, HostSettings? profile, HostConfig host, string path)
+        /// <param name="resolved">The host's resolved <c>Server</c> header.</param>
+        /// <param name="defaults">The global defaults layer.</param>
+        /// <param name="profile">The host's profile layer, if it has one.</param>
+        /// <param name="host">The host's own layer, on top.</param>
+        /// <param name="path">The host's path (<c>...</c>/serverHeader).</param>
+        private void CheckServerHeader(HostServerHeaderSpec resolved, HostSettings? defaults, HostSettings? profile, HostSettings? host, string path)
         {
-            HostServerHeaderSpec resolved = HostSettingsLayers.Merge(
-                HostSettingsLayers.Merge(HostSettingsLayers.Merge(HostServerHeaderSpec.Default, defaults?.ServerHeader), profile?.ServerHeader),
-                host.Settings?.ServerHeader);
             if (resolved.Mode != ServerHeaderMode.Custom)
             {
                 return;
             }
 
-            string inherited = host.Settings?.ServerHeader?.Mode is not null ? string.Empty
-                : profile?.ServerHeader?.Mode is not null ? " (inherited from its profile)"
-                : " (inherited from the global defaults)";
             if (string.IsNullOrEmpty(resolved.Value))
             {
-                Add($"{path}/value", ServerHeaderValueRequired, $"the custom Server header needs a value{inherited}");
+                string missingFrom = HostSettingsLayers.InheritedSuffix(
+                    HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.ServerHeader?.Mode));
+                Add($"{path}/value", ServerHeaderValueRequired, $"the custom Server header needs a value{missingFrom}");
                 return;
             }
 
             // A value set by a layer whose mode isn't custom is otherwise ignored, so its shape is judged where it is used.
-            bool ownValue = host.Settings?.ServerHeader?.Value is not null;
-            bool profileValue = !ownValue && profile?.ServerHeader?.Value is not null;
-            bool checkedAtItsLayer = ownValue
-                ? host.Settings!.ServerHeader!.Mode == ServerHeaderMode.Custom
-                : profileValue
-                    ? profile!.ServerHeader!.Mode == ServerHeaderMode.Custom
-                    : defaults?.ServerHeader?.Mode == ServerHeaderMode.Custom;
+            SettingsLayer valueLayer = HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.ServerHeader?.Value);
+            bool checkedAtItsLayer = valueLayer switch
+            {
+                SettingsLayer.Host => host!.ServerHeader!.Mode == ServerHeaderMode.Custom,
+                SettingsLayer.Profile => profile!.ServerHeader!.Mode == ServerHeaderMode.Custom,
+                SettingsLayer.GlobalDefaults => defaults!.ServerHeader!.Mode == ServerHeaderMode.Custom,
+                _ => false,
+            };
             if (!checkedAtItsLayer && !ServerHeader.IsValidValue(resolved.Value))
             {
-                string from = ownValue ? string.Empty
-                    : profileValue ? " (inherited from its profile)"
-                    : " (inherited from the global defaults)";
-                Add($"{path}/value", ServerHeaderValueInvalid, InvalidServerHeaderValue + from);
+                Add($"{path}/value", ServerHeaderValueInvalid, InvalidServerHeaderValue + HostSettingsLayers.InheritedSuffix(valueLayer));
             }
         }
 
