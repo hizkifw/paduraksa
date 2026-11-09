@@ -19,15 +19,40 @@ namespace Paduraksa.Storage.Sqlite;
 /// </remarks>
 internal static class SqlitePragmas
 {
+    private static TimeSpan s_busyTimeout = TimeSpan.FromSeconds(5);
+    private static int s_opened;
+
     /// <summary>
     /// How long a statement waits for another connection's lock before failing with SQLITE_BUSY. One value for both
     /// SQLite's busy handler (<c>busy_timeout</c>) and Microsoft.Data.Sqlite's own retry loop (<c>Default Timeout</c>,
     /// otherwise 30 s). With a single writer, waits are short; 5 s absorbs a checkpoint or a long write while still
     /// failing fast enough to surface a stuck transaction.
     /// </summary>
-    public static readonly TimeSpan BusyTimeout = TimeSpan.FromSeconds(5);
+    /// <remarks>
+    /// Settable once, before the first connection opens, for the tests that prove the wait itself: they can't spend five seconds
+    /// twice per run, and a short timeout proves the same thing (the busy handler is what fails the write). A later change is
+    /// refused: a pooled physical connection keeps the pragma it was given, so it would apply to some connections and not
+    /// others. Production never sets it.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">A connection has already opened.</exception>
+    public static TimeSpan BusyTimeout
+    {
+        get => s_busyTimeout;
+        set
+        {
+            if (!BusyTimeoutIsSettable)
+            {
+                throw new InvalidOperationException("The busy timeout is set before the first connection opens: a physical connection keeps the pragma it was given, so a later change would apply to some connections and not others.");
+            }
 
-    public static readonly string Sql =
+            s_busyTimeout = value;
+        }
+    }
+
+    /// <summary>Whether <see cref="BusyTimeout"/> can still be set: until the first connection has the pragmas.</summary>
+    internal static bool BusyTimeoutIsSettable => Volatile.Read(ref s_opened) == 0;
+
+    public static string Sql =>
         $"PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = {(long)BusyTimeout.TotalMilliseconds};";
 
     /// <summary>
@@ -36,7 +61,7 @@ internal static class SqlitePragmas
     /// exists, and on a file that isn't in WAL yet (a zero-byte file: an empty database to SQLite) the full batch would
     /// fail there, before migrations get to initialise it. The next read-write connection switches it.
     /// </summary>
-    public static readonly string ReadOnlySql =
+    public static string ReadOnlySql =>
         $"PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = {(long)BusyTimeout.TotalMilliseconds};";
 
     // Physical connections (native handles) that already have the pragmas. Weak, so closed handles drop out.
@@ -51,6 +76,7 @@ internal static class SqlitePragmas
             return;
         }
 
+        Volatile.Write(ref s_opened, 1);
         var command = connection.CreateCommand();
         await using (command.ConfigureAwait(false))
         {
@@ -73,6 +99,7 @@ internal static class SqlitePragmas
             return;
         }
 
+        Volatile.Write(ref s_opened, 1);
         using var command = connection.CreateCommand();
         command.CommandText = SqlFor(connection);
         command.ExecuteNonQuery();

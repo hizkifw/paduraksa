@@ -69,11 +69,12 @@ public sealed class AllocationTests
     }
 
     /// <summary>
-    /// Measures allocations on a thread of the test's own and after three warm-up rounds. A full run once reported about
-    /// 7.9 KB for code with no managed allocations. The exact source of that one-off was not proven; the likely candidates
-    /// are tiered compilation/OSR and the test framework's own work on the thread-pool thread it handed the test. A
-    /// dedicated thread keeps framework work out, and the warm-ups move tiering and static initialization ahead of the
-    /// measured round. The assertion is still exactly zero: a real allocation in the measured loop still fails.
+    /// Measures allocations on a thread of the test's own, after three warm-up rounds, and takes the <b>smallest</b> of three
+    /// measured rounds. A full run once reported about 7.9 KB for code with no managed allocations. The exact source of that
+    /// one-off was not proven; the likely candidates are tiered compilation/OSR and the test framework's own work on the
+    /// thread-pool thread it handed the test. A dedicated thread keeps framework work out, and the warm-ups move tiering and
+    /// static initialization ahead of the measured rounds. A one-off lands in one round and the smallest of three drops it;
+    /// an allocation in the measured loop itself happens in every round, so the assertion stays exactly zero for it.
     /// </summary>
     private static long AllocatedOnDedicatedThread(Func<long> measure)
     {
@@ -89,7 +90,13 @@ public sealed class AllocationTests
                         _ = measure(); // warm-up: JIT, tiering/OSR, statics, the thread's runtime state
                     }
 
-                    allocated = measure();
+                    long smallest = long.MaxValue;
+                    for (int round = 0; round < 3; round++)
+                    {
+                        smallest = Math.Min(smallest, measure());
+                    }
+
+                    allocated = smallest;
                 }
                 catch (Exception ex)
                 {

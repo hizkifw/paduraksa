@@ -110,7 +110,13 @@ public sealed class SqliteSetupTests : IAsyncLifetime
         await using var holder = new SqliteConnection(PaduraksaSqlite.ConnectionString(DatabasePath));
         await holder.OpenAsync(Ct);
         await using var transaction = await holder.BeginTransactionAsync(Ct); // Microsoft.Data.Sqlite: BEGIN IMMEDIATE
-        await using var context = await Factory.CreateDbContextAsync(Ct);
+        // Microsoft.Data.Sqlite retries a busy statement for its own window, which the connection string derives from the busy
+        // timeout. Pinned shorter than the pragma here, so the clock can only show the pragma's wait: without PRAGMA busy_timeout
+        // the write is refused at this one-second window instead, and the assertion below fails.
+        var pinned = new SqliteConnectionStringBuilder(PaduraksaSqlite.ConnectionString(DatabasePath)) { DefaultTimeout = 1 }.ToString();
+        var options = new DbContextOptionsBuilder<SampleDbContext>();
+        options.UsePaduraksaSqlite(pinned);
+        await using var context = new SampleDbContext(options.Options);
         context.Add(new Host { Id = HostId.New(), Name = "blocked" });
 
         var stopwatch = Stopwatch.StartNew();

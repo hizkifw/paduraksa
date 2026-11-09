@@ -45,9 +45,14 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
     /// <param name="authorizer">Default: allow everything.</param>
     /// <param name="compiler">Default: <see cref="Compiler"/>.</param>
     /// <param name="options">Default: the service's defaults.</param>
+    /// <param name="sqliteRetryWindow">
+    /// Pins Microsoft.Data.Sqlite's own retry window instead of deriving it from the pragmas' busy timeout, for the test that has
+    /// to tell that retry loop from the busy handler.
+    /// </param>
     public static async Task<ConfigServiceHarness> CreateAsync(
-        IConfigCommandAuthorizer? authorizer = null, IConfigCompiler? compiler = null, ConfigServiceOptions? options = null) =>
-        new(await TestConfigDatabase.CreateAsync(), authorizer, compiler, options);
+        IConfigCommandAuthorizer? authorizer = null, IConfigCompiler? compiler = null, ConfigServiceOptions? options = null,
+        TimeSpan? sqliteRetryWindow = null) =>
+        new(await TestConfigDatabase.CreateAsync(sqliteRetryWindow), authorizer, compiler, options);
 
     public static CommandOrigin Admin { get; } = new(Actor.ForUser(UserId.New()), Channel.Dashboard, System.Net.IPAddress.Loopback);
 

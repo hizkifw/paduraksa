@@ -37,14 +37,7 @@ public sealed class FirstRunEndToEndTests
             ColorScheme = ColorScheme.Dark,
         });
         IPage page = await context.NewPageAsync();
-        List<string> problems = [];
-        page.Console += (_, message) =>
-        {
-            if (message.Text.Contains("Content Security Policy", StringComparison.OrdinalIgnoreCase) || message.Type == "error")
-            {
-                problems.Add(message.Text);
-            }
-        };
+        List<string> problems = PlaywrightBrowser.CollectProblems(page);
 
         // Token and Owner, on the plain setup page, with the strength hint.
         await page.GotoAsync("/");

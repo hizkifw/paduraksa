@@ -36,14 +36,7 @@ public sealed class SettingsEndToEndTests
         };
         await using IBrowserContext ownerContext = await browser.NewContextAsync(options);
         IPage page = await ownerContext.NewPageAsync();
-        List<string> problems = [];
-        page.Console += (_, message) =>
-        {
-            if (message.Text.Contains("Content Security Policy", StringComparison.OrdinalIgnoreCase) || message.Type == "error")
-            {
-                problems.Add(message.Text);
-            }
-        };
+        List<string> problems = PlaywrightBrowser.CollectProblems(page);
 
         await SetUpAsync(page, host);
 
@@ -119,6 +112,9 @@ public sealed class SettingsEndToEndTests
         // A global default, changed through review and apply; the drawer's actions stay inside the window.
         await page.GotoAsync("/settings/defaults");
         await ExpectHeadingAsync(page, "Global defaults");
+        // The form is the circuit's render (the heading is prerendered), so it can only appear once the circuit is live:
+        // a reconnect under load re-renders it, and waiting on the form alone would race that.
+        await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await Expect(page.Locator("[data-form=defaults]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await page.GetByText("421 Misdirected Request").ClickAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "defaults");
@@ -126,7 +122,7 @@ public sealed class SettingsEndToEndTests
         ILocator apply = page.Locator(".pdk-sheet [data-review=apply]");
         await Expect(apply).ToBeEnabledAsync(new() { Timeout = 15_000 });
         await Expect(page.Locator(".pdk-diff")).ToContainTextAsync("421 Misdirected Request");
-        await page.WaitForTimeoutAsync(300);
+        await PlaywrightBrowser.SettleAsync(page);
         await ExpectInsideWindowAsync(page, apply);
         await PlaywrightBrowser.ScreenshotAsync(page, "review-defaults", fullPage: false);
         await page.SetViewportSizeAsync(390, 844);
@@ -187,7 +183,7 @@ public sealed class SettingsEndToEndTests
         {
             await page.GotoAsync(path);
             await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
-            await page.WaitForTimeoutAsync(400);
+            await PlaywrightBrowser.SettleAsync(page);
             Assert.True(await page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth + 1"), $"{path} scrolls sideways at 390 px");
             await PlaywrightBrowser.ScreenshotAsync(page, shot);
         }

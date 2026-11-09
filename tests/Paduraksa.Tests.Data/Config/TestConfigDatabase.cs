@@ -17,9 +17,27 @@ internal sealed class TestConfigDatabase : IAsyncDisposable
     private readonly string _directory = Directory.CreateTempSubdirectory("paduraksa-config-").FullName;
     private readonly ServiceProvider _services;
 
-    private TestConfigDatabase()
+    /// <param name="sqliteRetryWindow">
+    /// Pins Microsoft.Data.Sqlite's own retry window (<c>Default Timeout</c>) instead of deriving it from
+    /// <see cref="SqlitePragmas.BusyTimeout"/>, for a test that has to tell that retry loop from the pragmas' busy handler.
+    /// </param>
+    private TestConfigDatabase(TimeSpan? sqliteRetryWindow = null)
     {
-        _services = new ServiceCollection().AddPaduraksaDbContextFactory<ConfigDbContext>(DatabasePath).BuildServiceProvider();
+        ServiceCollection services = [];
+        if (sqliteRetryWindow is { } window)
+        {
+            var connectionString = new SqliteConnectionStringBuilder(PaduraksaSqlite.ConnectionString(DatabasePath))
+            {
+                DefaultTimeout = (int)window.TotalSeconds,
+            };
+            services.AddDbContextFactory<ConfigDbContext>(options => options.UsePaduraksaSqlite(connectionString.ToString()));
+        }
+        else
+        {
+            services.AddPaduraksaDbContextFactory<ConfigDbContext>(DatabasePath);
+        }
+
+        _services = services.BuildServiceProvider();
         Factory = _services.GetRequiredService<IDbContextFactory<ConfigDbContext>>();
     }
 
@@ -30,9 +48,10 @@ internal sealed class TestConfigDatabase : IAsyncDisposable
     public IDbContextFactory<ConfigDbContext> Factory { get; }
 
     /// <summary>A database migrated to the current schema, the way startup does it.</summary>
-    public static async Task<TestConfigDatabase> CreateAsync()
+    /// <param name="sqliteRetryWindow">See the constructor: pinned Microsoft.Data.Sqlite retry window, for one test.</param>
+    public static async Task<TestConfigDatabase> CreateAsync(TimeSpan? sqliteRetryWindow = null)
     {
-        var database = Empty();
+        var database = new TestConfigDatabase(sqliteRetryWindow);
         await ConfigDatabase.InitializeAsync(database.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
         return database;
     }

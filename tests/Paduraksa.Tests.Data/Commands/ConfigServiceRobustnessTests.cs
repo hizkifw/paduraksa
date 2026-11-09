@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using Microsoft.Data.Sqlite;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Commands;
@@ -74,14 +76,19 @@ public sealed class ConfigServiceRobustnessTests
     [Fact]
     public async Task ARejectionIsReportedWhenTheDatabaseIsLockedPastTheBusyTimeout()
     {
-        await using var h = await ConfigServiceHarness.CreateAsync();
+        // Microsoft.Data.Sqlite retries a busy statement for its own window, which the connection string derives from the busy
+        // timeout. Pinned shorter than the pragma here, so the wait can only be the pragma's busy handler: without it the write
+        // would be refused at this one-second window instead (and the elapsed assertion below would fail).
+        await using var h = await ConfigServiceHarness.CreateAsync(sqliteRetryWindow: TimeSpan.FromSeconds(1));
         await using var locker = new SqliteConnection(PaduraksaSqlite.ConnectionString(h.Db.DatabasePath));
         await locker.OpenAsync(Ct);
         await using var transaction = locker.BeginTransaction(deferred: false); // BEGIN IMMEDIATE: holds the write lock
 
+        var stopwatch = Stopwatch.StartNew();
         var result = await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "bad name")));
 
         Assert.Equal(ConfigCommandStatus.Invalid, result.Status);
+        Assert.InRange(stopwatch.Elapsed, SqlitePragmas.BusyTimeout * 0.8, SqlitePragmas.BusyTimeout * 3);
     }
 
     [Fact]

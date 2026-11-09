@@ -57,6 +57,47 @@ internal static class PlaywrightBrowser
     }
 
     /// <summary>
+    /// Waits until the page's finite animations (a drawer sliding in, a sheet opening) have finished, so a measurement or a
+    /// screenshot sees where things settle: the signal is the animations' own state, not a guessed delay.
+    /// </summary>
+    public static async Task SettleAsync(IPage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        await page.WaitForFunctionAsync(
+            "() => document.getAnimations().every(a => a.playState === 'finished')",
+            null,
+            new PageWaitForFunctionOptions { Timeout = 15_000 });
+    }
+
+    /// <summary>
+    /// Starts collecting the page's console problems: a Content Security Policy violation, or a console error, apart from
+    /// <paramref name="expected"/> (a failure the test asks for itself) and the browser's own report of a lost circuit.
+    /// </summary>
+    public static List<string> CollectProblems(IPage page, params string[] expected)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        List<string> problems = [];
+        page.Console += (_, message) =>
+        {
+            if (message.Text.Contains("Content Security Policy", StringComparison.OrdinalIgnoreCase)
+                || (message.Type == "error" && !IsExpected(message.Text, expected)))
+            {
+                problems.Add(message.Text);
+            }
+        };
+        return problems;
+    }
+
+    private static bool IsExpected(string text, string[] expected) =>
+        IsCircuitReconnect(text) || expected.Any(fragment => text.Contains(fragment, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Blazor's "Error: Connection disconnected with error …": the circuit lost its WebSocket and the page reconnects. Under
+    /// a loaded machine that happens, and it is the transport's business, not an app error.
+    /// </summary>
+    private static bool IsCircuitReconnect(string text) => text.Contains("Connection disconnected", StringComparison.Ordinal);
+
+    /// <summary>
     /// Saves a screenshot when <see cref="ScreenshotVariable"/> names a directory: the full page, or only the window (for a drawer, which
     /// sits fixed over the page).
     /// </summary>

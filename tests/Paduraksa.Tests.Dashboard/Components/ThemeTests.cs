@@ -64,14 +64,21 @@ public sealed class ThemeTests
         Assert.Equal("Switch to the light theme", toggle.Find("button").GetAttribute("aria-label"));
         toggle.Find("button").Click();
 
-        Assert.False(theme.IsDark);
-        Assert.Equal(ThemePreference.Light, theme.Preference);
-        Assert.Equal("light", context.JSInterop.VerifyInvoke("paduraksa.setTheme").Arguments.Single());
+        // The handler flips the state, then awaits the script; the re-render and the script call are both later than the
+        // click. Wait for each of them rather than reading what may still be pending.
+        toggle.WaitForAssertion(() => Assert.False(theme.IsDark));
+        toggle.WaitForAssertion(() => Assert.Equal(ThemePreference.Light, theme.Preference));
+        toggle.WaitForAssertion(() => Assert.Single(context.JSInterop.Invocations["paduraksa.setTheme"]));
+        Assert.Equal("light", context.JSInterop.Invocations["paduraksa.setTheme"][^1].Arguments.Single());
         toggle.WaitForAssertion(() => Assert.Equal("Switch to the dark theme", toggle.Find("button").GetAttribute("aria-label")));
 
         toggle.Find("button").Click();
-        Assert.True(theme.IsDark);
+
+        toggle.WaitForAssertion(() => Assert.True(theme.IsDark));
+        toggle.WaitForAssertion(() => Assert.Equal(ThemePreference.Dark, theme.Preference));
+        toggle.WaitForAssertion(() => Assert.Equal(2, context.JSInterop.Invocations["paduraksa.setTheme"].Count));
         Assert.Equal("dark", context.JSInterop.Invocations["paduraksa.setTheme"][^1].Arguments.Single());
+        toggle.WaitForAssertion(() => Assert.Equal("Switch to the light theme", toggle.Find("button").GetAttribute("aria-label")));
     }
 
     [Theory]

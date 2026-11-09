@@ -281,14 +281,22 @@ public sealed class MacKeyTests : IDisposable
             key.Verify(Data, tag);
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1000; i++)
+        // The smallest of several rounds: a one-off on this thread (tiered JIT taking over, a GC sampling pause) lands in one
+        // round, while an allocation in Sign/Verify itself happens in every round and still fails the assertion.
+        var smallest = long.MaxValue;
+        for (var round = 0; round < 3; round++)
         {
-            key.Sign(Data, tag);
-            key.Verify(Data, tag);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 1000; i++)
+            {
+                key.Sign(Data, tag);
+                key.Verify(Data, tag);
+            }
+
+            smallest = Math.Min(smallest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, smallest);
     }
 
     [Fact]

@@ -35,16 +35,8 @@ public sealed class ConfigPagesEndToEndTests
             ColorScheme = ColorScheme.Dark,
         });
         IPage page = await context.NewPageAsync();
-        List<string> problems = [];
-        page.Console += (_, message) =>
-        {
-            // The 404 the test asks for on purpose is logged by the browser; anything else in red is a problem.
-            if (message.Text.Contains("Content Security Policy", StringComparison.OrdinalIgnoreCase)
-                || (message.Type == "error" && !message.Text.Contains("status of 404", StringComparison.Ordinal)))
-            {
-                problems.Add(message.Text);
-            }
-        };
+        // The 404 the test asks for on purpose is logged by the browser; anything else in red is a problem.
+        List<string> problems = PlaywrightBrowser.CollectProblems(page, "status of 404");
 
         await SetUpAsync(page, host);
 

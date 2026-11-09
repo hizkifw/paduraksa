@@ -48,17 +48,18 @@ public sealed class DoctorCommandsTests
     [Fact]
     public async Task LivenessUsesHttpsToTheAdminPortOtherwise()
     {
-        int port = TestPorts.FreePort();
-        Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["Paduraksa:Listen:Admin"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
-        };
-
-        await using PaduraksaHost host = TestHost.Create(settings: settings);
+        // Bound at port 0 and read back: a port probed first can be taken by another test between the probe and the bind.
+        await using PaduraksaHost host = TestHost.Create();
         await host.StartAsync(Ct);
         try
         {
+            int port = TestHost.Endpoint(host, HostRole.Admin, "https").Port;
+            Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
+            {
+                ["Paduraksa:Listen:Admin"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
+            };
+
             // The admin certificate chains to the local CA the probe process never loads: the call trusts loopback for itself.
             Assert.Equal(0, (await ProbeAsync(TestHost.CreateOptions(settings: settings))).ExitCode);
         }
@@ -71,9 +72,11 @@ public sealed class DoctorCommandsTests
     [Fact]
     public async Task LivenessFailsWhenNothingListens()
     {
+        // A port held bound but never listening for as long as the probe runs: a probed one could be taken meanwhile.
+        using TestPorts.DeadPort dead = TestPorts.ReserveDeadPort();
         Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["Paduraksa:Listen:Admin"] = TestPorts.FreePort().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Paduraksa:Listen:Admin"] = dead.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
         };
 
