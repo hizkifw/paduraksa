@@ -1,4 +1,4 @@
-@* A drawer's frame (the design language, PLAN §12): the way back to the level it opened from, an overline, the title (what screen readers
+@* A drawer's frame (the design language, PLAN §12): the way back to the level it opened from, the title (what screen readers
    name the drawer by, focused as it opens) with an optional icon and line under it, actions beside the close button, a body that
    scrolls, and a footer for the drawer's actions that stays in view. With OnSubmit the whole drawer is one form, so Enter in a field submits. *@
 
@@ -21,10 +21,6 @@ else
 
     [Parameter, EditorRequired]
     public string Title { get; set; } = string.Empty;
-
-    /// <summary>The small line above the title: the kind of thing ("Host", "Review changes").</summary>
-    [Parameter]
-    public string? Overline { get; set; }
 
     /// <summary>One line under the title.</summary>
     [Parameter]
@@ -121,10 +117,6 @@ else
                     <span class="pdk-drawer-icon pdk-tone-@IconTone.Css()"><MudIcon Icon="@Icon" Size="Size.Small" /></span>
                 }
                 <div class="pdk-drawer-titles">
-                    @if (Overline is not null)
-                    {
-                        <span class="pdk-drawer-overline">@Overline</span>
-                    }
                     <h2 class="pdk-drawer-title" id="@(Level is null ? null : TitleId(Level))" tabindex="-1">@Title</h2>
                     @if (Subtitle is not null)
                     {

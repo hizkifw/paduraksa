@@ -145,7 +145,7 @@ public static class AuditText
 
         if (ProfileId.TryParse(target, out ProfileId profile))
         {
-            return SettingsRoutes.Profile(profile);
+            return DashboardRoutes.Profile(profile);
         }
 
         return ConfigRevisionId.TryParse(target, out ConfigRevisionId revision) ? DashboardRoutes.Revision(revision) : null;

@@ -17,7 +17,7 @@
                 </button>
             }
         </div>
-        <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="DnsProviderService.MaxLabelLength"
+        <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="DnsProviderService.MaxLabelLength"
                       Placeholder="@($"{ProviderDisplay.KindLabel(_kind)} - example.com")" Error="_labelError is not null" ErrorText="@_labelError"
                       Disabled="_busy" Class="pdk-dns-label" />
     }

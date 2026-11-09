@@ -2,7 +2,7 @@
    through a DNS provider, which wildcards need). The run itself, with its progress, is the parent's. *@
 
 <div class="pdk-form-stack">
-    <MudTextField T="string" @bind-Value="_names" Label="Names" Variant="Variant.Outlined" Lines="2" Sizing="InputSizing.Auto" MaxLines="8"
+    <MudTextField T="string" @bind-Value="_names" Label="Hostnames" Variant="Variant.Outlined" Lines="2" Sizing="InputSizing.Auto" MaxLines="8"
                   Placeholder="example.com&#10;*.example.com" Error="_namesError is not null" ErrorText="@_namesError" Class="pdk-acme-names"
                   HelperText="One per line or comma-separated. A wildcard (*.example.com) needs DNS-01." Disabled="Busy" OnBlur="CheckNames" Immediate="true" />
 
@@ -37,7 +37,7 @@
                 aria-checked="@(_challenge == AcmeChallengeType.Http01 ? "true" : "false")" disabled="@Busy" @onclick="() => Choose(AcmeChallengeType.Http01)">
             <MudIcon Icon="@Icons.Material.Outlined.Http" Size="Size.Small" />
             <span class="pdk-choice-title">HTTP-01</span>
-            <span class="pdk-choice-hint">The CA fetches a token from port 80 of each name. No wildcards.</span>
+            <span class="pdk-choice-hint">The CA fetches a token from port 80 of each hostname. No wildcards.</span>
         </button>
         <button type="button" class="pdk-choice @(_challenge == AcmeChallengeType.Dns01 ? "pdk-choice-on" : null)" role="radio"
                 aria-checked="@(_challenge == AcmeChallengeType.Dns01 ? "true" : "false")" disabled="@Busy" @onclick="() => Choose(AcmeChallengeType.Dns01)">
@@ -77,7 +77,7 @@
     }
 
     <div class="pdk-field-pair">
-        <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
+        <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
                       HelperText="Optional" Disabled="Busy" />
         <MudSelect T="KeySpec" @bind-Value="_keySpec" Label="Key" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Busy" Dense="true">
             @foreach ((KeySpec spec, string label) in NameList.KeySpecs)

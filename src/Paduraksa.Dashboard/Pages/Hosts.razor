@@ -15,7 +15,7 @@
 
 <PageTitle>Hosts · Paduraksa</PageTitle>
 
-<PageHeader Title="Hosts" Overline="Traffic" Area="SectionArea.Traffic" Lead="Every name this instance answers for, and where its requests go.">
+<PageHeader Title="Hosts" Overline="Traffic" Lead="Every name this instance answers for, and where its requests go.">
     <Actions>
         @if (_mayWrite)
         {
@@ -43,7 +43,7 @@ else
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
         @if (_rows is not { Count: 0 })
         {
-            <ListToolbar Search="@_search" SearchChanged="value => _search = value" Placeholder="Search names, upstreams, addresses, tags"
+            <ListToolbar Search="@_search" SearchChanged="value => _search = value" Placeholder="Search hostnames, upstreams, addresses, tags"
                          Total="_rows?.Count" Shown="Filtered.Count" One="host" Many="hosts" />
         }
 
@@ -63,7 +63,7 @@ else
         else if (_rows.Count == 0)
         {
             <EmptyState Icon="@Icons.Material.Outlined.AddLink" Title="No hosts yet"
-                        Description="A host gives a name to a service on your network: proxy it to an upstream (which you can add from the host form), redirect it, or answer with a fixed page.">
+                        Description="A host puts a service on your network behind a hostname: proxy it to an upstream (which you can add from the host form), redirect it, or answer with a fixed page.">
                 <Action>
                     @if (_mayWrite)
                     {
@@ -74,7 +74,7 @@ else
         }
         else if (Filtered.Count == 0)
         {
-            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SearchOff" Title="No host matches" Description="Try another name, upstream, address or tag." />
+            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.SearchOff" Title="No host matches" Description="Try another hostname, upstream, address or tag." />
         }
         else
         {
@@ -148,7 +148,7 @@ else
                             <StatusChip Tone="@StatusTone(row)" Dot="true" Text="@StatusText(row)" Detail="@HealthText(row)" Name="status" />
                             @if (_mayWrite && host.Kind != HostKind.Admin)
                             {
-                                <MudSwitch @key="_toggles" T="bool" Value="host.Enabled" ValueChanged="_ => ToggleAsync(host)" Color="Color.Success" Size="Size.Small"
+                                <MudSwitch @key="_toggles" T="bool" Value="host.Enabled" ValueChanged="_ => ToggleAsync(host)" Color="Color.Success"
                                            aria-label="@($"{(host.Enabled ? "Switch off" : "Switch on")} {Primary(host)}")" data-action="toggle" />
                             }
                         </div>
@@ -250,7 +250,7 @@ else
 
         return HostId.TryParse(key, out HostId id)
             ? Drawers.Push<HostDrawer>(new Dictionary<string, object?> { [nameof(HostDrawer.Id)] = id }, DrawerWidth.Wide)
-            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Host not found", "There is no such host", "Hosts", "Back to the hosts"), DrawerWidth.Narrow);
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Host not found", "There is no such host", "Back to the hosts"), DrawerWidth.Narrow);
     }
 
     private void Open(HostConfig host) => Navigation.NavigateTo(DashboardRoutes.Host(host.Id));

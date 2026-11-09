@@ -135,7 +135,7 @@ public static class ChangeView
 
     /// <summary>
     /// Says where a config error or warning points, in words: a document pointer (<c>/hosts/2/routes/0/path</c>) becomes
-    /// "app.example.com > Route / > Path"; an object-relative one (<c>/names/1</c>) becomes "Name 2".
+    /// "app.example.com > Route / > Path"; an object-relative one (<c>/names/1</c>) becomes "Hostname 2".
     /// </summary>
     public static string Locate(string path, ConfigDocument? document)
     {
@@ -196,7 +196,7 @@ public static class ChangeView
         return string.Join(" > ", parts);
     }
 
-    /// <summary>A host as one line: its first name, and how many more it has.</summary>
+    /// <summary>A host as one line: its first hostname, and how many more it has.</summary>
     public static string HostTitle(HostConfig host)
     {
         ArgumentNullException.ThrowIfNull(host);
@@ -241,7 +241,7 @@ public static class ChangeView
 
     private static string Singular(string label) => label switch
     {
-        "Names" => "Name",
+        "Hostnames" => "Hostname",
         "Routes" => "Route",
         "Destinations" => "Destination",
         "Tags" => "Tag",

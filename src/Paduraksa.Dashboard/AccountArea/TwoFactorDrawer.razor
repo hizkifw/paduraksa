@@ -9,7 +9,7 @@
    codes, or turn it off, each behind the current password. The password and the codes live only in this drawer; once new codes show,
    only "I have saved them" closes it. Hands back true when the second factor changed. *@
 
-<DrawerShell Title="@Title" Overline="Two-step verification" Subtitle="@Caption" Icon="@Icons.Material.Outlined.PhonelinkLock"
+<DrawerShell Title="@Title" Subtitle="@Caption" Icon="@Icons.Material.Outlined.PhonelinkLock"
              IconTone="@(Step == TwoFactorStep.Disable ? Tone.Error : Tone.Primary)" Name="two-factor" Closable="_codes is null">
     @switch (Step)
     {

@@ -173,7 +173,7 @@ public sealed class AccountAndAuditTests
         IRenderedComponent<Audit> page = context.Render<Audit>();
 
         await page.WaitForStateAsync(() => page.FindAll("[data-event]").Count == 2 && page.Find("[data-section=chain]").GetAttribute("data-chain") == "intact");
-        Assert.Contains("All 2 events verify", page.Find("[data-section=chain]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("Chain intact: 2 events verify", page.Find("[data-section=chain]").TextContent, StringComparison.Ordinal);
         Assert.Contains("Signed in", page.Markup, StringComparison.Ordinal);
         Assert.NotNull(audit.Queries[0].From);
 

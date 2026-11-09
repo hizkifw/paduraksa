@@ -13,52 +13,58 @@
     --pdk-radius: 10px;
     --pdk-radius-lg: 14px;
 
-    --pdk-bg: #0E1216;
-    --pdk-surface: #151A20;
-    --pdk-surface-2: #1A2027;
-    --pdk-line: #242B33;
-    --pdk-line-strong: #323B45;
-    --pdk-text: #E6EAEE;
-    --pdk-muted: #97A3AF;
-    --pdk-accent: #3FBFAE;
-    --pdk-accent-contrast: #04211D;
-    --pdk-error: #EF6B67;
-    --pdk-info: #5AA9E6;
+    /* Motion: a drawer's curve (quick off the mark, a long soft landing) for things that move; a plain ease-out for what only fades. */
+    --pdk-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --pdk-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --pdk-drawer-in: 420ms;
+    --pdk-scrim: color-mix(in srgb, #080807 55%, transparent);
+
+    --pdk-bg: #111110;
+    --pdk-surface: #1A1917;
+    --pdk-surface-2: #201F1D;
+    --pdk-line: #2A2926;
+    --pdk-line-strong: #3A3834;
+    --pdk-text: #EDECE8;
+    --pdk-muted: #9C988F;
+    --pdk-accent: #E7E5E0;
+    --pdk-accent-contrast: #171614;
+    --pdk-error: #E5736B;
+    --pdk-info: #7FA7C9;
     --pdk-shadow: 0 30px 80px -32px rgba(0, 0, 0, 0.7);
     color-scheme: dark;
 }
 
 @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
-        --pdk-bg: #F4F6F8;
+        --pdk-bg: #F5F4F1;
         --pdk-surface: #FFFFFF;
-        --pdk-surface-2: #F8FAFB;
-        --pdk-line: #E2E7EC;
-        --pdk-line-strong: #CBD3DB;
-        --pdk-text: #18212B;
-        --pdk-muted: #5B6773;
-        --pdk-accent: #0E7D6F;
+        --pdk-surface-2: #FAF9F7;
+        --pdk-line: #E5E3DE;
+        --pdk-line-strong: #D1CEC7;
+        --pdk-text: #1C1B18;
+        --pdk-muted: #6B675F;
+        --pdk-accent: #26241F;
         --pdk-accent-contrast: #FFFFFF;
-        --pdk-error: #C9403C;
-        --pdk-info: #1F78C1;
-        --pdk-shadow: 0 30px 80px -40px rgba(24, 33, 43, 0.35);
+        --pdk-error: #C2413A;
+        --pdk-info: #2F6E9E;
+        --pdk-shadow: 0 30px 80px -40px rgba(28, 27, 24, 0.35);
         color-scheme: light;
     }
 }
 
 :root[data-theme="light"] {
-    --pdk-bg: #F4F6F8;
+    --pdk-bg: #F5F4F1;
     --pdk-surface: #FFFFFF;
-    --pdk-surface-2: #F8FAFB;
-    --pdk-line: #E2E7EC;
-    --pdk-line-strong: #CBD3DB;
-    --pdk-text: #18212B;
-    --pdk-muted: #5B6773;
-    --pdk-accent: #0E7D6F;
+    --pdk-surface-2: #FAF9F7;
+    --pdk-line: #E5E3DE;
+    --pdk-line-strong: #D1CEC7;
+    --pdk-text: #1C1B18;
+    --pdk-muted: #6B675F;
+    --pdk-accent: #26241F;
     --pdk-accent-contrast: #FFFFFF;
-    --pdk-error: #C9403C;
-    --pdk-info: #1F78C1;
-    --pdk-shadow: 0 30px 80px -40px rgba(24, 33, 43, 0.35);
+    --pdk-error: #C2413A;
+    --pdk-info: #2F6E9E;
+    --pdk-shadow: 0 30px 80px -40px rgba(28, 27, 24, 0.35);
     color-scheme: light;
 }
 
@@ -91,8 +97,8 @@ body {
 
 /* Tones: an icon or dot in a semantic colour on a soft wash of it. */
 .pdk-tone-primary { --pdk-tone: var(--mud-palette-primary, var(--pdk-accent)); }
-.pdk-tone-success { --pdk-tone: var(--mud-palette-success, #4CC38A); }
-.pdk-tone-warning { --pdk-tone: var(--mud-palette-warning, #E8B04B); }
+.pdk-tone-success { --pdk-tone: var(--mud-palette-success, #5DBB8A); }
+.pdk-tone-warning { --pdk-tone: var(--mud-palette-warning, #D9A957); }
 .pdk-tone-error { --pdk-tone: var(--mud-palette-error, var(--pdk-error)); }
 .pdk-tone-info { --pdk-tone: var(--mud-palette-info, var(--pdk-info)); }
 .pdk-tone-default, .pdk-tone-secondary, .pdk-tone-tertiary, .pdk-tone-dark, .pdk-tone-inherit, .pdk-tone-surface, .pdk-tone-transparent {
@@ -357,47 +363,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     gap: 16px;
 }
 
-.pdk-page-header-tabbed {
-    gap: 18px;
-    margin-bottom: 20px;
-}
-
-/* An area's tabs (SectionTabs): under the header, a rule under them, the open page's tab underlined. */
-.pdk-tabs {
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
-    border-bottom: 1px solid var(--mud-palette-lines-default);
-    scrollbar-width: none;
-}
-
-.pdk-tab {
-    flex: 0 0 auto;
-    margin-bottom: -1px;
-    padding: 8px 12px 10px;
-    border-bottom: 2px solid transparent;
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.875rem;
-    font-weight: 600;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.pdk-tab:hover {
-    color: var(--mud-palette-text-primary);
-}
-
-.pdk-tab:focus-visible {
-    border-radius: 6px 6px 0 0;
-    outline: 2px solid var(--mud-palette-primary);
-    outline-offset: -2px;
-}
-
-.pdk-tab-active {
-    border-bottom-color: var(--mud-palette-primary);
-    color: var(--mud-palette-primary);
-}
-
 .pdk-page-header h1:focus {
     outline: none;
 }
@@ -522,6 +487,16 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     font-weight: 500;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.pdk-list-title > :is(.pdk-chip, .pdk-badge) {
+    margin-left: 8px;
+    vertical-align: 1px;
+}
+
+/* Keeps its place in the layout while hidden (a "Clear filters" that shows only when something is filtered). */
+.pdk-hidden {
+    visibility: hidden;
 }
 
 .pdk-list-sub {
@@ -683,26 +658,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-/* The settings hub: groups of links, each an icon, a title and a line. */
-.pdk-settings-group {
-    display: grid;
-    gap: 12px;
-    margin-bottom: 28px;
-}
-
-.pdk-settings-group-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 12px;
-}
-
-.pdk-settings-group-title {
-    margin: 0;
-    font-size: 0.9375rem;
-    font-weight: 650;
 }
 
 /* ---------- Badges, tags, links ---------- */
@@ -1376,6 +1331,11 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     grid-column: 1 / -1;
 }
 
+/* MudSelect puts Class on an inner element: the grid item is its wrapper. */
+.pdk-field-grid > :has(> .pdk-span-2) {
+    grid-column: 1 / -1;
+}
+
 .pdk-field-grid .mud-input-control, .pdk-name-row .mud-input-control, .pdk-route-row .mud-input-control,
 .pdk-destination-row .mud-input-control, .pdk-header-row .mud-input-control {
     margin-top: 6px;
@@ -1385,23 +1345,40 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-name-list {
     display: grid;
     gap: 4px;
-    max-width: 640px;
 }
 
 .pdk-name-row, .pdk-destination-row, .pdk-header-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: start;
     gap: 8px;
 }
 
-/* The rows' buttons line up with the fields; a switch's thumb is an icon button too, and stays in its track. */
+/* A name and, only when there is one, its remove button in an implicit last column: a lone name is as wide as every other field. */
+.pdk-name-row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-columns: auto;
+    grid-auto-flow: column;
+}
+
+/* The rows' buttons line up with the fields; a switch's thumb is an icon button too, and stays in its track. A 36px circle, centred on
+   the dense field (8px down, 38.8px tall), so the hover and the click area are the same round target. */
 :is(.pdk-name-row, .pdk-route-row, .pdk-destination-row, .pdk-header-row) .mud-icon-button:not(.mud-switch-base) {
-    margin-top: 12px;
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    margin-top: 9.4px;
+    padding: 0;
+    border-radius: 50%;
+}
+
+/* The switch's track centred on the field beside it (its control is 40px tall with no margin of its own). */
+.pdk-destination-row .mud-input-control-boolean-input {
+    margin: 0;
 }
 
 .pdk-destination-row .mud-switch {
-    margin-top: 10px;
+    margin-top: 8px;
 }
 
 .pdk-destination-list {
@@ -1409,8 +1386,11 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     gap: 4px;
 }
 
+/* The address, then only the controls there are (switch, check, remove) in implicit columns: no empty column at the end. */
 .pdk-destination-row {
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-columns: auto;
+    grid-auto-flow: column;
 }
 
 .pdk-probe-line {
@@ -1442,20 +1422,13 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     margin-top: 16px;
 }
 
-.pdk-route-head, .pdk-route-row {
+.pdk-route-row {
     display: grid;
-    grid-template-columns: 130px minmax(0, 1fr) minmax(0, 1fr) 36px;
+    grid-template-columns: 130px minmax(0, 1fr) minmax(0, 1fr);
+    grid-auto-columns: auto;
+    grid-auto-flow: column;
     align-items: start;
     gap: 8px;
-}
-
-.pdk-route-head {
-    padding: 0 4px;
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
 }
 
 .pdk-form-note {
@@ -1512,8 +1485,8 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-stack-backdrop {
     position: fixed;
     inset: 0;
-    background: color-mix(in srgb, #06090C 55%, transparent);
-    animation: pdk-fade 160ms ease-out;
+    background: var(--pdk-scrim);
+    transition: opacity 260ms var(--pdk-ease-out);
 }
 
 .pdk-sheet {
@@ -1530,19 +1503,49 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     border-left: 1px solid var(--mud-palette-lines-default);
     background: var(--mud-palette-surface);
     box-shadow: -30px 0 80px -40px rgba(0, 0, 0, 0.6);
-    transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: transform var(--pdk-drawer-in) var(--pdk-ease-drawer);
+}
+
+/* A level dims itself while one is open over it, and brightens again as it comes back. */
+.pdk-sheet::after {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: var(--pdk-scrim);
+    opacity: 0;
+    pointer-events: none;
+    content: "";
+    transition: opacity var(--pdk-drawer-in) var(--pdk-ease-drawer);
 }
 
 .pdk-sheet-narrow { --pdk-sheet-width: 520px; }
 .pdk-sheet-medium { --pdk-sheet-width: 640px; }
 .pdk-sheet-wide { --pdk-sheet-width: 780px; }
 
-.pdk-sheet-top {
-    animation: pdk-slide-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
 .pdk-sheet-under {
     transform: translateX(calc(var(--pdk-under) * -28px));
+}
+
+.pdk-sheet-under::after {
+    opacity: 1;
+}
+
+/* Entering: from off the right edge, and the backdrop from nothing. Only on insertion, so a level that becomes the top again after a
+   pop slides back from where it was pushed to instead of entering a second time. */
+@starting-style {
+    .pdk-sheet {
+        transform: translateX(100%);
+    }
+
+    .pdk-stack-backdrop {
+        opacity: 0;
+    }
+}
+
+/* Leaving (paduraksa.js puts a closed level back to play it out): its own animation, nothing else moves it. */
+.pdk-leaving, .pdk-leaving .pdk-sheet, .pdk-leaving .pdk-stack-backdrop, .pdk-leaving::after, .pdk-leaving .pdk-sheet::after {
+    transition: none !important;
+    pointer-events: none;
 }
 
 .pdk-sheet:focus {
@@ -1661,15 +1664,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     min-width: 0;
 }
 
-.pdk-drawer-overline {
-    color: var(--mud-palette-primary);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    line-height: 1.8;
-    text-transform: uppercase;
-}
-
 .pdk-drawer-title {
     margin: 0;
     font-size: 1.125rem;
@@ -1696,6 +1690,12 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     align-items: center;
     gap: 4px;
     margin: -4px -8px 0 0;
+}
+
+.pdk-drawer-head-actions .mud-icon-button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
 }
 
 .pdk-drawer-banner {
@@ -1856,18 +1856,13 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     gap: 8px;
 }
 
-@keyframes pdk-slide-in {
-    from { opacity: 0.6; transform: translateX(24px); }
-    to { opacity: 1; transform: none; }
-}
-
 @keyframes pdk-fade {
     from { opacity: 0; }
     to { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .pdk-sheet, .pdk-sheet-top, .pdk-stack-backdrop, .pdk-discard {
+    .pdk-sheet, .pdk-sheet::after, .pdk-stack-backdrop, .pdk-discard {
         animation: none;
         transition: none;
     }
@@ -2364,12 +2359,9 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
         margin-left: 0;
     }
 
-    .pdk-route-head {
-        display: none;
-    }
-
     .pdk-route-row {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-auto-flow: row;
         padding: 8px 0;
         border-bottom: 1px dashed var(--mud-palette-lines-default);
     }
@@ -2476,7 +2468,7 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
     color: var(--pdk-muted);
 }
 
-.pdk-form {
+.pdk-auth-card .pdk-form {
     display: grid;
     gap: 16px;
 }
@@ -2666,5 +2658,167 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
 
     .pdk-field-row {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Toggle groups: room around each choice's label (MudBlazor's outlined small items have 3px all round). */
+.mud-toggle-group.mud-toggle-group .mud-toggle-item.mud-toggle-item {
+    padding: 6px 16px;
+}
+
+.mud-toggle-group.mud-toggle-group .mud-toggle-item.mud-toggle-item-size-small {
+    padding: 4px 14px;
+}
+
+/* ---------- Connection lost (App.razor, #components-reconnect-modal) ---------- */
+/* A card at the bottom over a light scrim that keeps clicks off a page that can't answer. It fades in after a moment, so a blip that
+   reconnects at once never shows. */
+/* MudBlazor styles this id for Blazor's own dialog (an opaque page, uppercase buttons with 40px margins, all !important): the id and
+   !important here take that back. */
+#components-reconnect-modal.pdk-reconnect {
+    position: fixed;
+    inset: 0;
+    z-index: 3000 !important;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 24px;
+    background-color: color-mix(in srgb, var(--mud-palette-background) 45%, transparent) !important;
+}
+
+#components-reconnect-modal.pdk-reconnect:is(.components-reconnect-show, .components-reconnect-failed, .components-reconnect-rejected,
+    .components-reconnect-paused, .components-reconnect-resume-failed) {
+    display: flex;
+    animation: pdk-reconnect-fade 200ms var(--pdk-ease-out) 400ms both;
+}
+
+.pdk-reconnect-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: min(560px, 100%);
+    padding: 12px 12px 12px 18px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 12px;
+    background: var(--mud-palette-surface);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+    color: var(--mud-palette-text-primary);
+    font-size: 0.875rem;
+    animation: pdk-reconnect-rise 320ms var(--pdk-ease-out) 400ms both;
+}
+
+.pdk-reconnect-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pdk-reconnect-text p {
+    display: none;
+    margin: 0;
+}
+
+.pdk-reconnect-text strong {
+    font-weight: 600;
+}
+
+.pdk-reconnect-spinner, .pdk-reconnect-alert {
+    display: none;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+}
+
+.pdk-reconnect-spinner {
+    border: 2px solid var(--mud-palette-lines-default);
+    border-top-color: var(--mud-palette-text-primary);
+    animation: pdk-reconnect-spin 800ms linear infinite;
+}
+
+.pdk-reconnect-alert {
+    place-items: center;
+    background: color-mix(in srgb, var(--mud-palette-warning) 18%, transparent);
+    color: var(--mud-palette-warning);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+#components-reconnect-modal .pdk-reconnect-action {
+    display: none;
+    flex: 0 0 auto;
+    min-width: 0;
+    margin: 0 !important;
+    padding: 7px 14px;
+    border: 0;
+    border-radius: 8px;
+    background-color: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+    font: inherit;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: normal;
+    text-transform: none;
+    cursor: pointer;
+}
+
+#components-reconnect-modal .pdk-reconnect-action:hover {
+    background-color: color-mix(in srgb, var(--mud-palette-primary) 85%, var(--mud-palette-background));
+}
+
+.pdk-reconnect-action:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+/* Which line, mark and button each state shows. "Retrying" comes on top of "show" once the first attempt failed. */
+.components-reconnect-show:not(.components-reconnect-retrying) .pdk-reconnect-when-show,
+.components-reconnect-retrying .pdk-reconnect-when-retrying,
+.components-reconnect-failed .pdk-reconnect-when-failed,
+.components-reconnect-rejected .pdk-reconnect-when-rejected,
+.components-reconnect-paused .pdk-reconnect-when-paused,
+.components-reconnect-resume-failed .pdk-reconnect-when-resume-failed {
+    display: block;
+}
+
+.components-reconnect-show .pdk-reconnect-spinner {
+    display: block;
+}
+
+:is(.components-reconnect-failed, .components-reconnect-rejected, .components-reconnect-paused, .components-reconnect-resume-failed) .pdk-reconnect-alert {
+    display: grid;
+}
+
+#components-reconnect-modal:is(.components-reconnect-retrying, .components-reconnect-failed) .pdk-reconnect-when-retry,
+#components-reconnect-modal.components-reconnect-paused .pdk-reconnect-when-resume,
+#components-reconnect-modal:is(.components-reconnect-rejected, .components-reconnect-resume-failed) .pdk-reconnect-when-reload {
+    display: block;
+}
+
+@keyframes pdk-reconnect-fade {
+    from {
+        opacity: 0;
+    }
+}
+
+@keyframes pdk-reconnect-rise {
+    from {
+        transform: translateY(12px);
+        opacity: 0;
+    }
+}
+
+@keyframes pdk-reconnect-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #components-reconnect-modal.pdk-reconnect, .pdk-reconnect-card {
+        animation-duration: 1ms;
+    }
+
+    .pdk-reconnect-spinner {
+        animation-duration: 2400ms;
     }
 }

@@ -129,7 +129,7 @@ public sealed class ConfigPagesEndToEndTests
         await page.GetByRole(AriaRole.Link, new() { Name = HostName }).ClickAsync();
         await ExpectDrawerTitleAsync(page, HostName);
         await Expect(page).ToHaveURLAsync(new Regex("/hosts/host_"));
-        await page.GetByRole(AriaRole.Button, new() { Name = "Add a name" }).ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Add a hostname" }).ClickAsync();
         await FillAsync(page, "name-1", ExtraName);
         await page.Locator(".pdk-sheet [data-action=review]").ClickAsync();
         await Expect(page.Locator(".pdk-sheet[data-top] [data-review=apply]")).ToBeEnabledAsync(new() { Timeout = 15_000 });
@@ -157,7 +157,7 @@ public sealed class ConfigPagesEndToEndTests
         await ChooseAsync(page, "certificate", "New certificate...");
         await ExpectDrawerTitleAsync(page, "New certificate");
         // The host's picker keeps what it had while the certificate is made.
-        await Expect(page.Locator(".pdk-sheet[data-level='0'] input[data-field='certificate']")).ToHaveValueAsync("Automatic: one that covers the names");
+        await Expect(page.Locator(".pdk-sheet[data-level='0'] input[data-field='certificate']")).ToHaveValueAsync("Automatic: one that covers the hostnames");
         await Expect(page.Locator(".pdk-sheet[data-top] [data-drawer=certificate-new]")).ToContainTextAsync($"For {HostName}");
         await PlaywrightBrowser.ScreenshotAsync(page, "drawer-stack-certificate", fullPage: false);
         await page.Locator(".pdk-sheet[data-top] [data-method=localcaleaf]").ClickAsync();
@@ -248,9 +248,8 @@ public sealed class ConfigPagesEndToEndTests
         await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
         await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
         await page.ClickAsync("button[type=submit]");
-        // The first-run wizard takes over after the Owner; these tests go straight to the dashboard.
-        await Expect(page).ToHaveURLAsync(new Regex("/welcome$"));
-        await page.GotoAsync("/");
+        // Setup lands on the overview.
+        await Expect(page).ToHaveURLAsync(new Regex("/$"));
         await ExpectHeadingAsync(page, "Overview");
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
     }

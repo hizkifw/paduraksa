@@ -10,8 +10,7 @@ using Paduraksa.Dashboard.Auth;
 namespace Paduraksa.Dashboard.Setup;
 
 /// <summary>
-/// How far the instance is set up, read from what exists (not from what the wizard remembers), so the wizard can be left and resumed and
-/// the overview's checklist says the same: the user's second factor, an active ACME account, a DNS provider, a certificate of the
+/// How far the instance is set up, read from what exists, for the overview's checklist: the user's second factor, an active ACME account, a DNS provider, a certificate of the
 /// person's own (not the admin's or the local CA root), a host, and the local CA root to trust. What the user may not read counts as
 /// unknown (null) and is not listed.
 /// </summary>
@@ -31,20 +30,19 @@ public sealed record SetupProgress(
 
     public bool? HasHost => Hosts is null ? null : Hosts > 0;
 
-    /// <summary>Whether <paramref name="step"/> is done; null when the user can't tell (or it has nothing to be done).</summary>
-    public bool? IsDone(WizardStep step) => step switch
+    /// <summary>Whether <paramref name="task"/> is done; null when the user can't tell.</summary>
+    public bool? IsDone(SetupTask task) => task switch
     {
-        WizardStep.TwoStep => TwoStep,
-        WizardStep.AcmeAccount => HasAccount,
-        WizardStep.DnsProvider => HasProvider,
-        WizardStep.Certificate => HasCertificate,
-        WizardStep.FirstHost => HasHost,
+        SetupTask.TwoStep => TwoStep,
+        SetupTask.AcmeAccount => HasAccount,
+        SetupTask.DnsProvider => HasProvider,
+        SetupTask.Certificate => HasCertificate,
+        SetupTask.FirstHost => HasHost,
         _ => null,
     };
 
-    /// <summary>The steps after the Owner that are not done yet (and that the user can see), in order.</summary>
-    public IReadOnlyList<WizardStep> Remaining =>
-        [.. SetupWizard.Steps.Select(s => s.Step).Where(s => s >= SetupWizard.First && s < WizardStep.Done && IsDone(s) == false)];
+    /// <summary>The tasks not done yet (and that the user can see), in order.</summary>
+    public IReadOnlyList<SetupTask> Remaining => [.. SetupTasks.All.Select(t => t.Task).Where(t => IsDone(t) == false)];
 
     /// <summary>Reads it as <paramref name="user"/> sees it.</summary>
     public static async Task<SetupProgress> LoadAsync(

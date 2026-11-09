@@ -80,11 +80,24 @@ public sealed class HostFormTests
         IReadOnlyDictionary<string, string> errors = InlineValidation.ForHost(current, model.ToConfig());
 
         Assert.Contains(errors.Keys, path => path.StartsWith("/names", StringComparison.Ordinal));
+
+        // A hostname another host has says which host, by its title, not by its place in the config.
+        Assert.Equal("'app.example.com' is already a hostname of app.example.com.", errors["/names/0"]);
         Assert.Contains(errors.Keys, path => path.StartsWith("/routes/0", StringComparison.Ordinal));
+
+        // A route whose upstream wasn't picked asks for one, in the form's words, without an ID.
+        Assert.Equal("Choose an upstream.", errors["/routes/0/upstreamId"]);
 
         model.Names[0].Value = "other.example.com";
         model.Routes[0].UpstreamId = App.Id;
         Assert.Empty(InlineValidation.ForHost(current, model.ToConfig()));
+
+        // One pointing at an upstream that was deleted since says so, by what it was, not by its ID.
+        model.Routes[0].UpstreamId = UpstreamId.New();
+        model.ProfileId = ProfileId.New();
+        errors = InlineValidation.ForHost(current, model.ToConfig());
+        Assert.Equal("That upstream doesn't exist any more. Choose another one.", errors["/routes/0/upstreamId"]);
+        Assert.Equal("That profile doesn't exist any more. Choose another one, or no profile.", errors["/profileId"]);
     }
 
     [Fact]

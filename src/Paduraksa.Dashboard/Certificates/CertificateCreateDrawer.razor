@@ -12,7 +12,7 @@
 @inject ISnackbar Snackbar
 @inject Microsoft.Extensions.Logging.ILogger<CertificateCreateDrawer> Logger
 
-<DrawerShell Title="@Title" Overline="@(Renew is null ? "New certificate" : "Certificate")" Subtitle="@Subtitle" Icon="@Icon" Name="certificate-new"
+<DrawerShell Title="@Title" Subtitle="@Subtitle" Icon="@Icon" Name="certificate-new"
              Footer="@FooterContent">
     <ChildContent>
         @if (_mayWrite is false)

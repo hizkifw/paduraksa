@@ -1,5 +1,5 @@
 @attribute [Authorize]
-@attribute [Route(SettingsRoutes.DnsProviders)]
+@attribute [Route(DashboardRoutes.DnsProviders)]
 @implements IDisposable
 @using Microsoft.Extensions.Logging
 @using Paduraksa.Application.Commands
@@ -20,7 +20,7 @@
 
 <PageTitle>DNS providers · Paduraksa</PageTitle>
 
-<PageHeader Title="DNS providers" Overline="Certificates" Area="SectionArea.Certificates" Lead="Credentials for DNS-01: wildcard certificates, and names the CA can't reach over HTTP.">
+<PageHeader Title="DNS providers" Overline="TLS" Lead="Credentials for DNS-01: wildcard certificates, and names the CA can't reach over HTTP.">
     <Actions>
         @if (_mayWrite)
         {
@@ -50,7 +50,7 @@ else if (_providers.Count == 0)
 {
     <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
         <EmptyState Icon="@Icons.Material.Outlined.Dns" Title="No DNS providers yet"
-                    Description="HTTP-01 needs none. Add Cloudflare or deSEC to get wildcard certificates, or certificates for names the CA can't reach.">
+                    Description="HTTP-01 needs none. Add Cloudflare or deSEC to get wildcard certificates, or certificates for hostnames the CA can't reach.">
             <Action>
                 @if (_mayWrite)
                 {

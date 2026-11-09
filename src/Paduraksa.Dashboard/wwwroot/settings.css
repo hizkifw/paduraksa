@@ -395,13 +395,6 @@
 
 /* ---------- Audit ---------- */
 
-.pdk-audit-top {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 300px;
-    align-items: stretch;
-    gap: 16px;
-}
-
 .pdk-audit-filters .pdk-card-head {
     align-items: center;
     margin-bottom: 10px;
@@ -419,35 +412,36 @@
     margin-top: 8px;
 }
 
-.pdk-chain.mud-paper {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    border-color: color-mix(in srgb, var(--pdk-tone) 40%, var(--mud-palette-lines-default));
-    background: linear-gradient(160deg, color-mix(in srgb, var(--pdk-tone) 10%, var(--mud-palette-surface)), var(--mud-palette-surface) 70%);
-}
-
-.pdk-chain-head {
-    display: flex;
+/* The hash chain: a quiet line in the header while it verifies; a banner only when it doesn't. */
+.pdk-chain-status {
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
-}
-
-.pdk-chain-verdict {
-    color: var(--pdk-tone);
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-}
-
-.pdk-chain-hash {
+    gap: 6px;
     color: var(--mud-palette-text-secondary);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
 }
 
-.pdk-chain-button.mud-button-root {
-    align-self: flex-start;
-    margin-top: auto;
+.pdk-chain-status .pdk-chain-ok {
+    color: var(--mud-palette-success);
+}
+
+.pdk-chain-status .pdk-chain-spinner {
+    width: 16px !important;
+    height: 16px !important;
+}
+
+.pdk-chain-alert .mud-alert-message {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 16px;
+    width: 100%;
+}
+
+.pdk-chain-alert-body {
+    display: grid;
+    gap: 2px;
 }
 
 .pdk-audit-new {
@@ -563,7 +557,7 @@
 /* ---------- Narrow screens ---------- */
 
 @media (max-width: 960px) {
-    .pdk-account-grid, .pdk-audit-top {
+    .pdk-account-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 }

@@ -11,13 +11,11 @@
 @using Paduraksa.Contracts.Issuance
 @using Paduraksa.Dashboard.Certificates
 @inject CertificateService CertificateInventory
-@inject CertificateOperations Operations
 @inject AcmeIssuanceService Issuance
 @inject ConfigService Config
 @inject DashboardCaller Caller
 @inject DrawerStack Drawers
 @inject NavigationManager Navigation
-@inject ISnackbar Snackbar
 @inject TimeProvider Time
 @inject IServiceProvider Services
 @inject ILogger<Certificates> Logger
@@ -26,24 +24,10 @@
 
 <PageTitle>Certificates · Paduraksa</PageTitle>
 
-<PageHeader Title="Certificates" Overline="Traffic" Area="SectionArea.Certificates" Lead="Everything this instance can serve, where it came from, who uses it and when it ends.">
+<PageHeader Title="Certificates" Overline="TLS" Lead="Everything this instance can serve, where it came from, who uses it and when it ends.">
     <Actions>
         @if (_mayWrite)
         {
-            <MudMenu Label="More" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ExpandMore" Class="pdk-add-menu"
-                     AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" AriaLabel="More ways to add a certificate">
-                <ChildContent>
-                    <MudMenuItem Icon="@Icons.Material.Outlined.Public" OnClick="() => Add(AddCertificateKind.Acme)" Class="pdk-add-acme">Request from an ACME CA</MudMenuItem>
-                    <MudMenuItem Icon="@Icons.Material.Outlined.Lan" OnClick="() => Add(AddCertificateKind.LocalCaLeaf)" Class="pdk-add-local">Issue from the local CA</MudMenuItem>
-                    <MudMenuItem Icon="@Icons.Material.Outlined.Draw" OnClick="() => Add(AddCertificateKind.SelfSigned)" Class="pdk-add-self">Create self-signed</MudMenuItem>
-                    <MudMenuItem Icon="@Icons.Material.Outlined.UploadFile" OnClick="() => Add(AddCertificateKind.Upload)" Class="pdk-add-upload">Upload PEM or PFX</MudMenuItem>
-                    @if (_view is { Root: null })
-                    {
-                        <MudDivider />
-                        <MudMenuItem Icon="@Icons.Material.Outlined.AccountTree" OnClick="CreateRootAsync">Create the local CA</MudMenuItem>
-                    }
-                </ChildContent>
-            </MudMenu>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" OnClick="() => Add(null)" Class="pdk-add-certificate"
                        data-action="add-certificate">Add certificate</MudButton>
         }
@@ -58,10 +42,14 @@
     </MudAlert>
 }
 
-<div class="pdk-cert-summary">
-    @foreach ((string tone, string label, int? count) in Counters)
+@* The states as filters: each says how many certificates are in it, and picking it shows only those (again: all of them). *@
+<div class="pdk-cert-summary" role="group" aria-label="Show only">
+    @foreach (CertificateFilter filter in Filters)
     {
-        <div class="pdk-cert-counter pdk-tone-@tone">
+        int? count = _view is null ? null : _view.Rows.Count(row => filter.Matches(row, _now));
+        bool on = _filter == filter.Key;
+        <button type="button" class="pdk-cert-counter pdk-tone-@filter.Tone @(on ? "pdk-cert-counter-on" : null)" aria-pressed="@(on ? "true" : "false")"
+                disabled="@(count is null || (count == 0 && !on))" @onclick="() => _filter = on ? null : filter.Key" data-filter="@filter.Key">
             <span class="pdk-status-dot" aria-hidden="true"></span>
             @if (count is null)
             {
@@ -71,8 +59,8 @@
             {
                 <span class="pdk-cert-counter-value">@count</span>
             }
-            <span class="pdk-cert-counter-label">@label</span>
-        </div>
+            <span class="pdk-cert-counter-label">@filter.Label</span>
+        </button>
     }
 </div>
 
@@ -92,7 +80,7 @@
     else if (_view.Rows.Count == 0)
     {
         <EmptyState Icon="@Icons.Material.Outlined.WorkspacePremium" Title="No certificates yet"
-                    Description="Request one from Let's Encrypt or another ACME CA, issue one from the local CA for LAN names, or upload your own.">
+                    Description="Request one from Let's Encrypt or another ACME CA, issue one from the local CA for LAN hostnames, or upload your own.">
             <Action>
                 @if (_mayWrite)
                 {
@@ -112,7 +100,7 @@
                 <span role="columnheader">Issuer</span>
                 <span role="columnheader">Used by</span>
             </div>
-            @foreach (CertificateRow row in _view.Rows)
+            @foreach (CertificateRow row in Shown)
             {
                 CertificateSummary s = row.Summary;
                 <div class="pdk-dt-row pdk-dt-link @(_drawer?.Key == row.Id.ToString() ? "pdk-dt-selected" : null)" role="row" @onclick="() => Open(row)"
@@ -177,11 +165,6 @@
     }
 </MudPaper>
 
-<div class="pdk-home-grid pdk-cert-managed">
-    <AdminCertificateCard Admin="_view?.Admin" Now="_now" OnOpen="Open" />
-    <TrustRootCard Root="_view?.Root?.Summary" />
-</div>
-
 @code {
     private CertificateInventoryView? _view;
     private bool _mayWrite;
@@ -195,18 +178,27 @@
     [Parameter]
     public string? Key { get; set; }
 
-    private IEnumerable<(string Tone, string Label, int? Count)> Counters
+    private string? _filter;
+
+    private sealed record CertificateFilter(string Key, string Tone, string Label, Func<CertificateSummary, DateTimeOffset, bool> Test)
     {
-        get
-        {
-            IReadOnlyList<CertificateRow>? rows = _view?.Rows;
-            int? Count(Func<CertificateRow, bool> filter) => rows?.Count(filter);
-            yield return ("success", "active", Count(r => r.Summary.Status == CertificateStatus.Active && _now >= r.Summary.NotBefore && _now <= r.Summary.NotAfter));
-            yield return ("warning", $"expire within {CertificateDisplay.WarningDays} days", Count(r => r.Summary.Status == CertificateStatus.Active && r.Summary.NotAfter > _now && r.Summary.NotAfter - _now <= TimeSpan.FromDays(CertificateDisplay.WarningDays)));
-            yield return ("error", "failed or expired", Count(r => r.Summary.Status == CertificateStatus.Failed || (r.Summary.Status == CertificateStatus.Active && _now > r.Summary.NotAfter)));
-            yield return ("info", "pending", Count(r => r.Summary.Status == CertificateStatus.Pending));
-        }
+        public bool Matches(CertificateRow row, DateTimeOffset now) => Test(row.Summary, now);
     }
+
+    private static readonly CertificateFilter[] Filters =
+    [
+        new("active", "success", "active", (s, now) => s.Status == CertificateStatus.Active && now >= s.NotBefore && now <= s.NotAfter),
+        new("expiring", "warning", $"expire within {CertificateDisplay.WarningDays} days",
+            (s, now) => s.Status == CertificateStatus.Active && s.NotAfter > now && s.NotAfter - now <= TimeSpan.FromDays(CertificateDisplay.WarningDays)),
+        new("failed", "error", "failed or expired", (s, now) => s.Status == CertificateStatus.Failed || (s.Status == CertificateStatus.Active && now > s.NotAfter)),
+        new("pending", "info", "pending", (s, _) => s.Status == CertificateStatus.Pending),
+    ];
+
+    /// <summary>The rows the picked filter lets through; every row without one.</summary>
+    private IEnumerable<CertificateRow> Shown =>
+        _filter is null || Filters.FirstOrDefault(f => f.Key == _filter) is not { } filter
+            ? _view!.Rows
+            : _view!.Rows.Where(row => filter.Matches(row, _now));
 
     protected override async Task OnInitializedAsync()
     {
@@ -275,7 +267,7 @@
     private DrawerLevel OpenDrawer(string key) =>
         CertificateId.TryParse(key, out CertificateId id)
             ? Drawers.Push<CertificateDrawer>(new Dictionary<string, object?> { [nameof(CertificateDrawer.Id)] = id }, DrawerWidth.Medium)
-            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Certificate not found", "There is no such certificate", "Certificates", "Back to the certificates"), DrawerWidth.Narrow);
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Certificate not found", "There is no such certificate", "Back to the certificates"), DrawerWidth.Narrow);
 
     private void Open(CertificateRow row) => Navigation.NavigateTo(DashboardRoutes.Certificate(row.Id));
 
@@ -292,28 +284,5 @@
         {
             Navigation.NavigateTo(DashboardRoutes.Certificate(created.Id));
         }
-    }
-
-    private async Task CreateRootAsync()
-    {
-        CommandOrigin? origin = await Caller.OriginAsync();
-        if (origin is null)
-        {
-            return;
-        }
-
-        await Logger.TryAsync(Snackbar, "Couldn't create the local CA.", async () =>
-        {
-            CertificateOperationResult result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin);
-            if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
-            {
-                Snackbar.Add("The local CA is ready. Install its root to trust what it issues.", Severity.Success);
-            }
-            else
-            {
-                Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result)), Severity.Error);
-            }
-        });
-        await LoadAsync();
     }
 }

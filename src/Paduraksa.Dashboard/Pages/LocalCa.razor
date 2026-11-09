@@ -1,0 +1,125 @@
+@attribute [Authorize]
+@attribute [Route(DashboardRoutes.LocalCa)]
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@using Paduraksa.Application.Certificates
+@using Paduraksa.Application.Commands
+@using Paduraksa.Application.Issuance
+@using Paduraksa.Contracts.Certificates
+@using Paduraksa.Dashboard.Certificates
+@inject CertificateService CertificateInventory
+@inject CertificateOperations Operations
+@inject AcmeIssuanceService Issuance
+@inject ConfigService Config
+@inject DashboardCaller Caller
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject TimeProvider Time
+@inject IServiceProvider Services
+@inject ILogger<LocalCa> Logger
+@* The local CA (PLAN §9, §12): its root, to trust once on every device, and the admin certificate it issues and renews. The certificates it
+   issues for hosts are in the certificates list with the rest. *@
+
+<PageTitle>Local CA · Paduraksa</PageTitle>
+
+<PageHeader Title="Local CA" Overline="TLS" Lead="A certificate authority of this instance's own, for LAN names no public CA will sign. Trust its root once on each device.">
+    <Actions>
+        @if (_mayWrite && _view is { Root: null })
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.AccountTree" OnClick="CreateRootAsync"
+                       data-action="create-local-ca">Create the local CA</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_failed)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-6">
+        The local CA couldn't be read. The details are in the server log.
+        <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+    </MudAlert>
+}
+
+<div class="pdk-home-grid pdk-cert-managed">
+    <TrustRootCard Root="_view?.Root?.Summary" ExpandHowTo="true" />
+    <AdminCertificateCard Admin="_view?.Admin" Now="_now" OnOpen="row => Navigation.NavigateTo(DashboardRoutes.Certificate(row.Id))" />
+</div>
+
+@code {
+    private CertificateInventoryView? _view;
+    private bool _mayWrite;
+    private bool _mayReadConfig;
+    private bool _failed;
+    private DateTimeOffset _now;
+    private LiveUpdates? _live;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _now = Time.GetUtcNow();
+        DashboardPrincipal? user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.CertificatesWrite);
+        _mayReadConfig = user.Has(Permission.ConfigRead);
+        await LoadAsync();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive && _live is null)
+        {
+            _live = LiveUpdates.Start(Config, InvokeAsync, RefreshAsync, followConfig: false, "certificate.");
+        }
+    }
+
+    public void Dispose() => _live?.Dispose();
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        try
+        {
+            _now = Time.GetUtcNow();
+            _view = await CertificateInventoryView.LoadAsync(
+                CertificateInventory, Issuance, _mayReadConfig ? Config : null, Services.GetService(typeof(IBuiltInCertificates)) as IBuiltInCertificates, _now);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Logger.LogWarning(ex, "Couldn't load the local CA.");
+            _failed = true;
+            _view ??= new CertificateInventoryView([], null, null, false);
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        await LoadAsync();
+        StateHasChanged();
+    }
+
+    private async Task CreateRootAsync()
+    {
+        CommandOrigin? origin = await Caller.OriginAsync();
+        if (origin is null)
+        {
+            return;
+        }
+
+        await Logger.TryAsync(Snackbar, "Couldn't create the local CA.", async () =>
+        {
+            CertificateOperationResult result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin);
+            if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
+            {
+                Snackbar.Add("The local CA is ready. Install its root to trust what it issues.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add(string.Join(" ", CertificateMessages.Errors(result)), Severity.Error);
+            }
+        });
+        await LoadAsync();
+    }
+}

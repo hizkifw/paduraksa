@@ -1,19 +1,24 @@
-@* The fields of one layer of host settings (PLAN §5.3), shared by the global defaults and the profiles: each can be left to inherit, and
-   says what it would inherit. Paths are relative to the layer (/forceHttps, /tls, /ipAllowList), under PathPrefix. *@
+@* The fields of one layer of host settings (PLAN §5.3), shared by the global defaults, the profiles and the hosts: each can be left to
+   inherit, and says what it would inherit. Paths are relative to the layer (/forceHttps, /tls, /ipAllowList), under PathPrefix. Rows of
+   the same shape can go first (a host's profile, which decides what the rest inherit). *@
 <div class="pdk-setting-list">
-    <div class="pdk-setting">
-        <div class="pdk-setting-text">
-            <span class="pdk-setting-title">HTTPS redirect</span>
-            <span class="pdk-setting-help">Send plain-HTTP requests to HTTPS before anything else. A host without a certificate can't redirect.</span>
+    @ChildContent
+    @if (ShowForceHttps)
+    {
+        <div class="pdk-setting">
+            <div class="pdk-setting-text">
+                <span class="pdk-setting-title">HTTPS redirect</span>
+                <span class="pdk-setting-help">Send plain-HTTP requests to HTTPS before anything else. A host without a certificate can't redirect.</span>
+            </div>
+            <MudSelect T="bool?" Value="Model.ForceHttps" ValueChanged="@(value => SetAsync(() => Model.ForceHttps = value, "/forceHttps"))" Label="HTTPS redirect"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Disabled="ForceHttpsDisabled" Class="pdk-setting-control"
+                       Error="@(E("/forceHttps") is not null)" ErrorText="@E("/forceHttps")" data-field="force-https">
+                <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.ForceHttps == true ? "redirect" : "don't redirect")</MudSelectItem>
+                <MudSelectItem T="bool?" Value="true">Redirect to HTTPS</MudSelectItem>
+                <MudSelectItem T="bool?" Value="false">Don't redirect</MudSelectItem>
+            </MudSelect>
         </div>
-        <MudSelect T="bool?" Value="Model.ForceHttps" ValueChanged="@(value => SetAsync(() => Model.ForceHttps = value, "/forceHttps"))" Label="HTTPS redirect"
-                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
-                   Error="@(E("/forceHttps") is not null)" ErrorText="@E("/forceHttps")" data-field="force-https">
-            <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.ForceHttps == true ? "redirect" : "don't redirect")</MudSelectItem>
-            <MudSelectItem T="bool?" Value="true">Redirect to HTTPS</MudSelectItem>
-            <MudSelectItem T="bool?" Value="false">Don't redirect</MudSelectItem>
-        </MudSelect>
-    </div>
+    }
 
     <div class="pdk-setting">
         <div class="pdk-setting-text">
@@ -114,6 +119,18 @@
 
     [Parameter]
     public bool ReadOnly { get; set; }
+
+    /// <summary>False leaves out the HTTPS redirect (the admin host, which is always HTTPS).</summary>
+    [Parameter]
+    public bool ShowForceHttps { get; set; } = true;
+
+    /// <summary>The HTTPS redirect can't be changed (a host without a certificate).</summary>
+    [Parameter]
+    public bool ForceHttpsDisabled { get; set; }
+
+    /// <summary>Rows before the settings, in the same layout.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
 
     /// <summary>A field changed; its path (with the prefix).</summary>
     [Parameter]

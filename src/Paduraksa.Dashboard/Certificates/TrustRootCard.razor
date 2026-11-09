@@ -34,7 +34,7 @@
                        UserAttributes="@Download("paduraksa-root.pem")" Class="pdk-root-pem">PEM</MudButton>
         </div>
         <MudExpansionPanels Elevation="0" Outlined="false" Class="pdk-trust-howto">
-            <MudExpansionPanel Text="How to install it">
+            <MudExpansionPanel Text="How to install it" Expanded="ExpandHowTo">
                 <ul class="pdk-howto">
                     <li><strong>Windows:</strong> open the .crt, Install Certificate, Local Machine, "Trusted Root Certification Authorities".</li>
                     <li><strong>macOS:</strong> open the .crt in Keychain Access (System), then set it to "Always Trust".</li>
@@ -49,6 +49,10 @@
 </MudPaper>
 
 @code {
+    /// <summary>Show the install steps open (on the Local CA page, where they are what the person came for).</summary>
+    [Parameter]
+    public bool ExpandHowTo { get; set; }
+
     /// <summary>The root as the inventory has it; null when there is none.</summary>
     [Parameter]
     public CertificateSummary? Root { get; set; }

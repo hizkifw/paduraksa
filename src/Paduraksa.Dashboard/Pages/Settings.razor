@@ -1,70 +1,18 @@
 @attribute [Authorize]
 @attribute [Route(DashboardRoutes.Settings)]
-@* Settings (PLAN §12, page 10): every page that sets the instance up, grouped by what it is about. Profiles, ACME accounts and DNS
-   providers live with the hosts and the certificates (their tabs); they are listed here too, so nothing has to be looked for. *@
-
-<PageTitle>Settings · Paduraksa</PageTitle>
-
-<PageHeader Title="Settings" Overline="System" Area="SectionArea.Settings"
-            Lead="The defaults every host starts from, how certificates are ordered, and who may use this instance." />
-
-@foreach ((string group, string lead, SettingsTile[] tiles) in Groups)
-{
-    SettingsTile[] shown = [.. tiles.Where(tile => tile.Requires is not { } permission || _user?.Has(permission) == true)];
-    @if (shown.Length == 0)
-    {
-        continue;
-    }
-
-    <section class="pdk-settings-group" data-group="@group">
-        <div class="pdk-settings-group-head">
-            <h2 class="pdk-settings-group-title">@group</h2>
-            <span class="pdk-muted">@lead</span>
-        </div>
-        <div class="pdk-settings-grid">
-            @foreach (SettingsTile tile in shown)
-            {
-                <a href="@tile.Href" class="pdk-settings-link">
-                    <span class="pdk-stat-icon pdk-tone-primary"><MudIcon Icon="@tile.Icon" Size="Size.Small" /></span>
-                    <span class="pdk-settings-text">
-                        <span class="pdk-settings-title">@tile.Title</span>
-                        <span class="pdk-settings-desc">@tile.Description</span>
-                    </span>
-                    <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Size="Size.Small" Class="pdk-settings-go" />
-                </a>
-            }
-        </div>
-    </section>
-}
+@inject NavigationManager Navigation
+@* /settings has no page of its own: every settings page is in the side navigation. The address goes to the first of them the user may
+   see, and to their own account when there is none. *@
 
 @code {
-    private System.Security.Claims.ClaimsPrincipal? _user;
-
-    private sealed record SettingsTile(string Title, string Description, string Icon, string Href, Permission? Requires);
-
-    private static readonly (string Group, string Lead, SettingsTile[] Tiles)[] Groups =
-    [
-        ("Hosts", "What hosts start from and pick.",
-        [
-            new("Global defaults", "What every host starts from: HTTPS, TLS, unknown names, the default certificate and trusted proxies.", Icons.Material.Outlined.Tune, SettingsRoutes.Defaults, Permission.ConfigRead),
-            new("Profiles", "Named sets of host settings, such as \"LAN only\", that hosts pick instead of repeating them.", Icons.Material.Outlined.Layers, SettingsRoutes.Profiles, Permission.ConfigRead),
-        ]),
-        ("Certificates", "How certificates are ordered from a CA.",
-        [
-            new("ACME accounts", "Your accounts with Let's Encrypt and other ACME CAs, which certificates are ordered with.", Icons.Material.Outlined.Badge, SettingsRoutes.AcmeAccounts, Permission.ProvidersRead),
-            new("DNS providers", "Cloudflare and deSEC credentials for DNS-01, which wildcard certificates need. Test them here.", Icons.Material.Outlined.Dns, SettingsRoutes.DnsProviders, Permission.ProvidersRead),
-        ]),
-        ("People and access", "Who may sign in, and with what.",
-        [
-            new("Users and roles", "Who may sign in, and what each of them may do.", Icons.Material.Outlined.Group, SettingsRoutes.Users, Permission.UsersRead),
-            new("API tokens", "Bearer tokens for scripts and tools, never with more than their owner may do.", Icons.Material.Outlined.Key, SettingsRoutes.Tokens, Permission.TokensOwn),
-            new("My account", "Your password, two-step verification and sessions.", Icons.Material.Outlined.ManageAccounts, DashboardRoutes.Account, null),
-        ]),
-    ];
-
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationState { get; set; }
 
-    protected override async Task OnParametersSetAsync() =>
-        _user = AuthenticationState is null ? null : (await AuthenticationState).User;
+    protected override async Task OnInitializedAsync()
+    {
+        DashboardPrincipal? user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
+        NavigationEntry? first = DashboardNavigation.VisibleTo(permission => user?.Has(permission) == true)
+            .FirstOrDefault(entry => entry.Group == DashboardNavigation.SettingsGroup);
+        Navigation.NavigateTo(first?.Href ?? DashboardRoutes.Account, replace: true);
+    }
 }

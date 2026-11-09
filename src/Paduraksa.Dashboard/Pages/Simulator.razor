@@ -95,7 +95,7 @@ else
                                     <MudSelectItem T="SimulationHttpVersion?" Value="SimulationHttpVersion.Http2">HTTP/2</MudSelectItem>
                                     <MudSelectItem T="SimulationHttpVersion?" Value="SimulationHttpVersion.Http3">HTTP/3</MudSelectItem>
                                 </MudSelect>
-                                <MudTextField T="string" @bind-Value="_form.ServerName" Label="Name in the handshake (SNI)" Placeholder="The URL's host" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                <MudTextField T="string" @bind-Value="_form.ServerName" Label="Hostname in the handshake (SNI)" Placeholder="The URL's host" Variant="Variant.Outlined" Margin="Margin.Dense"
                                               Class="pdk-mono-input pdk-span-2" Disabled="!_form.IsHttps" Error="@(ErrorFor("tls") is not null)" ErrorText="@ErrorFor("tls")" />
                             </div>
                         </ChildContent>
@@ -284,7 +284,7 @@ else
     private string? ErrorFor(string field) =>
         _result is { Status: SimulationStatus.BadRequest } result
             ? result.Errors.FirstOrDefault(e => e.Code.EndsWith("." + field, StringComparison.Ordinal) || e.Path.TrimStart('/').StartsWith(field, StringComparison.Ordinal)) is { } error
-                ? ReviewNotices.Sentence(error.Message)
+                ? ReviewNotices.Text(error)
                 : null
             : null;
 

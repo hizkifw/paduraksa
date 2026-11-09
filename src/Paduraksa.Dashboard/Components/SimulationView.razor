@@ -9,7 +9,7 @@
             <ul class="pdk-plain-list">
                 @foreach (ConfigError error in Result.Errors.Concat(Result.RelatedErrors))
                 {
-                    <li>@ReviewNotices.Sentence(error.Message)</li>
+                    <li>@ReviewNotices.Text(error)</li>
                 }
             </ul>
         }

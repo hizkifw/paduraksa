@@ -194,7 +194,7 @@ public sealed class DrawerStackTests
         Task editing = drawers.Find("[data-staged=app] [data-action=edit-staged]").ClickAsync(new());
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=upstream] input[data-field=name]").Count == 1);
         Assert.Equal("app", drawers.Find("[data-drawer=upstream] input[data-field=name]").GetAttribute("value"));
-        Assert.Equal("New upstream, not applied yet", drawers.Find("[data-drawer=upstream] .pdk-drawer-overline").TextContent);
+        Assert.StartsWith("Not applied yet", drawers.Find("[data-drawer=upstream] .pdk-drawer-subtitle").TextContent, StringComparison.Ordinal);
         await TypeAsync(drawers, "[data-drawer=upstream] input[data-field=name]", "app-backend");
         await drawers.Find("form[data-drawer=upstream]").SubmitAsync();
         await editing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);

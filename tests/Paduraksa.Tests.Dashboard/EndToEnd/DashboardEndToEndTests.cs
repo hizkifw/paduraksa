@@ -55,9 +55,8 @@ public sealed partial class DashboardEndToEndTests
         await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
         await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
         await page.ClickAsync("button[type=submit]");
-        // The rest of the first-run wizard follows (SetupWizardEndToEndTests walks it); this test goes on from the overview.
-        await Expect(page).ToHaveURLAsync(EndsWith("/welcome"));
-        await page.GotoAsync("/");
+        // Setup lands on the overview (FirstRunEndToEndTests follows its checklist).
+        await Expect(page).ToHaveURLAsync(EndsWith("/"));
         await ExpectOverviewAsync(page);
 
         // A second factor for the Owner, through the API with the browser's own session.

@@ -41,8 +41,8 @@
 
     <MudTextField T="string" @bind-Value="_password" Label="Password" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
                   HelperText="For a PFX or an encrypted key. Cleared as soon as you upload." autocomplete="off" Disabled="_busy" Class="pdk-upload-password" />
-    <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
-                  HelperText="Optional. Shown in lists instead of the first name." Disabled="_busy" Class="pdk-upload-label" />
+    <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
+                  HelperText="Optional. Shown in lists instead of the first hostname." Disabled="_busy" Class="pdk-upload-label" />
 
     @if (_errors.Count > 0)
     {

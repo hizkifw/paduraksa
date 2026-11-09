@@ -20,7 +20,19 @@ public static class DashboardRoutes
 
     public const string Upstreams = "/upstreams";
 
+    /// <summary>The profiles: named sets of host settings.</summary>
+    public const string Profiles = "/profiles";
+
     public const string Certificates = "/certificates";
+
+    /// <summary>The local CA: its root to trust, the admin certificate it issues.</summary>
+    public const string LocalCa = Certificates + "/local-ca";
+
+    /// <summary>The ACME accounts certificates are ordered with.</summary>
+    public const string AcmeAccounts = Certificates + "/acme";
+
+    /// <summary>The DNS providers DNS-01 challenges are answered with.</summary>
+    public const string DnsProviders = Certificates + "/dns";
 
     public const string History = "/history";
 
@@ -42,6 +54,9 @@ public static class DashboardRoutes
     /// <summary>The upstreams with the drawer for a new upstream open.</summary>
     public const string NewUpstream = Upstreams + "/" + NewSegment;
 
+    /// <summary>The profiles with the drawer for a new profile open.</summary>
+    public const string NewProfile = Profiles + "/" + NewSegment;
+
     /// <summary>The page shown for an address the dashboard has no page at.</summary>
     public const string NotFound = "/not-found";
 
@@ -50,6 +65,9 @@ public static class DashboardRoutes
 
     /// <summary>An upstream: <c>/upstreams/ups_...</c>, the upstreams with its drawer open.</summary>
     public static string Upstream(UpstreamId id) => $"{Upstreams}/{id}";
+
+    /// <summary>A profile: <c>/profiles/prof_...</c>, the profiles with its drawer open. The page parses the segment back into a <see cref="ProfileId"/>.</summary>
+    public static string Profile(ProfileId id) => $"{Profiles}/{id}";
 
     /// <summary>A certificate: <c>/certificates/crt_...</c>, the certificates with its details open.</summary>
     public static string Certificate(CertificateId id) => $"{Certificates}/{id}";

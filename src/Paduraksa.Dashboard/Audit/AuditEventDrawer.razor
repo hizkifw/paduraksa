@@ -3,7 +3,7 @@
 @* One audit event in a drawer (PLAN §5.2, §12): what happened in words, its outcome and who, then the time, channel, client, target (a
    link where it has a page), revision and event ID, and the details pretty-printed (never a secret). *@
 
-<DrawerShell Title="@AuditText.Describe(Event.Action)" Overline="Audit event" Subtitle="@RevisionText.Exact(Event.Timestamp)"
+<DrawerShell Title="@AuditText.Describe(Event.Action)" Subtitle="@RevisionText.Exact(Event.Timestamp)"
              Icon="@Icons.Material.Outlined.FactCheck" IconTone="AuditText.ToneOf(Event.Outcome)" Name="audit-event">
     <ChildContent>
         <div class="pdk-audit-event" data-detail="@Event.Id">

@@ -3,12 +3,12 @@
 @inject ILogger<LocalCertificateForm> Logger
 
 <div class="pdk-form-stack">
-    <MudTextField T="string" @bind-Value="_names" Label="Names" Variant="Variant.Outlined" Lines="3" Sizing="InputSizing.Auto" MaxLines="8"
+    <MudTextField T="string" @bind-Value="_names" Label="Hostnames" Variant="Variant.Outlined" Lines="3" Sizing="InputSizing.Auto" MaxLines="8"
                   Placeholder="nas.home.arpa&#10;*.lab.home.arpa&#10;192.168.1.20" Error="_namesError is not null" ErrorText="@_namesError"
-                  HelperText="One per line (or comma-separated): DNS names, *. wildcards and IP addresses." Disabled="_busy" Class="pdk-local-names"
+                  HelperText="One per line (or comma-separated): hostnames, *. wildcards and IP addresses." Disabled="_busy" Class="pdk-local-names"
                   Immediate="true" OnBlur="CheckNames" />
     <div class="pdk-field-pair">
-        <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
+        <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
                       HelperText="Optional" Disabled="_busy" />
         <MudNumericField T="int" @bind-Value="_days" Label="Valid for (days)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Max="@MaxDays"
                          HelperText="@($"Default {DefaultDays}; at most {MaxDays}")" Disabled="_busy" />

@@ -57,13 +57,14 @@ public sealed class OverviewAndNavigationTests
     }
 
     [Theory]
-    [InlineData("/settings/profiles/prof_0J9zb3xQk1Lr8m2V7aYc4D", "Hosts")]
+    [InlineData("/profiles/prof_0J9zb3xQk1Lr8m2V7aYc4D", "Profiles")]
     [InlineData("/hosts/new", "Hosts")]
-    [InlineData("/settings/acme-accounts", "Certificates")]
-    [InlineData("/settings/users", "Settings")]
-    [InlineData("/account", "Settings")]
+    [InlineData("/certificates/crt_02x5L6n2fuxI8jmEuqQF0v", "Certificates")]
+    [InlineData("/certificates/acme", "ACME accounts")]
+    [InlineData("/certificates/local-ca", "Local CA")]
+    [InlineData("/settings/users", "Users and roles")]
     [InlineData("/", "Overview")]
-    public void TheNavigation_MarksTheAreaAPageBelongsTo(string path, string area)
+    public void TheNavigation_MarksThePageThatIsOpen(string path, string entry)
     {
         using DashboardTestContext context = new();
         context.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
@@ -71,23 +72,32 @@ public sealed class OverviewAndNavigationTests
         IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(Role.Owner))));
 
-        Assert.Equal(area, Assert.Single(menu.FindAll(".pdk-nav-active .pdk-nav-label")).TextContent);
+        Assert.Equal(entry, Assert.Single(menu.FindAll(".pdk-nav-active .pdk-nav-label")).TextContent);
+    }
+
+    [Fact]
+    public void TheNavigation_MarksNothingForTheAccount_WhichIsInTheAccountMenu()
+    {
+        using DashboardTestContext context = new();
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo(DashboardRoutes.Account);
+
+        IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
+            parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(Role.Owner))));
+
+        Assert.Empty(menu.FindAll(".pdk-nav-active"));
     }
 
     [Theory]
-    [InlineData(SectionArea.Certificates, "/settings/dns-providers", Role.Owner, new[] { "Certificates", "ACME accounts", "DNS providers" }, "DNS providers")]
-    [InlineData(SectionArea.Traffic, "/settings/profiles", Role.Viewer, new[] { "Hosts", "Upstreams", "Profiles" }, "Profiles")]
-    [InlineData(SectionArea.Settings, "/settings", Role.Viewer, new[] { "All settings", "Global defaults", "API tokens", "My account" }, "All settings")]
-    public void AnAreasTabs_OfferWhatTheRoleMaySee_AndMarkTheOpenPage(SectionArea area, string path, Role role, string[] tabs, string active)
+    [InlineData(Role.Owner, new[] { "Global defaults", "Users and roles", "API tokens" })]
+    [InlineData(Role.Viewer, new[] { "Global defaults", "API tokens" })]
+    public void TheSettingsGroup_ListsThePagesTheRoleMaySee(Role role, string[] entries)
     {
         using DashboardTestContext context = new();
-        context.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
 
-        IRenderedComponent<SectionTabs> rendered = context.Render<SectionTabs>(parameters => parameters
-            .AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(role)))
-            .Add(t => t.Area, area));
+        IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
+            parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(role))));
 
-        Assert.Equal(tabs, rendered.FindAll(".pdk-tab").Select(t => t.TextContent));
-        Assert.Equal(active, rendered.Find(".pdk-tab-active").TextContent);
+        string[] all = ["Global defaults", "Users and roles", "API tokens"];
+        Assert.Equal(entries, menu.FindAll(".pdk-nav-label").Select(label => label.TextContent).Where(all.Contains));
     }
 }

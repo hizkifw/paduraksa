@@ -14,7 +14,7 @@
 @inject IServiceProvider Services
 @inject Microsoft.Extensions.Logging.ILogger<CertificateDrawer> Logger
 
-<DrawerShell Title="@(_row?.Name ?? (_missing ? "Certificate not found" : "Certificate"))" Overline="Certificate"
+<DrawerShell Title="@(_row?.Name ?? (_missing ? "Certificate not found" : "Certificate"))"
              Subtitle="@(_row is { } row ? CertificateDisplay.NamesLine(row.Summary) : null)"
              Icon="@(_row is { } r ? CertificateDisplay.Icon(r.Origin) : Icons.Material.Outlined.WorkspacePremium)"
              IconTone="@(_row is { } t ? ToneOf(CertificateDisplay.StatusTone(t.Summary.Status, t.Summary.NotBefore, t.Summary.NotAfter, _now)) : Tone.Primary)"

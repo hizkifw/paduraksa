@@ -11,72 +11,41 @@ namespace Paduraksa.Dashboard.Layout;
 /// <param name="Group">The section it is listed under (null: above the sections).</param>
 /// <param name="Requires">The permission the page needs to show anything; the entry is hidden without it. Null: every signed-in user.</param>
 /// <param name="Available">False while the page is a placeholder (it is listed, with a "soon" badge).</param>
-/// <param name="Also">Other addresses that belong to the entry's area (the profiles to the hosts, ACME accounts to the certificates).</param>
+/// <param name="Also">Other addresses that belong to the entry (none so far: every page has its own entry).</param>
 public sealed record NavigationEntry(string Title, string Href, string Icon, string? Group, Permission? Requires, bool Available, params string[] Also);
 
-/// <summary>A page's tab within its area (<c>SectionTabs</c>): the pages that belong together, one row of tabs under the header.</summary>
-/// <param name="Title">The tab's label.</param>
-/// <param name="Href">The page.</param>
-/// <param name="Requires">The permission the page needs; the tab is hidden without it.</param>
-public sealed record SectionTab(string Title, string Href, Permission? Requires);
-
-/// <summary>The areas whose pages share a row of tabs.</summary>
-public enum SectionArea
-{
-    /// <summary>Hosts, upstreams and the profiles hosts pick.</summary>
-    Traffic,
-
-    /// <summary>Certificates and what ordering them needs: ACME accounts and DNS providers.</summary>
-    Certificates,
-
-    /// <summary>The instance's settings: global defaults, users and roles, API tokens.</summary>
-    Settings,
-}
-
 /// <summary>
-/// The side navigation and the areas' tabs (PLAN §12). The navigation lists the areas; each area's pages share a row of tabs, so
-/// everything a page relates to is one click away (the profiles from the hosts, the ACME accounts and DNS providers from the
-/// certificates). A page's area is the entry with the longest address that its own address starts with.
+/// The side navigation (PLAN §12): the one way between pages. Every page has its own entry, grouped by what it is about, and a page's
+/// address starts with its group's (/certificates/acme under TLS, /settings/users under Settings), so the address, the marked entry and
+/// the page's overline always agree. A page's entry is the one with the longest address that its own address starts with.
 /// </summary>
 public static class DashboardNavigation
 {
+    public const string TrafficGroup = "Traffic";
+
+    public const string TlsGroup = "TLS";
+
+    public const string InsightGroup = "Insight";
+
+    public const string SettingsGroup = "Settings";
+
     public static IReadOnlyList<NavigationEntry> Entries { get; } =
     [
         new("Overview", DashboardRoutes.Home, Icons.Material.Outlined.SpaceDashboard, null, null, true),
-        new("Hosts", DashboardRoutes.Hosts, Icons.Material.Outlined.Language, "Traffic", Permission.ConfigRead, true, SettingsRoutes.Profiles),
-        new("Upstreams", DashboardRoutes.Upstreams, Icons.Material.Outlined.Hub, "Traffic", Permission.ConfigRead, true),
-        new("Certificates", DashboardRoutes.Certificates, Icons.Material.Outlined.WorkspacePremium, "Traffic", Permission.CertificatesRead, true,
-            SettingsRoutes.AcmeAccounts, SettingsRoutes.DnsProviders),
-        new("Simulator", DashboardRoutes.Simulator, Icons.Material.Outlined.Science, "Insight", Permission.Simulate, true),
-        new("History", DashboardRoutes.History, Icons.Material.Outlined.History, "Insight", Permission.ConfigRead, true),
-        new("Audit", DashboardRoutes.Audit, Icons.Material.Outlined.FactCheck, "Insight", Permission.AuditRead, true),
-        new("Settings", DashboardRoutes.Settings, Icons.Material.Outlined.Settings, "System", null, true, DashboardRoutes.Account),
+        new("Hosts", DashboardRoutes.Hosts, Icons.Material.Outlined.Language, TrafficGroup, Permission.ConfigRead, true),
+        new("Upstreams", DashboardRoutes.Upstreams, Icons.Material.Outlined.Hub, TrafficGroup, Permission.ConfigRead, true),
+        new("Profiles", DashboardRoutes.Profiles, Icons.Material.Outlined.Layers, TrafficGroup, Permission.ConfigRead, true),
+        new("Certificates", DashboardRoutes.Certificates, Icons.Material.Outlined.WorkspacePremium, TlsGroup, Permission.CertificatesRead, true),
+        new("Local CA", DashboardRoutes.LocalCa, Icons.Material.Outlined.AccountTree, TlsGroup, Permission.CertificatesRead, true),
+        new("ACME accounts", DashboardRoutes.AcmeAccounts, Icons.Material.Outlined.Badge, TlsGroup, Permission.ProvidersRead, true),
+        new("DNS providers", DashboardRoutes.DnsProviders, Icons.Material.Outlined.Dns, TlsGroup, Permission.ProvidersRead, true),
+        new("Simulator", DashboardRoutes.Simulator, Icons.Material.Outlined.Science, InsightGroup, Permission.Simulate, true),
+        new("History", DashboardRoutes.History, Icons.Material.Outlined.History, InsightGroup, Permission.ConfigRead, true),
+        new("Audit", DashboardRoutes.Audit, Icons.Material.Outlined.FactCheck, InsightGroup, Permission.AuditRead, true),
+        new("Global defaults", SettingsRoutes.Defaults, Icons.Material.Outlined.Tune, SettingsGroup, Permission.ConfigRead, true),
+        new("Users and roles", SettingsRoutes.Users, Icons.Material.Outlined.Group, SettingsGroup, Permission.UsersRead, true),
+        new("API tokens", SettingsRoutes.Tokens, Icons.Material.Outlined.Key, SettingsGroup, Permission.TokensOwn, true),
     ];
-
-    /// <summary>The tabs of each area.</summary>
-    public static IReadOnlyList<SectionTab> TabsOf(SectionArea area) => area switch
-    {
-        SectionArea.Traffic =>
-        [
-            new("Hosts", DashboardRoutes.Hosts, Permission.ConfigRead),
-            new("Upstreams", DashboardRoutes.Upstreams, Permission.ConfigRead),
-            new("Profiles", SettingsRoutes.Profiles, Permission.ConfigRead),
-        ],
-        SectionArea.Certificates =>
-        [
-            new("Certificates", DashboardRoutes.Certificates, Permission.CertificatesRead),
-            new("ACME accounts", SettingsRoutes.AcmeAccounts, Permission.ProvidersRead),
-            new("DNS providers", SettingsRoutes.DnsProviders, Permission.ProvidersRead),
-        ],
-        _ =>
-        [
-            new("All settings", DashboardRoutes.Settings, null),
-            new("Global defaults", SettingsRoutes.Defaults, Permission.ConfigRead),
-            new("Users and roles", SettingsRoutes.Users, Permission.UsersRead),
-            new("API tokens", SettingsRoutes.Tokens, Permission.TokensOwn),
-            new("My account", DashboardRoutes.Account, null),
-        ],
-    };
 
     /// <summary>The entries <paramref name="mayView"/> allows, in order.</summary>
     public static IEnumerable<NavigationEntry> VisibleTo(Func<Permission, bool> mayView)

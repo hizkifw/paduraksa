@@ -16,7 +16,7 @@ public static class InlineValidation
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(host);
         ConfigDocument document = current with { Hosts = [.. current.Hosts.Where(h => h.Id != host.Id), host] };
-        return Relative(ConfigValidator.Validate(document), $"/hosts/{document.Hosts.Count - 1}");
+        return Relative(ConfigValidator.Validate(document), $"/hosts/{document.Hosts.Count - 1}", document);
     }
 
     /// <summary>The errors of <paramref name="upstream"/> in <paramref name="current"/>, relative to the upstream (<c>/destinations/0/address</c>).</summary>
@@ -46,7 +46,7 @@ public static class InlineValidation
     }
 
     /// <summary>The first message per path of <paramref name="errors"/> that point into <paramref name="prefix"/>, relative to it, as sentences.</summary>
-    public static IReadOnlyDictionary<string, string> Relative(IEnumerable<ConfigError> errors, string prefix)
+    public static IReadOnlyDictionary<string, string> Relative(IEnumerable<ConfigError> errors, string prefix, ConfigDocument? document = null)
     {
         ArgumentNullException.ThrowIfNull(errors);
         ArgumentNullException.ThrowIfNull(prefix);
@@ -55,7 +55,7 @@ public static class InlineValidation
         {
             if (error.Path == prefix || error.Path.StartsWith(prefix + "/", StringComparison.Ordinal))
             {
-                byPath.TryAdd(error.Path[prefix.Length..], ReviewNotices.Sentence(error.Message));
+                byPath.TryAdd(error.Path[prefix.Length..], ReviewNotices.Text(error, document));
             }
         }
 

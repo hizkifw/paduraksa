@@ -12,7 +12,7 @@ public static class FieldLabels
     private static readonly FrozenDictionary<string, string> Fields = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         ["apiVersion"] = "Format",
-        ["names"] = "Names",
+        ["names"] = "Hostnames",
         ["kind"] = "Kind",
         ["enabled"] = "Enabled",
         ["profileId"] = "Profile",

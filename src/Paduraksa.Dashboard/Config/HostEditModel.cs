@@ -1,5 +1,6 @@
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Dashboard.SettingsArea;
 
 namespace Paduraksa.Dashboard.Config;
 
@@ -39,8 +40,8 @@ public sealed class HostEditModel
 
     public CertificateId? CertificateId { get; set; }
 
-    /// <summary>The host's own HTTPS redirect setting: null inherits (from the profile or the global defaults).</summary>
-    public bool? ForceHttps { get; set; }
+    /// <summary>The host's own layer of settings (PLAN §5.3): each field left null inherits from the profile or the global defaults.</summary>
+    public HostSettingsModel Settings { get; private init; } = new();
 
     public List<RouteEntry> Routes { get; } = [];
 
@@ -55,20 +56,6 @@ public sealed class HostEditModel
     public string RespondBody { get; set; } = string.Empty;
 
     public string RespondContentType { get; set; } = RespondConfig.DefaultContentType;
-
-    public TlsMinimumVersion? MinimumTls { get; set; }
-
-    public TcpAlpn? TcpAlpn { get; set; }
-
-    public bool? Http3 { get; set; }
-
-    /// <summary>Whether the host sets its own IP allow list (otherwise it inherits one).</summary>
-    public bool AllowListSet { get; set; }
-
-    /// <summary>The allow list's addresses or CIDRs, one per line (or separated by commas).</summary>
-    public string AllowList { get; set; } = string.Empty;
-
-    public bool DropDenied { get; set; }
 
     /// <summary>Tags, separated by commas or spaces.</summary>
     public string Tags { get; set; } = string.Empty;
@@ -95,13 +82,7 @@ public sealed class HostEditModel
             ProfileId = host.ProfileId,
             CertificateMode = host.Certificate.Mode,
             CertificateId = host.Certificate.CertificateId,
-            ForceHttps = host.Settings.ForceHttps,
-            MinimumTls = host.Settings.Tls?.MinimumVersion,
-            TcpAlpn = host.Settings.Tls?.TcpAlpn,
-            Http3 = host.Settings.Tls?.Http3,
-            AllowListSet = host.Settings.IpAllowList is not null,
-            AllowList = string.Join('\n', host.Settings.IpAllowList?.Addresses ?? []),
-            DropDenied = host.Settings.IpAllowList?.DropDenied ?? false,
+            Settings = HostSettingsModel.From(host.Settings),
             Tags = string.Join(", ", host.Tags),
             Notes = host.Notes,
         };
@@ -145,12 +126,12 @@ public sealed class HostEditModel
     /// <summary>The host as the form describes it: what the command sends. Only the kind's own part is included.</summary>
     public HostConfig ToConfig()
     {
-        HostSettings settings = (_original?.Settings ?? new HostSettings()) with
+        HostSettings settings = Settings.ApplyTo(_original?.Settings ?? new HostSettings());
+        if (Kind == HostKind.Admin)
         {
-            ForceHttps = Kind == HostKind.Admin ? _original?.Settings.ForceHttps : ForceHttps,
-            Tls = MinimumTls is null && TcpAlpn is null && Http3 is null ? null : new TlsSettings { MinimumVersion = MinimumTls, TcpAlpn = TcpAlpn, Http3 = Http3 },
-            IpAllowList = AllowListSet ? new IpAllowListSettings(SplitList(AllowList), DropDenied) : null,
-        };
+            // The admin host is always HTTPS: the form doesn't offer the redirect, and keeps what was stored.
+            settings = settings with { ForceHttps = _original?.Settings.ForceHttps };
+        }
 
         return new HostConfig(
             Id,

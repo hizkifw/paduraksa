@@ -8,7 +8,7 @@
 
 <PageTitle>Global defaults · Settings · Paduraksa</PageTitle>
 
-<PageHeader Title="Global defaults" Overline="Settings" Area="SectionArea.Settings" Lead="What every host starts from unless its profile or the host itself says otherwise, what an unknown name gets, and who may tell Paduraksa a client's address." />
+<PageHeader Title="Global defaults" Overline="Settings" Lead="What every host starts from unless its profile or the host itself says otherwise, what an unknown name gets, and who may tell Paduraksa a client's address." />
 
 @if (_denied)
 {
@@ -66,14 +66,14 @@ else
         <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
             <div class="pdk-card-head">
                 <div>
-                    <MudText Typo="Typo.h6" HtmlTag="h3">Unknown names</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">What a request gets when no enabled host answers for its name, and the certificate for a handshake that names none.</MudText>
+                    <MudText Typo="Typo.h6" HtmlTag="h3">Unknown hostnames</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">What a request gets when no enabled host answers for its hostname, and the certificate for a handshake that names none.</MudText>
                 </div>
             </div>
             <div class="pdk-setting-list">
                 <div class="pdk-setting pdk-setting-wide">
                     <div class="pdk-setting-text">
-                        <span class="pdk-setting-title">A request for a name no host answers</span>
+                        <span class="pdk-setting-title">A request for a hostname no host answers</span>
                         <span class="pdk-setting-help">Closing the connection tells a scanner the least; a 404 is the friendliest to a person who mistyped.</span>
                     </div>
                     <MudRadioGroup T="UnknownHostBehaviour" Value="_model.UnknownHost" ValueChanged="@(value => Set(() => _model.UnknownHost = value, "/unknownHost"))"
@@ -86,7 +86,7 @@ else
                 <div class="pdk-setting">
                     <div class="pdk-setting-text">
                         <span class="pdk-setting-title">Default certificate</span>
-                        <span class="pdk-setting-help">Served when the handshake names no host, and to a host whose names no certificate covers. None refuses such handshakes.</span>
+                        <span class="pdk-setting-help">Served when the handshake names no host, and to a host whose hostnames no certificate covers. None refuses such handshakes.</span>
                     </div>
                     @if (_certificates is null)
                     {

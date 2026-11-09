@@ -1,3 +1,4 @@
+using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 
 namespace Paduraksa.Dashboard.Config;
@@ -70,6 +71,46 @@ public static class ReviewNotices
         }
 
         return notices;
+    }
+
+    /// <summary>
+    /// A config error as the forms show it. The validator's messages are written for the API and name objects by ID; the few that
+    /// are about a choice in a form say it in the form's words instead (a picker left empty, or pointing at something deleted since).
+    /// </summary>
+    /// <param name="error">The error.</param>
+    /// <param name="document">The config the error is about, to name a host the message points at by its path.</param>
+    public static string Text(ConfigError error, ConfigDocument? document = null)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        return error.Code switch
+        {
+            ConfigErrorCodes.HostNamesRequired => "Add at least one hostname.",
+            ConfigErrorCodes.HostNameDuplicate when OtherHost(error.Message, document) is { } other =>
+                Sentence(error.Message[..error.Message.LastIndexOf(" the enabled host at ", StringComparison.Ordinal)] + $" {other}"),
+            ConfigErrorCodes.RouteUpstreamRequired => "Choose an upstream.",
+            ConfigErrorCodes.RouteUpstreamUnknown => "That upstream doesn't exist any more. Choose another one.",
+            ConfigErrorCodes.HostProfileUnknown => "That profile doesn't exist any more. Choose another one, or no profile.",
+            ConfigErrorCodes.IdEmpty when error.Path.EndsWith("/profileId", StringComparison.Ordinal) => "Choose a profile, or no profile.",
+            _ => Sentence(error.Message),
+        };
+    }
+
+    /// <summary>The host a duplicate-hostname message points at ("... of the enabled host at /hosts/2/names/0"), by its title.</summary>
+    private static string? OtherHost(string message, ConfigDocument? document)
+    {
+        const string Marker = " the enabled host at /hosts/";
+        int at = message.LastIndexOf(Marker, StringComparison.Ordinal);
+        if (document is null || at < 0)
+        {
+            return null;
+        }
+
+        string rest = message[(at + Marker.Length)..];
+        int end = rest.IndexOf('/', StringComparison.Ordinal);
+        return int.TryParse(end < 0 ? rest : rest[..end], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int index)
+            && index < document.Hosts.Count
+                ? ChangeView.HostTitle(document.Hosts[index])
+                : null;
     }
 
     /// <summary>A message as a sentence: capitalised, with a full stop.</summary>

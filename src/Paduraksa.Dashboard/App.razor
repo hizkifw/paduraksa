@@ -18,6 +18,25 @@
 </head>
 <body>
     <Routes @rendermode="PageRenderMode" Preference="_preference" SystemPrefersLight="_systemPrefersLight" />
+    @* Shown while the live connection is down, in place of Blazor's own dialog: Blazor puts a state class on it
+       (components-reconnect-show, -retrying, -failed, -rejected, -paused, -resume-failed) and paduraksa.js runs the buttons. *@
+    <div id="components-reconnect-modal" class="pdk-reconnect">
+        <div class="pdk-reconnect-card" role="status" aria-live="polite">
+            <span class="pdk-reconnect-spinner" aria-hidden="true"></span>
+            <span class="pdk-reconnect-alert" aria-hidden="true">!</span>
+            <div class="pdk-reconnect-text">
+                <p class="pdk-reconnect-when-show"><strong>Connection lost.</strong> Reconnecting...</p>
+                <p class="pdk-reconnect-when-retrying"><strong>Still reconnecting.</strong> Next try in <span id="components-seconds-to-next-attempt"></span>s.</p>
+                <p class="pdk-reconnect-when-failed"><strong>Couldn't reconnect.</strong> The server may be down or restarting.</p>
+                <p class="pdk-reconnect-when-rejected"><strong>The server restarted.</strong> Reload the page to carry on.</p>
+                <p class="pdk-reconnect-when-paused"><strong>This page was paused</strong> while it was idle.</p>
+                <p class="pdk-reconnect-when-resume-failed"><strong>This page couldn't be resumed.</strong> Reload it to carry on.</p>
+            </div>
+            <button type="button" class="pdk-reconnect-action pdk-reconnect-when-retry" data-reconnect="retry">Retry now</button>
+            <button type="button" class="pdk-reconnect-action pdk-reconnect-when-resume" data-reconnect="resume">Resume</button>
+            <button type="button" class="pdk-reconnect-action pdk-reconnect-when-reload" data-reconnect="reload">Reload</button>
+        </div>
+    </div>
     <div id="blazor-error-ui" role="alert">
         The connection to the server had a problem, so this page stopped updating.
         <a href="" class="reload">Reload</a>

@@ -1,5 +1,5 @@
-@attribute [Route(SettingsRoutes.Profiles)]
-@attribute [Route(SettingsRoutes.Profiles + "/{Key}")]
+@attribute [Route(DashboardRoutes.Profiles)]
+@attribute [Route(DashboardRoutes.Profiles + "/{Key}")]
 @implements IDisposable
 @using Paduraksa.Dashboard.Editors
 @using Microsoft.Extensions.Logging
@@ -14,11 +14,11 @@
 
 <PageTitle>Profiles · Settings · Paduraksa</PageTitle>
 
-<PageHeader Title="Profiles" Overline="Traffic" Area="SectionArea.Traffic" Lead="Named sets of host settings, such as an allow list for your LAN, that hosts pick instead of repeating them.">
+<PageHeader Title="Profiles" Overline="Traffic" Lead="Named sets of host settings, such as an allow list for your LAN, that hosts pick instead of repeating them.">
     <Actions>
         @if (_mayWrite)
         {
-            <MudButton Href="@SettingsRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-profile">Add profile</MudButton>
+            <MudButton Href="@DashboardRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-profile">Add profile</MudButton>
         }
     </Actions>
 </PageHeader>
@@ -57,7 +57,7 @@ else
                 <Action>
                     @if (_mayWrite)
                     {
-                        <MudButton Href="@SettingsRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add profile</MudButton>
+                        <MudButton Href="@DashboardRoutes.NewProfile" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add profile</MudButton>
                     }
                 </Action>
             </EmptyState>
@@ -79,7 +79,7 @@ else
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" /></span>
                             <div class="pdk-dt-titles">
-                                <a class="pdk-row-link" href="@SettingsRoutes.Profile(profile.Id)" @onclick:stopPropagation="true">@profile.Name</a>
+                                <a class="pdk-row-link" href="@DashboardRoutes.Profile(profile.Id)" @onclick:stopPropagation="true">@profile.Name</a>
                                 @if (!string.IsNullOrWhiteSpace(profile.Notes))
                                 {
                                     <span class="pdk-dt-note">@profile.Notes</span>
@@ -153,7 +153,7 @@ else
         if (!_loaded)
         {
             _loaded = true;
-            _drawer = new RoutedDrawer(Navigation, SettingsRoutes.Profiles);
+            _drawer = new RoutedDrawer(Navigation, DashboardRoutes.Profiles);
             _watch = Config.Watch(_ => InvokeAsync(async () =>
             {
                 await LoadAsync();
@@ -210,10 +210,10 @@ else
 
         return ProfileId.TryParse(key, out ProfileId id)
             ? Drawers.Push<ProfileDrawer>(new Dictionary<string, object?> { [nameof(ProfileDrawer.Id)] = id }, DrawerWidth.Medium)
-            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Profile not found", "There is no such profile", "Profiles", "Back to the profiles"), DrawerWidth.Narrow);
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Profile not found", "There is no such profile", "Back to the profiles"), DrawerWidth.Narrow);
     }
 
-    private void Open(ProfileConfig profile) => Navigation.NavigateTo(SettingsRoutes.Profile(profile.Id));
+    private void Open(ProfileConfig profile) => Navigation.NavigateTo(DashboardRoutes.Profile(profile.Id));
 
     private async Task ReviewDeleteAsync(ProfileConfig profile)
     {

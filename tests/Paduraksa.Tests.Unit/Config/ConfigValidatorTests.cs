@@ -286,6 +286,23 @@ public sealed class ConfigValidatorTests
     }
 
     [Fact]
+    public void AnEmptyReferenceIsMissing_NotUnknown()
+    {
+        // A form that left a picker empty sends the empty ID: that is a choice not made, not an object that doesn't exist.
+        ConfigDocument document = Valid();
+        ConfigDocument changed = document with
+        {
+            Hosts = MapHost(document, AppHost, h => h with
+            {
+                ProfileId = default(ProfileId),
+                Routes = [h.Routes[0] with { UpstreamId = default }],
+            }),
+        };
+
+        AssertErrors(changed, ($"{Proxy}/profileId", IdEmpty), ($"{Proxy}/routes/0/upstreamId", RouteUpstreamRequired));
+    }
+
+    [Fact]
     public void ChecksCertificateBindings()
     {
         ConfigDocument document = Valid();

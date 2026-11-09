@@ -21,6 +21,28 @@
 
 <PageHeader Title="Audit" Overline="Insight" Lead="Every change and sign-in, newest first. Each event is chained to the one before it, so an edited or deleted row shows.">
     <Actions>
+        @if (_mayRead && _verification is not { Intact: false } && !_verifyFailed)
+        {
+            @* A chain that verifies is the normal case: a quiet line, and a way to check again. A broken one is a banner below. *@
+            <span class="pdk-chain-status" data-section="chain" data-chain="@ChainState">
+                @if (_verifying)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="pdk-chain-spinner" />
+                    <span>Checking the chain...</span>
+                }
+                else if (_verification is { Intact: true } intact)
+                {
+                    <MudIcon Icon="@Icons.Material.Outlined.Link" Size="Size.Small" Class="pdk-chain-ok" />
+                    <span title="@(intact.HeadHash is { } hash ? $"Latest hash {hash}. Keep a copy elsewhere: it shows if the newest events are ever removed." : null)">
+                        Chain intact: @intact.VerifiedEvents.ToString("N0", CultureInfo.InvariantCulture) @(intact.VerifiedEvents == 1 ? "event verifies" : "events verify")@(_verifiedAt is { } at ? $", checked {RevisionText.Ago(at, Time.GetUtcNow())}" : null)
+                    </span>
+                }
+                <MudTooltip Text="Verify the chain again" Arrow="true">
+                    <MudIconButton Icon="@Icons.Material.Rounded.Refresh" Size="Size.Small" OnClick="VerifyAsync" Disabled="_verifying" aria-label="Verify the chain again"
+                                   data-action="verify" />
+                </MudTooltip>
+            </span>
+        }
         @if (_mayRead)
         {
             <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Outlined.FileDownload" OnClick="ExportAsync" Disabled="_exporting"
@@ -43,117 +65,94 @@
 }
 else
 {
-    <div class="pdk-audit-top">
-        <MudPaper Class="pdk-card pdk-audit-filters" Elevation="0" Outlined="true" data-section="filters">
-            <div class="pdk-card-head">
-                <MudText Typo="Typo.subtitle2" HtmlTag="h2">Filter</MudText>
-                @if (Filtered)
+    @if (_verification is { Intact: false } failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4 pdk-chain-alert" role="alert" data-section="chain" data-chain="broken">
+            <div class="pdk-chain-alert-body">
+                <strong>The hash chain is broken: events in the audit log were changed or removed.</strong>
+                @if (failed.Break is { } broken)
                 {
-                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearAsync" data-action="clear-filters">Clear filters</MudButton>
+                    <span>@broken.Description</span>
+                    <span class="pdk-muted">
+                        First bad event <span class="pdk-mono" data-break="@broken.EventId">@broken.EventId</span>; the @failed.VerifiedEvents.ToString("N0", CultureInfo.InvariantCulture) before it verify.
+                    </span>
                 }
             </div>
-            <MudToggleGroup T="AuditRange" Value="_range" ValueChanged="SetRangeAsync" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
-                            Outlined="true" Size="Size.Small" Class="pdk-range" aria-label="Time range" data-field="range">
-                <MudToggleItem Value="AuditRange.Hour" Text="1 hour" />
-                <MudToggleItem Value="AuditRange.Day" Text="24 hours" />
-                <MudToggleItem Value="AuditRange.Week" Text="7 days" />
-                <MudToggleItem Value="AuditRange.Month" Text="30 days" />
-                <MudToggleItem Value="AuditRange.All" Text="All" />
-                <MudToggleItem Value="AuditRange.Custom" Text="Custom" />
-            </MudToggleGroup>
-            <div class="pdk-audit-fields">
-                @if (_range == AuditRange.Custom)
-                {
-                    <MudTextField T="string" Value="_from" ValueChanged="@(value => SetAsync(() => _from = value))" InputType="InputType.DateTimeLocal" Label="From (UTC)"
-                                  Variant="Variant.Outlined" Margin="Margin.Dense" data-field="from" />
-                    <MudTextField T="string" Value="_to" ValueChanged="@(value => SetAsync(() => _to = value))" InputType="InputType.DateTimeLocal" Label="Until (UTC)"
-                                  Variant="Variant.Outlined" Margin="Margin.Dense" Error="@(RangeError is not null)" ErrorText="@RangeError" data-field="to" />
-                }
-                <MudSelect T="string" Value="_actor" ValueChanged="@(value => SetAsync(() => _actor = value))" Label="Who" Variant="Variant.Outlined" Margin="Margin.Dense"
-                           Dense="true" ToStringFunc="ActorLabel" data-field="actor">
-                    <MudSelectItem T="string" Value="@((string?)null)">Anyone</MudSelectItem>
-                    @if (_me is { } me)
-                    {
-                        <MudSelectItem T="string" Value="@me.ToString()">You</MudSelectItem>
-                    }
-                    @foreach ((UserId id, string name) in _users.Where(u => u.Key != _me).OrderBy(u => u.Value, StringComparer.OrdinalIgnoreCase))
-                    {
-                        <MudSelectItem T="string" Value="@id.ToString()">@name</MudSelectItem>
-                    }
-                    @foreach ((ApiTokenId id, string name) in _tokens.OrderBy(t => t.Value, StringComparer.OrdinalIgnoreCase))
-                    {
-                        <MudSelectItem T="string" Value="@id.ToString()">Token "@name"</MudSelectItem>
-                    }
-                    <MudSelectItem T="string" Value="@("system")">Paduraksa (system)</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("cli")">The CLI</MudSelectItem>
-                </MudSelect>
-                <MudTextField T="string" Value="_action" ValueChanged="@(value => SetAsync(() => _action = value))" Label="Action" Placeholder="config.*"
-                              Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true"
-                              Error="@(ActionError is not null)" ErrorText="@ActionError" list="pdk-audit-actions" spellcheck="false" data-field="action" />
-                <datalist id="pdk-audit-actions">
-                    @foreach (string suggestion in AuditText.Suggestions)
-                    {
-                        <option value="@suggestion"></option>
-                    }
-                </datalist>
-                <MudTextField T="string" Value="_target" ValueChanged="@(value => SetAsync(() => _target = value))" Label="Target" Placeholder="host_..."
-                              Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true"
-                              Error="@(TargetError is not null)" ErrorText="@TargetError" spellcheck="false" data-field="target" />
-                <MudSelect T="AuditOutcome?" Value="_outcome" ValueChanged="@(value => SetAsync(() => _outcome = value))" Label="Outcome" Variant="Variant.Outlined"
-                           Margin="Margin.Dense" Dense="true" data-field="outcome">
-                    <MudSelectItem T="AuditOutcome?" Value="null">Any outcome</MudSelectItem>
-                    @foreach (AuditOutcome outcome in Enum.GetValues<AuditOutcome>())
-                    {
-                        <MudSelectItem T="AuditOutcome?" Value="outcome">@AuditText.Name(outcome)</MudSelectItem>
-                    }
-                </MudSelect>
-            </div>
-        </MudPaper>
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="VerifyAsync" Disabled="_verifying" data-action="verify">Verify again</MudButton>
+        </MudAlert>
+    }
+    else if (_verifyFailed)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" data-section="chain" data-chain="unknown">
+            The hash chain couldn't be checked. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Warning" Size="Size.Small" OnClick="VerifyAsync" Disabled="_verifying" Class="ml-2" data-action="verify">Try again</MudButton>
+        </MudAlert>
+    }
 
-        <MudPaper Class="@($"pdk-card pdk-chain pdk-tone-{ChainTone.Css()}")" Elevation="0" Outlined="true" data-section="chain" data-chain="@ChainState">
-            <div class="pdk-chain-head">
-                <span class="pdk-stat-icon pdk-tone-@ChainTone.Css()">
-                    <MudIcon Icon="@(_verification is { Intact: false } ? Icons.Material.Outlined.LinkOff : Icons.Material.Outlined.Link)" Size="Size.Small" />
-                </span>
-                <div class="pdk-list-main">
-                    <MudText Typo="Typo.subtitle2" HtmlTag="h2">Hash chain</MudText>
-                    <span class="pdk-list-sub">@(_verifiedAt is { } at ? $"Checked {RevisionText.Ago(at, Time.GetUtcNow())}" : "Not checked yet")</span>
-                </div>
-            </div>
-            @if (_verifying)
+    <MudPaper Class="pdk-card pdk-audit-filters" Elevation="0" Outlined="true" data-section="filters">
+        <div class="pdk-card-head">
+            <MudText Typo="Typo.subtitle2" HtmlTag="h2">Filter</MudText>
+            @* Always there, hidden while nothing is filtered, so the card doesn't change height when it shows. *@
+            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="ClearAsync" Disabled="!Filtered" Class="@(Filtered ? null : "pdk-hidden")"
+                       aria-hidden="@(Filtered ? null : "true")" data-action="clear-filters">Clear filters</MudButton>
+        </div>
+        <MudToggleGroup T="AuditRange" Value="_range" ValueChanged="SetRangeAsync" SelectionMode="SelectionMode.SingleSelection" Color="Color.Primary"
+                        Outlined="true" Size="Size.Small" Class="pdk-range" aria-label="Time range" data-field="range">
+            <MudToggleItem Value="AuditRange.Hour" Text="1 hour" />
+            <MudToggleItem Value="AuditRange.Day" Text="24 hours" />
+            <MudToggleItem Value="AuditRange.Week" Text="7 days" />
+            <MudToggleItem Value="AuditRange.Month" Text="30 days" />
+            <MudToggleItem Value="AuditRange.All" Text="All" />
+            <MudToggleItem Value="AuditRange.Custom" Text="Custom" />
+        </MudToggleGroup>
+        <div class="pdk-audit-fields">
+            @if (_range == AuditRange.Custom)
             {
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="70%" Height="28px" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="90%" />
+                <MudTextField T="string" Value="_from" ValueChanged="@(value => SetAsync(() => _from = value))" InputType="InputType.DateTimeLocal" Label="From (UTC)"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" data-field="from" />
+                <MudTextField T="string" Value="_to" ValueChanged="@(value => SetAsync(() => _to = value))" InputType="InputType.DateTimeLocal" Label="Until (UTC)"
+                              Variant="Variant.Outlined" Margin="Margin.Dense" Error="@(RangeError is not null)" ErrorText="@RangeError" data-field="to" />
             }
-            else if (_verification is { Intact: true } intact)
-            {
-                <div class="pdk-chain-verdict">Intact</div>
-                <MudText Typo="Typo.body2" Class="pdk-muted">
-                    All @intact.VerifiedEvents.ToString("N0", CultureInfo.InvariantCulture) @(intact.VerifiedEvents == 1 ? "event verifies" : "events verify"), each against the one before.
-                </MudText>
-                @if (intact.HeadHash is { } hash)
+            <MudSelect T="string" Value="_actor" ValueChanged="@(value => SetAsync(() => _actor = value))" Label="Who" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       Dense="true" ToStringFunc="ActorLabel" data-field="actor">
+                <MudSelectItem T="string" Value="@((string?)null)">Anyone</MudSelectItem>
+                @if (_me is { } me)
                 {
-                    <MudTooltip Text="Keep a copy of the latest hash elsewhere: it shows if the newest events are ever removed." Arrow="true">
-                        <span class="pdk-chain-hash pdk-mono">@(hash.Length > 16 ? $"{hash[..16]}..." : hash)</span>
-                    </MudTooltip>
+                    <MudSelectItem T="string" Value="@me.ToString()">You</MudSelectItem>
                 }
-            }
-            else if (_verification is { Break: { } broken } failed)
-            {
-                <div class="pdk-chain-verdict" role="alert">Broken</div>
-                <MudText Typo="Typo.body2">@broken.Description</MudText>
-                <MudText Typo="Typo.caption" Class="pdk-muted">
-                    First bad event <span class="pdk-mono" data-break="@broken.EventId">@broken.EventId</span>; the @failed.VerifiedEvents.ToString("N0", CultureInfo.InvariantCulture) before it verify.
-                </MudText>
-            }
-            else if (_verifyFailed)
-            {
-                <MudText Typo="Typo.body2">The chain couldn't be read. The details are in the server log.</MudText>
-            }
-            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Verified" OnClick="VerifyAsync"
-                       Disabled="_verifying" Class="pdk-chain-button" data-action="verify">Verify now</MudButton>
-        </MudPaper>
-    </div>
+                @foreach ((UserId id, string name) in _users.Where(u => u.Key != _me).OrderBy(u => u.Value, StringComparer.OrdinalIgnoreCase))
+                {
+                    <MudSelectItem T="string" Value="@id.ToString()">@name</MudSelectItem>
+                }
+                @foreach ((ApiTokenId id, string name) in _tokens.OrderBy(t => t.Value, StringComparer.OrdinalIgnoreCase))
+                {
+                    <MudSelectItem T="string" Value="@id.ToString()">Token "@name"</MudSelectItem>
+                }
+                <MudSelectItem T="string" Value="@("system")">Paduraksa (system)</MudSelectItem>
+                <MudSelectItem T="string" Value="@("cli")">The CLI</MudSelectItem>
+            </MudSelect>
+            <MudTextField T="string" Value="_action" ValueChanged="@(value => SetAsync(() => _action = value))" Label="Action" Placeholder="config.*"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true"
+                          Error="@(ActionError is not null)" ErrorText="@ActionError" list="pdk-audit-actions" spellcheck="false" data-field="action" />
+            <datalist id="pdk-audit-actions">
+                @foreach (string suggestion in AuditText.Suggestions)
+                {
+                    <option value="@suggestion"></option>
+                }
+            </datalist>
+            <MudTextField T="string" Value="_target" ValueChanged="@(value => SetAsync(() => _target = value))" Label="Target" Placeholder="host_..."
+                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true"
+                          Error="@(TargetError is not null)" ErrorText="@TargetError" spellcheck="false" data-field="target" />
+            <MudSelect T="AuditOutcome?" Value="_outcome" ValueChanged="@(value => SetAsync(() => _outcome = value))" Label="Outcome" Variant="Variant.Outlined"
+                       Margin="Margin.Dense" Dense="true" data-field="outcome">
+                <MudSelectItem T="AuditOutcome?" Value="null">Any outcome</MudSelectItem>
+                @foreach (AuditOutcome outcome in Enum.GetValues<AuditOutcome>())
+                {
+                    <MudSelectItem T="AuditOutcome?" Value="outcome">@AuditText.Name(outcome)</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    </MudPaper>
 
     <MudPaper Class="pdk-card pdk-table-card mt-4" Elevation="0" Outlined="true" data-section="events">
         @if (_failed)
@@ -270,7 +269,6 @@ else
 
     private string ChainState => _verification is null ? "unknown" : _verification.Intact ? "intact" : "broken";
 
-    private Tone ChainTone => _verification is null ? Tone.Default : _verification.Intact ? Tone.Success : Tone.Error;
 
     private string? ActionError =>
         string.IsNullOrWhiteSpace(_action) ? null

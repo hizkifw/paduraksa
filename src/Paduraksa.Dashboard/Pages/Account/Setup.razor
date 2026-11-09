@@ -2,11 +2,8 @@
 @inject NavigationManager Navigation
 @inject Paduraksa.Application.Identity.SetupService SetupService
 @inject DashboardOptions Options
-@using Paduraksa.Dashboard.Setup
 
 <PageTitle>Set up · Paduraksa</PageTitle>
-
-<WizardStepper Current="WizardStep.SetupToken" />
 
 <h1 class="pdk-auth-title">Welcome to Paduraksa</h1>
 <p class="pdk-auth-lead">Claim this instance and create its Owner, the account that can do everything.</p>
@@ -59,8 +56,8 @@
     <button type="submit" class="pdk-button pdk-button-primary">Create the Owner and sign in</button>
 </form>
 
-<p class="pdk-auth-note">Next: two-step sign-in for the Owner, an ACME account and DNS provider, a certificate and your first host. Each of
-    those can be skipped and finished later from the overview.</p>
+<p class="pdk-auth-note">Then you're signed in on the overview, which lists what's worth setting up next: two-step sign-in, certificates
+    and your first host.</p>
 
 <script src="@Assets["_content/Paduraksa.Dashboard/setup.js"]"></script>
 

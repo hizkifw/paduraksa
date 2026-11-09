@@ -11,19 +11,19 @@
 @if (Stack.Levels.Count > 0)
 {
     int count = Stack.Levels.Count;
+    @* One backdrop under every level, kept across pushes and pops so it never fades in again; a level under the top dims itself (its
+       ::after), so the one a pop uncovers brightens as it slides back. Clicks on a level under the top reach the backdrop: an inert
+       element is not hit. *@
     <div class="pdk-stack" data-depth="@count">
+        <div @key="BackdropKey" class="pdk-stack-backdrop" style="@($"z-index: {BaseZ}")" @onclick="() => Stack.Top?.RequestClose()" aria-hidden="true"></div>
         @for (int i = 0; i < count; i++)
         {
             DrawerLevel level = Stack.Levels[i];
             int below = count - 1 - i;
             bool top = below == 0;
             bool asking = top && Asking;
-            @if (top)
-            {
-                <div class="pdk-stack-backdrop" style="@($"z-index: {BaseZ + (2 * i)}")" @onclick="level.RequestClose" aria-hidden="true"></div>
-            }
             <aside @key="level.Id" class="@($"pdk-sheet pdk-sheet-{level.Width.ToString().ToLowerInvariant()}{(top ? " pdk-sheet-top" : " pdk-sheet-under")}")"
-                   style="@($"--pdk-under: {below}; z-index: {BaseZ + 1 + (2 * i)}")" data-level="@i" data-top="@(top ? "true" : null)"
+                   style="@($"--pdk-under: {below}; z-index: {BaseZ + 1 + i}")" data-level="@i" data-top="@(top ? "true" : null)"
                    inert="@(!top)" role="dialog" aria-modal="@(top ? "true" : null)" aria-labelledby="@DrawerShell.TitleId(level)" tabindex="-1">
                 @* While the question is open, the drawer under it is inert: Tab stays on the question's two buttons. *@
                 <div class="pdk-sheet-content" inert="@asking">
@@ -61,6 +61,8 @@
     /// (a confirmation asked from inside a drawer, raised to 1700 by the theme). MudBlazor places a select's list above its own field.
     /// </summary>
     public const int BaseZ = 1600;
+
+    private static readonly object BackdropKey = new();
 
     private DotNetObjectReference<DrawerHost>? _self;
     private bool _attached;

@@ -12,7 +12,7 @@
    cancelling the host leaves nothing behind. "New certificate..." stacks the certificate flow, which issues or uploads at once (a
    certificate lives in the vault, not in the config) and comes back with it selected. Hands back the commit's result when applied. *@
 
-<DrawerShell Title="@Title" Overline="@(_model is { IsNew: true } ? "New host" : "Host")" Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Language"
+<DrawerShell Title="@Title" Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Language"
              Name="host" OnSubmit="ReviewAsync">
     <HeaderActions>
         @if (_model is { IsNew: false } && _maySimulate)
@@ -69,7 +69,7 @@
         else
         {
             <HostForm Model="_model" Upstreams="Draft.Upstreams" Staged="StagedUpstreamIds" Profiles="Draft.Profiles" StagedProfiles="StagedProfileIds"
-                      Certificates="_certificates" InheritedForceHttps="InheritedForceHttps" Errors="_errors" ShowAll="_attempted" ReadOnly="!_mayWrite"
+                      Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" Errors="_errors" ShowAll="_attempted" ReadOnly="!_mayWrite"
                       OnChanged="Changed"
                       OnNewUpstream="@(_mayWrite ? EventCallback.Factory.Create<RouteEntry>(this, NewUpstreamAsync) : default)"
                       OnNewProfile="@(_mayWrite ? EventCallback.Factory.Create(this, NewProfileAsync) : default)"
@@ -202,11 +202,6 @@
     private string? SampleHost => _model?.Names.Select(n => n.Value.Trim()).FirstOrDefault(n => n.Length > 0 && !n.StartsWith('*'));
 
     private string SimulateHref => SampleHost is { } host ? $"{DashboardRoutes.Simulator}?url={Uri.EscapeDataString($"https://{host}/")}" : DashboardRoutes.Simulator;
-
-    private bool InheritedForceHttps =>
-        (_model?.ProfileId is { } profile ? Draft.Profiles.FirstOrDefault(p => p.Id == profile)?.Settings.ForceHttps : null)
-        ?? _current?.Document.Settings.Defaults.ForceHttps
-        ?? false;
 
     protected override async Task OnInitializedAsync()
     {

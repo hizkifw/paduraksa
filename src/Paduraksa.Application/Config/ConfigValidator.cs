@@ -284,7 +284,11 @@ public static class ConfigValidator
             bool kindDefined = CheckEnum(host.Kind, $"{path}/kind");
 
             HostSettings? profile = null;
-            if (host.ProfileId is { } profileId && !profiles.TryGetValue(profileId, out profile))
+            if (host.ProfileId is { IsEmpty: true })
+            {
+                Add($"{path}/profileId", IdEmpty, "the profile ID can't be empty (leave it unset for no profile)");
+            }
+            else if (host.ProfileId is { } profileId && !profiles.TryGetValue(profileId, out profile))
             {
                 Add($"{path}/profileId", HostProfileUnknown, $"profile '{profileId}' doesn't exist");
             }
@@ -351,7 +355,7 @@ public static class ConfigValidator
             IReadOnlyList<string> names = host.Names ?? [];
             if (names.Count == 0)
             {
-                Add($"{path}/names", HostNamesRequired, "a host needs at least one name");
+                Add($"{path}/names", HostNamesRequired, "a host needs at least one hostname");
             }
 
             Dictionary<string, string> own = new(StringComparer.Ordinal);
@@ -368,7 +372,7 @@ public static class ConfigValidator
                 }
                 else if (host.Enabled && !_enabledHostNames.TryAdd(normalized, namePath))
                 {
-                    Add(namePath, HostNameDuplicate, $"'{normalized}' is already served by the enabled host at {_enabledHostNames[normalized]}");
+                    Add(namePath, HostNameDuplicate, $"'{normalized}' is already a hostname of the enabled host at {_enabledHostNames[normalized]}");
                 }
             }
         }
@@ -533,7 +537,11 @@ public static class ConfigValidator
                 Add($"{path}/path", RoutePathDuplicate, $"the route at {matches[(route.Match, routePath)]} already matches '{routePath}' the same way (paths ignore case), so this one could never match");
             }
 
-            if (!upstreams.Contains(route.UpstreamId))
+            if (route.UpstreamId.IsEmpty)
+            {
+                Add($"{path}/upstreamId", RouteUpstreamRequired, "the route needs an upstream");
+            }
+            else if (!upstreams.Contains(route.UpstreamId))
             {
                 Add($"{path}/upstreamId", RouteUpstreamUnknown, $"upstream '{route.UpstreamId}' doesn't exist");
             }

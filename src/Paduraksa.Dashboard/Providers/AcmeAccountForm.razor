@@ -26,7 +26,7 @@
     <MudTextField T="string" @bind-Value="_email" Label="Contact email" Variant="Variant.Outlined" Margin="Margin.Dense" InputType="InputType.Email"
                   HelperText="Optional, but the CA uses it to warn you about expiring certificates and policy changes." Disabled="_busy"
                   Error="_emailError is not null" ErrorText="@_emailError" Class="pdk-acme-email" />
-    <MudTextField T="string" @bind-Value="_label" Label="Label" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Optional"
+    <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Optional"
                   MaxLength="AcmeAccountService.MaxLabelLength" Disabled="_busy" />
 
     <MudSwitch T="bool" Value="_useEab" ValueChanged="v => _useEab = v" Color="Color.Primary" Disabled="@(_busy || Preset?.NeedsEab == true)"

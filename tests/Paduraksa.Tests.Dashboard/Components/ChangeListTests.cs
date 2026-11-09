@@ -37,7 +37,7 @@ public sealed class ChangeListTests
 
         ChangeGroup group = Assert.Single(groups);
         Assert.Equal(("app.example.com +1", ConfigChangeKind.Modified), (group.Head.Title, group.Head.Kind));
-        Assert.Contains(group.Head.Fields, f => f.Label == "Names" && f.Before == "app.example.com" && f.After == "app.example.com, www.example.com");
+        Assert.Contains(group.Head.Fields, f => f.Label == "Hostnames" && f.Before == "app.example.com" && f.After == "app.example.com, www.example.com");
         Assert.Contains(group.Head.Fields, f => f.Label == "HTTPS redirect" && f.Before is null && f.After == "on");
         ObjectChange route = Assert.Single(group.Children);
         Assert.Equal(("Route /api", ChangedObject.Route), (route.Title, route.What));
@@ -61,7 +61,7 @@ public sealed class ChangeListTests
 
         Assert.Equal(ConfigChangeKind.Added, group.Head.Kind);
         Assert.All(group.Head.Fields, f => Assert.Null(f.Before));
-        Assert.Contains(group.Head.Fields, f => f.Label == "Names" && f.After == "new.example.com");
+        Assert.Contains(group.Head.Fields, f => f.Label == "Hostnames" && f.After == "new.example.com");
         ObjectChange route = Assert.Single(group.Children);
         Assert.Equal(ConfigChangeKind.Added, route.Kind);
         Assert.Contains(route.Fields, f => f.Label == "Upstream" && f.After == "app");
@@ -80,7 +80,7 @@ public sealed class ChangeListTests
     }
 
     [Theory]
-    [InlineData("/names/1", "Name 2")]
+    [InlineData("/names/1", "Hostname 2")]
     [InlineData("/routes/0/path", "Route 1 > Path")]
     [InlineData("/settings/ipAllowList/addresses/2", "Settings > IP allow list > Address 3")]
     [InlineData("", "This change")]

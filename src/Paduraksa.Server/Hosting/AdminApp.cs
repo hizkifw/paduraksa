@@ -49,7 +49,7 @@ internal static partial class AdminApp
         SignInPage = DashboardRoutes.SignIn,
         SecondFactorPage = DashboardRoutes.SignInVerify,
         SetupPage = DashboardRoutes.Setup,
-        SetupCompletedPage = Paduraksa.Dashboard.Setup.SetupWizard.Route,
+        SetupCompletedPage = DashboardRoutes.Home,
         SignInAction = DashboardRoutes.Actions.SignIn,
         SecondFactorAction = DashboardRoutes.Actions.SecondFactor,
         SignOutAction = DashboardRoutes.Actions.SignOut,

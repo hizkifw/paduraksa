@@ -128,7 +128,7 @@
             <div class="pdk-card-head pdk-card-head-padded">
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">Hosts</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">Where each name's requests go</MudText>
+                    <MudText Typo="Typo.caption" Class="pdk-muted">Where each hostname's requests go</MudText>
                 </div>
                 <MudButton Href="@DashboardRoutes.Hosts" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">All hosts</MudButton>
             </div>
@@ -139,7 +139,7 @@
             else if (Snapshot.Lines.Count == 0)
             {
                 <EmptyState Compact="true" Icon="@Icons.Material.Outlined.AddLink" Title="No hosts yet"
-                            Description="A host gives a name to a service on your network. The upstream can be added from the host's form.">
+                            Description="A host puts a service on your network behind a hostname. The upstream can be added from the host's form.">
                     <Action>
                         <IfPermitted Permission="Permission.ConfigWrite">
                             <MudButton Href="@DashboardRoutes.NewHost" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" StartIcon="@Icons.Material.Rounded.Add">Add host</MudButton>

@@ -9,7 +9,7 @@
    they may sign in, sent as one update of only what changed. The service decides, the last-Owner guard included; its refusal shows here.
    The initial password lives only in this drawer and is cleared as it is sent. *@
 
-<DrawerShell Title="@(IsNew ? "Add a user" : User!.DisplayName)" Overline="@(IsNew ? "New user" : "User")"
+<DrawerShell Title="@(IsNew ? "Add a user" : User!.DisplayName)"
              Subtitle="@(IsNew ? "They sign in with this username and password." : "Name, roles and whether they can sign in.")"
              Icon="@Icons.Material.Outlined.Group" Name="user" OnSubmit="SaveAsync">
     <Banner>

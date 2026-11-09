@@ -11,7 +11,7 @@
    health. On its own it goes through Review changes and hands back the commit; opened from a host's form (Stage) it is checked against
    that form's draft and handed back as it is, to be applied with the host in one revision. *@
 
-<DrawerShell Title="@Title" Overline="@(Stage ? (Staged is null ? "New upstream for this host" : "New upstream, not applied yet") : _model is { IsNew: true } ? "New upstream" : "Upstream")"
+<DrawerShell Title="@Title"
              Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Hub" Name="upstream" OnSubmit="SubmitAsync">
     <Banner>
         @if (_changedElsewhere is { } elsewhere)
@@ -302,7 +302,7 @@
     private string Title => _missing ? "Upstream not found" : Staged is { } staged ? staged.Name : _model is null ? (Id is null ? "New upstream" : "Upstream") : _model.IsNew ? "New upstream" : _storedName;
 
     private string Subtitle => Stage
-        ? "It is applied together with the host, in one revision."
+        ? Staged is null ? "It is applied together with the host, in one revision." : "Not applied yet: it goes in with the host, in one revision."
         : _model is { IsNew: true } || Id is null ? "A service on your network that hosts send requests to." : "Its destinations, load balancing and health checks.";
 
     private IReadOnlyList<(HostConfig Host, RouteConfig Route)> Uses =>

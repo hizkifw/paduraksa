@@ -75,5 +75,6 @@ public static class ConfigErrorCodes
     public const string RoutePathEncoded = "route.path.encoded";
     public const string RoutePathNotCanonical = "route.path.notCanonical";
     public const string RoutePathDuplicate = "route.path.duplicate";
+    public const string RouteUpstreamRequired = "route.upstream.required";
     public const string RouteUpstreamUnknown = "route.upstream.unknown";
 }

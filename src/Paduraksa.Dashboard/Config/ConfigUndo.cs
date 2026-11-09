@@ -97,7 +97,7 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
                 snackbar.Add(Identity.IdentityText.CantChangeConfig, Severity.Error);
                 break;
             default:
-                string why = result.Errors.Count > 0 ? ReviewNotices.Sentence(result.Errors[0].Message) : "The config store refused it.";
+                string why = result.Errors.Count > 0 ? ReviewNotices.Text(result.Errors[0]) : "The config store refused it.";
                 snackbar.Add($"Couldn't undo {committed}. {why}", Severity.Error);
                 break;
         }

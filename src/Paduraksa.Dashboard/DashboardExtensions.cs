@@ -43,6 +43,9 @@ public static class DashboardExtensions
             mud.SnackbarConfiguration.PreventDuplicates = true;
             mud.SnackbarConfiguration.ShowCloseIcon = true;
             mud.SnackbarConfiguration.VisibleStateDuration = 5000;
+            // MudBlazor's default fades take half a second each way; a dismissed toast should be gone at once.
+            mud.SnackbarConfiguration.ShowTransitionDuration = 200;
+            mud.SnackbarConfiguration.HideTransitionDuration = 150;
             mud.SnackbarConfiguration.SnackbarVariant = Variant.Filled;
         });
         services.AddCascadingAuthenticationState();

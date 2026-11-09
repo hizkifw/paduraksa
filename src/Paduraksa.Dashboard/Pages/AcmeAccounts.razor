@@ -1,5 +1,5 @@
 @attribute [Authorize]
-@attribute [Route(SettingsRoutes.AcmeAccounts)]
+@attribute [Route(DashboardRoutes.AcmeAccounts)]
 @implements IDisposable
 @using Microsoft.Extensions.Logging
 @using Paduraksa.Application.Commands
@@ -19,7 +19,7 @@
 
 <PageTitle>ACME accounts · Paduraksa</PageTitle>
 
-<PageHeader Title="ACME accounts" Overline="Certificates" Area="SectionArea.Certificates" Lead="Your accounts with ACME certificate authorities. The account key is made and kept in the vault.">
+<PageHeader Title="ACME accounts" Overline="TLS" Lead="Your accounts with ACME certificate authorities. The account key is made and kept in the vault.">
     <Actions>
         @if (_mayWrite)
         {

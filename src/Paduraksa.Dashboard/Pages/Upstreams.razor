@@ -13,7 +13,7 @@
 
 <PageTitle>Upstreams · Paduraksa</PageTitle>
 
-<PageHeader Title="Upstreams" Overline="Traffic" Area="SectionArea.Traffic" Lead="The services behind your hosts: where requests go, how they are spread, and how health is checked.">
+<PageHeader Title="Upstreams" Overline="Traffic" Lead="The services behind your hosts: where requests go, how they are spread, and how health is checked.">
     <Actions>
         @if (_mayWrite)
         {
@@ -218,7 +218,7 @@ else
 
         return UpstreamId.TryParse(key, out UpstreamId id)
             ? Drawers.Push<UpstreamDrawer>(new Dictionary<string, object?> { [nameof(UpstreamDrawer.Id)] = id }, DrawerWidth.Medium)
-            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Upstream not found", "There is no such upstream", "Upstreams", "Back to the upstreams"), DrawerWidth.Narrow);
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Upstream not found", "There is no such upstream", "Back to the upstreams"), DrawerWidth.Narrow);
     }
 
     private void Open(UpstreamConfig upstream) => Navigation.NavigateTo(DashboardRoutes.Upstream(upstream.Id));

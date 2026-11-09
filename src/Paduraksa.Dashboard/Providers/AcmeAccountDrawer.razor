@@ -3,7 +3,7 @@
 @inject ProviderActions Actions
 @inject ISnackbar Snackbar
 
-<DrawerShell Title="Add an ACME account" Overline="ACME account" Subtitle="The vault makes the account key; the CA registers it now."
+<DrawerShell Title="Add an ACME account" Subtitle="The vault makes the account key; the CA registers it now."
              Icon="@Icons.Material.Outlined.Badge" Name="acme-account">
     <AcmeAccountForm Submit="SubmitAsync" Created="Created" OnCancel="() => Level?.RequestClose()" />
 </DrawerShell>

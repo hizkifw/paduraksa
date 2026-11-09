@@ -1,6 +1,5 @@
 /*
- * The first-run wizard: the step rail (shared by the plain-HTML setup page and the live wizard, so its colours fall back from the
- * MudBlazor palette to app.css's --pdk-* ones), the wizard card, two-step enrolment, the summary and the overview's checklist.
+ * First-run setup and what follows it: the setup page's password strength, two-step enrolment (My account) and the overview's checklist.
  */
 
 .visually-hidden {
@@ -10,127 +9,6 @@
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
-}
-
-/* ---------- The step rail ---------- */
-
-.pdk-wizard-rail {
-    --pdk-rail-accent: var(--mud-palette-primary, var(--pdk-accent));
-    --pdk-rail-line: var(--mud-palette-lines-default, var(--pdk-line));
-    --pdk-rail-muted: var(--mud-palette-text-secondary, var(--pdk-muted));
-    --pdk-rail-surface: var(--mud-palette-surface, var(--pdk-surface));
-    display: flex;
-    gap: 0;
-    margin: 0 0 24px;
-    padding: 0;
-    list-style: none;
-    counter-reset: none;
-}
-
-.pdk-wizard-rail-step {
-    position: relative;
-    display: flex;
-    flex: 1 1 0;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    text-align: center;
-}
-
-/* The line to the next step. */
-.pdk-wizard-rail-step:not(:last-child)::after {
-    position: absolute;
-    top: 13px;
-    left: calc(50% + 16px);
-    right: calc(-50% + 16px);
-    height: 2px;
-    border-radius: 1px;
-    background: var(--pdk-rail-line);
-    content: "";
-}
-
-.pdk-wizard-done:not(:last-child)::after, .pdk-wizard-skipped:not(:last-child)::after {
-    background: color-mix(in srgb, var(--pdk-rail-accent) 55%, transparent);
-}
-
-.pdk-wizard-rail-marker {
-    display: inline-grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    box-sizing: border-box;
-    border: 2px solid var(--pdk-rail-line);
-    border-radius: 50%;
-    background: var(--pdk-rail-surface);
-    color: var(--pdk-rail-muted);
-    font-size: 0.75rem;
-    font-weight: 700;
-}
-
-.pdk-wizard-current .pdk-wizard-rail-marker {
-    border-color: var(--pdk-rail-accent);
-    background: var(--pdk-rail-accent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--pdk-rail-accent) 22%, transparent);
-    color: var(--mud-palette-primary-text, var(--pdk-accent-contrast));
-}
-
-.pdk-wizard-done .pdk-wizard-rail-marker {
-    border-color: var(--pdk-rail-accent);
-    background: color-mix(in srgb, var(--pdk-rail-accent) 16%, transparent);
-    color: var(--pdk-rail-accent);
-}
-
-.pdk-wizard-skipped .pdk-wizard-rail-marker {
-    border-style: dashed;
-    border-color: color-mix(in srgb, var(--pdk-rail-accent) 55%, transparent);
-    color: var(--pdk-rail-muted);
-}
-
-.pdk-wizard-rail-title {
-    max-width: 100%;
-    overflow: hidden;
-    color: var(--pdk-rail-muted);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.pdk-wizard-current .pdk-wizard-rail-title {
-    color: inherit;
-}
-
-/* The setup page's card is narrower: titles only for the current step there, and on phones. */
-.pdk-auth .pdk-wizard-rail {
-    margin-bottom: 28px;
-}
-
-.pdk-auth .pdk-wizard-rail-step:not(.pdk-wizard-current) .pdk-wizard-rail-title {
-    visibility: hidden;
-}
-
-.pdk-auth .pdk-wizard-rail-title {
-    overflow: visible;
-}
-
-.pdk-auth .pdk-wizard-rail-marker {
-    width: 24px;
-    height: 24px;
-    font-size: 0.6875rem;
-}
-
-.pdk-auth .pdk-wizard-rail-step:not(:last-child)::after {
-    top: 11px;
-    left: calc(50% + 14px);
-    right: calc(-50% + 14px);
-}
-
-@media (max-width: 700px) {
-    .pdk-wizard-rail-step:not(.pdk-wizard-current) .pdk-wizard-rail-title {
-        visibility: hidden;
-    }
 }
 
 /* ---------- The setup page's password strength ---------- */
@@ -164,58 +42,6 @@
 .pdk-strength-label {
     margin-left: 4px;
     color: var(--pdk-text);
-}
-
-/* ---------- The wizard ---------- */
-
-.pdk-wizard {
-    max-width: 880px;
-    margin: 0 auto;
-}
-
-.pdk-wizard-card.mud-paper {
-    display: grid;
-    gap: 20px;
-    padding: 28px;
-}
-
-.pdk-wizard-head {
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
-}
-
-.pdk-wizard-head .pdk-dialog-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-}
-
-.pdk-wizard-title.mud-typography {
-    margin-bottom: 2px;
-}
-
-.pdk-wizard-body {
-    min-width: 0;
-}
-
-.pdk-wizard-foot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    padding-top: 18px;
-    border-top: 1px solid var(--mud-palette-lines-default);
-}
-
-.pdk-wizard-provider.pdk-provider {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 16px;
-    border: 1px solid var(--mud-palette-lines-default);
-    border-radius: var(--pdk-radius-lg);
 }
 
 .pdk-totp-scan {
@@ -260,45 +86,6 @@
     font-size: 0.875rem;
 }
 
-.pdk-probe-row {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: start;
-    gap: 10px;
-}
-
-.pdk-probe-row .mud-button-root {
-    margin-top: 6px;
-}
-
-.pdk-summary-list {
-    display: grid;
-    gap: 0;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.pdk-summary-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 0;
-    border-top: 1px solid var(--mud-palette-lines-default);
-}
-
-.pdk-summary-item:first-child {
-    border-top: 0;
-}
-
-.pdk-next-links {
-    display: grid;
-    gap: 8px;
-    margin: 12px 0 0;
-    padding-left: 18px;
-    font-size: 0.875rem;
-}
-
 /* ---------- The overview's checklist ---------- */
 
 .pdk-checklist.mud-paper {
@@ -310,15 +97,8 @@
 }
 
 @media (max-width: 600px) {
-    .pdk-totp-scan, .pdk-probe-row {
+    .pdk-totp-scan {
         grid-template-columns: 1fr;
     }
 
-    .pdk-wizard-card.mud-paper {
-        padding: 20px 16px;
-    }
-
-    .pdk-wizard-provider.pdk-provider {
-        grid-template-columns: auto 1fr;
-    }
 }

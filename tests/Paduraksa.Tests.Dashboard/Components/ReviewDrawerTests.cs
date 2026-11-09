@@ -82,7 +82,7 @@ public sealed class ReviewDrawerTests
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=invalid]").Count == 1);
         string text = drawer.Find("[data-review=invalid]").TextContent;
-        Assert.Equal("Name 2", drawer.Find("[data-review=invalid] .pdk-error-where").TextContent);
+        Assert.Equal("Hostname 2", drawer.Find("[data-review=invalid] .pdk-error-where").TextContent);
         Assert.Contains("'www.example.com' is already served by another host.", text, StringComparison.Ordinal);
         Assert.Equal("/names/1", Assert.Single(handed!).Path);
         Assert.Empty(drawer.FindAll("[data-review=apply]"));

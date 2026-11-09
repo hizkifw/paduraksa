@@ -15,9 +15,9 @@ namespace Paduraksa.Tests.Dashboard.Components;
 public sealed class PermissionVisibilityTests
 {
     [Theory]
-    [InlineData(Role.Owner, new[] { "Overview", "Hosts", "Upstreams", "Certificates", "Simulator", "History", "Audit", "Settings" })]
-    [InlineData(Role.Viewer, new[] { "Overview", "Hosts", "Upstreams", "Certificates", "Simulator", "History", "Settings" })]
-    [InlineData(Role.Auditor, new[] { "Overview", "Hosts", "Upstreams", "Certificates", "History", "Audit", "Settings" })]
+    [InlineData(Role.Owner, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Simulator", "History", "Audit", "Global defaults", "Users and roles", "API tokens" })]
+    [InlineData(Role.Viewer, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Simulator", "History", "Global defaults", "API tokens" })]
+    [InlineData(Role.Auditor, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Certificates", "Local CA", "ACME accounts", "DNS providers", "History", "Audit", "Global defaults", "API tokens" })]
     public void TheNavigation_ListsThePagesTheRoleMaySee(Role role, string[] expected)
     {
         using DashboardTestContext context = new();
@@ -34,7 +34,7 @@ public sealed class PermissionVisibilityTests
         IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(null)));
 
-        Assert.Equal(["Overview", "Settings"], menu.FindAll(".pdk-nav-label").Select(label => label.TextContent));
+        Assert.Equal(["Overview"], menu.FindAll(".pdk-nav-label").Select(label => label.TextContent));
     }
 
     [Fact]

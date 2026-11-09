@@ -17,7 +17,7 @@
 
 <PageTitle>API tokens · Settings · Paduraksa</PageTitle>
 
-<PageHeader Title="API tokens" Overline="Settings" Area="SectionArea.Settings" Lead="Credentials for scripts and tools that use the REST API as you, with only the scopes you give them.">
+<PageHeader Title="API tokens" Overline="Settings" Lead="Credentials for scripts and tools that use the REST API as you, with only the scopes you give them.">
     <Actions>
         @if (_mayIssue)
         {
@@ -40,7 +40,7 @@
         {
             <MudText Typo="Typo.body2" Class="pdk-muted">Your tokens</MudText>
         }
-        <MudSwitch T="bool" @bind-Value="_showRevoked" Color="Color.Primary" Label="Show revoked and expired" Size="Size.Small" />
+        <MudSwitch T="bool" @bind-Value="_showRevoked" Color="Color.Primary" Label="Show revoked and expired" />
     </div>
 
     @if (_failed)

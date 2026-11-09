@@ -11,7 +11,7 @@
    and errors; Apply commits it with the version the form opened with. A stale version is a friendly conflict, a commit that couldn't go
    live says so, and a successful one leaves a toast with Undo. The level hands back a ReviewOutcome. *@
 
-<DrawerShell Title="@Request.Title" Overline="Review changes" Icon="@Icons.Material.Outlined.FactCheck" Name="review">
+<DrawerShell Title="@Request.Title" Icon="@Icons.Material.Outlined.FactCheck" Name="review">
     <ChildContent>
         <div class="pdk-review-body" data-review-phase="@_phase.ToString().ToLowerInvariant()">
             @switch (_phase)
@@ -282,8 +282,8 @@
         bool objectCommand = command is not (ReplaceConfigCommand or RollbackConfigCommand);
         _errors =
         [
-            .. result.Errors.Select(e => (ChangeView.Locate(e.Path, objectCommand ? null : _after), ReviewNotices.Sentence(e.Message))),
-            .. result.RelatedErrors.Select(e => (ChangeView.Locate(e.Path, _after), ReviewNotices.Sentence(e.Message))),
+            .. result.Errors.Select(e => (ChangeView.Locate(e.Path, objectCommand ? null : _after), ReviewNotices.Text(e, _after))),
+            .. result.RelatedErrors.Select(e => (ChangeView.Locate(e.Path, _after), ReviewNotices.Text(e, _after))),
         ];
         _phase = result.Status switch
         {

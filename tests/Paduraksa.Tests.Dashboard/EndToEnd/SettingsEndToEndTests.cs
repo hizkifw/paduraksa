@@ -52,13 +52,8 @@ public sealed class SettingsEndToEndTests
         IPage other = await otherContext.NewPageAsync();
         await SignInAsync(other, DashboardHost.OwnerName, DashboardHost.OwnerPassword);
 
-        // The hub leads to the sections.
-        await OpenFromNavigationAsync(page, "Settings");
-        await ExpectHeadingAsync(page, "Settings");
-        await PlaywrightBrowser.ScreenshotAsync(page, "settings");
-
-        // Users and roles: add a Viewer.
-        await page.Locator(".pdk-settings-link", new() { HasText = "Users and roles" }).ClickAsync();
+        // Users and roles, from the side navigation: add a Viewer.
+        await OpenFromNavigationAsync(page, "Users and roles");
         await ExpectHeadingAsync(page, "Users and roles");
         await page.ClickAsync("[data-action=add-user]");
         await page.FillAsync("input[data-field=username]", ViewerName);
@@ -84,7 +79,8 @@ public sealed class SettingsEndToEndTests
             await Expect(viewer.Locator("[data-banner=read-only]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
             await Expect(viewer.Locator("[data-action=review]")).ToHaveCountAsync(0);
             await viewer.GotoAsync("/settings");
-            await Expect(viewer.Locator(".pdk-settings-link", new() { HasText = "Users and roles" })).ToHaveCountAsync(0);
+            await ExpectHeadingAsync(viewer, "Global defaults");
+            await Expect(viewer.Locator(".pdk-nav").GetByRole(AriaRole.Link, new() { Name = "Users and roles" })).ToHaveCountAsync(0);
             await viewer.GotoAsync("/settings/users");
             await Expect(viewer.GetByText("Your role can't see the users")).ToBeVisibleAsync(new() { Timeout = 15_000 });
             await Expect(viewer.Locator(".pdk-nav").GetByRole(AriaRole.Link, new() { Name = "Audit" })).ToHaveCountAsync(0);
@@ -187,7 +183,7 @@ public sealed class SettingsEndToEndTests
 
         // Phone width: the pages fit without scrolling sideways.
         await page.SetViewportSizeAsync(390, 844);
-        foreach ((string path, string shot) in new[] { ("/settings", "settings-phone"), ("/settings/users", "users-phone"), ("/settings/tokens", "tokens-phone"), ("/settings/defaults", "defaults-phone"), ("/audit", "audit-phone"), ("/account", "account-phone") })
+        foreach ((string path, string shot) in new[] { ("/settings/users", "users-phone"), ("/settings/tokens", "tokens-phone"), ("/settings/defaults", "defaults-phone"), ("/audit", "audit-phone"), ("/account", "account-phone") })
         {
             await page.GotoAsync(path);
             await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
@@ -217,8 +213,8 @@ public sealed class SettingsEndToEndTests
         await page.FillAsync("input[name=password]", DashboardHost.OwnerPassword);
         await page.FillAsync("input[name=confirmPassword]", DashboardHost.OwnerPassword);
         await page.ClickAsync("button[type=submit]");
-        await Expect(page).ToHaveURLAsync(new Regex("/welcome$"));
-        await page.GotoAsync("/");
+        // Setup lands on the overview.
+        await Expect(page).ToHaveURLAsync(new Regex("/$"));
         await ExpectHeadingAsync(page, "Overview");
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
     }

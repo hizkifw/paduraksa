@@ -3,7 +3,7 @@
 @inject ProviderActions Actions
 @inject ISnackbar Snackbar
 
-<DrawerShell Title="@(RotateFor is null ? "Add a DNS provider" : $"Replace the token of {RotateFor.Label}")" Overline="DNS provider"
+<DrawerShell Title="@(RotateFor is null ? "Add a DNS provider" : $"Replace the token of {RotateFor.Label}")"
              Subtitle="For DNS-01: TXT records are written through its API while a certificate is validated." Icon="@Icons.Material.Outlined.Dns" Name="dns-provider">
     <DnsProviderForm Submit="SubmitAsync" RotateFor="RotateFor" Saved="Saved" OnCancel="() => Level?.RequestClose()" />
 </DrawerShell>

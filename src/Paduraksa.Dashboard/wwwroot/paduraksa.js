@@ -116,6 +116,112 @@
         },
     });
 
+    // Drawers leaving: Blazor removes a closed level's sheet (and the stack, with its backdrop, once the last level goes) at once. The
+    // node is put back outside Blazor's tree, inert, before the next paint; it slides out from wherever it was (a level under the top
+    // from its pushed place) and is dropped. A detached element forgets its scroll position, so the sheets' are kept as they scroll.
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const scrolled = new WeakMap();
+    document.addEventListener("scroll", (event) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest(".pdk-sheet")) {
+            scrolled.set(target, target.scrollTop);
+        }
+    }, { capture: true, passive: true });
+
+    const leave = (node) => {
+        node.classList.add("pdk-leaving");
+        // No longer a level: what looks for the top drawer (Escape, focus, a test) must not find the one on its way out.
+        for (const element of [node, ...node.querySelectorAll("[data-top]")]) {
+            element.removeAttribute("data-top");
+        }
+
+        node.inert = true;
+        node.setAttribute("aria-hidden", "true");
+        document.body.appendChild(node);
+        for (const element of node.querySelectorAll("*")) {
+            const top = scrolled.get(element);
+            if (top) {
+                element.scrollTop = top;
+            }
+        }
+
+        const sheets = node.matches(".pdk-sheet") ? [node] : [...node.querySelectorAll(".pdk-sheet")];
+        const animations = sheets.map((sheet) => sheet.animate(
+            [{ transform: getComputedStyle(sheet).transform }, { transform: "translateX(100%)" }],
+            { duration: 280, easing: "cubic-bezier(0.32, 0.72, 0, 1)", fill: "forwards" }));
+        for (const backdrop of node.querySelectorAll(".pdk-stack-backdrop")) {
+            animations.push(backdrop.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: "ease-out", fill: "forwards" }));
+        }
+
+        Promise.allSettled(animations.map((animation) => animation.finished)).then(() => node.remove());
+    };
+
+    new MutationObserver((records) => {
+        if (reducedMotion.matches || !document.body) {
+            return;
+        }
+
+        for (const record of records) {
+            for (const node of record.removedNodes) {
+                if (node.nodeType === Node.ELEMENT_NODE && !node.isConnected && !node.classList.contains("pdk-leaving")
+                    && (node.classList.contains("pdk-sheet") || node.classList.contains("pdk-stack"))) {
+                    leave(node);
+                }
+            }
+        }
+    }).observe(document.documentElement, { childList: true, subtree: true });
+
+    // The connection lost (App.razor's #components-reconnect-modal): Blazor shows it and says how it goes; the buttons are these. A failed
+    // reconnect tries again when the tab is looked at again, as a phone that slept comes back.
+    const reconnectModal = document.getElementById("components-reconnect-modal");
+    if (reconnectModal) {
+        const whenVisible = () => {
+            if (document.visibilityState === "visible") {
+                retry();
+            }
+        };
+        const retry = async () => {
+            document.removeEventListener("visibilitychange", whenVisible);
+            try {
+                if (await window.Blazor.reconnect()) {
+                    return;
+                }
+
+                // The server no longer knows the circuit: carry its state over to a new one if it can, else start afresh.
+                if (!(await window.Blazor.resumeCircuit())) {
+                    window.location.reload();
+                }
+            } catch {
+                document.addEventListener("visibilitychange", whenVisible);
+            }
+        };
+        const resume = async () => {
+            try {
+                if (!(await window.Blazor.resumeCircuit())) {
+                    window.location.reload();
+                }
+            } catch {
+                reconnectModal.classList.replace("components-reconnect-paused", "components-reconnect-resume-failed");
+            }
+        };
+
+        reconnectModal.addEventListener("components-reconnect-state-changed", (event) => {
+            if (event.detail.state === "failed") {
+                document.addEventListener("visibilitychange", whenVisible);
+            }
+        });
+        reconnectModal.addEventListener("click", (event) => {
+            const action = event.target instanceof Element ? event.target.closest("[data-reconnect]")?.dataset.reconnect : null;
+            if (action === "retry") {
+                retry();
+            } else if (action === "resume") {
+                resume();
+            } else if (action === "reload") {
+                window.location.reload();
+            }
+        });
+    }
+
     window.paduraksa = Object.freeze({
         drawers,
 
