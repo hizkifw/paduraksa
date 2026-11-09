@@ -7,12 +7,13 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Revisions;
 using Paduraksa.Core.Model;
 using Paduraksa.Tests.Integration.Config;
+using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>The config resources of the API through the real host: CRUD, concurrency, dry runs, validation, revisions and who may do what.</summary>
-public sealed class ConfigApiTests
+public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
@@ -25,7 +26,7 @@ public sealed class ConfigApiTests
     [Fact]
     public async Task AnAdminHostIsCreatedThroughTheHostsEndpoint()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         HostConfig host = new(TestIds.Host("admin-via-api"), ["admin.test"], Kind: HostKind.Admin);
 
         using HttpResponseMessage created = await PostHostAsync(api, host);
@@ -42,7 +43,7 @@ public sealed class ConfigApiTests
     [Fact]
     public async Task AHostIsCreatedReadReplacedAndDeletedWithItsVersion()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         HostConfig host = ConfigTestSupport.RespondHost("a", "a.test", "ok");
 
         using HttpResponseMessage created = await PostHostAsync(api, host);
@@ -84,6 +85,7 @@ public sealed class ConfigApiTests
     [Fact]
     public async Task ADryRunReturnsThePlanAndCommitsNothing()
     {
+        // Its own host: it counts the hosts and revisions the dry run leaves behind, so it must start with none.
         await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
         HostConfig host = ConfigTestSupport.RespondHost("dry", "dry.test", "ok");
 
@@ -105,7 +107,7 @@ public sealed class ConfigApiTests
     [Fact]
     public async Task ValidationFailuresAre422WithTheServicesErrorsAndAnExistingIdIs409()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage invalid = await PostHostAsync(api, ConfigTestSupport.ProxyHost("p", "p.test", "missing-upstream"));
         ApiProblem problem = await AdminApiHarness.ProblemAsync(invalid, Ct);
@@ -127,15 +129,15 @@ public sealed class ConfigApiTests
     [Fact]
     public async Task RoutesLiveInsideTheirHostAndUseTheHostsVersion()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
-        UpstreamConfig upstream = ConfigTestSupport.Upstream("u", "http://127.0.0.1:9");
+        AdminApiHarness api = shared.Api;
+        UpstreamConfig upstream = ConfigTestSupport.Upstream("u-routes", "http://127.0.0.1:9");
         using HttpResponseMessage upstreamCreated = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/upstreams", upstream, AdminJsonContext.Default.UpstreamConfig);
         Assert.Equal(HttpStatusCode.Created, upstreamCreated.StatusCode);
-        HostConfig host = ConfigTestSupport.ProxyHost("h", "h.test", "u");
+        HostConfig host = ConfigTestSupport.ProxyHost("h-routes", "h-routes.test", "u-routes");
         using HttpResponseMessage hostCreated = await PostHostAsync(api, host);
         string version = AdminApiHarness.ETag(hostCreated)!;
 
-        RouteConfig route = new(TestIds.Route("api"), upstream.Id, Path: "/api");
+        RouteConfig route = new(TestIds.Route("h-routes-api"), upstream.Id, Path: "/api");
         using HttpResponseMessage missingMatch = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/hosts/{host.Id}/routes/{route.Id}", route, AdminJsonContext.Default.RouteConfig);
         Assert.Equal(HttpStatusCode.PreconditionRequired, missingMatch.StatusCode);
         using HttpResponseMessage added = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/hosts/{host.Id}/routes/{route.Id}", route, AdminJsonContext.Default.RouteConfig, ifMatch: version);
@@ -157,6 +159,7 @@ public sealed class ConfigApiTests
     [Fact]
     public async Task UpstreamsAndProfilesAreManagedAndAnUpstreamInUseCannotBeDeleted()
     {
+        // Its own host: it asserts the lists hold exactly what it created, so it must start with none.
         await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
         UpstreamConfig upstream = ConfigTestSupport.Upstream("u", "http://127.0.0.1:9");
         using HttpResponseMessage createdUpstream = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/upstreams", upstream, AdminJsonContext.Default.UpstreamConfig);
@@ -183,7 +186,7 @@ public sealed class ConfigApiTests
     [Fact]
     public async Task SettingsNeedTheirVersion()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         using HttpResponseMessage read = await api.GetAsync("/api/v1/settings");
         GlobalSettings settings = await AdminApiHarness.ReadAsync(read, AdminJsonContext.Default.GlobalSettings, Ct);
         GlobalSettings changed = settings with { UnknownHost = UnknownHostBehaviour.MisdirectedRequest };
@@ -194,11 +197,18 @@ public sealed class ConfigApiTests
         Assert.Equal(HttpStatusCode.OK, with.StatusCode);
         using HttpResponseMessage stale = await api.SendJsonAsync(HttpMethod.Put, "/api/v1/settings", changed, AdminJsonContext.Default.GlobalSettings, ifMatch: AdminApiHarness.ETag(read));
         Assert.Equal(HttpStatusCode.PreconditionFailed, stale.StatusCode);
+
+        // The request above changed the class's global settings; put them back, so a test that runs later on this shared host
+        // sees the config it started with.
+        using HttpResponseMessage now = await api.GetAsync("/api/v1/settings");
+        using HttpResponseMessage restored = await api.SendJsonAsync(HttpMethod.Put, "/api/v1/settings", settings, AdminJsonContext.Default.GlobalSettings, ifMatch: AdminApiHarness.ETag(now));
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
     }
 
     [Fact]
     public async Task RevisionsPageDiffAndRollBack()
     {
+        // Its own host: it pages through every revision and rolls back to one, so it must start with none.
         await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
         List<ConfigRevisionId> ids = [];
         foreach (string label in new[] { "r1", "r2", "r3" })
@@ -267,7 +277,7 @@ public sealed class ConfigApiTests
     [InlineData(null, "POST", "/api/v1/simulate", 401)]
     public async Task EachRoleGetsWhatItsPermissionsAllow(string? role, string method, string path, int expected)
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage response = await api.SendAsync(new HttpMethod(method), path, role, content: method == "POST" ? AdminApiHarness.JsonBody(string.Empty) : null);
 

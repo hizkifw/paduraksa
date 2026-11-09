@@ -20,14 +20,14 @@ using Paduraksa.Tests.Integration.Hosting;
 namespace Paduraksa.Tests.Integration.Admin;
 
 /// <summary>The API's global conventions, through the real host over HTTPS: problem details everywhere, no leaks, JSON only, typed-ID routes, the description.</summary>
-public sealed class ApiConventionTests
+public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task AnUnknownRouteUnderApiIsAProblemNotAnEmptyBody()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage response = await api.GetAsync("/api/v1/no-such-thing");
         ApiProblem problem = await AdminApiHarness.ProblemAsync(response, Ct);
@@ -41,7 +41,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task AWrongMethodIs405WithTheAllowHeaderAndAProblem()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage response = await api.SendAsync(HttpMethod.Patch, "/api/v1/hosts");
         ApiProblem problem = await AdminApiHarness.ProblemAsync(response, Ct);
@@ -54,7 +54,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task AMalformedTypedIdInTheRouteDoesNotMatch()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         foreach (string path in new[] { "/api/v1/hosts/not-an-id", "/api/v1/hosts/upstream_0000000000000000000000", "/api/v1/revisions/host_0000000000000000000000" })
         {
@@ -110,7 +110,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task AFailedResponseKeepsTheSecurityHeaders()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage tooLarge = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: AdminApiHarness.JsonBody($$"""{"version":0,"padding":"{{new string('x', 300 * 1024)}}"}"""));
         using HttpResponseMessage unknown = await api.GetAsync("/api/v1/nothing-here");
@@ -132,7 +132,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task BodiesAreJsonOnlyAndStrictAndTheErrorsNameNoClrTypes()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage text = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: new StringContent("{}", Encoding.UTF8, "text/plain"));
         using HttpResponseMessage malformed = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: AdminApiHarness.JsonBody("{ not json"));
@@ -157,7 +157,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task AMissingPolymorphicDiscriminatorIs400NotAnUnhandledException()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         const string Request = """{"url":"http://a.test/","clientIp":"203.0.113.9"}""";
 
         foreach (string body in new[] { "{\"request\":" + Request + ",\"target\":{}}", "{\"request\":" + Request + ",\"target\":{\"kind\":\"nonsense\"}}" })
@@ -171,7 +171,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task AJsonBodyPastTheDefaultLimitIs413()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         string huge = $$"""{"version":0,"padding":"{{new string('x', 300 * 1024)}}"}""";
         using HttpResponseMessage response = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: AdminApiHarness.JsonBody(huge));
@@ -189,7 +189,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task EveryMappedApiEndpointRequiresAPermissionOrASignInOrIsAnonymousOnPurpose()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         List<RouteEndpoint> endpoints = ApiEndpoints(api);
 
@@ -209,7 +209,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task EveryResourceRouteHasExactlyTheExpectedPermission()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         (string Route, Permission Permission)[] expected =
         [
             ("GET /api/v1/config", Permission.ConfigRead),
@@ -289,7 +289,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task TheOpenApiDocumentIsAnonymousOpenApi31WithTypedIdSchemasAndEveryOperationDescribed()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage response = await api.GetAsync("/api/v1/openapi.json", caller: null);
         string text = await response.Content.ReadAsStringAsync(Ct);
@@ -346,7 +346,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task TheOpenApiDocumentDescribesTheHeaderAndLogSettings()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage response = await api.GetAsync("/api/v1/openapi.json", caller: null);
         JsonObject document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
@@ -393,7 +393,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task TheReferenceUiIsAnonymousServesItsScriptLocallyAndNeedsNothingFromOutside()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage page = await api.GetAsync("/api/docs", caller: null);
         string html = await page.Content.ReadAsStringAsync(Ct);
@@ -439,7 +439,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task AnonymousRequestsToProtectedEndpointsAre401Problems()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage response = await api.GetAsync("/api/v1/config", caller: null);
         ApiProblem problem = await AdminApiHarness.ProblemAsync(response, Ct);
@@ -452,7 +452,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task HealthEndpointsStayAsTheyAre()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
 
         using HttpResponseMessage live = await api.GetAsync("/healthz", caller: null);
         using HttpResponseMessage ready = await api.GetAsync("/readyz", caller: null);
@@ -465,6 +465,7 @@ public sealed class ApiConventionTests
     [Fact]
     public async Task ASettingsReadCarriesItsVersionAsETag()
     {
+        // Its own host: the claim includes that a fresh config is at version 0.
         await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
 
         using HttpResponseMessage response = await api.GetAsync("/api/v1/settings");
@@ -473,6 +474,19 @@ public sealed class ApiConventionTests
         Assert.Equal("\"0\"", AdminApiHarness.ETag(response));
         Assert.Equal(0, settings.Version);
         Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+    }
+
+    [Fact]
+    public async Task AFreshSettingsDocumentIsVersionZeroAndItsETagSaysSo()
+    {
+        // Its own host: version 0 is the state of a config nobody has written yet, which a shared host cannot show.
+        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+
+        using HttpResponseMessage response = await api.GetAsync("/api/v1/settings");
+        GlobalSettings fresh = await AdminApiHarness.ReadAsync(response, Paduraksa.Admin.Json.AdminJsonContext.Default.GlobalSettings, Ct);
+
+        Assert.Equal("\"0\"", AdminApiHarness.ETag(response));
+        Assert.Equal(0, fresh.Version);
     }
 
     [Theory]
@@ -484,15 +498,25 @@ public sealed class ApiConventionTests
     [InlineData("\"abc\"", 400)]
     public async Task IfMatchTakesOneQuotedStrongTag(string ifMatch, int expected)
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         const string Body = """{"version":0,"unknownHost":"misdirectedRequest"}""";
+
+        // The tag the API itself issued for the settings it holds (the shared host's version is not 0 by now), and the settings
+        // to put back: the good request below changes them, and every other test of the class shares this host.
+        using HttpResponseMessage current = await api.GetAsync("/api/v1/settings");
+        GlobalSettings original = await AdminApiHarness.ReadAsync(current, Paduraksa.Admin.Json.AdminJsonContext.Default.GlobalSettings, Ct);
 
         using HttpResponseMessage response = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: ifMatch, content: AdminApiHarness.JsonBody(Body));
         Assert.Equal(expected, (int)response.StatusCode);
         Assert.Equal(expected, (await AdminApiHarness.ProblemAsync(response, Ct)).Status);
 
-        using HttpResponseMessage good = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: "\"0\"", content: AdminApiHarness.JsonBody(Body));
+        using HttpResponseMessage good = await api.SendAsync(HttpMethod.Put, "/api/v1/settings", ifMatch: AdminApiHarness.ETag(current), content: AdminApiHarness.JsonBody(Body));
         Assert.Equal(HttpStatusCode.OK, good.StatusCode);
+
+        using HttpResponseMessage changed = await api.GetAsync("/api/v1/settings");
+        using HttpResponseMessage restored = await api.SendJsonAsync(
+            HttpMethod.Put, "/api/v1/settings", original, Paduraksa.Admin.Json.AdminJsonContext.Default.GlobalSettings, ifMatch: AdminApiHarness.ETag(changed));
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
     }
 
     private sealed class ThrowingPermissions : IPermissionEvaluator

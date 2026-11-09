@@ -10,6 +10,7 @@ using Paduraksa.Application.Logging;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Logging;
 using Paduraksa.Core.Logging;
+using Paduraksa.Tests.Integration.Hosting;
 
 using static Paduraksa.Tests.Integration.Admin.AdminApiHarness;
 
@@ -19,16 +20,16 @@ namespace Paduraksa.Tests.Integration.Admin;
 /// The log files over the API (PLAN §7.4, §11.1): the list, a bounded tail, the download, the permission, and the names that are refused
 /// before the file system is asked anything.
 /// </summary>
-public sealed class LogApiTests
+public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdminApi>
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
     public async Task TheListNamesEachFileWithItsLogSizeAndCompression()
     {
-        await using AdminApiHarness api = await StartAsync();
-        // Nothing in this test makes a public request, so the access log's writer (fed by the access-log drain) adds no line
-        // while the test reads the file it wrote itself.
+        AdminApiHarness api = StartAsync(shared);
+        // The file holds exactly what this test wrote: this class's hosts write the access log nowhere (TestHost gives them the
+        // null sink), so no request of any test can add a line to the file a test is reading.
         Create(api, "access.log", "GET / 200\n");
         CreateGzip(api, LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Access, DateTimeOffset.UtcNow.AddDays(-1))), "GET /two 404\n");
 
@@ -52,7 +53,7 @@ public sealed class LogApiTests
     [InlineData(null, HttpStatusCode.Unauthorized)]
     public async Task ReadingTheLogsNeedsTheReadPermission(string? caller, HttpStatusCode expected)
     {
-        await using AdminApiHarness api = await StartAsync();
+        AdminApiHarness api = StartAsync(shared);
         Create(api, "error.log", "warn: one\n");
 
         using HttpResponseMessage list = await api.GetAsync("/api/v1/logs", caller);
@@ -67,7 +68,7 @@ public sealed class LogApiTests
     [Fact]
     public async Task ATailIsBoundedByLinesAndCanBeFiltered()
     {
-        await using AdminApiHarness api = await StartAsync();
+        AdminApiHarness api = StartAsync(shared);
         Create(api, "access.log", string.Concat(Enumerable.Range(0, 1500).Select(i => $"GET /{i} 200\n")));
 
         using HttpResponseMessage all = await api.GetAsync("/api/v1/logs/access.log/tail?lines=1000");
@@ -88,7 +89,7 @@ public sealed class LogApiTests
     [InlineData("/api/v1/logs/error.log/tail?filter=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
     public async Task ABadTailParameterIsAProblem(string path)
     {
-        await using AdminApiHarness api = await StartAsync();
+        AdminApiHarness api = StartAsync(shared);
         Create(api, "error.log", "warn: one\n");
 
         using HttpResponseMessage response = await api.GetAsync(path);
@@ -106,7 +107,7 @@ public sealed class LogApiTests
     [InlineData("%2Fetc%2Fpasswd")]
     public async Task OnlyTheWritersOwnNamesAreServed(string name)
     {
-        await using AdminApiHarness api = await StartAsync();
+        AdminApiHarness api = StartAsync(shared);
         Create(api, "error.log", "warn: one\n");
         await System.IO.File.WriteAllTextAsync(Path.Combine(DirectoryOf(api), "notes.txt"), "not a log", Ct);
 
@@ -125,7 +126,9 @@ public sealed class LogApiTests
             return;
         }
 
-        await using AdminApiHarness api = await StartAsync();
+        // Its own host: it replaces the log directory's error.log with a symlink, which would outlive the test.
+        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        System.IO.Directory.CreateDirectory(DirectoryOf(api));
         string outside = Path.Combine(api.Host.Options.DataDirectory, "outside.txt");
         await System.IO.File.WriteAllTextAsync(outside, "warn: from outside\n", Ct);
         string link = Path.Combine(DirectoryOf(api), "error.log");
@@ -142,7 +145,7 @@ public sealed class LogApiTests
     [Fact]
     public async Task ADownloadIsAnAttachmentOfTheFileItself()
     {
-        await using AdminApiHarness api = await StartAsync();
+        AdminApiHarness api = StartAsync(shared);
         string rotated = LogFileNames.Rotated(LogFileKind.Access, new DateTimeOffset(2026, 11, 9, 12, 0, 0, TimeSpan.Zero));
         Create(api, rotated, "GET / 200\nGET /two 404\n");
         CreateGzip(api, LogFileNames.Compressed(rotated), "GET / 200\n");
@@ -177,7 +180,7 @@ public sealed class LogApiTests
     [Fact]
     public async Task TheApiDescriptionListsTheLogEndpointsWithTheirPermission()
     {
-        await using AdminApiHarness api = await StartAsync();
+        AdminApiHarness api = StartAsync(shared);
 
         using HttpResponseMessage response = await api.GetAsync("/api/v1/openapi.json");
         string document = await response.Content.ReadAsStringAsync(Ct);
@@ -186,13 +189,20 @@ public sealed class LogApiTests
         Assert.Contains("logs:read", document, StringComparison.Ordinal);
     }
 
-    private static async Task<AdminApiHarness> StartAsync()
+    /// <summary>The class's shared host, whose log directory this class writes the files it reads.</summary>
+    private static AdminApiHarness StartAsync(SharedAdminApi shared)
     {
-        AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
+        AdminApiHarness api = shared.Api;
         System.IO.Directory.CreateDirectory(DirectoryOf(api));
         return api;
     }
 
+    /// <summary>
+    /// The class's log directory. Tests overwrite the live files there while the host's own error-log writer holds
+    /// <c>error.log</c> open, appending whatever the process logs at Warning and above (the startup banner included). That is
+    /// harmless: nothing here asserts on what the process wrote; the assertions are about the file a test put there, and the
+    /// access log has no writer in these hosts at all.
+    /// </summary>
     private static string DirectoryOf(AdminApiHarness api) => api.Host.Options.Logs.ResolvedDirectory;
 
     private static void Create(AdminApiHarness api, string name, string text) =>
