@@ -1,5 +1,6 @@
 using System.Globalization;
 
+using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -229,8 +230,8 @@ public static class HostOverview
             return "HTTP only";
         }
 
-        bool? profile = host.ProfileId is { } id ? document.Profiles.FirstOrDefault(p => p.Id == id)?.Settings.ForceHttps : null;
-        bool redirect = host.Settings.ForceHttps ?? profile ?? document.Settings.Defaults.ForceHttps ?? false;
+        HostSettings? profile = host.ProfileId is { } id ? document.Profiles.FirstOrDefault(p => p.Id == id)?.Settings : null;
+        bool redirect = HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, document.Settings.Defaults, profile, host.Settings).ForceHttps == true;
         return redirect ? "HTTPS, redirects HTTP" : "HTTP and HTTPS";
     }
 
