@@ -55,6 +55,13 @@ internal sealed class RotatingLogFile : IDisposable
     /// <summary>How long unflushed lines may sit in the buffer.</summary>
     internal static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// The one item in the queue that is not a line: <see cref="Flush"/> offers it so the writer's wait for work ends at once
+    /// instead of at the next <see cref="FlushInterval"/>. It is recognised by identity, so no line can be taken for it, and it is
+    /// never written. A full queue refuses it, and the writer then finds <see cref="_flushRequested"/> within the interval.
+    /// </summary>
+    private static readonly string FlushToken = new('\0', 1);
+
     /// <summary>How long a caller's <see cref="Flush"/> waits for the writer to reach the disk.</summary>
     private static readonly TimeSpan FlushWait = TimeSpan.FromSeconds(5);
 
@@ -148,9 +155,15 @@ internal sealed class RotatingLogFile : IDisposable
     }
 
     /// <summary>
-    /// Asks the writer to write out and flush what it holds, and waits (at most a few seconds) for it to happen. For shutdown and tests;
-    /// logging call sites never need it.
+    /// Asks the writer to write out and flush what it holds, and waits (at most <see cref="FlushWait"/>) for it to happen. For shutdown
+    /// and tests; logging call sites never need it.
     /// </summary>
+    /// <remarks>
+    /// The request wakes the writer at once: it offers <see cref="FlushToken"/> to the queue, an item that is not a line, so the
+    /// writer's wait for work ends there instead of at the next <see cref="FlushInterval"/>. A full queue drops the token like any
+    /// line, and the writer then still notices <see cref="_flushRequested"/> within the interval: the request is never lost, only
+    /// sometimes late.
+    /// </remarks>
     public void Flush()
     {
         if (Volatile.Read(ref _disposed) != 0)
@@ -160,6 +173,7 @@ internal sealed class RotatingLogFile : IDisposable
 
         _flushDone.Reset();
         _flushRequested.Set();
+        _ = _queue.TryAdd(FlushToken);
         // Short waits, re-checking the writer's lifetime: a Flush racing with Dispose returns at once instead of waiting out the whole
         // budget for a writer that has already gone (and never touches an event that Dispose may have disposed).
         for (int waited = 0; waited < FlushWait.TotalMilliseconds; waited += 50)
@@ -207,13 +221,13 @@ internal sealed class RotatingLogFile : IDisposable
     {
         while (true)
         {
-            if (_queue.TryTake(out string? line, FlushInterval))
+            if (_queue.TryTake(out string? item, FlushInterval))
             {
-                Write(line);
+                WriteItem(item);
                 // Take whatever else is waiting before touching the disk again: a busy minute is one flush, not thousands.
-                while (_queue.TryTake(out line))
+                while (_queue.TryTake(out item))
                 {
-                    Write(line);
+                    WriteItem(item);
                 }
 
                 if (_flushRequested.IsSet)
@@ -248,12 +262,21 @@ internal sealed class RotatingLogFile : IDisposable
     {
         while (_queue.TryTake(out string? pending))
         {
-            Write(pending);
+            WriteItem(pending);
         }
 
         FlushStream();
         _flushRequested.Reset();
         _flushDone.Set();
+    }
+
+    /// <summary>One item taken from the queue: a line, or the flush token, which is only a wake-up and is never written.</summary>
+    private void WriteItem(string item)
+    {
+        if (!ReferenceEquals(item, FlushToken))
+        {
+            Write(item);
+        }
     }
 
     private void Write(string line)

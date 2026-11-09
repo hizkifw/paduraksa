@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using System.IO.Compression;
 using System.Text;
 
@@ -50,6 +52,46 @@ public sealed class RotatingLogFileTests : IDisposable
         writer.Dispose();
 
         Assert.Equal(["last words"], Read(LivePath()));
+    }
+
+    [Fact]
+    public void AFlushWakesTheWriterInsteadOfWaitingForItsTick()
+    {
+        using RotatingLogFile writer = Start(Clock());
+        writer.WriteLine("warm");
+        writer.Flush(); // the writer is now idle, waiting for work: what a host's stop finds
+
+        // The writer's idle wait is one RotatingLogFile.FlushInterval (a second). A flush that only set the request and waited
+        // for that wait to run out would take about half a second each time, so five of them would take about two and a half
+        // seconds, with one over a second most runs. Five flushes that wake the writer take a few milliseconds.
+        const int Flushes = 5;
+        long longest = 0;
+        long total = 0;
+        for (int i = 0; i < Flushes; i++)
+        {
+            long started = Stopwatch.GetTimestamp();
+            writer.Flush();
+            long elapsed = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            longest = Math.Max(longest, elapsed);
+            total += elapsed;
+        }
+
+        Assert.True(total < 1000, $"five flushes took {total} ms in all (longest {longest} ms)");
+    }
+
+    [Fact]
+    public void LinesWrittenBeforeAFlushAreOnDiskWhenItReturns()
+    {
+        using RotatingLogFile writer = Start(Clock());
+        writer.WriteLine("on disk when the flush returns");
+
+        writer.Flush();
+
+        // Read through a handle of its own while the writer still holds the file open: the flush put the bytes on disk; it did
+        // not leave them in the writer's buffer for the next tick.
+        using FileStream file = new(LivePath(), FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using StreamReader reader = new(file, Encoding.UTF8);
+        Assert.Equal("on disk when the flush returns", reader.ReadLine());
     }
 
     [Fact]
