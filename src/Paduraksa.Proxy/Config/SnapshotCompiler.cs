@@ -20,7 +20,7 @@ public sealed record CompileResult(RuntimeSnapshot? Snapshot, IReadOnlyList<Comp
 
 /// <summary>
 /// Validates a <see cref="ProxyConfigModel"/> and compiles it into an unbound <see cref="RuntimeSnapshot"/> candidate
-/// plus its YARP config (PLAN §6.1 step 3-4). Cold path: it may allocate freely. It reports every error it finds
+/// plus its YARP config. Cold path: it may allocate freely. It reports every error it finds
 /// rather than stopping at the first, each attributed to the object it is about (<see cref="CompileErrorSource"/>:
 /// a host, route, upstream, destination or the defaults, by typed ID). YARP's own validator runs later, in
 /// <c>SnapshotPublisher</c>.
@@ -62,7 +62,7 @@ public static partial class SnapshotCompiler
     }
 
     /// <summary>
-    /// The admin cluster (PLAN §3.1): one symbolic destination whose address the internal listener's connect callback
+    /// The admin cluster: one symbolic destination whose address the internal listener's connect callback
     /// ignores, and HTTP/1.1 fixed because that listener speaks nothing else (a WebSocket upgrade is HTTP/1.1 too).
     /// </summary>
     private static ClusterConfig CompileAdminCluster() => new()

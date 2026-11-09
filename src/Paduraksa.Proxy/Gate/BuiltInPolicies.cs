@@ -22,7 +22,7 @@ public sealed class StaticPolicy(PolicyDecision decision) : IRequestPolicy
 /// <summary>
 /// Lets a request through only when the resolved client address (<see cref="GateRequestState.ClientAddress"/>: behind a
 /// trusted proxy, the real client) is in <paramref name="allowed"/>; otherwise applies <paramref name="onDenied"/>.
-/// One binary search over the compiled ranges (PLAN §7.3), 0 B.
+/// One binary search over the compiled ranges, 0 B.
 /// </summary>
 public sealed class IpAllowListPolicy(CidrSet allowed, PolicyDecision onDenied) : IRequestPolicy
 {

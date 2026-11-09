@@ -40,25 +40,10 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
 }
 
 /// <summary>
-/// The first middleware of the public pipeline (PLAN §7.2 C/D, spike S3). <see cref="Decide"/> is synchronous and
-/// allocation-free. In order:
-/// <list type="number">
-/// <item>one snapshot read, per-request state from <see cref="IPersistentStateFeature"/>, the client address;</item>
-/// <item>the ACME HTTP-01 answer, for a token the orchestrator published, which bypasses everything below;</item>
-/// <item>host lookup; an unknown host gets the default behaviour; the host's response-header list, first stage
-/// (its <c>Server</c>), so every answer below carries it; an HTTPS request for a host without HTTPS, or whose
-/// connection is weaker than the host's TLS settings (HTTP/3, TLS version, ALPN; a connection coalesced from another
-/// name), gets 421; the list's second stage (its <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>) on the answers after
-/// that check;</item>
-/// <item>the <b>host policies</b>, so they guard everything the host answers (a blocked client gets 403, not a redirect);</item>
-/// <item>the HTTP→HTTPS redirect;</item>
-/// <item>Redirect and Respond hosts;</item>
-/// <item>route match (404 when none takes the path);</item>
-/// <item>the <b>route's own policies</b>;</item>
-/// <item><see cref="EndpointHttpContextExtensions.SetEndpoint"/> with YARP's endpoint from the same snapshot, so the
-/// <c>UseRouting</c> that follows skips matching.</item>
-/// </list>
-/// Writing a response happens afterwards, in <see cref="CompleteAsync"/>.
+/// The first middleware of the public pipeline. <see cref="Decide"/> is synchronous and allocation-free; writing a
+/// response happens afterwards, in <see cref="CompleteAsync"/>. The order is the contract: a host's policies run before
+/// its redirect and routes, so a blocked client gets 403 rather than a redirect, and the route's own policies run after
+/// the route match. The endpoint is set with YARP's own, so the <c>UseRouting</c> that follows skips matching.
 /// </summary>
 public sealed class GateMiddleware
 {
@@ -111,7 +96,7 @@ public sealed class GateMiddleware
 
     /// <summary>
     /// The decision over <paramref name="snapshot"/>, reporting every step to <paramref name="tracer"/>. The one body
-    /// production (<see cref="NoGateTracer"/>, which the JIT removes) and the request simulator (PLAN §7.7) both run.
+    /// production (<see cref="NoGateTracer"/>, which the JIT removes) and the request simulator both run.
     /// </summary>
     internal static GateDecision Decide<TTracer>(HttpContext context, RuntimeSnapshot snapshot, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges, TTracer tracer)
         where TTracer : struct, IGateTracer
@@ -122,7 +107,7 @@ public sealed class GateMiddleware
         state.ClientIp = client;
         state.IsHttps = client.Scheme.EffectiveIsHttps(context.Request.IsHttps);
         // The same trust decision the forwarding headers make: a trusted proxy may name the request; anyone else's header
-        // is replaced (PLAN §7.4). 0 B: the header value is adopted by reference, or only a counter is taken.
+        // is replaced. 0 B: the header value is adopted by reference, or only a counter is taken.
         state.InitRequestId(context.Request, client.PeerTrusted);
         tracer.ClientResolved(context, snapshot, in client, state.IsHttps);
 
@@ -212,7 +197,7 @@ public sealed class GateMiddleware
     }
 
     /// <summary>
-    /// Applies one stage of a host's response-header list (PLAN §7.2 C) and reports it: the request ID waits for the
+    /// Applies one stage of a host's response-header list and reports it: the request ID waits for the
     /// answer, so the decision itself allocates nothing.
     /// </summary>
     private static void ApplyHeaders<TTracer>(
@@ -296,7 +281,7 @@ public sealed class GateMiddleware
     /// <summary>
     /// Answers <c>GET</c> and <c>HEAD /.well-known/acme-challenge/{token}</c> on plain HTTP with the key authorization of a
     /// token the orchestrator published (<c>text/plain</c>, 200), before host lookup and every policy, so a challenge
-    /// can't be blocked, redirected to HTTPS or answered by the default host (PLAN §7.2 C). The token is the rest of the
+    /// can't be blocked, redirected to HTTPS or answered by the default host. The token is the rest of the
     /// path, compared exactly; anything else (another method, HTTPS, an unknown or nested token) falls through to the
     /// normal pipeline, where it is a request like any other: that is how an upstream that runs its own ACME client
     /// keeps serving its own challenges. 0 B.
@@ -360,7 +345,7 @@ public sealed class GateMiddleware
     }
 
     /// <summary>
-    /// The pooled per-request state (spike S3 §3). Kestrel keeps <see cref="IPersistentStateFeature"/> on the H1
+    /// The pooled per-request state. Kestrel keeps <see cref="IPersistentStateFeature"/> on the H1
     /// connection or the pooled H2/H3 stream, so this allocates only for a new connection or stream; without the
     /// feature (non-Kestrel servers) it allocates per request.
     /// </summary>

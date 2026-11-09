@@ -10,7 +10,7 @@ using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Snapshot;
 
-/// <summary>A configured host, compiled for the gate (PLAN §6.2). Immutable; belongs to one snapshot.</summary>
+/// <summary>A configured host, compiled for the gate. Immutable; belongs to one snapshot.</summary>
 public sealed class CompiledHost
 {
     /// <summary>Position in <see cref="RuntimeSnapshot.HostsByIndex"/>; valid for this snapshot only.</summary>
@@ -34,7 +34,7 @@ public sealed class CompiledHost
     public PrecomputedResponse? FixedResponse { get; init; }
 
     /// <summary>
-    /// The host's response headers (PLAN §7.2 C): <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>, <c>Server</c> and the
+    /// The host's response headers: <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>, <c>Server</c> and the
     /// response <c>X-Request-Id</c>, each with its precomputed value, what to do with it, when, and what has to hold. This
     /// is the one list the gate (<see cref="Http.ResponseHeaders.ApplyStage"/>), the reapply after a forward and YARP's
     /// response transform all loop over (<see cref="Http.ResponseHeaderOperation"/>).
@@ -58,21 +58,21 @@ public sealed class CompiledHost
     internal HttpsRedirect? HttpsRedirect { get; init; }
 
     /// <summary>
-    /// Write a line per request of this host to the access log (PLAN §7.4): the settings layers resolved it, built-in
+    /// Write a line per request of this host to the access log: the settings layers resolved it, built-in
     /// default on. Off, the request is served exactly as before, only without a line.
     /// </summary>
     public bool AccessLog { get; init; } = true;
 
     /// <summary>
-    /// Where the request ID is sent upstream (PLAN §7.4): the settings layers resolved it, built-in default upstream and
+    /// Where the request ID is sent upstream: the settings layers resolved it, built-in default upstream and
     /// response. The response leg is the <c>X-Request-Id</c> operation in <see cref="ResponseHeaders"/>; the log records
     /// the ID whatever it says.
     /// </summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 
     /// <summary>
-    /// Placeholder for the stable metric slot (PLAN §6.3, §7.4): the same host keeps the same slot across snapshots.
-    /// -1 until the metrics registry exists (M9).
+    /// Placeholder for the stable metric slot: the same host keeps the same slot across snapshots.
+    /// -1 until the metrics registry exists.
     /// </summary>
     public int MetricSlot { get; init; } = -1;
 
@@ -94,7 +94,7 @@ public sealed class CompiledHost
 /// <summary>
 /// The precomputed HTTP→HTTPS redirect of one host: <c>301</c> for <c>GET</c>/<c>HEAD</c>, <c>308</c> otherwise so the
 /// method and body survive. The <c>Location</c> keeps the request host and target and uses the <b>public</b> HTTPS
-/// port from settings, never the bound port (PLAN §7.5).
+/// port from settings, never the bound port.
 /// </summary>
 internal sealed class HttpsRedirect
 {

@@ -22,7 +22,7 @@ public enum HostMatchKind : byte
 
 /// <summary>
 /// Host name → <see cref="CompiledHost"/>, looked up from the raw <c>Host</c> header span without allocating
-/// (spike S3 §1, PLAN §7.1). Exact names first, then a single-label wildcard: <c>*.example.com</c> matches
+/// Exact names first, then a single-label wildcard: <c>*.example.com</c> matches
 /// <c>a.example.com</c> but neither <c>example.com</c> nor <c>a.b.example.com</c> (the same rule as TLS wildcards).
 /// Both tables are <see cref="FrozenDictionary{TKey, TValue}"/>s with <see cref="StringComparer.OrdinalIgnoreCase"/>
 /// and a cached <see cref="ReadOnlySpan{T}"/> alternate lookup. IPv6 literals sit in a third table keyed by address.

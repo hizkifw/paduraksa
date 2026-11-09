@@ -7,7 +7,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>
-/// The gate's seam for the client address (PLAN §7.2 C, §7.6): called once per request with the request's snapshot.
+/// The gate's seam for the client address: called once per request with the request's snapshot.
 /// Must be allocation-free: it runs on every request.
 /// </summary>
 public interface IClientAddressSource
@@ -24,9 +24,8 @@ public interface IClientAddressSource
 /// non-Kestrel server) falls back to <c>HttpContext.Connection.RemoteIpAddress</c>. 0 B either way.
 /// </summary>
 /// <remarks>
-/// The policy is global for M1. A per-host override (PLAN §5.3) needs the host first, so it would resolve after the
-/// host lookup; that arrives with the per-host settings (M2/M7). The request scheme is resolved in the same step
-/// (<see cref="ForwardedScheme"/>).
+/// The policy is global: a per-host override needs the host first, so it would resolve after the host lookup. The
+/// request scheme is resolved in the same step (<see cref="ForwardedScheme"/>).
 /// </remarks>
 public sealed partial class TrustedProxyClientAddressSource : IClientAddressSource
 {
@@ -39,7 +38,7 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
     /// <param name="logger">Gets one warning the first time Cloudflare "Flexible" SSL is seen.</param>
     public TrustedProxyClientAddressSource(ILogger<TrustedProxyClientAddressSource> logger) => _logger = logger;
 
-    /// <summary>Header fallbacks and Cloudflare plain-HTTP requests (process lifetime; read by metrics, M9).</summary>
+    /// <summary>Header fallbacks and Cloudflare plain-HTTP requests (process lifetime; read by metrics).</summary>
     public ClientAddressCounters Counters { get; } = new();
 
     public ClientIpResolution Resolve(HttpContext context, RuntimeSnapshot snapshot) =>
@@ -47,7 +46,7 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
 
     /// <summary>
     /// The resolution itself. <paramref name="counters"/> null: count nothing and log nothing, which is how the request
-    /// simulator resolves (PLAN §7.7): the same code, no side effects.
+    /// simulator resolves: the same code, no side effects.
     /// </summary>
     internal static ClientIpResolution ResolveCore(HttpContext context, RuntimeSnapshot snapshot, ClientAddressCounters? counters, ILogger? logger)
     {
@@ -95,8 +94,7 @@ public sealed class ClientAddressCounters
     private long _headerInvalid;
     private long _cloudflarePlainHttp;
 
-    /// <summary>Requests from a trusted proxy that carried no usable client-IP header (the peer was used). PLAN §7.6
-    /// counts these.</summary>
+    /// <summary>Requests from a trusted proxy that carried no usable client-IP header (the peer was used).</summary>
     public long HeaderMissing => Volatile.Read(ref _headerMissing);
 
     /// <summary>Requests from a trusted proxy whose client-IP header didn't parse (the peer was used).</summary>
@@ -105,7 +103,7 @@ public sealed class ClientAddressCounters
     /// <summary>
     /// Requests a trusted Cloudflare peer sent over plain HTTP saying the visitor used plain HTTP too
     /// (<c>CF-Visitor: {"scheme":"http"}</c>): Cloudflare "Flexible" SSL or plain-HTTP visitors. Flexible is insecure
-    /// (PLAN §7.6); the first one is logged as a warning.
+    ///; the first one is logged as a warning.
     /// </summary>
     public long CloudflarePlainHttp => Volatile.Read(ref _cloudflarePlainHttp);
 

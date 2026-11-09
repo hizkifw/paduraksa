@@ -7,10 +7,10 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Proxy.Config;
 
 /// <summary>
-/// The compiler's input: a plain, in-memory description of the proxy config (M1). M2 builds the same records from
-/// the EF entities / canonical config document, so nothing here knows about storage. Objects are identified by their
-/// typed IDs (PLAN §4), which must be unique and non-empty; the route, upstream and destination IDs' canonical strings
-/// (<c>rte_...</c>, <c>ups_...</c>, <c>dst_...</c>) double as YARP route, cluster and destination IDs.
+/// The compiler's input: a plain, in-memory description of the proxy config, built from the canonical config
+/// document, so nothing here knows about storage. Objects are identified by their typed IDs, which must be unique and
+/// non-empty; the route, upstream and destination IDs' canonical strings (<c>rte_...</c>, <c>ups_...</c>,
+/// <c>dst_...</c>) double as YARP route, cluster and destination IDs.
 /// </summary>
 public sealed record ProxyConfigModel
 {
@@ -44,16 +44,16 @@ public sealed record DefaultsSpec
     /// <summary>TLS settings of the default certificate's entry (unknown or absent SNI).</summary>
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
 
-    /// <summary>Who may tell us the client IP (PLAN §7.6). Global in M1; a per-host override comes with M2/M7.</summary>
+    /// <summary>Who may tell us the client IP.</summary>
     public TrustedProxySpec TrustedProxies { get; init; } = TrustedProxySpec.Off;
 
     /// <summary>
-    /// Whether a request for an unknown host gets an access-log line (PLAN §7.4): the global default, since an unknown
+    /// Whether a request for an unknown host gets an access-log line: the global default, since an unknown
     /// host has no settings of its own. Built-in default: on.
     /// </summary>
     public bool AccessLog { get; init; } = true;
 
-    /// <summary>Where an unknown host's request ID is sent (PLAN §7.4): the global default.</summary>
+    /// <summary>Where an unknown host's request ID is sent: the global default.</summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 
     /// <summary>The global defaults' <c>Server</c> header, which an unknown host follows too.</summary>
@@ -61,7 +61,7 @@ public sealed record DefaultsSpec
 }
 
 /// <summary>
-/// Trusted proxies in front of Paduraksa (PLAN §7.2 C, §7.6), compiled into a <see cref="TrustedProxyPolicy"/>. Only a
+/// Trusted proxies in front of Paduraksa, compiled into a <see cref="TrustedProxyPolicy"/>. Only a
 /// peer (the PROXY protocol source, else the socket peer) inside the trusted set may supply the client IP through a
 /// header; anyone else is the client.
 /// </summary>
@@ -98,10 +98,9 @@ public sealed record TrustedProxySpec
 }
 
 /// <summary>
-/// The configurable part of a host's <see cref="TlsPolicy"/> (PLAN §7.2 B). Client certificates (Authenticated Origin
-/// Pulls) arrive with M7. The handshake applies the settings of the host named in the SNI; because clients reuse a
-/// connection for every name its certificate covers, the gate re-checks each request against its own host's settings
-/// and answers 421 Misdirected Request when the connection is weaker.
+/// The configurable part of a host's <see cref="TlsPolicy"/>. The handshake applies the settings of the host named in
+/// the SNI; because clients reuse a connection for every name its certificate covers, the gate re-checks each request
+/// against its own host's settings and answers 421 Misdirected Request when the connection is weaker.
 /// </summary>
 public sealed record HostTlsSpec
 {
@@ -123,7 +122,7 @@ public sealed record HostTlsSpec
 }
 
 /// <summary>
-/// A host's HSTS (PLAN §14 M6), already resolved across the layers by the caller: the compiler turns it into the header
+/// A host's HSTS, already resolved across the layers by the caller: the compiler turns it into the header
 /// value once per host (<see cref="Tls.HstsHeader"/>). Plain HTTP never carries it, and neither does a request for an IP
 /// literal or a loopback name.
 /// </summary>
@@ -146,7 +145,7 @@ public sealed record HostHstsSpec
     public bool Preload { get; init; }
 }
 
-/// <summary>What a host's responses put in <c>Server</c> (PLAN §14 M6), resolved across the layers.</summary>
+/// <summary>What a host's responses put in <c>Server</c>, resolved across the layers.</summary>
 public sealed record HostServerHeaderSpec
 {
     /// <summary><c>Paduraksa</c>, with no version.</summary>
@@ -158,7 +157,7 @@ public sealed record HostServerHeaderSpec
     public string? Value { get; init; }
 }
 
-/// <summary>A host (PLAN §5.1). Disabled hosts are validated but left out of the snapshot.</summary>
+/// <summary>A host. Disabled hosts are validated but left out of the snapshot.</summary>
 public sealed record HostSpec
 {
     public required HostId Id { get; init; }
@@ -202,25 +201,22 @@ public sealed record HostSpec
     /// </summary>
     public IReadOnlyDictionary<string, CertificateId>? NameCertificates { get; init; }
 
-    /// <summary>The host's TLS settings.</summary>
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
 
-    /// <summary>The host's HSTS, resolved across the layers.</summary>
     public HostHstsSpec Hsts { get; init; } = HostHstsSpec.Off;
 
     /// <summary>
-    /// Write a line per request of this host to the access log (PLAN §7.4); the settings layers resolve it, built-in
+    /// Write a line per request of this host to the access log; the settings layers resolve it, built-in
     /// default on. The request ID, the response headers and the proxying are unaffected when it is off.
     /// </summary>
     public bool AccessLog { get; init; } = true;
 
     /// <summary>
-    /// Where this host's request ID is sent (PLAN §7.4): the settings layers resolve it, built-in default upstream and
+    /// Where this host's request ID is sent: the settings layers resolve it, built-in default upstream and
     /// response. The log records the ID whatever it is.
     /// </summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 
-    /// <summary>The host's <c>Server</c> header, resolved across the layers.</summary>
     public HostServerHeaderSpec ServerHeader { get; init; } = HostServerHeaderSpec.Default;
 
     /// <summary>Proxy hosts only; ordered by <see cref="RouteSpec.Order"/>, then as listed.</summary>
@@ -236,7 +232,7 @@ public sealed record HostSpec
     public RespondSpec? Respond { get; init; }
 }
 
-/// <summary>One route of a proxy host. Regex matching comes later.</summary>
+/// <summary>One route of a proxy host.</summary>
 public sealed record RouteSpec
 {
     public required RouteId Id { get; init; }
@@ -279,7 +275,6 @@ public sealed record RespondSpec
     public string ContentType { get; init; } = "text/plain; charset=utf-8";
 }
 
-/// <summary>A YARP cluster.</summary>
 public sealed record UpstreamSpec
 {
     public required UpstreamId Id { get; init; }
@@ -299,7 +294,7 @@ public sealed record UpstreamSpec
     /// <summary>How long a passively unhealthy destination stays out; <see langword="null"/> = YARP's default.</summary>
     public TimeSpan? ReactivationPeriod { get; init; }
 
-    /// <summary>Active health probes (PLAN §7.4); <see langword="null"/> = none.</summary>
+    /// <summary>Active health probes; <see langword="null"/> = none.</summary>
     public ActiveHealthSpec? ActiveHealth { get; init; }
 
     /// <summary>Part of the HTTP client config: changing it creates a new client for this upstream.</summary>
@@ -321,10 +316,10 @@ public sealed record ActiveHealthSpec
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(5);
 }
 
-/// <summary>A YARP destination; the ID must stay stable for health state to survive (PLAN §6.3).</summary>
+/// <summary>A YARP destination; the ID must stay stable for health state to survive.</summary>
 public sealed record DestinationSpec(DestinationId Id, string Address);
 
-/// <summary>A policy in a host or route chain. Real WAF policies arrive with M7.</summary>
+/// <summary>A policy in a host or route chain.</summary>
 public abstract record PolicySpec;
 
 /// <summary>Always answers with a fixed status and body.</summary>

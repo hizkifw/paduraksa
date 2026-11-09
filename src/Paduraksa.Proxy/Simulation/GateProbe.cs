@@ -3,7 +3,7 @@ using System.Security.Authentication;
 
 namespace Paduraksa.Proxy.Simulation;
 
-/// <summary>How the request reaches Paduraksa (PLAN §7.6, §7.7).</summary>
+/// <summary>How the request reaches Paduraksa.</summary>
 public enum ProbeArrival : byte
 {
     /// <summary>The client connects itself: its address is the peer's.</summary>
@@ -33,7 +33,7 @@ public enum ProbeHttpVersion : byte
 public readonly record struct ProbeHeader(string Name, string Value);
 
 /// <summary>
-/// A request to put through the gate without a network (PLAN §7.7), as plain facts: everything the gate reads. Fields
+/// A request to put through the gate without a network, as plain facts: everything the gate reads. Fields
 /// that say nothing get the defaults a real request would have; <see cref="GateSimulator"/> builds the
 /// <c>HttpContext</c> from it.
 /// </summary>

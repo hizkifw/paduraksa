@@ -10,7 +10,7 @@ using Yarp.ReverseProxy.Transforms;
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
-/// The forwarding headers an upstream receives (PLAN §3.1, §7.2 E, §7.6). YARP's own <c>X-Forwarded-*</c> transforms are
+/// The forwarding headers an upstream receives. YARP's own <c>X-Forwarded-*</c> transforms are
 /// disabled; this replaces them. Every value comes from the gate's resolution of the request, never from what the
 /// client sent, and is <b>overwritten, never appended to</b>:
 /// <list type="bullet">
@@ -23,7 +23,7 @@ namespace Paduraksa.Proxy.Yarp;
 /// <c>CF-Visitor</c>, else its <c>X-Forwarded-Proto</c>; from a trusted generic proxy its <c>X-Forwarded-Proto</c> only
 /// with <c>TrustForwardedProto</c>; otherwise the scheme the client used to reach Paduraksa.</item>
 /// <item><c>X-Forwarded-Host</c>: the request's <c>Host</c> (H2/H3 <c>:authority</c>) as received, port included.</item>
-/// <item><c>X-Request-Id</c>: the request's ID (PLAN §7.4) when the host sends one upstream
+/// <item><c>X-Request-Id</c>: the request's ID when the host sends one upstream
 /// (<see cref="Snapshot.CompiledHost.RequestIdPropagation"/>): always the gate's own, never the client's. Otherwise
 /// whatever the client sent is removed.</item>
 /// <item>Removed and not replaced: <c>Forwarded</c>, <c>X-Forwarded-Prefix</c>, <c>X-Forwarded-Port</c>, which only a
@@ -87,7 +87,7 @@ internal static class ForwardedHeadersTransform
         }
 
         // Always ours when the host sends one upstream (never the client's), and removed entirely when it doesn't: the
-        // setting means what it says, also for a value a trusted proxy supplied (PLAN §7.4).
+        // setting means what it says, also for a value a trusted proxy supplied.
         upstream.Remove(RequestIds.HeaderName);
         if (state?.Snapshot is { } snapshot && snapshot.RequestIdPropagationFor(state.Host).SendsUpstream())
         {

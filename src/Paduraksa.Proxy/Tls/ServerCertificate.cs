@@ -7,7 +7,7 @@ namespace Paduraksa.Proxy.Tls;
 
 /// <summary>
 /// A certificate ready for serving: a prebuilt <see cref="SslStreamCertificateContext"/> (leaf + intermediates).
-/// The Vault's <c>IServerCertificateSource</c> (PLAN §8.2, M3) supplies the context; the proxy never loads or exports
+/// The Vault's <c>IServerCertificateSource</c> supplies the context; the proxy never loads or exports
 /// keys, it only holds what it's given. The proxy doesn't own the certificate either: whoever created it disposes it.
 /// </summary>
 /// <remarks>
@@ -34,7 +34,7 @@ public sealed class ServerCertificate
 
     /// <summary>
     /// Builds the context from an already-loaded leaf (with its private key) and its intermediates, offline, so no
-    /// AIA fetch ever happens: neither now nor during a handshake (PLAN §9, spike S1). This is the only way the
+    /// AIA fetch ever happens: neither now nor during a handshake. This is the only way the
     /// intermediates are reliably sent on both TCP and QUIC.
     /// </summary>
     public static ServerCertificate Create(X509Certificate2 leaf, X509Certificate2Collection? intermediates)

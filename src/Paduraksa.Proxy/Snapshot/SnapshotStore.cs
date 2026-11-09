@@ -5,7 +5,7 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Proxy.Snapshot;
 
 /// <summary>
-/// The one live <see cref="RuntimeSnapshot"/> of the process (PLAN §6.2): a volatile reference, read lock-free once
+/// The one live <see cref="RuntimeSnapshot"/> of the process: a volatile reference, read lock-free once
 /// per request, swapped by a single writer. Starts at <see cref="RuntimeSnapshot.Bootstrap"/>, so
 /// <see cref="Current"/> is never <see langword="null"/>.
 /// <para>It is also the TLS handshake selector's <see cref="ICertificateTableSource"/>: each handshake reads the live

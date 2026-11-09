@@ -4,7 +4,7 @@ using Paduraksa.Proxy.Gate;
 
 namespace Paduraksa.Proxy.Snapshot;
 
-/// <summary>What the gate does with a request whose host isn't configured (PLAN §5.1 <c>GlobalSettings</c>).</summary>
+/// <summary>What the gate does with a request whose host isn't configured.</summary>
 public enum DefaultHostAction : byte
 {
     /// <summary>Answer with <see cref="DefaultHostBehaviour.Response"/> (a precomputed 404 or 421).</summary>

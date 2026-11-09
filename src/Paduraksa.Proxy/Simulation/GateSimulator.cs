@@ -18,14 +18,14 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Paduraksa.Proxy.Simulation;
 
-/// <summary>What the public listeners do before a request exists (PLAN §7.2 A): their PROXY protocol rules and whether there is a QUIC listener.</summary>
+/// <summary>What the public listeners do before a request exists: their PROXY protocol rules and whether there is a QUIC listener.</summary>
 /// <param name="HttpProxyProtocol">The plain-HTTP listener's PROXY protocol settings; null: none.</param>
 /// <param name="HttpsProxyProtocol">The HTTPS (TCP) listener's PROXY protocol settings; null: none.</param>
 /// <param name="Http3">There is an HTTP/3 listener.</param>
 public sealed record ListenerFacts(ProxyProtocolOptions? HttpProxyProtocol, ProxyProtocolOptions? HttpsProxyProtocol, bool Http3);
 
 /// <summary>
-/// Puts a <see cref="GateProbe"/> through the real gate over a snapshot, without a network (PLAN §7.7). <b>It runs
+/// Puts a <see cref="GateProbe"/> through the real gate over a snapshot, without a network. <b>It runs
 /// <c>GateMiddleware.Decide</c> itself</b>, the code production runs, with a recording tracer instead of the no-op one;
 /// nothing of the gate's logic is repeated here. What this adds is only the stand-ins for what the server does before the
 /// gate: the listener's admission (<see cref="ProxyProtocolAdmission"/>, the connection middleware's own decision), the TLS

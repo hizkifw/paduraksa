@@ -6,7 +6,7 @@ using Paduraksa.Core.Acme;
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>
-/// The in-memory HTTP-01 answers (PLAN §7.2 C, §9.3). The orchestrator publishes through <see cref="IAcmeChallengeStore"/>;
+/// The in-memory HTTP-01 answers. The orchestrator publishes through <see cref="IAcmeChallengeStore"/>;
 /// the gate reads through <see cref="TryGet"/>, which takes the token as a slice of the request path and compares it
 /// exactly, so a lookup allocates nothing and a hit answers with the response built when the entry was published.
 /// Thread-safe.

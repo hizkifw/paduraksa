@@ -18,12 +18,12 @@ public enum ConnectionAddressSource : byte
 }
 
 /// <summary>
-/// The connection-level view of the client, computed once per connection in stage A (PLAN §7.2) and exposed as
+/// The connection-level view of the client, computed once per connection in stage A and exposed as
 /// a connection feature (<see cref="IClientInfoFeature"/>).
 /// </summary>
 /// <remarks>
 /// <b>Immutable by design.</b> On HTTP/2 and HTTP/3 every stream's feature collection falls back to the same
-/// connection features, so concurrent requests share this instance (spike S3). Anything per request (such as a
+/// connection features, so concurrent requests share this instance. Anything per request (such as a
 /// header-derived client IP) belongs in per-request state, never here. Store it with
 /// <c>ConnectionContext.Features.Set&lt;IClientInfoFeature&gt;(info)</c>; never use
 /// <c>IConnectionItemsFeature.Items</c>, which is one non-thread-safe dictionary shared by all streams.
@@ -62,7 +62,7 @@ public sealed class ClientInfo : IClientInfoFeature
 
     public ushort TransportPort { get; }
 
-    /// <summary>Index into the snapshot's country table; 0 = unknown. Placeholder until the geo lookup (M7).</summary>
+    /// <summary>Index into the snapshot's country table; 0 = unknown. Placeholder until the geo lookup exists.</summary>
     public ushort CountryIndex { get; }
 
     /// <summary>True when <see cref="Address"/> came from a PROXY protocol header.</summary>

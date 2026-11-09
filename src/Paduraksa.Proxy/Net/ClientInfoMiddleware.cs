@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 namespace Paduraksa.Proxy.Net;
 
 /// <summary>
-/// Stage-A TCP connection middleware (PLAN §7.2 A): reads the PROXY protocol header when the listener enables it,
+/// Stage-A TCP connection middleware: reads the PROXY protocol header when the listener enables it,
 /// then publishes one immutable <see cref="ClientInfo"/> as an <see cref="IClientInfoFeature"/> connection feature.
 /// </summary>
 /// <remarks>
@@ -81,7 +81,7 @@ public sealed class ClientInfoMiddleware
     }
 }
 
-/// <summary>Whether a TCP listener lets a connection in, before any byte is read (PLAN §7.2 A).</summary>
+/// <summary>Whether a TCP listener lets a connection in, before any byte is read.</summary>
 public enum ConnectionAdmission : byte
 {
     /// <summary>The connection goes on (to the header, when the listener requires one).</summary>
@@ -99,7 +99,7 @@ public enum ConnectionAdmission : byte
 
 /// <summary>
 /// The listener's admission decision, in one place: <see cref="ClientInfoMiddleware"/> asks it for every connection, and the
-/// request simulator (PLAN §7.7) asks it for a simulated one.
+/// request simulator asks it for a simulated one.
 /// </summary>
 public static class ProxyProtocolAdmission
 {

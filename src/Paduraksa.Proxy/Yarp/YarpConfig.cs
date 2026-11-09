@@ -3,7 +3,7 @@ using Yarp.ReverseProxy.Configuration;
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
-/// The YARP routes and clusters of one snapshot: a pure function of content (PLAN §6.2, spike S2). IDs are stable
+/// The YARP routes and clusters of one snapshot: a pure function of content. IDs are stable
 /// keys, never generations or revisions, so a policy-only edit produces an equal config and YARP has nothing to do.
 /// <para>This is the content only. The <see cref="IProxyConfig"/> YARP reads (with its change token and
 /// <c>RevisionId</c>) is created per publish by <c>SnapshotProxyConfigProvider</c>.</para>
@@ -11,7 +11,7 @@ namespace Paduraksa.Proxy.Yarp;
 public sealed class YarpConfig
 {
     /// <summary>
-    /// The cluster every admin host routes to (PLAN §3.1). Its destination address is symbolic
+    /// The cluster every admin host routes to. Its destination address is symbolic
     /// (<see cref="AdminUpstreamAddress"/>); the forwarder's connect callback reaches the admin app's internal listener instead
     /// of resolving it.
     /// </summary>

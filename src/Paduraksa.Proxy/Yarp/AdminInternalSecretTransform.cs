@@ -10,7 +10,7 @@ namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
 /// Stamps the admin app's internal hop secret on requests forwarded to an admin host, and removes any client-supplied copy from
-/// every request (PLAN §3.1). The admin app trusts <c>X-Forwarded-*</c> only when that header has this process's secret, so a
+/// every request. The admin app trusts <c>X-Forwarded-*</c> only when that header has this process's secret, so a
 /// local process or an SSRF request to the TCP fallback can't forge its client IP, scheme or host.
 /// </summary>
 /// <remarks>

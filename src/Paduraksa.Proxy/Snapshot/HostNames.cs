@@ -21,7 +21,7 @@ public enum HostNameKind
 }
 
 /// <summary>
-/// Compile-time host-name normalisation (PLAN §5.1 <c>HostName</c>): trimmed, lowercased, IDN → punycode, no trailing
+/// Compile-time host-name normalisation: trimmed, lowercased, IDN → punycode, no trailing
 /// dot, then the DNS rules shared with the certificate table (<see cref="DnsNames"/>: lengths, label characters,
 /// wildcard shape, punycode that decodes). IP literals are canonicalised.
 /// The runtime never converts anything: browsers send punycode, and a raw Unicode <c>Host</c> header is a miss.

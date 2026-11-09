@@ -3,8 +3,8 @@ using System.Security.Cryptography;
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// The request ID every request carries (PLAN §7.4): <c>X-Request-Id</c>, taken from the client only through a trusted
-/// proxy, else generated here, and shown on error pages (M8) so a user can report it.
+/// The request ID every request carries: <c>X-Request-Id</c>, taken from the client only through a trusted
+/// proxy, else generated here, and shown on error pages so a user can report it.
 /// </summary>
 /// <remarks>
 /// <para><b>Which one is honoured.</b> Only a peer that the snapshot's trusted-proxy policy trusts (the same decision

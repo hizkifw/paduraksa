@@ -158,7 +158,7 @@ public static partial class SnapshotCompiler
     }
 
     /// <summary>
-    /// The implicit route of an admin host (PLAN §3.1): one prefix route matching every path, forwarding to the
+    /// The implicit route of an admin host: one prefix route matching every path, forwarding to the
     /// <see cref="YarpConfig.AdminClusterId"/> cluster. It has no user route ID, so its slot's <see cref="RouteId"/> is empty.
     /// </summary>
     private static CompiledRoute[] CompileAdminRoute(

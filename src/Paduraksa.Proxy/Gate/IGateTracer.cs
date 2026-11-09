@@ -21,7 +21,7 @@ internal enum PolicyScope : byte
 }
 
 /// <summary>
-/// Where the gate reports each step it takes (PLAN §7.7). It is passed to <see cref="GateMiddleware"/>'s decision as a
+/// Where the gate reports each step it takes. It is passed to <see cref="GateMiddleware"/>'s decision as a
 /// <b>generic struct type parameter</b>, so production's <see cref="NoGateTracer"/> costs nothing: every call is an empty
 /// method on a zero-size struct, which the JIT inlines away, and the arguments are values already at hand (nothing is
 /// formatted or allocated to make a call). The request simulator passes a recording tracer instead; the decision code is
@@ -54,7 +54,7 @@ internal interface IGateTracer
     void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch);
 
     /// <summary>
-    /// A stage of the host's response headers was applied (PLAN §7.2 C): <paramref name="operations"/> with, in the same
+    /// A stage of the host's response headers was applied: <paramref name="operations"/> with, in the same
     /// positions, what each one did (<see cref="HeaderOutcome.None"/> for another stage's). <paramref name="host"/> is
     /// null for the global defaults (an unknown host or an ACME challenge). One step lists them all, so the trace can say
     /// which headers the answer carries and why any of them is missing.

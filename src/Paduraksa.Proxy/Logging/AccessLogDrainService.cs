@@ -6,14 +6,12 @@ using Microsoft.Extensions.Logging;
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// Drains <see cref="AccessLogRing"/> into the <see cref="IAccessLogSink"/> (PLAN §7.4): the one consumer of the ring, a
+/// Drains <see cref="AccessLogRing"/> into the <see cref="IAccessLogSink"/>: the one consumer of the ring, a
 /// background service of the core host, so no request ever formats or writes a line.
 /// </summary>
 /// <remarks>
-/// <para><b>Loop.</b> Every <see cref="DrainInterval"/> it reads what the ring holds, formats each entry into one reused
-/// buffer and hands the line to the sink; when the process stops it drains what is left and flushes. A sink that throws
-/// (a full disk, a closed file) is reported at Warning, rate-limited, and the line skipped: the drain keeps going, so one
-/// bad write never stops the log, and never touches a request.</para>
+/// <para><b>Never a request's problem.</b> A sink that throws (a full disk, a closed file) is reported at Warning,
+/// rate-limited, and the line skipped: the drain keeps going, so one bad write never stops the log.</para>
 /// <para><b>Drops.</b> A full ring drops entries and counts them (<see cref="AccessLogRing.Dropped"/>). The count since the
 /// last report goes to the process log at Warning at most once a minute, so a log that can't keep up is visible without
 /// filling the process log with it.</para>

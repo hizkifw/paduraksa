@@ -5,7 +5,7 @@ using Yarp.ReverseProxy.Configuration;
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
-/// The only <see cref="IProxyConfigProvider"/> of the public app (PLAN §6.1 step 6a). Each update wraps the content
+/// The only <see cref="IProxyConfigProvider"/> of the public app. Each update wraps the content
 /// in a new <see cref="IProxyConfig"/> with its own change token and a unique <see cref="IProxyConfig.RevisionId"/>,
 /// swaps it in, then cancels the previous token so YARP reloads. YARP itself never reads <c>RevisionId</c>; it's
 /// the key that correlates <see cref="IConfigChangeListener"/> callbacks with the publish that caused them.
@@ -23,7 +23,7 @@ internal sealed class SnapshotProxyConfigProvider : IProxyConfigProvider
 
     /// <summary>
     /// Swaps in <paramref name="content"/> under <paramref name="revisionId"/> (unique per update) and signals YARP.
-    /// YARP may reload inline, inside this call (spike S2 Q5), so register for the outcome first.
+    /// YARP may reload inline, inside this call, so register for the outcome first.
     /// </summary>
     internal void Update(YarpConfig content, string revisionId)
     {

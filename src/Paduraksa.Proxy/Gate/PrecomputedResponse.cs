@@ -5,7 +5,7 @@ using Microsoft.Extensions.Primitives;
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>
-/// A response the gate answers by itself, built once at snapshot compile time (PLAN §7.1, spike S3 §6): the status,
+/// A response the gate answers by itself, built once at snapshot compile time: the status,
 /// the encoded body and the header values as <see cref="StringValues"/> shared by every request. Immutable, so one
 /// instance is safely reused across requests, connections and threads.
 /// </summary>
@@ -124,7 +124,7 @@ internal sealed record RedirectTarget(string Prefix, bool IncludeRequestHost, st
     /// <summary>Neither host nor path is taken from the request, so the whole <c>Location</c> is <see cref="Prefix"/>.</summary>
     public bool IsFixed => !IncludeRequestHost && !AppendPathAndQuery;
 
-    /// <summary>The HTTP→HTTPS redirect: same host and target, HTTPS on the <b>public</b> port (PLAN §7.5).</summary>
+    /// <summary>The HTTP→HTTPS redirect: same host and target, HTTPS on the <b>public</b> port.</summary>
     public static RedirectTarget Https(int publicHttpsPort)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(publicHttpsPort, 1);

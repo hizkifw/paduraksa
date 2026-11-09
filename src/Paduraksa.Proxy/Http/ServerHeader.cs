@@ -6,7 +6,7 @@ using Paduraksa.Proxy.Config;
 namespace Paduraksa.Proxy.Http;
 
 /// <summary>
-/// The <c>Server</c> header (PLAN §14 M6). The compiler builds one value per host into the host's
+/// The <c>Server</c> header. The compiler builds one value per host into the host's
 /// <see cref="ResponseHeaderOperation"/> list, which the gate applies next to <c>Alt-Svc</c> and HSTS, before it answers or
 /// forwards, so every response the host gives carries the same one. The built-in
 /// default names the product without a version.

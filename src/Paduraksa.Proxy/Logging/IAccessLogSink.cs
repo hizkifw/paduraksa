@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// Where the access log goes (PLAN §7.4): one line at a time, written by <c>AccessLogDrainService</c> on its own
+/// Where the access log goes: one line at a time, written by <c>AccessLogDrainService</c> on its own
 /// thread, never on a request's.
 /// </summary>
 /// <remarks>

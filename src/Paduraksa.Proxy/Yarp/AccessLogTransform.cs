@@ -11,7 +11,7 @@ using Yarp.ReverseProxy.Transforms;
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
-/// Fills the upstream half of the access-log entry (PLAN §7.4) on a forwarded request: when the attempt started, how long
+/// Fills the upstream half of the access-log entry on a forwarded request: when the attempt started, how long
 /// it took, and the destination it went to. Runs as YARP's first request transform and again after the response headers,
 /// so the window covers the forward and the upstream's answer; load balancing picks the destination just before the
 /// request transforms run, so that one step sits outside the measured window.

@@ -13,13 +13,13 @@ using Paduraksa.Proxy.Yarp;
 namespace Paduraksa.Proxy.Snapshot;
 
 /// <summary>
-/// Everything the hot path needs, compiled once and never mutated (PLAN §6.2). A request reads
+/// Everything the hot path needs, compiled once and never mutated. A request reads
 /// <see cref="SnapshotStore.Current"/> once and takes host, route, policies and the YARP <see cref="Endpoint"/> from
 /// that one instance, so it can't mix two generations.
 /// <para>The compiler produces an <i>unbound</i> candidate (<see cref="Generation"/> 0, no endpoints). The publisher
 /// applies its YARP config and then <see cref="Bind"/>s it to YARP's new endpoints and the next generation; only a
 /// bound snapshot goes into the store.</para>
-/// <para><b>Never put mutable runtime state here</b> (PLAN §6.3): snapshots are thrown away on every publish.</para>
+/// <para><b>Never put mutable runtime state here</b>: snapshots are thrown away on every publish.</para>
 /// </summary>
 public sealed class RuntimeSnapshot
 {
@@ -59,7 +59,7 @@ public sealed class RuntimeSnapshot
     public required DefaultHostBehaviour Default { get; init; }
 
     /// <summary>
-    /// The global defaults' response headers (PLAN §7.2 C), which a request for an unknown host and an ACME challenge
+    /// The global defaults' response headers, which a request for an unknown host and an ACME challenge
     /// answer follow too: the same list a host carries, compiled from the defaults. An <c>Alt-Svc</c> and an HSTS entry
     /// are absent there - the proxy doesn't advertise or pin a name it doesn't serve.
     /// </summary>
@@ -75,25 +75,25 @@ public sealed class RuntimeSnapshot
     public PrecomputedResponse Misdirected { get; init; } = DefaultMisdirected;
 
     /// <summary>
-    /// SNI → prebuilt server options (PLAN §7.2 B). The handshake callbacks read it through
+    /// SNI → prebuilt server options. The handshake callbacks read it through
     /// <see cref="SnapshotStore"/> (an <see cref="ICertificateTableSource"/>), so a publish swaps certificates for new
     /// handshakes. Empty (every handshake rejected) until a config with certificates is compiled.
     /// </summary>
     public CertificateTable Certificates { get; init; } = CertificateTable.Empty;
 
     /// <summary>
-    /// Who may tell us the client IP (PLAN §7.6): off, generic proxies, Cloudflare's edge or cloudflared. Global for M1;
+    /// Who may tell us the client IP: off, generic proxies, Cloudflare's edge or cloudflared. Global;
     /// the gate resolves every request's client through it.
     /// </summary>
     public TrustedProxyPolicy TrustedProxies { get; init; } = TrustedProxyPolicy.Off;
 
     /// <summary>
-    /// Whether a request whose host the snapshot doesn't know gets an access-log line (PLAN §7.4): the global default,
+    /// Whether a request whose host the snapshot doesn't know gets an access-log line: the global default,
     /// since an unknown host has no settings of its own. A known host's <see cref="CompiledHost.AccessLog"/> decides.
     /// </summary>
     public bool AccessLog { get; init; } = true;
 
-    /// <summary>Where an unknown host's request ID is sent (PLAN §7.4): the global default.</summary>
+    /// <summary>Where an unknown host's request ID is sent: the global default.</summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 
     /// <summary>Whether this host writes an access-log line, else the global default: what the outermost middleware asks.</summary>
@@ -112,7 +112,7 @@ public sealed class RuntimeSnapshot
 
     /// <summary>
     /// Before the first publish: generation 0, no hosts, every request answered with 503. Never seen by a client in
-    /// practice, because the core host publishes before any listener opens (PLAN §3).
+    /// practice, because the core host publishes before any listener opens.
     /// </summary>
     public static RuntimeSnapshot Bootstrap { get; } = new()
     {

@@ -8,7 +8,7 @@ using Paduraksa.Proxy.Config;
 namespace Paduraksa.Proxy.Tls;
 
 /// <summary>
-/// The <c>Strict-Transport-Security</c> header Paduraksa sends (PLAN §14 M6). The compiler builds one value per host
+/// The <c>Strict-Transport-Security</c> header Paduraksa sends. The compiler builds one value per host
 /// (<see cref="ValueOf"/>) into the host's <see cref="Http.ResponseHeaderOperation"/> list, which the gate applies next to
 /// <c>Alt-Svc</c>, after the TLS check, so
 /// every response the host then gets carries it: forwarded ones, the HTTPS redirect, a Redirect or Respond answer and a

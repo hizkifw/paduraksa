@@ -7,7 +7,7 @@ using Paduraksa.Proxy.Tls;
 namespace Paduraksa.Proxy.Net;
 
 /// <summary>
-/// Stage A for QUIC (PLAN §7.2 A): QUIC has no <c>ListenOptions.Use</c>, so the connection-level work runs as the
+/// Stage A for QUIC: QUIC has no <c>ListenOptions.Use</c>, so the connection-level work runs as the
 /// <see cref="QuicConnectionGate"/> of the <see cref="TlsHandshakeSelector"/>, after the certificate lookup. It
 /// publishes <see cref="ClientInfo.FromEndPoint"/> as the connection's <see cref="IClientInfoFeature"/>, the same
 /// feature <see cref="ClientInfoMiddleware"/> sets on TCP, so H3 requests resolve their client like H1/H2 ones.
@@ -16,9 +16,9 @@ namespace Paduraksa.Proxy.Net;
 /// <para>QUIC reports dual-mode IPv4 peers as plain IPv4 and TCP as IPv4-mapped; <see cref="IpKey"/> stores both the
 /// same way, so policies, rate keys and logs agree across transports.</para>
 /// <para>No PROXY protocol on QUIC (it is a TCP framing). One <see cref="ClientInfo"/> per QUIC connection, like TCP.</para>
-/// <para><b>Nothing is acquired in M1</b>, so the documented gap (no <c>ConnectionClosed</c> after a handshake that
-/// fails past the gate, see <see cref="QuicConnectionGate"/>) can't leak anything yet. The per-IP connection cap (M7)
-/// must pair its slot with a bound that doesn't depend on that signal.</para>
+/// <para><b>Nothing is acquired here yet</b>, so the documented gap (no <c>ConnectionClosed</c> after a handshake that
+/// fails past the gate, see <see cref="QuicConnectionGate"/>) cannot leak anything. A per-IP connection cap must pair
+/// its slot with a bound that does not depend on that signal.</para>
 /// </remarks>
 public static class QuicClientInfoGate
 {
@@ -30,8 +30,8 @@ public static class QuicClientInfoGate
     {
         ClientInfo info = ClientInfo.FromEndPoint(remoteEndPoint);
 
-        // SEAM (M7): the global connection-level IP deny (PLAN §7.2 A) and the per-IP connection cap go here, on
-        // info.Address, reading the live snapshot's deny set. M1 has neither, so every connection is admitted.
+        // SEAM: the global connection-level IP deny and the per-IP connection cap go here, on info.Address,
+        // reading the live snapshot's deny set. Neither exists yet, so every connection is admitted.
         connection?.Features.Set<IClientInfoFeature>(info);
         return true;
     }

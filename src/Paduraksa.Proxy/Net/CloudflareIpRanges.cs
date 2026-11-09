@@ -4,7 +4,7 @@ namespace Paduraksa.Proxy.Net;
 
 /// <summary>
 /// Cloudflare's published edge ranges, baked in as the default trust list for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>
-/// (PLAN §7.6). A background refresh (M7) replaces them at runtime by building a new <see cref="CidrSet"/> and
+///. A background refresh replaces them at runtime by building a new <see cref="CidrSet"/> and
 /// passing it to <see cref="TrustedProxyPolicy"/>.
 /// </summary>
 public static class CloudflareIpRanges
@@ -64,7 +64,7 @@ public static class CloudflareIpRanges
     }
 }
 
-/// <summary>Cloudflare request header names (PLAN §7.6).</summary>
+/// <summary>Cloudflare request header names.</summary>
 public static class CloudflareHeaders
 {
     public const string ConnectingIp = "CF-Connecting-IP";

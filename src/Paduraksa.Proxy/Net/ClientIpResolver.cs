@@ -72,7 +72,7 @@ public readonly record struct ClientIpResolution(
 }
 
 /// <summary>
-/// Resolves a request's client IP behind trusted proxies and Cloudflare (PLAN §7.2 C, §7.6). Pure and
+/// Resolves a request's client IP behind trusted proxies and Cloudflare. Pure and
 /// allocation-free: no logging, no counters, no state.
 /// </summary>
 /// <remarks>

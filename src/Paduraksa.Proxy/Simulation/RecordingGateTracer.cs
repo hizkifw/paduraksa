@@ -16,7 +16,7 @@ using Paduraksa.Proxy.Yarp;
 namespace Paduraksa.Proxy.Simulation;
 
 /// <summary>
-/// The simulator's tracer (PLAN §7.7): writes each step the gate reports as a <see cref="GateStep"/>. It only reads; the
+/// The simulator's tracer: writes each step the gate reports as a <see cref="GateStep"/>. It only reads; the
 /// gate's decision is the same one production makes with <see cref="NoGateTracer"/>. Cold path: allocates freely.
 /// </summary>
 internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
@@ -80,7 +80,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
         string path = context.Request.Path.Value ?? string.Empty;
         bool challengePath = path.StartsWith(AcmeChallengeStore.PathPrefix, StringComparison.Ordinal);
 
-        // Three outcomes (PLAN §7.2 C): answered; a challenge path nothing answered, which falls through to the pipeline like any
+        // Three outcomes: answered; a challenge path nothing answered, which falls through to the pipeline like any
         // request (say why); or no challenge path at all.
         string? why = challengePath && !answered
             ? context.Request.IsHttps
@@ -291,7 +291,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
 
         if (route.Admin)
         {
-            // The admin host's implicit route has no user route ID and takes every path (PLAN §3.1).
+            // The admin host's implicit route has no user route ID and takes every path.
             facts.Add(new("admin", "yes"));
             facts.Add(new("match", TraceNames.Of(route.MatchKind)));
             steps.Add(new GateStep(

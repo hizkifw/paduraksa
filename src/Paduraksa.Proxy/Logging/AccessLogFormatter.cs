@@ -3,7 +3,7 @@ using System.Globalization;
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// Formats one <see cref="AccessLogEntry"/> into one line (PLAN §7.4). Off the request path: only
+/// Formats one <see cref="AccessLogEntry"/> into one line. Off the request path: only
 /// <see cref="AccessLogDrainService"/> calls it, into a buffer it reuses, so a line costs no allocation.
 /// </summary>
 /// <remarks>

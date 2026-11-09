@@ -12,7 +12,7 @@ using Yarp.ReverseProxy.Model;
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// The public pipeline's outermost middleware (PLAN §7.4): it times the request, lets everything else run, and writes one
+/// The public pipeline's outermost middleware: it times the request, lets everything else run, and writes one
 /// <see cref="AccessLogEntry"/> into the ring on the way out - in a <c>finally</c>, so a gate refusal (403, 421, the 404
 /// for an unknown host), the HTTPS redirect, a Redirect/Respond answer, a YARP forward and an exception all get a line.
 /// </summary>
@@ -35,7 +35,7 @@ namespace Paduraksa.Proxy.Logging;
 /// sent and none is invented.</para>
 /// <para><b>CF-Ray</b> is written only when the peer is a trusted Cloudflare edge or tunnel
 /// (<see cref="ClientIpResolution.CloudflareHeadersTrusted"/>): from anyone else the header is theirs to forge, and it is
-/// stripped before forwarding (PLAN §7.6).</para>
+/// stripped before forwarding.</para>
 /// </remarks>
 public sealed class AccessLogMiddleware
 {

@@ -4,7 +4,7 @@ using Paduraksa.Proxy.Gate;
 namespace Paduraksa.Proxy.Snapshot;
 
 /// <summary>
-/// One entry of a proxy host's ordered route list (PLAN §6.2, §7.2 C). Matching runs in the gate on the request
+/// One entry of a proxy host's ordered route list. Matching runs in the gate on the request
 /// path span; YARP never matches anything.
 /// <para><b>What is matched:</b> the canonical matching view of the decoded path (<see cref="RoutePath"/>: separators
 /// <c>\</c>/<c>%2F</c>/<c>%5C</c>, repeated <c>/</c>, <c>;</c> parameters, trailing dots and spaces, dot segments),
@@ -30,7 +30,7 @@ public sealed class CompiledRoute
     public required IRequestPolicy[] Policies { get; init; }
 
     /// <summary>
-    /// True for the implicit route every admin host gets (PLAN §3.1): it takes every path and forwards to the
+    /// True for the implicit route every admin host gets: it takes every path and forwards to the
     /// <c>__admin</c> cluster. It has no <see cref="RouteId"/>, so <see cref="Id"/> is empty.
     /// </summary>
     public bool Admin { get; init; }

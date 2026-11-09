@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// What the access-log formatter is allowed to write (PLAN §7.4): whether the query string appears at all, and which
+/// What the access-log formatter is allowed to write: whether the query string appears at all, and which
 /// query parameters are redacted. Cold-path data, read only by <c>AccessLogFormatter</c> on the drain thread.
 /// </summary>
 /// <remarks>
@@ -13,7 +13,7 @@ namespace Paduraksa.Proxy.Logging;
 public sealed record AccessLogFormatOptions
 {
     /// <summary>
-    /// Query parameter names whose values never reach the log (PLAN §7.4). Built-in default: the well-known ones; a
+    /// Query parameter names whose values never reach the log. Built-in default: the well-known ones; a
     /// configured list replaces it.
     /// </summary>
     public static string[] DefaultSensitiveQueryKeys { get; } =

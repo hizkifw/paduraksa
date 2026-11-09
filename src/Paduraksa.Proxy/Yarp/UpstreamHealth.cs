@@ -14,7 +14,7 @@ public sealed record LiveDestination(DestinationId Id, string Address);
 public sealed record UpstreamHealthSnapshot(IReadOnlyList<LiveDestination> Healthy, IReadOnlyList<LiveDestination> Unhealthy);
 
 /// <summary>
-/// Live destination health (PLAN §7.4, §7.7). YARP owns it and it exists only in the running proxy, so the request
+/// Live destination health. YARP owns it and it exists only in the running proxy, so the request
 /// simulator reads it from here, never from a snapshot: draft and revision snapshots aren't wired to YARP.
 /// </summary>
 public interface IUpstreamHealth

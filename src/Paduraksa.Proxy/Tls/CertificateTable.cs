@@ -4,7 +4,7 @@ using System.Net.Security;
 namespace Paduraksa.Proxy.Tls;
 
 /// <summary>
-/// SNI → prebuilt TLS options, immutable, built once per snapshot (PLAN §6.2, §7.2 B).
+/// SNI → prebuilt TLS options, immutable, built once per snapshot.
 /// Lookup order: exact name, then the wildcard parent (<c>*.example.com</c> covers exactly one extra label), then the
 /// default entry; no default means "reject". Case-insensitive, trailing dot ignored, 0 B per lookup.
 /// </summary>

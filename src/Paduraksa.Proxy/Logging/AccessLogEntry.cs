@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// One request, as the hot path hands it to the access-log ring (PLAN §7.4). A struct that <b>references strings the
+/// One request, as the hot path hands it to the access-log ring. A struct that <b>references strings the
 /// request already owns</b>: the method, path, query, host, protocol and headers Kestrel parsed, the cached client-address
 /// text (<see cref="Gate.GateRequestState.FormattedClientAddress"/>), the gate's request ID and YARP's destination
 /// address. Nothing is copied, and no <see cref="Microsoft.AspNetCore.Http.HttpContext"/> or pooled object is kept, so an
@@ -64,7 +64,7 @@ public readonly record struct AccessLogEntry
     /// <summary>The request ID (<see cref="RequestIds"/>), always known: taken from a trusted proxy or generated.</summary>
     public string? RequestId { get; init; }
 
-    /// <summary><c>CF-Ray</c>, only when the peer is a trusted Cloudflare edge or tunnel (PLAN §7.6).</summary>
+    /// <summary><c>CF-Ray</c>, only when the peer is a trusted Cloudflare edge or tunnel.</summary>
     public string? CloudflareRay { get; init; }
 
     public string? Referer { get; init; }

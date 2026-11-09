@@ -25,7 +25,7 @@ public enum TlsMismatch : byte
 }
 
 /// <summary>
-/// Enforces a host's <see cref="TlsPolicy"/> per <b>request</b> (PLAN §7.2 B/C). The handshake applies the policy of
+/// Enforces a host's <see cref="TlsPolicy"/> per <b>request</b>. The handshake applies the policy of
 /// the host named in the SNI, but clients reuse a connection for every name its certificate covers (H2 and H3
 /// coalescing on SAN or wildcard certificates), so a request's <c>Host</c>/<c>:authority</c> can name a host with
 /// stricter settings than the one the connection was negotiated for. The gate checks the negotiated facts after host
@@ -81,7 +81,7 @@ public static class ConnectionTlsCheck
             return TlsMismatch.TlsVersionTooLow;
         }
 
-        // TODO(M7): a required client certificate (policy.ClientCertificate) must have been validated on this
+        // TODO: a required client certificate (policy.ClientCertificate) must have been validated on this
         // connection too (ITlsConnectionFeature.ClientCertificate plus the validator's verdict), else 421.
         return TlsMismatch.None;
     }

@@ -16,7 +16,7 @@ public enum TlsRejectionReason
 }
 
 /// <summary>
-/// Thrown from a handshake callback to reject the connection. Throwing is the supported way to reject (spike S1, Q6):
+/// Thrown from a handshake callback to reject the connection. Throwing is the supported way to reject:
 /// TCP clients see EOF, QUIC clients a <c>user_canceled</c> TLS alert, and the server stays healthy. Returning null
 /// instead crashes into a <see cref="NullReferenceException"/> inside Kestrel.
 /// </summary>

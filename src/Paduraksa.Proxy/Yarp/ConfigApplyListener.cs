@@ -6,7 +6,7 @@ namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
 /// Turns YARP's <see cref="IConfigChangeListener"/> callbacks into one awaitable outcome per
-/// <see cref="IProxyConfig.RevisionId"/> (PLAN §6.1 step 6b, spike S2 Q5). <c>Publish()</c> returning says nothing
+/// <see cref="IProxyConfig.RevisionId"/>. <c>Publish()</c> returning says nothing
 /// about whether YARP applied the config; this does.
 /// </summary>
 internal sealed class ConfigApplyListener : IConfigChangeListener

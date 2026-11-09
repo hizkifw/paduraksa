@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Https;
 namespace Paduraksa.Proxy.Tls;
 
 /// <summary>
-/// Connection-stage gate for QUIC (PLAN §7.2 A). QUIC has no <c>ListenOptions.Use</c>, so the IP deny / per-IP cap /
+/// Connection-stage gate for QUIC. QUIC has no <c>ListenOptions.Use</c>, so the IP deny / per-IP cap /
 /// ClientInfo work runs inside the QUIC handshake callback, after the 0 B certificate lookup but before the options
 /// are returned. Return false to reject.
 /// </summary>
@@ -25,19 +25,19 @@ namespace Paduraksa.Proxy.Tls;
 /// </remarks>
 /// <param name="remoteEndPoint">
 /// The client's endpoint, or null if Kestrel didn't provide an IP endpoint. On a dual-mode <c>[::]</c> listener QUIC
-/// reports IPv4 clients as plain IPv4 while TCP reports them IPv4-mapped (spike S1), so normalise before matching.
+/// reports IPv4 clients as plain IPv4 while TCP reports them IPv4-mapped, so normalise before matching.
 /// </param>
 /// <param name="connection">The QUIC connection (e.g. to attach a ClientInfo feature), or null when not called from Kestrel.</param>
 public delegate bool QuicConnectionGate(IPEndPoint? remoteEndPoint, ConnectionContext? connection);
 
 /// <summary>
-/// Per-SNI certificate selection for Kestrel's TCP and QUIC listeners (PLAN §7.2 B). Each handshake does one volatile
+/// Per-SNI certificate selection for Kestrel's TCP and QUIC listeners. Each handshake does one volatile
 /// read of the current <see cref="CertificateTable"/>, one 0 B lookup, and returns a prebuilt, shared options object.
 /// Unknown names are rejected by throwing <see cref="TlsHandshakeRejectedException"/> and counted, because Kestrel
 /// logs QUIC rejections nowhere (and TCP ones only at Debug).
 /// </summary>
 /// <remarks>
-/// One instance per process (its <see cref="Counters"/> are process-lifetime state, PLAN §6.3). The accepted path allocates nothing;
+/// One instance per process (its <see cref="Counters"/> are process-lifetime state). The accepted path allocates nothing;
 /// a rejection allocates its exception.
 /// </remarks>
 public sealed class TlsHandshakeSelector
@@ -84,7 +84,7 @@ public sealed class TlsHandshakeSelector
     /// <summary>
     /// The selection both transports make, without counters, exceptions or the connection gate: the entry for
     /// <paramref name="serverName"/> and its options for the transport, or why the handshake is rejected. The handshake
-    /// callbacks and the request simulator (PLAN §7.7) both use it.
+    /// callbacks and the request simulator both use it.
     /// </summary>
     public static TlsSelection Select(CertificateTable table, ReadOnlySpan<char> serverName, bool quic)
     {
@@ -168,7 +168,7 @@ public readonly record struct TlsSelection(
 /// <summary>Lock-free counters of the handshakes a <see cref="TlsHandshakeSelector"/> rejected.</summary>
 public sealed class TlsHandshakeCounters
 {
-    // TODO(M9 metrics): these share a cache line; pad or stripe them if rejection floods ever show contention.
+    // TODO(metrics): these share a cache line; pad or stripe them if rejection floods ever show contention.
     private long _unknownServerNameTcp;
     private long _unknownServerNameQuic;
     private long _http3Disabled;

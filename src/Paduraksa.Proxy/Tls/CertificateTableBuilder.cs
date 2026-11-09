@@ -157,7 +157,7 @@ public sealed class CertificateTableBuilder
     }
 
     /// <summary>
-    /// Cipher suites for TCP (PLAN §7.2 B): AEAD only, ECDHE only (forward secrecy). TLS 1.3 suites are all AEAD; for
+    /// Cipher suites for TCP: AEAD only, ECDHE only (forward secrecy). TLS 1.3 suites are all AEAD; for
     /// TLS 1.2 this drops the CBC/SHA-1 and static-RSA suites OpenSSL's default list still allows. Linux only:
     /// <see cref="CipherSuitesPolicy"/> isn't supported on Windows, and Linux is what we ship, so other platforms keep
     /// the OS defaults. QUIC doesn't get it: QUIC is TLS 1.3, whose suites are all AEAD already.
@@ -178,7 +178,7 @@ public sealed class CertificateTableBuilder
         : null;
 
     // ApplicationProtocols is ALWAYS set: both Kestrel transports write their own ALPN into a returned options object
-    // whose list is null, which breaks the other transport when instances are shared (spike S1, trap 1).
+    // whose list is null, which breaks the other transport when instances are shared.
     private static SslServerAuthenticationOptions CreateTcpOptions(ServerCertificate certificate, TlsPolicy policy) => new()
     {
         CipherSuitesPolicy = TcpCipherSuites,
@@ -216,7 +216,7 @@ public sealed class CertificateTableBuilder
         /// which would let any unauthenticated client make the proxy fetch a URL of its choosing mid-handshake (SSRF).
         /// Revocation isn't checked either (no OCSP/CRL fetches). One policy per options object; SslStream copies it.
         /// </summary>
-        // TODO(M7): Authenticated Origin Pulls: X509ChainTrustMode.CustomRootTrust with Cloudflare's origin-pull CA.
+        // TODO: Authenticated Origin Pulls: X509ChainTrustMode.CustomRootTrust with Cloudflare's origin-pull CA.
         public static X509ChainPolicy? ChainPolicy(ClientCertificatePolicy? policy) =>
             policy is null
                 ? null

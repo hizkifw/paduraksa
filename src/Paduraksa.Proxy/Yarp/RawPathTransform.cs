@@ -9,7 +9,7 @@ namespace Paduraksa.Proxy.Yarp;
 /// <c>HttpRequest.Path</c> and escapes it again, which turns an encoded slash into <c>%252F</c> and breaks
 /// GitLab-style <c>group%2Fproject</c> paths. This request transform sets the URI itself from the raw request target
 /// (path part only, before <c>?</c>) and the query as YARP would send it, with canonicalisation disabled so nothing is
-/// re-escaped or unescaped. M1 strips no route prefixes, so the raw path is appended to the destination as is.
+/// re-escaped or unescaped. No route prefixes are stripped, so the raw path is appended to the destination as is.
 /// <para>Absolute-form and asterisk-form targets (no leading <c>/</c>) keep YARP's default.</para>
 /// </summary>
 internal static class RawPathTransform

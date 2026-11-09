@@ -21,7 +21,7 @@ public sealed record SnapshotCompilerOptions
 
     /// <summary>
     /// The HTTPS port clients use (<c>Paduraksa:Listen:PublicHttpsPort</c>), which differs from the bound port behind a
-    /// port mapping (PLAN §7.5). Used for the HTTP→HTTPS redirect.
+    /// port mapping. Used for the HTTP→HTTPS redirect.
     /// </summary>
     public int PublicHttpsPort
     {
@@ -36,19 +36,19 @@ public sealed record SnapshotCompilerOptions
 
     /// <summary>
     /// Whether the HTTP/3 listener exists (enabled and libmsquic present). When true, every host served over HTTPS with
-    /// HTTP/3 left on gets an <c>Alt-Svc</c> advertising <see cref="PublicHttpsPort"/> (PLAN §7.5).
+    /// HTTP/3 left on gets an <c>Alt-Svc</c> advertising <see cref="PublicHttpsPort"/>.
     /// </summary>
     public bool AdvertiseHttp3 { get; init; }
 
     /// <summary>
-    /// Whether an admin host's <c>__admin</c> cluster can be compiled (PLAN §3.1): true when the admin app's internal listener
+    /// Whether an admin host's <c>__admin</c> cluster can be compiled: true when the admin app's internal listener
     /// exists (<c>Paduraksa:Listen:AdminInternal</c>). False: a config with an admin host is refused, with that reason.
     /// </summary>
     public bool AdminUpstream { get; init; }
 
     /// <summary>
     /// Cloudflare's edge ranges for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>; null for the baked-in
-    /// <see cref="CloudflareIpRanges.Default"/>. The range refresh job (M7) passes its latest list here; tests use it to
+    /// <see cref="CloudflareIpRanges.Default"/>. The range refresh job passes its latest list here; tests use it to
     /// put loopback "at the edge".
     /// </summary>
     public CidrSet? CloudflareEdgeRanges { get; init; }

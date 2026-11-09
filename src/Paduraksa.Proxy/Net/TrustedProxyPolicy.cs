@@ -3,7 +3,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Proxy.Net;
 
 /// <summary>
-/// Compiled, immutable trusted-proxy settings (PLAN §7.2 C, §7.6), consumed by <see cref="ClientIpResolver"/>.
+/// Compiled, immutable trusted-proxy settings, consumed by <see cref="ClientIpResolver"/>.
 /// Built on the cold path (snapshot compile); safe to share across threads.
 /// </summary>
 public sealed class TrustedProxyPolicy
@@ -81,7 +81,7 @@ public sealed class TrustedProxyPolicy
 
     /// <summary>
     /// Whether <paramref name="peer"/> is one of this policy's trusted proxies (Cloudflare edge, cloudflared, or a
-    /// generic proxy). Allocation-free. Use it to exempt such peers from per-IP connection caps (PLAN §7.6), where
+    /// generic proxy). Allocation-free. Use it to exempt such peers from per-IP connection caps, where
     /// every visitor would otherwise share a handful of edge addresses.
     /// </summary>
     public bool IsTrustedPeer(IpKey peer) => Mode != TrustedProxyMode.Off && TrustedPeers.Contains(peer);

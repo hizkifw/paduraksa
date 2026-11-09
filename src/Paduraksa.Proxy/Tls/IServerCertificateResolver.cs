@@ -7,7 +7,7 @@ namespace Paduraksa.Proxy.Tls;
 /// <summary>
 /// Turns a certificate ID from the config into a ready-to-serve <see cref="ServerCertificate"/> at snapshot compile
 /// time (cold path). The proxy never loads or exports keys: whoever implements this does (the Vault's
-/// <c>IServerCertificateSource</c> from M3; a placeholder in the server until then).
+/// <c>IServerCertificateSource</c>).
 /// </summary>
 /// <remarks>
 /// Return the <b>same</b> <see cref="ServerCertificate"/> instance for an unchanged certificate across compiles. The

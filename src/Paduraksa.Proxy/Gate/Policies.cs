@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 
 namespace Paduraksa.Proxy.Gate;
 
-/// <summary>What a policy tells the gate to do (PLAN §7.2 D).</summary>
+/// <summary>What a policy tells the gate to do.</summary>
 public enum PolicyAction : byte
 {
     /// <summary>Run the next policy; after the last one, forward to YARP.</summary>
@@ -67,7 +67,7 @@ public readonly ref struct RequestView
     public GateRequestState State { get; }
 
     /// <summary>
-    /// The request is a simulation (PLAN §7.7), not a real one: the verdict must be what a real request would get, but a
+    /// The request is a simulation, not a real one: the verdict must be what a real request would get, but a
     /// policy must change nothing to give it. A stateful policy peeks (a rate limit says "would allow, N left" without taking
     /// a token) and starts no outbound call. Stateless policies ignore it.
     /// </summary>
@@ -75,7 +75,7 @@ public readonly ref struct RequestView
 }
 
 /// <summary>
-/// One step of a host's or a route's policy chain (PLAN §7.2 D). Implementations are sealed classes with everything
+/// One step of a host's or a route's policy chain. Implementations are sealed classes with everything
 /// precompiled into the instance; <see cref="Evaluate"/> runs on the hot path, so it must not allocate, lock or await.
 /// Host policies run before any route is matched, so <see cref="GateRequestState.Route"/> may be <see langword="null"/>.
 /// </summary>
@@ -84,7 +84,7 @@ public interface IRequestPolicy
     PolicyDecision Evaluate(in RequestView request);
 
     /// <summary>A short, stable kind label for the request simulator's trace (<c>ipAllowList</c>). Never called on the hot
-    /// path. Each policy added later (M7) overrides it and <see cref="Explain"/>.</summary>
+    /// path. A policy overrides it and <see cref="Explain"/>.</summary>
     string Name => "policy";
 
     /// <summary>Says why <paramref name="verdict"/> (what <see cref="Evaluate"/> just returned for

@@ -9,7 +9,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>
-/// Writes a <see cref="PrecomputedResponse"/> (spike S3 §6). Headers go through the typed properties
+/// Writes a <see cref="PrecomputedResponse"/>. Headers go through the typed properties
 /// (field-backed in Kestrel), the body straight into the output pipe. 0 B on Kestrel for fixed responses; a
 /// request-dependent <c>Location</c> costs that one string.
 /// </summary>

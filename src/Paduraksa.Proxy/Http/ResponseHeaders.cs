@@ -26,7 +26,7 @@ public enum ResponseHeaderKind : byte
     NotSent,
 }
 
-/// <summary>Where in the gate's order an operation is applied (PLAN §7.2 C).</summary>
+/// <summary>Where in the gate's order an operation is applied.</summary>
 public enum ResponseHeaderStage : byte
 {
     /// <summary>Right after host lookup, so even the TLS 421 carries it (the <c>Server</c> header).</summary>
@@ -71,7 +71,7 @@ public enum ResponseHeaderValue : byte
 }
 
 /// <summary>
-/// One response-header operation of a compiled host (PLAN §7.2 C): a header's name, its precomputed value (or the
+/// One response-header operation of a compiled host: a header's name, its precomputed value (or the
 /// request ID), what to do with it, when, and under which conditions. A host has one array of these, and the gate, the
 /// reapply after a forward and YARP's response transform all loop over it, so a header can't behave one way in the gate
 /// and another after a forward.
@@ -129,7 +129,7 @@ internal enum HeaderOutcome : byte
 }
 
 /// <summary>
-/// Applies a host's <see cref="ResponseHeaderOperation"/>s (PLAN §7.2 C, §7.4). 0 B: every value is precomputed, so an
+/// Applies a host's <see cref="ResponseHeaderOperation"/>s. 0 B: every value is precomputed, so an
 /// assignment or a removal is all that happens; the request ID is the one string a request materialises, and it is
 /// applied with the answer rather than in the decision.
 /// </summary>

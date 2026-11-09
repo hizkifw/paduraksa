@@ -4,7 +4,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Proxy.Tls;
 
 /// <summary>
-/// Per-host TLS settings (PLAN §7.2 B). A value type in spirit: two hosts with equal policies (and the same
+/// Per-host TLS settings. A value type in spirit: two hosts with equal policies (and the same
 /// certificate) share one prebuilt <see cref="SslServerAuthenticationOptions"/> per transport. Undefined enum values
 /// throw on init, rather than silently falling back to the weakest setting when the options are built.
 /// </summary>
@@ -43,8 +43,8 @@ public sealed record TlsPolicy
 }
 
 /// <summary>
-/// Requests a client certificate during the handshake. The shape exists for Cloudflare Authenticated Origin Pulls
-/// (PLAN §7.6); the real validator (origin-pull CA) arrives in M7.
+/// Requests a client certificate during the handshake. The shape exists for Cloudflare Authenticated Origin Pulls; the
+/// validator for that origin-pull CA is not built yet.
 /// </summary>
 /// <remarks>
 /// <list type="bullet">

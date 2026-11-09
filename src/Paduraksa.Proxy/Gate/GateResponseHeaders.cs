@@ -6,7 +6,7 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>
-/// Re-applies the host's response headers after a forward (PLAN §7.2 C). YARP's
+/// Re-applies the host's response headers after a forward. YARP's
 /// <c>HttpForwarder.HandleResponseBodyErrorAsync</c> clears the whole response when an upstream sends headers and
 /// then fails before the first body byte, and returns the bare 502 without running the response transforms again. The
 /// host's compiled header list (<see cref="CompiledHost.ResponseHeaders"/>) is put back, by the same loop the gate and the

@@ -10,7 +10,7 @@ using Yarp.ReverseProxy.Transforms;
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
-/// Makes the host's response headers hold for a forwarded response (PLAN §7.2 C). YARP copies an upstream's own headers
+/// Makes the host's response headers hold for a forwarded response. YARP copies an upstream's own headers
 /// after the gate has set ours, so this runs after that copy and loops over the same compiled list the gate applied
 /// (<see cref="CompiledHost.ResponseHeaders"/>): ours replaces the upstream's for <c>Server</c> and <c>X-Request-Id</c>,
 /// an upstream's <c>Server</c> is removed when the host removes it, and <c>Alt-Svc</c> and HSTS are set exactly as the

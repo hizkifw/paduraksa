@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
-/// The access-log buffer between the request path and the writer (PLAN §7.4): a fixed-size,
+/// The access-log buffer between the request path and the writer: a fixed-size,
 /// lock-free, <b>multi-producer single-consumer</b> ring of <see cref="AccessLogEntry"/> structs. The hot path only
 /// reserves a slot and writes a struct into it; a background service is the one reader
 /// (<c>AccessLogDrainService</c>).
@@ -26,7 +26,7 @@ namespace Paduraksa.Proxy.Logging;
 /// </remarks>
 public sealed class AccessLogRing
 {
-    /// <summary>Slots of a ring built without a size setting (PLAN §7.4: "default e.g. 16384").</summary>
+    /// <summary>Slots of a ring built without a size setting.</summary>
     public const int DefaultCapacity = 16_384;
 
     /// <summary>Smallest capacity a configured ring may be (the class itself accepts any power of two, tests included).</summary>

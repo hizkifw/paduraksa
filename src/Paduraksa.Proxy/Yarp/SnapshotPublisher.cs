@@ -58,17 +58,13 @@ public sealed class SnapshotPublisherOptions
 }
 
 /// <summary>
-/// The single writer that makes candidate snapshots live (PLAN §6.1 step 6, §6.2, spike S2):
-/// <list type="number">
-/// <item>validate the candidate's YARP config with YARP's own <see cref="IConfigValidator"/>;</item>
-/// <item>hand it to YARP through <see cref="SnapshotProxyConfigProvider"/> (skipped when YARP already runs equal content);</item>
-/// <item>await <c>ConfigurationApplied</c> or <c>ConfigurationApplyingFailed</c> for that <c>RevisionId</c>, with a timeout;</item>
-/// <item>capture YARP's new endpoints by route ID into the candidate's slot table;</item>
-/// <item>swap <see cref="SnapshotStore"/>. Requests see the new snapshot from here on; in-flight ones keep the old one.</item>
-/// </list>
+/// The single writer that makes candidate snapshots live: it validates the candidate's YARP config with YARP's own
+/// <see cref="IConfigValidator"/>, hands it to YARP through <see cref="SnapshotProxyConfigProvider"/>, awaits that
+/// revision's outcome, captures YARP's new endpoints, and only then swaps <see cref="SnapshotStore"/>: requests see the
+/// new snapshot from then on, in-flight ones keep the old one.
 /// <para><b>Coalescing:</b> one publish runs at a time. A candidate that is still queued when a newer one arrives is
 /// completed as <see cref="PublishStatus.Superseded"/>, so a burst of edits costs one YARP reload, not one each.</para>
-/// <para><b>Before YARP exists</b> (the core host publishes before the public app starts, PLAN §3): a candidate with no
+/// <para><b>Before YARP exists</b> (the core host publishes before the public app starts): a candidate with no
 /// YARP content is published at once. Any other candidate waits, without a timeout, until <see cref="Attach"/>
 /// validates it and hands it to YARP's initial load, so the first request already sees it. <b>Startup code must
 /// therefore never await such a publish</b>: <see cref="Attach"/> runs while the public app starts, which happens only
@@ -163,7 +159,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
 
     /// <summary>
     /// Runs YARP's <see cref="IConfigValidator"/> over the candidate's routes and clusters, plus a route → cluster
-    /// reference check (dry-run, PLAN §6.1 step 4). Needs YARP: before <see cref="Attach"/> it reports exactly that.
+    /// reference check (dry-run). Needs YARP: before <see cref="Attach"/> it reports exactly that.
     /// </summary>
     public async Task<IReadOnlyList<string>> ValidateAsync(RuntimeSnapshot candidate)
     {
@@ -339,7 +335,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
             }
         }
 
-        // YARP has signalled; its endpoints normally match already (spike S2: 140 of 140). Allow a short grace.
+        // YARP has signalled; its endpoints normally match already. Allow a short grace.
         long started = _timeProvider.GetTimestamp();
         Endpoint[] endpoints;
         string? problem;
@@ -360,7 +356,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         }
     }
 
-    /// <summary>Steps 6a/6b. Returns <see langword="null"/> when YARP applied the config.</summary>
+    /// <summary>Waits for YARP's verdict. Returns <see langword="null"/> when YARP applied the config.</summary>
     private async Task<PublishResult?> ApplyToYarpAsync(YarpConfig content, string revisionId)
     {
         Task<Exception?> outcome = ApplyListener.Expect(revisionId);
@@ -411,7 +407,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         }
     }
 
-    /// <summary>Step 6c: one endpoint per slot, taken from YARP's data source by route ID and checked by value.</summary>
+    /// <summary>One endpoint per slot, taken from YARP's data source by route ID and checked by value.</summary>
     private static bool TryCaptureEndpoints(EndpointDataSource source, RuntimeSnapshot candidate, out Endpoint[] endpoints, out string? problem)
     {
         endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
@@ -460,7 +456,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         return true;
     }
 
-    /// <summary>Step 6d. Callers hold <see cref="_lock"/>, which makes the generation assignment single-writer.</summary>
+    /// <summary>Callers hold <see cref="_lock"/>, which makes the generation assignment single-writer.</summary>
     private PublishResult Swap(RuntimeSnapshot candidate, Endpoint[] endpoints)
     {
         long generation = Store.Current.Generation + 1;

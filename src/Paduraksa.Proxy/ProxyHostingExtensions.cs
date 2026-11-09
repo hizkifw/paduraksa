@@ -19,7 +19,7 @@ using Yarp.ReverseProxy.Transforms;
 namespace Paduraksa.Proxy;
 
 /// <summary>
-/// Wires the proxy core into a public app. The pipeline itself stays explicit in the host (PLAN §7.1, spike S3):
+/// Wires the proxy core into a public app. The pipeline itself stays explicit in the host:
 /// <code>
 /// app.Use(gate.InvokeAsync);   // GateMiddleware from DI
 /// app.UseRouting();            // skips matching: the gate already set the endpoint
@@ -52,7 +52,7 @@ public static class ProxyHostingExtensions
         services.AddSingleton<IConfigChangeListener>(publisher.ApplyListener);
         services.AddRoutingCore();
 
-        // The access log (PLAN §7.4). The ring, its options and the sink are shared with the core host's drain service,
+        // The access log. The ring, its options and the sink are shared with the core host's drain service,
         // which replaces the defaults here with the configured ones; without a core host the ring fills and nothing reads
         // it, which is what a test app wants.
         services.TryAddSingleton(new AccessLogRing());
@@ -88,7 +88,7 @@ public static class ProxyHostingExtensions
     /// <summary>
     /// Maps YARP with Paduraksa's custom proxy pipeline and attaches the <see cref="SnapshotPublisher"/> to it.
     /// The custom pipeline replaces YARP's default one, so session affinity, load balancing and passive health are
-    /// added back explicitly (PLAN §6.2); without them passive health silently does nothing.
+    /// added back explicitly; without them passive health silently does nothing.
     /// </summary>
     public static ReverseProxyConventionBuilder MapPaduraksaProxy(this IEndpointRouteBuilder endpoints)
     {

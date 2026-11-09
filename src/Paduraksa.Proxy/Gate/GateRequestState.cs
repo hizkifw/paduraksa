@@ -14,7 +14,7 @@ public interface IGateFeature
 }
 
 /// <summary>
-/// Everything the gate resolved for one request (spike S3 §3). One instance lives in Kestrel's
+/// Everything the gate resolved for one request. One instance lives in Kestrel's
 /// <c>IPersistentStateFeature</c> (per connection on H1, per pooled stream on H2/H3) and is <see cref="Reset"/> at
 /// the start of every request, so it's never shared by two concurrent requests and costs nothing in steady state.
 /// <para><b>Lifetime rule:</b> nothing may keep a reference to it after the request ends; the next request on the
@@ -40,13 +40,13 @@ public sealed class GateRequestState : IGateFeature
     private string? _formatted;
 
     /// <summary>
-    /// The client as resolved at gate entry (PLAN §7.6): the address, where it came from, whether the peer is a trusted
+    /// The client as resolved at gate entry: the address, where it came from, whether the peer is a trusted
     /// proxy and whether Cloudflare headers may be trusted. Policies and the forwarding headers use it.
     /// </summary>
     public ClientIpResolution ClientIp { get; internal set; }
 
     /// <summary>
-    /// The scheme the client used (PLAN §7.6): the trusted proxies' (<see cref="ClientIpResolution.Scheme"/>) or else the
+    /// The scheme the client used: the trusted proxies' (<see cref="ClientIpResolution.Scheme"/>) or else the
     /// connection's. The HTTP→HTTPS redirect and the upstream <c>X-Forwarded-Proto</c> both use it.
     /// </summary>
     public bool IsHttps { get; internal set; }
@@ -56,7 +56,7 @@ public sealed class GateRequestState : IGateFeature
     public IpKey ClientAddress => ClientIp.Address;
 
     /// <summary>
-    /// The request's ID (PLAN §7.4), generated or adopted from a trusted proxy, as text. <b>The one allocation a request
+    /// The request's ID, generated or adopted from a trusted proxy, as text. <b>The one allocation a request
     /// accepts</b>: an <c>X-Request-Id</c> header value can only be a <see cref="string"/>, so the generated ID is
     /// formatted once here (<see cref="RequestIds.Format(long)"/>) and shared by the response header, the upstream header
     /// and the access log. An ID adopted from a trusted peer is the string the request already holds. Call it more than
@@ -69,7 +69,7 @@ public sealed class GateRequestState : IGateFeature
 
     /// <summary>
     /// True when the gate dropped the request: the connection or stream is aborted and <b>no response is sent</b>, so the
-    /// access log records no status (PLAN §7.4).
+    /// access log records no status.
     /// </summary>
     public bool Aborted { get; internal set; }
 

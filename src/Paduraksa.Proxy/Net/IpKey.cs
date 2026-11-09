@@ -5,12 +5,12 @@ using System.Net;
 namespace Paduraksa.Proxy.Net;
 
 /// <summary>
-/// An IP address as a 128-bit key: the one client-IP representation used on the hot path (PLAN §7.1, §7.3).
+/// An IP address as a 128-bit key: the one client-IP representation used on the hot path.
 /// </summary>
 /// <remarks>
 /// <para>IPv4 is stored IPv4-mapped (<c>::ffff:a.b.c.d</c>), so a plain IPv4 address and its mapped IPv6 form are
 /// the same key. That matters on a dual-mode <c>[::]</c> listener, where TCP reports <c>::ffff:a.b.c.d</c> and QUIC
-/// reports <c>a.b.c.d</c> (spike S1).</para>
+/// reports <c>a.b.c.d</c>.</para>
 /// <para>The deprecated IPv4-compatible form <c>::a.b.c.d</c> is <em>not</em> folded into the IPv4 key: it is a
 /// different IPv6 address (and what the BCL and sockets say too). See <see cref="IpParser"/>.</para>
 /// <para>IPv6 scope IDs (zones) are not part of the key.</para>

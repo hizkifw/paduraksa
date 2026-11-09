@@ -18,7 +18,7 @@ public enum SchemeSource : byte
 }
 
 /// <summary>
-/// The scheme the client used, as far as the trusted proxies say (PLAN §7.6): <see cref="IsHttps"/> is meaningful only
+/// The scheme the client used, as far as the trusted proxies say: <see cref="IsHttps"/> is meaningful only
 /// when <see cref="Source"/> isn't <see cref="SchemeSource.Connection"/>; otherwise the connection's own scheme applies.
 /// </summary>
 public readonly record struct RequestScheme(bool IsHttps, SchemeSource Source)
@@ -28,7 +28,7 @@ public readonly record struct RequestScheme(bool IsHttps, SchemeSource Source)
 }
 
 /// <summary>
-/// Resolves the trusted request scheme (PLAN §7.2 C, §7.6), once per request next to the client IP. Both the HTTP→HTTPS
+/// Resolves the trusted request scheme, once per request next to the client IP. Both the HTTP→HTTPS
 /// redirect and the upstream <c>X-Forwarded-Proto</c> use it, so behind a TLS-terminating proxy (cloudflared on port 80,
 /// Cloudflare "Flexible", a generic TLS offloader) a forced-HTTPS host doesn't redirect forever. Pure and 0 B.
 /// <list type="bullet">

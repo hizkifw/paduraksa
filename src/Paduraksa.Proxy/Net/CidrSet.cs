@@ -9,7 +9,7 @@ namespace Paduraksa.Proxy.Net;
 /// searched with a binary search.</b> The builder sorts the blocks and merges overlapping and adjacent ones, so
 /// duplicates and nested blocks normalise away and the set's size is the number of distinct runs. A lookup is
 /// ⌈log₂ n⌉ + 1 comparisons over two contiguous arrays: S3 measured 7.7 ns for 2,000 CIDRs.</para>
-/// <para>A binary radix trie (PLAN §7.3's first idea) would cost up to 128 dependent pointer (or index) hops per
+/// <para>A binary radix trie would cost up to 128 dependent pointer (or index) hops per
 /// lookup and several nodes per block; it only pays off for longest-prefix-match with per-prefix values, which
 /// an allow/deny membership test doesn't need. If per-block values are ever needed (e.g. which rule matched),
 /// keep this layout and add a parallel value array, splitting rather than merging overlaps.</para>

@@ -12,7 +12,7 @@ using Yarp.ReverseProxy.Transforms;
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
-/// Keeps the admin session cookie out of proxied requests (PLAN §3.1), and a hostile upstream from planting one in a response.
+/// Keeps the admin session cookie out of proxied requests, and a hostile upstream from planting one in a response.
 /// A <c>__Host-</c> cookie is bound to the host name, not the port, so a browser that signed in to the admin at
 /// <c>https://proxy.example.com:9443</c> sends <c>__Host-paduraksa-session</c> to every proxied host on that name, and a
 /// hostile or merely logging upstream would receive a live admin session. This request transform removes that one cookie and

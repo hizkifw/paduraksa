@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.Net;
 
 /// <summary>
-/// PROXY protocol settings for one TCP listener (PLAN §7.2 A). Enabling it makes the header <b>mandatory</b>:
+/// PROXY protocol settings for one TCP listener. Enabling it makes the header <b>mandatory</b>:
 /// a connection from outside <see cref="TrustedSources"/> is dropped without reading anything, and a trusted
 /// source must send a valid header within <see cref="HeaderTimeout"/> or be dropped.
 /// </summary>
@@ -20,8 +20,7 @@ public sealed class ProxyProtocolOptions
     }
 
     /// <summary>Socket peers allowed to send a header (the load balancers). Each new connection reads the current set
-    /// once, so it can be swapped at runtime; in M1 nothing does yet (the listener config is fixed at startup), and the
-    /// swap on publish arrives with the config store (M2/M7).</summary>
+    /// once, so it can be swapped at runtime.</summary>
     public CidrSet TrustedSources
     {
         get => Volatile.Read(ref _trustedSources);

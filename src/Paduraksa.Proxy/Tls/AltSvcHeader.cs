@@ -5,14 +5,14 @@ using Microsoft.Extensions.Primitives;
 namespace Paduraksa.Proxy.Tls;
 
 /// <summary>
-/// The <c>Alt-Svc</c> header Paduraksa emits instead of Kestrel's (PLAN §7.5). It's built once from the <b>public</b>
+/// The <c>Alt-Svc</c> header Paduraksa emits instead of Kestrel's. It's built once from the <b>public</b>
 /// HTTPS port setting, not the bound port, so a port-mapped deployment can't advertise the wrong port (Kestrel's own
 /// header uses the bound port and is disabled on our listeners). Every request reuses the same
 /// <see cref="StringValues"/>, so applying it costs nothing.
 /// </summary>
 public sealed class AltSvcHeader
 {
-    /// <summary>24 hours, as browsers commonly use and spike S1 verified.</summary>
+    /// <summary>24 hours, as browsers commonly use.</summary>
     public const int DefaultMaxAgeSeconds = 86_400;
 
     /// <summary>The header's name.</summary>

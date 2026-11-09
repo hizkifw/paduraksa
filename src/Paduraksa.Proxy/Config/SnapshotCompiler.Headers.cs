@@ -11,7 +11,7 @@ public static partial class SnapshotCompiler
 {
     /// <summary>
     /// The host's response headers, compiled into the one list the gate, the reapply after a forward and YARP's transform
-    /// loop over (PLAN §7.2 C): <c>Server</c> first, because it goes on every answer (a 421 included), then
+    /// loop over: <c>Server</c> first, because it goes on every answer (a 421 included), then
     /// <c>Alt-Svc</c> and HSTS for the answers after the TLS check, then the response <c>X-Request-Id</c>.
     /// <para>A header the host doesn't send is still an operation (<see cref="ResponseHeaderKind.NotSent"/>), so the trace
     /// can say why, and the <c>Server</c> and request-ID entries are never absent: every answer has them.</para>

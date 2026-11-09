@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace Paduraksa.Proxy.Tls;
 
-/// <summary>Where and how the public HTTPS endpoint listens (PLAN §3, §7.5).</summary>
+/// <summary>Where and how the public HTTPS endpoint listens.</summary>
 public sealed class PublicHttpsListenerOptions
 {
     /// <summary>
@@ -22,7 +22,7 @@ public sealed class PublicHttpsListenerOptions
     public bool EnableHttp3 { get; init; } = true;
 
     /// <summary>
-    /// Adds TCP connection middleware (PROXY protocol, IP gate, per-IP cap, ClientInfo; PLAN §7.2 A). It runs before
+    /// Adds TCP connection middleware (PROXY protocol, IP gate, per-IP cap, ClientInfo). It runs before
     /// TLS, so it is called before <c>UseHttps</c>. QUIC has no equivalent: its gate is the
     /// <see cref="QuicConnectionGate"/> on the <see cref="TlsHandshakeSelector"/>.
     /// </summary>
@@ -30,7 +30,7 @@ public sealed class PublicHttpsListenerOptions
 }
 
 /// <summary>
-/// Kestrel listener layout for the public app (PLAN §7.5, spike S1): per HTTPS endpoint, two <c>Listen</c> calls on the
+/// Kestrel listener layout for the public app: per HTTPS endpoint, two <c>Listen</c> calls on the
 /// same address and port, TCP (H1/H2) and UDP (H3), each with its own handshake callback. Plain HTTP is a separate
 /// listener.
 /// </summary>
