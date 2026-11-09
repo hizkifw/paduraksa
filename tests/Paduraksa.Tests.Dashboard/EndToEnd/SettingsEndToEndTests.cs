@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 
 using static Microsoft.Playwright.Assertions;
@@ -209,10 +210,13 @@ public sealed class SettingsEndToEndTests
         IPage page = await context.NewPageAsync();
         await SetUpAsync(page, host);
 
-        // A line in the error log, as the process itself would have written it.
-        string directory = host.Host.Options.Logs.ResolvedDirectory;
-        Directory.CreateDirectory(directory);
-        await File.AppendAllTextAsync(Path.Combine(directory, "error.log"), "warn: the browser test's own line\n", Ct);
+        // A line in the error log, written by the process's own writer: appending through a handle of the test's would race the
+        // writer's buffered stream, whose next flush could land over it.
+        ILogger browserTest = host.Host.Shared.LoggerFactory.CreateLogger("Paduraksa.Tests.BrowserTest");
+#pragma warning disable CA1848 // One line in a test; a LoggerMessage delegate would be noise.
+        browserTest.LogWarning("the browser test's own line");
+#pragma warning restore CA1848
+        host.Host.Shared.LogFiles.Error.Flush();
 
         await OpenFromNavigationAsync(page, "Logs");
         await ExpectHeadingAsync(page, "Logs");
