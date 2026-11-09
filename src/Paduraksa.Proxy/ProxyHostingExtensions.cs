@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 
 using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 
@@ -50,15 +51,27 @@ public static class ProxyHostingExtensions
         services.AddSingleton<IProxyConfigProvider>(publisher.ConfigProvider);
         services.AddSingleton<IConfigChangeListener>(publisher.ApplyListener);
         services.AddRoutingCore();
+
+        // The access log (PLAN §7.4). The ring, its options and the sink are shared with the core host's drain service,
+        // which replaces the defaults here with the configured ones; without a core host the ring fills and nothing reads
+        // it, which is what a test app wants.
+        services.TryAddSingleton(new AccessLogRing());
+        services.TryAddSingleton(AccessLogFormatOptions.Default);
+        services.TryAddSingleton<IAccessLogSink>(NullAccessLogSink.Instance);
+        services.TryAddSingleton<AccessLogMiddleware>();
+
         services.AddReverseProxy()
             .AddTransforms(transforms =>
             {
                 transforms.UseDefaultForwarders = false;
+                transforms.AddRequestTransform(AccessLogTransform.OnRequestAsync);
                 transforms.AddRequestTransform(RawPathTransform.ApplyAsync);
                 transforms.AddRequestTransform(ForwardedHeadersTransform.ApplyAsync);
                 transforms.AddRequestTransform(adminSecret.ApplyAsync);
                 transforms.AddRequestTransform(SessionCookieTransform.ApplyAsync);
                 transforms.AddResponseTransform(SessionCookieTransform.ApplyResponseAsync);
+                transforms.AddResponseTransform(AccessLogTransform.OnResponseAsync);
+                transforms.AddResponseTransform(RequestIdTransform.OnResponseAsync);
             });
         services.RemoveAll<IForwarderHttpClientFactory>();
         services.AddSingleton<IForwarderHttpClientFactory>(

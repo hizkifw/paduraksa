@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 
 using Yarp.ReverseProxy.Transforms;
@@ -24,6 +25,9 @@ namespace Paduraksa.Proxy.Yarp;
 /// <c>CF-Visitor</c>, else its <c>X-Forwarded-Proto</c>; from a trusted generic proxy its <c>X-Forwarded-Proto</c> only
 /// with <c>TrustForwardedProto</c>; otherwise the scheme the client used to reach Paduraksa.</item>
 /// <item><c>X-Forwarded-Host</c>: the request's <c>Host</c> (H2/H3 <c>:authority</c>) as received, port included.</item>
+/// <item><c>X-Request-Id</c>: the request's ID (PLAN §7.4) when the host sends one upstream
+/// (<see cref="Snapshot.CompiledHost.RequestIdPropagation"/>): always the gate's own, never the client's. Otherwise
+/// whatever the client sent is removed.</item>
 /// <item>Removed and not replaced: <c>Forwarded</c>, <c>X-Forwarded-Prefix</c>, <c>X-Forwarded-Port</c>, which only a
 /// client could have set.</item>
 /// <item>Cloudflare's headers (every <c>cf-*</c> header plus <c>True-Client-IP</c>,
@@ -82,6 +86,14 @@ internal static class ForwardedHeadersTransform
         if (host.Count == 1 && !string.IsNullOrEmpty(host[0]))
         {
             upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedHost, host[0]);
+        }
+
+        // Always ours when the host sends one upstream (never the client's), and removed entirely when it doesn't: the
+        // setting means what it says, also for a value a trusted proxy supplied (PLAN §7.4).
+        upstream.Remove(RequestIds.HeaderName);
+        if (state?.Snapshot is { } snapshot && snapshot.RequestIdPropagationFor(state.Host).SendsUpstream())
+        {
+            upstream.TryAddWithoutValidation(RequestIds.HeaderName, state.RequestIdText());
         }
 
         return ValueTask.CompletedTask;

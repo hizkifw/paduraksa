@@ -1,3 +1,7 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
+
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 
@@ -51,7 +55,38 @@ public sealed class GateRequestState : IGateFeature
     /// <see cref="IpKey.Unspecified"/> when unknown.</summary>
     public IpKey ClientAddress => ClientIp.Address;
 
+    /// <summary>
+    /// The request's ID (PLAN §7.4), generated or adopted from a trusted proxy, as text. <b>The one allocation a request
+    /// accepts</b>: an <c>X-Request-Id</c> header value can only be a <see cref="string"/>, so the generated ID is
+    /// formatted once here (<see cref="RequestIds.Format(long)"/>) and shared by the response header, the upstream header
+    /// and the access log. An ID adopted from a trusted peer is the string the request already holds. Call it more than
+    /// once per request and it is free.
+    /// </summary>
+    public string RequestIdText() => _requestId ??= RequestIds.Format(_requestIdCounter);
+
+    /// <summary>Whether the ID came from the client (a trusted proxy's <c>X-Request-Id</c>) rather than being generated here.</summary>
+    public bool HasClientRequestId => _requestIdFromClient;
+
+    /// <summary>
+    /// True when the gate dropped the request: the connection or stream is aborted and <b>no response is sent</b>, so the
+    /// access log records no status (PLAN §7.4).
+    /// </summary>
+    public bool Aborted { get; internal set; }
+
     GateRequestState IGateFeature.State => this;
+
+    // The request ID: the adopted header value, or (when null) the counter a generated one is formatted from.
+    private string? _requestId;
+    private bool _requestIdFromClient;
+    private long _requestIdCounter;
+
+    // The upstream leg, filled by the YARP access-log transform (Yarp.AccessLogTransform) and read by
+    // Logging.AccessLogMiddleware once the request is over. Ticks are TimeSpan ticks; -1 means "not forwarded".
+    internal long UpstreamStartedTimestamp { get; set; }
+
+    internal long UpstreamTicks { get; set; } = -1;
+
+    internal string? UpstreamAddress { get; set; }
 
     /// <summary>Clears every field at the start of a request.</summary>
     internal void Reset()
@@ -61,6 +96,36 @@ public sealed class GateRequestState : IGateFeature
         Route = null;
         ClientIp = default;
         IsHttps = false;
+        Aborted = false;
+        _requestId = null;
+        _requestIdFromClient = false;
+        _requestIdCounter = 0;
+        UpstreamStartedTimestamp = 0;
+        UpstreamTicks = -1;
+        UpstreamAddress = null;
+    }
+
+    /// <summary>
+    /// Picks the request ID: the client's <c>X-Request-Id</c> when <paramref name="peerTrusted"/> (the trusted-proxy
+    /// decision the forwarding headers use) and the value is one valid header line (<see cref="RequestIds.IsValid"/>),
+    /// else a fresh counter for a generated ID. 0 B either way; the text is materialised on first use.
+    /// </summary>
+    internal void InitRequestId(HttpRequest request, bool peerTrusted)
+    {
+        _requestId = null;
+        _requestIdFromClient = false;
+        if (peerTrusted)
+        {
+            StringValues candidate = request.Headers[RequestIds.HeaderName];
+            if (candidate.Count == 1 && candidate[0] is { } value && RequestIds.IsValid(value))
+            {
+                _requestId = value;
+                _requestIdFromClient = true;
+                return;
+            }
+        }
+
+        _requestIdCounter = RequestIds.NextCounter();
     }
 
     /// <summary>

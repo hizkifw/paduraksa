@@ -16,6 +16,7 @@ using Microsoft.Extensions.Hosting;
 using Paduraksa.Proxy;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
@@ -57,6 +58,9 @@ internal sealed class ProxyTestServer : IAsyncDisposable
     public bool Http2 { get; }
 
     public IServiceProvider Services => _host.Services;
+
+    /// <summary>The access log the middleware fills; nothing drains it in a test app, so tests read it themselves.</summary>
+    public AccessLogRing AccessLog => _host.Services.GetRequiredService<AccessLogRing>();
 
     /// <summary>
     /// Set when started with <see cref="ProxyTestServerOptions.MeasureGate"/>: bytes allocated by
@@ -103,6 +107,8 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                 })
                 .Configure(app =>
                 {
+                    // The public pipeline, in its order: the access log wraps everything, the gate decides.
+                    app.Use(app.ApplicationServices.GetRequiredService<AccessLogMiddleware>().InvokeAsync);
                     GateMiddleware gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
                     if (!options.WithoutGate)
                     {

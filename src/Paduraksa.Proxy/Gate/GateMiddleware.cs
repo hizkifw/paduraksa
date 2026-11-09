@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -77,7 +78,30 @@ public sealed class GateMiddleware
     }
 
     /// <summary>For <c>app.Use(gate.InvokeAsync)</c>.</summary>
-    public Task InvokeAsync(HttpContext context, RequestDelegate next) => CompleteAsync(context, Decide(context), next);
+    public Task InvokeAsync(HttpContext context, RequestDelegate next) => InvokeCoreAsync(context, next);
+
+    /// <summary>
+    /// <see cref="Decide"/>, the request ID on the response (<see cref="RequestIds.HeaderName"/>) when the host sends it
+    /// (<see cref="RequestIdPropagation"/>), then <see cref="CompleteAsync"/>. The ID's header value is the one string a
+    /// request accepts; it is materialised here, once, and shared with the upstream header and the access log, so
+    /// <see cref="Decide"/> itself stays at 0 B.
+    /// </summary>
+    private Task InvokeCoreAsync(HttpContext context, RequestDelegate next)
+    {
+        GateDecision decision = Decide(context);
+        if (context.Features.Get<IGateFeature>()?.State is { } state)
+        {
+            RequestIdPropagation propagation = state.Snapshot is { } snapshot
+                ? snapshot.RequestIdPropagationFor(state.Host)
+                : RequestIdPropagation.UpstreamAndResponse;
+            if (propagation.SendsResponse())
+            {
+                context.Response.Headers[RequestIds.HeaderName] = state.RequestIdText();
+            }
+        }
+
+        return CompleteAsync(context, decision, next);
+    }
 
     /// <summary>
     /// The synchronous decision. Never writes the response; sets the endpoint when forwarding, and the host's
@@ -98,6 +122,9 @@ public sealed class GateMiddleware
         ClientIpResolution client = clientAddresses.Resolve(context, snapshot);
         state.ClientIp = client;
         state.IsHttps = client.Scheme.EffectiveIsHttps(context.Request.IsHttps);
+        // The same trust decision the forwarding headers make: a trusted proxy may name the request; anyone else's header
+        // is replaced (PLAN §7.4). 0 B: the header value is adopted by reference, or only a counter is taken.
+        state.InitRequestId(context.Request, client.PeerTrusted);
         tracer.ClientResolved(context, snapshot, in client, state.IsHttps);
 
         bool answered = TryAnswerAcmeChallenge(challenges, context, out GateDecision challenge);
@@ -191,6 +218,12 @@ public sealed class GateMiddleware
             case GateAction.Respond:
                 return ResponseWriter.WriteAsync(context, decision.Response!);
             default:
+                // Nothing is sent: the access log says so rather than inventing the 200 a response would have had.
+                if (context.Features.Get<IGateFeature>()?.State is { } aborted)
+                {
+                    aborted.Aborted = true;
+                }
+
                 context.Abort();
                 return Task.CompletedTask;
         }
