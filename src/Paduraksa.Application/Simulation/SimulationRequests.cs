@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Authentication;
+using System.Text;
 
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Simulation;
@@ -72,7 +73,9 @@ internal static class SimulationRequests
             errors.Add(new ConfigError("/method", SimulationErrorCodes.MethodInvalid, $"'{method}' is not an HTTP method (a token of at most {MaxMethodLength} characters)."));
         }
 
-        if (errors.Count == 0 && method.Length + 1 + path.Length + (query is null ? 0 : query.Length + 1) + " HTTP/1.1".Length > MaxRequestLineBytes)
+        // Kestrel limits the request line in bytes on the wire, and a non-ASCII character takes more than one.
+        if (errors.Count == 0
+            && Encoding.UTF8.GetByteCount(method) + 1 + Encoding.UTF8.GetByteCount(path) + (query is null ? 0 : Encoding.UTF8.GetByteCount(query) + 1) + " HTTP/1.1".Length > MaxRequestLineBytes)
         {
             errors.Add(new ConfigError("/url", SimulationErrorCodes.TooLarge, $"The request line (method, path and query) can't exceed {MaxRequestLineBytes} bytes: Kestrel answers 431."));
         }
@@ -98,7 +101,9 @@ internal static class SimulationRequests
             }
             else
             {
-                headerBytes += header.Name.Length + header.Value.Length + 4;
+                // Kestrel counts header octets against MaxRequestHeadersTotalSize; a browser sends a non-ASCII value as
+                // UTF-8, so this is the wire count (and the conservative upper bound) rather than the character count.
+                headerBytes += Encoding.UTF8.GetByteCount(header.Name) + Encoding.UTF8.GetByteCount(header.Value) + 4;
                 if (string.Equals(header.Name, "Host", StringComparison.OrdinalIgnoreCase))
                 {
                     hostHeaders.Add(header.Value);
@@ -194,7 +199,7 @@ internal static class SimulationRequests
         }
 
         string text = url.Trim();
-        if (text.Length > MaxRequestLineBytes)
+        if (Encoding.UTF8.GetByteCount(text) > MaxRequestLineBytes)
         {
             problem = $"The URL can't exceed {MaxRequestLineBytes} bytes: Kestrel answers 431.";
             code = SimulationErrorCodes.TooLarge;

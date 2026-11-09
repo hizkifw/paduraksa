@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 
 using Paduraksa.Application.Simulation;
@@ -275,6 +276,29 @@ public sealed class SimulationContractTests
         Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", new string('M', SimulationRequests.MaxMethodLength + 1)), out _, out _));
     }
 
+    [Fact]
+    public void KestrelsLimitsAreCountedInBytesNotCharacters()
+    {
+        // The URL: 8,192 UTF-8 bytes in 4,089 characters passes; two more bytes do not.
+        string url = "http://a.test/" + new string('é', 4089);
+        Assert.Equal(SimulationRequests.MaxRequestLineBytes, Encoding.UTF8.GetByteCount(url));
+        Assert.True(SimulationRequests.TryBuild(new SimulationRequest(url, "192.0.2.9"), out _, out _));
+        Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(Errors("http://a.test/" + new string('é', 4090), "192.0.2.9")).Code);
+
+        // The request line: the same multi-byte path, a 32-character method and the version add up to 8,193 bytes.
+        Assert.True(SimulationRequests.TryBuild(
+            new SimulationRequest("http://a.test/" + new string('é', 4074), "192.0.2.9", new string('M', SimulationRequests.MaxMethodLength)), out _, out _));
+        Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(
+            Errors("http://a.test/" + new string('é', 4075), "192.0.2.9", new string('M', SimulationRequests.MaxMethodLength))).Code);
+
+        // Headers are counted as UTF-8 bytes on the wire, where 'é' takes two: 16,381 of them plus one ASCII byte make
+        // exactly 32,768 bytes with the name and separators, and fit; one more byte does not.
+        Assert.True(SimulationRequests.TryBuild(
+            new SimulationRequest("http://a.test/", "192.0.2.9", Headers: [new SimulationHeader("X", new string('é', 16381) + "a")]), out _, out _));
+        Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(
+            Errors("http://a.test/", "192.0.2.9", headers: [new SimulationHeader("X", new string('é', 16381) + "ab")])).Code);
+    }
+
     [Theory]
     [InlineData("http://app.example.com/a?b=c\u0001d")]
     [InlineData("http://app.example.com/a?b=c d")]
@@ -291,6 +315,12 @@ public sealed class SimulationContractTests
     {
         Assert.True(SimulationRequests.TryBuild(request, out GateProbe? probe, out List<ConfigError> errors), string.Join("; ", errors.Select(e => $"{e.Path} {e.Message}")));
         return probe!;
+    }
+
+    private static List<ConfigError> Errors(string url, string client, string? method = null, IReadOnlyList<SimulationHeader>? headers = null)
+    {
+        Assert.False(SimulationRequests.TryBuild(new SimulationRequest(url, client, method, headers ?? []), out _, out List<ConfigError> errors));
+        return errors;
     }
 
     private static T Deserialize<T>(string json) =>
