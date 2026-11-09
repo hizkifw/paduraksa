@@ -23,7 +23,7 @@ namespace Paduraksa.Application.Config;
 /// as the bare address: <c>10.0.0.1/32</c> → <c>10.0.0.1</c>), so duplicates are found by meaning. Tags trimmed and
 /// lowercase. The trusted-proxy header lowercase, and absent when it is the default (<c>x-forwarded-for</c>). Profile
 /// and upstream names, destination addresses and redirect targets trimmed. Blank notes and a blank header are absent,
-/// null lists and settings are empty, a TLS, HSTS or Server-header layer that sets nothing is no layer, and active-health timings are set.
+/// null lists and settings are empty, a nested settings record that sets nothing is no layer (<see cref="ISettingsLayer"/>), and active-health timings are set.
 /// Values that don't parse (host names, addresses) are only trimmed, for validation to report. Everything else
 /// (URLs, route-path case, bodies, an explicit load-balancing policy) is kept as written, since changing it could
 /// change what it means.</para>
@@ -332,12 +332,20 @@ public static class CanonicalConfigJson
         settings ??= new();
         return settings with
         {
-            Tls = settings.Tls is { MinimumVersion: null, TcpAlpn: null, Http3: null } ? null : settings.Tls,
+            Tls = DropIfNothingSet(settings.Tls),
             IpAllowList = Canonical(settings.IpAllowList),
-            Hsts = settings.Hsts is { Enabled: null, MaxAge: null, IncludeSubDomains: null, Preload: null } ? null : settings.Hsts,
-            ServerHeader = settings.ServerHeader is { Mode: null, Value: null } ? null : settings.ServerHeader,
+            Hsts = DropIfNothingSet(settings.Hsts),
+            ServerHeader = DropIfNothingSet(settings.ServerHeader),
         };
     }
+
+    /// <summary>
+    /// The one rule for a nested settings record: one that sets none of its fields is the same as no record at all, so it
+    /// is written as absent and a config that never mentions it keeps its bytes (and its revision hash). Each record says
+    /// what "sets nothing" means, so a new nested setting needs no line here.
+    /// </summary>
+    private static T? DropIfNothingSet<T>(T? settings)
+        where T : class, ISettingsLayer => settings is { SetsNothing: true } ? null : settings;
 
     private static IpAllowListSettings? Canonical(IpAllowListSettings? allowList) =>
         allowList is null ? null : allowList with { Addresses = SortedSet(allowList.Addresses, ConfigNormalization.CanonicalAddress) };

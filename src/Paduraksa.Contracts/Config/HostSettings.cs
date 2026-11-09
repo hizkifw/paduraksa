@@ -43,6 +43,19 @@ public sealed record HostSettings
     public ServerHeaderSettings? ServerHeader { get; init; }
 }
 
+/// <summary>
+/// A nested settings record: one that merges field by field with the same record in the layers below. One that sets none of
+/// its fields is no layer at all, so canonical JSON writes no key for it and a stored revision keeps the bytes it had
+/// before the record existed. Every field belongs in <see cref="SetsNothing"/>; a new one that is left out of it would be
+/// dropped from a document that sets it.
+/// </summary>
+public interface ISettingsLayer
+{
+    /// <summary>True when this record sets none of its fields. Never part of a document.</summary>
+    [JsonIgnore]
+    bool SetsNothing { get; }
+}
+
 /// <summary>The route layer: the route-level subset of <see cref="HostSettings"/>, on top of the host's resolved
 /// settings. Null fields inherit from the host.</summary>
 public sealed record RouteSettings
@@ -52,7 +65,7 @@ public sealed record RouteSettings
 }
 
 /// <summary>TLS settings (PLAN §7.2 B); each field inherits on its own. A layer that sets none is the same as no layer.</summary>
-public sealed record TlsSettings
+public sealed record TlsSettings : ISettingsLayer
 {
     /// <summary>Lowest TLS version over TCP (QUIC is always 1.3). Built-in default: TLS 1.2.</summary>
     public TlsMinimumVersion? MinimumVersion { get; init; }
@@ -62,6 +75,9 @@ public sealed record TlsSettings
 
     /// <summary>Serve over HTTP/3 when the listener exists. Built-in default: on.</summary>
     public bool? Http3 { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => MinimumVersion is null && TcpAlpn is null && Http3 is null;
 }
 
 /// <summary>
@@ -79,7 +95,7 @@ public sealed record IpAllowListSettings(IReadOnlyList<string> Addresses, bool D
 /// <see cref="MaxAge"/> seconds, and with <see cref="IncludeSubDomains"/> every subdomain too. Each field inherits on its
 /// own. Paduraksa sends it only to HTTPS requests, and never for an IP literal or a loopback name.
 /// </summary>
-public sealed record HstsSettings
+public sealed record HstsSettings : ISettingsLayer
 {
     /// <summary>Send the header at all. Built-in default: off, so nothing is pinned on a browser's behalf until it is
     /// turned on.</summary>
@@ -98,13 +114,16 @@ public sealed record HstsSettings
     /// off. It needs <see cref="IncludeSubDomains"/> and a <see cref="MaxAge"/> of at least a year, and it is hard to undo:
     /// browsers that ship the list keep refusing plain HTTP even after the header stops.</summary>
     public bool? Preload { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => Enabled is null && MaxAge is null && IncludeSubDomains is null && Preload is null;
 }
 
 /// <summary>
 /// What the host's responses say in <c>Server</c> (PLAN §14 M6). <see cref="Mode"/> and <see cref="Value"/> inherit on
 /// their own, like every other nested setting.
 /// </summary>
-public sealed record ServerHeaderSettings
+public sealed record ServerHeaderSettings : ISettingsLayer
 {
     /// <summary>Which header wins. Built-in default: <see cref="ServerHeaderMode.Paduraksa"/>, the name without a
     /// version.</summary>
@@ -114,4 +133,7 @@ public sealed record ServerHeaderSettings
     /// leading or trailing space. Required once the resolved mode is <see cref="ServerHeaderMode.Custom"/>; ignored by
     /// every other mode.</summary>
     public string? Value { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => Mode is null && Value is null;
 }
