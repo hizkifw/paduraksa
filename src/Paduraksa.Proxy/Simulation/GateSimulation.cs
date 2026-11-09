@@ -81,6 +81,7 @@ public enum GateStepKind : byte
     AcmeChallenge,
     HostMatch,
     TlsPolicy,
+    Hsts,
     HostPolicy,
     HttpsRedirect,
     FixedResponse,

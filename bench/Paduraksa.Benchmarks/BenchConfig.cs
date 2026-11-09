@@ -68,6 +68,9 @@ internal static class BenchConfig
             ],
         });
         hosts.Add(Proxy("secure.test") with { ForceHttps = true });
+        hosts.Add(Proxy("hsts.test") with { Hsts = new HostHstsSpec { Enabled = true } });
+        // A loopback name with HSTS on: the header is refused after the name check, on every HTTPS request.
+        hosts.Add(Proxy("localhost") with { Hsts = new HostHstsSpec { Enabled = true } });
         hosts.Add(new HostSpec { Id = HostId.New(), Names = ["respond.test"], Kind = HostKind.Respond, Respond = new RespondSpec { Body = "ok\n" } });
         hosts.Add(new HostSpec { Id = HostId.New(), Names = ["moved.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test" } });
 

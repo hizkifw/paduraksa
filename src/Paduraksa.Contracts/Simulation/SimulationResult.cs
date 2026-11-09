@@ -113,6 +113,9 @@ public enum SimulationStepKind
     /// <summary>The connection against the host's TLS settings (the 421 reasons).</summary>
     TlsPolicy,
 
+    /// <summary>The host's <c>Strict-Transport-Security</c>, sent or why not.</summary>
+    Hsts,
+
     /// <summary>A policy of the host's chain.</summary>
     HostPolicy,
 

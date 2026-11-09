@@ -171,6 +171,36 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             host.Id));
     }
 
+    public void Hsts(CompiledHost host, HstsDecision decision)
+    {
+        List<GateFact> facts = [new("configured", Flag(!StringValues.IsNullOrEmpty(host.Hsts)))];
+        string summary;
+        switch (decision)
+        {
+            case HstsDecision.Sent:
+                facts.Add(new("value", host.Hsts.ToString()));
+                summary = "Strict-Transport-Security: a browser keeps this host on HTTPS for the max-age it names";
+                break;
+            case HstsDecision.PlainHttp:
+                facts.Add(new("scheme", "http"));
+                summary = "plain HTTP: HSTS is sent on HTTPS responses only";
+                break;
+            case HstsDecision.ExemptName:
+                summary = "HSTS isn't sent to an IP address or a loopback name: browsers must not remember those";
+                break;
+            default:
+                summary = "HSTS is off: no Strict-Transport-Security of ours, so an upstream's own passes through";
+                break;
+        }
+
+        steps.Add(new GateStep(
+            GateStepKind.Hsts,
+            decision == HstsDecision.Sent ? GateStepVerdict.Passed : GateStepVerdict.Skipped,
+            summary,
+            facts,
+            host.Id));
+    }
+
     public void PolicyEvaluated(PolicyScope scope, int index, IRequestPolicy policy, in RequestView request, PolicyDecision verdict)
     {
         bool stopped = verdict.Action != PolicyAction.Continue;

@@ -52,6 +52,9 @@ internal interface IGateTracer
     /// nothing was checked.</summary>
     void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch);
 
+    /// <summary>The host's HSTS header was applied to the response, or <paramref name="decision"/> says why not.</summary>
+    void Hsts(CompiledHost host, HstsDecision decision);
+
     /// <summary>One policy ran and returned <paramref name="verdict"/>.</summary>
     void PolicyEvaluated(PolicyScope scope, int index, IRequestPolicy policy, in RequestView request, PolicyDecision verdict);
 
@@ -92,6 +95,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Hsts(CompiledHost host, HstsDecision decision)
     {
     }
 

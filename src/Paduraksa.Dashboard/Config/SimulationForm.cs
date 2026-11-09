@@ -89,6 +89,7 @@ public sealed class SimulationForm
             SimulationStepKind.AcmeChallenge => "ACME challenge",
             SimulationStepKind.HostMatch => "Host match",
             SimulationStepKind.TlsPolicy => "TLS policy",
+            SimulationStepKind.Hsts => "HSTS",
             SimulationStepKind.HostPolicy => $"Host policy{policy}",
             SimulationStepKind.HttpsRedirect => "HTTPS redirect",
             SimulationStepKind.FixedResponse => "Fixed answer",

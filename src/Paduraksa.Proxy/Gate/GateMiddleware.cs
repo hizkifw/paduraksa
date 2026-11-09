@@ -44,8 +44,8 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
 /// <item>the ACME HTTP-01 answer, for a token the orchestrator published, which bypasses everything below;</item>
 /// <item>host lookup; an unknown host gets the default behaviour; an HTTPS request for a host without HTTPS, or whose
 /// connection is weaker than the host's TLS settings (HTTP/3, TLS version, ALPN; a connection coalesced from another
-/// name), gets 421; a known host gets
-/// its <c>Alt-Svc</c> on TCP HTTPS responses, whatever answers them;</item>
+/// name), gets 421; a known host gets its <c>Alt-Svc</c> on TCP HTTPS responses and its <c>Strict-Transport-Security</c>
+/// on HTTPS responses, whatever answers them;</item>
 /// <item>the <b>host policies</b>, so they guard everything the host answers (a blocked client gets 403, not a redirect);</item>
 /// <item>the HTTP→HTTPS redirect;</item>
 /// <item>Redirect and Respond hosts;</item>
@@ -81,7 +81,8 @@ public sealed class GateMiddleware
 
     /// <summary>
     /// The synchronous decision. Never writes the response; sets the endpoint when forwarding, and the host's
-    /// <c>Alt-Svc</c> header (YARP doesn't copy an upstream's own <c>Alt-Svc</c>, so ours is the one sent).
+    /// <c>Alt-Svc</c> and <c>Strict-Transport-Security</c> headers (YARP doesn't copy an upstream's own <c>Alt-Svc</c>,
+    /// and leaves an upstream's <c>Strict-Transport-Security</c> out when ours is set, so ours is the one sent).
     /// </summary>
     internal GateDecision Decide(HttpContext context) => Decide(context, _store.Current, _clientAddresses, _challenges, default(NoGateTracer));
 
@@ -129,6 +130,8 @@ public sealed class GateMiddleware
         }
 
         AltSvcHeader.Apply(context, host.AltSvc);
+        HstsDecision hsts = HstsHeader.Apply(context, host.Hsts, state.IsHttps, HostTable.HostName(hostHeader[0]));
+        tracer.Hsts(host, hsts);
         RequestView view = new(context, state, TTracer.IsSimulation);
         if (Stops(PolicyScope.Host, host.Policies, in view, tracer, out GateDecision stopped))
         {

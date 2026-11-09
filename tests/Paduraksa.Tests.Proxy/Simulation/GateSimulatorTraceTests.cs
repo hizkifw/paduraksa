@@ -49,7 +49,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal(
             [
                 GateStepKind.TlsHandshake, GateStepKind.Request, GateStepKind.ClientAddress, GateStepKind.AcmeChallenge, GateStepKind.HostMatch,
-                GateStepKind.TlsPolicy, GateStepKind.HostPolicy, GateStepKind.RouteMatch, GateStepKind.Upstream,
+                GateStepKind.TlsPolicy, GateStepKind.Hsts, GateStepKind.HostPolicy, GateStepKind.RouteMatch, GateStepKind.Upstream,
             ],
             run.Steps.Select(s => s.Kind));
         Assert.DoesNotContain(run.Steps, s => s.Verdict == GateStepVerdict.Stopped);
@@ -628,6 +628,29 @@ public sealed class GateSimulatorTraceTests : IDisposable
     }
 
     [Fact]
+    public void TheTraceSaysWhetherHstsWentOutAndWhyNot()
+    {
+        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+
+        GateSimulation sent = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "narrow.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
+        GateStep hsts = Step(sent, GateStepKind.Hsts);
+        Assert.Equal(GateStepVerdict.Passed, hsts.Verdict);
+        Assert.Equal(TestIds.Host("narrow"), hsts.Host);
+        Assert.Equal("max-age=31536000", Fact(hsts, "value"));
+        Assert.Equal("yes", Fact(hsts, "configured"));
+
+        GateSimulation plain = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan });
+        GateStep not = Step(plain, GateStepKind.Hsts);
+        Assert.Equal(GateStepVerdict.Skipped, not.Verdict);
+        Assert.Contains("plain HTTP", not.Summary, StringComparison.Ordinal);
+        Assert.DoesNotContain(not.Facts, f => f.Name == "value");
+
+        GateSimulation off = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
+        Assert.Contains("off", Step(off, GateStepKind.Hsts).Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("no", Fact(Step(off, GateStepKind.Hsts), "configured"));
+    }
+
+    [Fact]
     public void FactsUseWireNamesNotInternalOnes()
     {
         RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared"), TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
@@ -718,7 +741,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
                 ],
             },
             ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true },
-            ProxyHost("narrow", "narrow.test", Route("narrow-api", "api", "/api")),
+            ProxyHost("narrow", "narrow.test", Route("narrow-api", "api", "/api")) with { Hsts = new HostHstsSpec { Enabled = true } },
             new HostSpec { Id = TestIds.Host("old"), Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test", StatusCode = 308 } },
             new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
             ProxyHost("strict", "strict.test", Route("strict-root", "web")) with { Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 } },

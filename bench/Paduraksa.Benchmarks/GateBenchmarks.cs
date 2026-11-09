@@ -29,6 +29,8 @@ public class GateBenchmarks
     private DefaultHttpContext _redirectHost = null!;
     private DefaultHttpContext _httpsRedirect = null!;
     private DefaultHttpContext _unknownHost = null!;
+    private DefaultHttpContext _forwardWithHsts = null!;
+    private DefaultHttpContext _forwardWithHstsExemptName = null!;
     private SnapshotStore _cloudflareStore = null!;
     private GateMiddleware _cloudflareGate = null!;
     private DefaultHttpContext _forwardCloudflare = null!;
@@ -46,6 +48,8 @@ public class GateBenchmarks
         _redirectHost = BenchConfig.Context("moved.test", "/old/page");
         _httpsRedirect = BenchConfig.Context("secure.test", "/login");
         _unknownHost = BenchConfig.Context("nope.example.org", "/");
+        _forwardWithHsts = BenchConfig.Context("hsts.test", "/assets/app.3f9a1c.js", scheme: "https");
+        _forwardWithHstsExemptName = BenchConfig.Context("localhost", "/assets/app.3f9a1c.js", scheme: "https");
 
         Expect(_forward, GateAction.Forward);
         Expect(_forwardNonCanonical, GateAction.Forward);
@@ -53,6 +57,8 @@ public class GateBenchmarks
         Expect(_redirectHost, GateAction.Respond, 301);
         Expect(_httpsRedirect, GateAction.Respond, 301);
         Expect(_unknownHost, GateAction.Respond, 404);
+        Expect(_forwardWithHsts, GateAction.Forward);
+        Expect(_forwardWithHstsExemptName, GateAction.Forward);
 
         _cloudflareStore = new SnapshotStore();
         _cloudflareStore.Publish(BenchConfig.CloudflareSnapshot);
@@ -100,6 +106,14 @@ public class GateBenchmarks
     /// <summary>A ForceHttps host over plain HTTP: the precomputed HTTP→HTTPS 301.</summary>
     [Benchmark]
     public int HttpsRedirect() => (int)_gate.Decide(_httpsRedirect).Action;
+
+    /// <summary>A proxy host with HSTS on, over HTTPS: the precomputed header is set (PLAN §14 M6).</summary>
+    [Benchmark]
+    public int ForwardWithHsts() => (int)_gate.Decide(_forwardWithHsts).Action;
+
+    /// <summary>As <see cref="ForwardWithHsts"/>, but the name is a loopback one, so the header is refused.</summary>
+    [Benchmark]
+    public int ForwardWithHstsExemptName() => (int)_gate.Decide(_forwardWithHstsExemptName).Action;
 
     /// <summary>Unknown host: the default 404.</summary>
     [Benchmark]
