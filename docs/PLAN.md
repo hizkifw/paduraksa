@@ -395,6 +395,7 @@ public sealed class CompiledHost
     public required ReadOnlyMemory<byte> RobotsTxt { get; init; }  // pre-encoded UTF-8, or empty = passthrough
     public required ErrorPages ErrorPages { get; init; }           // pre-rendered byte segments
     public required RedirectSpec? HttpsRedirect { get; init; }
+    public required ResponseHeaderOperation[] ResponseHeaders { get; init; } // Alt-Svc, HSTS, Server, X-Request-Id (§7.2)
     // ...
 }
 ```

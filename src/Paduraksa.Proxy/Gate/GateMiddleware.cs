@@ -43,10 +43,11 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
 /// <list type="number">
 /// <item>one snapshot read, per-request state from <see cref="IPersistentStateFeature"/>, the client address;</item>
 /// <item>the ACME HTTP-01 answer, for a token the orchestrator published, which bypasses everything below;</item>
-/// <item>host lookup; an unknown host gets the default behaviour; an HTTPS request for a host without HTTPS, or whose
+/// <item>host lookup; an unknown host gets the default behaviour; the host's response-header list, first stage
+/// (its <c>Server</c>), so every answer below carries it; an HTTPS request for a host without HTTPS, or whose
 /// connection is weaker than the host's TLS settings (HTTP/3, TLS version, ALPN; a connection coalesced from another
-/// name), gets 421; a known host gets its <c>Alt-Svc</c> on TCP HTTPS responses, its <c>Strict-Transport-Security</c>
-/// on HTTPS responses and its <c>Server</c>, whatever answers them;</item>
+/// name), gets 421; the list's second stage (its <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>) on the answers after
+/// that check;</item>
 /// <item>the <b>host policies</b>, so they guard everything the host answers (a blocked client gets 403, not a redirect);</item>
 /// <item>the HTTP→HTTPS redirect;</item>
 /// <item>Redirect and Respond hosts;</item>
@@ -100,10 +101,9 @@ public sealed class GateMiddleware
     }
 
     /// <summary>
-    /// The synchronous decision. Never writes the response; sets the endpoint when forwarding, and the host's
-    /// <c>Alt-Svc</c>, <c>Strict-Transport-Security</c> and <c>Server</c> headers (YARP doesn't copy an upstream's own
-    /// <c>Alt-Svc</c>, leaves an upstream's <c>Strict-Transport-Security</c> out when ours is set, and appends its
-    /// <c>Server</c>, so the response transform replaces or removes that one).
+    /// The synchronous decision. Never writes the response; sets the endpoint when forwarding, and applies the host's
+    /// compiled response-header list by stage (<see cref="ResponseHeaders"/>, <see cref="CompiledHost.ResponseHeaders"/>).
+    /// The response <c>X-Request-Id</c> waits for the answer, because its value is the one string a request materialises.
     /// </summary>
     internal GateDecision Decide(HttpContext context) => Decide(context, _store.Current, _clientAddresses, _challenges, default(NoGateTracer));
 

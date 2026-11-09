@@ -156,7 +156,7 @@ public static class HostSettingsLayers
     /// Which of a host's layers set a field: the one to go and change when a message has to name it, or
     /// <see cref="SettingsLayer.BuiltIn"/> when nothing set it.
     /// </summary>
-    public static SettingsLayer LayerOf(HostSettings? defaults, HostSettings? profile, HostSettings? host, Func<HostSettings, object?> field)
+    internal static SettingsLayer LayerOf(HostSettings? defaults, HostSettings? profile, HostSettings? host, Func<HostSettings, object?> field)
     {
         ArgumentNullException.ThrowIfNull(field);
         if (host is not null && field(host) is not null)
@@ -177,7 +177,7 @@ public static class HostSettingsLayers
     /// layer to go and change. Empty for a field the host sets itself, and for a built-in default (there is nowhere to
     /// go).
     /// </summary>
-    public static string InheritedSuffix(SettingsLayer layer) => layer switch
+    internal static string InheritedSuffix(SettingsLayer layer) => layer switch
     {
         SettingsLayer.Profile => " (inherited from its profile)",
         SettingsLayer.GlobalDefaults => " (inherited from the global defaults)",
