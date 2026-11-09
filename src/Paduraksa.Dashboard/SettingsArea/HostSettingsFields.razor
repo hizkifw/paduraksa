@@ -59,6 +59,99 @@
         </MudSelect>
     </div>
 
+    <div class="pdk-setting-heading">
+        <span class="pdk-setting-heading-title">HSTS</span>
+        <span class="pdk-setting-heading-note">A browser that has been told keeps this host on HTTPS for as long as the max-age.</span>
+    </div>
+
+    <div class="pdk-setting">
+        <div class="pdk-setting-text">
+            <span class="pdk-setting-title">HSTS</span>
+        </div>
+        <MudSelect T="bool?" Value="Model.HstsEnabled" ValueChanged="@(value => SetAsync(() => Model.HstsEnabled = value, "/hsts"))" Label="HSTS"
+                   Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
+                   data-field="hsts-enabled">
+            <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.Hsts?.Enabled == true ? "on" : "off")</MudSelectItem>
+            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+        </MudSelect>
+    </div>
+
+    @if (HstsOn || Model.HstsMaxAge != HstsMaxAgeChoice.Inherit)
+    {
+        @* Shown while this layer sets an age even with the switch off, so a number the validator refuses shows at it. *@
+        <div class="pdk-setting">
+            <div class="pdk-setting-text">
+                <span class="pdk-setting-title">Remembered for</span>
+                <span class="pdk-setting-help">
+                    Counted from the browser's last visit. A browser that has been told only hears a change over HTTPS, so
+                    a wrong value is felt for as long as it says.
+                </span>
+            </div>
+            <div class="pdk-setting-control pdk-hsts-age">
+                <MudSelect T="HstsMaxAgeChoice" Value="Model.HstsMaxAge" ValueChanged="@(value => SetAsync(() => Model.HstsMaxAge = value, "/hsts/maxAge"))"
+                           Label="Remembered for" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly"
+                           Error="@(Model.HstsMaxAge != HstsMaxAgeChoice.Custom && E("/hsts/maxAge") is not null)"
+                           ErrorText="@(Model.HstsMaxAge == HstsMaxAgeChoice.Custom ? null : E("/hsts/maxAge"))"
+                           data-field="hsts-max-age">
+                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.Inherit">
+                        @InheritOption(HostSettingsModel.AgeText(Inherited.Hsts?.MaxAge ?? HstsMaxAgePresets.OneYear))
+                    </MudSelectItem>
+                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.FiveMinutes">5 minutes (for testing)</MudSelectItem>
+                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.OneDay">1 day</MudSelectItem>
+                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.SixMonths">6 months</MudSelectItem>
+                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.OneYear">1 year</MudSelectItem>
+                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.TwoYears">2 years</MudSelectItem>
+                    <MudSelectItem T="HstsMaxAgeChoice" Value="HstsMaxAgeChoice.Custom">Custom seconds</MudSelectItem>
+                </MudSelect>
+                @if (Model.HstsMaxAge == HstsMaxAgeChoice.Custom)
+                {
+                    <MudNumericField T="int?" Value="Model.HstsCustomMaxAge" ValueChanged="@(value => SetAsync(() => Model.HstsCustomMaxAge = value, "/hsts/maxAge"))"
+                                     Label="Seconds" Min="0" Max="HstsMaxAgePresets.Longest" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="ReadOnly"
+                                     HideSpinButtons="true" HelperText="0 tells a browser to forget it" Class="pdk-mono-input"
+                                     Error="@(E("/hsts/maxAge") is not null)" ErrorText="@(E("/hsts/maxAge"))" data-field="hsts-max-age-custom" />
+                }
+            </div>
+        </div>
+    }
+
+    @if (HstsOn)
+    {
+        <div class="pdk-setting">
+            <div class="pdk-setting-text">
+                <span class="pdk-setting-title">Every subdomain</span>
+                <span class="pdk-setting-help">
+                    Pins every name under this one too (<code>includeSubDomains</code>). Only when each of them has a
+                    certificate: a plain-HTTP subdomain stops working.
+                </span>
+            </div>
+            <MudSelect T="bool?" Value="Model.HstsIncludeSubDomains" ValueChanged="@(value => SetAsync(() => Model.HstsIncludeSubDomains = value, "/hsts/includeSubDomains"))"
+                       Label="Every subdomain" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
+                       Error="@(E("/hsts/includeSubDomains") is not null)" ErrorText="@(E("/hsts/includeSubDomains"))" data-field="hsts-include-subdomains">
+                <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.Hsts?.IncludeSubDomains == true ? "on" : "off")</MudSelectItem>
+                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+            </MudSelect>
+        </div>
+
+        <div class="pdk-setting">
+            <div class="pdk-setting-text">
+                <span class="pdk-setting-title">Preload list</span>
+                <span class="pdk-setting-help">
+                    Asks the browser vendors to ship the host as HTTPS-only (<code>preload</code>). Needs every subdomain and
+                    a year, and is hard to undo: browsers that ship the list keep refusing plain HTTP.
+                </span>
+            </div>
+            <MudSelect T="bool?" Value="Model.HstsPreload" ValueChanged="@(value => SetAsync(() => Model.HstsPreload = value, "/hsts/preload"))"
+                       Label="Preload list" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-setting-control"
+                       Error="@(E("/hsts/preload") is not null)" ErrorText="@(E("/hsts/preload"))" data-field="hsts-preload">
+                <MudSelectItem T="bool?" Value="null">@InheritOption(Inherited.Hsts?.Preload == true ? "on" : "off")</MudSelectItem>
+                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+            </MudSelect>
+        </div>
+    }
+
     <div class="pdk-setting pdk-setting-wide">
         <div class="pdk-setting-text">
             <span class="pdk-setting-title">IP allow list</span>
@@ -137,6 +230,9 @@
     public EventCallback<string> OnChanged { get; set; }
 
     private string InheritOption(string value) => $"{InheritWord} ({value})";
+
+    /// <summary>Whether the HSTS fields under the switch apply: this layer's choice, else what it inherits.</summary>
+    private bool HstsOn => Model.HstsEnabled ?? (Inherited.Hsts?.Enabled ?? false);
 
     private string? E(string path)
     {

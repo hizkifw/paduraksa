@@ -122,6 +122,48 @@
     font-size: 0.8125rem;
 }
 
+.pdk-setting-help code {
+    font-family: var(--pdk-mono);
+    font-size: 0.78rem;
+    padding: 0 3px;
+    border-radius: 4px;
+    background: var(--mud-palette-action-default-hover);
+}
+
+/* A heading inside a list of settings: the group of rows under it. */
+.pdk-setting-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin-top: 4px;
+    padding: 16px 0 2px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+}
+
+.pdk-setting-heading-title {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    letter-spacing: 0.01em;
+}
+
+.pdk-setting-heading:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.pdk-setting-heading-note {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+/* A setting with more than one control: they stack, the row keeps its two columns. */
+.pdk-hsts-age {
+    display: grid;
+    gap: 8px;
+}
+
 .pdk-setting-control.mud-input-control, .pdk-setting-control {
     margin: 0 !important;
     min-width: 0;

@@ -10,11 +10,13 @@ namespace Paduraksa.Dashboard.SettingsArea;
 /// </summary>
 public sealed class HostSettingsModel
 {
-    /// <summary>The built-in defaults under every layer (PLAN §6.4): no HTTPS redirect, TLS 1.2, HTTP/2 and HTTP/1.1, HTTP/3 on, no allow list.</summary>
+    /// <summary>The built-in defaults under every layer (PLAN §6.4): no HTTPS redirect, TLS 1.2, HTTP/2 and HTTP/1.1,
+    /// HTTP/3 on, no allow list, and HSTS off with a year of max-age waiting for whoever turns it on.</summary>
     public static HostSettings BuiltIn { get; } = new()
     {
         ForceHttps = false,
         Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = Contracts.Config.TcpAlpn.Http2AndHttp11, Http3 = true },
+        Hsts = new HstsSettings { Enabled = false, MaxAge = HstsMaxAgePresets.OneYear, IncludeSubDomains = false, Preload = false },
     };
 
     public bool? ForceHttps { get; set; }
@@ -33,13 +35,28 @@ public sealed class HostSettingsModel
 
     public bool DropDenied { get; set; }
 
+    public bool? HstsEnabled { get; set; }
+
+    /// <summary>The common <c>max-age</c> picked from the list, or <see cref="HstsMaxAgeChoice.Custom"/> for
+    /// <see cref="HstsCustomMaxAge"/>.</summary>
+    public HstsMaxAgeChoice HstsMaxAge { get; set; }
+
+    /// <summary>The <c>max-age</c> in seconds when <see cref="HstsMaxAgeChoice.Custom"/> is picked.</summary>
+    public int? HstsCustomMaxAge { get; set; }
+
+    public bool? HstsIncludeSubDomains { get; set; }
+
+    public bool? HstsPreload { get; set; }
+
     /// <summary>How many fields this layer sets.</summary>
     public int Overrides =>
-        (ForceHttps is null ? 0 : 1) + (MinimumTls is null ? 0 : 1) + (TcpAlpn is null ? 0 : 1) + (Http3 is null ? 0 : 1) + (AllowListSet ? 1 : 0);
+        (ForceHttps is null ? 0 : 1) + (MinimumTls is null ? 0 : 1) + (TcpAlpn is null ? 0 : 1) + (Http3 is null ? 0 : 1) + (AllowListSet ? 1 : 0)
+        + (HstsEnabled is null ? 0 : 1) + (HstsMaxAge == HstsMaxAgeChoice.Inherit ? 0 : 1) + (HstsIncludeSubDomains is null ? 0 : 1) + (HstsPreload is null ? 0 : 1);
 
     public static HostSettingsModel From(HostSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        HstsMaxAgeChoice maxAge = HstsMaxAgePresets.ChoiceOf(settings.Hsts?.MaxAge, out int? custom);
         return new HostSettingsModel
         {
             ForceHttps = settings.ForceHttps,
@@ -49,6 +66,11 @@ public sealed class HostSettingsModel
             AllowListSet = settings.IpAllowList is not null,
             AllowList = string.Join('\n', settings.IpAllowList?.Addresses ?? []),
             DropDenied = settings.IpAllowList?.DropDenied ?? false,
+            HstsEnabled = settings.Hsts?.Enabled,
+            HstsMaxAge = maxAge,
+            HstsCustomMaxAge = custom,
+            HstsIncludeSubDomains = settings.Hsts?.IncludeSubDomains,
+            HstsPreload = settings.Hsts?.Preload,
         };
     }
 
@@ -56,11 +78,15 @@ public sealed class HostSettingsModel
     public HostSettings ApplyTo(HostSettings stored)
     {
         ArgumentNullException.ThrowIfNull(stored);
+        int? maxAge = HstsMaxAgePresets.SecondsOf(HstsMaxAge, HstsCustomMaxAge);
         return stored with
         {
             ForceHttps = ForceHttps,
             Tls = MinimumTls is null && TcpAlpn is null && Http3 is null ? null : new TlsSettings { MinimumVersion = MinimumTls, TcpAlpn = TcpAlpn, Http3 = Http3 },
             IpAllowList = AllowListSet ? new IpAllowListSettings(HostEditModel.SplitList(AllowList), DropDenied) : null,
+            Hsts = HstsEnabled is null && maxAge is null && HstsIncludeSubDomains is null && HstsPreload is null
+                ? null
+                : new HstsSettings { Enabled = HstsEnabled, MaxAge = maxAge, IncludeSubDomains = HstsIncludeSubDomains, Preload = HstsPreload },
         };
     }
 
@@ -79,10 +105,17 @@ public sealed class HostSettingsModel
                 Http3 = upper.Tls?.Http3 ?? lower.Tls?.Http3,
             },
             IpAllowList = upper.IpAllowList ?? lower.IpAllowList,
+            Hsts = new HstsSettings
+            {
+                Enabled = upper.Hsts?.Enabled ?? lower.Hsts?.Enabled,
+                MaxAge = upper.Hsts?.MaxAge ?? lower.Hsts?.MaxAge,
+                IncludeSubDomains = upper.Hsts?.IncludeSubDomains ?? lower.Hsts?.IncludeSubDomains,
+                Preload = upper.Hsts?.Preload ?? lower.Hsts?.Preload,
+            },
         };
     }
 
-    /// <summary>What a layer sets, in short phrases for a card ("HTTPS redirect", "TLS 1.3 minimum", "Allow list: 2 entries").</summary>
+    /// <summary>What a layer sets, in short phrases for a card ("HTTPS redirect", "TLS 1.3 minimum", "HSTS: 1 year").</summary>
     public static IReadOnlyList<string> Summary(HostSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -113,12 +146,133 @@ public sealed class HostSettingsModel
             parts.Add(allow.Addresses.Count == 0 ? "Allow list: none (overrides the inherited one)" : $"Allow list: {allow.Addresses.Count} {(allow.Addresses.Count == 1 ? "entry" : "entries")}");
         }
 
+        if (settings.Hsts is { } hsts)
+        {
+            if (hsts.Enabled == false)
+            {
+                parts.Add("HSTS off");
+            }
+            else if (hsts is not { Enabled: null, MaxAge: null, IncludeSubDomains: null, Preload: null })
+            {
+                // "when on" when the switch is left to the layer below: the values only take effect if something turns it on.
+                parts.Add(hsts.Enabled == true ? $"HSTS: {HstsSummary(hsts)}" : $"HSTS when on: {HstsSummary(hsts)}");
+            }
+        }
+
         return parts;
+    }
+
+    /// <summary>At least its age, and what it covers: "1 year, subdomains, preload".</summary>
+    private static string HstsSummary(HstsSettings hsts)
+    {
+        List<string> parts = [AgeText(hsts.MaxAge ?? HstsMaxAgePresets.OneYear)];
+        if (hsts.IncludeSubDomains == true)
+        {
+            parts.Add("subdomains");
+        }
+
+        if (hsts.Preload == true)
+        {
+            parts.Add("preload");
+        }
+
+        return string.Join(", ", parts);
     }
 
     public static string TlsText(TlsMinimumVersion version) => version == TlsMinimumVersion.Tls13 ? "TLS 1.3" : "TLS 1.2";
 
     public static string AlpnText(TcpAlpn alpn) => alpn == Contracts.Config.TcpAlpn.Http11Only ? "HTTP/1.1 only" : "HTTP/2 and HTTP/1.1";
+
+    /// <summary>A <c>max-age</c> in words: "5 minutes", "1 day", "6 months", "1 year", "2 years", else its seconds
+    /// ("0 seconds" included: "forget it" is the help under the field, not the value).</summary>
+    public static string AgeText(int seconds) => seconds switch
+    {
+        HstsMaxAgePresets.FiveMinutes => "5 minutes",
+        HstsMaxAgePresets.OneDay => "1 day",
+        HstsMaxAgePresets.SixMonths => "6 months",
+        HstsMaxAgePresets.OneYear => "1 year",
+        HstsMaxAgePresets.TwoYears => "2 years",
+        _ => $"{seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)} seconds",
+    };
+}
+
+/// <summary>The common <c>max-age</c> values a form offers, plus a custom number of seconds (PLAN §14 M6).</summary>
+public enum HstsMaxAgeChoice
+{
+    /// <summary>The layer below's value.</summary>
+    Inherit,
+
+    /// <summary>300 seconds: long enough to try it, short enough to undo.</summary>
+    FiveMinutes,
+
+    /// <summary>A day.</summary>
+    OneDay,
+
+    /// <summary>About half a year.</summary>
+    SixMonths,
+
+    /// <summary>A year, the built-in default and the shortest a preload list accepts.</summary>
+    OneYear,
+
+    /// <summary>Two years, the longest Paduraksa sends.</summary>
+    TwoYears,
+
+    /// <summary>Whatever <see cref="HostSettingsModel.HstsCustomMaxAge"/> says.</summary>
+    Custom,
+}
+
+/// <summary>The seconds behind each <see cref="HstsMaxAgeChoice"/>, and the choice a stored number is.</summary>
+public static class HstsMaxAgePresets
+{
+    public const int FiveMinutes = 300;
+    public const int OneDay = 86_400;
+    public const int SixMonths = 15_552_000;
+    public const int OneYear = 31_536_000;
+    public const int TwoYears = 63_072_000;
+
+    /// <summary>The longest <c>max-age</c> Paduraksa accepts.</summary>
+    public const int Longest = TwoYears;
+
+    /// <summary>The choice <paramref name="seconds"/> is; null is <see cref="HstsMaxAgeChoice.Inherit"/>.</summary>
+    public static HstsMaxAgeChoice ChoiceOf(int? seconds, out int? custom)
+    {
+        switch (seconds)
+        {
+            case null:
+                custom = null;
+                return HstsMaxAgeChoice.Inherit;
+            case FiveMinutes:
+                custom = null;
+                return HstsMaxAgeChoice.FiveMinutes;
+            case OneDay:
+                custom = null;
+                return HstsMaxAgeChoice.OneDay;
+            case SixMonths:
+                custom = null;
+                return HstsMaxAgeChoice.SixMonths;
+            case OneYear:
+                custom = null;
+                return HstsMaxAgeChoice.OneYear;
+            case TwoYears:
+                custom = null;
+                return HstsMaxAgeChoice.TwoYears;
+            default:
+                custom = seconds;
+                return HstsMaxAgeChoice.Custom;
+        }
+    }
+
+    /// <summary>The seconds a choice means; null for <see cref="HstsMaxAgeChoice.Inherit"/>.</summary>
+    public static int? SecondsOf(HstsMaxAgeChoice choice, int? custom) => choice switch
+    {
+        HstsMaxAgeChoice.FiveMinutes => FiveMinutes,
+        HstsMaxAgeChoice.OneDay => OneDay,
+        HstsMaxAgeChoice.SixMonths => SixMonths,
+        HstsMaxAgeChoice.OneYear => OneYear,
+        HstsMaxAgeChoice.TwoYears => TwoYears,
+        HstsMaxAgeChoice.Custom => custom,
+        _ => null,
+    };
 }
 
 /// <summary>
