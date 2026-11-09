@@ -6,11 +6,9 @@ using Microsoft.AspNetCore.Server.Kestrel.Https;
 
 namespace Paduraksa.Proxy.Tls;
 
-/// <summary>
-/// Connection-stage gate for QUIC. QUIC has no <c>ListenOptions.Use</c>, so the IP deny / per-IP cap /
+/// <summary>Connection-stage gate for QUIC. QUIC has no <c>ListenOptions.Use</c>, so the IP deny / per-IP cap /
 /// ClientInfo work runs inside the QUIC handshake callback, after the 0 B certificate lookup but before the options
-/// are returned. Return false to reject.
-/// </summary>
+/// are returned.</summary>
 /// <remarks>
 /// <para>Runs once per QUIC handshake on the hot path: it must not block or allocate.</para>
 /// <para>

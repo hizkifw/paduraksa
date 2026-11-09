@@ -9,8 +9,6 @@ namespace Paduraksa.Proxy.Yarp;
 public sealed record LiveDestination(DestinationId Id, string Address);
 
 /// <summary>Which destinations of an upstream the running proxy currently sends traffic to.</summary>
-/// <param name="Healthy">Destinations in rotation.</param>
-/// <param name="Unhealthy">Destinations the proxy knows but keeps traffic away from (failed active or passive checks).</param>
 public sealed record UpstreamHealthSnapshot(IReadOnlyList<LiveDestination> Healthy, IReadOnlyList<LiveDestination> Unhealthy);
 
 /// <summary>

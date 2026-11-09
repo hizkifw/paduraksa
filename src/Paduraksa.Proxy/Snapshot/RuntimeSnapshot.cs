@@ -58,11 +58,8 @@ public sealed class RuntimeSnapshot
 
     public required DefaultHostBehaviour Default { get; init; }
 
-    /// <summary>
-    /// The global defaults' response headers, which a request for an unknown host and an ACME challenge
-    /// answer follow too: the same list a host carries, compiled from the defaults. An <c>Alt-Svc</c> and an HSTS entry
-    /// are absent there - the proxy doesn't advertise or pin a name it doesn't serve.
-    /// </summary>
+    /// <summary>The global defaults' response headers, which a request for an unknown host and an ACME challenge
+    /// answer follow too: the same list a host carries, compiled from the defaults.</summary>
     public ResponseHeaderOperation[] DefaultResponseHeaders { get; init; } = [];
 
     /// <summary>A proxy host matched but none of its routes took the path.</summary>
@@ -74,23 +71,15 @@ public sealed class RuntimeSnapshot
     /// <summary>The request's connection is weaker than its host's TLS settings (421: retry on a connection of its own).</summary>
     public PrecomputedResponse Misdirected { get; init; } = DefaultMisdirected;
 
-    /// <summary>
-    /// SNI → prebuilt server options. The handshake callbacks read it through
-    /// <see cref="SnapshotStore"/> (an <see cref="ICertificateTableSource"/>), so a publish swaps certificates for new
-    /// handshakes. Empty (every handshake rejected) until a config with certificates is compiled.
-    /// </summary>
+    /// <summary>SNI → prebuilt server options. The handshake callbacks read it through <see cref="SnapshotStore"/>
+    /// (an <see cref="ICertificateTableSource"/>), so a publish swaps certificates for new handshakes.</summary>
     public CertificateTable Certificates { get; init; } = CertificateTable.Empty;
 
-    /// <summary>
-    /// Who may tell us the client IP: off, generic proxies, Cloudflare's edge or cloudflared. Global;
-    /// the gate resolves every request's client through it.
-    /// </summary>
+    /// <summary>Who may tell us the client IP: off, generic proxies, Cloudflare's edge or cloudflared.</summary>
     public TrustedProxyPolicy TrustedProxies { get; init; } = TrustedProxyPolicy.Off;
 
-    /// <summary>
-    /// Whether a request whose host the snapshot doesn't know gets an access-log line: the global default,
-    /// since an unknown host has no settings of its own. A known host's <see cref="CompiledHost.AccessLog"/> decides.
-    /// </summary>
+    /// <summary>Whether a request whose host the snapshot doesn't know gets an access-log line: the global default,
+    /// since an unknown host has no settings of its own.</summary>
     public bool AccessLog { get; init; } = true;
 
     /// <summary>Where an unknown host's request ID is sent: the global default.</summary>

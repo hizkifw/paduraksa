@@ -15,10 +15,7 @@ public enum PolicyAction : byte
     Drop,
 }
 
-/// <summary>
-/// A policy's verdict: 16 bytes (a reference plus the action), returned by value. <c>Challenge</c> (PoW) and a
-/// "needs async" action (forward-auth miss) join later.
-/// </summary>
+/// <summary>A policy's verdict: 16 bytes (a reference plus the action), returned by value.</summary>
 public readonly struct PolicyDecision : IEquatable<PolicyDecision>
 {
     private PolicyDecision(PolicyAction action, PrecomputedResponse? response)
@@ -66,11 +63,8 @@ public readonly ref struct RequestView
 
     public GateRequestState State { get; }
 
-    /// <summary>
-    /// The request is a simulation, not a real one: the verdict must be what a real request would get, but a
-    /// policy must change nothing to give it. A stateful policy peeks (a rate limit says "would allow, N left" without taking
-    /// a token) and starts no outbound call. Stateless policies ignore it.
-    /// </summary>
+    /// <summary>The request is a simulation, not a real one: the verdict must be what a real request would get, but a
+    /// policy must change nothing to give it.</summary>
     public bool IsSimulation { get; }
 }
 
@@ -83,8 +77,8 @@ public interface IRequestPolicy
 {
     PolicyDecision Evaluate(in RequestView request);
 
-    /// <summary>A short, stable kind label for the request simulator's trace (<c>ipAllowList</c>). Never called on the hot
-    /// path. A policy overrides it and <see cref="Explain"/>.</summary>
+    /// <summary>A short, stable kind label for the request simulator's trace (<c>ipAllowList</c>). Never called on
+    /// the hot path.</summary>
     string Name => "policy";
 
     /// <summary>Says why <paramref name="verdict"/> (what <see cref="Evaluate"/> just returned for

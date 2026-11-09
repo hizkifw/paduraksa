@@ -69,10 +69,9 @@ public sealed class GateMiddleware
     public Task InvokeAsync(HttpContext context, RequestDelegate next) => InvokeCoreAsync(context, next);
 
     /// <summary>
-    /// <see cref="Decide"/>, then the response headers of the last stage (<see cref="ResponseHeaderStage.AfterDecision"/>:
-    /// the response <c>X-Request-Id</c>), then <see cref="CompleteAsync"/>. The ID's header value is the one string a
-    /// request accepts; it is materialised here, once, and shared with the upstream header and the access log, so
-    /// <see cref="Decide"/> itself stays at 0 B.
+    /// <see cref="Decide"/>, then the last header stage (the response <c>X-Request-Id</c>), then
+    /// <see cref="CompleteAsync"/>. The ID's header value is the one string a request materialises; it is built here,
+    /// once, and shared with the upstream header and the access log, so <see cref="Decide"/> stays at 0 B.
     /// </summary>
     private Task InvokeCoreAsync(HttpContext context, RequestDelegate next)
     {
@@ -87,11 +86,6 @@ public sealed class GateMiddleware
         return CompleteAsync(context, decision, next);
     }
 
-    /// <summary>
-    /// The synchronous decision. Never writes the response; sets the endpoint when forwarding, and applies the host's
-    /// compiled response-header list by stage (<see cref="ResponseHeaders"/>, <see cref="CompiledHost.ResponseHeaders"/>).
-    /// The response <c>X-Request-Id</c> waits for the answer, because its value is the one string a request materialises.
-    /// </summary>
     internal GateDecision Decide(HttpContext context) => Decide(context, _store.Current, _clientAddresses, _challenges, default(NoGateTracer));
 
     /// <summary>
@@ -196,10 +190,7 @@ public sealed class GateMiddleware
         return GateDecision.Forward;
     }
 
-    /// <summary>
-    /// Applies one stage of a host's response-header list and reports it: the request ID waits for the
-    /// answer, so the decision itself allocates nothing.
-    /// </summary>
+    /// <summary>Applies one stage of a host's response-header list and reports it.</summary>
     private static void ApplyHeaders<TTracer>(
         HttpContext context,
         ResponseHeaderOperation[] headers,

@@ -13,16 +13,12 @@ public sealed record SnapshotCompilerOptions
     /// <summary>443, no certificate resolver.</summary>
     public static SnapshotCompilerOptions Default { get; } = new();
 
-    /// <summary>
-    /// Resolves the certificate IDs of hosts and of the default certificate. Null means no certificates can be resolved:
-    /// a config that names one fails to compile, one without them compiles to an empty TLS table.
-    /// </summary>
+    /// <summary>Resolves the certificate IDs of hosts and of the default certificate. Null: none can be resolved, so a
+    /// config that names one fails to compile, and one without them compiles to an empty TLS table.</summary>
     public IServerCertificateResolver? Certificates { get; init; }
 
-    /// <summary>
-    /// The HTTPS port clients use (<c>Paduraksa:Listen:PublicHttpsPort</c>), which differs from the bound port behind a
-    /// port mapping. Used for the HTTP→HTTPS redirect.
-    /// </summary>
+    /// <summary>The HTTPS port clients use (<c>Paduraksa:Listen:PublicHttpsPort</c>), which differs from the bound
+    /// port behind a port mapping.</summary>
     public int PublicHttpsPort
     {
         get;
@@ -46,10 +42,7 @@ public sealed record SnapshotCompilerOptions
     /// </summary>
     public bool AdminUpstream { get; init; }
 
-    /// <summary>
-    /// Cloudflare's edge ranges for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>; null for the baked-in
-    /// <see cref="CloudflareIpRanges.Default"/>. The range refresh job passes its latest list here; tests use it to
-    /// put loopback "at the edge".
-    /// </summary>
+    /// <summary>Cloudflare's edge ranges for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>;
+    /// null for the baked-in <see cref="CloudflareIpRanges.Default"/>.</summary>
     public CidrSet? CloudflareEdgeRanges { get; init; }
 }

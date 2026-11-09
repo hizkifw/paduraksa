@@ -39,7 +39,6 @@ public static partial class SnapshotCompiler
     /// <summary>Prefix of the internal YARP route paths; nothing ever matches on them.</summary>
     public const string InternalRoutePrefix = "/.paduraksa/r/";
 
-    /// <summary>Cookie name for session affinity.</summary>
     public const string AffinityCookieName = ".Paduraksa.Affinity";
 
     /// <summary>The admin cluster's one destination key; the connect callback ignores its address.</summary>

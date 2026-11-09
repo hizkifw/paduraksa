@@ -157,10 +157,8 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         return cancellationToken.CanBeCanceled ? pending.Task.WaitAsync(cancellationToken) : pending.Task;
     }
 
-    /// <summary>
-    /// Runs YARP's <see cref="IConfigValidator"/> over the candidate's routes and clusters, plus a route → cluster
-    /// reference check (dry-run). Needs YARP: before <see cref="Attach"/> it reports exactly that.
-    /// </summary>
+    /// <summary>Runs YARP's <see cref="IConfigValidator"/> over the candidate's routes and clusters, plus a route →
+    /// cluster reference check (dry-run).</summary>
     public async Task<IReadOnlyList<string>> ValidateAsync(RuntimeSnapshot candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
@@ -241,10 +239,8 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// Stops the writer: fails anything queued, cancels a publish waiting on YARP, and waits for the worker to finish.
-    /// The live snapshot stays in the store. Idempotent.
-    /// </summary>
+    /// <summary>Stops the writer: fails anything queued, cancels a publish waiting on YARP, and waits for the worker
+    /// to finish.</summary>
     public async ValueTask DisposeAsync()
     {
         Task worker;
@@ -391,10 +387,8 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         return null;
     }
 
-    /// <summary>
-    /// After a rejection the provider still holds the rejected config while YARP runs the previous one; put the
-    /// previous one back so the two agree again. Best effort: a failure leaves YARP's state marked unknown.
-    /// </summary>
+    /// <summary>After a rejection the provider still holds the rejected config while YARP runs the previous one; put
+    /// the previous one back so the two agree again. Best effort: a failure leaves YARP's state unknown.</summary>
     private async Task RestoreYarpAsync()
     {
         YarpConfig restore = Store.Current.Yarp;

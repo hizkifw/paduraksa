@@ -6,11 +6,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Proxy.Tls;
 
-/// <summary>
-/// Builds a <see cref="CertificateTable"/> (cold path, snapshot compile time). Names are validated and normalised
-/// (lowercase, trailing dot dropped); a name configured twice is an error rather than "last one wins".
-/// A failed <see cref="Add"/> leaves the builder unchanged.
-/// </summary>
+/// <summary>Builds a <see cref="CertificateTable"/> (cold path, snapshot compile time).</summary>
 /// <remarks>
 /// IDNs are configured in punycode (<c>xn--bcher-kva.example</c>). SslStream hands the TCP callback the SNI decoded to
 /// Unicode (<c>bücher.example</c>) while QUIC passes punycode through, so such names are indexed in both forms (exact and
@@ -211,11 +207,9 @@ public sealed class CertificateTableBuilder
         public static RemoteCertificateValidationCallback? Create(ClientCertificatePolicy? policy) =>
             policy is null ? null : new ClientCertificateValidation(policy).Validate;
 
-        /// <summary>
-        /// Chain building for client certificates is offline: by default it follows the AIA URL of a missing issuer,
-        /// which would let any unauthenticated client make the proxy fetch a URL of its choosing mid-handshake (SSRF).
-        /// Revocation isn't checked either (no OCSP/CRL fetches). One policy per options object; SslStream copies it.
-        /// </summary>
+        /// <summary>Chain building for client certificates is offline: by default it follows the AIA URL of a missing
+        /// issuer, which would let any unauthenticated client make the proxy fetch a URL of its choosing
+        /// mid-handshake (SSRF).</summary>
         // TODO: Authenticated Origin Pulls: X509ChainTrustMode.CustomRootTrust with Cloudflare's origin-pull CA.
         public static X509ChainPolicy? ChainPolicy(ClientCertificatePolicy? policy) =>
             policy is null

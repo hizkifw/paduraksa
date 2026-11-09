@@ -4,11 +4,8 @@ using Yarp.ReverseProxy.Configuration;
 
 namespace Paduraksa.Proxy.Yarp;
 
-/// <summary>
-/// Turns YARP's <see cref="IConfigChangeListener"/> callbacks into one awaitable outcome per
-/// <see cref="IProxyConfig.RevisionId"/>. <c>Publish()</c> returning says nothing
-/// about whether YARP applied the config; this does.
-/// </summary>
+/// <summary>Turns YARP's <see cref="IConfigChangeListener"/> callbacks into one awaitable outcome per <see
+/// cref="IProxyConfig.RevisionId"/>.</summary>
 internal sealed class ConfigApplyListener : IConfigChangeListener
 {
     private readonly ConcurrentDictionary<string, TaskCompletionSource<Exception?>> _waiters = new(StringComparer.Ordinal);

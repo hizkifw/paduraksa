@@ -32,11 +32,7 @@ public enum ProbeHttpVersion : byte
 /// <summary>One request header, as sent.</summary>
 public readonly record struct ProbeHeader(string Name, string Value);
 
-/// <summary>
-/// A request to put through the gate without a network, as plain facts: everything the gate reads. Fields
-/// that say nothing get the defaults a real request would have; <see cref="GateSimulator"/> builds the
-/// <c>HttpContext</c> from it.
-/// </summary>
+/// <summary>A request to put through the gate without a network, as plain facts: everything the gate reads.</summary>
 public sealed record GateProbe
 {
     /// <summary>The request arrives over TLS (<c>https</c>).</summary>
@@ -47,11 +43,9 @@ public sealed record GateProbe
     /// which Kestrel turns into the host, so a <c>Host</c> header is ignored there.</summary>
     public required string Host { get; init; }
 
-    /// <summary>
-    /// HTTP/1.1 only: the <c>Host</c> headers actually sent. Null: one, <see cref="Host"/>. Anything but exactly one valid
-    /// value is what Kestrel answers 400 before the gate runs (no header, several, or one that isn't a host), and the
-    /// simulation says so. Ignored on HTTP/2 and HTTP/3.
-    /// </summary>
+    /// <summary>HTTP/1.1 only: the <c>Host</c> headers actually sent. Anything but exactly one valid value is what
+    /// Kestrel answers 400 before the gate runs (no header, several, or one that isn't a host), and the simulation
+    /// says so. Ignored on HTTP/2 and HTTP/3.</summary>
     public IReadOnlyList<string>? HostHeaders { get; init; }
 
     /// <summary>The request path as the client sent it (percent-encoded), starting with <c>/</c>. The gate sees what Kestrel
@@ -74,10 +68,7 @@ public sealed record GateProbe
 
     public ProbeArrival Arrival { get; init; }
 
-    /// <summary>
-    /// The connection-level peer. Direct: the client (default <see cref="ClientAddress"/>). Behind a proxy: the proxy
-    /// (default: a peer the snapshot trusts for <see cref="Arrival"/>, else loopback).
-    /// </summary>
+    /// <summary>The connection-level peer.</summary>
     public IPAddress? PeerAddress { get; init; }
 
     /// <summary>A PROXY protocol header arrived first: <see cref="PeerAddress"/> is the address it carried and

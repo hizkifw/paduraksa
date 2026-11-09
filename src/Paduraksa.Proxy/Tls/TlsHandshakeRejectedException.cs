@@ -15,11 +15,8 @@ public enum TlsRejectionReason
     ConnectionDenied = 2,
 }
 
-/// <summary>
-/// Thrown from a handshake callback to reject the connection. Throwing is the supported way to reject:
-/// TCP clients see EOF, QUIC clients a <c>user_canceled</c> TLS alert, and the server stays healthy. Returning null
-/// instead crashes into a <see cref="NullReferenceException"/> inside Kestrel.
-/// </summary>
+/// <summary>Thrown from a handshake callback to reject the connection. Returning null instead crashes into a <see
+/// cref="NullReferenceException"/> inside Kestrel.</summary>
 /// <remarks>
 /// The client-supplied SNI is kept in <see cref="ServerName"/>, not in the message, so it can't end up in log text
 /// unescaped.

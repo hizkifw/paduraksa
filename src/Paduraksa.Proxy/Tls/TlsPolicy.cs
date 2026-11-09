@@ -3,11 +3,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Proxy.Tls;
 
-/// <summary>
-/// Per-host TLS settings. A value type in spirit: two hosts with equal policies (and the same
-/// certificate) share one prebuilt <see cref="SslServerAuthenticationOptions"/> per transport. Undefined enum values
-/// throw on init, rather than silently falling back to the weakest setting when the options are built.
-/// </summary>
+/// <summary>Per-host TLS settings.</summary>
 public sealed record TlsPolicy
 {
     /// <summary>TLS 1.2+, <c>h2</c> + <c>http/1.1</c>, H3 enabled, no client certificate.</summary>
@@ -42,10 +38,7 @@ public sealed record TlsPolicy
     public ClientCertificatePolicy? ClientCertificate { get; init; }
 }
 
-/// <summary>
-/// Requests a client certificate during the handshake. The shape exists for Cloudflare Authenticated Origin Pulls; the
-/// validator for that origin-pull CA is not built yet.
-/// </summary>
+/// <summary>Requests a client certificate during the handshake.</summary>
 /// <remarks>
 /// <list type="bullet">
 /// <item>No certificate presented: the handshake succeeds only when <see cref="Required"/> is false.</item>

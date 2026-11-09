@@ -51,10 +51,8 @@ public sealed class CertificateTable
     /// <summary>Every distinct prebuilt options object (TCP and QUIC). None has a null or empty ALPN list.</summary>
     public IReadOnlyList<SslServerAuthenticationOptions> Options { get; }
 
-    /// <summary>
-    /// Finds the entry for a client's SNI: exact, then wildcard parent, then <see cref="Default"/> (may be null).
-    /// An empty name (no SNI, e.g. an IP-literal URL) goes straight to the default.
-    /// </summary>
+    /// <summary>Finds the entry for a client's SNI: exact, then wildcard parent, then <see cref="Default"/> (may be
+    /// null).</summary>
     public CertificateTableEntry? Find(ReadOnlySpan<char> serverName) => Find(serverName, out _);
 
     /// <summary>The same lookup, also saying which part of the table answered (for the request simulator's trace).</summary>

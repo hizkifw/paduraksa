@@ -20,13 +20,11 @@ public enum HostNameKind
     IPv6Literal,
 }
 
-/// <summary>
-/// Compile-time host-name normalisation: trimmed, lowercased, IDN → punycode, no trailing
-/// dot, then the DNS rules shared with the certificate table (<see cref="DnsNames"/>: lengths, label characters,
-/// wildcard shape, punycode that decodes). IP literals are canonicalised.
-/// The runtime never converts anything: browsers send punycode, and a raw Unicode <c>Host</c> header is a miss.
-/// Public so the config document's normalisation and validation (Application) apply the very same rules.
-/// </summary>
+/// <summary>Compile-time host-name normalisation: trimmed, lowercased, IDN → punycode, no trailing dot, then the DNS
+/// rules shared with the certificate table (<see cref="DnsNames"/>: lengths, label characters, wildcard shape,
+/// punycode that decodes). The runtime never converts anything: browsers send punycode, and a raw Unicode <c>Host</c>
+/// header is a miss. Public so the config document's normalisation and validation (Application) apply the very same
+/// rules.</summary>
 /// <remarks>
 /// What this adds to <see cref="DnsNames"/>, and the certificate table's <c>ServerNames</c> doesn't: surrounding
 /// whitespace is trimmed, Unicode names are converted to punycode, and IP literals are hosts too (a canonical dotted

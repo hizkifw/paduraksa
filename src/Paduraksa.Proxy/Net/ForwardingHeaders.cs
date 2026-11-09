@@ -1,9 +1,7 @@
 namespace Paduraksa.Proxy.Net;
 
-/// <summary>
-/// Names of the generic forwarding headers Paduraksa reads (client IP and scheme from a trusted proxy) or rewrites
-/// for the upstream. Cloudflare's own headers are in <see cref="CloudflareHeaders"/>.
-/// </summary>
+/// <summary>Names of the generic forwarding headers Paduraksa reads (client IP and scheme from a trusted proxy) or
+/// rewrites for the upstream.</summary>
 internal static class ForwardingHeaders
 {
     public const string XForwardedFor = "X-Forwarded-For";

@@ -8,11 +8,8 @@ using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Proxy.Gate;
 
-/// <summary>
-/// Writes a <see cref="PrecomputedResponse"/>. Headers go through the typed properties
-/// (field-backed in Kestrel), the body straight into the output pipe. 0 B on Kestrel for fixed responses; a
-/// request-dependent <c>Location</c> costs that one string.
-/// </summary>
+/// <summary>Writes a <see cref="PrecomputedResponse"/>. 0 B on Kestrel for fixed responses; a request-dependent
+/// <c>Location</c> costs that one string.</summary>
 internal static class ResponseWriter
 {
     /// <summary>Sets the status and headers. Synchronous and allocation-free unless the <c>Location</c> is per request.</summary>

@@ -102,8 +102,8 @@ public sealed class ClientAddressCounters
 
     /// <summary>
     /// Requests a trusted Cloudflare peer sent over plain HTTP saying the visitor used plain HTTP too
-    /// (<c>CF-Visitor: {"scheme":"http"}</c>): Cloudflare "Flexible" SSL or plain-HTTP visitors. Flexible is insecure
-    ///; the first one is logged as a warning.
+    /// (<c>CF-Visitor: {"scheme":"http"}</c>): Cloudflare "Flexible" SSL or plain-HTTP visitors. Flexible is insecure;
+    /// the first one is logged as a warning.
     /// </summary>
     public long CloudflarePlainHttp => Volatile.Read(ref _cloudflarePlainHttp);
 

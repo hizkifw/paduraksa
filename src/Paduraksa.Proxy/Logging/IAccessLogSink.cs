@@ -25,8 +25,8 @@ public interface IAccessLogSink
     void Flush();
 }
 
-/// <summary>A sink that writes nothing, for a host that registered no writer (a test app, whose tests read the ring or swap
-/// in their own sink). Counts nothing, writes nothing, costs nothing.</summary>
+/// <summary>A sink that writes nothing, for a host that registered no writer (a test app, whose tests read the ring
+/// or swap in their own sink).</summary>
 public sealed class NullAccessLogSink : IAccessLogSink
 {
     /// <summary>The one instance (the interface has no state worth keeping per caller).</summary>

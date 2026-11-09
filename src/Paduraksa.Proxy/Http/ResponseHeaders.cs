@@ -35,8 +35,7 @@ public enum ResponseHeaderStage : byte
     /// <summary>After the TLS 421 check: a misdirected connection's answer carries none of these.</summary>
     AfterTlsCheck,
 
-    /// <summary>With the answer, once the decision is made (the response <c>X-Request-Id</c>, whose value is the request's
-    /// one string and is materialised there).</summary>
+    /// <summary>With the answer, once the decision is made (the response <c>X-Request-Id</c>).</summary>
     AfterDecision,
 }
 
@@ -106,7 +105,6 @@ internal enum HeaderOutcome : byte
     /// <summary>Ours is on the response, and replaces an upstream's copy after the forward.</summary>
     Replaced,
 
-    /// <summary>The header was removed.</summary>
     Removed,
 
     /// <summary>The upstream's own passes through; a gate answer carries none.</summary>

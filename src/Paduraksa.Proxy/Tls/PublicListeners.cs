@@ -21,29 +21,21 @@ public sealed class PublicHttpsListenerOptions
     /// <summary>Global H3 switch. The UDP listener is added only if this is set and libmsquic is available.</summary>
     public bool EnableHttp3 { get; init; } = true;
 
-    /// <summary>
-    /// Adds TCP connection middleware (PROXY protocol, IP gate, per-IP cap, ClientInfo). It runs before
-    /// TLS, so it is called before <c>UseHttps</c>. QUIC has no equivalent: its gate is the
-    /// <see cref="QuicConnectionGate"/> on the <see cref="TlsHandshakeSelector"/>.
-    /// </summary>
+    /// <summary>Adds TCP connection middleware (PROXY protocol, IP gate, per-IP cap, ClientInfo). It runs before TLS,
+    /// so it is called before <c>UseHttps</c>.</summary>
     public Action<ListenOptions>? ConfigureTcpConnection { get; init; }
 }
 
-/// <summary>
-/// Kestrel listener layout for the public app: per HTTPS endpoint, two <c>Listen</c> calls on the
-/// same address and port, TCP (H1/H2) and UDP (H3), each with its own handshake callback. Plain HTTP is a separate
-/// listener.
-/// </summary>
+/// <summary>Kestrel listener layout for the public app: per HTTPS endpoint, two <c>Listen</c> calls on the same
+/// address and port, TCP (H1/H2) and UDP (H3), each with its own handshake callback.</summary>
 public static class PublicListeners
 {
     /// <summary>Whether this process can serve HTTP/3 (libmsquic present). <c>paduraksa doctor</c> reports it.</summary>
     public static bool IsHttp3Supported => QuicListener.IsSupported;
 
-    /// <summary>
-    /// Registers what per-SNI HTTPS on QUIC needs on the empty or slim builder (<c>UseKestrelCore()</c>):
+    /// <summary>Registers what per-SNI HTTPS on QUIC needs on the empty or slim builder (<c>UseKestrelCore()</c>):
     /// <c>UseKestrelHttpsConfiguration()</c>, without which an H3 listener using <c>UseHttps(callback)</c> fails at
-    /// startup, and <c>UseQuic()</c>, the QUIC transport. <c>UseKestrel()</c> (full builder) already includes both.
-    /// </summary>
+    /// startup, and <c>UseQuic()</c>, the QUIC transport.</summary>
     public static IWebHostBuilder UsePublicHttpsTransports(this IWebHostBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

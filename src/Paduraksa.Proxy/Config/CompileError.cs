@@ -7,17 +7,12 @@ namespace Paduraksa.Proxy.Config;
 /// a caller that built the <see cref="ProxyConfigModel"/> from a document point back into it;
 /// <see cref="ToString"/> reads <c>host 'host_...', route 'rte_...': the path ...</c> for logs and tests.
 /// </summary>
-/// <param name="Source">What the error is about.</param>
-/// <param name="Message">Human-readable explanation, without the source; wording may change.</param>
 public sealed record CompileError(CompileErrorSource Source, string Message)
 {
     public override string ToString() => $"{Source}: {Message}";
 }
 
-/// <summary>
-/// What a <see cref="CompileError"/> is about. An object's ID may be empty or duplicated, which is often the error
-/// itself; it is reported as given.
-/// </summary>
+/// <summary>What a <see cref="CompileError"/> is about.</summary>
 public abstract record CompileErrorSource
 {
     /// <summary>The global settings (<see cref="DefaultsSpec"/>), apart from the trusted proxies.</summary>

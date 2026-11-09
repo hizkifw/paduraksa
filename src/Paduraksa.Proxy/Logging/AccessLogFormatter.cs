@@ -162,10 +162,8 @@ public static class AccessLogFormatter
         return line.Overflowed ? -1 : line.Length;
     }
 
-    /// <summary>
-    /// The quoted request target: the entry's method, a space, its path, then the query with its sensitive parameters
-    /// redacted (or left out). Capped as a whole; a cut target ends with <see cref="TruncationMarker"/>.
-    /// </summary>
+    /// <summary>The quoted request target: the entry's method, a space, its path, then the query with its sensitive
+    /// parameters redacted (or left out).</summary>
     private static int BuildRequestTarget(in AccessLogEntry entry, AccessLogFormatOptions options, Span<char> target)
     {
         var length = 0;

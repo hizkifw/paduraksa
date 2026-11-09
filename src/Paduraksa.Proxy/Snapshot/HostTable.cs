@@ -20,13 +20,10 @@ public enum HostMatchKind : byte
     IPv6Literal,
 }
 
-/// <summary>
-/// Host name → <see cref="CompiledHost"/>, looked up from the raw <c>Host</c> header span without allocating
-/// Exact names first, then a single-label wildcard: <c>*.example.com</c> matches
-/// <c>a.example.com</c> but neither <c>example.com</c> nor <c>a.b.example.com</c> (the same rule as TLS wildcards).
-/// Both tables are <see cref="FrozenDictionary{TKey, TValue}"/>s with <see cref="StringComparer.OrdinalIgnoreCase"/>
-/// and a cached <see cref="ReadOnlySpan{T}"/> alternate lookup. IPv6 literals sit in a third table keyed by address.
-/// </summary>
+/// <summary>Host name → <see cref="CompiledHost"/>, looked up from the raw <c>Host</c> header span without allocating.
+/// Exact names first, then a single-label wildcard: <c>*.example.com</c> matches <c>a.example.com</c> but neither
+/// <c>example.com</c> nor <c>a.b.example.com</c> (the same rule as TLS wildcards). IPv6 literals sit in a third table
+/// keyed by address.</summary>
 public sealed class HostTable
 {
     private readonly FrozenDictionary<string, CompiledHost> _exact;

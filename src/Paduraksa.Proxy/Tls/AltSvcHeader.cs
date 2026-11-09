@@ -15,7 +15,6 @@ public sealed class AltSvcHeader
     /// <summary>24 hours, as browsers commonly use.</summary>
     public const int DefaultMaxAgeSeconds = 86_400;
 
-    /// <summary>The header's name.</summary>
     public const string HeaderName = "Alt-Svc";
 
     /// <param name="publicHttpsPort">The HTTPS port clients reach (settings), e.g. 443 even if bound to 8443.</param>

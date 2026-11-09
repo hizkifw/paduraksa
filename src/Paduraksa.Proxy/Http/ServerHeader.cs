@@ -5,28 +5,22 @@ using Paduraksa.Proxy.Config;
 
 namespace Paduraksa.Proxy.Http;
 
-/// <summary>
-/// The <c>Server</c> header. The compiler builds one value per host into the host's
-/// <see cref="ResponseHeaderOperation"/> list, which the gate applies next to <c>Alt-Svc</c> and HSTS, before it answers or
-/// forwards, so every response the host gives carries the same one. The built-in
-/// default names the product without a version.
-/// </summary>
+/// <summary>The <c>Server</c> header. The compiler builds one value per host into the host's <see
+/// cref="ResponseHeaderOperation"/> list, which the gate applies next to <c>Alt-Svc</c> and HSTS, before it answers
+/// or forwards, so every response the host gives carries the same one.</summary>
 public static class ServerHeader
 {
     /// <summary>The built-in name, and the header <see cref="ServerHeaderMode.Paduraksa"/> sends.</summary>
     public const string Product = "Paduraksa";
 
-    /// <summary>The header's name.</summary>
     public const string HeaderName = "Server";
 
     /// <summary>The longest custom value accepted, in characters.</summary>
     public const int MaxValueLength = 128;
 
-    /// <summary>
-    /// The header value for one host. Compile time: builds the string once, then every response reuses it. Empty for
-    /// <see cref="ServerHeaderMode.Upstream"/> and <see cref="ServerHeaderMode.Remove"/>, and for a custom mode with no
-    /// value (which validation and the compiler refuse).
-    /// </summary>
+    /// <summary>The header value for one host. Empty for <see cref="ServerHeaderMode.Upstream"/> and <see
+    /// cref="ServerHeaderMode.Remove"/>, and for a custom mode with no value (which validation and the compiler
+    /// refuse).</summary>
     public static StringValues ValueOf(HostServerHeaderSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);

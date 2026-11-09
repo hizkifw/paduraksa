@@ -5,12 +5,10 @@ using Paduraksa.Core.Acme;
 
 namespace Paduraksa.Proxy.Gate;
 
-/// <summary>
-/// The in-memory HTTP-01 answers. The orchestrator publishes through <see cref="IAcmeChallengeStore"/>;
-/// the gate reads through <see cref="TryGet"/>, which takes the token as a slice of the request path and compares it
+/// <summary>The in-memory HTTP-01 answers. The orchestrator publishes through <see cref="IAcmeChallengeStore"/>; the
+/// gate reads through <see cref="TryGet"/>, which takes the token as a slice of the request path and compares it
 /// exactly, so a lookup allocates nothing and a hit answers with the response built when the entry was published.
-/// Thread-safe.
-/// </summary>
+/// Thread-safe.</summary>
 public sealed class AcmeChallengeStore : IAcmeChallengeStore
 {
     /// <summary>

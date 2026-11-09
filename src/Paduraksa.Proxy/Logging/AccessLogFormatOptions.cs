@@ -12,10 +12,7 @@ namespace Paduraksa.Proxy.Logging;
 /// </remarks>
 public sealed record AccessLogFormatOptions
 {
-    /// <summary>
-    /// Query parameter names whose values never reach the log. Built-in default: the well-known ones; a
-    /// configured list replaces it.
-    /// </summary>
+    /// <summary>Query parameter names whose values never reach the log.</summary>
     public static string[] DefaultSensitiveQueryKeys { get; } =
     [
         "token", "access_token", "refresh_token", "id_token", "code", "password", "passwd", "pwd", "secret",

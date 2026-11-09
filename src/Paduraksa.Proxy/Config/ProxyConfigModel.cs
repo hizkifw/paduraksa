@@ -16,10 +16,7 @@ public sealed record ProxyConfigModel
 {
     public static ProxyConfigModel Empty { get; } = new();
 
-    /// <summary>
-    /// The committed revision this config comes from, carried into the snapshot. <see cref="ConfigRevisionId.Empty"/>
-    /// (the default): none, as for the empty startup config, the bootstrap snapshot and tests.
-    /// </summary>
+    /// <summary>The committed revision this config comes from, carried into the snapshot.</summary>
     public ConfigRevisionId Revision { get; init; }
 
     public IReadOnlyList<HostSpec> Hosts { get; init; } = [];
@@ -34,11 +31,9 @@ public sealed record DefaultsSpec
 {
     public UnknownHostBehaviour UnknownHost { get; init; } = UnknownHostBehaviour.NotFound;
 
-    /// <summary>
-    /// The certificate (resolved by <see cref="SnapshotCompilerOptions.Certificates"/>) served when the
-    /// SNI matches no host, or is absent (an IP-literal URL). It is also the certificate of hosts that don't name their
-    /// own. Null: such handshakes are rejected, and hosts without a certificate aren't served over HTTPS.
-    /// </summary>
+    /// <summary>The certificate (resolved by <see cref="SnapshotCompilerOptions.Certificates"/>) served when the SNI
+    /// matches no host, or is absent (an IP-literal URL). It is also the certificate of hosts that don't name their own.
+    /// Null: such handshakes are rejected, and hosts without a certificate aren't served over HTTPS.</summary>
     public CertificateId? Certificate { get; init; }
 
     /// <summary>TLS settings of the default certificate's entry (unknown or absent SNI).</summary>
@@ -47,10 +42,8 @@ public sealed record DefaultsSpec
     /// <summary>Who may tell us the client IP.</summary>
     public TrustedProxySpec TrustedProxies { get; init; } = TrustedProxySpec.Off;
 
-    /// <summary>
-    /// Whether a request for an unknown host gets an access-log line: the global default, since an unknown
-    /// host has no settings of its own. Built-in default: on.
-    /// </summary>
+    /// <summary>Whether a request for an unknown host gets an access-log line: the global default, since an unknown
+    /// host has no settings of its own.</summary>
     public bool AccessLog { get; init; } = true;
 
     /// <summary>Where an unknown host's request ID is sent: the global default.</summary>
@@ -60,11 +53,7 @@ public sealed record DefaultsSpec
     public HostServerHeaderSpec ServerHeader { get; init; } = HostServerHeaderSpec.Default;
 }
 
-/// <summary>
-/// Trusted proxies in front of Paduraksa, compiled into a <see cref="TrustedProxyPolicy"/>. Only a
-/// peer (the PROXY protocol source, else the socket peer) inside the trusted set may supply the client IP through a
-/// header; anyone else is the client.
-/// </summary>
+/// <summary>Trusted proxies in front of Paduraksa, compiled into a <see cref="TrustedProxyPolicy"/>.</summary>
 public sealed record TrustedProxySpec
 {
     /// <summary>No trusted proxies.</summary>
@@ -72,11 +61,8 @@ public sealed record TrustedProxySpec
 
     public TrustedProxyMode Mode { get; init; } = TrustedProxyMode.Off;
 
-    /// <summary>
-    /// CIDRs or addresses of the trusted peers. <see cref="TrustedProxyMode.Generic"/>: the proxies (required).
-    /// <see cref="TrustedProxyMode.CloudflareTunnel"/>: where cloudflared connects from (required).
-    /// <see cref="TrustedProxyMode.CloudflareProxy"/>: must be empty; Cloudflare's published edge ranges are used.
-    /// </summary>
+    /// <summary>CIDRs or addresses of the trusted peers. <see cref="TrustedProxyMode.CloudflareProxy"/>: must be
+    /// empty; Cloudflare's published edge ranges are used.</summary>
     public IReadOnlyList<string> Proxies { get; init; } = [];
 
     /// <summary>Generic mode only: the header carrying the client (default <c>X-Forwarded-For</c>, read right to
@@ -89,11 +75,9 @@ public sealed record TrustedProxySpec
     /// <summary>Cloudflare modes: fall back to the right-most untrusted <c>X-Forwarded-For</c> entry.</summary>
     public bool ForwardedForFallback { get; init; }
 
-    /// <summary>
-    /// Generic mode only: take the request scheme (for the HTTPS redirect and the upstream <c>X-Forwarded-Proto</c>)
-    /// from the trusted proxies' <c>X-Forwarded-Proto</c>. Off by default: set it only when every trusted proxy sets
-    /// that header itself. Cloudflare modes always read <c>CF-Visitor</c>, then <c>X-Forwarded-Proto</c>.
-    /// </summary>
+    /// <summary>Generic mode only: take the request scheme (for the HTTPS redirect and the upstream
+    /// <c>X-Forwarded-Proto</c>) from the trusted proxies' <c>X-Forwarded-Proto</c>. Off by default: set it only when
+    /// every trusted proxy sets that header itself.</summary>
     public bool TrustForwardedProto { get; init; }
 }
 
@@ -185,36 +169,26 @@ public sealed record HostSpec
     /// </summary>
     public bool Https { get; init; } = true;
 
-    /// <summary>
-    /// The certificate served for this host's names (exact and wildcard; IP literals never arrive as SNI).
-    /// Null: the default certificate (<see cref="DefaultsSpec.Certificate"/>) with this host's TLS settings, or no HTTPS
-    /// at all when there is no default either.
-    /// </summary>
+    /// <summary>The certificate served for this host's names (exact and wildcard; IP literals never arrive as SNI).
+    /// Null: the default certificate with this host's TLS settings, or no HTTPS when there is no default.</summary>
     public CertificateId? Certificate { get; init; }
 
-    /// <summary>
-    /// Certificates for individual names of the host, overriding <see cref="Certificate"/> (or the default one) for
-    /// exactly those names: the key is one of <see cref="Names"/> (compared after normalisation, so any spelling of it
-    /// does), the value the certificate its handshakes get. This is how each name of a multi-name host gets the best
-    /// certificate that covers it, when no single one covers them all (Application picks per name). IP literals never
-    /// reach the certificate table, so they can't be listed. Null or empty: none.
-    /// </summary>
+    /// <summary>Certificates for individual names of the host, overriding <see cref="Certificate"/> (or the default
+    /// one) for exactly those names: the key is one of <see cref="Names"/> (compared after normalisation, so any
+    /// spelling of it does), the value the certificate its handshakes get. IP literals never reach the certificate
+    /// table, so they can't be listed.</summary>
     public IReadOnlyDictionary<string, CertificateId>? NameCertificates { get; init; }
 
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
 
     public HostHstsSpec Hsts { get; init; } = HostHstsSpec.Off;
 
-    /// <summary>
-    /// Write a line per request of this host to the access log; the settings layers resolve it, built-in
-    /// default on. The request ID, the response headers and the proxying are unaffected when it is off.
-    /// </summary>
+    /// <summary>Write a line per request of this host to the access log; the settings layers resolve it, built-in
+    /// default on.</summary>
     public bool AccessLog { get; init; } = true;
 
-    /// <summary>
-    /// Where this host's request ID is sent: the settings layers resolve it, built-in default upstream and
-    /// response. The log records the ID whatever it is.
-    /// </summary>
+    /// <summary>Where this host's request ID is sent: the settings layers resolve it, built-in default upstream and
+    /// response.</summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 
     public HostServerHeaderSpec ServerHeader { get; init; } = HostServerHeaderSpec.Default;
@@ -285,7 +259,6 @@ public sealed record UpstreamSpec
     /// <summary>YARP policy name (<c>RoundRobin</c>, <c>PowerOfTwoChoices</c>, ...); <see langword="null"/> = YARP's default.</summary>
     public string? LoadBalancing { get; init; }
 
-    /// <summary>Cookie-based session affinity.</summary>
     public bool SessionAffinity { get; init; }
 
     /// <summary>Passive health (transport failure rate).</summary>

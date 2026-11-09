@@ -31,16 +31,12 @@ public static class HstsHeader
     /// <summary>The shortest <c>max-age</c> a preload list accepts (a year).</summary>
     public const int PreloadMinMaxAgeSeconds = 31_536_000;
 
-    /// <summary>The header's name.</summary>
     public const string HeaderName = "Strict-Transport-Security";
 
     private const string LocalhostSuffix = ".localhost";
     private const string Localhost = "localhost";
 
-    /// <summary>
-    /// The header value for one host, e.g. <c>max-age=31536000; includeSubDomains</c>. Compile time: builds the string
-    /// once, then every response reuses it. Empty when HSTS is off.
-    /// </summary>
+    /// <summary>The header value for one host, e.g. <c>max-age=31536000; includeSubDomains</c>.</summary>
     public static StringValues ValueOf(HostHstsSpec spec)
     {
         ArgumentNullException.ThrowIfNull(spec);

@@ -47,8 +47,7 @@ public sealed class ClientInfo : IClientInfoFeature
     }
 
     /// <summary>The client address at connection level: the PROXY protocol source address if one was received,
-    /// otherwise the socket peer. This is the "peer" that trusted-proxy checks (Cloudflare edge, generic proxies)
-    /// apply to. <see cref="IpKey.Unspecified"/> for a non-IP transport.</summary>
+    /// otherwise the socket peer.</summary>
     public IpKey Address { get; }
 
     /// <summary>The client port matching <see cref="Address"/> (0 if unknown).</summary>

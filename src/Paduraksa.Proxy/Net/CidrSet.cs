@@ -92,7 +92,6 @@ public sealed class CidrSet
         /// <summary>Number of blocks added so far (before merging).</summary>
         public int Count => _ranges.Count;
 
-        /// <summary>Adds a parsed block.</summary>
         public Builder Add(IpNetwork network)
         {
             _ranges.Add((network.First.Value, network.Last.Value));

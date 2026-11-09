@@ -39,29 +39,22 @@ public sealed class GateRequestState : IGateFeature
     private IpKey _formattedAddress;
     private string? _formatted;
 
-    /// <summary>
-    /// The client as resolved at gate entry: the address, where it came from, whether the peer is a trusted
-    /// proxy and whether Cloudflare headers may be trusted. Policies and the forwarding headers use it.
-    /// </summary>
+    /// <summary>The client as resolved at gate entry: the address, where it came from, whether the peer is a trusted
+    /// proxy and whether Cloudflare headers may be trusted.</summary>
     public ClientIpResolution ClientIp { get; internal set; }
 
-    /// <summary>
-    /// The scheme the client used: the trusted proxies' (<see cref="ClientIpResolution.Scheme"/>) or else the
-    /// connection's. The HTTP→HTTPS redirect and the upstream <c>X-Forwarded-Proto</c> both use it.
-    /// </summary>
+    /// <summary>The scheme the client used: the trusted proxies' (<see cref="ClientIpResolution.Scheme"/>) or else
+    /// the connection's.</summary>
     public bool IsHttps { get; internal set; }
 
     /// <summary>The resolved client address (IPv4 as IPv4-mapped, so TCP on <c>[::]</c> and QUIC agree);
     /// <see cref="IpKey.Unspecified"/> when unknown.</summary>
     public IpKey ClientAddress => ClientIp.Address;
 
-    /// <summary>
-    /// The request's ID, generated or adopted from a trusted proxy, as text. <b>The one allocation a request
+    /// <summary>The request's ID, generated or adopted from a trusted proxy, as text. <b>The one allocation a request
     /// accepts</b>: an <c>X-Request-Id</c> header value can only be a <see cref="string"/>, so the generated ID is
-    /// formatted once here (<see cref="RequestIds.Format(long)"/>) and shared by the response header, the upstream header
-    /// and the access log. An ID adopted from a trusted peer is the string the request already holds. Call it more than
-    /// once per request and it is free.
-    /// </summary>
+    /// formatted once here (<see cref="RequestIds.Format(long)"/>) and shared by the response header, the upstream
+    /// header and the access log.</summary>
     public string RequestIdText() => _requestId ??= RequestIds.Format(_requestIdCounter);
 
     /// <summary>Whether the ID came from the client (a trusted proxy's <c>X-Request-Id</c>) rather than being generated here.</summary>

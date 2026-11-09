@@ -2,11 +2,8 @@ using System.Collections.Immutable;
 
 namespace Paduraksa.Proxy.Net;
 
-/// <summary>
-/// Cloudflare's published edge ranges, baked in as the default trust list for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>
-///. A background refresh replaces them at runtime by building a new <see cref="CidrSet"/> and
-/// passing it to <see cref="TrustedProxyPolicy"/>.
-/// </summary>
+/// <summary>Cloudflare's published edge ranges, baked in as the default trust list for <see
+/// cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/> .</summary>
 public static class CloudflareIpRanges
 {
     /// <summary>When the lists below were fetched (UTC), for the staleness warning.</summary>
@@ -77,8 +74,8 @@ public static class CloudflareHeaders
     /// <c>cf-ipcity</c>, ...), compared ignoring case.</summary>
     public const string Prefix = "cf-";
 
-    /// <summary>The well-known headers that are only meaningful from a trusted Cloudflare peer: the client-IP ones and
-    /// those Paduraksa reads. The strip rule is wider, see <see cref="IsStrippedWhenUntrusted"/>.</summary>
+    /// <summary>The well-known headers that are only meaningful from a trusted Cloudflare peer: the client-IP ones
+    /// and those Paduraksa reads.</summary>
     public static ImmutableArray<string> StripWhenUntrusted { get; } = [ConnectingIp, TrueClientIp, IpCountry, Ray, Visitor];
 
     /// <summary>

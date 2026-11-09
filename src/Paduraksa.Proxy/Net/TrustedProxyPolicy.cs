@@ -42,9 +42,8 @@ public sealed class TrustedProxyPolicy
     /// <summary>Cloudflare modes: also accept <c>True-Client-IP</c> (Enterprise) when <c>CF-Connecting-IP</c> is absent.</summary>
     public bool UseTrueClientIp { get; }
 
-    /// <summary>Generic mode: take the request scheme from a trusted proxy's <c>X-Forwarded-Proto</c>
-    /// (<see cref="ForwardedScheme"/>). Off by default: many proxies pass a client's own header through. Cloudflare modes
-    /// always use <c>CF-Visitor</c>, then <c>X-Forwarded-Proto</c>, from a trusted peer.</summary>
+    /// <summary>Generic mode: take the request scheme from a trusted proxy's <c>X-Forwarded-Proto</c> (<see
+    /// cref="ForwardedScheme"/>).</summary>
     public bool TrustForwardedProto { get; }
 
     /// <summary>Trusted proxies in front of us, read from <paramref name="headerName"/> (a comma-separated list

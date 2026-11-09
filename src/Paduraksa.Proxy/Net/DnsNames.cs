@@ -14,10 +14,8 @@ namespace Paduraksa.Proxy.Net;
 /// otherwise null.</param>
 internal readonly record struct DnsName(string Canonical, bool IsWildcard, bool IsNumeric, string? Unicode);
 
-/// <summary>
-/// The DNS-name rules shared by the host table (<see cref="Snapshot.HostNames"/>) and the certificate table
-/// (<see cref="Tls.ServerNames"/>), so a name one of them accepts can't be rejected later by the other. Cold path.
-/// </summary>
+/// <summary>The DNS-name rules shared by the host table (<see cref="Snapshot.HostNames"/>) and the certificate table
+/// (<see cref="Tls.ServerNames"/>), so a name one of them accepts can't be rejected later by the other.</summary>
 /// <remarks>
 /// Input is ASCII (IDNs in punycode), with at most one trailing dot and an optional leading <c>*.</c> label. Rules: at
 /// most 253 characters; labels of 1-63 letters, digits, <c>-</c> or <c>_</c>, not starting or ending with <c>-</c>;

@@ -10,11 +10,7 @@ namespace Paduraksa.Proxy.Yarp;
 /// </summary>
 public sealed class YarpConfig
 {
-    /// <summary>
-    /// The cluster every admin host routes to. Its destination address is symbolic
-    /// (<see cref="AdminUpstreamAddress"/>); the forwarder's connect callback reaches the admin app's internal listener instead
-    /// of resolving it.
-    /// </summary>
+    /// <summary>The cluster every admin host routes to.</summary>
     public const string AdminClusterId = "__admin";
 
     /// <summary>The admin cluster's symbolic destination; never resolved.</summary>
@@ -36,10 +32,7 @@ public sealed class YarpConfig
 
     public bool IsEmpty => Routes.Count == 0 && Clusters.Count == 0;
 
-    /// <summary>
-    /// Same routes and clusters by value (YARP's own equality), regardless of order. When true, publishing this
-    /// config would be a YARP no-op.
-    /// </summary>
+    /// <summary>Same routes and clusters by value (YARP's own equality), regardless of order.</summary>
     public bool ContentEquals(YarpConfig other)
     {
         ArgumentNullException.ThrowIfNull(other);

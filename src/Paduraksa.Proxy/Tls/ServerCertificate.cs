@@ -5,11 +5,9 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Proxy.Tls;
 
-/// <summary>
-/// A certificate ready for serving: a prebuilt <see cref="SslStreamCertificateContext"/> (leaf + intermediates).
-/// The Vault's <c>IServerCertificateSource</c> supplies the context; the proxy never loads or exports
-/// keys, it only holds what it's given. The proxy doesn't own the certificate either: whoever created it disposes it.
-/// </summary>
+/// <summary>A certificate ready for serving: a prebuilt <see cref="SslStreamCertificateContext"/> (leaf +
+/// intermediates). The Vault's <c>IServerCertificateSource</c> supplies the context; the proxy never loads or exports
+/// keys, it only holds what it's given.</summary>
 /// <remarks>
 /// Options are shared per context instance: two <see cref="ServerCertificate"/>s wrapping the same context count as
 /// one certificate when the <see cref="CertificateTable"/> deduplicates.
@@ -24,10 +22,8 @@ public sealed class ServerCertificate
 
     public SslStreamCertificateContext Context { get; }
 
-    /// <summary>
-    /// The inventory ID of the certificate, when whoever loaded it knows it (the config service's loader does); empty
-    /// otherwise. Only reporting reads it (the request simulator's trace): the table keys on the context instance.
-    /// </summary>
+    /// <summary>The inventory ID of the certificate, when whoever loaded it knows it (the config service's loader
+    /// does); empty otherwise.</summary>
     public CertificateId Id { get; init; }
 
     public X509Certificate2 Leaf => Context.TargetCertificate;

@@ -58,7 +58,6 @@ public enum GateReason : byte
     RejectedByServer,
 }
 
-/// <summary>The gate's verdict.</summary>
 /// <param name="Action">What happens.</param>
 /// <param name="Reason">Which step decided.</param>
 /// <param name="StatusCode">The status of a <see cref="GateOutcomeAction.Respond"/>.</param>

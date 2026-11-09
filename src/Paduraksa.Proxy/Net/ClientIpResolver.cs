@@ -7,7 +7,6 @@ namespace Paduraksa.Proxy.Net;
 /// <summary>Where a resolved client IP came from.</summary>
 public enum ClientIpSource : byte
 {
-    /// <summary>The TCP/QUIC peer.</summary>
     Socket = 0,
 
     /// <summary>The PROXY protocol header (stage A).</summary>
@@ -48,9 +47,7 @@ public readonly record struct ClientIpResolution(
     ClientIpOutcome Outcome,
     bool CloudflareHeadersTrusted = false)
 {
-    /// <summary>The peer is one of the policy's trusted proxies, so the policy's client-IP headers were consulted.
-    /// <b>This does not make Cloudflare headers trustworthy</b>: in generic mode a trusted nginx forwards whatever
-    /// <c>CF-IPCountry</c> or <c>CF-Visitor</c> the client sent. Use <see cref="CloudflareHeadersTrusted"/> for those.</summary>
+    /// <summary>The peer is one of the policy's trusted proxies, so the policy's client-IP headers were consulted.</summary>
     public bool PeerTrusted => Outcome != ClientIpOutcome.PeerNotTrusted;
 
     /// <summary>
@@ -67,7 +64,7 @@ public readonly record struct ClientIpResolution(
     public bool IsFallback => Outcome is ClientIpOutcome.HeaderMissing or ClientIpOutcome.HeaderInvalid;
 
     /// <summary>The request scheme as the trusted proxies report it (<see cref="ForwardedScheme"/>); default: the
-    /// connection's. Set by the gate's client-address source next to the address.</summary>
+    /// connection's.</summary>
     public RequestScheme Scheme { get; init; }
 }
 

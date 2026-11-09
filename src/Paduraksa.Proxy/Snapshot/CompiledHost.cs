@@ -63,11 +63,8 @@ public sealed class CompiledHost
     /// </summary>
     public bool AccessLog { get; init; } = true;
 
-    /// <summary>
-    /// Where the request ID is sent upstream: the settings layers resolved it, built-in default upstream and
-    /// response. The response leg is the <c>X-Request-Id</c> operation in <see cref="ResponseHeaders"/>; the log records
-    /// the ID whatever it says.
-    /// </summary>
+    /// <summary>Where the request ID is sent upstream: the settings layers resolved it, built-in default upstream and
+    /// response.</summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 
     /// <summary>

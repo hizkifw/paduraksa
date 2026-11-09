@@ -24,15 +24,12 @@ namespace Paduraksa.Proxy.Simulation;
 /// <param name="Http3">There is an HTTP/3 listener.</param>
 public sealed record ListenerFacts(ProxyProtocolOptions? HttpProxyProtocol, ProxyProtocolOptions? HttpsProxyProtocol, bool Http3);
 
-/// <summary>
-/// Puts a <see cref="GateProbe"/> through the real gate over a snapshot, without a network. <b>It runs
-/// <c>GateMiddleware.Decide</c> itself</b>, the code production runs, with a recording tracer instead of the no-op one;
-/// nothing of the gate's logic is repeated here. What this adds is only the stand-ins for what the server does before the
-/// gate: the listener's admission (<see cref="ProxyProtocolAdmission"/>, the connection middleware's own decision), the TLS
-/// handshake's certificate selection (the same <see cref="TlsHandshakeSelector.Select"/> the listeners call), Kestrel's
-/// request checks (a Host it takes, a path it can read, dot segments removed), and the <c>HttpContext</c> with the
-/// connection facts the gate reads.
-/// </summary>
+/// <summary>Puts a <see cref="GateProbe"/> through the real gate over a snapshot, without a network. What this adds
+/// is only the stand-ins for what the server does before the gate: the listener's admission (<see
+/// cref="ProxyProtocolAdmission"/>, the connection middleware's own decision), the TLS handshake's certificate
+/// selection (the same <see cref="TlsHandshakeSelector.Select"/> the listeners call), Kestrel's request checks (a
+/// Host it takes, a path it can read, dot segments removed), and the <c>HttpContext</c> with the connection facts the
+/// gate reads.</summary>
 /// <remarks>
 /// Side-effect free: no counter moves, no log line is written, nothing is published or stored, and no key is touched (the
 /// certificate table is only consulted for which entry answers a name). Policies are told they are simulated
@@ -204,8 +201,8 @@ public static class GateSimulator
         return null;
     }
 
-    /// <summary>What Kestrel does before the gate runs: select the certificate entry for the SNI and settle the TLS version and
-    /// ALPN. Returns the rejection when the handshake fails.</summary>
+    /// <summary>What Kestrel does before the gate runs: select the certificate entry for the SNI and settle the TLS
+    /// version and ALPN.</summary>
     private static GateOutcome? Handshake(
         RuntimeSnapshot snapshot, GateProbe probe, List<GateStep> steps, out SslProtocols tlsVersion, out ProbeHttpVersion negotiated)
     {
@@ -504,12 +501,10 @@ public static class GateSimulator
         return GateReason.Forwarded;
     }
 
-    /// <summary>
-    /// The path the way Kestrel hands it to the gate: percent-escapes decoded as UTF-8, except <c>%2F</c> and
-    /// <c>%5C</c>, which stay encoded (the route matching view reads them as separators; <see cref="RoutePath"/>). Escapes
-    /// that aren't valid UTF-8 stay as written: Kestrel doesn't reject them (checked against the real server). Dot segments
-    /// are not removed here: <see cref="RemoveDotSegments"/>.
-    /// </summary>
+    /// <summary>The path the way Kestrel hands it to the gate: percent-escapes decoded as UTF-8, except <c>%2F</c>
+    /// and <c>%5C</c>, which stay encoded (the route matching view reads them as separators; <see
+    /// cref="RoutePath"/>). Escapes that aren't valid UTF-8 stay as written: Kestrel doesn't reject them (checked
+    /// against the real server).</summary>
     internal static string DecodePath(string raw)
     {
         if (raw.IndexOf('%', StringComparison.Ordinal) < 0)
@@ -562,10 +557,8 @@ public static class GateSimulator
         }
     }
 
-    /// <summary>
-    /// Removes <c>.</c> and <c>..</c> segments (RFC 3986 §5.2.4) as Kestrel's path normalizer does after decoding, so the gate
-    /// (and the ACME token) see the same path the real server gives it. A <c>..</c> at the root stays at the root.
-    /// </summary>
+    /// <summary>Removes <c>.</c> and <c>..</c> segments (RFC 3986 §5.2.4) as Kestrel's path normalizer does after
+    /// decoding, so the gate (and the ACME token) see the same path the real server gives it.</summary>
     internal static string RemoveDotSegments(string path)
     {
         if (!path.Contains("/.", StringComparison.Ordinal))

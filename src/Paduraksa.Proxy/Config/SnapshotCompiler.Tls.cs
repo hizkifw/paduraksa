@@ -36,10 +36,8 @@ public static partial class SnapshotCompiler
         return certificate;
     }
 
-    /// <summary>
-    /// The certificates a host names for individual names (<see cref="HostSpec.NameCertificates"/>), by normalised name.
-    /// Every entry is resolved, also for a disabled host, like the host's own certificate.
-    /// </summary>
+    /// <summary>The certificates a host names for individual names (<see cref="HostSpec.NameCertificates"/>), by
+    /// normalised name.</summary>
     private static Dictionary<string, ServerCertificate> ResolveNameCertificates(
         HostSpec spec, CompileErrorSource where, IServerCertificateResolver? resolver, List<CompileError> errors)
     {
@@ -83,11 +81,8 @@ public static partial class SnapshotCompiler
         return resolved;
     }
 
-    /// <summary>
-    /// The server names (<see cref="ServerNamesOf"/>) grouped by the certificate they get: the one named for the name,
-    /// else the host's. Names without one are left out (they ride the default certificate's entry, or are rejected).
-    /// Groups keep the order of their first name.
-    /// </summary>
+    /// <summary>The server names (<see cref="ServerNamesOf"/>) grouped by the certificate they get: the one named for
+    /// the name, else the host's. Groups keep the order of their first name.</summary>
     private static List<(ServerCertificate Certificate, List<string> Names)> GroupByCertificate(
         List<string> names, ServerCertificate? hostCertificate, Dictionary<string, ServerCertificate> nameCertificates)
     {
@@ -133,11 +128,9 @@ public static partial class SnapshotCompiler
         };
     }
 
-    /// <summary>
-    /// A host's DNS names, normalised: what goes into the certificate table. IP literals are left out: clients never
-    /// send them as SNI (an IP-literal URL sends none and gets the default certificate). Invalid names are skipped
-    /// here; the host-table pass that follows reports them.
-    /// </summary>
+    /// <summary>A host's DNS names, normalised: what goes into the certificate table. IP literals are left out:
+    /// clients never send them as SNI (an IP-literal URL sends none and gets the default certificate); names without one
+    /// ride the default certificate's entry or are rejected.</summary>
     private static List<string> ServerNamesOf(IReadOnlyList<string> names)
     {
         List<string> serverNames = new(names.Count);

@@ -114,10 +114,7 @@ public sealed class AccessLogRing
         }
     }
 
-    /// <summary>
-    /// Reads the oldest entry. False when the ring is empty. Only the one consumer may call this; it is what makes the
-    /// ring multi-producer/single-consumer.
-    /// </summary>
+    /// <summary>Reads the oldest entry; only the one consumer may call it.</summary>
     public bool TryRead(out AccessLogEntry entry)
     {
         long position = _head;
