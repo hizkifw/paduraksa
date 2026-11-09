@@ -68,6 +68,9 @@ public sealed record DefaultsSpec
 
     /// <summary>Where an unknown host's request ID is sent (PLAN §7.4): the global default.</summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
+
+    /// <summary>The global defaults' <c>Server</c> header, which an unknown host follows too.</summary>
+    public HostServerHeaderSpec ServerHeader { get; init; } = HostServerHeaderSpec.Default;
 }
 
 /// <summary>
@@ -156,6 +159,34 @@ public sealed record HostHstsSpec
     public bool Preload { get; init; }
 }
 
+/// <summary>What a host's responses put in <c>Server</c> (PLAN §14 M6), resolved across the layers.</summary>
+public sealed record HostServerHeaderSpec
+{
+    /// <summary><c>Paduraksa</c>, with no version.</summary>
+    public static HostServerHeaderSpec Default { get; } = new();
+
+    public ServerHeaderMode Mode { get; init; } = ServerHeaderMode.Paduraksa;
+
+    /// <summary>The value <see cref="ServerHeaderMode.Custom"/> sends; ignored by every other mode.</summary>
+    public string? Value { get; init; }
+}
+
+/// <summary>What a host's responses put in <c>Server</c>.</summary>
+public enum ServerHeaderMode : byte
+{
+    /// <summary><c>Server: Paduraksa</c>, with no version. Replaces an upstream's own header.</summary>
+    Paduraksa,
+
+    /// <summary><c>Server: &lt;Value&gt;</c>. Replaces an upstream's own header.</summary>
+    Custom,
+
+    /// <summary>The upstream's own header passes through untouched. Gate answers carry none.</summary>
+    Upstream,
+
+    /// <summary>No <c>Server</c> header at all: an upstream's own is removed too. HTTP/2 trailers aren't touched.</summary>
+    Remove,
+}
+
 /// <summary>A host (PLAN §5.1). Disabled hosts are validated but left out of the snapshot.</summary>
 public sealed record HostSpec
 {
@@ -217,6 +248,9 @@ public sealed record HostSpec
     /// response. The log records the ID whatever it is.
     /// </summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
+
+    /// <summary>The host's <c>Server</c> header, resolved across the layers.</summary>
+    public HostServerHeaderSpec ServerHeader { get; init; } = HostServerHeaderSpec.Default;
 
     /// <summary>Proxy hosts only; ordered by <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];

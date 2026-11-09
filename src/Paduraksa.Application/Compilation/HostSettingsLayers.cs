@@ -8,8 +8,9 @@ namespace Paduraksa.Application.Compilation;
 
 /// <summary>
 /// Resolves the settings layers (PLAN §5.3, §6.4): built-in defaults → global defaults → profile → host, then the
-/// route layer on top of the host's result. A null field inherits; TLS and HSTS merge field by field; the IP allow list
-/// replaces as a whole, and an empty one means no restriction (that's how a layer lifts an inherited list).
+/// route layer on top of the host's result. A null field inherits; TLS, HSTS and the <c>Server</c> header merge field by
+/// field; the IP allow list replaces as a whole, and an empty one means no restriction (that's how a layer lifts an
+/// inherited list).
 /// </summary>
 internal static class HostSettingsLayers
 {
@@ -22,6 +23,7 @@ internal static class HostSettingsLayers
         ProxyLogging.RequestIdPropagation requestIdPropagation = ProxyLogging.RequestIdPropagation.UpstreamAndResponse;
         HostTlsSpec tls = HostTlsSpec.Default;
         HostHstsSpec hsts = HostHstsSpec.Off;
+        HostServerHeaderSpec serverHeader = HostServerHeaderSpec.Default;
         IpAllowListSettings? allowList = null;
         foreach (HostSettings? layer in layers)
         {
@@ -35,10 +37,11 @@ internal static class HostSettingsLayers
             requestIdPropagation = layer.RequestIdPropagation is { } propagation ? (ProxyLogging.RequestIdPropagation)propagation : requestIdPropagation;
             tls = Merge(tls, layer.Tls);
             hsts = Merge(hsts, layer.Hsts);
+            serverHeader = Merge(serverHeader, layer.ServerHeader);
             allowList = layer.IpAllowList ?? allowList;
         }
 
-        return new EffectiveHostSettings(forceHttps, tls, hsts, Restriction(allowList), accessLog, requestIdPropagation);
+        return new EffectiveHostSettings(forceHttps, tls, hsts, Restriction(allowList), accessLog, requestIdPropagation, serverHeader);
     }
 
     /// <summary>The effective allow list of a route: its own when set, else the host's.</summary>
@@ -66,6 +69,15 @@ internal static class HostSettingsLayers
             Preload = layer.Preload ?? hsts.Preload,
         };
 
+    /// <summary><paramref name="serverHeader"/> with the fields <paramref name="layer"/> sets.</summary>
+    public static HostServerHeaderSpec Merge(HostServerHeaderSpec serverHeader, ServerHeaderSettings? layer) => layer is null
+        ? serverHeader
+        : serverHeader with
+        {
+            Mode = layer.Mode is { } mode ? (Paduraksa.Proxy.Config.ServerHeaderMode)mode : serverHeader.Mode,
+            Value = layer.Value ?? serverHeader.Value,
+        };
+
     /// <summary>Whether two effective allow lists restrict the same way (both null, or the same addresses in the same
     /// order and the same denial).</summary>
     public static bool SameRestriction(IpAllowListSettings? a, IpAllowListSettings? b) =>
@@ -88,10 +100,12 @@ internal static class HostSettingsLayers
 /// <param name="IpAllowList">The allow list in force, or null for no restriction (never an empty list).</param>
 /// <param name="AccessLog">Write a line per request to the access log (built-in default: on).</param>
 /// <param name="RequestIdPropagation">Where the request ID is sent (built-in default: upstream and response).</param>
+/// <param name="ServerHeader">Concrete <c>Server</c> header settings.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
     HostHstsSpec Hsts,
     IpAllowListSettings? IpAllowList,
     bool AccessLog,
-    ProxyLogging.RequestIdPropagation RequestIdPropagation);
+    ProxyLogging.RequestIdPropagation RequestIdPropagation,
+    HostServerHeaderSpec ServerHeader);

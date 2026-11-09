@@ -662,6 +662,70 @@ public sealed class ConfigValidatorTests
     }
 
     [Fact]
+    public void ChecksTheServerHeaderValueInEveryLayerAndCustomNeedsOne()
+    {
+        ConfigDocument document = Valid();
+        HostSettings invalid = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "bad\tvalue" } };
+        HostSettings tooLong = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = new string('a', 129) } };
+
+        AssertErrors(
+            document with { Settings = document.Settings with { Defaults = invalid } },
+            ("/settings/defaults/serverHeader/value", ServerHeaderValueInvalid));
+        AssertErrors(
+            document with { Profiles = [document.Profiles[0] with { Settings = tooLong }] },
+            ("/profiles/0/settings/serverHeader/value", ServerHeaderValueInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = invalid }) },
+            ($"{Proxy}/settings/serverHeader/value", ServerHeaderValueInvalid));
+
+        // Custom with no value is refused where it would be sent, like HSTS's preload pair.
+        HostSettings custom = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } };
+        ConfigError missing = Assert.Single(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = custom }) }));
+        Assert.Equal(($"{Proxy}/settings/serverHeader/value", ServerHeaderValueRequired), (missing.Path, missing.Code));
+        HostSettings empty = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = string.Empty } };
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = empty }) },
+            ($"{Proxy}/settings/serverHeader/value", ServerHeaderValueRequired));
+
+        // The mode and the value may come from different layers: field by field, the resolved pair is what matters.
+        ConfigDocument split = document with
+        {
+            Settings = document.Settings with { Defaults = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } } },
+            Hosts =
+            [
+                .. document.Hosts.Select(h => h with
+                {
+                    Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "edge/1.0" } },
+                }),
+            ],
+        };
+        Assert.Empty(ConfigValidator.Validate(split));
+
+        // A value is ignored while the resolved mode isn't custom, so an unusual one isn't refused then.
+        HostSettings ignored = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Remove, Value = "bad\tvalue" } };
+        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = ignored }) }));
+
+        // But when a higher layer makes it custom, the value it inherits has to be usable.
+        ConfigDocument used = document with
+        {
+            Settings = document.Settings with { Defaults = new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "bad\tvalue" } } },
+            Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } } }),
+        };
+        ConfigError inherited = Assert.Single(ConfigValidator.Validate(used));
+        Assert.Equal(($"{Proxy}/settings/serverHeader/value", ServerHeaderValueInvalid), (inherited.Path, inherited.Code));
+        Assert.Contains("inherited from the global defaults", inherited.Message, StringComparison.Ordinal);
+
+        ConfigDocument fromProfile = document with
+        {
+            Profiles = [document.Profiles[0] with { Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "bad\tvalue" } } }],
+            Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } } }),
+        };
+        ConfigError profileError = Assert.Single(ConfigValidator.Validate(fromProfile));
+        Assert.Equal(($"{Proxy}/settings/serverHeader/value", ServerHeaderValueInvalid), (profileError.Path, profileError.Code));
+        Assert.Contains("inherited from its profile", profileError.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ChecksHstsMaxAgeInEveryLayer()
     {
         ConfigDocument document = Valid();

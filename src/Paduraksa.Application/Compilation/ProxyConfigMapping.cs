@@ -91,6 +91,7 @@ public static class ProxyConfigMapping
                 // An unknown host has no layer of its own, so it follows the global default.
                 AccessLog = globalDefaults.AccessLog,
                 RequestIdPropagation = globalDefaults.RequestIdPropagation,
+                ServerHeader = HostSettingsLayers.Merge(HostServerHeaderSpec.Default, settings.Defaults.ServerHeader),
             },
         };
         return new MappedConfig(model, errors, warnings);
@@ -267,6 +268,7 @@ public static class ProxyConfigMapping
             Hsts = effective.Hsts,
             AccessLog = effective.AccessLog,
             RequestIdPropagation = effective.RequestIdPropagation,
+            ServerHeader = effective.ServerHeader,
             Routes = routes,
             Policies = hostChain,
             Redirect = host.Redirect is { } redirect

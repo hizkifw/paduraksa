@@ -91,6 +91,11 @@ internal static class ConfigSamples
                 IncludeSubDomains = Coin() ? Coin() : null,
                 Preload = Coin() ? Coin() : null,
             }),
+            ServerHeader = Maybe(() => new ServerHeaderSettings
+            {
+                Mode = Coin() ? (ServerHeaderMode)random.Next(4) : null,
+                Value = "edge/1.0",
+            }),
         };
 
         ProfileConfig[] profiles =
@@ -200,6 +205,7 @@ internal static class ConfigSamples
             IpAllowList = AllowList(settings.IpAllowList),
             // A layer that sets nothing is no layer (canonical JSON writes no key for it).
             Hsts = settings.Hsts ?? (random.Next(2) == 0 ? new HstsSettings() : null),
+            ServerHeader = settings.ServerHeader ?? (random.Next(2) == 0 ? new ServerHeaderSettings() : null),
         };
 
         return document with

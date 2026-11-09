@@ -8,10 +8,14 @@ using Paduraksa.Core.Model;
 
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 
+using ContractServerHeaderMode = Paduraksa.Contracts.Config.ServerHeaderMode;
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
+using HostServerHeaderSpec = Paduraksa.Proxy.Config.HostServerHeaderSpec;
 using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
+using ProxyServerHeaderMode = Paduraksa.Proxy.Config.ServerHeaderMode;
 using RoutePath = Paduraksa.Proxy.Snapshot.RoutePath;
+using ServerHeader = Paduraksa.Proxy.Http.ServerHeader;
 
 namespace Paduraksa.Application.Config;
 
@@ -327,6 +331,7 @@ public static class ConfigValidator
 
             CheckHostSettings(host.Settings, $"{path}/settings");
             CheckHstsPreload(defaults, profile, host, $"{path}/settings/hsts");
+            CheckServerHeader(defaults, profile, host, $"{path}/settings/serverHeader");
             if (kindDefined)
             {
                 CheckKindParts(host, path);
@@ -585,6 +590,20 @@ public static class ConfigValidator
             {
                 Add($"{path}/hsts/maxAge", HstsMaxAgeInvalid, $"max-age must be 0-{HstsHeader.MaxMaxAgeSeconds} seconds (two years); 0 tells a browser to forget the host");
             }
+
+            if (settings.ServerHeader is { } serverHeader)
+            {
+                if (serverHeader.Mode is { } mode)
+                {
+                    CheckEnum(mode, $"{path}/serverHeader/mode");
+                }
+
+                // A value is only used by the custom mode. Validate it where it is set, so an error points at the layer.
+                if (serverHeader is { Mode: ContractServerHeaderMode.Custom, Value: { Length: > 0 } value } && !ServerHeader.IsValidValue(value))
+                {
+                    Add($"{path}/serverHeader/value", ServerHeaderValueInvalid, InvalidServerHeaderValue);
+                }
+            }
         }
 
         /// <summary>
@@ -624,6 +643,51 @@ public static class ConfigValidator
 
             static bool HstsPreloadIsValid(HostHstsSpec spec) => spec.IncludeSubDomains && spec.MaxAgeSeconds >= HstsHeader.PreloadMinMaxAgeSeconds;
         }
+
+        /// <summary>
+        /// The <c>Server</c> header's cross-field rule, judged on each host's resolved settings like HSTS's preload pair: a
+        /// resolved <see cref="ProxyServerHeaderMode.Custom"/> needs a value, wherever the mode came from. A value's shape
+        /// is checked at the layer that set it; this catches a mode that inherited none, or inherited a value set by a
+        /// layer whose mode didn't use it, naming that layer because the host's admin can't change it there.
+        /// </summary>
+        private void CheckServerHeader(HostSettings? defaults, HostSettings? profile, HostConfig host, string path)
+        {
+            HostServerHeaderSpec resolved = HostSettingsLayers.Merge(
+                HostSettingsLayers.Merge(HostSettingsLayers.Merge(HostServerHeaderSpec.Default, defaults?.ServerHeader), profile?.ServerHeader),
+                host.Settings?.ServerHeader);
+            if (resolved.Mode != ProxyServerHeaderMode.Custom)
+            {
+                return;
+            }
+
+            string inherited = host.Settings?.ServerHeader?.Mode is not null ? string.Empty
+                : profile?.ServerHeader?.Mode is not null ? " (inherited from its profile)"
+                : " (inherited from the global defaults)";
+            if (string.IsNullOrEmpty(resolved.Value))
+            {
+                Add($"{path}/value", ServerHeaderValueRequired, $"the custom Server header needs a value{inherited}");
+                return;
+            }
+
+            // A value set by a layer whose mode isn't custom is otherwise ignored, so its shape is judged where it is used.
+            bool ownValue = host.Settings?.ServerHeader?.Value is not null;
+            bool profileValue = !ownValue && profile?.ServerHeader?.Value is not null;
+            bool checkedAtItsLayer = ownValue
+                ? host.Settings!.ServerHeader!.Mode == ContractServerHeaderMode.Custom
+                : profileValue
+                    ? profile!.ServerHeader!.Mode == ContractServerHeaderMode.Custom
+                    : defaults?.ServerHeader?.Mode == ContractServerHeaderMode.Custom;
+            if (!checkedAtItsLayer && !ServerHeader.IsValidValue(resolved.Value))
+            {
+                string from = ownValue ? string.Empty
+                    : profileValue ? " (inherited from its profile)"
+                    : " (inherited from the global defaults)";
+                Add($"{path}/value", ServerHeaderValueInvalid, InvalidServerHeaderValue + from);
+            }
+        }
+
+        private static string InvalidServerHeaderValue =>
+            $"the Server header value must be 1-{ServerHeader.MaxValueLength} visible ASCII characters or spaces, with no leading or trailing space";
 
         private void CheckIpAllowList(IpAllowListSettings? allowList, string path)
         {

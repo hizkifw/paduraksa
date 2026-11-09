@@ -335,6 +335,7 @@ public static class CanonicalConfigJson
             Tls = settings.Tls is { MinimumVersion: null, TcpAlpn: null, Http3: null } ? null : settings.Tls,
             IpAllowList = Canonical(settings.IpAllowList),
             Hsts = settings.Hsts is { Enabled: null, MaxAge: null, IncludeSubDomains: null, Preload: null } ? null : settings.Hsts,
+            ServerHeader = settings.ServerHeader is { Mode: null, Value: null } ? null : settings.ServerHeader,
         };
     }
 

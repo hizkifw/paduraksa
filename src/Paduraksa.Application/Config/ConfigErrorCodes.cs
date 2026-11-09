@@ -27,6 +27,8 @@ public static class ConfigErrorCodes
     public const string HstsMaxAgeInvalid = "hsts.maxAge.invalid";
     public const string HstsPreloadNeedsIncludeSubDomains = "hsts.preload.needsIncludeSubDomains";
     public const string HstsPreloadMaxAgeTooShort = "hsts.preload.maxAgeTooShort";
+    public const string ServerHeaderValueRequired = "serverHeader.value.required";
+    public const string ServerHeaderValueInvalid = "serverHeader.value.invalid";
     public const string TrustedProxiesProxiesRequired = "trustedProxies.proxies.required";
     public const string TrustedProxiesProxiesUnexpected = "trustedProxies.proxies.unexpected";
     public const string TrustedProxiesHeaderInvalid = "trustedProxies.header.invalid";

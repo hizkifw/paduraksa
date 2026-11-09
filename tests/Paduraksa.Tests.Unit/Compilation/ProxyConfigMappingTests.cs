@@ -8,8 +8,10 @@ using Paduraksa.Proxy.Config;
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 using Contract = Paduraksa.Contracts.Config;
+using ContractServerHeaderMode = Paduraksa.Contracts.Config.ServerHeaderMode;
 using ProxyLogging = Paduraksa.Proxy.Logging;
 using ProxyNet = Paduraksa.Proxy.Net;
+using ProxyServerHeaderMode = Paduraksa.Proxy.Config.ServerHeaderMode;
 using ProxySnapshot = Paduraksa.Proxy.Snapshot;
 using ProxyTls = Paduraksa.Proxy.Tls;
 
@@ -285,6 +287,32 @@ public sealed class ProxyConfigMappingTests
         Assert.Equal(HostHstsSpec.Off, Assert.Single(ProxyConfigMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty).Model.Hosts).Hsts);
         Assert.Equal(31_536_000, HostHstsSpec.Off.MaxAgeSeconds);
         Assert.False(HostHstsSpec.Off.Enabled);
+    }
+
+    [Fact]
+    public void TheServerHeaderResolvesFieldByFieldFromTheGlobalDefaultsUpToTheHost()
+    {
+        ConfigDocument document = Document(
+            defaults: new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ContractServerHeaderMode.Custom, Value = "default/1.0" } },
+            profile: new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "profile/2.0" } },
+            host: new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ContractServerHeaderMode.Upstream } });
+
+        HostSpec host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
+
+        Assert.Equal(new HostServerHeaderSpec { Mode = ProxyServerHeaderMode.Upstream, Value = "profile/2.0" }, host.ServerHeader);
+
+        // Built-in: Paduraksa, no version, and the global default an unknown host follows.
+        MappedConfig plain = ProxyConfigMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty);
+        Assert.Equal(HostServerHeaderSpec.Default, Assert.Single(plain.Model.Hosts).ServerHeader);
+        Assert.Equal(HostServerHeaderSpec.Default, plain.Model.Defaults!.ServerHeader);
+
+        ConfigDocument defaults = Document(
+            new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ContractServerHeaderMode.Custom, Value = "unknown/1.0" } },
+            null,
+            null);
+        MappedConfig fallback = ProxyConfigMapping.Map(defaults, Revision, CertificateInventory.Empty);
+        Assert.Equal(new HostServerHeaderSpec { Mode = ProxyServerHeaderMode.Custom, Value = "unknown/1.0" }, fallback.Model.Defaults!.ServerHeader);
+        Assert.Equal(new HostServerHeaderSpec { Mode = ProxyServerHeaderMode.Custom, Value = "unknown/1.0" }, Assert.Single(fallback.Model.Hosts).ServerHeader);
     }
 
     [Fact]

@@ -5,8 +5,8 @@ namespace Paduraksa.Contracts.Config;
 /// <summary>
 /// One layer of host settings (PLAN §5.3, §6.4). Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
-/// (<see cref="Tls"/>, <see cref="Hsts"/>) merge field by field; list-valued settings (<see cref="IpAllowList"/>) replace
-/// as a whole.
+/// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>) merge field by field; list-valued settings
+/// (<see cref="IpAllowList"/>) replace as a whole.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
 public sealed record HostSettings
@@ -35,6 +35,9 @@ public sealed record HostSettings
     /// what correlates a request across the proxy's log, the app's log and an error page.
     /// </summary>
     public RequestIdPropagation? RequestIdPropagation { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: <c>Paduraksa</c>, with no version.</summary>
+    public ServerHeaderSettings? ServerHeader { get; init; }
 }
 
 /// <summary>
@@ -131,4 +134,37 @@ public sealed record HstsSettings
     /// off. It needs <see cref="IncludeSubDomains"/> and a <see cref="MaxAge"/> of at least a year, and it is hard to undo:
     /// browsers that ship the list keep refusing plain HTTP even after the header stops.</summary>
     public bool? Preload { get; init; }
+}
+
+/// <summary>
+/// What the host's responses say in <c>Server</c> (PLAN §14 M6). <see cref="Mode"/> and <see cref="Value"/> inherit on
+/// their own, like every other nested setting.
+/// </summary>
+public sealed record ServerHeaderSettings
+{
+    /// <summary>Which header wins. Built-in default: <see cref="ServerHeaderMode.Paduraksa"/>, the name without a
+    /// version.</summary>
+    public ServerHeaderMode? Mode { get; init; }
+
+    /// <summary>The header <see cref="ServerHeaderMode.Custom"/> sends: 1-128 visible ASCII characters or spaces, with no
+    /// leading or trailing space. Required once the resolved mode is <see cref="ServerHeaderMode.Custom"/>; ignored by
+    /// every other mode.</summary>
+    public string? Value { get; init; }
+}
+
+/// <summary>What a host's responses put in <c>Server</c>.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<ServerHeaderMode>))]
+public enum ServerHeaderMode
+{
+    /// <summary><c>Server: Paduraksa</c>, with no version. Replaces an upstream's own header.</summary>
+    Paduraksa,
+
+    /// <summary><c>Server: &lt;Value&gt;</c>. Replaces an upstream's own header.</summary>
+    Custom,
+
+    /// <summary>The upstream's own header passes through untouched. Gate answers carry none.</summary>
+    Upstream,
+
+    /// <summary>No <c>Server</c> header at all: an upstream's own is removed too. HTTP/2 trailers aren't touched.</summary>
+    Remove,
 }

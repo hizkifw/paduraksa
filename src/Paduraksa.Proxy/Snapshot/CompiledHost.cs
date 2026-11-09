@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Tls;
 
@@ -60,6 +62,16 @@ public sealed class CompiledHost
     /// name is an IP literal or a loopback name (<see cref="Tls.HstsHeader.Apply"/>).
     /// </summary>
     public StringValues Hsts { get; init; }
+
+    /// <summary>
+    /// The precomputed <c>Server</c> value (<c>Paduraksa</c>, or a custom value), or empty when the mode leaves it to the
+    /// upstream or removes it. The gate sets it on every response the host gives; the YARP response transform makes the
+    /// mode hold for a forwarded response too (<see cref="Http.ServerHeader.Apply"/>).
+    /// </summary>
+    public StringValues Server { get; init; } = new(Http.ServerHeader.Product);
+
+    /// <summary>What the host's responses do with <c>Server</c>.</summary>
+    public ServerHeaderMode ServerMode { get; init; } = ServerHeaderMode.Paduraksa;
 
     /// <summary>
     /// The host's TLS settings. The handshake applies the settings of the SNI's host; the gate re-checks this host's

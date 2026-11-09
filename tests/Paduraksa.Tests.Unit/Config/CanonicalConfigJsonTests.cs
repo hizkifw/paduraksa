@@ -265,6 +265,48 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void ANullServerHeaderLayerAddsNoKeyAndItsValueChangesTheHash()
+    {
+        // Existing revisions keep their hash: a config that doesn't set the Server header writes no key at all.
+        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
+        Assert.DoesNotContain("serverheader", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
+
+        ConfigDocument emptyLayer = without with
+        {
+            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, ServerHeader = new ServerHeaderSettings() } }],
+        };
+        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
+
+        ConfigDocument custom = without with
+        {
+            Hosts =
+            [
+                without.Hosts[0] with
+                {
+                    Settings = new HostSettings
+                    {
+                        ForceHttps = true,
+                        AccessLog = false,
+                        RequestIdPropagation = RequestIdPropagation.ResponseOnly,
+                        ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
+                    },
+                },
+            ],
+        };
+        string json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(custom));
+        Assert.Contains("\"serverHeader\":{\"mode\":\"custom\",\"value\":\"edge/1.0\"}", json, StringComparison.Ordinal);
+
+        // The document's key order is the record's: accessLog, requestIdPropagation, then serverHeader.
+        int accessLog = json.IndexOf("\"accessLog\":", StringComparison.Ordinal);
+        int propagation = json.IndexOf("\"requestIdPropagation\":", StringComparison.Ordinal);
+        int serverHeader = json.IndexOf("\"serverHeader\":", StringComparison.Ordinal);
+        Assert.True(accessLog > 0 && propagation > accessLog && serverHeader > propagation, json);
+
+        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(custom));
+        Assert.Equal(CanonicalConfigJson.Serialize(custom), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(custom))));
+    }
+
+    [Fact]
     public void NormalisesSetsAndBlankValues()
     {
         ConfigDocument document = new(
