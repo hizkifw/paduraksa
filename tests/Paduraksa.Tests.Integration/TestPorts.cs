@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 
@@ -40,6 +41,42 @@ internal static class TestPorts
         }
 
         throw new InvalidOperationException("No port is free on both loopback addresses.");
+    }
+
+    /// <summary>
+    /// A loopback port nothing will ever answer on, held for as long as the returned scope lives: the socket is bound but never
+    /// listening, so a connect to it is refused (Linux sends an RST). Use it for an upstream that must fail, where
+    /// <see cref="FreePort"/> would only be free at the moment it was probed.
+    /// </summary>
+    public static DeadPort ReserveDeadPort() => new();
+
+    /// <summary>A bound, never-listening loopback socket: as long as it lives, nothing can answer on its port.</summary>
+    public sealed class DeadPort : IDisposable
+    {
+        private readonly Socket _socket;
+        private int _disposed;
+
+        internal DeadPort()
+        {
+            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            _socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            // Deliberately no Listen(): a connect is refused rather than queued.
+            Port = ((IPEndPoint)_socket.LocalEndPoint!).Port;
+        }
+
+        /// <summary>The port, which nothing listens on.</summary>
+        public int Port { get; }
+
+        /// <summary><c>http://127.0.0.1:{Port}/</c>: a destination address a forward can only fail against.</summary>
+        public string Address => string.Create(CultureInfo.InvariantCulture, $"http://127.0.0.1:{Port}/");
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                _socket.Dispose();
+            }
+        }
     }
 
     /// <summary>The bind lost a race for the port (Kestrel wraps the socket error).</summary>

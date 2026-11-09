@@ -35,6 +35,9 @@ internal sealed class PaduraksaOptions
     /// <summary>ACME issuance and renewal (PLAN §9.3): the scheduler, its timing and which CAs are trusted.</summary>
     public PaduraksaAcmeOptions Acme { get; set; } = new();
 
+    /// <summary>The access log (PLAN §7.4): the hot path's ring size, and what the formatter writes.</summary>
+    public PaduraksaAccessLogOptions AccessLog { get; set; } = new();
+
     /// <summary>Switches for development and tests; off in a release build.</summary>
     public PaduraksaDevelopmentOptions Development { get; set; } = new();
 
@@ -84,6 +87,40 @@ internal sealed class PaduraksaDevelopmentOptions
     /// process warns at startup when it is on.
     /// </summary>
     public bool AcmeInsecureHttp { get; set; }
+}
+
+/// <summary>
+/// The access log (<c>Paduraksa:AccessLog</c>, PLAN §7.4): the ring the hot path writes and the drain reads, and what the
+/// formatted line may contain.
+/// </summary>
+internal sealed class PaduraksaAccessLogOptions
+{
+    /// <summary>
+    /// Slots of the access-log ring (<c>Paduraksa:AccessLog:RingSize</c>): a power of two between 1 024 and 1 048 576,
+    /// default 16 384. A slot is padded to three 64-byte cache lines (192 bytes), so the default is about 3 MiB. When the
+    /// ring is full a line is dropped and counted, never waited for: size it for the worst burst the writer must not lose.
+    /// </summary>
+    public int RingSize { get; set; } = Proxy.Logging.AccessLogRing.DefaultCapacity;
+
+    /// <summary>
+    /// Query parameters whose values never reach the log (<c>Paduraksa:AccessLog:SensitiveQueryKeys</c>, comma-separated or
+    /// indexed): each is written as <c>name=REDACTED</c>. Empty or unset, the built-in list of well-known secret-carrying
+    /// names applies; setting it replaces that list, so a deployment that needs the defaults too lists them.
+    /// </summary>
+    public IList<string> SensitiveQueryKeys { get; } = new List<string>();
+
+    /// <summary>
+    /// Write the query string in the access log (<c>Paduraksa:AccessLog:LogQueryString</c>, default true). Off, only the
+    /// path is logged, whatever the sensitive list says.
+    /// </summary>
+    public bool LogQueryString { get; set; } = true;
+
+    /// <summary>The formatter's options, from these settings.</summary>
+    public Proxy.Logging.AccessLogFormatOptions ToFormatOptions() => new()
+    {
+        LogQueryString = LogQueryString,
+        SensitiveQueryKeys = SensitiveQueryKeys.Count > 0 ? [.. SensitiveQueryKeys] : [.. Proxy.Logging.AccessLogFormatOptions.DefaultSensitiveQueryKeys],
+    };
 }
 
 /// <summary>

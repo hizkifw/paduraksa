@@ -109,6 +109,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         ValidateCertificates(options, failures);
         ValidateAcme(options, failures);
         ValidateLogs(options.Logs, failures);
+        ValidateAccessLog(options, failures);
 
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
         ValidateProxyProtocol("HttpsProxyProtocol", listen.HttpsProxyProtocol, failures);
@@ -128,6 +129,41 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         Bound(certificates.RecoveryStartupTimeout, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5), $"{key}:RecoveryStartupTimeout", failures);
     }
+
+    private static void ValidateAccessLog(PaduraksaOptions options, List<string> failures)
+    {
+        const string Key = PaduraksaOptions.SectionName + ":AccessLog";
+        PaduraksaAccessLogOptions accessLog = options.AccessLog;
+        if (accessLog is null)
+        {
+            failures.Add($"{Key} must not be null.");
+            return;
+        }
+
+        // The ring's capacity must be a power of two (its slot arithmetic is a mask), and a size that isn't one would only
+        // surface as an exception in the middle of composition.
+        int size = accessLog.RingSize;
+        if (size < Proxy.Logging.AccessLogRing.MinimumCapacity || size > Proxy.Logging.AccessLogRing.MaximumCapacity || (size & (size - 1)) != 0)
+        {
+            failures.Add(
+                $"{Key}:RingSize must be a power of two between {Proxy.Logging.AccessLogRing.MinimumCapacity} and {Proxy.Logging.AccessLogRing.MaximumCapacity}, was {size}.");
+        }
+
+        // The list itself can't be null (it is created with the options and never replaced), so only its entries are checked.
+        for (int i = 0; i < accessLog.SensitiveQueryKeys.Count; i++)
+        {
+            string name = accessLog.SensitiveQueryKeys[i] ?? string.Empty;
+            if (name.Length == 0 || name.Length > MaxSensitiveQueryKeyLength || name.Any(char.IsControl) || name.Contains('&', StringComparison.Ordinal)
+                || name.Contains('=', StringComparison.Ordinal) || name.Contains(' ', StringComparison.Ordinal))
+            {
+                failures.Add(
+                    $"{Key}:SensitiveQueryKeys:{i} must be a parameter name of 1 to {MaxSensitiveQueryKeyLength} characters without spaces, '&', '=' or control characters, was '{name}'.");
+            }
+        }
+    }
+
+    /// <summary>Longest accepted sensitive query-parameter name.</summary>
+    internal const int MaxSensitiveQueryKeyLength = 64;
 
     private static void ValidateAcme(PaduraksaOptions options, List<string> failures)
     {

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 
 using Paduraksa.Proxy;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
@@ -97,6 +98,8 @@ internal static partial class PublicApp
                         DeferredUpstreamHealth health = app.ApplicationServices.GetRequiredService<DeferredUpstreamHealth>();
                         health.Attach(app.ApplicationServices.GetRequiredService<IUpstreamHealth>());
                         app.ApplicationServices.GetRequiredService<IHostApplicationLifetime>().ApplicationStopped.Register(health.Detach);
+                        // The access log wraps everything, the gate included (PLAN §7.4): every outcome gets a line.
+                        app.Use(app.ApplicationServices.GetRequiredService<AccessLogMiddleware>().InvokeAsync);
                         GateMiddleware gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
                         app.Use(gate.InvokeAsync);
                         app.UseRouting();

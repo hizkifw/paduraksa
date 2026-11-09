@@ -17,6 +17,7 @@ using Paduraksa.Core.Acme;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
@@ -268,6 +269,13 @@ internal sealed class SharedServices : IAsyncDisposable
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 
+            // The access log (PLAN §7.4): the public app's hot path fills the ring, the core host's drain service is its
+            // one reader and writes into this sink. The rotating file writer above is wired to it in a later round, so
+            // until then the sink writes nothing.
+            builder.Add(new AccessLogRing(options.AccessLog.RingSize));
+            builder.Add(options.AccessLog.ToFormatOptions());
+            builder.Add<IAccessLogSink>(NullAccessLogSink.Instance);
+
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate and the
             // request simulator read the class.
             AcmeChallengeStore challenges = builder.Add(new AcmeChallengeStore());
@@ -425,6 +433,38 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             Registrations.Add(new(typeof(TService), instance));
+            return instance;
+        }
+
+        /// <summary>
+        /// Replaces the one shared <typeparamref name="TService"/> an earlier step registered (none: adds it), keeping that
+        /// registration's ownership: the replacement is disposed exactly once, before or after its neighbours as the
+        /// replaced one was. This is how a test swaps in a capturing sink, and how a later milestone upgrades a default.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">No <typeparamref name="TService"/> was registered.</exception>
+        public TService Replace<TService>(TService instance)
+            where TService : class
+        {
+            ArgumentNullException.ThrowIfNull(instance);
+            if (_frozen)
+            {
+                throw new InvalidOperationException("Shared services are frozen once the hosts are built.");
+            }
+
+            int index = Registrations.FindIndex(r => r.Key == typeof(TService));
+            if (index < 0)
+            {
+                throw new InvalidOperationException($"No shared {typeof(TService)} is registered to replace.");
+            }
+
+            bool wasOwned = Owned.Exists(o => ReferenceEquals(o, Registrations[index].Value));
+            object? previous = Registrations[index].Value;
+            Registrations[index] = new(typeof(TService), instance);
+            if (wasOwned)
+            {
+                Owned[Owned.FindIndex(o => ReferenceEquals(o, previous))] = instance;
+            }
+
             return instance;
         }
 

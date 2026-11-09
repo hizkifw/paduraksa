@@ -20,14 +20,32 @@ public sealed class ConfigurationListBindingTests
             ("Paduraksa:Admin:CertificateNames", "admin.example.com, paduraksa.lan"),
             ("Paduraksa:Listen:HttpProxyProtocol:TrustedSources", "192.0.2.10, 198.51.100.0/24"),
             ("Paduraksa:Listen:HttpsProxyProtocol:TrustedSources", "203.0.113.1"),
-            ("Paduraksa:Acme:DnsPropagation:Resolvers", "1.1.1.1, 9.9.9.9:53"));
+            ("Paduraksa:Acme:DnsPropagation:Resolvers", "1.1.1.1, 9.9.9.9:53"),
+            ("Paduraksa:AccessLog:SensitiveQueryKeys", "pin, otp"));
 
         Assert.Equal(["192.168.1.0/24", "10.0.0.0/8"], options.Listen.AdminAllowedSources);
         Assert.Equal(["admin.example.com", "paduraksa.lan"], options.Admin.CertificateNames);
         Assert.Equal(["192.0.2.10", "198.51.100.0/24"], options.Listen.HttpProxyProtocol.TrustedSources);
         Assert.Equal(["203.0.113.1"], options.Listen.HttpsProxyProtocol.TrustedSources);
         Assert.Equal(["1.1.1.1", "9.9.9.9:53"], options.Acme.DnsPropagation.Resolvers);
+        // The access log's redaction list: the scalar replaces the built-in list.
+        Assert.Equal(["pin", "otp"], options.AccessLog.SensitiveQueryKeys);
+        Assert.Equal(["pin", "otp"], options.AccessLog.ToFormatOptions().SensitiveQueryKeys);
         Assert.Empty(options.ListBindingWarnings);
+    }
+
+    [Fact]
+    public void TheAccessLogDefaultsToTheWellKnownSensitiveNames()
+    {
+        PaduraksaOptions options = Load();
+
+        Assert.Equal(Paduraksa.Proxy.Logging.AccessLogRing.DefaultCapacity, options.AccessLog.RingSize);
+        Assert.True(options.AccessLog.LogQueryString);
+        Assert.Empty(options.AccessLog.SensitiveQueryKeys);
+        Assert.Equal(
+            [.. Paduraksa.Proxy.Logging.AccessLogFormatOptions.DefaultSensitiveQueryKeys],
+            options.AccessLog.ToFormatOptions().SensitiveQueryKeys);
+        Assert.Contains("token", options.AccessLog.ToFormatOptions().SensitiveQueryKeys);
     }
 
     [Fact]

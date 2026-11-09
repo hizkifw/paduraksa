@@ -24,6 +24,7 @@ internal static class ConfigurationListOptions
         ("Listen:HttpsProxyProtocol:TrustedSources", static o => o.Listen.HttpsProxyProtocol.TrustedSources),
         ("Admin:CertificateNames", static o => o.Admin.CertificateNames),
         ("Acme:DnsPropagation:Resolvers", static o => o.Acme.DnsPropagation.Resolvers),
+        ("AccessLog:SensitiveQueryKeys", static o => o.AccessLog.SensitiveQueryKeys),
     ];
 
     /// <summary>Normalises every list option in place and records a conflicting shape in <see cref="PaduraksaOptions.ListBindingWarnings"/>.</summary>

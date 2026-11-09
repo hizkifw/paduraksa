@@ -12,8 +12,8 @@ install guide; the design is in [PLAN.md](PLAN.md) §3, §8 and §16.
   every certificate key, DNS credential, TOTP secret and the Data Protection key ring. Admin sessions do **not** depend on
   it: the admin session cookie is Paduraksa's own random value, stored hashed in `paduraksa.db`. See PLAN §8.3.
 - **List settings** (`AdminAllowedSources`, `CertificateNames`, the PROXY protocol `TrustedSources`, ACME
-  `DnsPropagation:Resolvers`) take **either** one comma-separated value or indexed keys; both bind, both are documented
-  below.
+  `DnsPropagation:Resolvers`, the access log's `SensitiveQueryKeys`) take **either** one comma-separated value or indexed
+  keys; both bind, both are documented below.
 
 ## Docker (recommended)
 
@@ -104,6 +104,7 @@ runtimes that do not.
 
    Paduraksa__Listen__HttpsProxyProtocol__TrustedSources=192.0.2.10
    Paduraksa__Acme__DnsPropagation__Resolvers=1.1.1.1,9.9.9.9:53
+   Paduraksa__AccessLog__SensitiveQueryKeys=token,api_key,pin
    ```
 
    Values are trimmed and empty entries dropped; if both forms are set the scalar wins and a startup warning says the
@@ -228,6 +229,32 @@ docker inspect --format '{{.State.Health.Status}}' paduraksa
 For external monitors use the admin endpoints directly: `/healthz` (process alive, a snapshot loaded) and `/readyz`
 (serving traffic; `200 degraded` means the last-known-good config is live because the config database is unavailable;
 still ready, worth an alert). See PLAN §11.3.
+
+### Access log and request IDs
+
+Every request gets one line in the access log, whatever answered it (a forwarded request, a 403, the HTTPS redirect, the
+404 for an unknown name). A request carries an `X-Request-Id`: Paduraksa generates one, or keeps the one a **trusted
+proxy** sent, and sends it upstream and back to the client depending on the host (Settings → a host, a profile or the
+global defaults → Request ID). A client that isn't a trusted proxy can't choose its own ID.
+
+The hot path only writes a struct into a fixed-size ring; a background writer formats and writes the lines, so a slow
+disk never stalls a request. A full ring drops lines and counts them, reported at Warning in the process log.
+
+| Setting | Default | What |
+|---|---|---|
+| `Paduraksa:AccessLog:RingSize` | `16384` | Slots between the request path and the writer: a power of two from 1024 to 1048576 (about 3 MiB at the default: each slot is padded to three cache lines) |
+| `Paduraksa:AccessLog:LogQueryString` | `true` | Write the query string. `false` logs the path only. |
+| `Paduraksa:AccessLog:SensitiveQueryKeys` | the well-known names | Query parameters whose value becomes `name=REDACTED`: `token`, `access_token`, `refresh_token`, `id_token`, `code`, `password`, `passwd`, `pwd`, `secret`, `client_secret`, `key`, `api_key`, `apikey`, `signature`, `sig`, `auth`, `session` (ignoring case). Setting it **replaces** that list. |
+
+Cookies and `Authorization` never reach the log, and a value that would break a line (a CR or LF in a path or user agent)
+is escaped. One host can turn its access log off (Settings → the host → Access log → Off); the request ID, and later the
+error pages, still work.
+
+```sh
+Paduraksa__AccessLog__RingSize=65536
+Paduraksa__AccessLog__LogQueryString=false
+Paduraksa__AccessLog__SensitiveQueryKeys=token,api_key,pin
+```
 
 ## Bare metal
 

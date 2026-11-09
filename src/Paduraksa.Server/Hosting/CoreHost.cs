@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Server.Placeholders;
 
 namespace Paduraksa.Server.Hosting;
@@ -47,6 +48,8 @@ internal static class CoreHost
         // local CA's certificate from its first request, and a daily loop renews it. It registers without republishing the
         // live config, so it never waits for the public app's YARP.
         builder.Services.AddHostedService(static services => services.GetRequiredService<AdminCertificateService>());
+        // The access log's one reader (PLAN §7.4): it formats the ring's entries into the sink, and flushes on shutdown.
+        builder.Services.AddHostedService<AccessLogDrainService>();
         if (context.Options.Acme.Enabled)
         {
             // Last of the ones that start things up: the vault and the config store are ready. Its first look waits
