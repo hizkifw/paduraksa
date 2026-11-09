@@ -12,9 +12,10 @@ namespace Paduraksa.Application.Compilation;
 /// turns the result into the concrete values the compiler, the validator and the dashboard work with.
 /// </summary>
 /// <remarks>
-/// <para><b>Adding a setting</b> is three places, all here or beside the contract: the property on <see cref="HostSettings"/>,
-/// its one line in <c>Merge</c> (and in the nested record's own merge), and its value in <see cref="Concrete"/>. The built-in default is a field of <see cref="BuiltIn"/>; nothing
-/// else may state one.</para>
+/// <para><b>Adding a setting</b> follows the checklist in PLAN §5.3: the property on <see cref="HostSettings"/> (at the
+/// end, so existing documents keep their key order), its line in <c>Merge</c> (and in the nested record's own merge), its
+/// value in <see cref="Concrete"/>, and its built-in default among the constants below, which nowhere else states one.
+/// Then its validator rules, its dashboard field and the tests that checklist names.</para>
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>) merge field by field and stay absent when neither layer sets a field of
@@ -23,6 +24,20 @@ namespace Paduraksa.Application.Compilation;
 /// </remarks>
 public static class HostSettingsLayers
 {
+    // The built-in defaults as concrete values: one statement each, so the layer every host sits on and the fallback
+    // Concrete reads can't disagree, and neither needs a null-forgiving assertion about what BuiltIn holds.
+    private const bool BuiltInForceHttps = false;
+    private const TlsMinimumVersion BuiltInMinimumTlsVersion = TlsMinimumVersion.Tls12;
+    private const TcpAlpn BuiltInTcpAlpn = TcpAlpn.Http2AndHttp11;
+    private const bool BuiltInHttp3 = true;
+    private const bool BuiltInHstsEnabled = false;
+    private const int BuiltInHstsMaxAge = HstsHeader.DefaultMaxAgeSeconds;
+    private const bool BuiltInHstsIncludeSubDomains = false;
+    private const bool BuiltInHstsPreload = false;
+    private const bool BuiltInAccessLog = true;
+    private const RequestIdPropagation BuiltInRequestIdPropagation = RequestIdPropagation.UpstreamAndResponse;
+    private const ServerHeaderMode BuiltInServerHeaderMode = ServerHeaderMode.Paduraksa;
+
     /// <summary>
     /// The built-in defaults under every layer: no HTTPS redirect, TLS 1.2, HTTP/2 and HTTP/1.1, HTTP/3 on, no allow
     /// list, HSTS off with a year of <c>max-age</c> waiting for whoever turns it on, the access log on, the request ID
@@ -30,13 +45,13 @@ public static class HostSettingsLayers
     /// </summary>
     public static HostSettings BuiltIn { get; } = new()
     {
-        ForceHttps = false,
-        Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls12, TcpAlpn = TcpAlpn.Http2AndHttp11, Http3 = true },
+        ForceHttps = BuiltInForceHttps,
+        Tls = new TlsSettings { MinimumVersion = BuiltInMinimumTlsVersion, TcpAlpn = BuiltInTcpAlpn, Http3 = BuiltInHttp3 },
         IpAllowList = null,
-        Hsts = new HstsSettings { Enabled = false, MaxAge = HstsHeader.DefaultMaxAgeSeconds, IncludeSubDomains = false, Preload = false },
-        AccessLog = true,
-        RequestIdPropagation = RequestIdPropagation.UpstreamAndResponse,
-        ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Paduraksa },
+        Hsts = new HstsSettings { Enabled = BuiltInHstsEnabled, MaxAge = BuiltInHstsMaxAge, IncludeSubDomains = BuiltInHstsIncludeSubDomains, Preload = BuiltInHstsPreload },
+        AccessLog = BuiltInAccessLog,
+        RequestIdPropagation = BuiltInRequestIdPropagation,
+        ServerHeader = new ServerHeaderSettings { Mode = BuiltInServerHeaderMode },
     };
 
     /// <summary>
@@ -190,31 +205,30 @@ public static class HostSettingsLayers
         TlsSettings tls = settings.Tls ?? new TlsSettings();
         HstsSettings hsts = settings.Hsts ?? new HstsSettings();
         ServerHeaderSettings server = settings.ServerHeader ?? new ServerHeaderSettings();
-        TlsSettings builtInTls = BuiltIn.Tls!;
-        HstsSettings builtInHsts = BuiltIn.Hsts!;
-        ServerHeaderSettings builtInServer = BuiltIn.ServerHeader!;
         return new EffectiveHostSettings(
-            settings.ForceHttps ?? BuiltIn.ForceHttps!.Value,
+            settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
             {
-                MinimumVersion = tls.MinimumVersion ?? builtInTls.MinimumVersion!.Value,
-                TcpAlpn = tls.TcpAlpn ?? builtInTls.TcpAlpn!.Value,
-                Http3 = tls.Http3 ?? builtInTls.Http3!.Value,
+                MinimumVersion = tls.MinimumVersion ?? BuiltInMinimumTlsVersion,
+                TcpAlpn = tls.TcpAlpn ?? BuiltInTcpAlpn,
+                Http3 = tls.Http3 ?? BuiltInHttp3,
             },
             Restriction(settings.IpAllowList),
             new HostHstsSpec
             {
-                Enabled = hsts.Enabled ?? builtInHsts.Enabled!.Value,
-                MaxAgeSeconds = hsts.MaxAge ?? builtInHsts.MaxAge!.Value,
-                IncludeSubDomains = hsts.IncludeSubDomains ?? builtInHsts.IncludeSubDomains!.Value,
-                Preload = hsts.Preload ?? builtInHsts.Preload!.Value,
+                Enabled = hsts.Enabled ?? BuiltInHstsEnabled,
+                MaxAgeSeconds = hsts.MaxAge ?? BuiltInHstsMaxAge,
+                IncludeSubDomains = hsts.IncludeSubDomains ?? BuiltInHstsIncludeSubDomains,
+                Preload = hsts.Preload ?? BuiltInHstsPreload,
             },
-            settings.AccessLog ?? BuiltIn.AccessLog!.Value,
-            settings.RequestIdPropagation ?? BuiltIn.RequestIdPropagation!.Value,
+            settings.AccessLog ?? BuiltInAccessLog,
+            settings.RequestIdPropagation ?? BuiltInRequestIdPropagation,
             new HostServerHeaderSpec
             {
-                Mode = server.Mode ?? builtInServer.Mode!.Value,
-                Value = server.Value ?? builtInServer.Value,
+                Mode = server.Mode ?? BuiltInServerHeaderMode,
+
+                // No built-in value: only the Custom mode sends one, and the validator requires it there.
+                Value = server.Value,
             });
     }
 

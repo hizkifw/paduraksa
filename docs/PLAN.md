@@ -284,10 +284,12 @@ dashboard shows where each value comes from ("inherited from Global" or "from pr
    existing documents keep their key order.
 2. Its one line in `HostSettingsLayers.Merge` (or in the nested record's own merge) and its value in the `Concrete`
    mapping, where the resolved contract value becomes the proxy's.
-3. Its built-in default as a field of `HostSettingsLayers.BuiltIn`. Nowhere else states one.
+3. Its built-in default as a `const` of `HostSettingsLayers`, which `BuiltIn` is assembled from. Nowhere else states one.
 4. A row in `SettingsInheritanceTests`, the table that walks the contract: the field accessor, a layer that sets it, what
    the compiled host then carries, the built-in default and two sample values. The table's own completeness test fails
-   until the row exists. A field added to a *nested* record also has to be added to `ISettingsLayer.SetsNothing` (or
+   until the row exists. The merge itself is also walked from the contract by `SettingsMergeReflectionTests`, so a field
+   missing from `Merge` fails without a row; the table covers what each layer resolves to end to end. A field added to a
+   *nested* record also has to be added to `ISettingsLayer.SetsNothing` (or
    `EveryNestedRecordKnowsWhenItSetsNothing` fails) and to the record's line in the nested-merge cases (or
    `EveryNestedRecordHasANestedMergeCase` fails).
 5. Its rules in `ConfigValidator` (field rules at the layer, and the resolved-value rules on the host's resolved settings
