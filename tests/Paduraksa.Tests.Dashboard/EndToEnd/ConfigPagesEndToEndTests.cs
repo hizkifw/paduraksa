@@ -77,6 +77,22 @@ public sealed class ConfigPagesEndToEndTests
         await ExpectDrawerTitleAsync(page, "New upstream");
         await Expect(page.Locator(".pdk-sheet[data-top] input[data-field='name']")).ToHaveValueAsync("app");
         await FillAsync(page, "destination-0", "http://127.0.0.1:18080");
+
+        // A check's result goes on its own line under the address, as wide as it, not squeezed into a column beside it.
+        await page.Locator(".pdk-sheet[data-top] [data-action=check-0]").ClickAsync();
+        ILocator probeLine = page.Locator(".pdk-sheet[data-top] .pdk-probe-line");
+        await Expect(probeLine).ToBeVisibleAsync(new() { Timeout = 15_000 });
+        LocatorBoundingBoxResult address = (await page.Locator(".pdk-sheet[data-top] .pdk-destination-row .mud-input-control").First.BoundingBoxAsync())!;
+        LocatorBoundingBoxResult probe = (await probeLine.BoundingBoxAsync())!;
+        Assert.True(probe.Y >= address.Y + address.Height - 1, $"The check's result ({probe.Y}) should start below the address ({address.Y + address.Height}).");
+        Assert.True(Math.Abs(probe.X - address.X) <= 4, $"The check's result ({probe.X}) should line up with the address ({address.X}).");
+
+        // The load-balancing and health switches stack in one column: one left edge, each on a line of its own.
+        ILocator switches = page.Locator(".pdk-sheet[data-top] [data-section=health] .mud-switch");
+        await Expect(switches).ToHaveCountAsync(3);
+        IReadOnlyList<LocatorBoundingBoxResult> boxes = [.. await Task.WhenAll((await switches.AllAsync()).Select(async s => (await s.BoundingBoxAsync())!))];
+        Assert.All(boxes, box => Assert.True(Math.Abs(box.X - boxes[0].X) <= 1, $"A switch at x={box.X} should line up with the first at x={boxes[0].X}."));
+        Assert.Equal(boxes.Count, boxes.Select(box => Math.Round(box.Y)).Distinct().Count());
         await PlaywrightBrowser.ScreenshotAsync(page, "drawer-stack-upstream", fullPage: false);
         await page.Locator(".pdk-sheet[data-top] [data-action=stage]").ClickAsync();
 
