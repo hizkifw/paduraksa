@@ -90,9 +90,7 @@ public static class LogFileNames
     /// </summary>
     public static bool IsLogFile(string? name) => name is not null && (KindOfLive(name) is not null || TryParseRotated(name, out _, out _, out _));
 
-    /// <summary>
-    /// Parses a rotated file's name (<c>error-20261109T120000Z-2.log</c>, <c>error-...log.gz</c>). False for a live file or any other name.
-    /// </summary>
+    /// <summary>Parses a rotated file's name (<c>error-20261109T120000Z-2.log</c>, <c>error-...log.gz</c>).</summary>
     public static bool TryParseRotated(string? name, out LogFileKind kind, out DateTimeOffset rotatedAt, out bool compressed) =>
         TryParseRotated(name, out kind, out rotatedAt, out _, out compressed);
 

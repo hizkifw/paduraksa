@@ -13,7 +13,8 @@ namespace Paduraksa.Core.Vault;
 /// <b>The handler is the whole transport.</b> Nothing the caller supplies sits between the credential and the wire: a
 /// caller-supplied inner handler would see the request headers, and a returned <see cref="DelegatingHandler"/> would let
 /// the caller swap its <c>InnerHandler</c>. For the same reason the credential is added to a <i>clone</i> of the request
-/// and any credential header of the caller's own is overwritten.
+/// and any credential header of the caller's own is overwritten. The response's <c>RequestMessage</c> is set back to the
+/// caller's original, so the injected header can't be read from the response either.
 /// </para>
 /// <para>
 /// <b>What the handler refuses,</b> by throwing <see cref="SecretTransportRefusedException"/> before anything is sent, on each

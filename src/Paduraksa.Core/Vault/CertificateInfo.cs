@@ -1,10 +1,7 @@
 namespace Paduraksa.Core.Vault;
 
-/// <summary>
-/// The public facts about a certificate, as the vault reports them after it creates, imports or completes one.
-/// Everything here is public data: the application stores it as certificate metadata and shows it in the
-/// UI. The private key is not here and has no way to get here.
-/// </summary>
+/// <summary>The public facts about a certificate, as the vault reports them after it creates, imports or completes
+/// one.</summary>
 /// <remarks>
 /// Equality is by reference for the list members (the usual record equality over <see cref="IReadOnlyList{T}"/>), so two
 /// infos describing the same certificate are not <c>==</c>; compare <see cref="Sha256Fingerprint"/> instead.

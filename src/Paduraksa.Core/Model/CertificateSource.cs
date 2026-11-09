@@ -19,11 +19,8 @@ public enum CertificateSource
     LocalCaRoot = 5,
 }
 
-/// <summary>
-/// The lifecycle state of a certificate's metadata row. Persisted by name (<see cref="ModelNames"/>).
-/// Expiry is not a state: it follows from <c>NotAfter</c> and the clock, so nothing has to flip a row when a
-/// certificate runs out.
-/// </summary>
+/// <summary>The lifecycle state of a certificate's metadata row. Expiry is not a state: it follows from
+/// <c>NotAfter</c> and the clock, so nothing has to flip a row when a certificate runs out.</summary>
 public enum CertificateStatus
 {
     /// <summary>Requested but not usable yet: no chain is attached (an ACME order in progress).</summary>

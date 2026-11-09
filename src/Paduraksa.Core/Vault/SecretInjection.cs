@@ -15,10 +15,8 @@ public enum SecretInjectionKind
     BasicAuth = 2,
 }
 
-/// <summary>
-/// How an authenticating handler (<see cref="ISecretHttpHandlerFactory"/>) attaches a secret to outgoing requests, and
-/// where it may. Build one with <see cref="Authorization"/>, <see cref="Bearer"/>, <see cref="Header"/> or <see cref="BasicAuth"/>.
-/// </summary>
+/// <summary>How an authenticating handler (<see cref="ISecretHttpHandlerFactory"/>) attaches a secret to outgoing
+/// requests, and where it may.</summary>
 /// <remarks>
 /// <para>
 /// <b>Every injection names the hosts it may talk to,</b> and the handler only talks https. A handler that attached the

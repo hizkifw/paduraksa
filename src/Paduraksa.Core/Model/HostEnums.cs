@@ -20,10 +20,8 @@ public enum HostKind
     /// <summary>Answers every request with a fixed status and body.</summary>
     Respond,
 
-    /// <summary>
-    /// Serves the admin app through the internal listener: every path is forwarded to <c>__admin</c>, HTTPS
-    /// is forced, and it has no routes or fixed answer of its own. At most one exists.
-    /// </summary>
+    /// <summary>Serves the admin app through the internal listener: every path is forwarded to <c>__admin</c>, HTTPS
+    /// is forced, and it has no routes or fixed answer of its own.</summary>
     Admin,
 }
 

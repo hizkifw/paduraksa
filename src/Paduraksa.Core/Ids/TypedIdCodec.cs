@@ -3,10 +3,7 @@ using System.Numerics;
 
 namespace Paduraksa.Core.Ids;
 
-/// <summary>
-/// Formatting and parsing primitives shared by all generated typed IDs. Keeps the generated code thin.
-/// All members are allocation-free.
-/// </summary>
+/// <summary>Formatting and parsing primitives shared by all generated typed IDs. All members are allocation-free.</summary>
 /// <remarks>
 /// <c>prefix</c> arguments include the trailing underscore (e.g. <c>host_</c>). <see cref="long"/> IDs are never
 /// negative: parsing rejects values above <see cref="long.MaxValue"/>, so string order, signed order and

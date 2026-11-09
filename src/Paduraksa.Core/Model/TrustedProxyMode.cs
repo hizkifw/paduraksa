@@ -4,11 +4,8 @@ using Paduraksa.Core.Json;
 
 namespace Paduraksa.Core.Model;
 
-/// <summary>
-/// How the client IP reaches Paduraksa: no trusted proxies, configured proxies, Cloudflare's edge or
-/// a local <c>cloudflared</c>. Only a peer inside the trusted set may supply the client IP through a header; anyone else
-/// is the client.
-/// </summary>
+/// <summary>How the client IP reaches Paduraksa: no trusted proxies, configured proxies, Cloudflare's edge or a local
+/// <c>cloudflared</c>.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<TrustedProxyMode>))]
 public enum TrustedProxyMode
 {

@@ -44,24 +44,16 @@ public sealed class CertificateImportException(CertificateImportFailure reason, 
 /// <summary>Limits on an import.</summary>
 public static class CertificateImportLimits
 {
-    /// <summary>
-    /// The largest upload accepted, in bytes. A certificate, its chain and a key are a few kilobytes; one megabyte is
-    /// generous and keeps a hostile upload from costing memory or CPU. The vault stops reading at the cap and throws
-    /// <see cref="CertificateImportException"/> with <see cref="CertificateImportFailure.TooLarge"/>.
-    /// </summary>
+    /// <summary>The largest upload accepted, in bytes. A certificate, its chain and a key are a few kilobytes; one
+    /// megabyte is generous and keeps a hostile upload from costing memory or CPU.</summary>
     public const int MaxBytes = 1024 * 1024;
 }
 
-/// <summary>
-/// The chain was attached with a staged-key token that is not the certificate's current one: the key was staged
-/// again, replaced by an import or a re-issue, or deleted since. Nothing changed; start the issuance again.
-/// </summary>
+/// <summary>The chain was attached with a staged-key token that is not the certificate's current one: the key was
+/// staged again, replaced by an import or a re-issue, or deleted since.</summary>
 public sealed class StagedKeyMismatchException(string message) : InvalidOperationException(message);
 
-/// <summary>
-/// The vault's authenticating handler (<see cref="ISecretHttpHandlerFactory"/>) refused a request before sending anything: not https, a
-/// destination that is not allowed, a <c>Host</c> header naming another destination, or a secret that is gone or of the wrong kind. The
-/// message names the reason, never the credential. It derives from <see cref="InvalidOperationException"/>, which the handler threw before
-/// this type existed.
-/// </summary>
+/// <summary>The vault's authenticating handler (<see cref="ISecretHttpHandlerFactory"/>) refused a request before
+/// sending anything: not https, a destination that is not allowed, a <c>Host</c> header naming another destination,
+/// or a secret that is gone or of the wrong kind. The message names the reason, never the credential.</summary>
 public sealed class SecretTransportRefusedException(string message) : InvalidOperationException(message);

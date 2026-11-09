@@ -4,10 +4,7 @@ using Paduraksa.Core.Json;
 
 namespace Paduraksa.Core.Model;
 
-/// <summary>
-/// Lowest TLS version a host accepts over TCP (QUIC is always TLS 1.3). One enum, shared by the config document and the
-/// proxy's TLS policy.
-/// </summary>
+/// <summary>Lowest TLS version a host accepts over TCP (QUIC is always TLS 1.3).</summary>
 [JsonConverter(typeof(ConfigEnumConverter<TlsMinimumVersion>))]
 public enum TlsMinimumVersion
 {
@@ -46,10 +43,7 @@ public enum ServerHeaderMode
     Remove,
 }
 
-/// <summary>
-/// Where a request's ID (<c>X-Request-Id</c>) goes: to the upstream, back to the client, both or neither.
-/// The ID itself always exists: the access log records it whatever this says.
-/// </summary>
+/// <summary>Where a request's ID (<c>X-Request-Id</c>) goes: to the upstream, back to the client, both or neither.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<RequestIdPropagation>))]
 public enum RequestIdPropagation : byte
 {

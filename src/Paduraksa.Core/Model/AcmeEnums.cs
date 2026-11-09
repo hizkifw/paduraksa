@@ -10,11 +10,9 @@ public enum AcmeAccountStatus
     Deactivated = 2,
 }
 
-/// <summary>
-/// Where an ACME order stands in Paduraksa's own bookkeeping. The CA's order is the authority on what
-/// happens next, so a resume re-reads it; this status is for operators and for the scheduler to see what is unfinished.
-/// Persisted by name (<see cref="ModelNames"/>).
-/// </summary>
+/// <summary>Where an ACME order stands in Paduraksa's own bookkeeping. The CA's order is the authority on what
+/// happens next, so a resume re-reads it; this status is for operators and for the scheduler to see what is
+/// unfinished.</summary>
 public enum AcmeOrderStatus
 {
     /// <summary>Requested; the CA has not been asked for an order yet.</summary>
@@ -46,9 +44,7 @@ public enum AcmeChallengeType
 /// <summary>The DNS services Paduraksa can drive for DNS-01. Persisted by name (<see cref="ModelNames"/>); adding a kind needs a migration for the column's check.</summary>
 public enum DnsProviderKind
 {
-    /// <summary>Cloudflare's API.</summary>
     Cloudflare = 1,
 
-    /// <summary>deSEC's API.</summary>
     DeSec = 2,
 }

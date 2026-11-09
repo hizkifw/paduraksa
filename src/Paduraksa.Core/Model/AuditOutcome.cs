@@ -3,7 +3,6 @@ namespace Paduraksa.Core.Model;
 /// <summary>How an audited action ended. Persisted by name (<see cref="ModelNames"/>).</summary>
 public enum AuditOutcome
 {
-    /// <summary>It happened.</summary>
     Success = 1,
 
     /// <summary>Not authorised (authentication or role/scope check).</summary>

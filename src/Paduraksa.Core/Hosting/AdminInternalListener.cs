@@ -10,11 +10,8 @@ using Microsoft.Win32.SafeHandles;
 
 namespace Paduraksa.Core.Hosting;
 
-/// <summary>
-/// The admin app's internal listener: the public proxy reaches the admin through it without a second public port.
-/// It is a Unix domain socket at <c>&lt;data dir&gt;/run/admin.sock</c> where one can be used, and a loopback TCP listener on an
-/// OS-assigned port otherwise.
-/// </summary>
+/// <summary>The admin app's internal listener: the public proxy reaches the admin through it without a second public
+/// port.</summary>
 /// <remarks>
 /// <para><b>Why a socket, not the admin HTTPS port.</b> The admin port has its own certificate and its own per-connection
 /// source allowlist. Proxying a public name to it would make every client look like loopback, sharing one throttle bucket and
@@ -45,10 +42,7 @@ public sealed class AdminInternalListener : IDisposable
     /// <summary>The header the public proxy stamps on every admin route, and no other upstream ever sees.</summary>
     public const string HeaderName = "X-Paduraksa-Internal";
 
-    /// <summary>
-    /// The symbolic upstream an admin host's YARP cluster points at (the proxy's <c>__admin</c> cluster). No name is ever
-    /// resolved: the proxy's connect callback ignores the destination and connects to this listener.
-    /// </summary>
+    /// <summary>The symbolic upstream an admin host's YARP cluster points at (the proxy's <c>__admin</c> cluster).</summary>
     public const string UpstreamHost = "admin.internal";
 
     /// <summary>How long a connection waits for the loopback fallback's port before failing.</summary>
@@ -422,11 +416,8 @@ public sealed class AdminInternalListener : IDisposable
         public uint DevMinor;
     }
 
-    /// <summary>
-    /// Opens the bound socket's inode with <c>O_PATH</c> and keeps the handle, so the inode number recorded for it cannot be
-    /// reused by a successor while this process lives. Null where that isn't possible (not Linux, or no <c>O_PATH</c>): the
-    /// identity check then remains best effort.
-    /// </summary>
+    /// <summary>Opens the bound socket's inode with <c>O_PATH</c> and keeps the handle, so the inode number recorded
+    /// for it cannot be reused by a successor while this process lives.</summary>
     private static SafeFileHandle? TryPinInode(string path)
     {
         if (!OperatingSystem.IsLinux())

@@ -18,10 +18,7 @@ public enum ActorKind
     Token = 4,
 }
 
-/// <summary>
-/// Who did something: the author of a config revision or the actor of an audit event. A user or token actor names
-/// its typed ID; system and CLI actors name nothing. Shared by Data (columns) and Application (stores, commands).
-/// </summary>
+/// <summary>Who did something: the author of a config revision or the actor of an audit event.</summary>
 public readonly record struct Actor
 {
     private Actor(ActorKind kind, UserId? userId, ApiTokenId? tokenId)
@@ -51,7 +48,6 @@ public readonly record struct Actor
     /// Rebuilds an actor from its stored parts, e.g. the columns of a row. The parts must agree: a user ID exactly for
     /// <see cref="ActorKind.User"/>, a token ID exactly for <see cref="ActorKind.Token"/>.
     /// </summary>
-    /// <exception cref="ArgumentException">The parts don't describe an actor.</exception>
     public static Actor FromParts(ActorKind kind, UserId? userId, ApiTokenId? tokenId) => (kind, userId, tokenId) switch
     {
         (ActorKind.System, null, null) => System,

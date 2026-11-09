@@ -39,12 +39,9 @@ public static class JwsAlgorithmNames
     };
 }
 
-/// <summary>
-/// A public JSON Web Key (RFC 7517) as ACME sends it in a <c>jwk</c> header or a new-account payload. Public members
-/// only: the type has no field that could carry a private component. For an EC key <see cref="Crv"/>, <see cref="X"/> and
-/// <see cref="Y"/> are set, for an RSA key <see cref="N"/> and <see cref="E"/>. Values are base64url, as RFC 7518 §6
-/// defines them.
-/// </summary>
+/// <summary>A public JSON Web Key (RFC 7517) as ACME sends it in a <c>jwk</c> header or a new-account payload. Public
+/// members only: the type has no field that could carry a private component. Values are base64url, as RFC 7518 §6
+/// defines them.</summary>
 public sealed record JsonWebKeyPublic(string Kty, string? Crv, string? X, string? Y, string? N, string? E);
 
 /// <summary>What an ACME client may know about an account key: its algorithm and public parts.</summary>

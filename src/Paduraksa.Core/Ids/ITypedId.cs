@@ -2,10 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Paduraksa.Core.Ids;
 
-/// <summary>
-/// Contract implemented by every generated typed ID. Static abstract members let generic infrastructure
-/// (EF Core converters, OpenAPI schemas, YAML, JSON) work over any ID without reflection.
-/// </summary>
+/// <summary>Contract implemented by every generated typed ID.</summary>
 /// <remarks>
 /// <see cref="IComparable{T}"/> ordering is consistent with ordinal ordering of the string form,
 /// which for time-ordered kinds is creation order.

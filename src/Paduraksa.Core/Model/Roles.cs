@@ -1,9 +1,7 @@
 namespace Paduraksa.Core.Model;
 
-/// <summary>
-/// An admin role. A role is a named set of <see cref="Permission"/>s (<c>RolePermissions</c> in
-/// Application), so custom roles can be added later. Persisted by name (<see cref="ModelNames"/>).
-/// </summary>
+/// <summary>An admin role. A role is a named set of <see cref="Permission"/>s (<c>RolePermissions</c> in
+/// Application), so custom roles can be added later.</summary>
 public enum Role
 {
     /// <summary>Everything, including users, the tokens and sessions of others, and the vault.</summary>
@@ -22,10 +20,7 @@ public enum Role
     Auditor = 5,
 }
 
-/// <summary>
-/// One thing an admin may do. Roles grant sets of them; an API token's scopes are a subset of its owner's.
-/// Persisted by name (<see cref="ModelNames"/>), which is also how a token scope is written (<c>config:write</c>).
-/// </summary>
+/// <summary>One thing an admin may do.</summary>
 #pragma warning disable CA1711 // "Permission" is the domain's word; the rule is about the attribute-like suffix.
 public enum Permission
 #pragma warning restore CA1711
@@ -63,13 +58,11 @@ public enum Permission
     /// <summary>List and revoke the sessions of every user.</summary>
     SessionsAll = 11,
 
-    /// <summary>Read the audit log.</summary>
     AuditRead = 12,
 
     /// <summary>Manage secrets in the vault (store, replace, delete; never read).</summary>
     VaultManage = 13,
 
-    /// <summary>Run the request simulator.</summary>
     Simulate = 14,
 
     /// <summary>Browse, tail and download the access and error log files.</summary>

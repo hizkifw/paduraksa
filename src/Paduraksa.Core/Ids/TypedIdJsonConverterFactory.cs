@@ -4,10 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Paduraksa.Core.Ids;
 
-/// <summary>
-/// Supplies <see cref="TypedIdJsonConverter{T}"/> for every generated typed ID. Register it on source-generated
-/// contexts: <c>[JsonSourceGenerationOptions(Converters = [typeof(TypedIdJsonConverterFactory)])]</c>.
-/// </summary>
+/// <summary>Supplies <see cref="TypedIdJsonConverter{T}"/> for every generated typed ID.</summary>
 /// <remarks>
 /// The typed-ID generator puts <see cref="JsonConverterAttribute"/> on each ID, which is enough for reflection-based
 /// serialization. But source generators can't see each other's output, so the System.Text.Json source generator

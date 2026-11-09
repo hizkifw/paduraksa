@@ -14,10 +14,8 @@ namespace Paduraksa.Core.Vault;
 /// </param>
 public sealed record DataProtectionKey(string FriendlyName, string KeyXml)
 {
-    /// <summary>
-    /// The record's own printing would include <see cref="KeyXml"/> (in <c>ToString</c>, string interpolation, a debugger
-    /// display or a log scope). Only the friendly name is printed; the element is key material.
-    /// </summary>
+    /// <summary>The record's own printing would include <see cref="KeyXml"/> (in <c>ToString</c>, string
+    /// interpolation, a debugger display or a log scope).</summary>
     private bool PrintMembers(StringBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

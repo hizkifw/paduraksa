@@ -2,16 +2,10 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Core.Vault;
 
-/// <summary>
-/// What a secret is for. Decides which capabilities may use it. Persisted by stable name (<see cref="VaultNames"/>),
-/// never by number.
-/// </summary>
+/// <summary>What a secret is for. Persisted by stable name (<see cref="VaultNames"/>), never by number.</summary>
 public enum SecretKind
 {
-    /// <summary>
-    /// A DNS provider API token or password, used through <see cref="ISecretHttpHandlerFactory"/>. Must be stored with
-    /// <see cref="SecretOptions.AllowedHosts"/>.
-    /// </summary>
+    /// <summary>A DNS provider API token or password, used through <see cref="ISecretHttpHandlerFactory"/>.</summary>
     DnsApiToken = 0,
 
     /// <summary>The HMAC key of ACME external account binding (ZeroSSL, Google Trust Services), used through <see cref="IMacKeySource"/>.</summary>
@@ -71,11 +65,8 @@ public sealed record SecretMetadata(
     DateTimeOffset UpdatedAt,
     int Version);
 
-/// <summary>
-/// Stores secrets. <b>There is no get.</b> Secrets go in, capabilities come out: a DNS token is used through
-/// <see cref="ISecretHttpHandlerFactory"/>, an HMAC key through <see cref="IMacKeySource"/>. Other resources keep only the
-/// <see cref="SecretId"/>.
-/// </summary>
+/// <summary>Stores secrets. There is no get: secrets go in, capabilities come out; other resources keep only the
+/// <see cref="SecretId"/>.</summary>
 /// <remarks>
 /// <para>
 /// A value passes through the caller's memory exactly once, on the way in: the person pasted it into a form or an API
