@@ -305,10 +305,10 @@ public sealed class ConfigPagesEndToEndTests
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
     }
 
-    /// <summary>The element is inside the window once a drawer that just opened has slid in (its animation takes 200 ms).</summary>
+    /// <summary>The element is inside the window once the drawer that just opened has finished sliding in.</summary>
     private static async Task ExpectInsideWindowAsync(IPage page, ILocator element)
     {
-        await page.WaitForTimeoutAsync(300);
+        await PlaywrightBrowser.SettleAsync(page);
         LocatorBoundingBoxResult? box = await element.BoundingBoxAsync();
         Assert.NotNull(box);
         int width = page.ViewportSize!.Width;

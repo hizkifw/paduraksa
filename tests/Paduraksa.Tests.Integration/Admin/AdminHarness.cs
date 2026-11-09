@@ -96,6 +96,16 @@ internal sealed class AdminHarness : IAsyncDisposable
             throw;
         }
 
+        return For(host);
+    }
+
+    /// <summary>
+    /// A harness over a host that is already running, for a test that had to start it itself (a listener that needs a fixed
+    /// port, retried until the bind wins). Disposing the harness stops and disposes the host, as <see cref="StartAsync"/>'s does.
+    /// </summary>
+    public static AdminHarness For(PaduraksaHost host)
+    {
+        ArgumentNullException.ThrowIfNull(host);
         // The hardening tests reach the admin by a LAN name or a made-up one over a loopback connection, so the client
         // must not insist the certificate covers that name (it is still pinned or chain-checked to the local CA).
         HttpClient http = TestHost.CreateAdminClient(host, static handler =>

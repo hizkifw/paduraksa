@@ -21,16 +21,21 @@ public sealed class DoctorCommandsTests
     [Fact]
     public async Task LivenessUsesTheLoopbackPlainHttpFallbackWhenItIsOn()
     {
-        int port = TestPorts.FreePort();
+        // The loopback listener treats 0 as "off", so it needs a number; the helper retries the whole start with a new port
+        // when one is taken between the probe and the bind, and the settings carry the port that won.
         Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Paduraksa:Listen:Admin"] = "0",
             ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
-            ["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
         };
 
-        await using PaduraksaHost host = TestHost.Create(settings: settings);
-        await host.StartAsync(Ct);
+        (PaduraksaHost host, _) = await TestPorts.StartOnFreePortAsync(port =>
+        {
+            settings["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return TestHost.Create(settings: settings);
+        });
+
+        await using PaduraksaHost started = host;
         try
         {
             (int exitCode, string output, string error) = await ProbeAsync(TestHost.CreateOptions(settings: settings));
@@ -41,7 +46,7 @@ public sealed class DoctorCommandsTests
         }
         finally
         {
-            await host.StopAsync(CancellationToken.None);
+            await started.StopAsync(CancellationToken.None);
         }
     }
 

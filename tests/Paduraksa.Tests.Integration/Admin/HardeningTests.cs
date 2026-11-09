@@ -354,15 +354,14 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     }
 
     /// <summary>
-    /// Starts a host with the optional loopback listener on a fixed port. That listener treats 0 as "off", so the OS
-    /// cannot pick the port itself; the test probes one and retries with another when another test's host takes it between
-    /// the probe and Kestrel's bind. (The listener would otherwise bind an ephemeral port and the test could read it back.)
+    /// Starts a host with the optional loopback listener on a fixed port: that listener treats 0 as "off", so the OS cannot
+    /// pick the port itself. <see cref="TestPorts.StartOnFreePortAsync"/> probes a port and retries the whole start with a new
+    /// one when another test's host takes it between the probe and Kestrel's bind.
     /// </summary>
     private static async Task<(AdminHarness Harness, int Port)> StartWithLoopbackListenerAsync(Dictionary<string, string?>? settings = null)
     {
-        for (int attempt = 1; ; attempt++)
+        (PaduraksaHost host, int port) = await TestPorts.StartOnFreePortAsync(port =>
         {
-            int port = TestPorts.FreePort();
             Dictionary<string, string?> config = new(StringComparer.OrdinalIgnoreCase);
             foreach ((string key, string? value) in settings ?? [])
             {
@@ -370,15 +369,10 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
             }
 
             config["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(CultureInfo.InvariantCulture);
-            try
-            {
-                return (await AdminHarness.StartAsync(config), port);
-            }
-            catch (IOException ex) when (attempt < 5 && TestPorts.IsAddressInUse(ex))
-            {
-                // Lost the race: probe again.
-            }
-        }
+            return TestHost.Create(settings: config);
+        });
+
+        return (AdminHarness.For(host), port);
     }
 
     private sealed class UserIdHolder
