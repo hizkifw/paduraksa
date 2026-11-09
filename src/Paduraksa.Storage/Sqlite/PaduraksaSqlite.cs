@@ -4,13 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Paduraksa.Storage.Sqlite;
 
-/// <summary>SQLite setup shared by every Paduraksa DbContext, on both databases (config and vault, PLAN §5).</summary>
+/// <summary>SQLite setup shared by every Paduraksa DbContext, on both databases (config and vault).</summary>
 public static class PaduraksaSqlite
 {
     /// <summary>
     /// Connection string for a pooled connection to a database file (created if missing), with
-    /// <c>Foreign Keys=True</c> and a <c>Default Timeout</c> equal to the busy timeout (5 s instead of
-    /// Microsoft.Data.Sqlite's 30 s retry window).
+    /// <c>Foreign Keys=True</c> and a <c>Default Timeout</c> equal to the busy timeout: 5 s rather than
+    /// Microsoft.Data.Sqlite's 30 s retry window.
     /// </summary>
     public static string ConnectionString(string databasePath)
     {
@@ -26,8 +26,8 @@ public static class PaduraksaSqlite
     }
 
     /// <summary>
-    /// Uses SQLite with the PLAN §5 settings: the connection-string ones from <see cref="ConnectionString"/>, plus
-    /// WAL, <c>synchronous=NORMAL</c> and <c>busy_timeout</c> applied once to every physical connection EF opens.
+    /// Uses SQLite: the connection-string settings from <see cref="ConnectionString"/>, plus WAL,
+    /// <c>synchronous=NORMAL</c> and <c>busy_timeout</c> applied once to every physical connection EF opens.
     /// </summary>
     public static DbContextOptionsBuilder UsePaduraksaSqlite(this DbContextOptionsBuilder optionsBuilder, string connectionString)
     {

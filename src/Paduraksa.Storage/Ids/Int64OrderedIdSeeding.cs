@@ -8,7 +8,7 @@ namespace Paduraksa.Storage.Ids;
 
 /// <summary>
 /// Startup hook for <see cref="IdKind.Int64Ordered"/> IDs: after a restart the clock may be behind the last persisted
-/// ID, so the generator must observe <c>MAX(id)</c> of every table it feeds before it issues new IDs (PLAN §4.2).
+/// ID, so the generator must observe <c>MAX(id)</c> of every table it feeds before it issues new IDs.
 /// </summary>
 public static class Int64OrderedIdSeeding
 {
@@ -18,9 +18,9 @@ public static class Int64OrderedIdSeeding
     /// anything creates IDs; new Int64Ordered tables are picked up automatically.
     /// </summary>
     /// <remarks>
-    /// Generated <c>New()</c> uses <see cref="Int64OrderedIdGenerator.Shared"/> for every Int64Ordered ID type, so all
-    /// tables are observed into the same generator. <c>MAX</c> of an <c>INTEGER PRIMARY KEY</c> is a single rowid
-    /// B-tree lookup in SQLite, so this stays cheap however large the tables get.
+    /// Generated <c>New()</c> uses <see cref="Int64OrderedIdGenerator.Shared"/>, so every table is observed into the
+    /// same generator. <c>MAX</c> of an <c>INTEGER PRIMARY KEY</c> is a single rowid B-tree lookup in SQLite, so this
+    /// stays cheap however large the tables get.
     /// </remarks>
     /// <returns>The largest key found per table (empty tables are left out), for startup logging.</returns>
     public static async Task<IReadOnlyDictionary<string, long>> ObserveInt64OrderedKeysAsync(

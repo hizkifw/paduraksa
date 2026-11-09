@@ -7,15 +7,15 @@ using SQLitePCL;
 namespace Paduraksa.Storage.Sqlite;
 
 /// <summary>
-/// The PLAN §5 settings that can't go in the connection string: <c>journal_mode=WAL</c>, <c>synchronous=NORMAL</c>
-/// and <c>busy_timeout</c>. (<c>foreign_keys</c> and the retry timeout are connection-string keywords, see
+/// The SQLite settings that cannot go in the connection string: <c>journal_mode=WAL</c>, <c>synchronous=NORMAL</c> and
+/// <c>busy_timeout</c>. (<c>foreign_keys</c> and the retry timeout are connection-string keywords, see
 /// <see cref="PaduraksaSqlite.ConnectionString"/>.)
 /// </summary>
 /// <remarks>
 /// <c>synchronous</c> and <c>busy_timeout</c> belong to a physical connection and survive its trips through the
-/// connection pool, so they're applied once per physical connection, not on every (logical) open. <c>journal_mode=WAL</c>
-/// is stored in the database file; it rides along in the same batch, so the first connection to a new database
-/// switches it to WAL without a separate startup step, and later ones find it already set (a no-op).
+/// connection pool, so they are applied once per physical connection, not on every logical open. <c>journal_mode=WAL</c>
+/// lives in the database file and rides along in the same batch, so the first connection to a new database switches it
+/// without a separate startup step.
 /// </remarks>
 internal static class SqlitePragmas
 {
@@ -29,10 +29,9 @@ internal static class SqlitePragmas
     /// failing fast enough to surface a stuck transaction.
     /// </summary>
     /// <remarks>
-    /// Settable once, before the first connection opens, for the tests that prove the wait itself: they can't spend five seconds
-    /// twice per run, and a short timeout proves the same thing (the busy handler is what fails the write). A later change is
-    /// refused: a pooled physical connection keeps the pragma it was given, so it would apply to some connections and not
-    /// others. Production never sets it.
+    /// Settable once, before the first connection opens, for the tests that prove the wait itself: they cannot spend
+    /// five seconds twice per run. A later change is refused because a pooled physical connection keeps the pragma it
+    /// was given, so it would apply to some connections and not others. Production never sets it.
     /// </remarks>
     /// <exception cref="InvalidOperationException">A connection has already opened.</exception>
     public static TimeSpan BusyTimeout
@@ -49,7 +48,6 @@ internal static class SqlitePragmas
         }
     }
 
-    /// <summary>Whether <see cref="BusyTimeout"/> can still be set: until the first connection has the pragmas.</summary>
     internal static bool BusyTimeoutIsSettable => Volatile.Read(ref s_opened) == 0;
 
     public static string Sql =>
@@ -57,9 +55,9 @@ internal static class SqlitePragmas
 
     /// <summary>
     /// <see cref="Sql"/> without <c>journal_mode</c>, for read-only connections: switching a database to WAL writes its
-    /// header, which a read-only connection can't do. EF opens one (<c>Mode=ReadOnly</c>) to check that the database
-    /// exists, and on a file that isn't in WAL yet (a zero-byte file: an empty database to SQLite) the full batch would
-    /// fail there, before migrations get to initialise it. The next read-write connection switches it.
+    /// header, which a read-only connection cannot do. EF opens one (<c>Mode=ReadOnly</c>) to check that the database
+    /// exists, and on a zero-byte file (an empty database to SQLite) the full batch would fail there, before migrations
+    /// get to initialise it.
     /// </summary>
     public static string ReadOnlySql =>
         $"PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = {(long)BusyTimeout.TotalMilliseconds};";
@@ -67,7 +65,6 @@ internal static class SqlitePragmas
     // Physical connections (native handles) that already have the pragmas. Weak, so closed handles drop out.
     private static readonly ConditionalWeakTable<sqlite3, object> Applied = [];
 
-    /// <summary>Applies the pragmas unless this physical connection already has them.</summary>
     public static async Task ApplyOnceAsync(DbConnection connection, CancellationToken cancellationToken)
     {
         var handle = Handle(connection);
@@ -117,7 +114,7 @@ internal static class SqlitePragmas
     private static sqlite3? Handle(DbConnection connection) => (connection as SqliteConnection)?.Handle;
 }
 
-/// <summary>Applies <see cref="SqlitePragmas"/> to each physical connection EF opens. Stateless; use <see cref="Instance"/>.</summary>
+/// <summary>Applies <see cref="SqlitePragmas"/> to each physical connection EF opens.</summary>
 internal sealed class SqlitePragmaInterceptor : DbConnectionInterceptor
 {
     public static SqlitePragmaInterceptor Instance { get; } = new();

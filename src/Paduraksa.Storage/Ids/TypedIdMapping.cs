@@ -7,7 +7,7 @@ using Paduraksa.Core.Ids;
 namespace Paduraksa.Storage.Ids;
 
 /// <summary>
-/// Recognizes typed-ID CLR types and hands out their (cached, immutable) converters and comparers.
+/// Recognizes typed-ID CLR types and hands out their cached, immutable converters and comparers.
 /// </summary>
 internal sealed class TypedIdMapping
 {
@@ -24,7 +24,7 @@ internal sealed class TypedIdMapping
         Comparer = (ValueComparer)Activator.CreateInstance(typeof(TypedIdValueComparer<>).MakeGenericType(idType))!;
     }
 
-    /// <summary>The typed-ID struct (never <see cref="Nullable{T}"/>).</summary>
+    /// <summary>The typed-ID struct, never its nullable form.</summary>
     public Type IdType { get; }
 
     /// <summary><see cref="Guid"/> or <see cref="long"/>.</summary>

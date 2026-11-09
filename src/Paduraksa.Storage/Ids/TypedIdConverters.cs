@@ -5,8 +5,8 @@ using Paduraksa.Core.Ids;
 namespace Paduraksa.Storage.Ids;
 
 /// <summary>
-/// Plain generic helpers called from converter expression trees. Expression trees can't call static abstract
-/// interface members (CS8927), so <c>TId.FromValue</c>/<c>TId.Parse</c> are wrapped in ordinary generic methods.
+/// Plain generic helpers called from converter expression trees, which cannot call static abstract interface members
+/// (CS8927).
 /// </summary>
 internal static class TypedIdValue
 {
@@ -37,7 +37,6 @@ internal static class TypedIdValue
 }
 
 /// <summary>Stores a Guid-backed typed ID (<see cref="IdKind.UuidV7"/>/<see cref="IdKind.UuidV4"/>) as a 16-byte big-endian BLOB.</summary>
-/// <typeparam name="TId">The typed ID.</typeparam>
 internal sealed class TypedIdToBytesConverter<TId>()
     : ValueConverter<TId, byte[]>(
         id => TypedIdValue.ToBigEndianBytes(id.Value),
@@ -46,7 +45,6 @@ internal sealed class TypedIdToBytesConverter<TId>()
     where TId : struct, ITypedId<TId, Guid>;
 
 /// <summary>Stores an <see cref="IdKind.Int64Ordered"/> typed ID as its <see cref="long"/> value (SQLite <c>INTEGER</c>).</summary>
-/// <typeparam name="TId">The typed ID.</typeparam>
 internal sealed class TypedIdToInt64Converter<TId>()
     : ValueConverter<TId, long>(
         id => id.Value,
@@ -54,10 +52,9 @@ internal sealed class TypedIdToInt64Converter<TId>()
     where TId : struct, ITypedId<TId, long>;
 
 /// <summary>
-/// Stores a typed ID as its canonical string (<c>prefix_base62</c>). Used inside JSON columns, where the document
-/// is also what people and exports see. Fixed-width base62 keeps ordinal string order equal to ID order.
+/// Stores a typed ID as its canonical string (<c>prefix_base62</c>), for JSON columns where the document is also what
+/// people and exports see. Fixed-width base62 keeps ordinal string order equal to ID order.
 /// </summary>
-/// <typeparam name="TId">The typed ID.</typeparam>
 internal sealed class TypedIdToStringConverter<TId>()
     : ValueConverter<TId, string>(
         id => TypedIdValue.Format(id),
@@ -67,10 +64,9 @@ internal sealed class TypedIdToStringConverter<TId>()
 
 /// <summary>
 /// Value comparer for typed IDs: immutable value types, so equality is <see cref="IEquatable{T}"/>, hashing is
-/// <see cref="object.GetHashCode"/> and a snapshot is the value itself. Spelled out (rather than EF's
-/// reflection-built default) so every typed-ID property, key and foreign key uses the same comparer.
+/// <see cref="object.GetHashCode"/> and a snapshot is the value itself. Spelled out rather than EF's reflection-built
+/// default so every typed-ID property, key and foreign key uses the same comparer.
 /// </summary>
-/// <typeparam name="TId">The typed ID.</typeparam>
 internal sealed class TypedIdValueComparer<TId>()
     : ValueComparer<TId>(
         (left, right) => left.Equals(right),
