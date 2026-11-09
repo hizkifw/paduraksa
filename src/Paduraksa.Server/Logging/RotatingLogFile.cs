@@ -279,7 +279,7 @@ internal sealed class RotatingLogFile : IDisposable
 #pragma warning restore CA1031
         {
             // Close it: the next line opens a fresh handle, which is how a full disk or a vanished directory is recovered from.
-            Failed("writing", ex);
+            Failed("write to", ex);
             CloseStream();
         }
     }
@@ -324,7 +324,7 @@ internal sealed class RotatingLogFile : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             CloseStream();
-            Failed("opening", ex);
+            Failed("open", ex);
         }
     }
 
@@ -350,7 +350,7 @@ internal sealed class RotatingLogFile : IDisposable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            Failed("rotating", ex);
+            Failed("rotate", ex);
         }
     }
 
@@ -429,7 +429,7 @@ internal sealed class RotatingLogFile : IDisposable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            Failed("recovering", ex);
+            Failed("tidy the files left from the last run of", ex);
         }
 
         Trim();
@@ -485,7 +485,7 @@ internal sealed class RotatingLogFile : IDisposable
 #pragma warning restore CA1031
         {
             TryDelete(temp);
-            Failed("compressing " + Path.GetFileName(path), ex);
+            Failed("compress", ex, path);
         }
     }
 
@@ -547,7 +547,7 @@ internal sealed class RotatingLogFile : IDisposable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            Failed("trimming", ex);
+            Failed("trim the old files of", ex);
         }
     }
 
@@ -562,7 +562,7 @@ internal sealed class RotatingLogFile : IDisposable
 #pragma warning restore CA1031
         {
             // Same rule as a write: drop the handle so the next line starts again.
-            Failed("flushing", ex);
+            Failed("flush", ex);
             CloseStream();
         }
     }
@@ -577,7 +577,7 @@ internal sealed class RotatingLogFile : IDisposable
         catch (Exception ex)
 #pragma warning restore CA1031
         {
-            Failed("closing", ex);
+            Failed("close", ex);
         }
         finally
         {
@@ -617,7 +617,10 @@ internal sealed class RotatingLogFile : IDisposable
     }
 
     /// <summary>Counts an I/O failure and reports it to the console at most once a minute, so a full disk doesn't flood the log.</summary>
-    private void Failed(string doing, Exception exception)
+    /// <param name="doing">What failed, as a verb phrase that reads before "the log file": "open", "write to", "compress".</param>
+    /// <param name="exception">The failure.</param>
+    /// <param name="path">The file it failed on, when it isn't the live file (a rotated one being compressed).</param>
+    private void Failed(string doing, Exception exception, string? path = null)
     {
         Interlocked.Increment(ref _failures);
         lock (_reportLock)
@@ -631,6 +634,6 @@ internal sealed class RotatingLogFile : IDisposable
             _lastReport = now;
         }
 
-        LogFileLogs.WriteFailed(_report, doing, _livePath, exception);
+        LogFileLogs.WriteFailed(_report, doing, path ?? _livePath, exception);
     }
 }

@@ -62,13 +62,13 @@ internal sealed class ErrorLogProvider : ILoggerProvider, ISupportExternalScope
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {
-            ArgumentNullException.ThrowIfNull(formatter);
-            if (logLevel == LogLevel.None || category.StartsWith(ErrorLogProvider.OwnCategoryPrefix, StringComparison.Ordinal))
+            // Like the console: a missing formatter is nothing to write, never an exception thrown into the caller's log call.
+            if (formatter is null || logLevel == LogLevel.None || category.StartsWith(ErrorLogProvider.OwnCategoryPrefix, StringComparison.Ordinal))
             {
                 return;
             }
 
-            provider._writer.WriteLine(FormatEntry(provider._writer.Time, provider._scopes, logLevel, eventId, category, formatter(state, exception), exception));
+            provider._writer.WriteLine(FormatEntry(provider._writer.Time, provider._scopes, logLevel, eventId, category, formatter(state, exception) ?? string.Empty, exception));
         }
     }
 
