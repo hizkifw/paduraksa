@@ -7,10 +7,10 @@ using Paduraksa.Data.Conversion;
 namespace Paduraksa.Data.Issuance;
 
 /// <summary>
-/// An ACME account (PLAN §5.1, §9.3): which CA, who to contact, and the account URL the CA gave it. An operational
-/// resource, not part of the config document. <b>No key material:</b> the account key lives in the vault under
-/// <see cref="Id"/> (<c>IJwsSigner</c>), and the external-account-binding MAC key is a vault secret this row only
-/// references by <see cref="EabSecretId"/>.
+/// An ACME account: which CA, who to contact, and the account URL the CA gave it. An operational resource, not part of
+/// the config document. <b>No key material:</b> the account key lives in the vault under <see cref="Id"/>
+/// (<c>IJwsSigner</c>), and the external-account-binding MAC key is a vault secret this row only references by
+/// <see cref="EabSecretId"/>.
 /// </summary>
 internal sealed class AcmeAccountRow
 {

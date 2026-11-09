@@ -6,19 +6,19 @@ using Paduraksa.Data.Revisions;
 namespace Paduraksa.Data.Projection;
 
 /// <summary>
-/// The global settings (PLAN §5.1): a single row (<see cref="Key"/> 1), which also records the revision the whole
-/// projection reflects.
+/// The global settings: a single row (<see cref="Key"/> 1), which also records the revision the whole projection
+/// reflects.
 /// </summary>
 /// <remarks>
-/// <para>The <c>*Row</c> entities are a projection of the latest revision's config document (PLAN §6.4), written by
-/// the command pipeline in the same transaction as the revision. They serve queries (dashboard lists, "which hosts use
-/// this upstream") and database-level invariants (unique names, foreign keys); nothing reads them to rebuild config,
-/// which always comes from a revision's document. They are lean on purpose: the queryable fields, plus settings layers
-/// as the document's JSON text (queryable with <c>json_extract</c>). Enum-valued columns hold the document's camelCase
-/// names; Data doesn't know the Contracts enums, so those columns carry no check constraint.</para>
-/// <para>Foreign keys between projection rows are <c>NO ACTION</c>, not <c>RESTRICT</c>: the pipeline defers
-/// foreign-key checks to the commit (<c>PRAGMA defer_foreign_keys</c>) so it can rewrite an object's rows in any
-/// order, and SQLite checks <c>RESTRICT</c> at once even then.</para>
+/// The <c>*Row</c> entities are a projection of the latest revision's document, written by the command pipeline in the
+/// same transaction as the revision. They serve queries and database-level invariants (unique names, foreign keys);
+/// config itself is always rebuilt from a revision's document. They are lean on purpose: the queryable fields, plus
+/// settings layers as JSON text (queryable with <c>json_extract</c>). Enum-valued columns hold the document's camelCase
+/// names, which Data can only check as text: it doesn't know the Contracts enums, so they carry no check constraint.
+///
+/// Foreign keys between projection rows are <c>NO ACTION</c>, not <c>RESTRICT</c>: the pipeline defers foreign-key
+/// checks to the commit (<c>PRAGMA defer_foreign_keys</c>) so it can rewrite an object's rows in any order, and SQLite
+/// checks <c>RESTRICT</c> at once even then.
 /// </remarks>
 internal sealed class GlobalSettingsRow
 {

@@ -4,7 +4,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Data.Projection;
 
-/// <summary>A host (PLAN §5.1); a projection row (see <see cref="GlobalSettingsRow"/>).</summary>
+/// <summary>A host; a projection row (see <see cref="GlobalSettingsRow"/>).</summary>
 internal sealed class HostRow
 {
     public HostId Id { get; set; }
@@ -31,10 +31,10 @@ internal sealed class HostRow
 }
 
 /// <summary>
-/// One name of a host: a natural key (PLAN §6.4), stored normalised, with no ID of its own; deleted with the host.
-/// Every host's names are projected, but only enabled hosts' names must be unique (a disabled host may stage a
-/// replacement under the same names, as the validator and compiler allow), so <see cref="HostEnabled"/> copies the
-/// host's flag for a partial unique index.
+/// One name of a host: a natural key, stored normalised, with no ID of its own; deleted with the host. Every host's
+/// names are projected, but only enabled hosts' names must be unique (a disabled host may stage a replacement under the
+/// same names, as the validator and compiler allow), so <see cref="HostEnabled"/> copies the host's flag for a partial
+/// unique index.
 /// </summary>
 internal sealed class HostNameRow
 {

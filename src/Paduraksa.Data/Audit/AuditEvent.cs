@@ -7,9 +7,9 @@ using Paduraksa.Data.Revisions;
 namespace Paduraksa.Data.Audit;
 
 /// <summary>
-/// An audit-log entry (PLAN §5.2, §6.4). Append-only and hash-chained: <see cref="Hash"/> covers
-/// <see cref="PrevHash"/> (the previous event's <see cref="Hash"/>, by ID) and every other column, so editing,
-/// deleting or reordering rows breaks the chain. The Application layer computes and verifies the hashes.
+/// An audit-log entry. Append-only and hash-chained: <see cref="Hash"/> covers <see cref="PrevHash"/> (the previous
+/// event's <see cref="Hash"/>, by ID) and every other column, so editing, deleting or reordering rows breaks the chain.
+/// The Application layer computes and verifies the hashes.
 /// </summary>
 internal sealed class AuditEvent
 {

@@ -6,9 +6,10 @@ using Paduraksa.Data.Conversion;
 namespace Paduraksa.Data.Identity;
 
 /// <summary>
-/// An admin user (PLAN §5.2). Not part of the config document: users change on their own (a login, a password change) and are
-/// audited one by one. <b>Secrets here are hashes or references only</b>: the password as a self-describing PBKDF2 string, the TOTP
-/// secret as a vault <c>SecretId</c> (the secret itself is sealed in the vault and used through <c>ITotpAuthenticator</c>), never a value.
+/// An admin user. Not part of the config document: users change on their own (a login, a password change) and are
+/// audited one by one. <b>Secrets here are hashes or references only</b>: the password as a self-describing PBKDF2
+/// string, the TOTP secret as a vault <c>SecretId</c> (the secret itself is sealed in the vault and used through
+/// <c>ITotpAuthenticator</c>), never a value.
 /// </summary>
 internal sealed class UserRow
 {
@@ -41,7 +42,7 @@ internal sealed class UserRow
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
-/// <summary>A role a user holds (PLAN §5.2). Global scope: per-tag scopes come later.</summary>
+/// <summary>A role a user holds. Global scope; per-tag scopes are not modelled.</summary>
 internal sealed class RoleAssignmentRow
 {
     public UserId UserId { get; set; }
@@ -50,8 +51,8 @@ internal sealed class RoleAssignmentRow
 }
 
 /// <summary>
-/// An API token (PLAN §4.3, §5.2). Only <see cref="SecretHash"/> (SHA-256 of the 256-bit secret) is stored: a fast hash is
-/// enough for a high-entropy secret, and the lookup is by <see cref="Id"/>, which is in the token string.
+/// An API token. Only <see cref="SecretHash"/> (SHA-256 of the 256-bit secret) is stored: a fast hash is enough for a
+/// high-entropy secret, and the lookup is by <see cref="Id"/>, which is in the token string.
 /// </summary>
 internal sealed class ApiTokenRow
 {
@@ -77,8 +78,8 @@ internal sealed class ApiTokenRow
 }
 
 /// <summary>
-/// An admin session (PLAN §4.3, §5.2). The browser holds a random 256-bit value; only its SHA-256 (<see cref="TokenHash"/>) is
-/// stored, so a copy of the database yields no usable cookie.
+/// An admin session. The browser holds a random 256-bit value; only its SHA-256 (<see cref="TokenHash"/>) is stored, so
+/// a copy of the database yields no usable cookie.
 /// </summary>
 internal sealed class SessionRow
 {

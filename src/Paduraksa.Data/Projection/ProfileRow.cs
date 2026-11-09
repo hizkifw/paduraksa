@@ -4,7 +4,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Data.Projection;
 
-/// <summary>A profile (PLAN §5.1); a projection row (see <see cref="GlobalSettingsRow"/>).</summary>
+/// <summary>A profile; a projection row (see <see cref="GlobalSettingsRow"/>).</summary>
 internal sealed class ProfileRow
 {
     public ProfileId Id { get; set; }

@@ -4,7 +4,7 @@ using Paduraksa.Core.Model;
 
 namespace Paduraksa.Data.Projection;
 
-/// <summary>An upstream (PLAN §5.1); a projection row (see <see cref="GlobalSettingsRow"/>).</summary>
+/// <summary>An upstream; a projection row (see <see cref="GlobalSettingsRow"/>).</summary>
 internal sealed class UpstreamRow
 {
     public UpstreamId Id { get; set; }

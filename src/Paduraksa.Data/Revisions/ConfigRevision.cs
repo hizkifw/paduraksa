@@ -6,8 +6,8 @@ using Paduraksa.Data.Conversion;
 namespace Paduraksa.Data.Revisions;
 
 /// <summary>
-/// A committed config revision (PLAN §5.2, §6.4): the whole config document as canonical JSON, Brotli-compressed.
-/// Append-only; history is linear (each revision's parent is the one before it).
+/// A committed config revision: the whole config document as canonical JSON, Brotli-compressed. Append-only; history is
+/// linear (each revision's parent is the one before it).
 /// </summary>
 internal sealed class ConfigRevision
 {

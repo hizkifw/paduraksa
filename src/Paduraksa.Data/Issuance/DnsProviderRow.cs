@@ -6,8 +6,8 @@ using Paduraksa.Data.Conversion;
 namespace Paduraksa.Data.Issuance;
 
 /// <summary>
-/// A configured DNS provider for DNS-01 challenges (PLAN §5.1, §9.3). <b>No credential:</b> the API token is a vault
-/// secret (<see cref="CredentialSecretId"/>), and the hosts it may be sent to are stored with that secret, not here.
+/// A configured DNS provider for DNS-01 challenges. <b>No credential:</b> the API token is a vault secret
+/// (<see cref="CredentialSecretId"/>), and the hosts it may be sent to are stored with that secret, not here.
 /// </summary>
 internal sealed class DnsProviderRow
 {

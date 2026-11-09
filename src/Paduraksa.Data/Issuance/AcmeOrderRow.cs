@@ -8,10 +8,10 @@ using Paduraksa.Data.Conversion;
 namespace Paduraksa.Data.Issuance;
 
 /// <summary>
-/// The ACME issuance state of one certificate (PLAN §5.1, §9.3): <b>one row per certificate</b> (unique
-/// <see cref="CertificateId"/>), reused by every issuance and renewal of it, so "one issuance per certificate at a time" is a
-/// property of the table. It carries what an attempt needs to resume after a restart (the order URL, the staged key's token
-/// and the CSR), what the last failure was, and the renewal schedule. The certificate's serving metadata stays on its
+/// The ACME issuance state of one certificate: <b>one row per certificate</b> (unique <see cref="CertificateId"/>),
+/// reused by every issuance and renewal of it, so "one issuance per certificate at a time" is a property of the table.
+/// It carries what an attempt needs to resume after a restart (the order URL, the staged key's token and the CSR), what
+/// the last failure was, and the renewal schedule; the certificate's serving metadata stays on its
 /// <see cref="CertificateRow"/>. <b>Public data only:</b> the staged key is a token, the CSR is a public request.
 /// </summary>
 internal sealed class AcmeOrderRow
@@ -46,13 +46,14 @@ internal sealed class AcmeOrderRow
     /// <summary>The key the vault staged for this attempt; attached with the chain. Null before the CSR step.</summary>
     public StagedKeyId? StagedKeyId { get; set; }
 
-    /// <summary>The PKCS#10 request (DER) the vault made for <see cref="StagedKeyId"/>; sent again if a restart caught the order before the CA accepted it.</summary>
+    /// <summary>The PKCS#10 request (DER) the vault made for <see cref="StagedKeyId"/>; sent again when a restart
+    /// caught the order before the CA accepted it.</summary>
     public byte[]? Csr { get; set; }
 
     /// <summary>
-    /// The vault's public <c>CertificateInfo</c> (JSON) of the chain it attached for this order, saved the moment the attach returned
-    /// and cleared when the certificate is registered. A restart that finds it registers from it instead of attaching again (the
-    /// staged key is spent by then). Public data only.
+    /// The vault's public <c>CertificateInfo</c> (JSON) of the chain it attached for this order, saved when the attach
+    /// returned and cleared when the certificate is registered. A restart that finds it registers from it instead of
+    /// attaching again, the staged key being spent by then. Public data only.
     /// </summary>
     public string? AttachedInfo { get; set; }
 

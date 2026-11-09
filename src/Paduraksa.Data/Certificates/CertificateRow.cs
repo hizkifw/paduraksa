@@ -6,16 +6,13 @@ using Paduraksa.Data.Conversion;
 namespace Paduraksa.Data.Certificates;
 
 /// <summary>
-/// A certificate's metadata (PLAN §5.1, §9.2): an operational resource, not part of the config document. The vault
-/// holds the key and the chain it serves; this row holds the public facts about them, so the UI can list certificates,
-/// the compiler can match them to host names and the scheduler can find the ones that need renewing, all without the
-/// vault. <b>Public data only: there is no private key here, and no column could hold one.</b>
+/// A certificate's metadata: an operational resource, not part of the config document, so it has no revision and is
+/// audited one by one. The vault holds the key and the chain it serves; this row holds the public facts about them, so
+/// the UI can list certificates, the compiler can match them to host names and the scheduler can find the ones that
+/// need renewing, all without the vault. <b>Public data only: there is no private key here, and no column could hold
+/// one.</b> Host bindings reference a certificate by ID without a foreign key, because the document that names it is a
+/// revision, not a row; the application refuses to delete a certificate a binding uses.
 /// </summary>
-/// <remarks>
-/// Not part of the config projection: certificates have no revision, they change on their own (issuance, renewal) and
-/// are audited one by one. Host bindings reference a certificate by ID without a foreign key, because the document
-/// that names it is a revision, not a row; the application refuses to delete a certificate a binding uses.
-/// </remarks>
 internal sealed class CertificateRow
 {
     public CertificateId Id { get; set; }

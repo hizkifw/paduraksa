@@ -5,11 +5,10 @@ using Paduraksa.Storage.Sqlite;
 namespace Paduraksa.Data;
 
 /// <summary>
-/// Lets <c>dotnet ef</c> build a <see cref="ConfigDbContext"/> without the server's composition root. Only the tool
-/// uses it. <c>migrations add</c> never opens the database; commands that do (<c>database update</c>,
-/// <c>migrations remove</c>, <c>migrations list</c>) use the file passed after <c>--</c>
-/// (<c>dotnet ef database update -- path/to/paduraksa.db</c>), or else a scratch file in the temp directory, never
-/// a <c>paduraksa.db</c> in the working directory. The server migrates its own database at startup.
+/// Lets <c>dotnet ef</c> build a <see cref="ConfigDbContext"/> without the server's composition root; only the tool uses
+/// it. <c>migrations add</c> never opens the database; commands that do take the file passed after <c>--</c>
+/// (<c>dotnet ef database update -- path/to/paduraksa.db</c>), else a scratch file in the temp directory, never a
+/// <c>paduraksa.db</c> in the working directory.
 /// </summary>
 internal sealed class ConfigDbContextDesignTimeFactory : IDesignTimeDbContextFactory<ConfigDbContext>
 {

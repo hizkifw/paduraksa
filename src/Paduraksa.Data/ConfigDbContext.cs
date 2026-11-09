@@ -14,17 +14,14 @@ using Paduraksa.Storage.Ids;
 namespace Paduraksa.Data;
 
 /// <summary>
-/// The config database (<c>data/paduraksa.db</c>, PLAN §5): revisions, audit, the projection of the latest
-/// revision's config entities (<see cref="Projection.GlobalSettingsRow"/>) and the certificate inventory
-/// (<see cref="Certificates.CertificateRow"/>) with its ACME accounts, orders and DNS providers (<see cref="Issuance.AcmeOrderRow"/>), operational metadata outside the config document. Entities are internal to Data and Application; nothing
-/// outside them sees a row type. Create contexts from the registered <see cref="IDbContextFactory{TContext}"/>
-/// (<see cref="Paduraksa.Storage.Sqlite.PaduraksaSqlite.AddPaduraksaDbContextFactory{TContext}"/>); the schema comes from migrations
-/// (applied at startup by <c>ConfigDatabase.InitializeAsync</c>).
+/// The config database (<c>data/paduraksa.db</c>): revisions, audit, the projection of the latest revision's config
+/// entities (<see cref="Projection.GlobalSettingsRow"/>), and the certificate inventory
+/// (<see cref="Certificates.CertificateRow"/>) with its ACME accounts, orders and DNS providers
+/// (<see cref="Issuance.AcmeOrderRow"/>), all of it operational metadata outside the config document. Entities are
+/// internal to Data and Application; nothing outside them sees a row type. Create contexts from the registered
+/// <see cref="IDbContextFactory{TContext}"/>; the schema comes from migrations, applied at startup by
+/// <see cref="ConfigDatabase.InitializeAsync"/>.
 /// </summary>
-/// <remarks>
-/// Adding an entity: a <see cref="DbSet{TEntity}"/> here, an <see cref="IEntityTypeConfiguration{TEntity}"/> next to
-/// the entity, applied in <see cref="OnModelCreating"/>, then a migration (README, "Database migrations").
-/// </remarks>
 public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) : DbContext(options)
 {
     internal DbSet<ConfigRevision> ConfigRevisions => Set<ConfigRevision>();
