@@ -51,7 +51,7 @@ public sealed record JsonWebKeyPublic(string Kty, string? Crv, string? X, string
 /// <param name="Algorithm">The algorithm to put in each protected header's <c>alg</c>.</param>
 /// <param name="Jwk">
 /// The public key. A <c>jwk</c> header (rather than <c>kid</c>) is used only for <c>newAccount</c>, for revoking a
-/// certificate with its own key, and for the inner JWS of <c>keyChange</c> (deferred, PLAN §9); revoking with the account
+/// certificate with its own key, and for the inner JWS of <c>keyChange</c> (deferred); revoking with the account
 /// key uses <c>kid</c> like every other request. It is also the payload of external account binding.
 /// </param>
 /// <param name="Thumbprint">

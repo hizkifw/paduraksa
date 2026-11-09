@@ -1,7 +1,7 @@
 namespace Paduraksa.Core.Model;
 
 /// <summary>
-/// The surface a change or audited action came in through (PLAN §5.2, §11). Persisted by name
+/// The surface a change or audited action came in through. Persisted by name
 /// (<see cref="ModelNames"/>).
 /// </summary>
 public enum Channel

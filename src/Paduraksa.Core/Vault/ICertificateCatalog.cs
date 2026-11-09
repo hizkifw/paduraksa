@@ -12,7 +12,7 @@ namespace Paduraksa.Core.Vault;
 public sealed record VaultCertificate(CertificateId Id, bool IsLocalCaRoot, CertificateInfo Info);
 
 /// <summary>
-/// The vault describing what it holds (PLAN §8.2, §9.2), so an application that lost its record of a certificate can get it
+/// The vault describing what it holds, so an application that lost its record of a certificate can get it
 /// back: the config database is lost or restored from an older backup, or a crash left the vault ahead of it (an ACME chain
 /// attached whose registration never happened). Read-only and public: no key is opened to answer, and nothing a caller does
 /// with the answer can change the vault.

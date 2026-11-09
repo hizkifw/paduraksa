@@ -1,6 +1,6 @@
 namespace Paduraksa.Core.Vault;
 
-/// <summary>Where the vault's key-encryption key (KEK, PLAN §8.3) came from. Listed in priority order.</summary>
+/// <summary>Where the vault's key-encryption key (KEK) came from. Listed in priority order.</summary>
 public enum KekSourceKind
 {
     /// <summary>The file named by <c>PADURAKSA_MASTER_KEY_FILE</c> (Docker secrets, systemd <c>LoadCredential</c>).</summary>
@@ -17,7 +17,7 @@ public enum KekSourceKind
 /// <param name="KekSource">Where the KEK came from.</param>
 /// <param name="KekBesideDatabase">
 /// The KEK file sits in the same directory as <c>vault.db</c> (or below it), so a copy of the data directory is a copy of
-/// both. The dashboard warns about it (PLAN §8.3). Always true for <see cref="KekSourceKind.GeneratedFile"/>, never for
+/// both. The dashboard warns about it. Always true for <see cref="KekSourceKind.GeneratedFile"/>, never for
 /// <see cref="KekSourceKind.Environment"/>.
 /// </param>
 public sealed record VaultStatus(KekSourceKind KekSource, bool KekBesideDatabase);

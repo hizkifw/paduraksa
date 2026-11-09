@@ -1,7 +1,7 @@
 namespace Paduraksa.Core.Hosting;
 
 /// <summary>
-/// The connection item that marks a connection accepted by the admin app's internal listener (PLAN §3.1). It is set by a
+/// The connection item that marks a connection accepted by the admin app's internal listener. It is set by a
 /// connection middleware on that <c>ListenOptions</c> only, so nothing depends on a peer address or a port (which can collide
 /// when the admin port is OS-assigned).
 /// </summary>

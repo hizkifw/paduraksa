@@ -17,7 +17,7 @@ public enum MacAlgorithm
 }
 
 /// <summary>
-/// A keyed MAC whose key stays in the vault (PLAN §8.2): callers hand data in and get a tag, or hand a tag in and
+/// A keyed MAC whose key stays in the vault: callers hand data in and get a tag, or hand a tag in and
 /// get a yes or no. Used for ACME external account binding (HS256), RFC 2136 TSIG, and later forward-auth and PoW tokens.
 /// </summary>
 /// <remarks>

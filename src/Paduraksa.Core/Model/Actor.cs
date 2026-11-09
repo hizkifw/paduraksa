@@ -2,7 +2,7 @@ using Paduraksa.Core.Ids;
 
 namespace Paduraksa.Core.Model;
 
-/// <summary>What kind of principal acted (PLAN §5.2). Persisted by name (<see cref="ModelNames"/>).</summary>
+/// <summary>What kind of principal acted. Persisted by name (<see cref="ModelNames"/>).</summary>
 public enum ActorKind
 {
     /// <summary>Paduraksa itself: startup, schedulers (ACME renewals, retention), migrations.</summary>

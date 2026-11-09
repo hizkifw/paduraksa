@@ -2,7 +2,7 @@ namespace Paduraksa.Core.Vault;
 
 /// <summary>
 /// The public facts about a certificate, as the vault reports them after it creates, imports or completes one.
-/// Everything here is public data: the application stores it as certificate metadata (PLAN §5.1) and shows it in the
+/// Everything here is public data: the application stores it as certificate metadata and shows it in the
 /// UI. The private key is not here and has no way to get here.
 /// </summary>
 /// <remarks>

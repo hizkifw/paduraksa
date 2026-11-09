@@ -41,7 +41,7 @@ public sealed class CertificateImportException(CertificateImportFailure reason, 
     public CertificateImportFailure Reason { get; } = reason;
 }
 
-/// <summary>Limits on an import (PLAN §9).</summary>
+/// <summary>Limits on an import.</summary>
 public static class CertificateImportLimits
 {
     /// <summary>

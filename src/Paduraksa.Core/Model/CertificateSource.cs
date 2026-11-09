@@ -1,6 +1,6 @@
 namespace Paduraksa.Core.Model;
 
-/// <summary>Where a certificate came from (PLAN §5.1, §9). Persisted by name (<see cref="ModelNames"/>).</summary>
+/// <summary>Where a certificate came from. Persisted by name (<see cref="ModelNames"/>).</summary>
 public enum CertificateSource
 {
     /// <summary>Issued by an ACME CA (Let's Encrypt and the like).</summary>
@@ -20,7 +20,7 @@ public enum CertificateSource
 }
 
 /// <summary>
-/// The lifecycle state of a certificate's metadata row (PLAN §5.1, §9.2). Persisted by name (<see cref="ModelNames"/>).
+/// The lifecycle state of a certificate's metadata row. Persisted by name (<see cref="ModelNames"/>).
 /// Expiry is not a state: it follows from <c>NotAfter</c> and the clock, so nothing has to flip a row when a
 /// certificate runs out.
 /// </summary>

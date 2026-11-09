@@ -1,6 +1,6 @@
 namespace Paduraksa.Core.Model;
 
-/// <summary>How an audited action ended (PLAN §5.2). Persisted by name (<see cref="ModelNames"/>).</summary>
+/// <summary>How an audited action ended. Persisted by name (<see cref="ModelNames"/>).</summary>
 public enum AuditOutcome
 {
     /// <summary>It happened.</summary>

@@ -13,7 +13,7 @@ public sealed record KekRotationResult(int Secrets, int AccountKeys, int Certifi
 }
 
 /// <summary>
-/// Replaces the vault's key-encryption key (PLAN §8.3): the entry point of <c>paduraksa vault rotate-kek</c>.
+/// Replaces the vault's key-encryption key: the entry point of <c>paduraksa vault rotate-kek</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,11 +27,7 @@ public sealed record KekRotationResult(int Secrets, int AccountKeys, int Certifi
 /// <para>
 /// A rotation <b>re-wraps only</b>: the data-encryption keys change wrapping, the encrypted values do not change. Whoever
 /// holds a copy of the old database <i>and</i> the old KEK can still decrypt that copy; to cut that off, replace the secrets
-/// themselves. The old wraps are overwritten in <c>vault.db</c> and its write-ahead log (checkpointed after the commit).
-/// </para>
-/// <para>
-/// The rotating process carries on under the new KEK in memory, and its MAC handles keep working throughout (they use cached
-/// key material and do not wait for the rotation). A process that started with the old KEK must be restarted with the new one.
+/// themselves. A process that started with the old KEK must be restarted with the new one.
 /// </para>
 /// </remarks>
 public interface IVaultKekRotation

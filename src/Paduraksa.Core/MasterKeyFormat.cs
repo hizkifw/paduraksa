@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 namespace Paduraksa.Core;
 
 /// <summary>
-/// The one definition of what a master key (KEK) looks like as text (PLAN §8.3): standard base64 of exactly 32 bytes, in its
+/// The one definition of what a master key (KEK) looks like as text: standard base64 of exactly 32 bytes, in its
 /// canonical spelling, not all zeros. The vault parses its key with it and the CLI checks a new key with it before storing
 /// anything, so the two can't disagree.
 /// </summary>

@@ -36,24 +36,16 @@ public static class Base62
     // The table the codec actually uses. Must equal Alphabet (checked by Base62Tests).
     private static ReadOnlySpan<byte> AlphabetUtf8 => "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"u8;
 
-    // ---- Encode -------------------------------------------------------------------------------------------------
-
-    /// <summary>Writes exactly <see cref="Width128"/> chars. Returns false if the destination is too small.</summary>
     public static bool TryEncode(UInt128 value, Span<char> destination) => TryEncodeCore(value, destination);
 
-    /// <summary>Writes exactly <see cref="Width128"/> UTF-8 bytes. Returns false if the destination is too small.</summary>
     public static bool TryEncode(UInt128 value, Span<byte> utf8Destination) => TryEncodeCore(value, utf8Destination);
 
-    /// <summary>Writes exactly <see cref="Width64"/> chars. Returns false if the destination is too small.</summary>
     public static bool TryEncode(ulong value, Span<char> destination) => TryEncodeCore(value, destination);
 
-    /// <summary>Writes exactly <see cref="Width64"/> UTF-8 bytes. Returns false if the destination is too small.</summary>
     public static bool TryEncode(ulong value, Span<byte> utf8Destination) => TryEncodeCore(value, utf8Destination);
 
-    /// <summary>Encodes the big-endian bytes of <paramref name="value"/> as <see cref="Width128"/> chars.</summary>
     public static bool TryEncode(Guid value, Span<char> destination) => TryEncodeCore(ToUInt128(value), destination);
 
-    /// <summary>Encodes the big-endian bytes of <paramref name="value"/> as <see cref="Width128"/> UTF-8 bytes.</summary>
     public static bool TryEncode(Guid value, Span<byte> utf8Destination) => TryEncodeCore(ToUInt128(value), utf8Destination);
 
     public static string Encode(UInt128 value) => string.Create(Width128, value, static (span, v) => TryEncodeCore(v, span));
@@ -62,18 +54,12 @@ public static class Base62
 
     public static string Encode(Guid value) => Encode(ToUInt128(value));
 
-    // ---- Decode -------------------------------------------------------------------------------------------------
-
-    /// <summary>Decodes exactly <see cref="Width128"/> chars.</summary>
     public static bool TryDecodeUInt128(ReadOnlySpan<char> source, out UInt128 value) => TryDecodeCore(source, out value);
 
-    /// <summary>Decodes exactly <see cref="Width128"/> UTF-8 bytes.</summary>
     public static bool TryDecodeUInt128(ReadOnlySpan<byte> utf8Source, out UInt128 value) => TryDecodeCore(utf8Source, out value);
 
-    /// <summary>Decodes exactly <see cref="Width64"/> chars.</summary>
     public static bool TryDecodeUInt64(ReadOnlySpan<char> source, out ulong value) => TryDecodeCore(source, out value);
 
-    /// <summary>Decodes exactly <see cref="Width64"/> UTF-8 bytes.</summary>
     public static bool TryDecodeUInt64(ReadOnlySpan<byte> utf8Source, out ulong value) => TryDecodeCore(utf8Source, out value);
 
     /// <summary>Decodes exactly <see cref="Width128"/> chars into a <see cref="Guid"/> (big-endian byte order).</summary>
@@ -92,8 +78,6 @@ public static class Base62
         return ok;
     }
 
-    // ---- Guid <-> UInt128 (big-endian, RFC 9562 byte order) -----------------------------------------------------
-
     /// <summary>Interprets the RFC 9562 (big-endian) byte layout of <paramref name="value"/> as an unsigned integer.</summary>
     public static UInt128 ToUInt128(Guid value)
     {
@@ -109,8 +93,6 @@ public static class Base62
         BinaryPrimitives.WriteUInt128BigEndian(bytes, value);
         return new Guid(bytes, bigEndian: true);
     }
-
-    // ---- Core ---------------------------------------------------------------------------------------------------
 
     internal static bool TryEncodeCore<TChar>(UInt128 value, Span<TChar> destination)
         where TChar : unmanaged, IBinaryInteger<TChar>

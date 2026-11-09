@@ -26,7 +26,7 @@ public sealed class UuidV7Generator(TimeProvider timeProvider)
     private const int SeedMask = (1 << (CounterBits - 1)) - 1;
 
     /// <summary>Process-wide instance on <see cref="TimeProvider.System"/>, used by generated <c>New()</c>.</summary>
-    // Decided in M2 (PLAN §4.2): Shared stays on the system clock; callers that need another clock make their own.
+    // Shared stays on the system clock; a caller that needs another clock makes its own.
     public static UuidV7Generator Shared { get; } = new(TimeProvider.System);
 
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));

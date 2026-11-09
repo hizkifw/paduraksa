@@ -11,14 +11,14 @@ using Microsoft.Win32.SafeHandles;
 namespace Paduraksa.Core.Hosting;
 
 /// <summary>
-/// The admin app's internal listener (PLAN §3.1): the public proxy reaches the admin through it without a second public port.
+/// The admin app's internal listener: the public proxy reaches the admin through it without a second public port.
 /// It is a Unix domain socket at <c>&lt;data dir&gt;/run/admin.sock</c> where one can be used, and a loopback TCP listener on an
 /// OS-assigned port otherwise.
 /// </summary>
 /// <remarks>
 /// <para><b>Why a socket, not the admin HTTPS port.</b> The admin port has its own certificate and its own per-connection
 /// source allowlist. Proxying a public name to it would make every client look like loopback, sharing one throttle bucket and
-/// defeating an allowlist that names loopback (PLAN §3.1). The internal listener is reachable only by this process (the run
+/// defeating an allowlist that names loopback. The internal listener is reachable only by this process (the run
 /// directory is 0700 and the socket 0600) and carries <b>no TLS</b>: plaintext stays inside the process boundary, or through
 /// the loopback fallback's socket, where it is also visible to this machine's owner only.</para>
 /// <para><b>Authenticated hop.</b> The listener can't rely on the peer address: in TCP fallback mode anything on the machine can
@@ -27,17 +27,15 @@ namespace Paduraksa.Core.Hosting;
 /// request that doesn't carry it before trusting any forwarded header.</para>
 /// <para><b>Fallback.</b> A Unix socket is chosen only after a probe on a temporary sibling name succeeds; where it does not (a
 /// platform without Unix-domain sockets, a path too long for <c>sockaddr_un</c>), the listener uses
-/// <c>127.0.0.1:&lt;ephemeral&gt;</c>. The chosen port is recorded when the admin app has bound and the proxy's connect callback
-/// waits for it briefly, so the fallback also works when the public app starts first. <see cref="FallbackReason"/> says why the
-/// fallback happened and is logged at Warning by the server.</para>
+/// <c>127.0.0.1:&lt;ephemeral&gt;</c>. The proxy's connect callback waits briefly for that port, so the fallback also works
+/// when the public app starts first.</para>
 /// <para><b>Stale sockets.</b> The real socket path is never deleted blindly: connecting to it first distinguishes a live second
-/// instance (startup fails with <see cref="AdminInternalStartupException"/>) from a stale file, and only the latter is removed.
-/// The probe uses a sibling name; <see cref="Dispose"/> removes the socket only while its identity is still the one this process
-/// bound. On Linux the bound socket's inode is held open for the process's life: a filesystem may hand the inode number of a
-/// deleted file straight to the next one (tmpfs and overlayfs do), so comparing numbers alone is not an identity, but the open
-/// handle keeps <i>our</i> inode allocated, and then an equal number can only be the same file.</para>
-/// <para>This type is in Core because the proxy (the connect callback and the secret stamp), the admin app (the middleware that
-/// trusts forwarded headers on it only) and the composition root all need the same instance; it has no ASP.NET dependency.</para>
+/// instance (startup fails with <see cref="AdminInternalStartupException"/>) from a stale file. On Linux the bound socket's
+/// inode is held open for the process's life: a filesystem may hand the inode number of a deleted file straight to the next
+/// one (tmpfs and overlayfs do), so comparing numbers alone is not an identity, but the open handle keeps <i>our</i> inode
+/// allocated, and then an equal number can only be the same file.</para>
+/// <para>This type is in Core because the proxy, the admin app and the composition root all need the same instance, and it
+/// has no ASP.NET dependency.</para>
 /// </remarks>
 public sealed class AdminInternalListener : IDisposable
 {

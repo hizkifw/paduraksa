@@ -1,6 +1,6 @@
 namespace Paduraksa.Core.Model;
 
-/// <summary>The state of an ACME account row (PLAN §5.1, §9.3). Persisted by name (<see cref="ModelNames"/>).</summary>
+/// <summary>The state of an ACME account row. Persisted by name (<see cref="ModelNames"/>).</summary>
 public enum AcmeAccountStatus
 {
     /// <summary>The CA knows the account and it may order certificates.</summary>
@@ -11,7 +11,7 @@ public enum AcmeAccountStatus
 }
 
 /// <summary>
-/// Where an ACME order stands in Paduraksa's own bookkeeping (PLAN §9.3). The CA's order is the authority on what
+/// Where an ACME order stands in Paduraksa's own bookkeeping. The CA's order is the authority on what
 /// happens next, so a resume re-reads it; this status is for operators and for the scheduler to see what is unfinished.
 /// Persisted by name (<see cref="ModelNames"/>).
 /// </summary>
@@ -43,7 +43,7 @@ public enum AcmeChallengeType
     Dns01 = 2,
 }
 
-/// <summary>The DNS services Paduraksa can drive for DNS-01 (PLAN §9). Persisted by name (<see cref="ModelNames"/>); adding a kind needs a migration for the column's check.</summary>
+/// <summary>The DNS services Paduraksa can drive for DNS-01. Persisted by name (<see cref="ModelNames"/>); adding a kind needs a migration for the column's check.</summary>
 public enum DnsProviderKind
 {
     /// <summary>Cloudflare's API.</summary>

@@ -11,7 +11,7 @@ namespace Paduraksa.Core.Vault;
 public sealed record TotpEnrollment(SecretId SecretId, Uri ProvisioningUri);
 
 /// <summary>
-/// Two-factor codes (RFC 6238) for admin users (PLAN §8.2, §10.1). The vault creates the shared secret, keeps it sealed, and
+/// Two-factor codes (RFC 6238) for admin users. The vault creates the shared secret, keeps it sealed, and
 /// verifies codes itself: HMAC is banned outside the vault, and a secret that a caller could read could be leaked. There is no
 /// way to read a secret back after enrolment.
 /// </summary>

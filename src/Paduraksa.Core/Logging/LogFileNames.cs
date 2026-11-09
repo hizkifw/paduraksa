@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Paduraksa.Core.Logging;
 
-/// <summary>Which log a file holds (PLAN §7.4).</summary>
+/// <summary>Which log a file holds.</summary>
 public enum LogFileKind
 {
     /// <summary>One line per request, written by the access log's background drain.</summary>
@@ -13,7 +13,7 @@ public enum LogFileKind
 }
 
 /// <summary>
-/// The names of the log files under <c>&lt;data dir&gt;/logs</c> (PLAN §7.4), shared by the writer (Server) and the reader (Application and
+/// The names of the log files under <c>&lt;data dir&gt;/logs</c>, shared by the writer (Server) and the reader (Application and
 /// the dashboard), so both agree on what a log file is and on which names may be served.
 /// <para>
 /// A log has one <b>live</b> file (<c>access.log</c>, <c>error.log</c>) that is appended to, and any number of <b>rotated</b> ones

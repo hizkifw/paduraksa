@@ -3,7 +3,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Core.Vault;
 
 /// <summary>
-/// Takes an uploaded certificate together with its private key straight into the vault (PLAN §8.2, §9): the stream goes
+/// Takes an uploaded certificate together with its private key straight into the vault: the stream goes
 /// in, public facts come out, and the key is never returned. The upload endpoint streams the request body into
 /// <see cref="ImportAsync"/> without buffering it in any other layer (the dashboard posts to that endpoint rather than
 /// through the Blazor circuit).

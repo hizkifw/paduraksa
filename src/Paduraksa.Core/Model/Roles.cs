@@ -1,7 +1,7 @@
 namespace Paduraksa.Core.Model;
 
 /// <summary>
-/// An admin role (PLAN §10.1). A role is a named set of <see cref="Permission"/>s (<c>RolePermissions</c> in
+/// An admin role. A role is a named set of <see cref="Permission"/>s (<c>RolePermissions</c> in
 /// Application), so custom roles can be added later. Persisted by name (<see cref="ModelNames"/>).
 /// </summary>
 public enum Role
@@ -23,10 +23,10 @@ public enum Role
 }
 
 /// <summary>
-/// One thing an admin may do (PLAN §10.1). Roles grant sets of them; an API token's scopes are a subset of its owner's.
+/// One thing an admin may do. Roles grant sets of them; an API token's scopes are a subset of its owner's.
 /// Persisted by name (<see cref="ModelNames"/>), which is also how a token scope is written (<c>config:write</c>).
 /// </summary>
-#pragma warning disable CA1711 // "Permission" is the domain's word (PLAN §10.1); the rule is about the attribute-like suffix.
+#pragma warning disable CA1711 // "Permission" is the domain's word; the rule is about the attribute-like suffix.
 public enum Permission
 #pragma warning restore CA1711
 {

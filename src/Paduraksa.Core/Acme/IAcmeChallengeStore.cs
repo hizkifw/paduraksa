@@ -1,7 +1,7 @@
 namespace Paduraksa.Core.Acme;
 
 /// <summary>
-/// The HTTP-01 answers the public listener serves (PLAN §7.2 C, §9.3): a token the CA will fetch, and the key
+/// The HTTP-01 answers the public listener serves: a token the CA will fetch, and the key
 /// authorization to answer it with. The orchestrator publishes before it tells the CA to validate and removes the entry
 /// afterwards; the gate answers only tokens that are in the store, so nothing else under
 /// <c>/.well-known/acme-challenge/</c> is ever served from here.

@@ -29,7 +29,7 @@ public enum TcpAlpn
     Http11Only = 1,
 }
 
-/// <summary>What a host's responses put in <c>Server</c> (PLAN §14 M6).</summary>
+/// <summary>What a host's responses put in <c>Server</c>.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<ServerHeaderMode>))]
 public enum ServerHeaderMode
 {
@@ -47,8 +47,8 @@ public enum ServerHeaderMode
 }
 
 /// <summary>
-/// Where a request's ID (<c>X-Request-Id</c>, PLAN §7.4) goes: to the upstream, back to the client, both or neither.
-/// The ID itself always exists - the access log (and later the error pages) records it whatever this says.
+/// Where a request's ID (<c>X-Request-Id</c>) goes: to the upstream, back to the client, both or neither.
+/// The ID itself always exists: the access log records it whatever this says.
 /// </summary>
 [JsonConverter(typeof(ConfigEnumConverter<RequestIdPropagation>))]
 public enum RequestIdPropagation : byte

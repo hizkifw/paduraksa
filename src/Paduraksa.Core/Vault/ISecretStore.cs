@@ -18,7 +18,7 @@ public enum SecretKind
     EabHmacKey = 1,
 
     /// <summary>
-    /// A user's TOTP shared secret (PLAN §10.1). Because there is no get, the vault generates it: the vault creates the
+    /// A user's TOTP shared secret. Because there is no get, the vault generates it: the vault creates the
     /// secret, returns only a one-time provisioning URI (<c>otpauth://</c>, for the QR code) at enrolment and verifies codes
     /// itself through <see cref="ITotpAuthenticator"/>. The enrolment URI is the single, deliberate place a TOTP secret
     /// leaves the vault, once, to the user's own authenticator.
@@ -60,7 +60,7 @@ public sealed record SecretOptions(string? Label, MacAlgorithm? MacAlgorithm, IR
 /// <param name="AllowedHosts">The normalised hosts a <see cref="SecretKind.DnsApiToken"/> may be sent to; empty for other kinds.</param>
 /// <param name="CreatedAt">When it was first stored.</param>
 /// <param name="UpdatedAt">When its value was last replaced; equal to <paramref name="CreatedAt"/> if never.</param>
-/// <param name="Version">1 for the first value, +1 on each replacement. Part of the AAD that binds the ciphertext (PLAN §8.3).</param>
+/// <param name="Version">1 for the first value, +1 on each replacement. Part of the AAD that binds the ciphertext.</param>
 public sealed record SecretMetadata(
     SecretId Id,
     SecretKind Kind,
@@ -72,7 +72,7 @@ public sealed record SecretMetadata(
     int Version);
 
 /// <summary>
-/// Stores secrets (PLAN §8.2). <b>There is no get.</b> Secrets go in, capabilities come out: a DNS token is used through
+/// Stores secrets. <b>There is no get.</b> Secrets go in, capabilities come out: a DNS token is used through
 /// <see cref="ISecretHttpHandlerFactory"/>, an HMAC key through <see cref="IMacKeySource"/>. Other resources keep only the
 /// <see cref="SecretId"/>.
 /// </summary>
