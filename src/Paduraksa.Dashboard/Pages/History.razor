@@ -53,7 +53,7 @@ else if (_entries.Count == 0)
 {
     <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
         <EmptyState Icon="@Icons.Material.Outlined.History" Title="No changes yet"
-                    Description="The first change you apply becomes revision #1. Every one after it is kept here, with a diff and a way back.">
+                    Description="The first change you apply becomes revision #1; every one after it is kept with a diff and a way back.">
             <Action>
                 @if (_mayWrite)
                 {
@@ -150,7 +150,7 @@ else
             }
             else
             {
-                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.TouchApp" Title="Pick a revision" Description="Its changes show here." />
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.TouchApp" Title="Pick a revision" />
             }
         </MudPaper>
     </div>

@@ -187,7 +187,7 @@ else
         else if (_events.Count == 0)
         {
             <EmptyState Icon="@Icons.Material.Outlined.FactCheck" Title="@(Filtered ? "No event matches" : "Nothing recorded yet")"
-                        Description="@(Filtered ? "Widen the time range or clear a filter." : "Sign-ins and changes show up here as they happen.")" />
+                        Description="@(Filtered ? "Widen the time range or clear a filter." : null)" />
         }
         else
         {
