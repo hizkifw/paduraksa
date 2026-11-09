@@ -78,6 +78,7 @@ public sealed class PublicHttp3Tests
         Assert.Equal("app.test", served.Value);
         Assert.False(h3.Headers.Contains("Alt-Svc")); // already on H3
         Assert.Equal("max-age=31536000", Assert.Single(h3.Headers.GetValues("Strict-Transport-Security"))); // HSTS does go on H3
+        Assert.Equal("Paduraksa", Assert.Single(h3.Headers.GetValues("Server"))); // and so does the host's Server header
         Assert.Equal("/h3?x=1", seen["target"]);
         Assert.Equal("127.0.0.1", seen["X-Forwarded-For"]);
         Assert.Equal("https", seen["X-Forwarded-Proto"]);

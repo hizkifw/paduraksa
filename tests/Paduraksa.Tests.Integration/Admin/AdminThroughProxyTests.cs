@@ -274,6 +274,33 @@ public sealed class AdminThroughProxyTests
     }
 
     [Fact]
+    public async Task TheAdminHostsOwnServerHeaderSettingWinsThroughTheProxy()
+    {
+        // An admin host through the proxy follows its own resolved Server setting, like any other host (PLAN §3.1, §14 M6).
+        await using AdminProxyHarness plain = await AdminProxyHarness.StartAsync();
+        using (HttpResponseMessage untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
+        {
+            Assert.Equal(HttpStatusCode.OK, untouched.StatusCode);
+            Assert.Equal("Paduraksa", Assert.Single(untouched.Headers.GetValues("Server")));
+        }
+
+        // The admin app's own listener doesn't add Kestrel's either; the host's header is the one on the public response.
+        AdminInternalListener listener = plain.Host.Shared.AdminInternal;
+        (int status, string headers, _) = await InternalAsync(listener, "GET", "/healthz", listener.Secret, xff: "127.0.0.1", proto: "https");
+        Assert.Equal(HttpStatusCode.OK, (HttpStatusCode)status);
+        Assert.DoesNotContain("Server:", headers, StringComparison.OrdinalIgnoreCase);
+
+        await using AdminProxyHarness configured = await AdminProxyHarness.StartAsync(
+            adminHostSettings: new HostSettings
+            {
+                ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "admin-edge/1.0" },
+            });
+        using HttpResponseMessage ours = await configured.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: configured.SessionHeader);
+        Assert.Equal(HttpStatusCode.OK, ours.StatusCode);
+        Assert.Equal("admin-edge/1.0", Assert.Single(ours.Headers.GetValues("Server")));
+    }
+
+    [Fact]
     public async Task SetupIsRefusedThroughTheInternalListener()
     {
         await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();

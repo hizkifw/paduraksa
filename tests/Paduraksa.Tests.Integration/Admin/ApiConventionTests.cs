@@ -365,6 +365,21 @@ public sealed class ApiConventionTests
         Assert.Equal(["enabled", "maxAge", "includeSubDomains", "preload"], properties.Select(p => p.Key));
         Assert.Contains("max-age", properties["maxAge"]!["description"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
         Assert.Contains("preload", properties["preload"]!["description"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+
+        // The Server header layer is beside HSTS, with its own mode and value.
+        Assert.Contains("serverHeader", hostSettings["properties"]!.AsObject().Select(p => p.Key));
+        JsonNode serverProperty = hostSettings["properties"]!["serverHeader"]!;
+        string? serverReference = serverProperty["$ref"]?.GetValue<string>() ?? serverProperty["oneOf"]?[1]?["$ref"]?.GetValue<string>();
+        Assert.NotNull(serverReference);
+        Assert.Contains("ServerHeaderSettings", serverReference, StringComparison.Ordinal);
+        JsonObject serverProperties = schemas["ServerHeaderSettings"]!["properties"]!.AsObject();
+        Assert.Equal(["mode", "value"], serverProperties.Select(p => p.Key));
+        JsonNode mode = serverProperties["mode"]!;
+        string? modeReference = mode["$ref"]?.GetValue<string>() ?? mode["oneOf"]?[1]?["$ref"]?.GetValue<string>();
+        Assert.NotNull(modeReference);
+        Assert.Contains("ServerHeaderMode", modeReference, StringComparison.Ordinal);
+        Assert.Contains("remove", schemas["ServerHeaderMode"]!["enum"]!.AsArray().Select(v => v!.GetValue<string>()));
+        Assert.Contains("128", serverProperties["value"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
     }
 
     [Fact]

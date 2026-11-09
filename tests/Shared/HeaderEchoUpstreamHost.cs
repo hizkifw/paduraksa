@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -36,7 +37,11 @@ internal static class HeaderEchoUpstreamHost
         IHost host = new HostBuilder()
             .ConfigureLogging(static logging => logging.ClearProviders())
             .ConfigureWebHost(web => web
-                .UseKestrel(static kestrel => kestrel.Listen(IPAddress.Loopback, 0))
+                .UseKestrel(static kestrel =>
+                {
+                    kestrel.Listen(IPAddress.Loopback, 0);
+                    kestrel.AddServerHeader = false;
+                })
                 .Configure(app => app.Run(context =>
                 {
                     onResponse?.Invoke(context.Response);
