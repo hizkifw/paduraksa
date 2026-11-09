@@ -60,40 +60,4 @@ public sealed class HstsHeaderTests
     [InlineData("", true)]
     public void KnowsTheNamesHstsNeverGoesTo(string name, bool exempt) =>
         Assert.Equal(exempt, HstsHeader.IsExemptName(name));
-
-    [Fact]
-    public void SetsTheHeaderOnlyWhenEveryConditionHolds()
-    {
-        StringValues value = new("max-age=31536000");
-
-        Assert.Equal(HstsDecision.Sent, Apply("app.example.com", https: true, value, out DefaultHttpContext sent));
-        Assert.Equal("max-age=31536000", sent.Response.Headers.StrictTransportSecurity.ToString());
-
-        Assert.Equal(HstsDecision.PlainHttp, Apply("app.example.com", https: false, value, out DefaultHttpContext plain));
-        Assert.False(plain.Response.Headers.ContainsKey("Strict-Transport-Security"));
-
-        Assert.Equal(HstsDecision.ExemptName, Apply("localhost", https: true, value, out DefaultHttpContext loopback));
-        Assert.False(loopback.Response.Headers.ContainsKey("Strict-Transport-Security"));
-
-        Assert.Equal(HstsDecision.ExemptName, Apply("127.0.0.1", https: true, value, out DefaultHttpContext literal));
-        Assert.False(literal.Response.Headers.ContainsKey("Strict-Transport-Security"));
-
-        // No host value (HSTS off): nothing of ours, whatever the request.
-        DefaultHttpContext off = TestContexts.Create("app.example.com", "/", scheme: "https");
-        Assert.Equal(HstsDecision.Off, HstsHeader.Apply(off, StringValues.Empty, true, "app.example.com"));
-        Assert.False(off.Response.Headers.ContainsKey("Strict-Transport-Security"));
-    }
-
-    [Fact]
-    public void ApplyingItAllocatesNothing() =>
-        AllocAssert.Zero(
-            TestContexts.Create("app.example.com", "/", scheme: "https"),
-            static context => HstsHeader.Apply(context, new StringValues("max-age=31536000; includeSubDomains"), true, "app.example.com"),
-            "HSTS apply");
-
-    private static HstsDecision Apply(string name, bool https, StringValues value, out DefaultHttpContext context)
-    {
-        context = TestContexts.Create(name, "/", scheme: https ? "https" : "http");
-        return HstsHeader.Apply(context, value, https, name);
-    }
 }

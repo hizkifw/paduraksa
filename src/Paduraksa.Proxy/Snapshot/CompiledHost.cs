@@ -34,28 +34,12 @@ public sealed class CompiledHost
     public PrecomputedResponse? FixedResponse { get; init; }
 
     /// <summary>
-    /// The precomputed <c>Alt-Svc</c> value (<c>h3=":443"; ma=86400</c>, with the public HTTPS port), or empty when the
-    /// host isn't served over HTTP/3. The gate sets it on the host's TCP HTTPS responses, forwarded or answered
-    /// (<see cref="Tls.AltSvcHeader.Apply"/>).
+    /// The host's response headers (PLAN §7.2 C): <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>, <c>Server</c> and the
+    /// response <c>X-Request-Id</c>, each with its precomputed value, what to do with it, when, and what has to hold. This
+    /// is the one list the gate (<see cref="Http.ResponseHeaders.ApplyStage"/>), the reapply after a forward and YARP's
+    /// response transform all loop over (<see cref="Http.ResponseHeaderOperation"/>).
     /// </summary>
-    public StringValues AltSvc { get; init; }
-
-    /// <summary>
-    /// The precomputed <c>Strict-Transport-Security</c> value (<c>max-age=31536000; includeSubDomains</c>), or empty when
-    /// the host has HSTS off. The gate sets it on the host's HTTPS responses, forwarded or answered, unless the request's
-    /// name is an IP literal or a loopback name (<see cref="Tls.HstsHeader.Apply"/>).
-    /// </summary>
-    public StringValues Hsts { get; init; }
-
-    /// <summary>
-    /// The precomputed <c>Server</c> value (<c>Paduraksa</c>, or a custom value), or empty when the mode leaves it to the
-    /// upstream or removes it. The gate sets it on every response the host gives; the YARP response transform makes the
-    /// mode hold for a forwarded response too (<see cref="Http.ServerHeader.Apply"/>).
-    /// </summary>
-    public StringValues Server { get; init; } = new(Http.ServerHeader.Product);
-
-    /// <summary>What the host's responses do with <c>Server</c>.</summary>
-    public ServerHeaderMode ServerMode { get; init; } = ServerHeaderMode.Paduraksa;
+    public ResponseHeaderOperation[] ResponseHeaders { get; init; } = [];
 
     /// <summary>
     /// The host's TLS settings. The handshake applies the settings of the SNI's host; the gate re-checks this host's
@@ -80,8 +64,9 @@ public sealed class CompiledHost
     public bool AccessLog { get; init; } = true;
 
     /// <summary>
-    /// Where the request ID is sent (PLAN §7.4): the settings layers resolved it, built-in default upstream and response.
-    /// Compiled from the config; the log records the ID whatever it says.
+    /// Where the request ID is sent upstream (PLAN §7.4): the settings layers resolved it, built-in default upstream and
+    /// response. The response leg is the <c>X-Request-Id</c> operation in <see cref="ResponseHeaders"/>; the log records
+    /// the ID whatever it says.
     /// </summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 

@@ -135,30 +135,73 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
         steps.Add(new GateStep(GateStepKind.HostMatch, GateStepVerdict.Stopped, $"{why}: {answer}", facts));
     }
 
-    public void ServerHeader(CompiledHost? host, StringValues value, ServerHeaderMode mode, ServerHeaderDecision decision)
+    /// <summary>
+    /// One step lists every response header the answer carries and every one it doesn't: the stages report as they run,
+    /// and a later stage's report extends the step the earlier one opened (a 421, which stops before the second stage,
+    /// therefore lists only what was applied).
+    /// </summary>
+    public void ResponseHeaders(HttpContext context, CompiledHost? host, ReadOnlySpan<ResponseHeaderOperation> operations, ReadOnlySpan<HeaderOutcome> outcomes)
     {
-        List<GateFact> facts = [new("mode", TraceNames.Of(mode))];
-        string summary;
-        switch (decision)
+        List<GateFact> facts = [];
+        for (int i = 0; i < operations.Length; i++)
         {
-            case ServerHeaderDecision.Sent:
-                facts.Add(new("value", value.ToString()));
-                summary = $"Server: {value} (an upstream's header is replaced)";
-                break;
-            case ServerHeaderDecision.Removed:
-                summary = "Server is removed: neither ours nor an upstream's header is sent";
-                break;
-            default:
-                summary = "the upstream's own Server header passes through; a gate answer carries none";
-                break;
+            if (outcomes[i] == HeaderOutcome.None)
+            {
+                continue;
+            }
+
+            facts.Add(Describe(context, operations[i], outcomes[i]));
         }
 
-        steps.Add(new GateStep(
-            GateStepKind.ServerHeader,
+        if (facts.Count == 0)
+        {
+            return;
+        }
+
+        IReadOnlyList<GateFact> all = facts;
+        int existing = steps.FindLastIndex(step => step is { Kind: GateStepKind.ResponseHeaders } && step.Host == host?.Id);
+        if (existing >= 0)
+        {
+            all = [.. steps[existing].Facts, .. facts];
+        }
+
+        GateStep opened = new(
+            GateStepKind.ResponseHeaders,
             GateStepVerdict.Passed,
-            summary,
-            facts,
-            host?.Id));
+            host is null
+                ? "the global defaults' response headers, which a name no host serves and an ACME answer follow"
+                : "the host's response headers",
+            all,
+            host?.Id);
+        if (existing >= 0)
+        {
+            // The later stage extends the step the earlier one opened, in its place: the trace keeps the order the gate ran in.
+            steps[existing] = opened;
+        }
+        else
+        {
+            steps.Add(opened);
+        }
+    }
+
+    /// <summary>One header as a fact: the value it carries, or why the answer doesn't carry it.</summary>
+    private static GateFact Describe(HttpContext context, in ResponseHeaderOperation operation, HeaderOutcome outcome)
+    {
+        string name = operation.Name;
+        return outcome switch
+        {
+            HeaderOutcome.Sent => new(name, operation.Value.ToString()),
+            HeaderOutcome.Replaced => new(name, Http.ResponseHeaders.IsRequestId(operation)
+                ? (context.Features.Get<IGateFeature>()?.State.RequestIdText() ?? string.Empty)
+                : operation.Value.ToString()),
+            HeaderOutcome.Deferred => new(name, "sent when the response is written: " + (context.Features.Get<IGateFeature>()?.State.RequestIdText() ?? string.Empty)),
+            HeaderOutcome.Removed => new(name, "removed: " + (operation.Reason ?? "whatever the upstream sends is dropped")),
+            HeaderOutcome.LeftToUpstream => new(name, "not sent: " + (operation.Reason ?? "the upstream's own passes through")),
+            HeaderOutcome.NotSent => new(name, "not sent: " + (operation.Reason ?? "the host doesn't have it")),
+            HeaderOutcome.PlainHttp => new(name, "not sent: the request isn't HTTPS"),
+            HeaderOutcome.ExemptName => new(name, "not sent: an IP address or a loopback name must not be remembered"),
+            _ => new(name, "not sent: HTTP/3 already is the transport"),
+        };
     }
 
     public void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch)
@@ -194,36 +237,6 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
         steps.Add(new GateStep(
             GateStepKind.TlsPolicy,
             mismatch == TlsMismatch.None ? GateStepVerdict.Passed : GateStepVerdict.Stopped,
-            summary,
-            facts,
-            host.Id));
-    }
-
-    public void Hsts(CompiledHost host, HstsDecision decision)
-    {
-        List<GateFact> facts = [new("configured", Flag(!StringValues.IsNullOrEmpty(host.Hsts)))];
-        string summary;
-        switch (decision)
-        {
-            case HstsDecision.Sent:
-                facts.Add(new("value", host.Hsts.ToString()));
-                summary = "Strict-Transport-Security: a browser keeps this host on HTTPS for the max-age it names";
-                break;
-            case HstsDecision.PlainHttp:
-                facts.Add(new("scheme", "http"));
-                summary = "plain HTTP: HSTS is sent on HTTPS responses only";
-                break;
-            case HstsDecision.ExemptName:
-                summary = "HSTS isn't sent to an IP address or a loopback name: browsers must not remember those";
-                break;
-            default:
-                summary = "HSTS is off: no Strict-Transport-Security of ours, so an upstream's own passes through";
-                break;
-        }
-
-        steps.Add(new GateStep(
-            GateStepKind.Hsts,
-            decision == HstsDecision.Sent ? GateStepVerdict.Passed : GateStepVerdict.Skipped,
             summary,
             facts,
             host.Id));

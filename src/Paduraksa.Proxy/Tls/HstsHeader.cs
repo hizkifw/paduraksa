@@ -4,30 +4,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Proxy.Tls;
 
-/// <summary>Why a host's HSTS header was or wasn't set on a response.</summary>
-public enum HstsDecision : byte
-{
-    /// <summary>The host has HSTS off: nothing of ours is sent, so an upstream's own header passes through untouched.</summary>
-    Off = 0,
-
-    /// <summary>Ours is on the response; YARP then leaves an upstream's own out (<c>HttpTransformer</c> skips it when one
-    /// is already set).</summary>
-    Sent,
-
-    /// <summary>The request isn't HTTPS as the trusted proxies see it: HSTS goes on HTTPS responses only.</summary>
-    PlainHttp,
-
-    /// <summary>The request's host name is an IP literal or a loopback name, which browsers must not pin.</summary>
-    ExemptName,
-}
-
 /// <summary>
 /// The <c>Strict-Transport-Security</c> header Paduraksa sends (PLAN §14 M6). The compiler builds one value per host
-/// (<see cref="ValueOf"/>) and the gate applies it (<see cref="Apply"/>) next to <c>Alt-Svc</c>, after the TLS check, so
+/// (<see cref="ValueOf"/>) into the host's <see cref="Http.ResponseHeaderOperation"/> list, which the gate applies next to
+/// <c>Alt-Svc</c>, after the TLS check, so
 /// every response the host then gets carries it: forwarded ones, the HTTPS redirect, a Redirect or Respond answer and a
 /// policy's refusal. A 421 from that TLS check deliberately gets none: the client is on a connection it must leave, and
 /// pinning the name for a year on the strength of a misdirected request is not this host's to do.
@@ -47,6 +30,9 @@ public static class HstsHeader
 
     /// <summary>The shortest <c>max-age</c> a preload list accepts (a year).</summary>
     public const int PreloadMinMaxAgeSeconds = 31_536_000;
+
+    /// <summary>The header's name.</summary>
+    public const string HeaderName = "Strict-Transport-Security";
 
     private const string LocalhostSuffix = ".localhost";
     private const string Localhost = "localhost";
@@ -75,38 +61,6 @@ public static class HstsHeader
         }
 
         return new StringValues(value);
-    }
-
-    /// <summary>
-    /// Sets <c>Strict-Transport-Security</c> to the host's precomputed value when it applies. 0 B: no string is built,
-    /// the shared value is stored as is. Sent over HTTP/3 as well, unlike <c>Alt-Svc</c>: HSTS is about the host's scheme,
-    /// and an HTTP/3 request is already HTTPS.
-    /// </summary>
-    /// <param name="context">The request being answered.</param>
-    /// <param name="hostValue">The host's precomputed value (<see cref="Snapshot.CompiledHost.Hsts"/>).</param>
-    /// <param name="isHttps">The trusted request scheme (<see cref="Gate.GateRequestState.IsHttps"/>).</param>
-    /// <param name="requestHostName">The <c>Host</c> header's name, port and trailing dot stripped
-    /// (<see cref="HostTable.HostName"/>).</param>
-    public static HstsDecision Apply(HttpContext context, StringValues hostValue, bool isHttps, ReadOnlySpan<char> requestHostName)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        if (StringValues.IsNullOrEmpty(hostValue))
-        {
-            return HstsDecision.Off;
-        }
-
-        if (!isHttps)
-        {
-            return HstsDecision.PlainHttp;
-        }
-
-        if (IsExemptName(requestHostName))
-        {
-            return HstsDecision.ExemptName;
-        }
-
-        context.Response.Headers.StrictTransportSecurity = hostValue;
-        return HstsDecision.Sent;
     }
 
     /// <summary>

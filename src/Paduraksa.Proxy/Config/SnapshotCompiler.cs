@@ -74,7 +74,15 @@ public static class SnapshotCompiler
         }
 
         TrustedProxyPolicy trustedProxies = CompileTrustedProxies(defaults.TrustedProxies, options, errors);
-        (StringValues defaultServer, ServerHeaderMode defaultServerMode) = CompileServerHeader(defaults.ServerHeader, CompileErrorSource.Defaults, errors);
+        ResponseHeaderOperation[] defaultHeaders = CompileResponseHeaders(
+            serverHeader: defaults.ServerHeader,
+            hsts: null,
+            altSvc: default,
+            altSvcReason: "a name no host serves is never invited onto HTTP/3",
+            hstsReason: "the proxy doesn't pin a name it doesn't serve",
+            propagation: defaults.RequestIdPropagation,
+            CompileErrorSource.Defaults,
+            errors);
         HashSet<UpstreamId> withoutDestinations = [];
         Dictionary<UpstreamId, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], withoutDestinations, errors);
         HashSet<UpstreamId> reported = [];
@@ -153,7 +161,19 @@ public static class SnapshotCompiler
             TlsPolicy tls = CompileTlsPolicy(spec.Tls, where, errors);
             List<(ServerCertificate Certificate, List<string> Names)> serverNames =
                 spec.Enabled ? GroupByCertificate(ServerNamesOf(spec.Names ?? []), certificate, nameCertificates) : [];
-            (StringValues server, ServerHeaderMode serverMode) = CompileServerHeader(spec.ServerHeader, where, errors);
+            // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only host has none:
+            // its HTTPS rides on the default certificate's entry and that entry's settings).
+            ResponseHeaderOperation[] responseHeaders = CompileResponseHeaders(
+                serverHeader: spec.ServerHeader,
+                hsts: spec.Hsts,
+                altSvc: serverNames.Count > 0 ? altSvc.ForHost(tls) : default,
+                altSvcReason: serverNames.Count == 0
+                    ? "its names are IP literals, which never arrive as a server name"
+                    : "the host doesn't serve HTTP/3",
+                hstsReason: "the host has HSTS off",
+                propagation: spec.RequestIdPropagation,
+                where,
+                errors);
 
             CompiledHost host = new()
             {
@@ -168,12 +188,7 @@ public static class SnapshotCompiler
                 Https = spec.Https,
                 AccessLog = spec.AccessLog,
                 RequestIdPropagation = spec.RequestIdPropagation,
-                // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only
-                // host has none: its HTTPS rides on the default certificate's entry and that entry's settings).
-                AltSvc = serverNames.Count > 0 ? altSvc.ForHost(tls) : default,
-                Hsts = CompileHsts(spec.Hsts, where, errors),
-                Server = server,
-                ServerMode = serverMode,
+                ResponseHeaders = responseHeaders,
             };
 
             if (spec.Names is null || spec.Names.Count == 0)
@@ -264,8 +279,7 @@ public static class SnapshotCompiler
             TrustedProxies = trustedProxies,
             AccessLog = defaults.AccessLog,
             RequestIdPropagation = defaults.RequestIdPropagation,
-            DefaultServer = defaultServer,
-            DefaultServerMode = defaultServerMode,
+            DefaultResponseHeaders = defaultHeaders,
         };
         return new CompileResult(snapshot, []);
     }
@@ -898,17 +912,11 @@ public static class SnapshotCompiler
     }
 
     /// <summary>
-    /// The host's one <c>Strict-Transport-Security</c> value (PLAN §14 M6), or empty when HSTS is off. The validator
-    /// reports these rules too; the compiler is the backstop for a model built elsewhere, so a value that can't be sent
-    /// is never sent.
+    /// The host's one <c>Strict-Transport-Security</c> value. The validator reports these rules too; the compiler is the
+    /// backstop for a model built elsewhere, so a value that can't be sent is never sent.
     /// </summary>
-    private static StringValues CompileHsts(HostHstsSpec? spec, CompileErrorSource where, List<CompileError> errors)
+    private static StringValues CompileHsts(HostHstsSpec spec, CompileErrorSource where, List<CompileError> errors)
     {
-        if (spec is null || !spec.Enabled)
-        {
-            return StringValues.Empty;
-        }
-
         if (spec.MaxAgeSeconds is < 0 or > HstsHeader.MaxMaxAgeSeconds)
         {
             errors.Add(new(where, $"HSTS max-age must be 0-{HstsHeader.MaxMaxAgeSeconds} seconds, got {spec.MaxAgeSeconds}"));
@@ -931,17 +939,54 @@ public static class SnapshotCompiler
     }
 
     /// <summary>
-    /// The host's one <c>Server</c> value and the mode that decides how it is applied, or empty for the modes that leave
-    /// it to the upstream or remove it. The validator reports these rules too; the compiler is the backstop for a model
-    /// built elsewhere, so a value that can't be sent is never sent.
+    /// The host's response headers, compiled into the one list the gate, the reapply after a forward and YARP's transform
+    /// loop over (PLAN §7.2 C): <c>Server</c> first, because it goes on every answer (a 421 included), then
+    /// <c>Alt-Svc</c> and HSTS for the answers after the TLS check, then the response <c>X-Request-Id</c>.
+    /// <para>A header the host doesn't send is still an operation (<see cref="ResponseHeaderKind.NotSent"/>), so the trace
+    /// can say why, and the <c>Server</c> and request-ID entries are never absent: every answer has them.</para>
+    /// <para>The validator reports these rules too; the compiler is the backstop for a model built elsewhere, so a value
+    /// that can't be sent is never sent.</para>
     /// </summary>
-    private static (StringValues Value, ServerHeaderMode Mode) CompileServerHeader(
-        HostServerHeaderSpec spec, CompileErrorSource where, List<CompileError> errors)
+    /// <param name="serverHeader">The host's resolved <c>Server</c> header.</param>
+    /// <param name="hsts">The host's resolved HSTS, or null for the global defaults, which send none.</param>
+    /// <param name="altSvc">The precomputed <c>Alt-Svc</c> value, or empty when the host isn't served over HTTP/3.</param>
+    /// <param name="altSvcReason">Why <paramref name="altSvc"/> is empty, for the trace.</param>
+    /// <param name="hstsReason">Why the host has no HSTS, for the trace.</param>
+    /// <param name="propagation">Where the request ID goes.</param>
+    /// <param name="where">The object these belong to.</param>
+    /// <param name="errors">The compile errors to add to.</param>
+    private static ResponseHeaderOperation[] CompileResponseHeaders(
+        HostServerHeaderSpec serverHeader,
+        HostHstsSpec? hsts,
+        StringValues altSvc,
+        string altSvcReason,
+        string hstsReason,
+        RequestIdPropagation propagation,
+        CompileErrorSource where,
+        List<CompileError> errors) =>
+    [
+        CompileServerHeader(serverHeader, where, errors),
+        StringValues.IsNullOrEmpty(altSvc)
+            ? new ResponseHeaderOperation(AltSvcHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.NotSent, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.None, Reason: altSvcReason)
+            : new ResponseHeaderOperation(AltSvcHeader.HeaderName, altSvc, ResponseHeaderKind.Set, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.Tls | ResponseHeaderConditions.NotHttp3),
+        hsts is { Enabled: true }
+            ? new ResponseHeaderOperation(HstsHeader.HeaderName, CompileHsts(hsts, where, errors), ResponseHeaderKind.Set, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.TrustedHttps | ResponseHeaderConditions.NotExemptName)
+            : new ResponseHeaderOperation(HstsHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.NotSent, ResponseHeaderStage.AfterTlsCheck, ResponseHeaderConditions.None, Reason: hstsReason),
+        propagation.SendsResponse()
+            ? new ResponseHeaderOperation(Logging.RequestIds.HeaderName, StringValues.Empty, ResponseHeaderKind.ReplaceUpstream, ResponseHeaderStage.AfterDecision, ResponseHeaderConditions.None, ResponseHeaderValue.RequestId)
+            : new ResponseHeaderOperation(Logging.RequestIds.HeaderName, StringValues.Empty, ResponseHeaderKind.Remove, ResponseHeaderStage.AfterDecision, ResponseHeaderConditions.None, Reason: "the host doesn't send the ID to the client"),
+    ];
+
+    /// <summary>
+    /// The <c>Server</c> operation: ours for the name or the custom value, a removal for <see cref="ServerHeaderMode.Remove"/>,
+    /// and nothing for <see cref="ServerHeaderMode.Upstream"/>, whose header is the upstream's own.
+    /// </summary>
+    private static ResponseHeaderOperation CompileServerHeader(HostServerHeaderSpec spec, CompileErrorSource where, List<CompileError> errors)
     {
         if (!Enum.IsDefined(spec.Mode))
         {
             errors.Add(new(where, $"unknown Server header mode {spec.Mode}"));
-            return (StringValues.Empty, ServerHeaderMode.Upstream);
+            return new(ServerHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.LeaveToUpstream, ResponseHeaderStage.AfterHostLookup, ResponseHeaderConditions.None, Reason: "the host's Server header mode isn't one this build knows");
         }
 
         if (spec.Mode == ServerHeaderMode.Custom && !ServerHeader.IsValidValue(spec.Value))
@@ -949,10 +994,16 @@ public static class SnapshotCompiler
             errors.Add(new(
                 where,
                 $"the custom Server header must be 1-{ServerHeader.MaxValueLength} visible ASCII characters or spaces, with no leading or trailing space"));
-            return (StringValues.Empty, spec.Mode);
+            return new(ServerHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.Remove, ResponseHeaderStage.AfterHostLookup, ResponseHeaderConditions.None);
         }
 
-        return (ServerHeader.ValueOf(spec), spec.Mode);
+        return spec.Mode switch
+        {
+            // YARP appends an upstream's Server to what is already there, so ours has to replace that copy after the forward.
+            ServerHeaderMode.Remove => new(ServerHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.Remove, ResponseHeaderStage.AfterHostLookup, ResponseHeaderConditions.None),
+            ServerHeaderMode.Upstream => new(ServerHeader.HeaderName, StringValues.Empty, ResponseHeaderKind.LeaveToUpstream, ResponseHeaderStage.AfterHostLookup, ResponseHeaderConditions.None, Reason: "the upstream's own Server header passes through, and a gate answer carries none"),
+            _ => new(ServerHeader.HeaderName, ServerHeader.ValueOf(spec), ResponseHeaderKind.ReplaceUpstream, ResponseHeaderStage.AfterHostLookup, ResponseHeaderConditions.None),
+        };
     }
 
     /// <summary>

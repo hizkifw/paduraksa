@@ -59,13 +59,11 @@ public sealed class RuntimeSnapshot
     public required DefaultHostBehaviour Default { get; init; }
 
     /// <summary>
-    /// The <c>Server</c> the global defaults' layer resolves to, which an unknown host's answer follows too. Empty for
-    /// <see cref="ServerHeaderMode.Upstream"/> and <see cref="ServerHeaderMode.Remove"/>.
+    /// The global defaults' response headers (PLAN §7.2 C), which a request for an unknown host and an ACME challenge
+    /// answer follow too: the same list a host carries, compiled from the defaults. An <c>Alt-Svc</c> and an HSTS entry
+    /// are absent there - the proxy doesn't advertise or pin a name it doesn't serve.
     /// </summary>
-    public StringValues DefaultServer { get; init; } = new(ServerHeader.Product);
-
-    /// <summary>The global defaults' <c>Server</c> mode.</summary>
-    public ServerHeaderMode DefaultServerMode { get; init; } = ServerHeaderMode.Paduraksa;
+    public ResponseHeaderOperation[] DefaultResponseHeaders { get; init; } = [];
 
     /// <summary>A proxy host matched but none of its routes took the path.</summary>
     public PrecomputedResponse NoRoute { get; init; } = DefaultNoRoute;
@@ -156,8 +154,7 @@ public sealed class RuntimeSnapshot
             RouteIdBySlot = RouteIdBySlot,
             YarpEndpoints = endpoints,
             Default = Default,
-            DefaultServer = DefaultServer,
-            DefaultServerMode = DefaultServerMode,
+            DefaultResponseHeaders = DefaultResponseHeaders,
             NoRoute = NoRoute,
             Unavailable = Unavailable,
             Misdirected = Misdirected,

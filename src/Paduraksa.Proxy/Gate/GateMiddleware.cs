@@ -81,23 +81,19 @@ public sealed class GateMiddleware
     public Task InvokeAsync(HttpContext context, RequestDelegate next) => InvokeCoreAsync(context, next);
 
     /// <summary>
-    /// <see cref="Decide"/>, the request ID on the response (<see cref="RequestIds.HeaderName"/>) when the host sends it
-    /// (<see cref="RequestIdPropagation"/>), then <see cref="CompleteAsync"/>. The ID's header value is the one string a
+    /// <see cref="Decide"/>, then the response headers of the last stage (<see cref="ResponseHeaderStage.AfterDecision"/>:
+    /// the response <c>X-Request-Id</c>), then <see cref="CompleteAsync"/>. The ID's header value is the one string a
     /// request accepts; it is materialised here, once, and shared with the upstream header and the access log, so
     /// <see cref="Decide"/> itself stays at 0 B.
     /// </summary>
     private Task InvokeCoreAsync(HttpContext context, RequestDelegate next)
     {
         GateDecision decision = Decide(context);
-        if (context.Features.Get<IGateFeature>()?.State is { } state)
+        GateRequestState? state = context.Features.Get<IGateFeature>()?.State;
+        if (state is not null)
         {
-            RequestIdPropagation propagation = state.Snapshot is { } snapshot
-                ? snapshot.RequestIdPropagationFor(state.Host)
-                : RequestIdPropagation.UpstreamAndResponse;
-            if (propagation.SendsResponse())
-            {
-                context.Response.Headers[RequestIds.HeaderName] = state.RequestIdText();
-            }
+            ResponseHeaderOperation[] headers = state.Host is { } host ? host.ResponseHeaders : state.Snapshot?.DefaultResponseHeaders ?? [];
+            ResponseHeaders.ApplyStage(context, headers, ResponseHeaderStage.AfterDecision, state, [], applyRequestId: true);
         }
 
         return CompleteAsync(context, decision, next);
@@ -132,8 +128,7 @@ public sealed class GateMiddleware
         tracer.AcmeChallenge(context, answered);
         if (answered)
         {
-            ServerHeaderDecision challengeServer = ServerHeader.Apply(context, snapshot.DefaultServer, snapshot.DefaultServerMode);
-            tracer.ServerHeader(null, snapshot.DefaultServer, snapshot.DefaultServerMode, challengeServer);
+            ApplyHeaders(context, snapshot.DefaultResponseHeaders, ResponseHeaderStage.AfterHostLookup, state, null, tracer);
             return challenge;
         }
 
@@ -150,14 +145,12 @@ public sealed class GateMiddleware
                 return GateDecision.Abort;
             }
 
-            ServerHeaderDecision fallbackServer = ServerHeader.Apply(context, snapshot.DefaultServer, snapshot.DefaultServerMode);
-            tracer.ServerHeader(null, snapshot.DefaultServer, snapshot.DefaultServerMode, fallbackServer);
+            ApplyHeaders(context, snapshot.DefaultResponseHeaders, ResponseHeaderStage.AfterHostLookup, state, null, tracer);
             return GateDecision.Respond(fallback.Response!);
         }
 
         state.Host = host;
-        ServerHeaderDecision hostServer = ServerHeader.Apply(context, host.Server, host.ServerMode);
-        tracer.ServerHeader(host, host.Server, host.ServerMode, hostServer);
+        ApplyHeaders(context, host.ResponseHeaders, ResponseHeaderStage.AfterHostLookup, state, host, tracer);
         bool connectionIsHttps = request.IsHttps;
         TlsMismatch mismatch = connectionIsHttps
             ? host.Https ? ConnectionTlsCheck.Check(context, host.Tls) : TlsMismatch.HostNotServedOverHttps
@@ -168,9 +161,7 @@ public sealed class GateMiddleware
             return GateDecision.Respond(snapshot.Misdirected);
         }
 
-        AltSvcHeader.Apply(context, host.AltSvc);
-        HstsDecision hsts = HstsHeader.Apply(context, host.Hsts, state.IsHttps, HostTable.HostName(hostHeader[0]));
-        tracer.Hsts(host, hsts);
+        ApplyHeaders(context, host.ResponseHeaders, ResponseHeaderStage.AfterTlsCheck, state, host, tracer);
         RequestView view = new(context, state, TTracer.IsSimulation);
         if (Stops(PolicyScope.Host, host.Policies, in view, tracer, out GateDecision stopped))
         {
@@ -216,6 +207,33 @@ public sealed class GateMiddleware
 
         context.SetEndpoint(endpoints[route.Slot]);
         return GateDecision.Forward;
+    }
+
+    /// <summary>
+    /// Applies one stage of a host's response-header list (PLAN §7.2 C) and reports it: the request ID waits for the
+    /// answer, so the decision itself allocates nothing.
+    /// </summary>
+    private static void ApplyHeaders<TTracer>(
+        HttpContext context,
+        ResponseHeaderOperation[] headers,
+        ResponseHeaderStage stage,
+        GateRequestState state,
+        CompiledHost? host,
+        TTracer tracer)
+        where TTracer : struct, IGateTracer
+    {
+        Span<HeaderOutcome> outcomes = stackalloc HeaderOutcome[headers.Length];
+        outcomes.Clear();
+        ResponseHeaders.ApplyStage(context, headers, stage, state, outcomes, applyRequestId: false);
+        if (stage == ResponseHeaderStage.AfterHostLookup)
+        {
+            // Every answer this step reaches carries the last stage's header (the request ID, whose string the answer
+            // materialises), so it is described here: the first pass runs on every traced exit, the 421 and an unknown
+            // host included.
+            ResponseHeaders.DescribeDeferred(headers, ResponseHeaderStage.AfterDecision, outcomes);
+        }
+
+        tracer.ResponseHeaders(context, host, headers, outcomes);
     }
 
     /// <summary>Carries out <paramref name="decision"/>: forward, write the precomputed response, or abort.</summary>

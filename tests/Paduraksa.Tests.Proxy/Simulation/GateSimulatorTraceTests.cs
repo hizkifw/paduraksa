@@ -1,12 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Security.Authentication;
-
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Http;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
@@ -14,7 +14,6 @@ using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Proxy.Tls;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Simulation;
@@ -49,7 +48,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal(
             [
                 GateStepKind.TlsHandshake, GateStepKind.Request, GateStepKind.ClientAddress, GateStepKind.AcmeChallenge, GateStepKind.HostMatch,
-                GateStepKind.ServerHeader, GateStepKind.TlsPolicy, GateStepKind.Hsts, GateStepKind.HostPolicy, GateStepKind.RouteMatch, GateStepKind.Upstream,
+                GateStepKind.ResponseHeaders, GateStepKind.TlsPolicy, GateStepKind.HostPolicy, GateStepKind.RouteMatch, GateStepKind.Upstream,
             ],
             run.Steps.Select(s => s.Kind));
         Assert.DoesNotContain(run.Steps, s => s.Verdict == GateStepVerdict.Stopped);
@@ -387,7 +386,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal(GateStepVerdict.Stopped, step.Verdict);
         Assert.Equal("tok-en_1", Fact(step, "token"));
         Assert.DoesNotContain(answered.Steps, s => s.Kind == GateStepKind.HostMatch);
-        Assert.Equal("Paduraksa", Fact(Step(answered, GateStepKind.ServerHeader), "value"));
+        Assert.Equal("Paduraksa", Fact(Step(answered, GateStepKind.ResponseHeaders), "Server"));
 
         // An unknown token, HTTPS, or another method: handled like any request.
         foreach (GateProbe probe in (GateProbe[])
@@ -629,51 +628,77 @@ public sealed class GateSimulatorTraceTests : IDisposable
     }
 
     [Fact]
-    public void TheTraceSaysWhetherHstsWentOutAndWhyNot()
+    public void TheOneStepListsEveryHeaderSentAndWhyAnyIsNot()
     {
         RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
 
-        GateSimulation sent = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "narrow.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
-        GateStep hsts = Step(sent, GateStepKind.Hsts);
-        Assert.Equal(GateStepVerdict.Passed, hsts.Verdict);
-        Assert.Equal(TestIds.Host("narrow"), hsts.Host);
-        Assert.Equal("max-age=31536000", Fact(hsts, "value"));
-        Assert.Equal("yes", Fact(hsts, "configured"));
+        // HSTS on, HSTS off, the three Server modes, and the request ID: one step says each header's value or reason.
+        GateStep sent = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "narrow.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
+        Assert.Equal(GateStepVerdict.Passed, sent.Verdict);
+        Assert.Equal(TestIds.Host("narrow"), sent.Host);
+        Assert.Equal("max-age=31536000", Fact(sent, HstsHeader.HeaderName));
 
-        GateSimulation plain = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan });
-        GateStep not = Step(plain, GateStepKind.Hsts);
-        Assert.Equal(GateStepVerdict.Skipped, not.Verdict);
-        Assert.Contains("plain HTTP", not.Summary, StringComparison.Ordinal);
-        Assert.DoesNotContain(not.Facts, f => f.Name == "value");
+        GateStep plain = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
+        Assert.Contains("isn't HTTPS", Fact(plain, HstsHeader.HeaderName), StringComparison.Ordinal);
 
-        GateSimulation off = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
-        Assert.Contains("off", Step(off, GateStepKind.Hsts).Summary, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal("no", Fact(Step(off, GateStepKind.Hsts), "configured"));
+        GateStep off = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
+        Assert.Contains("HSTS off", Fact(off, HstsHeader.HeaderName), StringComparison.Ordinal);
+
+        Assert.Equal("Paduraksa", Fact(off, ServerHeader.HeaderName));
+        Assert.Equal("edge/1.0", Fact(Step(GateSimulator.Run(snapshot, new GateProbe { Host = "custom.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders), ServerHeader.HeaderName));
+
+        GateStep upstream = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "upstream.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
+        Assert.Contains("passes through", Fact(upstream, ServerHeader.HeaderName), StringComparison.Ordinal);
+
+        GateStep removed = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "bare.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
+        Assert.Contains("removed", Fact(removed, ServerHeader.HeaderName), StringComparison.OrdinalIgnoreCase);
+
+        // The response ID waits for the response to be written, which the step says rather than inventing a value.
+        Assert.Contains("when the response is written", Fact(removed, RequestIds.HeaderName), StringComparison.Ordinal);
+
+        // A loopback name is never pinned, and the step says why.
+        GateStep loopback = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.localhost", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
+        Assert.Contains("loopback", Fact(loopback, HstsHeader.HeaderName), StringComparison.Ordinal);
+
+        // A host that keeps the ID to itself: a removal, not a deferred send.
+        GateStep quiet = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "quiet.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
+        Assert.Contains("removed", Fact(quiet, RequestIds.HeaderName), StringComparison.Ordinal);
+        Assert.Contains("doesn't send the ID to the client", Fact(quiet, RequestIds.HeaderName), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void TheTraceSaysWhatTheServerHeaderWillBe()
+    public void TheRequestIdIsInEveryAnswerTheGateGives()
     {
         RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
 
-        GateStep named = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", ClientAddress = Lan }), GateStepKind.ServerHeader);
-        Assert.Equal(GateStepVerdict.Passed, named.Verdict);
-        Assert.Equal(TestIds.Host("app"), named.Host);
-        Assert.Equal("paduraksa", Fact(named, "mode"));
-        Assert.Equal("Paduraksa", Fact(named, "value"));
+        // A 421 carries the request ID and the Server header, and nothing that waits for the TLS check.
+        GateSimulation misdirected = GateSimulator.Run(snapshot, new GateProbe
+        {
+            Https = true,
+            Host = "strict.test",
+            ServerName = "lax.test",
+            ClientAddress = Lan,
+            HttpVersion = ProbeHttpVersion.Http2,
+            TlsVersion = SslProtocols.Tls12,
+        });
+        Assert.Equal(421, misdirected.Outcome.StatusCode);
+        GateStep step = Step(misdirected, GateStepKind.ResponseHeaders);
+        Assert.Equal("Paduraksa", Fact(step, ServerHeader.HeaderName));
+        Assert.Contains("when the response is written", Fact(step, RequestIds.HeaderName), StringComparison.Ordinal);
 
-        GateStep custom = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "custom.test", ClientAddress = Lan }), GateStepKind.ServerHeader);
-        Assert.Equal("custom", Fact(custom, "mode"));
-        Assert.Equal("edge/1.0", Fact(custom, "value"));
+        // An unknown host follows the global defaults, and its answer carries the ID too.
+        GateSimulation unknown = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "nobody.test", ClientAddress = Lan });
+        GateStep fallback = Step(unknown, GateStepKind.ResponseHeaders);
+        Assert.Null(fallback.Host);
+        Assert.Contains("when the response is written", Fact(fallback, RequestIds.HeaderName), StringComparison.Ordinal);
 
-        GateStep upstream = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "upstream.test", ClientAddress = Lan }), GateStepKind.ServerHeader);
-        Assert.Equal("upstream", Fact(upstream, "mode"));
-        Assert.DoesNotContain(upstream.Facts, f => f.Name == "value");
-        Assert.Contains("passes through", upstream.Summary, StringComparison.Ordinal);
-
-        GateStep bare = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "bare.test", ClientAddress = Lan }), GateStepKind.ServerHeader);
-        Assert.Equal("remove", Fact(bare, "mode"));
-        Assert.Contains("removed", bare.Summary, StringComparison.OrdinalIgnoreCase);
+        // An ACME answer does the same.
+        AcmeChallengeStore challenges = new();
+        challenges.Publish("tok-en_1", "tok-en_1.thumbprint");
+        GateSimulation acme = GateSimulator.Run(
+            snapshot, new GateProbe { Host = "nobody.test", Path = AcmeChallengeStore.PathPrefix + "tok-en_1", ClientAddress = Lan }, challenges: challenges);
+        Assert.Equal(GateReason.AcmeChallenge, acme.Outcome.Reason);
+        Assert.Contains("when the response is written", Fact(Step(acme, GateStepKind.ResponseHeaders), RequestIds.HeaderName), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -768,6 +793,9 @@ public sealed class GateSimulatorTraceTests : IDisposable
             },
             ProxyHost("secure", "secure.test", Route("secure-root", "web")) with { ForceHttps = true },
             ProxyHost("narrow", "narrow.test", Route("narrow-api", "api", "/api")) with { Hsts = new HostHstsSpec { Enabled = true } },
+            // A host that keeps the ID to itself: the response header is removed rather than sent.
+            ProxyHost("quiet", "quiet.test", Route("quiet-root", "web")) with { RequestIdPropagation = RequestIdPropagation.UpstreamOnly },
+            ProxyHost("loop", "app.localhost", Route("loop-root", "web")) with { Hsts = new HostHstsSpec { Enabled = true } },
             new HostSpec { Id = TestIds.Host("old"), Names = ["old.test"], Kind = HostKind.Redirect, Redirect = new RedirectSpec { Target = "https://new.test", StatusCode = 308 } },
             new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
             ProxyHost("strict", "strict.test", Route("strict-root", "web")) with { Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 } },

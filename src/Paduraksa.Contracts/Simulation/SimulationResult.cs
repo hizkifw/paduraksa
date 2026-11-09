@@ -111,14 +111,14 @@ public enum SimulationStepKind
     /// <summary>The host lookup: exact, wildcard, or the default host.</summary>
     HostMatch,
 
-    /// <summary>The host's <c>Server</c> header, sent, removed, or left to the upstream.</summary>
-    ServerHeader,
+    /// <summary>
+    /// The host's response headers (<c>Alt-Svc</c>, <c>Strict-Transport-Security</c>, <c>Server</c> and the response
+    /// <c>X-Request-Id</c>): each one the answer carries with its value, and each one it doesn't with the reason.
+    /// </summary>
+    ResponseHeaders,
 
     /// <summary>The connection against the host's TLS settings (the 421 reasons).</summary>
     TlsPolicy,
-
-    /// <summary>The host's <c>Strict-Transport-Security</c>, sent or why not.</summary>
-    Hsts,
 
     /// <summary>A policy of the host's chain.</summary>
     HostPolicy,

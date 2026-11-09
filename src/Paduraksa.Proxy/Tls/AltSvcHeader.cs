@@ -1,6 +1,5 @@
 using System.Globalization;
 
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 namespace Paduraksa.Proxy.Tls;
@@ -15,6 +14,9 @@ public sealed class AltSvcHeader
 {
     /// <summary>24 hours, as browsers commonly use and spike S1 verified.</summary>
     public const int DefaultMaxAgeSeconds = 86_400;
+
+    /// <summary>The header's name.</summary>
+    public const string HeaderName = "Alt-Svc";
 
     /// <param name="publicHttpsPort">The HTTPS port clients reach (settings), e.g. 443 even if bound to 8443.</param>
     /// <param name="http3Listening">Whether the H3 listener was added (<see cref="PublicListeners.ListenPublicHttps"/>).</param>
@@ -41,26 +43,5 @@ public sealed class AltSvcHeader
     {
         ArgumentNullException.ThrowIfNull(policy);
         return policy.Http3Enabled ? Value : StringValues.Empty;
-    }
-
-    /// <summary>
-    /// Sets <c>Alt-Svc</c> to the host's precomputed value on HTTPS responses that aren't already HTTP/3. Called by the
-    /// gate before the response starts. 0 B: no string is built, the shared value is stored as is.
-    /// </summary>
-    public static void Apply(HttpContext context, StringValues hostValue)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        if (StringValues.IsNullOrEmpty(hostValue))
-        {
-            return;
-        }
-
-        var request = context.Request;
-        if (!request.IsHttps || HttpProtocol.IsHttp3(request.Protocol))
-        {
-            return;
-        }
-
-        context.Response.Headers.AltSvc = hostValue;
     }
 }

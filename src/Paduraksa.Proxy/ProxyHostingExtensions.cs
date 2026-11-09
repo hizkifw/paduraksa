@@ -71,8 +71,7 @@ public static class ProxyHostingExtensions
                 transforms.AddRequestTransform(SessionCookieTransform.ApplyAsync);
                 transforms.AddResponseTransform(SessionCookieTransform.ApplyResponseAsync);
                 transforms.AddResponseTransform(AccessLogTransform.OnResponseAsync);
-                transforms.AddResponseTransform(RequestIdTransform.OnResponseAsync);
-                transforms.AddResponseTransform(ServerHeaderTransform.ApplyResponseAsync);
+                transforms.AddResponseTransform(ResponseHeadersTransform.ApplyResponseAsync);
             });
         services.RemoveAll<IForwarderHttpClientFactory>();
         services.AddSingleton<IForwarderHttpClientFactory>(

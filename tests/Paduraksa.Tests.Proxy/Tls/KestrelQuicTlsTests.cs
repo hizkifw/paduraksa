@@ -292,7 +292,7 @@ public sealed class KestrelQuicTlsTests : IDisposable
             IPAddress.Loopback,
             context =>
             {
-                AltSvcHeader.Apply(context, value);
+                context.Response.Headers.AltSvc = value;
                 return context.Response.WriteAsync(context.Request.Protocol);
             });
 

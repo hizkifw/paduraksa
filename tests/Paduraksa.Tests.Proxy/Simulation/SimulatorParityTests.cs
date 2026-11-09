@@ -402,22 +402,14 @@ public sealed class SimulatorParityTests : IDisposable
             Assert.NotEmpty(simulated.Steps);
             Assert.Equal(action == GateOutcomeAction.Forward, simulated.Upstream is not null);
 
-            // The trace's HSTS step says what the response carries, so "why" views can't disagree with the wire.
-            string? simulatedHsts = simulated.Steps
-                .Where(s => s.Kind == GateStepKind.Hsts)
-                .SelectMany(s => s.Facts)
-                .Where(f => f.Name == "value")
-                .Select(f => f.Value)
-                .FirstOrDefault();
+            // The one response-headers step says what each header carries, so a "why" view can't disagree with the wire.
+            // A dropped request has no answer, so no step at all.
+            GateStep? headers = simulated.Steps.FirstOrDefault(s => s.Kind == GateStepKind.ResponseHeaders);
+            string? simulatedHsts = headers is null ? null : ValueOf(headers, "Strict-Transport-Security");
             Assert.True((hsts ?? string.Empty) == (simulatedHsts ?? string.Empty), $"{label}: the response carried HSTS '{hsts}', the trace said '{simulatedHsts}'");
 
-            // The Server step says what the gate sets, which is all a gate answer can have (there is no upstream here).
-            string? simulatedServer = simulated.Steps
-                .Where(s => s.Kind == GateStepKind.ServerHeader)
-                .SelectMany(s => s.Facts)
-                .Where(f => f.Name == "value")
-                .Select(f => f.Value)
-                .FirstOrDefault();
+            // The same step says what the gate sets for Server, which is all a gate answer can have (no upstream here).
+            string? simulatedServer = headers is null ? null : ValueOf(headers, "Server");
             Assert.True((server ?? string.Empty) == (simulatedServer ?? string.Empty), $"{label}: the response carried Server '{server}', the trace said '{simulatedServer}'");
             return 1;
         }
@@ -513,6 +505,15 @@ public sealed class SimulatorParityTests : IDisposable
 
             string location = context.Response.Headers.Location.ToString();
             return (GateOutcomeAction.Respond, context.Response.StatusCode, context.Response.StatusCode / 100 == 3 && location.Length > 0 ? location : null, HstsOf(context), ServerOf(context));
+        }
+
+        /// <summary>The value the trace's response-headers step gives <paramref name="name"/>, or null when it isn't sent.</summary>
+        private static string? ValueOf(GateStep step, string name)
+        {
+            string value = step.Facts.FirstOrDefault(f => f.Name == name).Value;
+            return string.IsNullOrEmpty(value) || value.StartsWith("not sent", StringComparison.Ordinal) || value.StartsWith("removed", StringComparison.Ordinal)
+                ? null
+                : value;
         }
 
         /// <summary>The <c>Strict-Transport-Security</c> the real response carries, or null.</summary>

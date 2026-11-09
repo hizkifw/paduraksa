@@ -1,13 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Security;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Tests.Proxy.Tls;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Config;
@@ -100,10 +99,17 @@ public sealed class CertificateCompileTests : IDisposable
         Assert.Same(snapshot.Certificates.Default, snapshot.Certificates.Find("bare.test"));
         CompiledHost bare = snapshot.Hosts.Find("bare.test")!;
         Assert.False(bare.Https);
-        Assert.Equal(0, bare.AltSvc.Count);
+        Assert.Null(ResponseHeaderValue(bare, AltSvcHeader.HeaderName));
         CompiledHost a = snapshot.Hosts.Find("a.test")!;
         Assert.True(a.Https);
-        Assert.Equal(1, a.AltSvc.Count);
+        Assert.Equal("h3=\":443\"; ma=86400", ResponseHeaderValue(a, AltSvcHeader.HeaderName));
+    }
+
+    /// <summary>A host's compiled value for one header, or null when it doesn't send it.</summary>
+    private static string? ResponseHeaderValue(CompiledHost host, string name)
+    {
+        ResponseHeaderOperation operation = Assert.Single(host.ResponseHeaders, h => h.Name == name);
+        return operation.Kind == ResponseHeaderKind.NotSent ? null : operation.Value.ToString();
     }
 
     [Fact]

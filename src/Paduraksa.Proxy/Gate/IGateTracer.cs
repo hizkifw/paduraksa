@@ -49,16 +49,17 @@ internal interface IGateTracer
     /// behaviour answers).</summary>
     void HostLookup(StringValues hostHeader, CompiledHost? host, HostMatchKind match, DefaultHostBehaviour fallback);
 
-    /// <summary>The host's <c>Server</c> header was applied, removed or left to the upstream. <paramref name="host"/> is
-    /// null for the global default (an unknown host or an ACME challenge).</summary>
-    void ServerHeader(CompiledHost? host, StringValues value, ServerHeaderMode mode, ServerHeaderDecision decision);
-
     /// <summary>The connection was checked against the host's TLS settings. <paramref name="https"/> false: plain HTTP,
     /// nothing was checked.</summary>
     void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch);
 
-    /// <summary>The host's HSTS header was applied to the response, or <paramref name="decision"/> says why not.</summary>
-    void Hsts(CompiledHost host, HstsDecision decision);
+    /// <summary>
+    /// A stage of the host's response headers was applied (PLAN §7.2 C): <paramref name="operations"/> with, in the same
+    /// positions, what each one did (<see cref="HeaderOutcome.None"/> for another stage's). <paramref name="host"/> is
+    /// null for the global defaults (an unknown host or an ACME challenge). One step lists them all, so the trace can say
+    /// which headers the answer carries and why any of them is missing.
+    /// </summary>
+    void ResponseHeaders(HttpContext context, CompiledHost? host, ReadOnlySpan<ResponseHeaderOperation> operations, ReadOnlySpan<HeaderOutcome> outcomes);
 
     /// <summary>One policy ran and returned <paramref name="verdict"/>.</summary>
     void PolicyEvaluated(PolicyScope scope, int index, IRequestPolicy policy, in RequestView request, PolicyDecision verdict);
@@ -99,17 +100,12 @@ internal readonly struct NoGateTracer : IGateTracer
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void ServerHeader(CompiledHost? host, StringValues value, ServerHeaderMode mode, ServerHeaderDecision decision)
-    {
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch)
     {
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public void Hsts(CompiledHost host, HstsDecision decision)
+    public void ResponseHeaders(HttpContext context, CompiledHost? host, ReadOnlySpan<ResponseHeaderOperation> operations, ReadOnlySpan<HeaderOutcome> outcomes)
     {
     }
 

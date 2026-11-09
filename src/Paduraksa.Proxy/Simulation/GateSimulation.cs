@@ -80,9 +80,11 @@ public enum GateStepKind : byte
     ClientAddress,
     AcmeChallenge,
     HostMatch,
-    ServerHeader,
+
+    /// <summary>The host's response headers, applied in one pass: sent, removed, or why not.</summary>
+    ResponseHeaders,
+
     TlsPolicy,
-    Hsts,
     HostPolicy,
     HttpsRedirect,
     FixedResponse,
