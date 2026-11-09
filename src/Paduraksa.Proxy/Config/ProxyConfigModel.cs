@@ -122,6 +122,30 @@ public sealed record HostTlsSpec
     public bool Http3 { get; init; } = true;
 }
 
+/// <summary>
+/// A host's HSTS (PLAN §14 M6), already resolved across the layers by the caller: the compiler turns it into the header
+/// value once per host (<see cref="Tls.HstsHeader"/>). Plain HTTP never carries it, and neither does a request for an IP
+/// literal or a loopback name.
+/// </summary>
+public sealed record HostHstsSpec
+{
+    /// <summary>Off: no header of ours, so an upstream's own passes through untouched.</summary>
+    public static HostHstsSpec Off { get; } = new();
+
+    /// <summary>Send <c>Strict-Transport-Security</c> on the host's HTTPS responses.</summary>
+    public bool Enabled { get; init; }
+
+    /// <summary><c>max-age</c>, in seconds: how long browsers keep the host HTTPS-only. 0 tells them to forget it.</summary>
+    public int MaxAgeSeconds { get; init; } = HstsHeader.DefaultMaxAgeSeconds;
+
+    /// <summary>Add <c>includeSubDomains</c>.</summary>
+    public bool IncludeSubDomains { get; init; }
+
+    /// <summary>Add <c>preload</c>: only valid with <see cref="IncludeSubDomains"/> and a year or more of
+    /// <see cref="MaxAgeSeconds"/>.</summary>
+    public bool Preload { get; init; }
+}
+
 /// <summary>A host (PLAN §5.1). Disabled hosts are validated but left out of the snapshot.</summary>
 public sealed record HostSpec
 {
@@ -168,6 +192,9 @@ public sealed record HostSpec
 
     /// <summary>The host's TLS settings.</summary>
     public HostTlsSpec Tls { get; init; } = HostTlsSpec.Default;
+
+    /// <summary>The host's HSTS, resolved across the layers.</summary>
+    public HostHstsSpec Hsts { get; init; } = HostHstsSpec.Off;
 
     /// <summary>Proxy hosts only; ordered by <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];

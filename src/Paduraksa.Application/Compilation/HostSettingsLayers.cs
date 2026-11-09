@@ -7,7 +7,7 @@ namespace Paduraksa.Application.Compilation;
 
 /// <summary>
 /// Resolves the settings layers (PLAN §5.3, §6.4): built-in defaults → global defaults → profile → host, then the
-/// route layer on top of the host's result. A null field inherits; TLS merges field by field; the IP allow list
+/// route layer on top of the host's result. A null field inherits; TLS and HSTS merge field by field; the IP allow list
 /// replaces as a whole, and an empty one means no restriction (that's how a layer lifts an inherited list).
 /// </summary>
 internal static class HostSettingsLayers
@@ -18,6 +18,7 @@ internal static class HostSettingsLayers
     {
         bool forceHttps = false;
         HostTlsSpec tls = HostTlsSpec.Default;
+        HostHstsSpec hsts = HostHstsSpec.Off;
         IpAllowListSettings? allowList = null;
         foreach (HostSettings? layer in layers)
         {
@@ -28,10 +29,11 @@ internal static class HostSettingsLayers
 
             forceHttps = layer.ForceHttps ?? forceHttps;
             tls = Merge(tls, layer.Tls);
+            hsts = Merge(hsts, layer.Hsts);
             allowList = layer.IpAllowList ?? allowList;
         }
 
-        return new EffectiveHostSettings(forceHttps, tls, Restriction(allowList));
+        return new EffectiveHostSettings(forceHttps, tls, hsts, Restriction(allowList));
     }
 
     /// <summary>The effective allow list of a route: its own when set, else the host's.</summary>
@@ -46,6 +48,17 @@ internal static class HostSettingsLayers
             MinimumVersion = layer.MinimumVersion is { } minimum ? (ProxyTls.TlsMinimumVersion)minimum : tls.MinimumVersion,
             TcpAlpn = layer.TcpAlpn is { } alpn ? (ProxyTls.TcpAlpn)alpn : tls.TcpAlpn,
             Http3 = layer.Http3 ?? tls.Http3,
+        };
+
+    /// <summary><paramref name="hsts"/> with the fields <paramref name="layer"/> sets.</summary>
+    public static HostHstsSpec Merge(HostHstsSpec hsts, HstsSettings? layer) => layer is null
+        ? hsts
+        : hsts with
+        {
+            Enabled = layer.Enabled ?? hsts.Enabled,
+            MaxAgeSeconds = layer.MaxAge ?? hsts.MaxAgeSeconds,
+            IncludeSubDomains = layer.IncludeSubDomains ?? hsts.IncludeSubDomains,
+            Preload = layer.Preload ?? hsts.Preload,
         };
 
     /// <summary>Whether two effective allow lists restrict the same way (both null, or the same addresses in the same
@@ -66,5 +79,6 @@ internal static class HostSettingsLayers
 /// <summary>A host's settings with every layer resolved.</summary>
 /// <param name="ForceHttps">Redirect plain HTTP to HTTPS.</param>
 /// <param name="Tls">Concrete TLS settings.</param>
+/// <param name="Hsts">Concrete HSTS settings.</param>
 /// <param name="IpAllowList">The allow list in force, or null for no restriction (never an empty list).</param>
-internal sealed record EffectiveHostSettings(bool ForceHttps, HostTlsSpec Tls, IpAllowListSettings? IpAllowList);
+internal sealed record EffectiveHostSettings(bool ForceHttps, HostTlsSpec Tls, HostHstsSpec Hsts, IpAllowListSettings? IpAllowList);

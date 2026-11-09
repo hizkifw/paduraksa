@@ -54,6 +54,13 @@ public sealed class CompiledHost
     public StringValues AltSvc { get; init; }
 
     /// <summary>
+    /// The precomputed <c>Strict-Transport-Security</c> value (<c>max-age=31536000; includeSubDomains</c>), or empty when
+    /// the host has HSTS off. The gate sets it on the host's HTTPS responses, forwarded or answered, unless the request's
+    /// name is an IP literal or a loopback name (<see cref="Tls.HstsHeader.Apply"/>).
+    /// </summary>
+    public StringValues Hsts { get; init; }
+
+    /// <summary>
     /// The host's TLS settings. The handshake applies the settings of the SNI's host; the gate re-checks this host's
     /// against the request's connection (<see cref="ConnectionTlsCheck"/>), since clients coalesce connections across
     /// names, and answers 421 when the connection is weaker.

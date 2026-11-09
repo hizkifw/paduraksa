@@ -181,6 +181,40 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void ANullHstsLayerAddsNoKeyAndHstsChangesTheHash()
+    {
+        // Revision hashes stay stable for configs that don't use HSTS: no key, not even an empty object.
+        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
+        Assert.DoesNotContain("hsts", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
+
+        ConfigDocument emptyLayer = without with
+        {
+            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, Hsts = new HstsSettings() } }],
+        };
+        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
+
+        // Set, it is written as the numbers and words they are, and it changes the bytes.
+        ConfigDocument enabled = without with
+        {
+            Hosts =
+            [
+                without.Hosts[0] with
+                {
+                    Settings = new HostSettings
+                    {
+                        ForceHttps = true,
+                        Hsts = new HstsSettings { Enabled = true, MaxAge = 31_536_000, IncludeSubDomains = true, Preload = false },
+                    },
+                },
+            ],
+        };
+        string json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(enabled));
+        Assert.Contains("\"hsts\":{\"enabled\":true,\"maxAge\":31536000,\"includeSubDomains\":true,\"preload\":false}", json, StringComparison.Ordinal);
+        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(enabled));
+        Assert.Equal(CanonicalConfigJson.Serialize(enabled), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(enabled))));
+    }
+
+    [Fact]
     public void NormalisesSetsAndBlankValues()
     {
         ConfigDocument document = new(

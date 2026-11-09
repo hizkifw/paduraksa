@@ -23,7 +23,7 @@ namespace Paduraksa.Application.Config;
 /// as the bare address: <c>10.0.0.1/32</c> → <c>10.0.0.1</c>), so duplicates are found by meaning. Tags trimmed and
 /// lowercase. The trusted-proxy header lowercase, and absent when it is the default (<c>x-forwarded-for</c>). Profile
 /// and upstream names, destination addresses and redirect targets trimmed. Blank notes and a blank header are absent,
-/// null lists and settings are empty, a TLS layer that sets nothing is no layer, and active-health timings are set.
+/// null lists and settings are empty, a TLS or HSTS layer that sets nothing is no layer, and active-health timings are set.
 /// Values that don't parse (host names, addresses) are only trimmed, for validation to report. Everything else
 /// (URLs, route-path case, bodies, an explicit load-balancing policy) is kept as written, since changing it could
 /// change what it means.</para>
@@ -334,6 +334,7 @@ public static class CanonicalConfigJson
         {
             Tls = settings.Tls is { MinimumVersion: null, TcpAlpn: null, Http3: null } ? null : settings.Tls,
             IpAllowList = Canonical(settings.IpAllowList),
+            Hsts = settings.Hsts is { Enabled: null, MaxAge: null, IncludeSubDomains: null, Preload: null } ? null : settings.Hsts,
         };
     }
 

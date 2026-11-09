@@ -269,6 +269,42 @@ public sealed class ProxyConfigMappingTests
     }
 
     [Fact]
+    public void HstsResolvesFieldByFieldFromTheGlobalDefaultsUpToTheHost()
+    {
+        ConfigDocument document = Document(
+            defaults: new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = 31_536_000, IncludeSubDomains = true } },
+            profile: new HostSettings { Hsts = new HstsSettings { IncludeSubDomains = false, Preload = false } },
+            host: new HostSettings { Hsts = new HstsSettings { MaxAge = 300 } });
+
+        HostSpec host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
+
+        Assert.Equal(new HostHstsSpec { Enabled = true, MaxAgeSeconds = 300, IncludeSubDomains = false, Preload = false }, host.Hsts);
+
+        // Built-in: off, with the one-year max-age waiting for whoever turns it on.
+        Assert.Equal(HostHstsSpec.Off, Assert.Single(ProxyConfigMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty).Model.Hosts).Hsts);
+        Assert.Equal(31_536_000, HostHstsSpec.Off.MaxAgeSeconds);
+        Assert.False(HostHstsSpec.Off.Enabled);
+    }
+
+    [Fact]
+    public void AnAdminHostTakesTheSameHsts()
+    {
+        ConfigDocument document = Document(
+            defaults: new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = 86_400 } },
+            profile: null,
+            host: null);
+        ConfigDocument admin = document with
+        {
+            Hosts = [document.Hosts[0] with { Kind = HostKind.Admin, Routes = [], Settings = new HostSettings { Hsts = new HstsSettings { Preload = false } } }],
+        };
+
+        HostSpec host = Assert.Single(ProxyConfigMapping.Map(admin, Revision, CertificateInventory.Empty).Model.Hosts);
+
+        Assert.Equal(ProxySnapshot.HostKind.Admin, host.Kind);
+        Assert.Equal(new HostHstsSpec { Enabled = true, MaxAgeSeconds = 86_400, IncludeSubDomains = false, Preload = false }, host.Hsts);
+    }
+
+    [Fact]
     public void AnEmptyListLiftsAnInheritedOne()
     {
         ConfigDocument document = Document(

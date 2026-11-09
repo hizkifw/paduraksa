@@ -1,12 +1,15 @@
 using System.Buffers;
 
 using Paduraksa.Application.Certificates;
+using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 
+using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
+using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
 using RoutePath = Paduraksa.Proxy.Snapshot.RoutePath;
 
@@ -31,7 +34,8 @@ namespace Paduraksa.Application.Config;
 /// match. References to profiles and upstreams must resolve, and an upstream that an enabled host routes to needs an
 /// enabled destination; certificate references can't be checked until certificates exist (M3). A host without HTTPS
 /// (certificate mode none) can't force HTTPS, judged on the setting it ends up with after the profile and global
-/// layers.</para>
+/// layers. HSTS's preload pair is judged the same way, on each host's resolved settings, wherever its three fields
+/// were set.</para>
 /// </remarks>
 public static class ConfigValidator
 {
@@ -322,6 +326,7 @@ public static class ConfigValidator
             }
 
             CheckHostSettings(host.Settings, $"{path}/settings");
+            CheckHstsPreload(defaults, profile, host, $"{path}/settings/hsts");
             if (kindDefined)
             {
                 CheckKindParts(host, path);
@@ -570,6 +575,49 @@ public static class ConfigValidator
             }
 
             CheckIpAllowList(settings.IpAllowList, $"{path}/ipAllowList");
+
+            if (settings.Hsts is { MaxAge: { } maxAge } && maxAge is < 0 or > HstsHeader.MaxMaxAgeSeconds)
+            {
+                Add($"{path}/hsts/maxAge", HstsMaxAgeInvalid, $"max-age must be 0-{HstsHeader.MaxMaxAgeSeconds} seconds (two years); 0 tells a browser to forget the host");
+            }
+        }
+
+        /// <summary>
+        /// HSTS's cross-field rule, judged on the host's resolved settings like the certificate rule above: an enabled HSTS
+        /// whose <c>preload</c> is in force needs <c>includeSubDomains</c> and a year of <c>max-age</c>, wherever each of the
+        /// three was set. Reported at the host, which is the one that would send the header; a profile or the global defaults
+        /// are refused only through a host that resolves to the invalid pair, so a profile no host uses can't fail a document
+        /// on its own. Off, the setting is inert: nothing is sent, so nothing to refuse.
+        /// </summary>
+        /// <param name="defaults">The global defaults layer.</param>
+        /// <param name="profile">The host's profile layer, if it has one.</param>
+        /// <param name="host">The host, whose own layer is on top.</param>
+        /// <param name="path">The host's HSTS path (<c>...</c>/hsts).</param>
+        private void CheckHstsPreload(HostSettings? defaults, HostSettings? profile, HostConfig host, string path)
+        {
+            HostHstsSpec resolved = HostSettingsLayers.Merge(
+                HostSettingsLayers.Merge(HostSettingsLayers.Merge(HostHstsSpec.Off, defaults?.Hsts), profile?.Hsts),
+                host.Settings?.Hsts);
+            if (!resolved.Enabled || !resolved.Preload || HstsPreloadIsValid(resolved))
+            {
+                return;
+            }
+
+            // Where the preload came from, when it isn't this host's own: that is the layer to go and change.
+            string inherited = host.Settings?.Hsts?.Preload is not null ? string.Empty
+                : profile?.Hsts?.Preload is not null ? " (inherited from its profile)"
+                : " (inherited from the global defaults)";
+
+            if (!resolved.IncludeSubDomains)
+            {
+                Add($"{path}/preload", HstsPreloadNeedsIncludeSubDomains, $"preload needs includeSubDomains{inherited}");
+            }
+            else
+            {
+                Add($"{path}/preload", HstsPreloadMaxAgeTooShort, $"preload needs a max-age of at least {HstsHeader.PreloadMinMaxAgeSeconds} seconds (a year), got {resolved.MaxAgeSeconds}{inherited}");
+            }
+
+            static bool HstsPreloadIsValid(HostHstsSpec spec) => spec.IncludeSubDomains && spec.MaxAgeSeconds >= HstsHeader.PreloadMinMaxAgeSeconds;
         }
 
         private void CheckIpAllowList(IpAllowListSettings? allowList, string path)

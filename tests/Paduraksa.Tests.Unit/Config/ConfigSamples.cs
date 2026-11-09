@@ -84,6 +84,13 @@ internal static class ConfigSamples
                 Http3 = Coin() ? Coin() : null,
             }),
             IpAllowList = Maybe(AllowList),
+            Hsts = Maybe(() => new HstsSettings
+            {
+                Enabled = Coin() ? Coin() : null,
+                MaxAge = Coin() ? random.Next(0, 63_072_001) : null,
+                IncludeSubDomains = Coin() ? Coin() : null,
+                Preload = Coin() ? Coin() : null,
+            }),
         };
 
         ProfileConfig[] profiles =
@@ -166,7 +173,7 @@ internal static class ConfigSamples
     /// <summary>
     /// The same config as <paramref name="document"/>, written differently: every list but the routes shuffled, sets with
     /// duplicates and addresses in other spellings,
-    /// host names and tags re-spelled, empty TLS layers, blank notes. It must canonicalise to the same bytes.
+    /// host names and tags re-spelled, empty TLS and HSTS layers, blank notes. It must canonicalise to the same bytes.
     /// </summary>
     public static ConfigDocument Respelled(ConfigDocument document, int seed)
     {
@@ -191,6 +198,8 @@ internal static class ConfigSamples
         {
             Tls = settings.Tls ?? (random.Next(2) == 0 ? new TlsSettings() : null),
             IpAllowList = AllowList(settings.IpAllowList),
+            // A layer that sets nothing is no layer (canonical JSON writes no key for it).
+            Hsts = settings.Hsts ?? (random.Next(2) == 0 ? new HstsSettings() : null),
         };
 
         return document with

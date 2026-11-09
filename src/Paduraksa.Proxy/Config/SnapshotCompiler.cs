@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
@@ -165,6 +166,7 @@ public static class SnapshotCompiler
                 // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only
                 // host has none: its HTTPS rides on the default certificate's entry and that entry's settings).
                 AltSvc = serverNames.Count > 0 ? altSvc.ForHost(tls) : default,
+                Hsts = CompileHsts(spec.Hsts, where, errors),
             };
 
             if (spec.Names is null || spec.Names.Count == 0)
@@ -882,6 +884,39 @@ public static class SnapshotCompiler
             TcpAlpn = spec.TcpAlpn,
             Http3Enabled = spec.Http3,
         };
+    }
+
+    /// <summary>
+    /// The host's one <c>Strict-Transport-Security</c> value (PLAN §14 M6), or empty when HSTS is off. The validator
+    /// reports these rules too; the compiler is the backstop for a model built elsewhere, so a value that can't be sent
+    /// is never sent.
+    /// </summary>
+    private static StringValues CompileHsts(HostHstsSpec? spec, CompileErrorSource where, List<CompileError> errors)
+    {
+        if (spec is null || !spec.Enabled)
+        {
+            return StringValues.Empty;
+        }
+
+        if (spec.MaxAgeSeconds is < 0 or > HstsHeader.MaxMaxAgeSeconds)
+        {
+            errors.Add(new(where, $"HSTS max-age must be 0-{HstsHeader.MaxMaxAgeSeconds} seconds, got {spec.MaxAgeSeconds}"));
+            return StringValues.Empty;
+        }
+
+        if (spec.Preload && !spec.IncludeSubDomains)
+        {
+            errors.Add(new(where, "HSTS preload needs includeSubDomains"));
+            return StringValues.Empty;
+        }
+
+        if (spec.Preload && spec.MaxAgeSeconds < HstsHeader.PreloadMinMaxAgeSeconds)
+        {
+            errors.Add(new(where, $"HSTS preload needs a max-age of at least {HstsHeader.PreloadMinMaxAgeSeconds} seconds (a year), got {spec.MaxAgeSeconds}"));
+            return StringValues.Empty;
+        }
+
+        return HstsHeader.ValueOf(spec);
     }
 
     /// <summary>

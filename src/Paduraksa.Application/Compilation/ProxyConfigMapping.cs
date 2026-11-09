@@ -20,7 +20,8 @@ namespace Paduraksa.Application.Compilation;
 /// <remarks>
 /// <para><b>Settings.</b> Each host's settings resolve built-in defaults → global defaults → its profile → itself
 /// (<see cref="HostSettingsLayers"/>), each route's allow list on top of its host's. A profile that doesn't exist adds
-/// no layer (the validator rejects it: <see cref="ConfigErrorCodes.HostProfileUnknown"/>).</para>
+/// no layer (the validator rejects it: <see cref="ConfigErrorCodes.HostProfileUnknown"/>). The admin host's resolved HSTS
+/// applies to it exactly as to any other host (it is always HTTPS, so it always has somewhere to go).</para>
 /// <para><b>Allow lists: host chain and route chains.</b> The gate runs a host's chain before its HTTPS redirect, its
 /// fixed answer and route matching, then the matched route's own chain. A route's list <i>replaces</i> the host's, so the
 /// host's list can't simply sit in the host chain: a route could tighten it but never lift it. Instead:</para>
@@ -258,6 +259,7 @@ public static class ProxyConfigMapping
             Certificate = certificate,
             NameCertificates = certificatesByName,
             Tls = effective.Tls,
+            Hsts = effective.Hsts,
             Routes = routes,
             Policies = hostChain,
             Redirect = host.Redirect is { } redirect

@@ -24,6 +24,9 @@ public static class ConfigErrorCodes
 
     // Settings layers.
     public const string IpAllowListDropDeniedWithoutAddresses = "ipAllowList.dropDenied.withoutAddresses";
+    public const string HstsMaxAgeInvalid = "hsts.maxAge.invalid";
+    public const string HstsPreloadNeedsIncludeSubDomains = "hsts.preload.needsIncludeSubDomains";
+    public const string HstsPreloadMaxAgeTooShort = "hsts.preload.maxAgeTooShort";
     public const string TrustedProxiesProxiesRequired = "trustedProxies.proxies.required";
     public const string TrustedProxiesProxiesUnexpected = "trustedProxies.proxies.unexpected";
     public const string TrustedProxiesHeaderInvalid = "trustedProxies.header.invalid";

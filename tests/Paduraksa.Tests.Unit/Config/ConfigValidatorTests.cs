@@ -6,6 +6,8 @@ using Paduraksa.Core.Model;
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
+using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
+
 namespace Paduraksa.Tests.Unit.Config;
 
 public sealed class ConfigValidatorTests
@@ -657,6 +659,121 @@ public sealed class ConfigValidatorTests
 
         ConfigDocument asDefault = document with { Settings = document.Settings with { DefaultCertificateId = AdminCertificate.Id } };
         AssertErrors(asDefault, ("/settings/defaultCertificateId", SettingsDefaultCertificateUnusable));
+    }
+
+    [Fact]
+    public void ChecksHstsMaxAgeInEveryLayer()
+    {
+        ConfigDocument document = Valid();
+        HostSettings tooLong = new() { Hsts = new HstsSettings { MaxAge = HstsHeader.MaxMaxAgeSeconds + 1 } };
+        HostSettings negative = new() { Hsts = new HstsSettings { MaxAge = -1 } };
+        Assert.True(HstsHeader.MaxMaxAgeSeconds == 63_072_000, "two years");
+
+        AssertErrors(
+            document with { Settings = document.Settings with { Defaults = tooLong } },
+            ("/settings/defaults/hsts/maxAge", HstsMaxAgeInvalid));
+        AssertErrors(
+            document with { Profiles = [document.Profiles[0] with { Settings = negative }] },
+            ("/profiles/0/settings/hsts/maxAge", HstsMaxAgeInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = tooLong }) },
+            ($"{Proxy}/settings/hsts/maxAge", HstsMaxAgeInvalid));
+
+        // 0 is valid, and means "tell browsers to forget the host"; the cap itself is valid too.
+        foreach (int maxAge in new[] { 0, HstsHeader.DefaultMaxAgeSeconds, HstsHeader.MaxMaxAgeSeconds })
+        {
+            Assert.Empty(ConfigValidator.Validate(document with
+            {
+                Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = maxAge } } }),
+            }));
+        }
+    }
+
+    [Fact]
+    public void PreloadNeedsIncludeSubDomainsAndAYear()
+    {
+        ConfigDocument document = Valid();
+        static HostConfig WithHsts(HostConfig host, bool enabled, int? maxAge, bool? subdomains, bool? preload) =>
+            host with { Settings = new HostSettings { Hsts = new HstsSettings { Enabled = enabled, MaxAge = maxAge, IncludeSubDomains = subdomains, Preload = preload } } };
+
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => WithHsts(h, true, null, null, true)) },
+            ($"{Proxy}/settings/hsts/preload", HstsPreloadNeedsIncludeSubDomains));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => WithHsts(h, true, 300, true, true)) },
+            ($"{Proxy}/settings/hsts/preload", HstsPreloadMaxAgeTooShort));
+
+        // Off, preload is inert: nothing is sent, so the list's rules refuse nothing.
+        Assert.Empty(ConfigValidator.Validate(document with
+        {
+            Hosts = MapHost(document, AppHost, h => WithHsts(h, false, 300, false, true)),
+        }));
+
+        // The pair may come from any layer: the host's preload with the profile's subdomains and the defaults' max-age.
+        ConfigDocument layered = document with
+        {
+            Settings = document.Settings with { Defaults = new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = HstsHeader.DefaultMaxAgeSeconds } } },
+            Profiles = [document.Profiles[0] with { Settings = new HostSettings { Hsts = new HstsSettings { IncludeSubDomains = true } } }],
+            Hosts = MapHost(document, AppHost, h => WithHsts(h, true, null, null, true)),
+        };
+        Assert.Empty(ConfigValidator.Validate(layered));
+
+        // A host that weakens what it inherits is where the error belongs: the subdomain and the max-age both.
+        AssertErrors(
+            layered with { Hosts = MapHost(layered, AppHost, h => h with { Settings = new HostSettings { Hsts = new HstsSettings { Preload = true, IncludeSubDomains = false } } }) },
+            ($"{Proxy}/settings/hsts/preload", HstsPreloadNeedsIncludeSubDomains));
+        AssertErrors(
+            layered with { Hosts = MapHost(layered, AppHost, h => h with { Settings = new HostSettings { Hsts = new HstsSettings { Preload = true, MaxAge = 60 } } }) },
+            ($"{Proxy}/settings/hsts/preload", HstsPreloadMaxAgeTooShort));
+    }
+
+    [Fact]
+    public void PreloadIsJudgedOnEachHostsResolvedSettings()
+    {
+        // The profile asks for preload and the host supplies the subdomains: together that is valid, so neither is refused.
+        ConfigDocument document = Valid();
+        ConfigDocument split = document with
+        {
+            Profiles = [document.Profiles[0] with { Settings = new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } } }],
+            Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { Hsts = new HstsSettings { IncludeSubDomains = true } } }),
+        };
+        Assert.Empty(ConfigValidator.Validate(split));
+
+        // The same profile on a host that leaves includeSubDomains off is refused at that host, naming where preload came from.
+        ConfigDocument broken = split with { Hosts = MapHost(split, AppHost, h => h with { Settings = new HostSettings() }) };
+        ConfigError error = Assert.Single(ConfigValidator.Validate(broken));
+        Assert.Equal(($"{Proxy}/settings/hsts/preload", HstsPreloadNeedsIncludeSubDomains), (error.Path, error.Code));
+        Assert.Contains("inherited from its profile", error.Message, StringComparison.Ordinal);
+
+        // A month is not a year, wherever the number came from.
+        ConfigDocument tooShort = split with { Settings = split.Settings with { Defaults = new HostSettings { Hsts = new HstsSettings { MaxAge = 86_400 } } } };
+        ConfigError shortError = Assert.Single(ConfigValidator.Validate(tooShort));
+        Assert.Equal(HstsPreloadMaxAgeTooShort, shortError.Code);
+        Assert.Contains("86400", shortError.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ALayerNoHostUsesIsNotRefusedForPreload()
+    {
+        // Nothing would send the header, so there is nothing to refuse: neither a profile no host picks...
+        ConfigDocument document = Valid();
+        ConfigDocument unusedProfile = document with
+        {
+            Profiles = [.. document.Profiles, new ProfileConfig(Id<ProfileId>(9), "preload", Settings: new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } })],
+        };
+        Assert.Empty(ConfigValidator.Validate(unusedProfile));
+
+        // ... nor global defaults with no hosts under them.
+        Assert.Empty(ConfigValidator.Validate(new ConfigDocument(
+            Settings: new GlobalSettings(Defaults: new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } }))));
+
+        // With a host under it, the host is the one refused (and points at the defaults it inherited from).
+        ConfigDocument withHost = new(
+            Settings: new GlobalSettings(Defaults: new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } }),
+            Hosts: [new HostConfig(Id<HostId>(1), ["a.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200))]);
+        ConfigError error = Assert.Single(ConfigValidator.Validate(withHost));
+        Assert.Equal(("/hosts/0/settings/hsts/preload", HstsPreloadNeedsIncludeSubDomains), (error.Path, error.Code));
+        Assert.Contains("inherited from the global defaults", error.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Validates <paramref name="document"/> as written and expects exactly these errors, in order.</summary>
