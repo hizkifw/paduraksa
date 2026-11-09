@@ -11,6 +11,7 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Application.Logging;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
 using Paduraksa.Core.Hosting;
@@ -19,6 +20,7 @@ using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
+using Paduraksa.Server.Logging;
 using Paduraksa.Server.Placeholders;
 
 namespace Paduraksa.Server.Hosting;
@@ -58,6 +60,8 @@ internal sealed class SharedServices : IAsyncDisposable
         Certificates = Get<PlaceholderCertificates>();
         AdminCertificate = Get<AdminCertificateService>();
         AdminInternal = Get<AdminInternalListener>();
+        LogFiles = Get<ServerLogFiles>();
+        LogStore = Get<ILogFileStore>();
         Catalog = Get<ICertificateCatalog>();
         KeyRing = keyRing;
         PublicListeners = Get<PublicListenerSetup>();
@@ -142,6 +146,15 @@ internal sealed class SharedServices : IAsyncDisposable
     /// </summary>
     public AdminInternalListener AdminInternal { get; }
 
+    /// <summary>
+    /// The process's log files (PLAN §7.4): the error log's writer and provider, and the access log's writer, which the access log's
+    /// background drain writes into once it is wired (M6). Both are disposed after the hosts have stopped, which flushes them.
+    /// </summary>
+    public ServerLogFiles LogFiles { get; }
+
+    /// <summary>The read side of the log files: what the dashboard's log page browses and the API's log endpoints serve.</summary>
+    public ILogFileStore LogStore { get; }
+
     /// <summary>The vault describing the certificates it holds (public facts only); the CA download endpoints read the root from it.</summary>
     public ICertificateCatalog Catalog { get; }
 
@@ -209,7 +222,7 @@ internal sealed class SharedServices : IAsyncDisposable
         try
         {
             // Created first => disposed last.
-            loggerFactory = builder.Own(CreateLoggerFactory(configuration, configureLogging));
+            loggerFactory = builder.Own(CreateLoggerFactory(configuration, options.Logs, configureLogging));
             TimeProvider timeProvider = builder.Add(TimeProvider.System);
             // The validated options are the instance consumers get. IOptions/IOptionsMonitor/IOptionsSnapshot and
             // IOptionsFactory are pinned to it too; left alone they'd build their own unvalidated copies from
@@ -220,6 +233,15 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add<IOptionsMonitor<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsSnapshot<PaduraksaOptions>>(fixedOptions);
             builder.Add<IOptionsFactory<PaduraksaOptions>>(fixedOptions);
+
+            // The log files (PLAN §7.4), early among the shared services so they are disposed late: everything the hosts' shutdown logs
+            // still reaches the error log before its writer is flushed. The writer itself is what the access log's drain will use, and
+            // the store is the read side the dashboard and the API share.
+            ILogger logFileReports = loggerFactory.CreateLogger("Paduraksa.Server.Logging");
+            ServerLogFiles logFiles = builder.Add(new ServerLogFiles(options.Logs, options.DataDirectory, timeProvider, logFileReports));
+            loggerFactory.AddProvider(logFiles.ErrorProvider);
+            builder.Add<ILogFileStore>(new LogFileStore(logFiles.Directory));
+
             HealthState health = builder.Add(new HealthState());
             builder.Add(new CertificateRecoveryCompletion());
             SnapshotStore snapshots = builder.Add(new SnapshotStore());
@@ -314,7 +336,10 @@ internal sealed class SharedServices : IAsyncDisposable
         where T : class =>
         (T)_registrations.First(static r => r.Key == typeof(T)).Value;
 
-    private static ILoggerFactory CreateLoggerFactory(IConfiguration configuration, Action<ILoggingBuilder>? configureLogging) =>
+    private static ILoggerFactory CreateLoggerFactory(
+        IConfiguration configuration,
+        PaduraksaLogOptions logs,
+        Action<ILoggingBuilder>? configureLogging) =>
         Microsoft.Extensions.Logging.LoggerFactory.Create(logging =>
         {
             logging.AddConfiguration(configuration.GetSection("Logging"));
@@ -326,6 +351,10 @@ internal sealed class SharedServices : IAsyncDisposable
                 console.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z' ";
                 console.ColorBehavior = LoggerColorBehavior.Default;
             });
+            // The error log's own minimum level (PLAN §7.4): a rule for this provider wins over the configuration's rules, which are
+            // about the console. So `Logging:LogLevel:Default=Error` quiets the console without emptying error.log.
+            LogLevel minimum = logs.ErrorLevel;
+            logging.AddFilter<ErrorLogProvider>((_, level) => level >= minimum);
             configureLogging?.Invoke(logging);
         });
 

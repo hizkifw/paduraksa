@@ -1,5 +1,6 @@
 using System.Net;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Admin.Auth;
@@ -107,6 +108,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         ValidateCertificates(options, failures);
         ValidateAcme(options, failures);
+        ValidateLogs(options.Logs, failures);
 
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
         ValidateProxyProtocol("HttpsProxyProtocol", listen.HttpsProxyProtocol, failures);
@@ -203,6 +205,56 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
     /// <summary>The largest trusted-roots file accepted: a bundle of a few roots is some kilobytes.</summary>
     internal const int MaxTrustedRootsFileBytes = 1024 * 1024;
+
+    private static void ValidateLogs(PaduraksaLogOptions? logs, List<string> failures)
+    {
+        const string Key = PaduraksaOptions.SectionName + ":Logs";
+        if (logs is null)
+        {
+            failures.Add($"{Key} must not be null.");
+            return;
+        }
+
+        if (logs.Directory is { Length: > 0 } directory)
+        {
+            if (directory.StartsWith('~'))
+            {
+                failures.Add($"{Key}:Directory must not start with '~' (no home-directory expansion); use an absolute path or a path under the data directory, was '{directory}'.");
+            }
+            else if (directory.AsSpan().IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+            {
+                failures.Add($"{Key}:Directory contains characters that aren't valid in a path.");
+            }
+        }
+
+        if (logs.ErrorLevel is not (LogLevel.Information or LogLevel.Warning or LogLevel.Error or LogLevel.Critical))
+        {
+            failures.Add($"{Key}:ErrorLevel must be Information, Warning, Error or Critical, was {logs.ErrorLevel}.");
+        }
+
+        if (logs.MaxFileSize is < MinLogFileSize or > MaxLogFileSize)
+        {
+            failures.Add($"{Key}:MaxFileSize must be between {MinLogFileSize} and {MaxLogFileSize} bytes, was {logs.MaxFileSize}.");
+        }
+
+        if (logs.RetainedFiles is < 1 or > 10_000)
+        {
+            failures.Add($"{Key}:RetainedFiles must be between 1 and 10 000, was {logs.RetainedFiles}.");
+        }
+
+        Bound(logs.MaxAge, TimeSpan.FromMinutes(1), TimeSpan.FromDays(3650), $"{Key}:MaxAge", failures);
+
+        if (logs.MaxTotalSize is < 1024 * 1024 or > 1024L * 1024 * 1024 * 1024)
+        {
+            failures.Add($"{Key}:MaxTotalSize must be between {1024 * 1024} and {1024L * 1024 * 1024 * 1024} bytes, was {logs.MaxTotalSize}.");
+        }
+    }
+
+    /// <summary>The smallest rotation size accepted: below one line's worth of bytes, every line would rotate the file again (thrashing).</summary>
+    internal const long MinLogFileSize = 1024;
+
+    /// <summary>The largest rotation size accepted (16 GiB): a bigger live file would be a stain on the dashboard's memory, not a log.</summary>
+    internal const long MaxLogFileSize = 16L * 1024 * 1024 * 1024;
 
     private static void Bound(TimeSpan value, TimeSpan min, TimeSpan max, string name, List<string> failures)
     {

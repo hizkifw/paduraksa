@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
@@ -35,6 +37,9 @@ internal sealed class PaduraksaOptions
 
     /// <summary>Switches for development and tests; off in a release build.</summary>
     public PaduraksaDevelopmentOptions Development { get; set; } = new();
+
+    /// <summary>Log files (PLAN §7.4): where the access and error logs live, how big they may get, and how much of them is kept.</summary>
+    public PaduraksaLogOptions Logs { get; set; } = new();
 
     /// <summary>
     /// Total budget for the graceful stop of all three hosts together (public drain, then admin, then core).
@@ -313,3 +318,39 @@ internal sealed class ProxyProtocolListenOptions
     /// <summary>How long a trusted source has to send the whole header (default 3 s, at most 1 min).</summary>
     public TimeSpan HeaderTimeout { get; set; } = TimeSpan.FromSeconds(3);
 }
+
+/// <summary>
+/// Log files (<c>Paduraksa:Logs</c>, PLAN §7.4): the access log and the process's own error log, both on disk under one directory, rotated
+/// by size and by day and trimmed by count, age and total size. The options here are the same for both logs; only the error log has a level
+/// of its own, because it is the only one the process writes itself.
+/// </summary>
+internal sealed class PaduraksaLogOptions
+{
+    /// <summary>
+    /// Where the logs live. Empty means <c>&lt;data dir&gt;/logs</c>; a relative path resolves against the data directory (never the working
+    /// directory). The directory and its files are owner-only on Unix (0700/0600): the access log holds client IPs.
+    /// </summary>
+    public string Directory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The lowest level the error log keeps (<c>Information</c>, <c>Warning</c>, <c>Error</c> or <c>Critical</c>; default <c>Warning</c>).
+    /// Independent of the console's <c>Logging:LogLevel</c>: this is the file's own filter.
+    /// </summary>
+    public LogLevel ErrorLevel { get; set; } = LogLevel.Warning;
+
+    /// <summary>Rotate when the next line would push a file past this (default 64 MiB; 1 KiB to 16 GiB).</summary>
+    public long MaxFileSize { get; set; } = 64L * 1024 * 1024;
+
+    /// <summary>How many rotated files each log keeps, newest first (default 30; 1 to 10 000).</summary>
+    public int RetainedFiles { get; set; } = 30;
+
+    /// <summary>Delete rotated files older than this (default 30 days; 1 minute to 10 years).</summary>
+    public TimeSpan MaxAge { get; set; } = TimeSpan.FromDays(30);
+
+    /// <summary>Delete the oldest rotated files until each log's rotated files total at most this (default 1 GiB; 1 MiB to 1 TiB).</summary>
+    public long MaxTotalSize { get; set; } = 1024L * 1024 * 1024;
+
+    /// <summary>The logs directory after <see cref="Hosting.PaduraksaHost"/> resolved it: always absolute once the options are validated.</summary>
+    internal string ResolvedDirectory { get; set; } = string.Empty;
+}
+

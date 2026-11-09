@@ -391,6 +391,24 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             }
         }
 
+        // The logs live under the data directory unless told otherwise, and a relative Logs:Directory is relative to the data
+        // directory (not the content root): the whole point of the data directory is one tree to mount and back up.
+        try
+        {
+            options.Logs.ResolvedDirectory = string.IsNullOrWhiteSpace(options.Logs.Directory)
+                ? Path.Combine(options.DataDirectory, Paduraksa.Core.Logging.LogFileNames.DefaultDirectoryName)
+                : Path.IsPathFullyQualified(options.Logs.Directory)
+                    ? options.Logs.Directory
+                    : Path.GetFullPath(options.Logs.Directory, options.DataDirectory);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            throw new OptionsValidationException(
+                PaduraksaOptions.SectionName,
+                typeof(PaduraksaOptions),
+                [$"{PaduraksaOptions.SectionName}:Logs:Directory isn't a valid path: {ex.Message}"]);
+        }
+
         return options;
     }
 
