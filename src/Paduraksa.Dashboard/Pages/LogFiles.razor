@@ -64,7 +64,7 @@ else
         @foreach (IGrouping<string, LogFileSummary> group in _files.GroupBy(file => file.Log))
         {
             <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-log="@group.Key">
-                <div class="pdk-card-head">
+                <div class="pdk-card-head pdk-card-head-padded">
                     <MudText Typo="Typo.subtitle2" HtmlTag="h2">@LogTitle(group.Key)</MudText>
                     <span class="pdk-muted pdk-log-total">@Count(group.Count(), "file") · @SizeText(group.Sum(file => file.Size))</span>
                 </div>
