@@ -8,15 +8,14 @@ using Paduraksa.Vault.Secrets;
 namespace Paduraksa.Vault.Persistence;
 
 /// <summary>
-/// The vault database (<c>data/vault.db</c>, PLAN §5, §8): sealed secrets and sealed keys, and the KEK check value. It is
+/// The vault database (<c>data/vault.db</c>): sealed secrets and sealed keys, and the KEK check value. It is
 /// a database of its own, separate from the config database, and nothing outside the Vault assembly can see this type or
 /// its rows. Every secret-bearing column holds the output of <see cref="Crypto.EnvelopeCipher.Seal"/>, never a plaintext.
 /// The schema comes from migrations (applied by <see cref="VaultDatabase.InitializeAsync"/>).
 /// </summary>
 /// <remarks>
-/// Adding something that stores a key: an entity with its own typed ID and a <c>Sealed</c> column next to its
-/// metadata (never a generic "owner string" table: IDs stay typed), a <see cref="DbSet{TEntity}"/> here, a configuration
-/// applied in <see cref="OnModelCreating"/>, then a migration (README, "Database migrations").
+/// Something that stores a key is an entity with its own typed ID and a <c>Sealed</c> column next to its metadata, never a
+/// generic "owner string" table: IDs stay typed.
 /// </remarks>
 internal sealed class VaultDbContext(DbContextOptions<VaultDbContext> options) : DbContext(options)
 {

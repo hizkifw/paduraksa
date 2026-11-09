@@ -12,7 +12,7 @@ using Paduraksa.Vault.Persistence;
 namespace Paduraksa.Vault.DataProtection;
 
 /// <summary>
-/// <see cref="IDataProtectionKeyStore"/> (PLAN §8.1, §8.2): the admin app's ASP.NET Core Data Protection key ring, sealed in
+/// <see cref="IDataProtectionKeyStore"/>: the admin app's ASP.NET Core Data Protection key ring, sealed in
 /// <c>vault.db</c> under the KEK exactly like every other key. Nothing here logs an element, and the opened plaintext lives in
 /// a pinned, zeroed <see cref="SecretBuffer"/> until it is turned into the one string Data Protection asks for.
 /// </summary>

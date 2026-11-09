@@ -20,7 +20,7 @@ internal sealed class SecretHttpHandlerFactory(VaultRuntime runtime, SecretReade
 }
 
 /// <summary>
-/// The whole transport of a DNS credential (PLAN §8.2, <see cref="ISecretHttpHandlerFactory"/>): on every request it
+/// The whole transport of a DNS credential: on every request it
 /// checks where the request is going, reads the secret inside the vault, puts the credential on a <i>clone</i> of the
 /// request, sends the clone over its own terminal handler and gives the response back with <c>RequestMessage</c> set to the
 /// caller's request.

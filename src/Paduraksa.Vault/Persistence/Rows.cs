@@ -25,7 +25,7 @@ internal sealed class VaultMetaRow
 }
 
 /// <summary>
-/// A secret (PLAN §8.2). <see cref="Sealed"/> holds the value as <see cref="Crypto.EnvelopeCipher"/> made it, bound to
+/// A secret. <see cref="Sealed"/> holds the value as <see cref="Crypto.EnvelopeCipher"/> made it, bound to
 /// <c>(Id, Kind, Version)</c>. A MAC key also keeps the version it replaced, for the verify grace window.
 /// </summary>
 internal sealed class SecretRow
@@ -86,7 +86,7 @@ internal sealed class AccountKeyRow
     /// <summary>The PKCS#8 key as <see cref="Crypto.EnvelopeCipher"/> made it, at the fixed <see cref="SealedVersion"/>.</summary>
     public byte[] Sealed { get; set; } = [];
 
-    /// <summary>An account key is never replaced (rollover is deferred, PLAN §9), so its seal version is always 1.</summary>
+    /// <summary>An account key is never replaced (rollover is not modelled), so its seal version is always 1.</summary>
     public const int SealedVersion = 1;
 }
 
@@ -140,7 +140,7 @@ internal sealed class StagedKeyRow
 }
 
 /// <summary>
-/// One element of the admin app's ASP.NET Core Data Protection key ring (PLAN §8.1, <c>IDataProtectionKeyStore</c>): the
+/// One element of the admin app's ASP.NET Core Data Protection key ring: the
 /// element XML sealed by the envelope cipher, bound to <c>(Id, purpose, Version)</c> with the friendly name in the purpose.
 /// The name is not secret; the element is, because it carries the raw key. Storing the same friendly name again replaces the
 /// element and increments <see cref="Version"/>, which is also in the AAD.
@@ -253,7 +253,7 @@ internal sealed class StagedKeyRowConfiguration : IEntityTypeConfiguration<Stage
 }
 
 /// <summary>
-/// What the vault tracks about a TOTP secret beyond its sealed value (PLAN §8.2, §10.1): whether the person has proved their
+/// What the vault tracks about a TOTP secret beyond its sealed value: whether the person has proved their
 /// authenticator works, and the last time step accepted, which is the replay protection. Not secret, so in the clear; one row per
 /// <see cref="SecretKind.TotpSecret"/> secret, deleted with it.
 /// </summary>

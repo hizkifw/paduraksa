@@ -10,37 +10,32 @@ using Paduraksa.Vault.Crypto;
 namespace Paduraksa.Vault.Certificates;
 
 /// <summary>
-/// <see cref="ICertificateImport"/> (PLAN §8.2, §9): an uploaded certificate and its key go in, public facts come out.
+/// <see cref="ICertificateImport"/>: an uploaded certificate and its key go in, public facts come out.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <b>Plaintext handling.</b> The upload is read into one pinned buffer (<see cref="SecretBuffer"/>) and a PEM key block is decoded
-/// from its bytes into another, never through a <see cref="string"/>; both are zeroed when the import ends. Nothing here holds the
-/// key as a managed object longer than one call: a key is loaded to prove it matches a certificate and disposed again, and what
-/// is stored is the PKCS#8 sealed by <see cref="CertificateStore"/>.
-/// </para>
-/// <para>
-/// <b>Formats.</b> A upload with a PEM block is PEM (certificate blocks, and one PKCS#8 key block, plain or encrypted; other
-/// block types are ignored, traditional and legacy-encrypted key blocks are refused). Anything else is PFX, read under
-/// <see cref="Limits"/>. An encrypted PKCS#8 or a PFX that fails to open reports <see cref="CertificateImportFailure.WrongPassword"/>
-/// when its outer structure is sound (the likeliest reason), otherwise <see cref="CertificateImportFailure.Unreadable"/>.
-/// The password-based key derivation of an encrypted key is bounded before it runs (<see cref="MaxKdfIterations"/>), and runs once
-/// per key type the upload's certificates could belong to (normally once).
-/// </para>
-/// <para>
+/// <b>Plaintext handling.</b> The upload is read into one pinned buffer (<see cref="SecretBuffer"/>) and a PEM key block is
+/// decoded from its bytes into another, never through a <see cref="string"/>; both are zeroed when the import ends. A key is
+/// loaded only to prove it matches a certificate and disposed again; what is stored is the PKCS#8 sealed by
+/// <see cref="CertificateStore"/>.
+///
+/// <b>Formats.</b> A PEM upload has certificate blocks and one PKCS#8 key block, plain or encrypted (other block types are
+/// ignored, traditional and legacy-encrypted key blocks are refused); anything else is PFX, read under <see cref="Limits"/>.
+/// A key that fails to open is <see cref="CertificateImportFailure.WrongPassword"/> when its outer structure is sound
+/// (the likeliest reason), otherwise <see cref="CertificateImportFailure.Unreadable"/>. The key derivation of an encrypted key
+/// is bounded before it runs (<see cref="MaxKdfIterations"/>) and runs once per key type the upload could belong to (normally
+/// once).
+///
 /// <b>The leaf</b> is the first certificate whose public key matches the key; the others are ordered behind it by issuer and
-/// stray ones, expired intermediates and the root are dropped (<see cref="CertificateFacts.Assemble"/>). A leaf is refused if it has
-/// no DNS name or IP address the inventory could use (<see cref="CertificateImportFailure.NoUsableName"/>, judged by the
-/// <see cref="ICertificateNameRules"/> the inventory uses), if it is an RSA key under 2048 bits
-/// (<see cref="CertificateImportFailure.WeakKey"/>) or if it is a CA certificate
+/// stray ones, expired intermediates and the root are dropped (<see cref="CertificateFacts.Assemble"/>). A leaf is refused
+/// without a DNS name or IP address the inventory could use (<see cref="CertificateImportFailure.NoUsableName"/>, judged by
+/// the <see cref="ICertificateNameRules"/> the inventory uses), as an RSA key under 2048 bits
+/// (<see cref="CertificateImportFailure.WeakKey"/>), or as a CA certificate
 /// (<see cref="CertificateImportFailure.CaCertificate"/>). An <b>expired</b> leaf is accepted: the inventory already treats a
 /// certificate outside its validity as unusable and republishes at the boundary, and refusing it would stop an admin from
 /// storing a certificate before its replacement is due.
-/// </para>
-/// <para>
-/// <b>Everything that goes wrong maps to <see cref="CertificateImportException"/></b>, including problems found while reading the
-/// certificate's own extensions after parsing; only the database's failures (and cancellation) pass through.
-/// </para>
+///
+/// <b>Everything that goes wrong maps to <see cref="CertificateImportException"/></b>, including problems found while reading
+/// the certificate's own extensions after parsing; only the database's failures (and cancellation) pass through.
 /// </remarks>
 internal sealed class CertificateImport(VaultRuntime runtime, CertificateStore store, ICertificateNameRules nameRules) : ICertificateImport
 {

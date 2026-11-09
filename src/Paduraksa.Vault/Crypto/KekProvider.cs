@@ -6,13 +6,10 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Vault.Crypto;
 
 /// <summary>A resolved KEK and where it came from. The vault runtime owns (and disposes) <see cref="Kek"/>.</summary>
-/// <param name="Kek">The key.</param>
-/// <param name="Source">Which of the three sources supplied it.</param>
-/// <param name="BesideDatabase">The key file sits next to <c>vault.db</c> (see <see cref="VaultStatus.KekBesideDatabase"/>).</param>
 internal sealed record ResolvedKek(Kek Kek, KekSourceKind Source, bool BesideDatabase);
 
 /// <summary>
-/// Finds the KEK (PLAN §8.3), in this priority order: the file named by <c>PADURAKSA_MASTER_KEY_FILE</c>, the
+/// Finds the KEK, in this priority order: the file named by <c>PADURAKSA_MASTER_KEY_FILE</c>, the
 /// <c>PADURAKSA_MASTER_KEY</c> variable, else <c>master.key</c> in the data directory (generated on first start).
 /// </summary>
 /// <remarks>

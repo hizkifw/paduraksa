@@ -5,7 +5,7 @@ using System.Text;
 namespace Paduraksa.Vault.Crypto;
 
 /// <summary>
-/// What a sealed value is bound to (PLAN §8.3): the ID of the row it lives in, what the value is (a secret's kind name,
+/// What a sealed value is bound to: the ID of the row it lives in, what the value is (a secret's kind name,
 /// or the purpose of a key), and its version. They go into the AAD of both AES-GCM operations, so a sealed value moved to
 /// another row, kind or version fails to open instead of opening as something else.
 /// </summary>
@@ -18,7 +18,7 @@ internal readonly record struct SealContext(string Id, string Purpose, int Versi
 internal sealed class KekMismatchException() : CryptographicException("The value is sealed under a different master key.");
 
 /// <summary>
-/// Envelope encryption of one value (PLAN §8.3): a random 256-bit data-encryption key (DEK) per value encrypts it with
+/// Envelope encryption of one value: a random 256-bit data-encryption key (DEK) per value encrypts it with
 /// AES-256-GCM, and the KEK wraps the DEK, also with AES-256-GCM. This is the one place the vault encrypts at rest; secrets
 /// and keys (and later certificate keys) all store the output of <see cref="Seal"/> in a <c>BLOB</c> column.
 /// </summary>

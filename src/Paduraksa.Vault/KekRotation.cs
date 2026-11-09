@@ -18,7 +18,7 @@ namespace Paduraksa.Vault;
 internal sealed record KekRotated(int Secrets, int AccountKeys, int CertificateKeys, int StagedKeys, int DataProtectionKeys);
 
 /// <summary>
-/// KEK rotation (PLAN §8.3, <see cref="IVaultKekRotation"/>): re-wraps every DEK in the database under a new KEK. Nothing is
+/// KEK rotation: re-wraps every DEK in the database under a new KEK. Nothing is
 /// re-encrypted but the DEKs, so the cost is one unwrap and one wrap per sealed value, and the plaintext is never produced.
 /// </summary>
 /// <remarks>
@@ -124,7 +124,7 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                     stagedKeys++;
                 }
 
-                // The admin app's Data Protection key ring (PLAN §8.1): its elements are keys like any other.
+                // The admin app's Data Protection key ring: its elements are keys like any other.
                 var dataProtectionKeys = 0;
                 foreach (var row in await context.DataProtectionKeys.ToListAsync(cancellationToken).ConfigureAwait(false))
                 {

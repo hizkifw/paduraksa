@@ -8,7 +8,7 @@ namespace Paduraksa.Vault.Certificates;
 
 /// <summary>
 /// What the vault accepts as the names of a certificate it creates, and how they become the subject and the
-/// SAN extension. The caller has normalised them already (PLAN §5.1); the vault checks again because it is the one that
+/// SAN extension. The caller has normalised them already; the vault checks again because it is the one that
 /// puts them into a signed certificate, and an invalid name there cannot be taken back.
 /// </summary>
 internal static class CertificateNaming

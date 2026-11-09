@@ -9,7 +9,7 @@ using Paduraksa.Vault.Persistence;
 namespace Paduraksa.Vault.Certificates;
 
 /// <summary>
-/// <see cref="ICertificateIssuance"/> (PLAN §8.2, §9): keys are born here and leave only as a CSR or as the public facts of the
+/// <see cref="ICertificateIssuance"/>: keys are born here and leave only as a CSR or as the public facts of the
 /// certificate made from them. Everything that replaces a certificate goes through <see cref="CertificateStore.PutAsync"/>,
 /// so the key and the chain change together and the ID stays.
 /// </summary>

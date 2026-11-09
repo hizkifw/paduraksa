@@ -11,7 +11,7 @@ using Paduraksa.Vault.Persistence;
 namespace Paduraksa.Vault.Keys;
 
 /// <summary>
-/// <see cref="IJwsSigner"/>: ACME account keys (PLAN §8.2, §9). The private key is generated here, sealed with the same
+/// <see cref="IJwsSigner"/>: ACME account keys. The private key is generated here, sealed with the same
 /// envelope as a secret (<see cref="EnvelopeCipher"/>, purpose <see cref="PurposeOf"/>, which carries the key's algorithm
 /// and so its type, version <see cref="AccountKeyRow.SealedVersion"/>), and used only inside <see cref="SignAsync"/>, which opens it, signs and
 /// zeroes it again.

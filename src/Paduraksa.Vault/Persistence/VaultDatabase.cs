@@ -6,7 +6,7 @@ namespace Paduraksa.Vault.Persistence;
 /// <summary>Startup for the vault database.</summary>
 internal static class VaultDatabase
 {
-    /// <summary>The database file name inside the data directory (PLAN §5).</summary>
+    /// <summary>The database file name inside the data directory.</summary>
     public const string FileName = "vault.db";
 
     /// <summary>The <see cref="Exception.Data"/> key under which a KEK mismatch carries the database's check value.</summary>

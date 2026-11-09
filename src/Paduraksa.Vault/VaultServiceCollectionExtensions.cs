@@ -12,18 +12,15 @@ using Paduraksa.Vault.Totp;
 namespace Paduraksa.Vault;
 
 /// <summary>
-/// The vault's only public type (PLAN §8): registers its capabilities and nothing else. Every capability is a Core
+/// The vault's only public type: registers its capabilities and nothing else. Every capability is a Core
 /// interface; every implementation is <c>internal</c>.
 /// </summary>
 public static class VaultServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the vault capabilities (<see cref="ISecretStore"/>, <see cref="IMacKeySource"/>,
-    /// <see cref="ISecretHttpHandlerFactory"/>, <see cref="IJwsSigner"/>, <see cref="ICertificateIssuance"/>,
-    /// <see cref="ICertificateImport"/>, <see cref="ICertificateCatalog"/>, <see cref="IServerCertificateSource"/>, <see cref="IClientCertificateSource"/>),
-    /// <see cref="IVaultKekRotation"/> and <see cref="IVaultLifecycle"/>. The vault keeps
-    /// <c>vault.db</c> (and, if no other source is configured, <c>master.key</c>) in <paramref name="dataDirectory"/>, and finds its
-    /// key-encryption key from <c>PADURAKSA_MASTER_KEY_FILE</c>, <c>PADURAKSA_MASTER_KEY</c> or that generated file (PLAN §8.3).
+    /// Registers the vault's capabilities, its KEK rotation and its lifecycle. The vault keeps <c>vault.db</c> (and, if no
+    /// other source is configured, <c>master.key</c>) in <paramref name="dataDirectory"/>, and finds its key-encryption key
+    /// from <c>PADURAKSA_MASTER_KEY_FILE</c>, <c>PADURAKSA_MASTER_KEY</c> or that generated file.
     /// </summary>
     /// <remarks>
     /// Nothing is read or created here. Call <see cref="IVaultLifecycle.InitializeAsync"/> at startup so that a missing or

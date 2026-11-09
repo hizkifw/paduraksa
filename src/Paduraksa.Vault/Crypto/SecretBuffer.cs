@@ -4,7 +4,7 @@ namespace Paduraksa.Vault.Crypto;
 
 /// <summary>
 /// A plaintext the vault is holding: a pinned array (the GC can't copy it around) that is zeroed on disposal. Best
-/// effort, as PLAN §8.3 says: it can't stop a process dump taken while the value is live, or the copies a caller makes.
+/// effort: it cannot stop a process dump taken while the value is live, or the copies a caller makes.
 /// </summary>
 internal sealed class SecretBuffer : IDisposable
 {

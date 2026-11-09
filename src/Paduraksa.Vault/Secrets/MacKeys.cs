@@ -122,28 +122,21 @@ internal static class MacKeyMaterial
 /// class and is zeroed when replaced, deleted or the process ends.
 /// </summary>
 /// <remarks>
-/// <para>
 /// An entry is re-read when this process replaces or deletes the secret (<see cref="Invalidate"/>) and otherwise after
-/// <see cref="VaultPolicy.MacCacheMaxAge"/>, so a change another process made (the CLI) is seen within that time. The
-/// re-read is a version check; the key is only unsealed again if the version moved.
-/// </para>
-/// <para>
-/// <b>Rotation does not stop MAC operations.</b> A KEK rotation re-wraps keys but does not change any MAC plaintext, so a
-/// cached key stays correct throughout. A refresh needs the vault's gate (it unseals under the KEK); if a rotation holds it,
-/// the refresh of an entry that already exists does not wait: the cached key is used for now and the refresh happens on a later
-/// call. Only the very first use of a secret waits.
-/// </para>
-/// <para>
-/// <b>Concurrency.</b> Reads (<see cref="Acquire"/>) take no lock. Every change to the table (installing a refreshed state,
-/// <see cref="Invalidate"/>) happens under one lock, so each state is retired exactly once, by whoever removed it from the
-/// table. A refresh reads the database outside the lock and remembers the <i>epoch</i> it started in; <see cref="Invalidate"/>
-/// advances the epoch, and a refresh that finds the epoch changed throws its state away instead of installing it (it may be
-/// older than the replacement or deletion the invalidate was for) and starts again.
-/// </para>
-/// <para>
-/// States are immutable and reference-counted: a <c>Sign</c> in flight holds a count, so retiring the entry zeroes the key
-/// only when the last user is done, never under a computation in progress, and a retired state can no longer be acquired.
-/// </para>
+/// <see cref="VaultPolicy.MacCacheMaxAge"/>, so a change another process made is seen within that time; the re-read is a
+/// version check, and the key is only unsealed again if the version moved.
+///
+/// <b>Rotation does not stop MAC operations.</b> A KEK rotation re-wraps keys but changes no MAC plaintext, so a cached key
+/// stays correct throughout. A refresh needs the vault's gate (it unseals under the KEK); if a rotation holds it, the
+/// refresh of an entry that already exists does not wait and happens on a later call, and only the very first use of a
+/// secret waits.
+///
+/// <b>Concurrency.</b> Reads (<see cref="Acquire"/>) take no lock; every change to the table happens under one lock, so each
+/// state is retired exactly once, by whoever removed it. A refresh reads the database outside the lock and remembers the
+/// <i>epoch</i> it started in; <see cref="Invalidate"/> advances the epoch, and a refresh that finds it changed throws its
+/// state away instead of installing it (it may be older than the replacement or deletion the invalidate was for). States are
+/// immutable and reference-counted: a <c>Sign</c> in flight holds a count, so the key is zeroed only when the last user is
+/// done, and a retired state can no longer be acquired.
 /// </remarks>
 internal sealed class MacKeyCache(SecretReader reader, VaultRuntime runtime) : IDisposable
 {

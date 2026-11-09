@@ -5,7 +5,7 @@ using Paduraksa.Core.Vault;
 namespace Paduraksa.Vault.Crypto;
 
 /// <summary>
-/// The key-encryption key (PLAN §8.3): 32 random bytes that wrap every data-encryption key. Held in a pinned array for
+/// The key-encryption key: 32 random bytes that wrap every data-encryption key. Held in a pinned array for
 /// the life of the process (every secret operation needs it) and zeroed on disposal.
 /// </summary>
 /// <remarks>

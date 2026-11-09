@@ -20,12 +20,9 @@ internal sealed record VaultPolicy(TimeSpan MacGraceWindow, TimeSpan MacCacheMax
 /// <summary>
 /// What the vault is built from. The public entry point supplies the data directory and the defaults; the rest is the
 /// internal seam the vault's own tests substitute (environment, clock, transport), never anything a caller can pass.
+/// <c>CreateTerminalHandler</c> builds the handler at the end of an authenticating handler's chain (see
+/// <see cref="Secrets.TerminalHandlers"/>).
 /// </summary>
-/// <param name="DataDirectory">Holds <c>vault.db</c> and the generated <c>master.key</c>.</param>
-/// <param name="GetVariable">Reads an environment variable; <see cref="Environment.GetEnvironmentVariable(string)"/> by default.</param>
-/// <param name="Time">The clock.</param>
-/// <param name="Policy">Grace window and cache age.</param>
-/// <param name="CreateTerminalHandler">Builds the handler at the end of an authenticating handler's chain (see <see cref="Secrets.TerminalHandlers"/>).</param>
 internal sealed record VaultOptions(
     string DataDirectory,
     Func<string, string?> GetVariable,
