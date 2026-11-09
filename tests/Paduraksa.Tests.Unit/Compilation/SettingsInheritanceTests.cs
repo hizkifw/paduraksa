@@ -220,13 +220,6 @@ public sealed class SettingsInheritanceTests
 
         // The dashboard binds the same contract directly, so its fields fold what they inherit through this merge too; its own
         // table (HostSettingsFieldsTests, Tests.Dashboard) walks every field, and keeps the built-in defaults out of the form.
-
-        // The one case the per-setting tests used to pin by hand: the host's mode over the profile's value.
-        if (name == "serverHeader")
-        {
-            Assert.Contains("serverHeader.mode", nested.Host);
-            Assert.Contains("serverHeader.value", nested.Profile);
-        }
     }
 
     [Fact]
