@@ -1,12 +1,9 @@
-@implements IDisposable
 @using Paduraksa.Contracts.Certificates
 @using Paduraksa.Dashboard.Certificates
 @using Microsoft.Extensions.Logging
-@inject IDashboardConfig Config
-@inject DashboardCaller Caller
-@inject DrawerStack Drawers
-@inject ISnackbar Snackbar
 @inject ILogger<HostDrawer> Logger
+@inherits DraftDrawer<HostEditModel, HostConfig>
+
 @* A host in a drawer (PLAN §12): the form, and Review changes on top of it. "New upstream..." and "New profile..." stack the other form
    and stage what it makes into this host's draft: the host and the objects it needs are reviewed and applied as one revision, and
    cancelling the host leaves nothing behind. "New certificate..." stacks the certificate flow, which issues or uploads at once (a
@@ -15,7 +12,7 @@
 <DrawerShell Title="@Title" Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Language"
              Name="host" OnSubmit="ReviewAsync">
     <HeaderActions>
-        @if (_model is { IsNew: false } && _maySimulate)
+        @if (Model is { IsNew: false } && _maySimulate)
         {
             <MudTooltip Text="Simulate a request" Placement="Placement.Bottom">
                 <MudIconButton Href="@SimulateHref" Icon="@Icons.Material.Outlined.Science" Size="Size.Small" aria-label="Simulate a request" />
@@ -23,37 +20,37 @@
         }
     </HeaderActions>
     <Banner>
-        @if (_changedElsewhere is { } elsewhere)
+        @if (ChangedElsewhere is { } elsewhere)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
                 This host was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
                 <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
             </MudAlert>
         }
-        @if (_failed)
+        @if (Failed)
         {
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
                 The host couldn't be read. The details are in the server log.
                 <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
             </MudAlert>
         }
-        @if (_denied)
+        @if (Denied)
         {
             <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
         }
-        else if (!_mayWrite && _model is not null)
+        else if (!MayWrite && Model is not null)
         {
             <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this host but not change it.</MudAlert>
         }
     </Banner>
     <ChildContent>
-        @if (_missing)
+        @if (Missing)
         {
             <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such host" Description="It may have been deleted, or the link is wrong." />
         }
-        else if (_model is null || _current is null)
+        else if (Model is null || _current is null)
         {
-            @if (!_failed && !_denied)
+            @if (!Failed && !Denied)
             {
                 <div class="pdk-form" aria-busy="true">
                     @for (int i = 0; i < 3; i++)
@@ -68,12 +65,12 @@
         }
         else
         {
-            <HostForm Model="_model" Upstreams="Draft.Upstreams" Staged="StagedUpstreamIds" Profiles="Draft.Profiles" StagedProfiles="StagedProfileIds"
-                      Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" Errors="_errors" ShowAll="_attempted" ReadOnly="!_mayWrite"
+            <HostForm Model="Model" Upstreams="DraftDocument.Upstreams" Staged="StagedUpstreamIds" Profiles="DraftDocument.Profiles" StagedProfiles="StagedProfileIds"
+                      Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" Errors="FieldErrors" ShowAll="Attempted" ReadOnly="!MayWrite"
                       OnChanged="Changed"
-                      OnNewUpstream="@(_mayWrite ? EventCallback.Factory.Create<RouteEntry>(this, NewUpstreamAsync) : default)"
-                      OnNewProfile="@(_mayWrite ? EventCallback.Factory.Create(this, NewProfileAsync) : default)"
-                      OnNewCertificate="@(_mayWrite && _mayWriteCertificates ? EventCallback.Factory.Create(this, NewCertificateAsync) : default)" />
+                      OnNewUpstream="@(MayWrite ? EventCallback.Factory.Create<RouteEntry>(this, NewUpstreamAsync) : default)"
+                      OnNewProfile="@(MayWrite ? EventCallback.Factory.Create(this, NewProfileAsync) : default)"
+                      OnNewCertificate="@(MayWrite && _mayWriteCertificates ? EventCallback.Factory.Create(this, NewCertificateAsync) : default)" />
             @if (_staged.Count > 0 || _stagedProfiles.Count > 0)
             {
                 <div class="pdk-staged" data-section="staged">
@@ -84,7 +81,7 @@
                     <ul class="pdk-staged-list">
                         @foreach (UpstreamConfig upstream in _staged)
                         {
-                            bool used = _model.Kind == HostKind.Proxy && _model.Routes.Any(r => r.UpstreamId == upstream.Id);
+                            bool used = Model.Kind == HostKind.Proxy && Model.Routes.Any(r => r.UpstreamId == upstream.Id);
                             <li data-staged="@upstream.Name" data-used="@(used ? "true" : "false")" class="@(used ? null : "pdk-staged-unused")">
                                 <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
                                 <span class="pdk-staged-name">@upstream.Name</span>
@@ -97,7 +94,7 @@
                                 {
                                     <StatusChip Tone="Tone.Error" Dot="true" Text="Needs a fix" Name="staged-error" />
                                 }
-                                @if (_mayWrite)
+                                @if (MayWrite)
                                 {
                                     <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => EditStagedUpstreamAsync(upstream)"
                                                data-action="edit-staged">Edit</MudButton>
@@ -106,7 +103,7 @@
                         }
                         @foreach (ProfileConfig profile in _stagedProfiles)
                         {
-                            bool picked = _model.ProfileId == profile.Id;
+                            bool picked = Model.ProfileId == profile.Id;
                             <li data-staged="@profile.Name" data-used="@(picked ? "true" : "false")" class="@(picked ? null : "pdk-staged-unused")">
                                 <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
                                 <span class="pdk-staged-name">@profile.Name</span>
@@ -119,7 +116,7 @@
                                 {
                                     <StatusChip Tone="Tone.Error" Dot="true" Text="Needs a fix" Name="staged-error" />
                                 }
-                                @if (_mayWrite)
+                                @if (MayWrite)
                                 {
                                     <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => EditStagedProfileAsync(profile)"
                                                data-action="edit-staged">Edit</MudButton>
@@ -133,12 +130,12 @@
     </ChildContent>
     <Footer>
         <div class="pdk-drawer-actions">
-            @if (_model is { IsNew: false } && _mayWrite)
+            @if (Model is { IsNew: false } && MayWrite)
             {
                 <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="ReviewDeleteAsync" data-action="delete"
                            Class="pdk-drawer-actions-start">Delete</MudButton>
             }
-            @if (_mayWrite && _model is not null)
+            @if (MayWrite && Model is not null)
             {
                 <MudButton Variant="Variant.Text" OnClick="Cancel" data-action="cancel">Cancel</MudButton>
                 <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
@@ -154,7 +151,6 @@
 </DrawerShell>
 
 @code {
-    private HostEditModel? _model;
     private CurrentConfig? _current;
     private HostConfig? _stored;
     private IReadOnlyList<CertificateSummary>? _certificates;
@@ -165,138 +161,109 @@
     private readonly Dictionary<UpstreamId, IReadOnlyDictionary<string, string>> _stagedUpstreamErrors = [];
     private readonly Dictionary<ProfileId, IReadOnlyDictionary<string, string>> _stagedProfileErrors = [];
     private ConfigDocument? _reviewed;
-    private IReadOnlyDictionary<string, string> _errors = new Dictionary<string, string>();
     private IReadOnlyDictionary<string, string> _serverErrors = new Dictionary<string, string>();
-    private string _opened = string.Empty;
-    private bool _attempted;
-    private bool _mayWrite;
     private bool _maySimulate;
     private bool _mayWriteCertificates;
-    private bool _denied;
-    private bool _missing;
-    private bool _failed;
-    private bool _reviewing;
-    private RevisionRef? _changedElsewhere;
-    private IDisposable? _watch;
-
-    [CascadingParameter]
-    private DrawerLevel? Level { get; set; }
+    private bool _mayReadCertificates;
 
     /// <summary>The host to edit; null for a new one.</summary>
     [Parameter]
     public HostId? Id { get; set; }
 
-    private string Title => _missing ? "Host not found" : _model is null ? (Id is null ? "New host" : "Host") : _model.IsNew ? "New host" : ChangeView.HostTitle(_stored ?? _model.ToConfig());
+    private string Title => Missing ? "Host not found" : Model is null ? (Id is null ? "New host" : "Host") : Model.IsNew ? "New host" : ChangeView.HostTitle(_stored ?? Model.ToConfig());
 
-    private string Subtitle => _model is { IsNew: true } || Id is null
+    private string Subtitle => Model is { IsNew: true } || Id is null
         ? "Nothing changes until you review and apply."
         : "Every change is reviewed as a diff before it goes live, and can be undone.";
 
     /// <summary>The config as the form sees it: what is stored, and what was made in this drawer.</summary>
-    private ConfigDocument Draft => StagedChange.Draft(_current?.Document ?? new ConfigDocument(), _staged, _stagedProfiles);
+    private ConfigDocument DraftDocument => StagedChange.Draft(_current?.Document ?? new ConfigDocument(), _staged, _stagedProfiles);
 
     private HashSet<UpstreamId> StagedUpstreamIds => [.. _staged.Select(u => u.Id)];
 
     private HashSet<ProfileId> StagedProfileIds => [.. _stagedProfiles.Select(p => p.Id)];
 
-    private string? SampleHost => _model?.Names.Select(n => n.Value.Trim()).FirstOrDefault(n => n.Length > 0 && !n.StartsWith('*'));
+    private string? SampleHost => Model?.Names.Select(n => n.Value.Trim()).FirstOrDefault(n => n.Length > 0 && !n.StartsWith('*'));
 
     private string SimulateHref => SampleHost is { } host ? $"{DashboardRoutes.Simulator}?url={Uri.EscapeDataString($"https://{host}/")}" : DashboardRoutes.Simulator;
 
-    protected override async Task OnInitializedAsync()
+    protected override string LoadFailureMessage => "Couldn't load the host form.";
+
+    protected override string RefreshFailureMessage => "Couldn't refresh the host form's choices.";
+
+    protected override void OnPrincipal(DashboardPrincipal user)
     {
-        _watch = Config.Watch(committed => InvokeAsync(() => OnCommittedAsync(committed)));
-        await LoadAsync();
-    }
-
-    public void Dispose() => _watch?.Dispose();
-
-    private async Task LoadAsync()
-    {
-        _failed = false;
-        _changedElsewhere = null;
-        _attempted = false;
-        _serverErrors = new Dictionary<string, string>();
-        DashboardPrincipal? user = await Caller.CheckAsync();
-        if (user is null)
-        {
-            return;
-        }
-
-        if (!user.Has(Permission.ConfigRead))
-        {
-            _denied = true;
-            return;
-        }
-
-        _mayWrite = user.Has(Permission.ConfigWrite);
         _maySimulate = user.Has(Permission.Simulate);
         _mayWriteCertificates = user.Has(Permission.CertificatesWrite);
-        try
-        {
-            _current = await Config.GetCurrentAsync();
-            _certificates = user.Has(Permission.CertificatesRead) ? await Config.ListCertificatesAsync() : null;
-        }
-        catch (Exception ex) when (StoreFailures.Survivable(ex))
-        {
-            // The form keeps what it shows (edits included); the alert offers another try.
-            Logger.LogStoreFailure(ex, "Couldn't load the host form.");
-            _failed = true;
-            return;
-        }
+        _mayReadCertificates = user.Has(Permission.CertificatesRead);
+    }
 
+    protected override void OnReset() => _serverErrors = new Dictionary<string, string>();
+
+    protected override void OnReload() => _stored = null;
+
+    protected override async Task<ConfigDocument> LoadSourceAsync()
+    {
+        _current = await Config.GetCurrentAsync();
+        _certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
+        return _current.Document;
+    }
+
+    protected override bool LoadModel(ConfigDocument document)
+    {
         if (Id is { } hostId)
         {
-            if (_current.Document.Hosts.FirstOrDefault(h => h.Id == hostId) is not { } host)
+            if (document.Hosts.FirstOrDefault(h => h.Id == hostId) is not { } host)
             {
-                _missing = true;
-                return;
+                Missing = true;
+                return false;
             }
 
             _stored = host;
-            _model = HostEditModel.From(host);
+            Model = HostEditModel.From(host);
         }
         else
         {
-            _model = HostEditModel.New(_current.Document.Upstreams.Count == 1 ? _current.Document.Upstreams[0].Id : null);
+            Model = HostEditModel.New(document.Upstreams.Count == 1 ? document.Upstreams[0].Id : null);
         }
 
         _staged.Clear();
         _stagedProfiles.Clear();
         _stagedUpstreamErrors.Clear();
         _stagedProfileErrors.Clear();
-        _opened = Fingerprint();
-        Validate();
+        return true;
     }
 
-    private string Fingerprint() =>
-        _model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(Upstreams: [.. _staged], Profiles: [.. _stagedProfiles], Hosts: [_model.ToConfig()]));
+    protected override HostConfig ToConfig() => Model!.ToConfig();
 
-    private void Changed()
-    {
-        Validate();
-        if (Level is not null && _model is not null)
-        {
-            Level.IsDirty = Fingerprint() != _opened;
-        }
-    }
+    protected override string Fingerprint() =>
+        Model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(Upstreams: [.. _staged], Profiles: [.. _stagedProfiles], Hosts: [ToConfig()]));
 
-    private void Validate()
+    protected override void Validate()
     {
-        if (_model is null || _current is null)
+        if (Model is null || _current is null)
         {
             return;
         }
 
-        IReadOnlyDictionary<string, string> inline = InlineValidation.ForHost(Draft, _model.ToConfig());
+        IReadOnlyDictionary<string, string> inline = InlineValidation.ForHost(DraftDocument, ToConfig());
         Dictionary<string, string> merged = new(_serverErrors, StringComparer.Ordinal);
         foreach ((string path, string message) in inline)
         {
             merged[path] = message;
         }
 
-        _errors = merged;
+        FieldErrors = merged;
         _serverErrors = new Dictionary<string, string>();
+    }
+
+    protected override bool IsChangedElsewhere(ConfigCommitted committed) =>
+        !Model!.IsNew && committed.Changes.Any(c => (c is HostChange h && h.HostId == Model.Id) || (c is RouteChange r && r.HostId == Model.Id));
+
+    protected override async Task RefreshAsync()
+    {
+        _current = await Config.GetCurrentAsync();
+        Validate();
     }
 
     private async Task NewUpstreamAsync(RouteEntry route)
@@ -306,11 +273,11 @@
             new Dictionary<string, object?>
             {
                 [nameof(UpstreamDrawer.Stage)] = true,
-                [nameof(UpstreamDrawer.Draft)] = Draft,
-                [nameof(UpstreamDrawer.SuggestedName)] = basis is { Length: > 0 } ? UpstreamDrawer.UniqueName(Draft, basis) : null,
+                [nameof(UpstreamDrawer.Draft)] = DraftDocument,
+                [nameof(UpstreamDrawer.SuggestedName)] = basis is { Length: > 0 } ? UpstreamDrawer.UniqueName(DraftDocument, basis) : null,
             },
             DrawerWidth.Medium);
-        if (result.As<UpstreamConfig>() is { } upstream && _model?.Routes.Contains(route) == true)
+        if (result.As<UpstreamConfig>() is { } upstream && Model?.Routes.Contains(route) == true)
         {
             _staged.Add(upstream);
             route.UpstreamId = upstream.Id;
@@ -321,24 +288,24 @@
     private async Task NewProfileAsync()
     {
         DrawerResult result = await Drawers.OpenAsync<ProfileDrawer>(
-            new Dictionary<string, object?> { [nameof(ProfileDrawer.Stage)] = true, [nameof(ProfileDrawer.Draft)] = Draft },
+            new Dictionary<string, object?> { [nameof(ProfileDrawer.Stage)] = true, [nameof(ProfileDrawer.Draft)] = DraftDocument },
             DrawerWidth.Medium);
-        if (result.As<ProfileConfig>() is { } profile && _model is not null)
+        if (result.As<ProfileConfig>() is { } profile && Model is not null)
         {
             _stagedProfiles.Add(profile);
-            _model.ProfileId = profile.Id;
+            Model.ProfileId = profile.Id;
             Changed();
         }
     }
 
     private async Task NewCertificateAsync()
     {
-        if (_model is null)
+        if (Model is null)
         {
             return;
         }
 
-        string[] names = [.. _model.Names.Select(n => n.Value.Trim().TrimEnd('.').ToLowerInvariant()).Where(n => n.Length > 0)];
+        string[] names = [.. Model.Names.Select(n => n.Value.Trim().TrimEnd('.').ToLowerInvariant()).Where(n => n.Length > 0)];
         DrawerResult result = await Drawers.OpenAsync<CertificateCreateDrawer>(
             new Dictionary<string, object?> { [nameof(CertificateCreateDrawer.InitialNames)] = names },
             DrawerWidth.Medium);
@@ -350,13 +317,13 @@
         await Logger.TryAsync(Snackbar, "Couldn't read the certificates again.", async () => _certificates = await Config.ListCertificatesAsync());
         if (HostOverview.IsUsable(certificate))
         {
-            _model.CertificateMode = CertificateBindingMode.Specific;
-            _model.CertificateId = certificate.Id;
+            Model.CertificateMode = CertificateBindingMode.Specific;
+            Model.CertificateId = certificate.Id;
         }
         else
         {
-            _model.CertificateMode = CertificateBindingMode.Auto;
-            _model.CertificateId = null;
+            Model.CertificateMode = CertificateBindingMode.Auto;
+            Model.CertificateId = null;
             Snackbar.Add($"{CertificateDisplay.DisplayName(certificate)} isn't issued yet: Automatic picks it up once it is.", Severity.Info);
         }
 
@@ -365,26 +332,19 @@
 
     private async Task ReviewAsync()
     {
-        if (_model is null || !_mayWrite || _reviewing)
+        if (!CanSubmit())
         {
             return;
         }
 
-        _attempted = true;
-        Validate();
-        if (_errors.Count > 0)
-        {
-            return;
-        }
-
-        HostConfig host = _model.ToConfig();
+        HostConfig host = ToConfig();
         IReadOnlyList<UpstreamConfig> upstreams = StagedChange.UsedUpstreams(host, _staged);
         IReadOnlyList<ProfileConfig> profiles = StagedChange.UsedProfiles(host, _stagedProfiles);
         string name = ChangeView.HostTitle(host);
         ReviewRequest request;
         if (upstreams.Count == 0 && profiles.Count == 0)
         {
-            request = new ReviewRequest(_model.IsNew ? $"New host {name}" : $"Edit {name}", new UpsertHostCommand(host));
+            request = new ReviewRequest(Model!.IsNew ? $"New host {name}" : $"Edit {name}", new UpsertHostCommand(host));
         }
         else
         {
@@ -402,9 +362,9 @@
                 return;
             }
 
-            if (!_model.IsNew && head.Document.Hosts.FirstOrDefault(h => h.Id == _model.Id)?.Version != _model.Version)
+            if (!Model!.IsNew && head.Document.Hosts.FirstOrDefault(h => h.Id == Model.Id)?.Version != Model.Version)
             {
-                _changedElsewhere = head.Revision;
+                ChangedElsewhere = head.Revision;
                 Snackbar.Add($"{name} was changed elsewhere since you opened it. Reload to start from the new version.", Severity.Warning);
                 return;
             }
@@ -412,9 +372,9 @@
             ConfigDocument after = StagedChange.Apply(head.Document, host, upstreams, profiles);
             string with = string.Join(" and ", [.. upstreams.Select(u => $"upstream {u.Name}"), .. profiles.Select(p => $"profile {p.Name}")]);
             _reviewed = after;
-            request = new ReviewRequest(_model.IsNew ? $"New host {name}" : $"Edit {name}", new ReplaceConfigCommand(after, head.Revision?.Id)
+            request = new ReviewRequest(Model!.IsNew ? $"New host {name}" : $"Edit {name}", new ReplaceConfigCommand(after, head.Revision?.Id)
             {
-                Message = $"{(_model.IsNew ? "New host" : "Edit")} {name} with {with}",
+                Message = $"{(Model.IsNew ? "New host" : "Edit")} {name} with {with}",
             })
             {
                 AfterDocument = after,
@@ -422,59 +382,29 @@
             };
         }
 
-        await RunReviewAsync(request with
+        ReviewRequest final = request with
         {
-            SuccessMessage = _model.IsNew ? $"Created {name}" : $"Saved {name}",
+            SuccessMessage = Model.IsNew ? $"Created {name}" : $"Saved {name}",
             SampleHost = SampleHost,
             OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
-        });
+        };
+        await RunReviewAsync(final, final.Command is ReplaceConfigCommand ? ReviewAsync : null);
     }
 
     private async Task ReviewDeleteAsync()
     {
-        if (_model is null || _model.IsNew || !_mayWrite || _stored is null)
+        if (Model is null || Model.IsNew || !MayWrite || _stored is null)
         {
             return;
         }
 
         string name = ChangeView.HostTitle(_stored);
-        await RunReviewAsync(new ReviewRequest($"Delete {name}", new DeleteHostCommand(_model.Id, _model.Version))
+        await RunReviewAsync(new ReviewRequest($"Delete {name}", new DeleteHostCommand(Model.Id, Model.Version))
         {
             ApplyLabel = "Delete",
             Destructive = true,
             SuccessMessage = $"Deleted {name}",
         });
-    }
-
-    private async Task RunReviewAsync(ReviewRequest request)
-    {
-        _reviewing = true;
-        ReviewOutcome outcome;
-        try
-        {
-            outcome = await Drawers.ReviewAsync(request);
-        }
-        finally
-        {
-            _reviewing = false;
-        }
-
-        if (outcome.Applied is { } applied)
-        {
-            Level?.Close(applied);
-        }
-        else if (outcome.Reload)
-        {
-            if (request.Command is ReplaceConfigCommand)
-            {
-                // What was staged stays: the review is made again on the latest config (and checks this host's version again).
-                await ReviewAsync();
-            }
-            else
-            {
-                await ReloadAsync();
-            }
-        }
     }
 
     /// <summary>
@@ -483,33 +413,20 @@
     /// </summary>
     private void OnInvalidDocument(IReadOnlyList<ConfigError> errors)
     {
-        if (_reviewed is not { } document || _model is null)
+        if (_reviewed is not { } document || Model is null)
         {
             return;
         }
 
-        int host = document.Hosts.ToList().FindIndex(h => h.Id == _model.Id);
+        int host = document.Hosts.ToList().FindIndex(h => h.Id == Model.Id);
         if (host >= 0)
         {
             OnInvalid([.. errors.Where(e => e.Path.StartsWith($"/hosts/{host}/", StringComparison.Ordinal) || e.Path == $"/hosts/{host}")
                 .Select(e => e with { Path = e.Path[$"/hosts/{host}".Length..] })]);
         }
 
-        for (int i = 0; i < document.Upstreams.Count; i++)
-        {
-            if (_staged.Any(u => u.Id == document.Upstreams[i].Id) && InlineValidation.Relative(errors, $"/upstreams/{i}") is { Count: > 0 } found)
-            {
-                _stagedUpstreamErrors[document.Upstreams[i].Id] = found;
-            }
-        }
-
-        for (int i = 0; i < document.Profiles.Count; i++)
-        {
-            if (_stagedProfiles.Any(p => p.Id == document.Profiles[i].Id) && InlineValidation.Relative(errors, $"/profiles/{i}") is { Count: > 0 } found)
-            {
-                _stagedProfileErrors[document.Profiles[i].Id] = found;
-            }
-        }
+        RouteStagedErrors(errors, document.Upstreams, _staged, upstream => upstream.Id, (id, found) => _stagedUpstreamErrors[id] = found, "upstreams");
+        RouteStagedErrors(errors, document.Profiles, _stagedProfiles, profile => profile.Id, (id, found) => _stagedProfileErrors[id] = found, "profiles");
     }
 
     private async Task EditStagedUpstreamAsync(UpstreamConfig staged)
@@ -518,7 +435,7 @@
             new Dictionary<string, object?>
             {
                 [nameof(UpstreamDrawer.Stage)] = true,
-                [nameof(UpstreamDrawer.Draft)] = Draft,
+                [nameof(UpstreamDrawer.Draft)] = DraftDocument,
                 [nameof(UpstreamDrawer.Staged)] = staged,
                 [nameof(UpstreamDrawer.Errors)] = _stagedUpstreamErrors.GetValueOrDefault(staged.Id),
             },
@@ -537,7 +454,7 @@
             new Dictionary<string, object?>
             {
                 [nameof(ProfileDrawer.Stage)] = true,
-                [nameof(ProfileDrawer.Draft)] = Draft,
+                [nameof(ProfileDrawer.Draft)] = DraftDocument,
                 [nameof(ProfileDrawer.Staged)] = staged,
                 [nameof(ProfileDrawer.Errors)] = _stagedProfileErrors.GetValueOrDefault(staged.Id),
             },
@@ -550,55 +467,32 @@
         }
     }
 
-    private void OnInvalid(IReadOnlyList<ConfigError> errors)
+    /// <summary>
+    /// Sends the dry run's errors about each staged object to that object, which shows them at its fields when opened again:
+    /// the same walk for upstreams and profiles, which differ only in their ID and collection.
+    /// </summary>
+    private static void RouteStagedErrors<T, TId>(
+        IReadOnlyList<ConfigError> errors,
+        IReadOnlyList<T> objects,
+        IReadOnlyList<T> staged,
+        Func<T, TId> id,
+        Action<TId, IReadOnlyDictionary<string, string>> keep,
+        string collection)
+    {
+        for (int i = 0; i < objects.Count; i++)
+        {
+            TId objectId = id(objects[i]);
+            if (staged.Any(item => EqualityComparer<TId>.Default.Equals(id(item), objectId))
+                && InlineValidation.Relative(errors, $"/{collection}/{i}") is { Count: > 0 } found)
+            {
+                keep(objectId, found);
+            }
+        }
+    }
+
+    protected override void OnInvalid(IReadOnlyList<ConfigError> errors)
     {
         _serverErrors = InlineValidation.Relative(errors, string.Empty);
-        _attempted = true;
-        Dictionary<string, string> merged = new(_errors, StringComparer.Ordinal);
-        foreach ((string path, string message) in _serverErrors)
-        {
-            merged[path] = message;
-        }
-
-        _errors = merged;
-    }
-
-    private async Task ReloadAsync()
-    {
-        _model = null;
-        _stored = null;
-        await LoadAsync();
-        if (Level is not null)
-        {
-            Level.IsDirty = false;
-        }
-    }
-
-    private void Cancel() => Level?.RequestClose();
-
-    private async Task OnCommittedAsync(ConfigCommitted committed)
-    {
-        if (_reviewing || _model is null)
-        {
-            return;
-        }
-
-        if (!_model.IsNew && committed.Changes.Any(c => (c is HostChange h && h.HostId == _model.Id) || (c is RouteChange r && r.HostId == _model.Id)))
-        {
-            _changedElsewhere = committed.Revision;
-        }
-
-        // The pickers offer what exists now (an upstream added in another tab); the form keeps the version it opened with.
-        try
-        {
-            _current = await Config.GetCurrentAsync();
-            Validate();
-        }
-        catch (Exception ex) when (StoreFailures.Survivable(ex))
-        {
-            Logger.LogStoreFailure(ex, "Couldn't refresh the host form's choices.");
-        }
-
-        StateHasChanged();
+        MergeErrors(_serverErrors);
     }
 }
