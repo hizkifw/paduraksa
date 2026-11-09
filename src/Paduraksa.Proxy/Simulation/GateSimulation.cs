@@ -80,6 +80,7 @@ public enum GateStepKind : byte
     ClientAddress,
     AcmeChallenge,
     HostMatch,
+    ServerHeader,
     TlsPolicy,
     Hsts,
     HostPolicy,

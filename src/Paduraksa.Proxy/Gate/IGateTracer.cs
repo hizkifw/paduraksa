@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -48,6 +50,10 @@ internal interface IGateTracer
     /// behaviour answers).</summary>
     void HostLookup(StringValues hostHeader, CompiledHost? host, HostMatchKind match, DefaultHostBehaviour fallback);
 
+    /// <summary>The host's <c>Server</c> header was applied, removed or left to the upstream. <paramref name="host"/> is
+    /// null for the global default (an unknown host or an ACME challenge).</summary>
+    void ServerHeader(CompiledHost? host, StringValues value, ServerHeaderMode mode, ServerHeaderDecision decision);
+
     /// <summary>The connection was checked against the host's TLS settings. <paramref name="https"/> false: plain HTTP,
     /// nothing was checked.</summary>
     void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch);
@@ -90,6 +96,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void HostLookup(StringValues hostHeader, CompiledHost? host, HostMatchKind match, DefaultHostBehaviour fallback)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ServerHeader(CompiledHost? host, StringValues value, ServerHeaderMode mode, ServerHeaderDecision decision)
     {
     }
 

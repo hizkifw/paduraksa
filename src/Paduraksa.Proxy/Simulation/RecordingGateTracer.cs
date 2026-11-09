@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -131,6 +133,32 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             : $"the default host behaviour answers {fallback.Response!.StatusCode}";
         facts.Add(new("defaultHost", fallback.Action == DefaultHostAction.Close ? "close" : $"respond {fallback.Response!.StatusCode}"));
         steps.Add(new GateStep(GateStepKind.HostMatch, GateStepVerdict.Stopped, $"{why}: {answer}", facts));
+    }
+
+    public void ServerHeader(CompiledHost? host, StringValues value, ServerHeaderMode mode, ServerHeaderDecision decision)
+    {
+        List<GateFact> facts = [new("mode", TraceNames.Of(mode))];
+        string summary;
+        switch (decision)
+        {
+            case ServerHeaderDecision.Sent:
+                facts.Add(new("value", value.ToString()));
+                summary = $"Server: {value} (an upstream's header is replaced)";
+                break;
+            case ServerHeaderDecision.Removed:
+                summary = "Server is removed: neither ours nor an upstream's header is sent";
+                break;
+            default:
+                summary = "the upstream's own Server header passes through; a gate answer carries none";
+                break;
+        }
+
+        steps.Add(new GateStep(
+            GateStepKind.ServerHeader,
+            GateStepVerdict.Passed,
+            summary,
+            facts,
+            host?.Id));
     }
 
     public void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch)

@@ -49,7 +49,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal(
             [
                 GateStepKind.TlsHandshake, GateStepKind.Request, GateStepKind.ClientAddress, GateStepKind.AcmeChallenge, GateStepKind.HostMatch,
-                GateStepKind.TlsPolicy, GateStepKind.Hsts, GateStepKind.HostPolicy, GateStepKind.RouteMatch, GateStepKind.Upstream,
+                GateStepKind.ServerHeader, GateStepKind.TlsPolicy, GateStepKind.Hsts, GateStepKind.HostPolicy, GateStepKind.RouteMatch, GateStepKind.Upstream,
             ],
             run.Steps.Select(s => s.Kind));
         Assert.DoesNotContain(run.Steps, s => s.Verdict == GateStepVerdict.Stopped);
@@ -383,10 +383,11 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal(GateReason.AcmeChallenge, answered.Outcome.Reason);
         Assert.Equal(200, answered.Outcome.StatusCode);
         Assert.Equal("tok-en_1.thumbprint", answered.Outcome.Body);
-        GateStep step = answered.Steps[^1];
-        Assert.Equal((GateStepKind.AcmeChallenge, GateStepVerdict.Stopped), (step.Kind, step.Verdict));
+        GateStep step = Step(answered, GateStepKind.AcmeChallenge);
+        Assert.Equal(GateStepVerdict.Stopped, step.Verdict);
         Assert.Equal("tok-en_1", Fact(step, "token"));
         Assert.DoesNotContain(answered.Steps, s => s.Kind == GateStepKind.HostMatch);
+        Assert.Equal("Paduraksa", Fact(Step(answered, GateStepKind.ServerHeader), "value"));
 
         // An unknown token, HTTPS, or another method: handled like any request.
         foreach (GateProbe probe in (GateProbe[])
@@ -651,6 +652,31 @@ public sealed class GateSimulatorTraceTests : IDisposable
     }
 
     [Fact]
+    public void TheTraceSaysWhatTheServerHeaderWillBe()
+    {
+        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+
+        GateStep named = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", ClientAddress = Lan }), GateStepKind.ServerHeader);
+        Assert.Equal(GateStepVerdict.Passed, named.Verdict);
+        Assert.Equal(TestIds.Host("app"), named.Host);
+        Assert.Equal("paduraksa", Fact(named, "mode"));
+        Assert.Equal("Paduraksa", Fact(named, "value"));
+
+        GateStep custom = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "custom.test", ClientAddress = Lan }), GateStepKind.ServerHeader);
+        Assert.Equal("custom", Fact(custom, "mode"));
+        Assert.Equal("edge/1.0", Fact(custom, "value"));
+
+        GateStep upstream = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "upstream.test", ClientAddress = Lan }), GateStepKind.ServerHeader);
+        Assert.Equal("upstream", Fact(upstream, "mode"));
+        Assert.DoesNotContain(upstream.Facts, f => f.Name == "value");
+        Assert.Contains("passes through", upstream.Summary, StringComparison.Ordinal);
+
+        GateStep bare = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "bare.test", ClientAddress = Lan }), GateStepKind.ServerHeader);
+        Assert.Equal("remove", Fact(bare, "mode"));
+        Assert.Contains("removed", bare.Summary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void FactsUseWireNamesNotInternalOnes()
     {
         RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared"), TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
@@ -750,6 +776,18 @@ public sealed class GateSimulatorTraceTests : IDisposable
             ProxyHost("plain", "plain.test", Route("plain-root", "web")) with { Https = false },
             ProxyHost("ipv6", "[::1]", Route("ipv6-root", "web")),
             ProxyHost("lax", "lax.test", Route("lax-root", "web")),
+            ProxyHost("custom", "custom.test", Route("custom-root", "web")) with
+            {
+                ServerHeader = new HostServerHeaderSpec { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
+            },
+            ProxyHost("upstream", "upstream.test", Route("upstream-root", "web")) with
+            {
+                ServerHeader = new HostServerHeaderSpec { Mode = ServerHeaderMode.Upstream },
+            },
+            ProxyHost("bare", "bare.test", Route("bare-root", "web")) with
+            {
+                ServerHeader = new HostServerHeaderSpec { Mode = ServerHeaderMode.Remove },
+            },
         ],
     };
 

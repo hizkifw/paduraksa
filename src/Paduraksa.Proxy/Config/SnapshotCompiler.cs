@@ -7,6 +7,7 @@ using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -73,6 +74,7 @@ public static class SnapshotCompiler
         }
 
         TrustedProxyPolicy trustedProxies = CompileTrustedProxies(defaults.TrustedProxies, options, errors);
+        (StringValues defaultServer, ServerHeaderMode defaultServerMode) = CompileServerHeader(defaults.ServerHeader, CompileErrorSource.Defaults, errors);
         HashSet<UpstreamId> withoutDestinations = [];
         Dictionary<UpstreamId, ClusterConfig> clusters = CompileUpstreams(model.Upstreams ?? [], withoutDestinations, errors);
         HashSet<UpstreamId> reported = [];
@@ -151,6 +153,7 @@ public static class SnapshotCompiler
             TlsPolicy tls = CompileTlsPolicy(spec.Tls, where, errors);
             List<(ServerCertificate Certificate, List<string> Names)> serverNames =
                 spec.Enabled ? GroupByCertificate(ServerNamesOf(spec.Names ?? []), certificate, nameCertificates) : [];
+            (StringValues server, ServerHeaderMode serverMode) = CompileServerHeader(spec.ServerHeader, where, errors);
 
             CompiledHost host = new()
             {
@@ -169,6 +172,8 @@ public static class SnapshotCompiler
                 // host has none: its HTTPS rides on the default certificate's entry and that entry's settings).
                 AltSvc = serverNames.Count > 0 ? altSvc.ForHost(tls) : default,
                 Hsts = CompileHsts(spec.Hsts, where, errors),
+                Server = server,
+                ServerMode = serverMode,
             };
 
             if (spec.Names is null || spec.Names.Count == 0)
@@ -259,6 +264,8 @@ public static class SnapshotCompiler
             TrustedProxies = trustedProxies,
             AccessLog = defaults.AccessLog,
             RequestIdPropagation = defaults.RequestIdPropagation,
+            DefaultServer = defaultServer,
+            DefaultServerMode = defaultServerMode,
         };
         return new CompileResult(snapshot, []);
     }
@@ -921,6 +928,31 @@ public static class SnapshotCompiler
         }
 
         return HstsHeader.ValueOf(spec);
+    }
+
+    /// <summary>
+    /// The host's one <c>Server</c> value and the mode that decides how it is applied, or empty for the modes that leave
+    /// it to the upstream or remove it. The validator reports these rules too; the compiler is the backstop for a model
+    /// built elsewhere, so a value that can't be sent is never sent.
+    /// </summary>
+    private static (StringValues Value, ServerHeaderMode Mode) CompileServerHeader(
+        HostServerHeaderSpec spec, CompileErrorSource where, List<CompileError> errors)
+    {
+        if (!Enum.IsDefined(spec.Mode))
+        {
+            errors.Add(new(where, $"unknown Server header mode {spec.Mode}"));
+            return (StringValues.Empty, ServerHeaderMode.Upstream);
+        }
+
+        if (spec.Mode == ServerHeaderMode.Custom && !ServerHeader.IsValidValue(spec.Value))
+        {
+            errors.Add(new(
+                where,
+                $"the custom Server header must be 1-{ServerHeader.MaxValueLength} visible ASCII characters or spaces, with no leading or trailing space"));
+            return (StringValues.Empty, spec.Mode);
+        }
+
+        return (ServerHeader.ValueOf(spec), spec.Mode);
     }
 
     /// <summary>

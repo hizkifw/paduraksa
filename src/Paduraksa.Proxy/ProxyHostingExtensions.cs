@@ -72,6 +72,7 @@ public static class ProxyHostingExtensions
                 transforms.AddResponseTransform(SessionCookieTransform.ApplyResponseAsync);
                 transforms.AddResponseTransform(AccessLogTransform.OnResponseAsync);
                 transforms.AddResponseTransform(RequestIdTransform.OnResponseAsync);
+                transforms.AddResponseTransform(ServerHeaderTransform.ApplyResponseAsync);
             });
         services.RemoveAll<IForwarderHttpClientFactory>();
         services.AddSingleton<IForwarderHttpClientFactory>(
@@ -101,12 +102,24 @@ public static class ProxyHostingExtensions
             ReverseProxyConventionBuilder builder = endpoints.MapReverseProxy(static proxy =>
             {
                 proxy.Use((Func<HttpContext, RequestDelegate, Task>)RejectUngatedRequests);
+                proxy.Use((Func<HttpContext, RequestDelegate, Task>)ReapplyGateHeaders);
                 proxy.UseSessionAffinity();
                 proxy.UseLoadBalancing();
                 proxy.UsePassiveHealthChecks();
             });
             return (builder, YarpDataSource(endpoints));
         });
+    }
+
+    /// <summary>
+    /// Runs the forward, then puts the gate's per-host response headers back if the response can still change. This is
+    /// for YARP's body-error path, which clears the response and answers a bare 502 without running the response
+    /// transforms again (<see cref="GateResponseHeaders.Reapply"/>).
+    /// </summary>
+    private static async Task ReapplyGateHeaders(HttpContext context, RequestDelegate next)
+    {
+        await next(context);
+        GateResponseHeaders.Reapply(context);
     }
 
     /// <summary>

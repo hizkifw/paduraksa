@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
@@ -54,6 +57,15 @@ public sealed class RuntimeSnapshot
     public required Endpoint[] YarpEndpoints { get; init; }
 
     public required DefaultHostBehaviour Default { get; init; }
+
+    /// <summary>
+    /// The <c>Server</c> the global defaults' layer resolves to, which an unknown host's answer follows too. Empty for
+    /// <see cref="ServerHeaderMode.Upstream"/> and <see cref="ServerHeaderMode.Remove"/>.
+    /// </summary>
+    public StringValues DefaultServer { get; init; } = new(ServerHeader.Product);
+
+    /// <summary>The global defaults' <c>Server</c> mode.</summary>
+    public ServerHeaderMode DefaultServerMode { get; init; } = ServerHeaderMode.Paduraksa;
 
     /// <summary>A proxy host matched but none of its routes took the path.</summary>
     public PrecomputedResponse NoRoute { get; init; } = DefaultNoRoute;
@@ -144,6 +156,8 @@ public sealed class RuntimeSnapshot
             RouteIdBySlot = RouteIdBySlot,
             YarpEndpoints = endpoints,
             Default = Default,
+            DefaultServer = DefaultServer,
+            DefaultServerMode = DefaultServerMode,
             NoRoute = NoRoute,
             Unavailable = Unavailable,
             Misdirected = Misdirected,

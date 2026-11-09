@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -45,8 +46,8 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
 /// <item>the ACME HTTP-01 answer, for a token the orchestrator published, which bypasses everything below;</item>
 /// <item>host lookup; an unknown host gets the default behaviour; an HTTPS request for a host without HTTPS, or whose
 /// connection is weaker than the host's TLS settings (HTTP/3, TLS version, ALPN; a connection coalesced from another
-/// name), gets 421; a known host gets its <c>Alt-Svc</c> on TCP HTTPS responses and its <c>Strict-Transport-Security</c>
-/// on HTTPS responses, whatever answers them;</item>
+/// name), gets 421; a known host gets its <c>Alt-Svc</c> on TCP HTTPS responses, its <c>Strict-Transport-Security</c>
+/// on HTTPS responses and its <c>Server</c>, whatever answers them;</item>
 /// <item>the <b>host policies</b>, so they guard everything the host answers (a blocked client gets 403, not a redirect);</item>
 /// <item>the HTTP→HTTPS redirect;</item>
 /// <item>Redirect and Respond hosts;</item>
@@ -105,8 +106,9 @@ public sealed class GateMiddleware
 
     /// <summary>
     /// The synchronous decision. Never writes the response; sets the endpoint when forwarding, and the host's
-    /// <c>Alt-Svc</c> and <c>Strict-Transport-Security</c> headers (YARP doesn't copy an upstream's own <c>Alt-Svc</c>,
-    /// and leaves an upstream's <c>Strict-Transport-Security</c> out when ours is set, so ours is the one sent).
+    /// <c>Alt-Svc</c>, <c>Strict-Transport-Security</c> and <c>Server</c> headers (YARP doesn't copy an upstream's own
+    /// <c>Alt-Svc</c>, leaves an upstream's <c>Strict-Transport-Security</c> out when ours is set, and appends its
+    /// <c>Server</c>, so the response transform replaces or removes that one).
     /// </summary>
     internal GateDecision Decide(HttpContext context) => Decide(context, _store.Current, _clientAddresses, _challenges, default(NoGateTracer));
 
@@ -131,6 +133,8 @@ public sealed class GateMiddleware
         tracer.AcmeChallenge(context, answered);
         if (answered)
         {
+            ServerHeaderDecision challengeServer = ServerHeader.Apply(context, snapshot.DefaultServer, snapshot.DefaultServerMode);
+            tracer.ServerHeader(null, snapshot.DefaultServer, snapshot.DefaultServerMode, challengeServer);
             return challenge;
         }
 
@@ -142,10 +146,19 @@ public sealed class GateMiddleware
         if (host is null)
         {
             DefaultHostBehaviour fallback = snapshot.Default;
-            return fallback.Action == DefaultHostAction.Close ? GateDecision.Abort : GateDecision.Respond(fallback.Response!);
+            if (fallback.Action == DefaultHostAction.Close)
+            {
+                return GateDecision.Abort;
+            }
+
+            ServerHeaderDecision fallbackServer = ServerHeader.Apply(context, snapshot.DefaultServer, snapshot.DefaultServerMode);
+            tracer.ServerHeader(null, snapshot.DefaultServer, snapshot.DefaultServerMode, fallbackServer);
+            return GateDecision.Respond(fallback.Response!);
         }
 
         state.Host = host;
+        ServerHeaderDecision hostServer = ServerHeader.Apply(context, host.Server, host.ServerMode);
+        tracer.ServerHeader(host, host.Server, host.ServerMode, hostServer);
         bool connectionIsHttps = request.IsHttps;
         TlsMismatch mismatch = connectionIsHttps
             ? host.Https ? ConnectionTlsCheck.Check(context, host.Tls) : TlsMismatch.HostNotServedOverHttps
