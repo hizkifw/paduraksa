@@ -3,6 +3,7 @@ using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Snapshot;
@@ -75,6 +76,18 @@ public sealed class CompiledHost
 
     /// <summary>Set when the host forces HTTPS: plain-HTTP requests get this redirect first.</summary>
     internal HttpsRedirect? HttpsRedirect { get; init; }
+
+    /// <summary>
+    /// Write a line per request of this host to the access log (PLAN §7.4): the settings layers resolved it, built-in
+    /// default on. Off, the request is served exactly as before, only without a line.
+    /// </summary>
+    public bool AccessLog { get; init; } = true;
+
+    /// <summary>
+    /// Where the request ID is sent (PLAN §7.4): the settings layers resolved it, built-in default upstream and response.
+    /// Compiled from the config; the log records the ID whatever it says.
+    /// </summary>
+    public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 
     /// <summary>
     /// Placeholder for the stable metric slot (PLAN §6.3, §7.4): the same host keeps the same slot across snapshots.

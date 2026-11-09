@@ -22,6 +22,39 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below.</summary>
     public HstsSettings? Hsts { get; init; }
+
+    /// <summary>
+    /// Write a line for every request of this host to the access log (PLAN §7.4). Built-in default: on. A host that turns
+    /// it off is still proxied, and its requests still carry a request ID; they just aren't logged (the drop counter and
+    /// the error log are unaffected).
+    /// </summary>
+    public bool? AccessLog { get; init; }
+
+    /// <summary>
+    /// Where the request ID travels (<see cref="RequestIdPropagation"/>). Built-in default: upstream and client, which is
+    /// what correlates a request across the proxy's log, the app's log and an error page.
+    /// </summary>
+    public RequestIdPropagation? RequestIdPropagation { get; init; }
+}
+
+/// <summary>
+/// Where a request's ID (<c>X-Request-Id</c>, PLAN §7.4) is sent: to the upstream, back to the client, both or neither.
+/// The ID itself always exists - the access log (and later the error pages) records it whatever this says.
+/// </summary>
+[JsonConverter(typeof(ConfigEnumConverter<RequestIdPropagation>))]
+public enum RequestIdPropagation
+{
+    /// <summary>The upstream and the client's response (the built-in default).</summary>
+    UpstreamAndResponse,
+
+    /// <summary>The upstream only: the client never learns the ID, and the app's log is the one to correlate with.</summary>
+    UpstreamOnly,
+
+    /// <summary>The client's response only: the upstream sees no header and can't confuse it with its own tracing.</summary>
+    ResponseOnly,
+
+    /// <summary>Neither: only the proxy's own log mentions it.</summary>
+    Off,
 }
 
 /// <summary>The route layer: the route-level subset of <see cref="HostSettings"/>, on top of the host's resolved

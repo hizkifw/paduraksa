@@ -574,6 +574,11 @@ public static class ConfigValidator
                 }
             }
 
+            if (settings.RequestIdPropagation is { } propagation)
+            {
+                CheckEnum(propagation, $"{path}/requestIdPropagation");
+            }
+
             CheckIpAllowList(settings.IpAllowList, $"{path}/ipAllowList");
 
             if (settings.Hsts is { MaxAge: { } maxAge } && maxAge is < 0 or > HstsHeader.MaxMaxAgeSeconds)

@@ -22,6 +22,7 @@ public sealed class ContractEnumTests
         AssertSameMembers<Contract.TlsMinimumVersion, Proxy.Tls.TlsMinimumVersion>();
         AssertSameMembers<Contract.TcpAlpn, Proxy.Tls.TcpAlpn>();
         AssertSameMembers<Contract.UnknownHostBehaviour, Proxy.Config.UnknownHostMode>();
+        AssertSameMembers<Contract.RequestIdPropagation, Proxy.Logging.RequestIdPropagation>();
     }
 
     [Fact]

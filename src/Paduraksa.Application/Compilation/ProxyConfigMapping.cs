@@ -59,6 +59,8 @@ public static class ProxyConfigMapping
         GlobalSettings settings = canonical.Settings;
         List<CompileError> errors = [];
         List<MappedWarning> warnings = [];
+        // The built-in defaults with the global layer: what a host that sets nothing inherits, and what an unknown host gets.
+        EffectiveHostSettings globalDefaults = HostSettingsLayers.Resolve(settings.Defaults);
 
         // First one wins on a duplicate ID (invalid anyway).
         Dictionary<ProfileId, HostSettings> profiles = [];
@@ -86,6 +88,9 @@ public static class ProxyConfigMapping
                 Certificate = DefaultCertificate(settings.DefaultCertificateId, inventory, warnings),
                 Tls = HostSettingsLayers.Merge(HostTlsSpec.Default, settings.Defaults.Tls),
                 TrustedProxies = MapTrustedProxies(settings.TrustedProxies),
+                // An unknown host has no layer of its own, so it follows the global default.
+                AccessLog = globalDefaults.AccessLog,
+                RequestIdPropagation = globalDefaults.RequestIdPropagation,
             },
         };
         return new MappedConfig(model, errors, warnings);
@@ -260,6 +265,8 @@ public static class ProxyConfigMapping
             NameCertificates = certificatesByName,
             Tls = effective.Tls,
             Hsts = effective.Hsts,
+            AccessLog = effective.AccessLog,
+            RequestIdPropagation = effective.RequestIdPropagation,
             Routes = routes,
             Policies = hostChain,
             Redirect = host.Redirect is { } redirect

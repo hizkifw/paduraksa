@@ -53,6 +53,56 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void TheM6HostSettingsAddNoKeyWhenUnset()
+    {
+        // A layer that sets neither is byte-for-byte what it was before M6, so a stored revision keeps its hash.
+        ConfigDocument untouched = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings(), Routes: [new RouteConfig(RootRoute, AppUpstream)])]);
+        string json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(untouched));
+        Assert.DoesNotContain("accessLog", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("requestIdPropagation", json, StringComparison.Ordinal);
+
+        // Set, they are camelCase keys, and the enum is its camelCase name.
+        ConfigDocument set = untouched with
+        {
+            Hosts = [untouched.Hosts[0] with { Settings = new HostSettings { AccessLog = false, RequestIdPropagation = RequestIdPropagation.ResponseOnly } }],
+        };
+        string written = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(set));
+        Assert.Contains("\"accessLog\":false", written, StringComparison.Ordinal);
+        Assert.Contains("\"requestIdPropagation\":\"responseOnly\"", written, StringComparison.Ordinal);
+
+        // And it reads back.
+        Assert.Equal(set.Hosts[0].Settings, CanonicalConfigJson.Deserialize(Encoding.UTF8.GetBytes(written)).Hosts[0].Settings);
+    }
+
+    [Fact]
+    public void TheM6HostSettingKeysFollowHsts()
+    {
+        // A new field goes at the end of the record, so the keys a stored document writes keep their order: the HSTS
+        // group first (M6), then this branch's two.
+        ConfigDocument document = new(
+            Hosts:
+            [
+                new HostConfig(
+                    AppHost,
+                    ["app.example.com"],
+                    Settings: new HostSettings
+                    {
+                        Hsts = new HstsSettings { Enabled = true },
+                        AccessLog = false,
+                        RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
+                    },
+                    Routes: [new RouteConfig(RootRoute, AppUpstream)]),
+            ]);
+
+        string json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document));
+
+        int hsts = json.IndexOf("\"hsts\":", StringComparison.Ordinal);
+        int accessLog = json.IndexOf("\"accessLog\":", StringComparison.Ordinal);
+        int propagation = json.IndexOf("\"requestIdPropagation\":", StringComparison.Ordinal);
+        Assert.True(hsts > 0 && accessLog > hsts && propagation > accessLog, json);
+    }
+
+    [Fact]
     public void RoundTripsByteForByte()
     {
         for (int seed = 0; seed < Seeds; seed++)

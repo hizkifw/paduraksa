@@ -1,6 +1,7 @@
 using Paduraksa.Contracts.Config;
 using Paduraksa.Proxy.Config;
 
+using ProxyLogging = Paduraksa.Proxy.Logging;
 using ProxyTls = Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Application.Compilation;
@@ -17,6 +18,8 @@ internal static class HostSettingsLayers
     public static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers)
     {
         bool forceHttps = false;
+        bool accessLog = true;
+        ProxyLogging.RequestIdPropagation requestIdPropagation = ProxyLogging.RequestIdPropagation.UpstreamAndResponse;
         HostTlsSpec tls = HostTlsSpec.Default;
         HostHstsSpec hsts = HostHstsSpec.Off;
         IpAllowListSettings? allowList = null;
@@ -28,12 +31,14 @@ internal static class HostSettingsLayers
             }
 
             forceHttps = layer.ForceHttps ?? forceHttps;
+            accessLog = layer.AccessLog ?? accessLog;
+            requestIdPropagation = layer.RequestIdPropagation is { } propagation ? (ProxyLogging.RequestIdPropagation)propagation : requestIdPropagation;
             tls = Merge(tls, layer.Tls);
             hsts = Merge(hsts, layer.Hsts);
             allowList = layer.IpAllowList ?? allowList;
         }
 
-        return new EffectiveHostSettings(forceHttps, tls, hsts, Restriction(allowList));
+        return new EffectiveHostSettings(forceHttps, tls, hsts, Restriction(allowList), accessLog, requestIdPropagation);
     }
 
     /// <summary>The effective allow list of a route: its own when set, else the host's.</summary>
@@ -81,4 +86,12 @@ internal static class HostSettingsLayers
 /// <param name="Tls">Concrete TLS settings.</param>
 /// <param name="Hsts">Concrete HSTS settings.</param>
 /// <param name="IpAllowList">The allow list in force, or null for no restriction (never an empty list).</param>
-internal sealed record EffectiveHostSettings(bool ForceHttps, HostTlsSpec Tls, HostHstsSpec Hsts, IpAllowListSettings? IpAllowList);
+/// <param name="AccessLog">Write a line per request to the access log (built-in default: on).</param>
+/// <param name="RequestIdPropagation">Where the request ID is sent (built-in default: upstream and response).</param>
+internal sealed record EffectiveHostSettings(
+    bool ForceHttps,
+    HostTlsSpec Tls,
+    HostHstsSpec Hsts,
+    IpAllowListSettings? IpAllowList,
+    bool AccessLog,
+    ProxyLogging.RequestIdPropagation RequestIdPropagation);

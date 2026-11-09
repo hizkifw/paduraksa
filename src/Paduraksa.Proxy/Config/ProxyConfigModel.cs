@@ -1,4 +1,5 @@
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -58,6 +59,15 @@ public sealed record DefaultsSpec
 
     /// <summary>Who may tell us the client IP (PLAN §7.6). Global in M1; a per-host override comes with M2/M7.</summary>
     public TrustedProxySpec TrustedProxies { get; init; } = TrustedProxySpec.Off;
+
+    /// <summary>
+    /// Whether a request for an unknown host gets an access-log line (PLAN §7.4): the global default, since an unknown
+    /// host has no settings of its own. Built-in default: on.
+    /// </summary>
+    public bool AccessLog { get; init; } = true;
+
+    /// <summary>Where an unknown host's request ID is sent (PLAN §7.4): the global default.</summary>
+    public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 }
 
 /// <summary>
@@ -195,6 +205,18 @@ public sealed record HostSpec
 
     /// <summary>The host's HSTS, resolved across the layers.</summary>
     public HostHstsSpec Hsts { get; init; } = HostHstsSpec.Off;
+
+    /// <summary>
+    /// Write a line per request of this host to the access log (PLAN §7.4); the settings layers resolve it, built-in
+    /// default on. The request ID, the response headers and the proxying are unaffected when it is off.
+    /// </summary>
+    public bool AccessLog { get; init; } = true;
+
+    /// <summary>
+    /// Where this host's request ID is sent (PLAN §7.4): the settings layers resolve it, built-in default upstream and
+    /// response. The log records the ID whatever it is.
+    /// </summary>
+    public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
 
     /// <summary>Proxy hosts only; ordered by <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];

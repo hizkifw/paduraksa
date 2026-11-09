@@ -8,6 +8,7 @@ using Paduraksa.Proxy.Config;
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 using Contract = Paduraksa.Contracts.Config;
+using ProxyLogging = Paduraksa.Proxy.Logging;
 using ProxyNet = Paduraksa.Proxy.Net;
 using ProxySnapshot = Paduraksa.Proxy.Snapshot;
 using ProxyTls = Paduraksa.Proxy.Tls;
@@ -325,6 +326,46 @@ public sealed class ProxyConfigMappingTests
         Assert.Empty(host.Policies);
         Assert.True(host.Https);
         Assert.Null(host.Certificate);
+        // PLAN §7.4: logged, and the request ID sent upstream and back, by default.
+        Assert.True(host.AccessLog);
+        Assert.Equal(ProxyLogging.RequestIdPropagation.UpstreamAndResponse, host.RequestIdPropagation);
+    }
+
+    [Fact]
+    public void TheAccessLogAndRequestIdSettingsLayerLikeEveryOther()
+    {
+        const Contract.RequestIdPropagation Off = Contract.RequestIdPropagation.Off;
+        Contract.HostSettings globalDefaults = new() { AccessLog = false, RequestIdPropagation = Off };
+
+        // Nothing below, nothing set: the built-in defaults (on, upstream and response).
+        Assert.Equal((true, ProxyLogging.RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(null, null, null)));
+
+        // The global defaults reach a host that sets nothing.
+        Assert.Equal((false, ProxyLogging.RequestIdPropagation.Off), SettingsOf(Document(globalDefaults, null, null)));
+
+        // A profile over the defaults...
+        Assert.Equal((true, ProxyLogging.RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(
+            globalDefaults,
+            new HostSettings { AccessLog = true, RequestIdPropagation = Contract.RequestIdPropagation.UpstreamAndResponse },
+            null)));
+
+        // ...and the host over both.
+        Assert.Equal((false, ProxyLogging.RequestIdPropagation.UpstreamAndResponse), SettingsOf(Document(
+            globalDefaults,
+            new HostSettings { AccessLog = true, RequestIdPropagation = Off },
+            new HostSettings { AccessLog = false, RequestIdPropagation = Contract.RequestIdPropagation.UpstreamAndResponse })));
+
+        // The global default is also what an unknown host gets (the snapshot's own value).
+        ConfigDocument defaultsOnly = Document(new HostSettings { AccessLog = false, RequestIdPropagation = Off }, null, null);
+        DefaultsSpec unknown = ProxyConfigMapping.Map(defaultsOnly, Revision, CertificateInventory.Empty).Model.Defaults;
+        Assert.False(unknown.AccessLog);
+        Assert.Equal(ProxyLogging.RequestIdPropagation.Off, unknown.RequestIdPropagation);
+
+        static (bool AccessLog, ProxyLogging.RequestIdPropagation Propagation) SettingsOf(ConfigDocument document)
+        {
+            HostSpec host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
+            return (host.AccessLog, host.RequestIdPropagation);
+        }
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
@@ -77,6 +78,21 @@ public sealed class RuntimeSnapshot
     public TrustedProxyPolicy TrustedProxies { get; init; } = TrustedProxyPolicy.Off;
 
     /// <summary>
+    /// Whether a request whose host the snapshot doesn't know gets an access-log line (PLAN §7.4): the global default,
+    /// since an unknown host has no settings of its own. A known host's <see cref="CompiledHost.AccessLog"/> decides.
+    /// </summary>
+    public bool AccessLog { get; init; } = true;
+
+    /// <summary>Where an unknown host's request ID is sent (PLAN §7.4): the global default.</summary>
+    public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
+
+    /// <summary>Whether this host writes an access-log line, else the global default: what the outermost middleware asks.</summary>
+    public bool AccessLogFor(CompiledHost? host) => host?.AccessLog ?? AccessLog;
+
+    /// <summary>Where this request's ID is sent: its host's setting, else the global default.</summary>
+    public RequestIdPropagation RequestIdPropagationFor(CompiledHost? host) => host?.RequestIdPropagation ?? RequestIdPropagation;
+
+    /// <summary>
     /// Whether every route slot has its YARP endpoint, so the gate can hand any route to YARP. A snapshot with no routes
     /// needs no endpoints, so it is trivially bound, even at generation 0 (<see cref="Bootstrap"/> included, which
     /// keeps the live snapshot bound from the start). That is also why the publisher's empty-YARP fast path can make
@@ -133,6 +149,8 @@ public sealed class RuntimeSnapshot
             Misdirected = Misdirected,
             Certificates = Certificates,
             TrustedProxies = TrustedProxies,
+            AccessLog = AccessLog,
+            RequestIdPropagation = RequestIdPropagation,
         };
     }
 }

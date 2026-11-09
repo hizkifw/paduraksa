@@ -163,6 +163,8 @@ public static class SnapshotCompiler
                 HttpsRedirect = spec.ForceHttps ? httpsRedirect : null,
                 Tls = tls,
                 Https = spec.Https,
+                AccessLog = spec.AccessLog,
+                RequestIdPropagation = spec.RequestIdPropagation,
                 // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only
                 // host has none: its HTTPS rides on the default certificate's entry and that entry's settings).
                 AltSvc = serverNames.Count > 0 ? altSvc.ForHost(tls) : default,
@@ -255,6 +257,8 @@ public static class SnapshotCompiler
             },
             Certificates = certificates.Build(),
             TrustedProxies = trustedProxies,
+            AccessLog = defaults.AccessLog,
+            RequestIdPropagation = defaults.RequestIdPropagation,
         };
         return new CompileResult(snapshot, []);
     }
