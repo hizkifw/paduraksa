@@ -65,8 +65,9 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # libmsquic, pinned, from Microsoft's Ubuntu 24.04 feed: Kestrel's HTTP/3 transport loads it at runtime. The signing key
 # is checked against Microsoft's published fingerprint after dearmoring, curl/gnupg and what they pulled in are purged in
-# this same RUN (a later purge could not shrink an earlier layer), and the loader entry is asserted, so a missing library fails the build rather
-# than the first QUIC handshake.
+# this same RUN (a later purge could not shrink an earlier layer), and the loader entry is asserted, so a missing library
+# fails the build rather than the first QUIC handshake. Under pipefail no reader here may stop early (grep -q, awk's exit):
+# the writer would die of SIGPIPE and fail the build at random.
 ARG LIBMSQUIC_VERSION=2.5.10
 RUN set -eux; \
     apt-get update; \
@@ -74,14 +75,14 @@ RUN set -eux; \
     install -d -m 0755 /etc/apt/keyrings; \
     curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
         | gpg --dearmor -o /etc/apt/keyrings/microsoft-prod.gpg; \
-    fingerprint="$(gpg --show-keys --with-colons /etc/apt/keyrings/microsoft-prod.gpg | awk -F: '$1 == "fpr" { print $10; exit }')"; \
+    fingerprint="$(gpg --show-keys --with-colons /etc/apt/keyrings/microsoft-prod.gpg | awk -F: '$1 == "fpr" && !seen { print $10; seen = 1 }')"; \
     test "$fingerprint" = "BC528686B50D79E339D3721CEB3E94ADBE1229CF" \
         || { echo "Microsoft's package signing key has fingerprint '$fingerprint', expected BC528686B50D79E339D3721CEB3E94ADBE1229CF." >&2; exit 1; }; \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" \
         > /etc/apt/sources.list.d/microsoft-prod.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends "libmsquic=${LIBMSQUIC_VERSION}"; \
-    ldconfig -p | grep -q 'libmsquic\.so'; \
+    ldconfig -p | grep 'libmsquic\.so' > /dev/null; \
     apt-get purge -y --auto-remove curl gnupg; \
     rm -rf /var/lib/apt/lists/*
 
