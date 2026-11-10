@@ -84,6 +84,14 @@ public interface ISecretStore
     ValueTask<SecretId> PutAsync(SecretKind kind, ReadOnlyMemory<byte> value, SecretOptions options, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Creates the secret under <paramref name="id"/> when it doesn't exist, and returns what is stored. Used for the
+    /// process's own keys, whose ID is fixed in code (the proof-of-work HMAC key): a restart finds the same secret, and a
+    /// rotation is <see cref="ReplaceAsync"/>. A secret already at <paramref name="id"/> with another kind or MAC algorithm is
+    /// refused rather than adopted.
+    /// </summary>
+    ValueTask<SecretMetadata> EnsureAsync(SecretId id, SecretKind kind, ReadOnlyMemory<byte> value, SecretOptions options, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Replaces the value of an existing secret (rotation), keeping its ID so every reference stays valid. Bumps the
     /// version. <paramref name="options"/> replaces the label and allowed hosts when given (<see langword="null"/> keeps
     /// them); its <see cref="SecretOptions.MacAlgorithm"/> must be <see langword="null"/> or the stored one.

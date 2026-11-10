@@ -32,11 +32,56 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
 
         await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
         using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
+        var row = await InsertAsync(SecretId.New(), kind, value, checkedOptions, cancellationToken).ConfigureAwait(false);
+        return row.Id;
+    }
 
+    public async ValueTask<SecretMetadata> EnsureAsync(
+        SecretId id, SecretKind kind, ReadOnlyMemory<byte> value, SecretOptions options, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (id.IsEmpty)
+        {
+            throw new ArgumentException("A reserved secret ID can't be empty.", nameof(id));
+        }
+
+        var checkedOptions = Validate(kind, value.Length, options, existing: null);
+
+        await runtime.EnsureReadyAsync(cancellationToken).ConfigureAwait(false);
+        using var gate = await runtime.EnterAsync(cancellationToken).ConfigureAwait(false);
+        var context = await runtime.CreateContextAsync(cancellationToken).ConfigureAwait(false);
+        SecretRow? existing;
+        await using (context.ConfigureAwait(false))
+        {
+            existing = await context.Secrets.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (existing is not null)
+        {
+            if (existing.Kind != kind)
+            {
+                throw new InvalidOperationException($"The secret {id} is a {existing.Kind.ToName()}, not a {kind.ToName()}.");
+            }
+
+            if (existing.MacAlgorithm != checkedOptions.MacAlgorithm)
+            {
+                throw new InvalidOperationException($"The secret {id} was stored with {existing.MacAlgorithm?.ToName() ?? "no MAC"}, not {checkedOptions.MacAlgorithm?.ToName() ?? "none"}.");
+            }
+
+            return SecretReader.ToMetadata(existing);
+        }
+
+        var row = await InsertAsync(id, kind, value, checkedOptions, cancellationToken).ConfigureAwait(false);
+        return SecretReader.ToMetadata(row);
+    }
+
+    private async ValueTask<SecretRow> InsertAsync(
+        SecretId id, SecretKind kind, ReadOnlyMemory<byte> value, CheckedOptions checkedOptions, CancellationToken cancellationToken)
+    {
         var now = runtime.Time.GetUtcNow();
         var row = new SecretRow
         {
-            Id = SecretId.New(),
+            Id = id,
             Kind = kind,
             Label = checkedOptions.Label,
             MacAlgorithm = checkedOptions.MacAlgorithm,
@@ -58,7 +103,7 @@ internal sealed class SecretStore(VaultRuntime runtime, MacKeyCache macKeys) : I
             }
         }
 
-        return row.Id;
+        return row;
     }
 
     public async ValueTask<SecretMetadata> ReplaceAsync(SecretId id, ReadOnlyMemory<byte> value, SecretOptions? options, CancellationToken cancellationToken)

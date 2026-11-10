@@ -148,6 +148,19 @@ internal sealed class FakeSecretStore : ISecretStore
         return ValueTask.FromResult(id);
     }
 
+    public ValueTask<SecretMetadata> EnsureAsync(SecretId id, SecretKind kind, ReadOnlyMemory<byte> value, SecretOptions options, CancellationToken cancellationToken)
+    {
+        if (!_secrets.TryGetValue(id, out var existing))
+        {
+            Puts++;
+            var now = DateTimeOffset.UtcNow;
+            existing = new SecretMetadata(id, kind, options.Label, options.MacAlgorithm, options.AllowedHosts ?? [], now, now, 1);
+            _secrets[id] = existing;
+        }
+
+        return ValueTask.FromResult(existing);
+    }
+
     public ValueTask<SecretMetadata> ReplaceAsync(SecretId id, ReadOnlyMemory<byte> value, SecretOptions? options, CancellationToken cancellationToken) =>
         throw new NotSupportedException();
 

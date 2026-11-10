@@ -65,18 +65,28 @@ public sealed class MacKeyTests : IDisposable
     }
 
     [Fact]
-    public async Task VerifyRefusesAWrongTagWrongDataAndWrongLength()
+    public async Task VerifyRefusesAWrongTagWrongDataAndOutOfRangeLengths()
     {
         var (_, key) = await NewKey();
         var tag = new byte[32];
         key.Sign(Data, tag);
 
         Assert.False(key.Verify("other data"u8, tag));
-        Assert.False(key.Verify(Data, tag.AsSpan(0, 31)));
+
+        // Verify takes whole tags only; VerifyTruncated takes a prefix of 16 bytes or more, never less.
+        Assert.False(key.Verify(Data, tag.AsSpan(0, 16)));
+        Assert.True(key.VerifyTruncated(Data, tag.AsSpan(0, 16)));
+        Assert.True(key.VerifyTruncated(Data, tag));
+        Assert.False(key.VerifyTruncated(Data, tag.AsSpan(0, 15)));
+        Assert.False(key.VerifyTruncated(Data, tag.AsSpan(0, 1)));
+        Assert.False(key.Verify(Data, ReadOnlySpan<byte>.Empty));
+        Assert.False(key.VerifyTruncated(Data, ReadOnlySpan<byte>.Empty));
         Assert.False(key.Verify(Data, [.. tag, 0]));
+        Assert.False(key.VerifyTruncated(Data, [.. tag, 0]));
         Assert.False(key.Verify(Data, Tag(MacAlgorithm.HmacSha256, KeyB, Data)));
         tag[5] ^= 1;
         Assert.False(key.Verify(Data, tag));
+        Assert.False(key.VerifyTruncated(Data, tag.AsSpan(0, 16)));
     }
 
     [Fact]

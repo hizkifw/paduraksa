@@ -44,6 +44,19 @@ public interface IMacKey
     /// <exception cref="ArgumentException"><paramref name="tag"/> is shorter than <see cref="TagLength"/>.</exception>
     int Sign(ReadOnlySpan<byte> data, Span<byte> tag);
 
-    /// <summary>Checks <paramref name="tag"/> against the tag of <paramref name="data"/> in constant time (current version, or the previous one within the grace window).</summary>
+    /// <summary>The shortest tag <see cref="VerifyTruncated"/> accepts: 128 bits.</summary>
+    const int MinTruncatedTagLength = 16;
+
+    /// <summary>
+    /// Checks <paramref name="tag"/> against the tag of <paramref name="data"/> in constant time (current version, or the
+    /// previous one within the grace window). Only a whole tag of <see cref="TagLength"/> bytes can match.
+    /// </summary>
     bool Verify(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag);
+
+    /// <summary>
+    /// <see cref="Verify"/> for a format that deliberately keeps only the tag's first bytes (the proof-of-work token keeps
+    /// 16 of 32): a tag of <see cref="MinTruncatedTagLength"/> to <see cref="TagLength"/> bytes matches as a prefix.
+    /// A separate method, so a protocol whose tag length an attacker controls (TSIG) can never be talked into one byte.
+    /// </summary>
+    bool VerifyTruncated(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag);
 }

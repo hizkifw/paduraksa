@@ -132,6 +132,8 @@ internal sealed class FakeMacKey(byte[] secret, MacAlgorithm algorithm = MacAlgo
         var written = Sign(data, expected);
         return CryptographicOperations.FixedTimeEquals(expected[..written], tag);
     }
+
+    public bool VerifyTruncated(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag) => throw new NotSupportedException();
 }
 
 /// <summary>An <see cref="IMacKeySource"/> that opens one secret as <see cref="SecretKind.EabHmacKey"/>.</summary>

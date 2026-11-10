@@ -27,6 +27,33 @@ public sealed class SecretStoreTests : IDisposable
         new(label, algorithm, null);
 
     [Fact]
+    public async Task EnsureCreatesAtAChosenIdAndAdoptsOnlyTheSameKindAndAlgorithm()
+    {
+        SecretId id = SecretId.FromValue(new Guid("01900000-0000-7000-8000-00000000beef"));
+
+        var first = await Store.EnsureAsync(id, SecretKind.HmacSigningKey, Value, Mac(), Ct);
+        Assert.Equal(id, first.Id);
+        Assert.Equal(SecretKind.HmacSigningKey, first.Kind);
+        Assert.Equal(MacAlgorithm.HmacSha256, first.MacAlgorithm);
+        Assert.Equal(1, first.Version);
+        var described = (await Store.DescribeAsync(id, Ct))!;
+        Assert.Equal((first.Id, first.Kind, first.MacAlgorithm, first.Version), (described.Id, described.Kind, described.MacAlgorithm, described.Version));
+
+        // A restart finds the secret and changes nothing, even though it offers a fresh random value.
+        var again = await Store.EnsureAsync(id, SecretKind.HmacSigningKey, "another-value"u8.ToArray(), Mac(), Ct);
+        Assert.Equal(1, again.Version);
+        Assert.Equal(first.CreatedAt, again.CreatedAt);
+        Assert.Equal(first.UpdatedAt, again.UpdatedAt);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.EnsureAsync(id, SecretKind.EabHmacKey, Value, Mac(), Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Store.EnsureAsync(id, SecretKind.HmacSigningKey, Value, Mac(MacAlgorithm.HmacSha512), Ct));
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await Store.EnsureAsync(SecretId.Empty, SecretKind.HmacSigningKey, Value, Mac(), Ct));
+    }
+
+    [Fact]
     public async Task PutThenDescribeReturnsOnlyMetadata()
     {
         var id = await Store.PutAsync(SecretKind.DnsApiToken, Value,

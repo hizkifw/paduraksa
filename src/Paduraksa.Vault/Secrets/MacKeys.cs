@@ -60,20 +60,19 @@ internal sealed class MacKeyHandle(SecretId id, MacAlgorithm algorithm, MacKeyCa
         }
     }
 
-    public bool Verify(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
-    {
-        var length = TagLength;
-        if (tag.Length != length)
-        {
-            return false;
-        }
+    public bool Verify(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag) => tag.Length == TagLength && Matches(data, tag);
 
+    public bool VerifyTruncated(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag) =>
+        tag.Length >= IMacKey.MinTruncatedTagLength && tag.Length <= TagLength && Matches(data, tag);
+
+    private bool Matches(ReadOnlySpan<byte> data, ReadOnlySpan<byte> tag)
+    {
         var state = cache.Acquire(id);
         try
         {
             Span<byte> expected = stackalloc byte[MacKeyMaterial.MaxTagLength];
             expected = expected[..MacKeyMaterial.Compute(algorithm, state.Current, data, expected)];
-            var matches = CryptographicOperations.FixedTimeEquals(expected, tag);
+            var matches = CryptographicOperations.FixedTimeEquals(expected[..tag.Length], tag);
 
             // Both candidates are always computed when there is a previous version in its window, so the time taken
             // does not tell which version made the tag.
@@ -81,7 +80,7 @@ internal sealed class MacKeyHandle(SecretId id, MacAlgorithm algorithm, MacKeyCa
             {
                 Span<byte> old = stackalloc byte[MacKeyMaterial.MaxTagLength];
                 old = old[..MacKeyMaterial.Compute(algorithm, state.Previous, data, old)];
-                matches |= CryptographicOperations.FixedTimeEquals(old, tag);
+                matches |= CryptographicOperations.FixedTimeEquals(old[..tag.Length], tag);
             }
 
             return matches;
