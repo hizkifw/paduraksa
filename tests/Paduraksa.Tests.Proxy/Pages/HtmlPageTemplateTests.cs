@@ -68,7 +68,7 @@ public sealed class HtmlPageTemplateTests
 
         Assert.Contains($"script-src '{Hash(Script)}'", template.ContentSecurityPolicy, StringComparison.Ordinal);
         Assert.Contains($"style-src '{Hash(HtmlPageTemplate.StyleText)}'", template.ContentSecurityPolicy, StringComparison.Ordinal);
-        Assert.Contains("worker-src blob:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", template.ContentSecurityPolicy, StringComparison.Ordinal);
+        Assert.Contains("worker-src blob:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'", template.ContentSecurityPolicy, StringComparison.Ordinal);
         Assert.Contains($"<script>{Script}</script></main>", page, StringComparison.Ordinal);
         Assert.Contains($"<style>{HtmlPageTemplate.StyleText}</style>", page, StringComparison.Ordinal);
     }
@@ -78,7 +78,7 @@ public sealed class HtmlPageTemplateTests
     {
         var template = HtmlPageTemplate.Create("Stopped", "<p>{requestId}</p>", slots: ["requestId"]);
 
-        Assert.Contains($"default-src 'none'; style-src '{Hash(HtmlPageTemplate.StyleText)}'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'", template.ContentSecurityPolicy, StringComparison.Ordinal);
+        Assert.Contains($"default-src 'none'; style-src '{Hash(HtmlPageTemplate.StyleText)}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'", template.ContentSecurityPolicy, StringComparison.Ordinal);
         Assert.DoesNotContain("script-src", template.ContentSecurityPolicy, StringComparison.Ordinal);
         Assert.DoesNotContain("worker-src", template.ContentSecurityPolicy, StringComparison.Ordinal);
         Assert.DoesNotContain("<script>", Encoding.UTF8.GetString(template.Render("r", default, default)), StringComparison.Ordinal);

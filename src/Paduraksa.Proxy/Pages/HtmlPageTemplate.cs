@@ -243,8 +243,9 @@ public sealed class HtmlPageTemplate
             csp.Append("; ").Append(extraCsp);
         }
 
+        csp.Append("; base-uri 'none'");
         csp.Append(allowForm ? "; form-action 'self'" : "; form-action 'none'");
-        csp.Append("; base-uri 'none'; frame-ancestors 'none'");
+        csp.Append("; frame-ancestors 'none'");
         return csp.ToString();
     }
 
