@@ -45,7 +45,9 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         await SendAsync(server, client, host, path, expected, Measured);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.Bytes == 0, $"gate allocated on Kestrel with the access log on: {server.GateStats}");
+        // Steady state is 0 B a request: one request in the run may carry a one-off of the runtime's own on that thread
+        // (CI's official build has shown 4-25 KB once in 3000), while an allocation of the gate's shows on every request.
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel with the access log on: {server.GateStats}");
         // A line per request, in order, none dropped: the log really was on for these requests. The lines are written
         // from the response's completion, which can trail the client's last read by a moment.
         await WaitForEntriesAsync(server.AccessLog, Measured);

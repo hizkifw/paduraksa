@@ -93,9 +93,11 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         // A request can be counted twice (the client retries an idempotent request on a connection that closed
         // under it), never less: every measured request passed the gate before its response was sent.
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        // Steady state is 0 B. A client reconnect (or a new H2 stream beyond the pooled ones) creates the gate's pooled
-        // state once (spike S3 §3); those requests are counted apart and must stay rare.
-        Assert.True(server.GateStats.Bytes == 0, $"gate allocated on Kestrel: {server.GateStats}");
+        // Steady state is 0 B a request: one request in the run may carry a one-off of the runtime's own on that thread
+        // (CI's official build has shown 4-25 KB once in 3000), while an allocation of the gate's shows on every request.
+        // A client reconnect (or a new H2 stream beyond the pooled ones) creates the gate's pooled state once (spike S3
+        // §3); those requests are counted apart and must stay rare.
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
@@ -144,7 +146,9 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         await SendAsync(server, client, "app.test", "/", HttpStatusCode.OK, Measured, WithHeader);
 
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
-        Assert.True(server.GateStats.Bytes == 0, $"gate allocated on Kestrel: {server.GateStats}");
+        // Steady state is 0 B a request: one request in the run may carry a one-off of the runtime's own on that thread
+        // (CI's official build has shown 4-25 KB once in 3000), while an allocation of the gate's shows on every request.
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
