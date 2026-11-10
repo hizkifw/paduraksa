@@ -42,7 +42,7 @@ public static class HostNames
         kind = HostNameKind.Exact;
         error = null;
 
-        string value = (name ?? string.Empty).Trim();
+        var value = (name ?? string.Empty).Trim();
         if (value.Length == 0)
         {
             error = "a host name can't be empty";
@@ -59,7 +59,7 @@ public static class HostNames
             return false;
         }
 
-        if (!DnsNames.TryParse(value, out DnsName parsed, out string? problem))
+        if (!DnsNames.TryParse(value, out var parsed, out var problem))
         {
             error = $"'{name}': {problem}";
             return false;
@@ -80,7 +80,7 @@ public static class HostNames
     /// <see cref="IpParser"/>.</summary>
     internal static bool TryParseIPv6Literal(ReadOnlySpan<char> inner, out UInt128 key)
     {
-        bool parsed = IpParser.TryParseIPv6(inner, out IpKey address);
+        var parsed = IpParser.TryParseIPv6(inner, out var address);
         key = parsed ? address.Value : UInt128.Zero;
         return parsed;
     }
@@ -90,9 +90,9 @@ public static class HostNames
     // invisible format characters (ZWJ, soft hyphen) and the halfwidth/fullwidth forms. Case is folded by the caller.
     private static bool IsConvertibleUnicode(string? name, string value, out string? error)
     {
-        foreach (char c in value)
+        foreach (var c in value)
         {
-            UnicodeCategory category = CharUnicodeInfo.GetUnicodeCategory(c);
+            var category = CharUnicodeInfo.GetUnicodeCategory(c);
             if (category is UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark
                 or UnicodeCategory.Format
                 || c is >= '\uFF00' and <= '\uFFEF')
@@ -114,8 +114,8 @@ public static class HostNames
     {
         error = null;
         value = value.ToLowerInvariant();
-        string dnsPart = value.EndsWith('.') ? value[..^1] : value;
-        bool wildcard = dnsPart.StartsWith("*.", StringComparison.Ordinal);
+        var dnsPart = value.EndsWith('.') ? value[..^1] : value;
+        var wildcard = dnsPart.StartsWith("*.", StringComparison.Ordinal);
         if (wildcard)
         {
             dnsPart = dnsPart[2..];
@@ -147,7 +147,7 @@ public static class HostNames
         kind = HostNameKind.IPv6Literal;
         error = null;
         if (value.Length < 3 || value[^1] != ']'
-            || !IPAddress.TryParse(value.AsSpan(1, value.Length - 2), out IPAddress? address)
+            || !IPAddress.TryParse(value.AsSpan(1, value.Length - 2), out var address)
             || address.AddressFamily != AddressFamily.InterNetworkV6
             || value.Contains('%', StringComparison.Ordinal))
         {
@@ -161,10 +161,10 @@ public static class HostNames
 
     private static bool IsCanonicalIPv4(string name)
     {
-        int parts = 0;
-        foreach (Range range in name.AsSpan().Split('.'))
+        var parts = 0;
+        foreach (var range in name.AsSpan().Split('.'))
         {
-            ReadOnlySpan<char> part = name.AsSpan()[range];
+            var part = name.AsSpan()[range];
             parts++;
             if (part.Length is 0 or > 3 || part.ContainsAnyExceptInRange('0', '9') || (part.Length > 1 && part[0] == '0')
                 || int.Parse(part, CultureInfo.InvariantCulture) > 255)

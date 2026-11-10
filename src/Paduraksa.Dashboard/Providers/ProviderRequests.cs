@@ -26,7 +26,7 @@ public static class SecretInput
     /// <summary>The UTF-8 bytes of <paramref name="text"/>; the caller zeroes them after use.</summary>
     public static byte[] Utf8(ReadOnlySpan<char> text)
     {
-        byte[] bytes = new byte[System.Text.Encoding.UTF8.GetByteCount(text)];
+        var bytes = new byte[System.Text.Encoding.UTF8.GetByteCount(text)];
         System.Text.Encoding.UTF8.GetBytes(text, bytes);
         return bytes;
     }
@@ -36,14 +36,14 @@ public static class SecretInput
     /// </summary>
     public static byte[]? Base64UrlKey(ReadOnlySpan<char> text)
     {
-        ReadOnlySpan<char> trimmed = text.Trim().TrimEnd('=');
+        var trimmed = text.Trim().TrimEnd('=');
         if (trimmed.IsEmpty || !Base64Url.IsValid(trimmed))
         {
             return null;
         }
 
-        byte[] key = new byte[Base64Url.GetMaxDecodedLength(trimmed.Length)];
-        if (!Base64Url.TryDecodeFromChars(trimmed, key, out int written))
+        var key = new byte[Base64Url.GetMaxDecodedLength(trimmed.Length)];
+        if (!Base64Url.TryDecodeFromChars(trimmed, key, out var written))
         {
             CryptographicOperations.ZeroMemory(key);
             return null;
@@ -54,7 +54,7 @@ public static class SecretInput
             return key;
         }
 
-        byte[] exact = key[..written];
+        var exact = key[..written];
         CryptographicOperations.ZeroMemory(key);
         return exact;
     }

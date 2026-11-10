@@ -20,7 +20,7 @@ public sealed class IdValueGeneratorTests
     {
         var clock = new ManualTimeProvider(T0);
         var generator = new Int64OrderedIdGenerator(clock);
-        long id = generator.Next();
+        var id = generator.Next();
 
         Assert.True(id > 0);
         Assert.Equal(T0, Int64OrderedIdGenerator.GetTimestamp(id));
@@ -37,8 +37,8 @@ public sealed class IdValueGeneratorTests
 
         Parallel.For(0, Threads, new ParallelOptions { MaxDegreeOfParallelism = Threads }, _ =>
         {
-            long[] ids = new long[PerThread];
-            for (int i = 0; i < PerThread; i++)
+            var ids = new long[PerThread];
+            for (var i = 0; i < PerThread; i++)
             {
                 ids[i] = generator.Next();
             }
@@ -47,9 +47,9 @@ public sealed class IdValueGeneratorTests
         });
 
         var all = new HashSet<long>();
-        foreach (long[] ids in results)
+        foreach (var ids in results)
         {
-            for (int i = 0; i < ids.Length; i++)
+            for (var i = 0; i < ids.Length; i++)
             {
                 Assert.True(ids[i] > 0);
                 Assert.True(i == 0 || ids[i] > ids[i - 1]);
@@ -66,14 +66,14 @@ public sealed class IdValueGeneratorTests
         var clock = new ManualTimeProvider(T0);
         var generator = new Int64OrderedIdGenerator(clock);
 
-        long a = generator.Next();
+        var a = generator.Next();
         clock.Now = T0.AddHours(-1);
-        long b = generator.Next();
-        long c = generator.Next();
+        var b = generator.Next();
+        var c = generator.Next();
         clock.Now = T0.AddMilliseconds(1);
-        long d = generator.Next();
+        var d = generator.Next();
         clock.Now = Int64OrderedIdGenerator.Epoch.AddYears(-1); // before the epoch: clamped to 0
-        long e = generator.Next();
+        var e = generator.Next();
 
         Assert.True(a < b && b < c && c < d && d < e);
         Assert.Equal(T0, Int64OrderedIdGenerator.GetTimestamp(c)); // kept the last timestamp
@@ -85,12 +85,12 @@ public sealed class IdValueGeneratorTests
     {
         var clock = new ManualTimeProvider(T0);
         var generator = new Int64OrderedIdGenerator(clock);
-        int count = (1 << Int64OrderedIdGenerator.CounterBits) + 10;
+        var count = (1 << Int64OrderedIdGenerator.CounterBits) + 10;
 
-        long previous = generator.Next();
-        for (int i = 1; i < count; i++)
+        var previous = generator.Next();
+        for (var i = 1; i < count; i++)
         {
-            long next = generator.Next();
+            var next = generator.Next();
             Assert.True(next > previous);
             previous = next;
         }
@@ -111,15 +111,15 @@ public sealed class IdValueGeneratorTests
         var generator = new UuidV7Generator(clock);
 
         UInt128 previous = 0;
-        for (int i = 0; i < 10_000; i++)
+        for (var i = 0; i < 10_000; i++)
         {
             if (i == 5000)
             {
                 clock.Now = T0.AddMinutes(-5); // clock goes backwards
             }
 
-            Guid guid = generator.Next();
-            UInt128 raw = Base62.ToUInt128(guid);
+            var guid = generator.Next();
+            var raw = Base62.ToUInt128(guid);
             Assert.Equal(7, guid.Version);
             Assert.Equal(0b10, (int)((raw >> 62) & 0b11)); // RFC 9562 variant
             Assert.True(raw > previous);
@@ -127,7 +127,7 @@ public sealed class IdValueGeneratorTests
         }
 
         // 10k IDs within one frozen ms need at most ~3 borrowed milliseconds (>= 2048 per ms).
-        long ms = (long)(previous >> 80);
+        var ms = (long)(previous >> 80);
         Assert.InRange(ms - T0.ToUnixTimeMilliseconds(), 0, 5);
     }
 
@@ -142,7 +142,7 @@ public sealed class IdValueGeneratorTests
         Parallel.For(0, Threads, new ParallelOptions { MaxDegreeOfParallelism = Threads }, _ =>
         {
             var ids = new Guid[PerThread];
-            for (int i = 0; i < PerThread; i++)
+            for (var i = 0; i < PerThread; i++)
             {
                 ids[i] = generator.Next();
             }
@@ -151,9 +151,9 @@ public sealed class IdValueGeneratorTests
         });
 
         var all = new HashSet<Guid>();
-        foreach (Guid[] ids in results)
+        foreach (var ids in results)
         {
-            for (int i = 0; i < ids.Length; i++)
+            for (var i = 0; i < ids.Length; i++)
             {
                 Assert.True(i == 0 || Base62.ToUInt128(ids[i]) > Base62.ToUInt128(ids[i - 1]));
                 Assert.True(all.Add(ids[i]));
@@ -167,9 +167,9 @@ public sealed class IdValueGeneratorTests
     public void UuidV4HasVersionAndVariantBits()
     {
         var seen = new HashSet<Guid>();
-        for (int i = 0; i < 10_000; i++)
+        for (var i = 0; i < 10_000; i++)
         {
-            Guid guid = UuidV4Generator.Next();
+            var guid = UuidV4Generator.Next();
             Assert.Equal(4, guid.Version);
             Assert.Equal(0b10, (int)((Base62.ToUInt128(guid) >> 62) & 0b11));
             Assert.True(seen.Add(guid));
@@ -193,9 +193,9 @@ public sealed class IdValueGeneratorTests
         var generator = new Int64OrderedIdGenerator(clock);
 
         // Simulate a restart where the clock is behind the largest ID already in the database.
-        long persisted = new Int64OrderedIdGenerator(new ManualTimeProvider(T0.AddHours(1))).Next();
+        var persisted = new Int64OrderedIdGenerator(new ManualTimeProvider(T0.AddHours(1))).Next();
         generator.Observe(persisted);
-        long next = generator.Next();
+        var next = generator.Next();
         Assert.True(next > persisted);
 
         // Observing an older value never moves the generator backwards.
@@ -209,7 +209,7 @@ public sealed class IdValueGeneratorTests
     public void Int64OrderedObserveIsSafeUnderConcurrency()
     {
         var generator = new Int64OrderedIdGenerator(new ManualTimeProvider(T0));
-        long floor = 1L << 60;
+        var floor = 1L << 60;
         var issued = new ConcurrentBag<long>();
         Parallel.For(0, 10_000, i =>
         {

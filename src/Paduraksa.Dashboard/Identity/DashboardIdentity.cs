@@ -84,7 +84,7 @@ internal sealed class DashboardIdentity(
     private async Task<T?> WithPasswordCheckAsync<T>(Func<Task<T>> run, CancellationToken cancellationToken)
         where T : class
     {
-        using IDisposable? slot = await passwordChecks.EnterAsync(cancellationToken).ConfigureAwait(false);
+        using var slot = await passwordChecks.EnterAsync(cancellationToken).ConfigureAwait(false);
         return slot is null ? null : await run().ConfigureAwait(false);
     }
 }

@@ -7,7 +7,7 @@
 <div class="pdk-form-stack">
     <MudSelect T="string" Value="_preset" ValueChanged="ChoosePreset" Label="Certificate authority" Variant="Variant.Outlined" Margin="Margin.Dense"
                Disabled="_busy" Class="pdk-acme-preset">
-        @foreach (AcmeCaPreset preset in ProviderDisplay.Presets)
+        @foreach (var preset in ProviderDisplay.Presets)
         {
             <MudSelectItem T="string" Value="preset.Key">@preset.Name</MudSelectItem>
         }
@@ -64,7 +64,7 @@
     @if (_errors.Count > 0)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert">
-            @foreach (string error in _errors)
+            @foreach (var error in _errors)
             {
                 <div>@error</div>
             }
@@ -143,12 +143,12 @@
         }
 
         _errors = [];
-        string? directory = Preset?.DirectoryUrl ?? _directory?.Trim();
-        _directoryError = Uri.TryCreate(directory, UriKind.Absolute, out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps ? null : "Enter the CA's https:// directory URL.";
-        string? email = string.IsNullOrWhiteSpace(_email) ? null : _email.Trim();
+        var directory = Preset?.DirectoryUrl ?? _directory?.Trim();
+        _directoryError = Uri.TryCreate(directory, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps ? null : "Enter the CA's https:// directory URL.";
+        var email = string.IsNullOrWhiteSpace(_email) ? null : _email.Trim();
         _emailError = email is null || (email.Contains('@', StringComparison.Ordinal) && !email.Contains(' ', StringComparison.Ordinal)) ? null : "That doesn't look like an email address.";
         _tosError = _agreed ? null : "The CA requires you to agree to its terms.";
-        bool eab = _useEab;
+        var eab = _useEab;
         _eabError = eab && (string.IsNullOrWhiteSpace(_eabKid) || string.IsNullOrWhiteSpace(_eabHmac)) ? "Enter both the key ID and the HMAC key, or turn EAB off." : null;
         if (_directoryError is not null || _emailError is not null || _tosError is not null || _eabError is not null)
         {
@@ -156,7 +156,7 @@
         }
 
         // The HMAC key leaves the component's state before anything is awaited.
-        char[] hmac = eab ? (_eabHmac ?? string.Empty).ToCharArray() : [];
+        var hmac = eab ? (_eabHmac ?? string.Empty).ToCharArray() : [];
         _eabHmac = null;
         _busy = true;
         AcmeAccountResult? result;

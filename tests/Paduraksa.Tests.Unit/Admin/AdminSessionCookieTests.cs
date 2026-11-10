@@ -44,12 +44,12 @@ public sealed class AdminSessionCookieTests
         DefaultHttpContext context = new();
 
         AdminSessionCookie.Set(context.Response, "value", DateTimeOffset.UtcNow.AddHours(1));
-        string set = context.Response.Headers.SetCookie.ToString();
+        var set = context.Response.Headers.SetCookie.ToString();
         context.Response.Headers.Remove("Set-Cookie");
         AdminSessionCookie.Clear(context.Response);
-        string cleared = context.Response.Headers.SetCookie.ToString();
+        var cleared = context.Response.Headers.SetCookie.ToString();
 
-        foreach (string line in new[] { set, cleared })
+        foreach (var line in new[] { set, cleared })
         {
             Assert.StartsWith("__Host-paduraksa-session=", line, StringComparison.Ordinal);
             Assert.Contains("secure", line, StringComparison.OrdinalIgnoreCase);

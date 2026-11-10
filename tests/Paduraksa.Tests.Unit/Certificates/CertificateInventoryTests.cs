@@ -26,7 +26,7 @@ public sealed class CertificateInventoryTests : IDisposable
 
     public void Dispose()
     {
-        foreach (X509Certificate2 certificate in _owned)
+        foreach (var certificate in _owned)
         {
             certificate.Dispose();
         }
@@ -48,8 +48,8 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public void AnExactNameBeatsAWildcardEvenWhenTheWildcardLastsLonger()
     {
-        InventoryCertificate wildcard = Entry("wild", ["*.example.com"], notAfter: Now.AddDays(80));
-        InventoryCertificate exact = Entry("exact", ["www.example.com"], notAfter: Now.AddDays(10));
+        var wildcard = Entry("wild", ["*.example.com"], notAfter: Now.AddDays(80));
+        var exact = Entry("exact", ["www.example.com"], notAfter: Now.AddDays(10));
 
         Assert.Same(exact, CertificateSelection.Best([wildcard, exact], "www.example.com"));
         Assert.Same(wildcard, CertificateSelection.Best([wildcard, exact], "api.example.com"));
@@ -59,15 +59,15 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public void AmongEqualMatchesTheLatestNotAfterWinsThenTheLatestNotBeforeThenTheSmallestId()
     {
-        InventoryCertificate old = Entry("old", ["a.example.com"], notAfter: Now.AddDays(10));
-        InventoryCertificate renewed = Entry("renewed", ["a.example.com"], notAfter: Now.AddDays(70));
-        InventoryCertificate laterStart = Entry("laterStart", ["a.example.com"], notAfter: Now.AddDays(70), notBefore: Now);
+        var old = Entry("old", ["a.example.com"], notAfter: Now.AddDays(10));
+        var renewed = Entry("renewed", ["a.example.com"], notAfter: Now.AddDays(70));
+        var laterStart = Entry("laterStart", ["a.example.com"], notAfter: Now.AddDays(70), notBefore: Now);
 
         Assert.Same(renewed, CertificateSelection.Best([old, renewed], "a.example.com"));
         Assert.Same(laterStart, CertificateSelection.Best([renewed, laterStart, old], "a.example.com"));
 
-        InventoryCertificate twin = renewed with { Id = Id<CertificateId>(1) };
-        InventoryCertificate other = renewed with { Id = Id<CertificateId>(2) };
+        var twin = renewed with { Id = Id<CertificateId>(1) };
+        var other = renewed with { Id = Id<CertificateId>(2) };
         Assert.Equal(Id<CertificateId>(1), CertificateSelection.Best([other, twin], "a.example.com")!.Id);
     }
 
@@ -78,18 +78,18 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task AutoPicksPerNameSoAMultiNameHostCanUseSeveralCertificates()
     {
-        CertificateId exact = Add("exact", ["example.com", "www.example.com"], Now.AddDays(5));
-        CertificateId wildcard = Add("wildcard", ["*.example.com"], Now.AddDays(60));
-        ConfigDocument document = Document(Host("multi", ["example.com", "www.example.com", "api.example.com", "nothing.test"]));
+        var exact = Add("exact", ["example.com", "www.example.com"], Now.AddDays(5));
+        var wildcard = Add("wildcard", ["*.example.com"], Now.AddDays(60));
+        var document = Document(Host("multi", ["example.com", "www.example.com", "api.example.com", "nothing.test"]));
 
-        ConfigCompilation compilation = await CompileAsync(document);
+        var compilation = await CompileAsync(document);
 
         Assert.Same(_source.ContextOf(exact), Served(compilation, "example.com"));
         Assert.Same(_source.ContextOf(exact), Served(compilation, "www.example.com")); // exact beats the wildcard that lasts longer
         Assert.Same(_source.ContextOf(wildcard), Served(compilation, "api.example.com"));
         Assert.Null(Served(compilation, "nothing.test")); // no certificate of its own, and no default
 
-        ConfigWarning warning = Assert.Single(compilation.Warnings);
+        var warning = Assert.Single(compilation.Warnings);
         Assert.Equal((ConfigWarningCodes.CertificateAutoNoCoverage, "/hosts/0"), (warning.Code, warning.Path));
         Assert.Contains("nothing.test", warning.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("example.com", warning.Message.Replace("nothing.test", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
@@ -98,11 +98,11 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task ExpiredAndNotYetValidCertificatesAreNeverChosenAndNeverLoaded()
     {
-        CertificateId expired = Add("expired", ["a.example.com"], Now.AddDays(-1), notBefore: Now.AddDays(-90));
-        CertificateId future = Add("future", ["a.example.com"], Now.AddDays(100), notBefore: Now.AddDays(10));
-        CertificateId valid = Add("valid", ["a.example.com"], Now.AddDays(3));
+        var expired = Add("expired", ["a.example.com"], Now.AddDays(-1), notBefore: Now.AddDays(-90));
+        var future = Add("future", ["a.example.com"], Now.AddDays(100), notBefore: Now.AddDays(10));
+        var valid = Add("valid", ["a.example.com"], Now.AddDays(3));
 
-        ConfigCompilation compilation = await CompileAsync(Document(Host("a", ["a.example.com"])));
+        var compilation = await CompileAsync(Document(Host("a", ["a.example.com"])));
 
         Assert.Same(_source.ContextOf(valid), Served(compilation, "a.example.com"));
         Assert.Equal([valid], _source.Loaded);
@@ -118,11 +118,11 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task ACertificateTheVaultCantLoadIsLeftOutAndTheNextBestTakesOver()
     {
-        CertificateId best = Add("best", ["a.example.com"], Now.AddDays(60));
-        CertificateId next = Add("next", ["a.example.com"], Now.AddDays(30));
+        var best = Add("best", ["a.example.com"], Now.AddDays(60));
+        var next = Add("next", ["a.example.com"], Now.AddDays(30));
         _source.Missing.Add(best); // the row is there, the key is gone
 
-        ConfigCompilation compilation = await CompileAsync(Document(Host("a", ["a.example.com"])));
+        var compilation = await CompileAsync(Document(Host("a", ["a.example.com"])));
 
         Assert.True(compilation.Succeeded);
         Assert.Same(_source.ContextOf(next), Served(compilation, "a.example.com"));
@@ -132,11 +132,11 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task ASourceThatThrowsNeverFailsTheCompile()
     {
-        CertificateId broken = Add("broken", ["a.example.com"], Now.AddDays(60));
+        var broken = Add("broken", ["a.example.com"], Now.AddDays(60));
         _source.Throwing.Add(broken);
         CertificateBinding specific = new() { Mode = CertificateBindingMode.Specific, CertificateId = broken };
 
-        ConfigCompilation compilation = await CompileAsync(Document(Host("a", ["a.example.com"]), Host("b", ["b.example.com"], specific)));
+        var compilation = await CompileAsync(Document(Host("a", ["a.example.com"]), Host("b", ["b.example.com"], specific)));
 
         Assert.True(compilation.Succeeded);
         Assert.Null(Served(compilation, "a.example.com"));
@@ -147,11 +147,11 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task ASpecificBindingToAnExpiredOrUnknownCertificateWarnsInsteadOfFailing()
     {
-        CertificateId expired = Add("expired", ["a.example.com"], Now.AddDays(-1), notBefore: Now.AddDays(-90));
+        var expired = Add("expired", ["a.example.com"], Now.AddDays(-1), notBefore: Now.AddDays(-90));
         CertificateBinding toExpired = new() { Mode = CertificateBindingMode.Specific, CertificateId = expired };
         CertificateBinding toUnknown = new() { Mode = CertificateBindingMode.Specific, CertificateId = Id<CertificateId>(99) };
 
-        ConfigCompilation compilation = await CompileAsync(Document(
+        var compilation = await CompileAsync(Document(
             Host("a", ["a.example.com"], toExpired), Host("c", ["c.example.com"], toUnknown)));
 
         Assert.True(compilation.Succeeded);
@@ -164,10 +164,10 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task ASpecificCertificateThatDoesntCoverTheNamesWarnsButIsServed()
     {
-        CertificateId other = Add("other", ["other.test"], Now.AddDays(60));
+        var other = Add("other", ["other.test"], Now.AddDays(60));
         CertificateBinding specific = new() { Mode = CertificateBindingMode.Specific, CertificateId = other };
 
-        ConfigCompilation compilation = await CompileAsync(Document(Host("a", ["a.example.com"], specific)));
+        var compilation = await CompileAsync(Document(Host("a", ["a.example.com"], specific)));
 
         Assert.Same(_source.ContextOf(other), Served(compilation, "a.example.com"));
         Assert.Equal(ConfigWarningCodes.CertificateSpecificNoCoverage, Assert.Single(compilation.Warnings).Code);
@@ -176,16 +176,16 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task TheDefaultCertificateIsTheNamedOneThenTheFallbackAndAnUnusableNamedOneWarns()
     {
-        CertificateId fallback = Add("fallback", ["localhost"], Now.AddDays(60), fallbackDefault: true);
-        CertificateId named = Add("named", ["named.test"], Now.AddDays(60));
-        ConfigDocument none = Document(Host("a", ["a.test"]));
+        var fallback = Add("fallback", ["localhost"], Now.AddDays(60), fallbackDefault: true);
+        var named = Add("named", ["named.test"], Now.AddDays(60));
+        var none = Document(Host("a", ["a.test"]));
 
         Assert.Same(_source.ContextOf(fallback), (await CompileAsync(none)).Snapshot!.Certificates.Default!.Certificate.Context);
         Assert.Same(_source.ContextOf(named), (await CompileAsync(none with { Settings = new GlobalSettings(DefaultCertificateId: named) })).Snapshot!.Certificates.Default!.Certificate.Context);
 
-        ConfigCompilation unusable = await CompileAsync(none with { Settings = new GlobalSettings(DefaultCertificateId: Id<CertificateId>(99)) });
+        var unusable = await CompileAsync(none with { Settings = new GlobalSettings(DefaultCertificateId: Id<CertificateId>(99)) });
         Assert.Same(_source.ContextOf(fallback), unusable.Snapshot!.Certificates.Default!.Certificate.Context);
-        ConfigWarning warning = Assert.Single(unusable.Warnings, w => w.Code == ConfigWarningCodes.CertificateDefaultUnusable);
+        var warning = Assert.Single(unusable.Warnings, w => w.Code == ConfigWarningCodes.CertificateDefaultUnusable);
         Assert.Equal("/settings/defaultCertificateId", warning.Path);
     }
 
@@ -194,7 +194,7 @@ public sealed class CertificateInventoryTests : IDisposable
     {
         Add("a", ["a.test"], Now.AddDays(60));
 
-        ConfigCompilation compilation = await CompileAsync(Document(Host("x", ["x.test"])));
+        var compilation = await CompileAsync(Document(Host("x", ["x.test"])));
 
         Assert.Null(compilation.Snapshot!.Certificates.Default);
     }
@@ -202,11 +202,11 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task AnUnchangedCertificateKeepsItsContextAcrossCompilesAndARenewalSwapsIt()
     {
-        CertificateId id = Add("a", ["a.example.com"], Now.AddDays(60));
-        ConfigDocument document = Document(Host("a", ["a.example.com"]));
+        var id = Add("a", ["a.example.com"], Now.AddDays(60));
+        var document = Document(Host("a", ["a.example.com"]));
 
-        SslStreamCertificateContext first = Served(await CompileAsync(document), "a.example.com")!;
-        SslStreamCertificateContext second = Served(await CompileAsync(document), "a.example.com")!;
+        var first = Served(await CompileAsync(document), "a.example.com")!;
+        var second = Served(await CompileAsync(document), "a.example.com")!;
         Assert.Same(first, second);
 
         _source.Replace(id, NewContext(["a.example.com"]));
@@ -217,12 +217,12 @@ public sealed class CertificateInventoryTests : IDisposable
     public async Task DisabledHostsAndHostsWithoutHttpsNeedNoCertificate()
     {
         Add("a", ["a.example.com"], Now.AddDays(60));
-        HostConfig disabled = Host("off", ["off.example.com"]) with { Enabled = false };
-        HostConfig none = Host("none", ["none.example.com"], new CertificateBinding { Mode = CertificateBindingMode.None });
+        var disabled = Host("off", ["off.example.com"]) with { Enabled = false };
+        var none = Host("none", ["none.example.com"], new CertificateBinding { Mode = CertificateBindingMode.None });
         // A disabled host's Specific binding to a valid certificate is fine: nothing is served, so it needn't be loaded.
-        HostConfig disabledSpecific = Host("offSpecific", ["off2.example.com"], new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = Label<CertificateId>("a") }) with { Enabled = false };
+        var disabledSpecific = Host("offSpecific", ["off2.example.com"], new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = Label<CertificateId>("a") }) with { Enabled = false };
 
-        ConfigCompilation compilation = await CompileAsync(Document(disabled, none, disabledSpecific));
+        var compilation = await CompileAsync(Document(disabled, none, disabledSpecific));
 
         Assert.True(compilation.Succeeded);
         Assert.Empty(compilation.Warnings);
@@ -232,10 +232,10 @@ public sealed class CertificateInventoryTests : IDisposable
     [Fact]
     public async Task ADisabledHostBoundToAnExpiredCertificateStillWarns()
     {
-        CertificateId expired = Add("expired", ["a.example.com"], Now.AddDays(-1), notBefore: Now.AddDays(-90));
-        HostConfig disabled = Host("off", ["a.example.com"], new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = expired }) with { Enabled = false };
+        var expired = Add("expired", ["a.example.com"], Now.AddDays(-1), notBefore: Now.AddDays(-90));
+        var disabled = Host("off", ["a.example.com"], new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = expired }) with { Enabled = false };
 
-        ConfigCompilation compilation = await CompileAsync(Document(disabled));
+        var compilation = await CompileAsync(Document(disabled));
 
         Assert.True(compilation.Succeeded);
         Assert.Equal(ConfigWarningCodes.CertificateSpecificUnusable, Assert.Single(compilation.Warnings).Code);
@@ -266,7 +266,7 @@ public sealed class CertificateInventoryTests : IDisposable
     private CertificateId Add(
         string label, string[] names, DateTimeOffset notAfter, DateTimeOffset? notBefore = null, bool fallbackDefault = false)
     {
-        CertificateId id = Label<CertificateId>(label);
+        var id = Label<CertificateId>(label);
         CertificateInfo info = new(
             $"CN={label}", names, notBefore ?? Now.AddDays(-30), notAfter, "CN=Test", "01", null, label, "ECDSA P-256", [], string.Empty);
         _builtIns.Entries.Add(new BuiltInCertificate(id, info, fallbackDefault));
@@ -276,16 +276,16 @@ public sealed class CertificateInventoryTests : IDisposable
 
     private SslStreamCertificateContext NewContext(string[] names)
     {
-        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         CertificateRequest request = new("CN=test", key, HashAlgorithmName.SHA256);
         SubjectAlternativeNameBuilder san = new();
-        foreach (string name in names)
+        foreach (var name in names)
         {
             san.AddDnsName(name);
         }
 
         request.CertificateExtensions.Add(san.Build());
-        X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
         _owned.Add(certificate);
         return SslStreamCertificateContext.Create(certificate, null, offline: true);
     }
@@ -293,7 +293,7 @@ public sealed class CertificateInventoryTests : IDisposable
     private async Task<ConfigCompilation> CompileAsync(ConfigDocument document)
     {
         CertificateInventoryLoader loader = new(_source, _builtIns, _clock);
-        CertificateInventory inventory = await loader.LoadAsync(null, document, TestContext.Current.CancellationToken);
+        var inventory = await loader.LoadAsync(null, document, TestContext.Current.CancellationToken);
         return new ConfigCompiler(SnapshotCompilerOptions.Default).Compile(document, Revision, inventory);
     }
 
@@ -314,7 +314,7 @@ public sealed class CertificateInventoryTests : IDisposable
     {
         lock (Labels)
         {
-            if (!Labels.TryGetValue((typeof(T), label), out int n))
+            if (!Labels.TryGetValue((typeof(T), label), out var n))
             {
                 Labels[(typeof(T), label)] = n = Labels.Count + 1000;
             }
@@ -360,7 +360,7 @@ public sealed class CertificateInventoryTests : IDisposable
                 throw new InvalidOperationException("the vault is unwell");
             }
 
-            if (Missing.Contains(id) || !Contexts.TryGetValue(id, out SslStreamCertificateContext? context))
+            if (Missing.Contains(id) || !Contexts.TryGetValue(id, out var context))
             {
                 return ValueTask.FromResult<SslStreamCertificateContext?>(null);
             }

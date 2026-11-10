@@ -133,7 +133,7 @@ public sealed class SharedLoopbackHost : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        (PaduraksaHost host, int port) = await TestPorts.StartOnFreePortAsync(port => TestHost.Create(settings: new Dictionary<string, string?>
+        var (host, port) = await TestPorts.StartOnFreePortAsync(port => TestHost.Create(settings: new Dictionary<string, string?>
         {
             ["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
         }));

@@ -9,7 +9,6 @@ using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Logging;
@@ -46,14 +45,14 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     public void AnEntryCarriesWhatTheGateResolvedAndTheResponseSays()
     {
         AccessLogRing ring = new(8);
-        DefaultHttpContext context = Request("app.test", "/a/b?x=1", "Mozilla/5.0");
+        var context = Request("app.test", "/a/b?x=1", "Mozilla/5.0");
         _gate.Decide(context);
         context.Response.StatusCode = (int)HttpStatusCode.Created;
         context.Response.ContentLength = 512;
 
         AccessLogMiddleware.Record(context, ring, Stopwatch.GetTimestamp() - Stopwatch.Frequency / 1000);
 
-        Assert.True(ring.TryRead(out AccessLogEntry entry));
+        Assert.True(ring.TryRead(out var entry));
         Assert.Equal("127.0.0.1", entry.ClientAddress);
         Assert.Equal("app.test", entry.Host);
         Assert.Equal("GET", entry.Method);
@@ -75,7 +74,7 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     public void AHostWithoutTheAccessLogWritesNothing()
     {
         AccessLogRing ring = new(8);
-        DefaultHttpContext context = Request("quiet.test", "/");
+        var context = Request("quiet.test", "/");
         _gate.Decide(context);
 
         AccessLogMiddleware.Record(context, ring, Stopwatch.GetTimestamp());
@@ -87,7 +86,7 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     public void AnUnknownHostFollowsTheGlobalDefault()
     {
         AccessLogRing ring = new(8);
-        DefaultHttpContext context = Request("nobody.test", "/");
+        var context = Request("nobody.test", "/");
         _gate.Decide(context);
 
         // The global default in this snapshot is off.
@@ -95,10 +94,10 @@ public sealed class AccessLogMiddlewareTests : IDisposable
         Assert.False(ring.TryRead(out _));
 
         _store.Publish(Bound(new ProxyConfigModel { Defaults = new DefaultsSpec() }, generation: 2));
-        DefaultHttpContext allowed = Request("nobody.test", "/");
+        var allowed = Request("nobody.test", "/");
         _gate.Decide(allowed);
         AccessLogMiddleware.Record(allowed, ring, Stopwatch.GetTimestamp());
-        Assert.True(ring.TryRead(out AccessLogEntry entry));
+        Assert.True(ring.TryRead(out var entry));
         // The host as received is logged, but no compiled host was matched: the global default decided.
         Assert.Equal("nobody.test", entry.Host);
         Assert.Null(allowed.Features.Get<IGateFeature>()!.State.Host);
@@ -108,10 +107,10 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     public void CfRayIsRecordedOnlyFromATrustedCloudflarePeer()
     {
         AccessLogRing ring = new(8);
-        DefaultHttpContext spoofed = Request("app.test", "/", configure: request => request.Headers["CF-Ray"] = "8f00000000000000-AMS");
+        var spoofed = Request("app.test", "/", configure: request => request.Headers["CF-Ray"] = "8f00000000000000-AMS");
         _gate.Decide(spoofed);
         AccessLogMiddleware.Record(spoofed, ring, Stopwatch.GetTimestamp());
-        Assert.True(ring.TryRead(out AccessLogEntry untrusted));
+        Assert.True(ring.TryRead(out var untrusted));
         Assert.Null(untrusted.CloudflareRay);
 
         _store.Publish(Bound(
@@ -123,10 +122,10 @@ public sealed class AccessLogMiddlewareTests : IDisposable
             },
             generation: 3,
             options: new SnapshotCompilerOptions { CloudflareEdgeRanges = CidrSet.Parse(["127.0.0.0/8"]) }));
-        DefaultHttpContext trusted = Request("app.test", "/", configure: request => request.Headers["CF-Ray"] = "8f00000000000000-AMS");
+        var trusted = Request("app.test", "/", configure: request => request.Headers["CF-Ray"] = "8f00000000000000-AMS");
         _gate.Decide(trusted);
         AccessLogMiddleware.Record(trusted, ring, Stopwatch.GetTimestamp());
-        Assert.True(ring.TryRead(out AccessLogEntry edge));
+        Assert.True(ring.TryRead(out var edge));
         Assert.Equal("8f00000000000000-AMS", edge.CloudflareRay);
     }
 
@@ -134,7 +133,7 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     public void NothingSecretReachesAnEntry()
     {
         AccessLogRing ring = new(8);
-        DefaultHttpContext context = Request(
+        var context = Request(
             "app.test",
             "/login?token=s3cret&password=hunter2",
             "Mozilla/5.0",
@@ -147,7 +146,7 @@ public sealed class AccessLogMiddlewareTests : IDisposable
 
         AccessLogMiddleware.Record(context, ring, Stopwatch.GetTimestamp());
 
-        Assert.True(ring.TryRead(out AccessLogEntry entry));
+        Assert.True(ring.TryRead(out var entry));
         // An entry holds no cookie, no Authorization and no whole-query copy; redaction happens in the formatter.
         Assert.Equal("?token=s3cret&password=hunter2", entry.Query);
         Assert.DoesNotContain("live", entry.ToString(), StringComparison.Ordinal);
@@ -163,10 +162,10 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     public void RecordingAllocatesNothing()
     {
         AccessLogRing ring = new(8);
-        DefaultHttpContext context = Request("app.test", "/a/b?x=1", "Mozilla/5.0");
+        var context = Request("app.test", "/a/b?x=1", "Mozilla/5.0");
         _gate.Decide(context);
         context.Response.ContentLength = 1_024;
-        long started = Stopwatch.GetTimestamp();
+        var started = Stopwatch.GetTimestamp();
         _ = context.Features.Get<IGateFeature>()!.State.RequestIdText();
         _ = context.Features.Get<IGateFeature>()!.State.FormattedClientAddress();
 
@@ -186,7 +185,7 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     public void AHostWithTheLogOffAllocatesNothingEither()
     {
         AccessLogRing ring = new(8);
-        DefaultHttpContext context = Request("quiet.test", "/");
+        var context = Request("quiet.test", "/");
         _gate.Decide(context);
         AllocAssert.Zero(
             (ring, context),
@@ -203,14 +202,14 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     {
         AccessLogRing ring = new(8);
         AccessLogMiddleware middleware = new(ring);
-        DefaultHttpContext context = Request("app.test", "/boom");
+        var context = Request("app.test", "/boom");
         _gate.Decide(context);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => middleware.InvokeAsync(context, static _ => throw new InvalidOperationException("boom")));
 
         Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
-        Assert.True(ring.TryRead(out AccessLogEntry entry));
+        Assert.True(ring.TryRead(out var entry));
         Assert.Equal(500, entry.StatusCode);
     }
 
@@ -220,7 +219,7 @@ public sealed class AccessLogMiddlewareTests : IDisposable
     {
         AccessLogRing ring = new(8);
         AccessLogMiddleware middleware = new(ring);
-        DefaultHttpContext context = Request("app.test", "/drop");
+        var context = Request("app.test", "/drop");
         AbortProbe probe = new();
         context.Features.Set<IHttpRequestLifetimeFeature>(probe);
 
@@ -228,7 +227,7 @@ public sealed class AccessLogMiddlewareTests : IDisposable
         await middleware.InvokeAsync(context, next => _gate.InvokeAsync(next, static _ => Task.CompletedTask));
 
         Assert.True(probe.Aborted);
-        Assert.True(ring.TryRead(out AccessLogEntry entry));
+        Assert.True(ring.TryRead(out var entry));
         Assert.Equal(AccessLogEntry.NoResponse, entry.StatusCode);
     }
 
@@ -244,8 +243,8 @@ public sealed class AccessLogMiddlewareTests : IDisposable
 
     private static DefaultHttpContext Request(string host, string path, string? userAgent = null, Action<HttpRequest>? configure = null)
     {
-        int question = path.IndexOf('?', StringComparison.Ordinal);
-        DefaultHttpContext context = TestContexts.Create(host, question < 0 ? path : path[..question], rawTarget: path);
+        var question = path.IndexOf('?', StringComparison.Ordinal);
+        var context = TestContexts.Create(host, question < 0 ? path : path[..question], rawTarget: path);
         if (question >= 0)
         {
             // Kestrel serves the raw query from the target; the test context needs the same shape.

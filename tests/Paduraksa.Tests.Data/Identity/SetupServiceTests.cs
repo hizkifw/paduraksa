@@ -158,8 +158,8 @@ public sealed class SetupServiceTests
 
         await h.Setup.AnnounceAsync(console, Ct);
 
-        string token = (await File.ReadAllTextAsync(TokenFile(h), Ct)).Trim();
-        string printed = console.ToString();
+        var token = (await File.ReadAllTextAsync(TokenFile(h), Ct)).Trim();
+        var printed = console.ToString();
         Assert.Contains("Paduraksa first-run setup", printed, StringComparison.Ordinal);
         Assert.Contains(token, printed, StringComparison.Ordinal);
         // The box keeps its line breaks: one line per row, not one flattened line.

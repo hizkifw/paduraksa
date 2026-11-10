@@ -67,10 +67,10 @@ public sealed class Int64OrderedIdGenerator
     public void Observe(long lastIssued)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(lastIssued);
-        long current = Volatile.Read(ref _last);
+        var current = Volatile.Read(ref _last);
         while (lastIssued > current)
         {
-            long seen = Interlocked.CompareExchange(ref _last, lastIssued, current);
+            var seen = Interlocked.CompareExchange(ref _last, lastIssued, current);
             if (seen == current)
             {
                 return;
@@ -82,11 +82,11 @@ public sealed class Int64OrderedIdGenerator
 
     public long Next()
     {
-        long now = Math.Clamp(
+        var now = Math.Clamp(
             _timeProvider.GetUtcNow().ToUnixTimeMilliseconds() - EpochUnixMilliseconds, 0, MaxTimestamp);
         while (true)
         {
-            long last = Volatile.Read(ref _last);
+            var last = Volatile.Read(ref _last);
             long next;
             if (now > (last >> CounterBits))
             {

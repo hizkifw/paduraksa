@@ -4,9 +4,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
-using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Http;
-using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -75,11 +73,11 @@ public sealed class GateMiddleware
     /// </summary>
     private Task InvokeCoreAsync(HttpContext context, RequestDelegate next)
     {
-        GateDecision decision = Decide(context);
-        GateRequestState? state = context.Features.Get<IGateFeature>()?.State;
+        var decision = Decide(context);
+        var state = context.Features.Get<IGateFeature>()?.State;
         if (state is not null)
         {
-            ResponseHeaderOperation[] headers = state.Host is { } host ? host.ResponseHeaders : state.Snapshot?.DefaultResponseHeaders ?? [];
+            var headers = state.Host is { } host ? host.ResponseHeaders : state.Snapshot?.DefaultResponseHeaders ?? [];
             ResponseHeaders.ApplyStage(context, headers, ResponseHeaderStage.AfterDecision, state, [], applyRequestId: true);
         }
 
@@ -95,9 +93,9 @@ public sealed class GateMiddleware
     internal static GateDecision Decide<TTracer>(HttpContext context, RuntimeSnapshot snapshot, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges, TTracer tracer)
         where TTracer : struct, IGateTracer
     {
-        GateRequestState state = AcquireState(context);
+        var state = AcquireState(context);
         state.Snapshot = snapshot;
-        ClientIpResolution client = clientAddresses.Resolve(context, snapshot);
+        var client = clientAddresses.Resolve(context, snapshot);
         state.ClientIp = client;
         state.IsHttps = client.Scheme.EffectiveIsHttps(context.Request.IsHttps);
         // The same trust decision the forwarding headers make: a trusted proxy may name the request; anyone else's header
@@ -105,7 +103,7 @@ public sealed class GateMiddleware
         state.InitRequestId(context.Request, client.PeerTrusted);
         tracer.ClientResolved(context, snapshot, in client, state.IsHttps);
 
-        bool answered = TryAnswerAcmeChallenge(challenges, context, out GateDecision challenge);
+        var answered = TryAnswerAcmeChallenge(challenges, context, out var challenge);
         tracer.AcmeChallenge(context, answered);
         if (answered)
         {
@@ -113,14 +111,14 @@ public sealed class GateMiddleware
             return challenge;
         }
 
-        HttpRequest request = context.Request;
-        StringValues hostHeader = request.Headers.Host;
-        HostMatchKind matched = HostMatchKind.None;
-        CompiledHost? host = hostHeader.Count == 1 ? snapshot.Hosts.Find(hostHeader[0], out matched) : null;
+        var request = context.Request;
+        var hostHeader = request.Headers.Host;
+        var matched = HostMatchKind.None;
+        var host = hostHeader.Count == 1 ? snapshot.Hosts.Find(hostHeader[0], out matched) : null;
         tracer.HostLookup(hostHeader, host, matched, snapshot.Default);
         if (host is null)
         {
-            DefaultHostBehaviour fallback = snapshot.Default;
+            var fallback = snapshot.Default;
             if (fallback.Action == DefaultHostAction.Close)
             {
                 return GateDecision.Abort;
@@ -132,8 +130,8 @@ public sealed class GateMiddleware
 
         state.Host = host;
         ApplyHeaders(context, host.ResponseHeaders, ResponseHeaderStage.AfterHostLookup, state, host, tracer);
-        bool connectionIsHttps = request.IsHttps;
-        TlsMismatch mismatch = connectionIsHttps
+        var connectionIsHttps = request.IsHttps;
+        var mismatch = connectionIsHttps
             ? host.Https ? ConnectionTlsCheck.Check(context, host.Tls) : TlsMismatch.HostNotServedOverHttps
             : TlsMismatch.None;
         tracer.TlsCheck(context, host, connectionIsHttps, mismatch);
@@ -144,7 +142,7 @@ public sealed class GateMiddleware
 
         ApplyHeaders(context, host.ResponseHeaders, ResponseHeaderStage.AfterTlsCheck, state, host, tracer);
         RequestView view = new(context, state, TTracer.IsSimulation);
-        if (Stops(PolicyScope.Host, host.Policies, in view, tracer, out GateDecision stopped))
+        if (Stops(PolicyScope.Host, host.Policies, in view, tracer, out var stopped))
         {
             return stopped;
         }
@@ -152,7 +150,7 @@ public sealed class GateMiddleware
         // The trusted scheme, not the connection's: behind a TLS-terminating trusted proxy the client already uses HTTPS.
         if (host.HttpsRedirect is { } httpsRedirect)
         {
-            bool redirect = !state.IsHttps;
+            var redirect = !state.IsHttps;
             tracer.HttpsRedirect(host, state.IsHttps, redirect);
             if (redirect)
             {
@@ -166,7 +164,7 @@ public sealed class GateMiddleware
             return GateDecision.Respond(fixedResponse);
         }
 
-        CompiledRoute? route = MatchRoute(host, request.Path.Value, tracer);
+        var route = MatchRoute(host, request.Path.Value, tracer);
         if (route is null)
         {
             return GateDecision.Respond(snapshot.NoRoute);
@@ -178,8 +176,8 @@ public sealed class GateMiddleware
             return stopped;
         }
 
-        Endpoint[] endpoints = snapshot.YarpEndpoints;
-        bool endpointPresent = (uint)route.Slot < (uint)endpoints.Length;
+        var endpoints = snapshot.YarpEndpoints;
+        var endpointPresent = (uint)route.Slot < (uint)endpoints.Length;
         tracer.Forward(snapshot, route, endpointPresent);
         if (!endpointPresent)
         {
@@ -207,7 +205,7 @@ public sealed class GateMiddleware
             "The compiler must cap a host's response headers at the gate's buffer size.");
         Span<HeaderOutcome> outcomes = stackalloc HeaderOutcome[ResponseHeaders.MaxResponseHeaderOperations];
         outcomes.Clear();
-        Span<HeaderOutcome> used = outcomes[..Math.Min(headers.Length, ResponseHeaders.MaxResponseHeaderOperations)];
+        var used = outcomes[..Math.Min(headers.Length, ResponseHeaders.MaxResponseHeaderOperations)];
         ResponseHeaders.ApplyStage(context, headers, stage, state, used, applyRequestId: false);
         if (stage == ResponseHeaderStage.AfterHostLookup)
         {
@@ -247,10 +245,10 @@ public sealed class GateMiddleware
     private static bool Stops<TTracer>(PolicyScope scope, IRequestPolicy[] policies, in RequestView view, TTracer tracer, out GateDecision decision)
         where TTracer : struct, IGateTracer
     {
-        for (int i = 0; i < policies.Length; i++)
+        for (var i = 0; i < policies.Length; i++)
         {
-            IRequestPolicy policy = policies[i];
-            PolicyDecision verdict = policy.Evaluate(in view);
+            var policy = policies[i];
+            var verdict = policy.Evaluate(in view);
             tracer.PolicyEvaluated(scope, i, policy, in view, verdict);
             switch (verdict.Action)
             {
@@ -280,7 +278,7 @@ public sealed class GateMiddleware
     private static bool TryAnswerAcmeChallenge(AcmeChallengeStore? challenges, HttpContext context, out GateDecision decision)
     {
         decision = default;
-        HttpRequest request = context.Request;
+        var request = context.Request;
         if (challenges is null || request.IsHttps || request.Path.Value is not { } path
             || !path.StartsWith(AcmeChallengeStore.PathPrefix, StringComparison.Ordinal)
             || !(HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method)))
@@ -288,7 +286,7 @@ public sealed class GateMiddleware
             return false;
         }
 
-        if (!challenges.TryGet(path.AsSpan(AcmeChallengeStore.PathPrefix.Length), out PrecomputedResponse? response))
+        if (!challenges.TryGet(path.AsSpan(AcmeChallengeStore.PathPrefix.Length), out var response))
         {
             return false;
         }
@@ -321,7 +319,7 @@ public sealed class GateMiddleware
             return route;
         }
 
-        char[] rented = ArrayPool<char>.Shared.Rent(path.Length + 1);
+        var rented = ArrayPool<char>.Shared.Rent(path.Length + 1);
         try
         {
             ReadOnlySpan<char> canonical = rented.AsSpan(0, RoutePath.Canonicalize(path, rented));
@@ -343,8 +341,8 @@ public sealed class GateMiddleware
     private static GateRequestState AcquireState(HttpContext context)
     {
         GateRequestState state;
-        IDictionary<object, object?>? persistent = context.Features.Get<IPersistentStateFeature>()?.State;
-        if (persistent is not null && persistent.TryGetValue(StateKey, out object? cached) && cached is GateRequestState reused)
+        var persistent = context.Features.Get<IPersistentStateFeature>()?.State;
+        if (persistent is not null && persistent.TryGetValue(StateKey, out var cached) && cached is GateRequestState reused)
         {
             state = reused;
             state.Reset();

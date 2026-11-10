@@ -18,16 +18,16 @@ internal static class RawPathTransform
 
     public static ValueTask ApplyAsync(RequestTransformContext context)
     {
-        string? rawTarget = context.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
+        var rawTarget = context.HttpContext.Features.Get<IHttpRequestFeature>()?.RawTarget;
         if (rawTarget is not { Length: > 0 } || rawTarget[0] != '/')
         {
             return ValueTask.CompletedTask;
         }
 
-        int queryStart = rawTarget.IndexOf('?', StringComparison.Ordinal);
-        ReadOnlySpan<char> rawPath = queryStart < 0 ? rawTarget : rawTarget.AsSpan(0, queryStart);
-        ReadOnlySpan<char> prefix = context.DestinationPrefix.AsSpan().TrimEnd('/');
-        string query = context.Query.QueryString.Value ?? string.Empty;
+        var queryStart = rawTarget.IndexOf('?', StringComparison.Ordinal);
+        var rawPath = queryStart < 0 ? rawTarget : rawTarget.AsSpan(0, queryStart);
+        var prefix = context.DestinationPrefix.AsSpan().TrimEnd('/');
+        var query = context.Query.QueryString.Value ?? string.Empty;
         context.ProxyRequest.RequestUri = new Uri(string.Concat(prefix, rawPath, query), in Verbatim);
         return ValueTask.CompletedTask;
     }

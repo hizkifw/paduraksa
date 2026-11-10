@@ -65,7 +65,7 @@ public sealed class AccessLogDrainServiceTests
 
         drain.Drain();
 
-        (LogLevel level, string message) = Assert.Single(logger.Entries);
+        var (level, message) = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Warning, level);
         Assert.Contains("2 access-log lines were dropped", message, StringComparison.Ordinal);
         Assert.Equal(0, ring.Dropped);
@@ -92,9 +92,9 @@ public sealed class AccessLogDrainServiceTests
         drain.Drain();
 
         // The failed line is skipped; the next one is written, and the failure is reported once.
-        string line = Assert.Single(sink.Lines);
+        var line = Assert.Single(sink.Lines);
         Assert.Contains("/two", line, StringComparison.Ordinal);
-        (LogLevel level, string message) = Assert.Single(logger.Entries);
+        var (level, message) = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Warning, level);
         Assert.Contains("access log isn't being written", message, StringComparison.Ordinal);
     }
@@ -124,13 +124,13 @@ public sealed class AccessLogDrainServiceTests
 
         drain.Drain();
 
-        (LogLevel level, string message) = Assert.Single(logger.Entries);
+        var (level, message) = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Warning, level);
         Assert.Contains("access log isn't being written", message, StringComparison.Ordinal);
 
         // The pass stopped at the bad entry (it is consumed, so the ring isn't stuck); the next pass writes the rest.
         drain.Drain();
-        string line = Assert.Single(sink.Lines);
+        var line = Assert.Single(sink.Lines);
         Assert.Contains("\"GET /good HTTP/1.1\"", line, StringComparison.Ordinal);
         Assert.Single(logger.Entries);
     }

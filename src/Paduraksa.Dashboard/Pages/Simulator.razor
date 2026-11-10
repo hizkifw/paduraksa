@@ -30,7 +30,7 @@ else
                     {
                         <MudSelectItem T="TargetChoice" Value="TargetChoice.Draft">The change under review: @Draft.Title</MudSelectItem>
                     }
-                    @foreach (RevisionTimelineEntry entry in _revisions)
+                    @foreach (var entry in _revisions)
                     {
                         <MudSelectItem T="TargetChoice" Value="TargetChoice.Of(entry.Revision.Id)">Revision #@entry.Revision.Seq @(entry.Revision.Message ?? RevisionText.Summary(entry.Changes))</MudSelectItem>
                     }
@@ -42,7 +42,7 @@ else
                     <MudTextField T="string" @bind-Value="_form.ClientIp" Label="Client IP" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input"
                                   Error="@(ErrorFor("clientIp") is not null)" ErrorText="@ErrorFor("clientIp")" data-field="client-ip" />
                     <MudSelect T="string" @bind-Value="_form.Method" Label="Method" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
-                        @foreach (string method in Methods)
+                        @foreach (var method in Methods)
                         {
                             <MudSelectItem Value="method">@method</MudSelectItem>
                         }
@@ -51,7 +51,7 @@ else
 
                 <div class="pdk-headers">
                     <MudText Typo="Typo.subtitle2" HtmlTag="h2">Headers</MudText>
-                    @foreach (HeaderEntry header in _form.Headers)
+                    @foreach (var header in _form.Headers)
                     {
                         <div class="pdk-header-row" @key="header">
                             <MudTextField T="string" @bind-Value="header.Name" Label="Name" Placeholder="User-Agent" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" />
@@ -115,7 +115,7 @@ else
             {
                 <MudPaper Class="pdk-card" Elevation="0" Outlined="true" aria-busy="true">
                     <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="84px" />
-                    @for (int i = 0; i < 4; i++)
+                    @for (var i = 0; i < 4; i++)
                     {
                         <div class="pdk-row-skeleton">
                             <MudSkeleton SkeletonType="SkeletonType.Circle" Width="24px" Height="24px" />
@@ -176,7 +176,7 @@ else
         }
 
         _started = true;
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -201,7 +201,7 @@ else
         {
             _target = TargetChoice.Draft;
         }
-        else if (ConfigRevisionId.TryParse(RevisionKey, out ConfigRevisionId revision))
+        else if (ConfigRevisionId.TryParse(RevisionKey, out var revision))
         {
             _target = TargetChoice.Of(revision);
         }
@@ -253,7 +253,7 @@ else
             return;
         }
 
-        SimulationTarget target = _target switch
+        var target = _target switch
         {
             { Kind: SimulationTargetKind.DraftCommand } when Draft.Command is { } command => new DraftCommandSimulationTarget(command),
             { Kind: SimulationTargetKind.Revision, Revision: { } revision } => new RevisionSimulationTarget(revision),

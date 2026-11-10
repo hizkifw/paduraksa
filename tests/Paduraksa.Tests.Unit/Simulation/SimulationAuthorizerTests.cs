@@ -2,7 +2,6 @@ using System.Net;
 
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
-using Paduraksa.Application.Simulation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
@@ -30,7 +29,7 @@ public sealed class SimulationAuthorizerTests
     {
         PermissionSimulationAuthorizer authorizer = new(new Fixed(held));
 
-        for (int i = 0; i < Targets.Length; i++)
+        for (var i = 0; i < Targets.Length; i++)
         {
             Assert.Equal(expected[i], await authorizer.IsAllowedAsync(Targets[i], User, TestContext.Current.CancellationToken));
         }

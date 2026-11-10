@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text;
-using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Simulation;
@@ -27,27 +26,27 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task TheLiveSnapshotIsSimulatedWithItsUpstreamAndLiveHealth()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        RequestSimulator simulator = host.Shared.Simulator;
+        var simulator = host.Shared.Simulator;
         await CommitAsync(host, new UpsertUpstreamCommand(Upstream("app", "http://127.0.0.1:9/")), ct);
 
         // Before the host exists: the default host answers.
-        SimulationResult before = await simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
+        var before = await simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
         Assert.Equal(SimulationStatus.Simulated, before.Status);
         Assert.Equal(SimulationOutcomeKind.DefaultHost, before.Outcome!.Kind);
         Assert.Equal(404, before.Outcome.StatusCode);
 
-        RevisionRef revision = await CommitAsync(host, new UpsertHostCommand(ProxyHost("app", "app.test", "app")), ct);
-        SimulationResult live = await simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
+        var revision = await CommitAsync(host, new UpsertHostCommand(ProxyHost("app", "app.test", "app")), ct);
+        var live = await simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
 
         Assert.Equal(SimulationStatus.Simulated, live.Status);
         Assert.Equal(new SimulationSource(SimulationTargetKind.Live, revision.Id), live.Source);
         Assert.Equal(SimulationOutcomeKind.ForwardToUpstream, live.Outcome!.Kind);
-        SimulationUpstream upstream = live.Upstream!;
+        var upstream = live.Upstream!;
         Assert.Equal(TestIds.Upstream("app"), upstream.Id);
-        SimulationDestination destination = Assert.Single(upstream.Destinations);
+        var destination = Assert.Single(upstream.Destinations);
         Assert.Equal(TestIds.Destination("app-1"), destination.Id);
         Assert.Equal("http://127.0.0.1:9/", destination.Address);
         // The live proxy sends traffic to it (no check has failed): no destination is named as "the" one chosen.
@@ -59,16 +58,16 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task ARevisionIsCompiledAndSimulatedWithoutBecomingLive()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
         await CommitAsync(host, new UpsertUpstreamCommand(Upstream("app", "http://127.0.0.1:9/")), ct);
-        RevisionRef withHost = await CommitAsync(host, new UpsertHostCommand(ProxyHost("app", "app.test", "app")), ct);
-        RevisionRef without = await CommitAsync(host, new DeleteHostCommand(TestIds.Host("app"), (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts[0].Version), ct);
-        long generation = host.Shared.SnapshotStore.Current.Generation;
+        var withHost = await CommitAsync(host, new UpsertHostCommand(ProxyHost("app", "app.test", "app")), ct);
+        var without = await CommitAsync(host, new DeleteHostCommand(TestIds.Host("app"), (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts[0].Version), ct);
+        var generation = host.Shared.SnapshotStore.Current.Generation;
 
-        SimulationResult old = await host.Shared.Simulator.SimulateAsync(new RevisionSimulationTarget(withHost.Id), Request, Origin, ct);
-        SimulationResult current = await host.Shared.Simulator.SimulateAsync(new RevisionSimulationTarget(without.Id), Request, Origin, ct);
+        var old = await host.Shared.Simulator.SimulateAsync(new RevisionSimulationTarget(withHost.Id), Request, Origin, ct);
+        var current = await host.Shared.Simulator.SimulateAsync(new RevisionSimulationTarget(without.Id), Request, Origin, ct);
 
         Assert.Equal(SimulationOutcomeKind.ForwardToUpstream, old.Outcome!.Kind);
         Assert.Equal(new SimulationSource(SimulationTargetKind.Revision, withHost.Id), old.Source);
@@ -78,7 +77,7 @@ public sealed class RequestSimulatorEndToEndTests
         Assert.Equal(SimulationHealth.Healthy, old.Upstream!.Destinations[0].Health);
         Assert.Contains(old.Notes, n => n.Contains("health", StringComparison.OrdinalIgnoreCase));
 
-        SimulationResult missing = await host.Shared.Simulator.SimulateAsync(new RevisionSimulationTarget(TestIds.Revision("nope")), Request, Origin, ct);
+        var missing = await host.Shared.Simulator.SimulateAsync(new RevisionSimulationTarget(TestIds.Revision("nope")), Request, Origin, ct);
         Assert.Equal(SimulationStatus.RevisionNotFound, missing.Status);
         Assert.Null(missing.Outcome);
     }
@@ -86,19 +85,19 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task ADraftDocumentIsSimulatedNotStoredNorPublished()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        CurrentConfig before = await host.Shared.Config.GetCurrentAsync(ct);
-        long generation = host.Shared.SnapshotStore.Current.Generation;
-        ConfigDocument draft = before.Document with
+        var before = await host.Shared.Config.GetCurrentAsync(ct);
+        var generation = host.Shared.SnapshotStore.Current.Generation;
+        var draft = before.Document with
         {
             Upstreams = [Upstream("app", "http://127.0.0.1:9/")],
             Hosts = [ProxyHost("app", "app.test", "app") with { Settings = new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) } }],
         };
 
-        SimulationResult blocked = await host.Shared.Simulator.SimulateAsync(new DraftDocumentSimulationTarget(draft), Request, Origin, ct);
-        SimulationResult allowed = await host.Shared.Simulator.SimulateAsync(
+        var blocked = await host.Shared.Simulator.SimulateAsync(new DraftDocumentSimulationTarget(draft), Request, Origin, ct);
+        var allowed = await host.Shared.Simulator.SimulateAsync(
             new DraftDocumentSimulationTarget(draft), Request with { ClientIp = "10.1.2.3" }, Origin, ct);
 
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, blocked.Outcome!.Kind);
@@ -112,25 +111,25 @@ public sealed class RequestSimulatorEndToEndTests
         // Nothing was stored or published, and the live config still answers as it did.
         Assert.Equal(before.Revision, (await host.Shared.Config.GetCurrentAsync(ct)).Revision);
         Assert.Equal(generation, host.Shared.SnapshotStore.Current.Generation);
-        SimulationResult live = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
+        var live = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
         Assert.Equal(SimulationOutcomeKind.DefaultHost, live.Outcome!.Kind);
     }
 
     [Fact]
     public async Task ADraftCommandIsAppliedToTheCurrentConfigThroughTheDryRunPath()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
         await CommitAsync(host, new UpsertUpstreamCommand(Upstream("app", "http://127.0.0.1:9/")), ct);
-        RevisionRef revision = await CommitAsync(host, new UpsertHostCommand(ProxyHost("app", "app.test", "app")), ct);
-        HostConfig current = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts[0];
-        long generation = host.Shared.SnapshotStore.Current.Generation;
+        var revision = await CommitAsync(host, new UpsertHostCommand(ProxyHost("app", "app.test", "app")), ct);
+        var current = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts[0];
+        var generation = host.Shared.SnapshotStore.Current.Generation;
 
         // The pending change makes the host a Respond host: the live config forwards, the draft answers.
-        HostConfig responding = current with { Kind = HostKind.Respond, Respond = new RespondConfig(503, "maintenance"), Routes = [] };
-        SimulationResult draft = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(responding)), Request, Origin, ct);
-        SimulationResult live = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
+        var responding = current with { Kind = HostKind.Respond, Respond = new RespondConfig(503, "maintenance"), Routes = [] };
+        var draft = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(responding)), Request, Origin, ct);
+        var live = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
 
         Assert.Equal(SimulationStatus.Simulated, draft.Status);
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, draft.Outcome!.Kind);
@@ -144,7 +143,7 @@ public sealed class RequestSimulatorEndToEndTests
         Assert.Equal(generation, host.Shared.SnapshotStore.Current.Generation);
 
         // A command that changes nothing simulates the config as it is, and says so.
-        SimulationResult unchanged = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(current)), Request, Origin, ct);
+        var unchanged = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(current)), Request, Origin, ct);
         Assert.Equal(SimulationOutcomeKind.ForwardToUpstream, unchanged.Outcome!.Kind);
         Assert.Contains(unchanged.Notes, n => n.Contains("changes nothing", StringComparison.Ordinal));
     }
@@ -152,15 +151,15 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task ADraftThatFailsValidationExplainsWhyInsteadOfSimulating()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
         await CommitAsync(host, new UpsertUpstreamCommand(Upstream("app", "http://127.0.0.1:9/")), ct);
         await CommitAsync(host, new UpsertHostCommand(ProxyHost("app", "app.test", "app")), ct);
 
         // A second host taking the same name, and a route to an upstream that doesn't exist.
-        HostConfig clash = ProxyHost("clash", "app.test", "nowhere");
-        SimulationResult result = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(clash)), Request, Origin, ct);
+        var clash = ProxyHost("clash", "app.test", "nowhere");
+        var result = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(clash)), Request, Origin, ct);
 
         Assert.Equal(SimulationStatus.Invalid, result.Status);
         Assert.Null(result.Outcome);
@@ -169,20 +168,20 @@ public sealed class RequestSimulatorEndToEndTests
         Assert.All(result.Errors.Concat(result.RelatedErrors), e => Assert.NotEmpty(e.Code));
 
         // The same through a whole document.
-        CurrentConfig current = await host.Shared.Config.GetCurrentAsync(ct);
-        SimulationResult document = await host.Shared.Simulator.SimulateAsync(
+        var current = await host.Shared.Config.GetCurrentAsync(ct);
+        var document = await host.Shared.Simulator.SimulateAsync(
             new DraftDocumentSimulationTarget(current.Document with { Hosts = [.. current.Document.Hosts, clash] }), Request, Origin, ct);
         Assert.Equal(SimulationStatus.Invalid, document.Status);
         Assert.NotEmpty(document.Errors);
 
         // A stale version is not a validation error: the draft can't be applied to the config as it is.
-        HostConfig stale = current.Document.Hosts[0] with { Version = current.Document.Hosts[0].Version + 5 };
-        SimulationResult conflict = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(stale)), Request, Origin, ct);
+        var stale = current.Document.Hosts[0] with { Version = current.Document.Hosts[0].Version + 5 };
+        var conflict = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(stale)), Request, Origin, ct);
         Assert.Equal(SimulationStatus.DraftRejected, conflict.Status);
         Assert.Single(conflict.Errors);
 
         // Deleting what doesn't exist.
-        SimulationResult missing = await host.Shared.Simulator.SimulateAsync(
+        var missing = await host.Shared.Simulator.SimulateAsync(
             new DraftCommandSimulationTarget(new DeleteHostCommand(TestIds.Host("ghost"), 1)), Request, Origin, ct);
         Assert.Equal(SimulationStatus.DraftRejected, missing.Status);
     }
@@ -190,23 +189,23 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task AChallengeIsAnsweredFromTheLiveStoreWhateverTheTarget()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
         SimulationRequest challenge = new("http://anything.test/.well-known/acme-challenge/tok-en_1", "203.0.113.7");
         SimulationTarget[] targets = [SimulationTarget.Live, new DraftDocumentSimulationTarget(new ConfigDocument())];
 
         // Unknown token: falls through to the default host.
-        foreach (SimulationTarget target in targets)
+        foreach (var target in targets)
         {
             Assert.Equal(SimulationOutcomeKind.DefaultHost, (await host.Shared.Simulator.SimulateAsync(target, challenge, Origin, ct)).Outcome!.Kind);
         }
 
         // Published (challenges are process state, not config): answered for every target.
         host.Shared.Challenges.Publish("tok-en_1", "tok-en_1.thumbprint");
-        foreach (SimulationTarget target in targets)
+        foreach (var target in targets)
         {
-            SimulationResult answered = await host.Shared.Simulator.SimulateAsync(target, challenge, Origin, ct);
+            var answered = await host.Shared.Simulator.SimulateAsync(target, challenge, Origin, ct);
             Assert.Equal(SimulationOutcomeKind.AcmeChallengeAnswer, answered.Outcome!.Kind);
             Assert.Equal("tok-en_1.thumbprint", answered.Outcome.Body);
         }
@@ -215,11 +214,11 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task AMalformedRequestIsReportedBeforeAnythingIsCompiled()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
 
-        SimulationResult result = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, new SimulationRequest("nonsense", "300.1.1.1"), Origin, ct);
+        var result = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, new SimulationRequest("nonsense", "300.1.1.1"), Origin, ct);
 
         Assert.Equal(SimulationStatus.BadRequest, result.Status);
         Assert.Equal(["/url", "/clientIp"], result.Errors.Select(e => e.Path));
@@ -228,21 +227,21 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task TheDraftsInventoryNeverLoadsAKey()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
         await CommitAsync(host, new UpsertUpstreamCommand(Upstream("app", "http://127.0.0.1:9/")), ct);
         await CommitAsync(host, new UpsertHostCommand(ProxyHost("app", "app.test", "app")), ct);
 
         // HTTPS for a draft: the certificate table answers from placeholders, and the trace names the entry.
-        SimulationResult result = await host.Shared.Simulator.SimulateAsync(
+        var result = await host.Shared.Simulator.SimulateAsync(
             new DraftCommandSimulationTarget(new UpsertHostCommand(ProxyHost("other", "other.test", "app"))),
             new SimulationRequest("https://other.test/", "203.0.113.7"),
             Origin,
             ct);
 
         Assert.Equal(SimulationStatus.Simulated, result.Status);
-        SimulationStep handshake = Assert.Single(result.Trace, s => s.Kind == SimulationStepKind.TlsHandshake);
+        var handshake = Assert.Single(result.Trace, s => s.Kind == SimulationStepKind.TlsHandshake);
         Assert.NotEqual(SimulationStepVerdict.Skipped, handshake.Verdict);
         Assert.Contains(handshake.Facts, f => f.Name == "certificate"); // which inventory certificate would be served
         Assert.DoesNotContain(result.Trace.SelectMany(s => s.Facts), f => f.Value.Contains("PRIVATE KEY", StringComparison.Ordinal));
@@ -251,8 +250,8 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task TheAuthorizerHookCanDenyAnySimulation()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
 
         // The shipped hook allows everything; a replaced one decides per target and origin.
@@ -261,7 +260,7 @@ public sealed class RequestSimulatorEndToEndTests
         RequestSimulator guarded = new(host.Shared.Config, host.Shared.SnapshotStore, authorizer: deny);
 
         Assert.Equal(SimulationStatus.Simulated, (await guarded.SimulateAsync(SimulationTarget.Live, Request, Origin, ct)).Status);
-        SimulationResult denied = await guarded.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument()), Request, Origin, ct);
+        var denied = await guarded.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument()), Request, Origin, ct);
         Assert.Equal(SimulationStatus.Denied, denied.Status);
         Assert.Null(denied.Outcome);
     }
@@ -269,19 +268,19 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task ACertificateTheVaultCantServeIsRefusedAsTheRealCommandRefusesIt()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         using TestCertificates certificates = new();
-        await using PaduraksaHost host = TestHost.Create();
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        CertificateId held = (await host.Shared.CertificateOperations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["held.test"]), Origin, ct)).Certificate!.Id;
-        CertificateId missing = TestIds.Certificate("missing");
-        ServerCertificate stray = certificates.Create("missing.test", "missing.test");
+        var held = (await host.Shared.CertificateOperations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["held.test"]), Origin, ct)).Certificate!.Id;
+        var missing = TestIds.Certificate("missing");
+        var stray = certificates.Create("missing.test", "missing.test");
         await host.Shared.CertificateService.RegisterAsync(new CertificateRegistration(missing, CertificateSource.Uploaded, PlaceholderCertificates.InfoOf(stray.Leaf)), Origin, ct);
 
         // Active in the inventory table, but neither the vault nor the process holds a key for it.
-        HostConfig bound = RespondHost("bound", "bound.test", "x") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = missing } };
-        ConfigCommandResult real = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(bound) { DryRun = true }, Origin, ct);
-        SimulationResult simulated = await host.Shared.Simulator.SimulateAsync(
+        var bound = RespondHost("bound", "bound.test", "x") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = missing } };
+        var real = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(bound) { DryRun = true }, Origin, ct);
+        var simulated = await host.Shared.Simulator.SimulateAsync(
             new DraftCommandSimulationTarget(new UpsertHostCommand(bound)), new SimulationRequest("https://bound.test/", "203.0.113.7"), Origin, ct);
 
         Assert.Equal(ConfigCommandStatus.Invalid, real.Status);
@@ -289,9 +288,9 @@ public sealed class RequestSimulatorEndToEndTests
         Assert.Equal(real.Errors.Concat(real.RelatedErrors).Select(e => e.Code), simulated.Errors.Concat(simulated.RelatedErrors).Select(e => e.Code));
 
         // A certificate the vault holds is usable, and the trace names it for the handshake.
-        HostConfig auto = RespondHost("auto", "held.test", "x");
+        var auto = RespondHost("auto", "held.test", "x");
         Assert.Equal(ConfigCommandStatus.DryRun, (await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(auto) { DryRun = true }, Origin, ct)).Status);
-        SimulationResult ok = await host.Shared.Simulator.SimulateAsync(
+        var ok = await host.Shared.Simulator.SimulateAsync(
             new DraftCommandSimulationTarget(new UpsertHostCommand(auto)), new SimulationRequest("https://held.test/", "203.0.113.7"), Origin, ct);
         Assert.Equal(SimulationStatus.Simulated, ok.Status);
         Assert.Equal(held.ToString(), Assert.Single(ok.Trace, t => t.Kind == SimulationStepKind.TlsHandshake).Facts.Single(f => f.Name == "certificate").Value);
@@ -300,14 +299,14 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task APayloadWithNullElementsOrAnotherApiVersionIsInvalidNotACrash()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        RequestSimulator simulator = host.Shared.Simulator;
+        var simulator = host.Shared.Simulator;
 
-        SimulationResult nullHost = await simulator.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument(Hosts: [null!])), Request, Origin, ct);
-        SimulationResult version = await simulator.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument(ApiVersion: "paduraksa.dev/v9")), Request, Origin, ct);
-        SimulationResult name = await simulator.SimulateAsync(
+        var nullHost = await simulator.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument(Hosts: [null!])), Request, Origin, ct);
+        var version = await simulator.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument(ApiVersion: "paduraksa.dev/v9")), Request, Origin, ct);
+        var name = await simulator.SimulateAsync(
             new DraftCommandSimulationTarget(new UpsertHostCommand(RespondHost("n", "n.test", "x") with { Names = ["n.test", null!] })), Request, Origin, ct);
 
         Assert.Equal(SimulationStatus.Invalid, nullHost.Status);
@@ -321,17 +320,17 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task WhenTheCompileSlotsAreTakenADraftIsAnsweredUnavailable()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
         using RequestSimulator simulator = new(host.Shared.Config, host.Shared.SnapshotStore, busyWait: TimeSpan.FromMilliseconds(50));
-        for (int i = 0; i < RequestSimulator.MaxConcurrentCompiles; i++)
+        for (var i = 0; i < RequestSimulator.MaxConcurrentCompiles; i++)
         {
             await simulator.CompileSlots.WaitAsync(ct);
         }
 
-        SimulationResult draft = await simulator.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument()), Request, Origin, ct);
-        SimulationResult live = await simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
+        var draft = await simulator.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument()), Request, Origin, ct);
+        var live = await simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
 
         Assert.Equal(SimulationStatus.Unavailable, draft.Status);
         Assert.Equal(SimulationErrorCodes.Busy, Assert.Single(draft.Errors).Code);
@@ -343,18 +342,18 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task ACorruptHeadIsAnUnavailableResultNotAnException()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
+        await using var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
         await CommitAsync(host, new UpsertHostCommand(RespondHost("a", "a.test", "A")), ct);
-        RevisionRef head = await CommitAsync(host, new UpsertHostCommand(RespondHost("b", "b.test", "B")), ct);
+        var head = await CommitAsync(host, new UpsertHostCommand(RespondHost("b", "b.test", "B")), ct);
 
         await ExecuteSqlAsync(data, "UPDATE ConfigRevisions SET DocumentHash = zeroblob(32) WHERE Seq = 2", ct);
 
-        SimulationResult command = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(RespondHost("c", "c.test", "C"))), Request, Origin, ct);
-        SimulationResult document = await host.Shared.Simulator.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument()), Request, Origin, ct);
-        SimulationResult revision = await host.Shared.Simulator.SimulateAsync(new RevisionSimulationTarget(head.Id), Request, Origin, ct);
+        var command = await host.Shared.Simulator.SimulateAsync(new DraftCommandSimulationTarget(new UpsertHostCommand(RespondHost("c", "c.test", "C"))), Request, Origin, ct);
+        var document = await host.Shared.Simulator.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument()), Request, Origin, ct);
+        var revision = await host.Shared.Simulator.SimulateAsync(new RevisionSimulationTarget(head.Id), Request, Origin, ct);
 
         Assert.Equal(SimulationStatus.Unavailable, command.Status);
         Assert.Equal(SimulationStatus.Unavailable, document.Status);
@@ -366,16 +365,16 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task APendingCommitDoesNotFailADraftDocument()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
         ConfigDocument draft = new(Hosts: [RespondHost("d", "d.test", "D")]);
 
         // Commits racing the simulations: a draft is planned on the head it reads, or on the new one, never "rejected".
-        Task commits = Task.Run(
+        var commits = Task.Run(
             async () =>
             {
-                for (int i = 0; i < 5; i++)
+                for (var i = 0; i < 5; i++)
                 {
                     await CommitAsync(host, new UpsertHostCommand(RespondHost($"r{i}", $"r{i}.test", "R")), ct);
                 }
@@ -394,18 +393,18 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task ThePublicListenersProxyProtocolRulesDecideWhetherAConnectionExists()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         Dictionary<string, string?> settings = new()
         {
             ["Paduraksa:Listen:HttpProxyProtocol:Enabled"] = "true",
             ["Paduraksa:Listen:HttpProxyProtocol:TrustedSources:0"] = "192.0.2.0/24",
         };
-        await using PaduraksaHost host = TestHost.Create(settings: settings);
+        await using var host = TestHost.Create(settings: settings);
         await host.StartAsync(ct);
 
-        SimulationResult none = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
-        SimulationResult untrusted = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request with { ProxyProtocol = true, PeerIp = "203.0.113.7" }, Origin, ct);
-        SimulationResult trusted = await host.Shared.Simulator.SimulateAsync(
+        var none = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, Origin, ct);
+        var untrusted = await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request with { ProxyProtocol = true, PeerIp = "203.0.113.7" }, Origin, ct);
+        var trusted = await host.Shared.Simulator.SimulateAsync(
             SimulationTarget.Live, Request with { ProxyProtocol = true, PeerIp = "203.0.113.7", TransportIp = "192.0.2.9" }, Origin, ct);
 
         Assert.Equal(SimulationOutcomeKind.ConnectionRejected, none.Outcome!.Kind);
@@ -420,18 +419,18 @@ public sealed class RequestSimulatorEndToEndTests
     [Fact]
     public async Task TheServerAuthorizesSimulationsByPermission()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
         async Task<CommandOrigin> UserWithAsync(string name, Role role)
         {
-            UserResult created = await host.Shared.Users.CreateAsync(Origin, new CreateUserRequest(name, null, "correct-horse-battery-staple-9", [role]), ct);
+            var created = await host.Shared.Users.CreateAsync(Origin, new CreateUserRequest(name, null, "correct-horse-battery-staple-9", [role]), ct);
             Assert.True(created.Succeeded, created.Problem);
             return new CommandOrigin(Actor.ForUser(created.User!.Id), Channel.Api, IPAddress.Loopback);
         }
 
-        CommandOrigin viewer = await UserWithAsync("viewer", Role.Viewer); // simulate + config:read
-        CommandOrigin auditor = await UserWithAsync("auditor", Role.Auditor); // config:read, no simulate
+        var viewer = await UserWithAsync("viewer", Role.Viewer); // simulate + config:read
+        var auditor = await UserWithAsync("auditor", Role.Auditor); // config:read, no simulate
         SimulationTarget draft = new DraftDocumentSimulationTarget(new ConfigDocument());
 
         Assert.Equal(SimulationStatus.Simulated, (await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, viewer, ct)).Status);

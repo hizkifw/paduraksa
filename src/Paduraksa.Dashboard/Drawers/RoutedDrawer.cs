@@ -36,7 +36,7 @@ public sealed class RoutedDrawer(NavigationManager navigation, string listAddres
             return;
         }
 
-        DrawerLevel level = open(key);
+        var level = open(key);
         level.Routed = true;
         Key = key;
         _root = level;

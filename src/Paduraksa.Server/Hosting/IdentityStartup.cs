@@ -1,9 +1,6 @@
 using System.Data.Common;
 
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Application.Identity;
 
 namespace Paduraksa.Server.Hosting;

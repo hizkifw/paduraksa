@@ -48,8 +48,8 @@ public static class ConnectionTlsCheck
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(policy);
 
-        string protocol = context.Request.Protocol;
-        SslProtocols negotiated = policy.MinimumVersion == TlsMinimumVersion.Tls13 && !HttpProtocol.IsHttp3(protocol)
+        var protocol = context.Request.Protocol;
+        var negotiated = policy.MinimumVersion == TlsMinimumVersion.Tls13 && !HttpProtocol.IsHttp3(protocol)
             ? context.Features.Get<ITlsHandshakeFeature>()?.Protocol ?? SslProtocols.None
             : SslProtocols.None;
         return Check(policy, protocol, negotiated);

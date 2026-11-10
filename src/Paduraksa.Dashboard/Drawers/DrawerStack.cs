@@ -115,15 +115,15 @@ public sealed class DrawerStack
     /// <summary>Closes <paramref name="level"/> with <paramref name="result"/>, cancelling every level above it first.</summary>
     internal void Remove(DrawerLevel level, DrawerResult result)
     {
-        int index = _levels.IndexOf(level);
+        var index = _levels.IndexOf(level);
         if (index < 0)
         {
             return;
         }
 
-        List<DrawerLevel> closing = _levels.GetRange(index, _levels.Count - index);
+        var closing = _levels.GetRange(index, _levels.Count - index);
         _levels.RemoveRange(index, _levels.Count - index);
-        for (int i = closing.Count - 1; i >= 0; i--)
+        for (var i = closing.Count - 1; i >= 0; i--)
         {
             closing[i].Complete(i == 0 ? result : closing[i].CancelResult);
         }

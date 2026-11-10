@@ -41,8 +41,8 @@ internal static class DnsNames
     public static bool TryParse(ReadOnlySpan<char> name, out DnsName result, [NotNullWhen(false)] out string? problem)
     {
         result = default;
-        ReadOnlySpan<char> span = name.Length > 0 && name[^1] == '.' ? name[..^1] : name;
-        bool wildcard = span.StartsWith("*.", StringComparison.Ordinal);
+        var span = name.Length > 0 && name[^1] == '.' ? name[..^1] : name;
+        var wildcard = span.StartsWith("*.", StringComparison.Ordinal);
         if (wildcard)
         {
             span = span[2..];
@@ -53,8 +53,8 @@ internal static class DnsNames
             return false;
         }
 
-        ReadOnlySpan<char> lastLabel = span[(span.LastIndexOf('.') + 1)..];
-        bool numeric = !lastLabel.ContainsAnyExceptInRange('0', '9');
+        var lastLabel = span[(span.LastIndexOf('.') + 1)..];
+        var numeric = !lastLabel.ContainsAnyExceptInRange('0', '9');
         if (wildcard && numeric)
         {
             problem = "a wildcard can't cover an IP address";
@@ -67,14 +67,14 @@ internal static class DnsNames
             return false;
         }
 
-        string canonical = span.ToString().ToLowerInvariant();
+        var canonical = span.ToString().ToLowerInvariant();
         string? unicode = null;
         if (canonical.StartsWith("xn--", StringComparison.Ordinal) || canonical.Contains(".xn--", StringComparison.Ordinal))
         {
             try
             {
                 // Lenient decoders return undecodable labels unchanged; then SslStream passes them unchanged too.
-                string decoded = Idn.GetUnicode(canonical).ToLowerInvariant();
+                var decoded = Idn.GetUnicode(canonical).ToLowerInvariant();
                 unicode = decoded == canonical ? null : decoded;
             }
             catch (ArgumentException error)
@@ -102,9 +102,9 @@ internal static class DnsNames
             return false;
         }
 
-        foreach (Range range in name.Split('.'))
+        foreach (var range in name.Split('.'))
         {
-            ReadOnlySpan<char> label = name[range];
+            var label = name[range];
             if (label.IsEmpty)
             {
                 problem = "it has an empty label";
@@ -117,7 +117,7 @@ internal static class DnsNames
                 return false;
             }
 
-            int bad = label.IndexOfAnyExcept(LabelChars);
+            var bad = label.IndexOfAnyExcept(LabelChars);
             if (bad >= 0)
             {
                 problem = label[bad] == '*'

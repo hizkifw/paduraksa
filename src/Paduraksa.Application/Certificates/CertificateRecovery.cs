@@ -77,7 +77,7 @@ public sealed partial class CertificateRecovery
     /// <summary>Registers every certificate the vault holds that the inventory has no row for (and finishes the deletion of those deleted on purpose).</summary>
     public async Task<CertificateRecoveryResult> RecoverAsync(CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<VaultCertificate> held = await _catalog.ListAsync(cancellationToken).ConfigureAwait(false);
+        var held = await _catalog.ListAsync(cancellationToken).ConfigureAwait(false);
         IReadOnlyList<VaultCertificate> roots = [.. held.Where(c => c.IsLocalCaRoot)];
 
         List<CertificateId> recovered = [];
@@ -88,7 +88,7 @@ public sealed partial class CertificateRecovery
         List<X509Certificate2> rootCertificates = [];
         try
         {
-            foreach (VaultCertificate root in roots)
+            foreach (var root in roots)
             {
                 if (TryLoadRoot(root.Info) is { } certificate)
                 {
@@ -96,7 +96,7 @@ public sealed partial class CertificateRecovery
                 }
             }
 
-            foreach (VaultCertificate certificate in held.OrderByDescending(c => c.IsLocalCaRoot))
+            foreach (var certificate in held.OrderByDescending(c => c.IsLocalCaRoot))
             {
                 // A stop is observed between certificates, never inside one: the registration transaction runs with
                 // CancellationToken.None so an abort cannot cancel a commit partway through (and EF log it at Error).
@@ -109,10 +109,10 @@ public sealed partial class CertificateRecovery
                     continue;
                 }
 
-                CertificateSource source = certificate.IsLocalCaRoot ? CertificateSource.LocalCaRoot
+                var source = certificate.IsLocalCaRoot ? CertificateSource.LocalCaRoot
                     : IsSignedBy(certificate.Info, rootCertificates) ? CertificateSource.LocalCa
                     : CertificateSource.Uploaded;
-                CertificateRecoveryStep step = await _certificates.RegisterRecoveredAsync(
+                var step = await _certificates.RegisterRecoveredAsync(
                     new CertificateRegistration(certificate.Id, source, certificate.Info, CertificateStatus.Active, Label),
                     CommandOrigin.System, republish: false, CancellationToken.None).ConfigureAwait(false);
                 switch (step)
@@ -144,7 +144,7 @@ public sealed partial class CertificateRecovery
         }
         finally
         {
-            foreach (X509Certificate2 root in rootCertificates)
+            foreach (var root in rootCertificates)
             {
                 root.Dispose();
             }
@@ -197,10 +197,10 @@ public sealed partial class CertificateRecovery
 
         try
         {
-            using X509Certificate2 leafCertificate = X509CertificateLoader.LoadCertificate(AcmePem.LeafDer(leaf.PublicChainPem));
+            using var leafCertificate = X509CertificateLoader.LoadCertificate(AcmePem.LeafDer(leaf.PublicChainPem));
             using X509Chain chain = new();
             chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-            foreach (X509Certificate2 root in roots)
+            foreach (var root in roots)
             {
                 chain.ChainPolicy.CustomTrustStore.Add(root);
             }

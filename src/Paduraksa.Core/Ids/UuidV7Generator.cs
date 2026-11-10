@@ -40,11 +40,11 @@ public sealed class UuidV7Generator(TimeProvider timeProvider)
         RandomNumberGenerator.Fill(bytes[6..]);
         long seed = ((bytes[6] << 8) | bytes[7]) & SeedMask;
 
-        long now = Math.Clamp(_timeProvider.GetUtcNow().ToUnixTimeMilliseconds(), 0, MaxTimestamp);
+        var now = Math.Clamp(_timeProvider.GetUtcNow().ToUnixTimeMilliseconds(), 0, MaxTimestamp);
         long state;
         while (true)
         {
-            long last = Volatile.Read(ref _state);
+            var last = Volatile.Read(ref _state);
             state = now > (last >> CounterBits) ? (now << CounterBits) | seed : last + 1;
             if (Interlocked.CompareExchange(ref _state, state, last) == last)
             {
@@ -52,8 +52,8 @@ public sealed class UuidV7Generator(TimeProvider timeProvider)
             }
         }
 
-        long ms = state >> CounterBits;
-        int counter = (int)(state & ((1 << CounterBits) - 1));
+        var ms = state >> CounterBits;
+        var counter = (int)(state & ((1 << CounterBits) - 1));
         bytes[0] = (byte)(ms >> 40);
         bytes[1] = (byte)(ms >> 32);
         bytes[2] = (byte)(ms >> 24);

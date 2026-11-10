@@ -27,7 +27,7 @@ internal sealed class SnapshotProxyConfigProvider : IProxyConfigProvider
     /// </summary>
     internal void Update(YarpConfig content, string revisionId)
     {
-        AppliedConfig previous = Interlocked.Exchange(ref _current, new AppliedConfig(content, revisionId));
+        var previous = Interlocked.Exchange(ref _current, new AppliedConfig(content, revisionId));
         previous.Expire();
     }
 

@@ -30,10 +30,10 @@ public sealed class LiveDnsProviderTests
 
     private static async Task RoundTripAsync(DnsProviderKind kind, SecretInjection injection, string token, string zoneName)
     {
-        IDnsProvider provider = new DnsProviderFactory(new LiveHandlers(token, injection)).Create(kind, SecretId.New());
-        string name = "_acme-challenge." + zoneName;
-        string first = "paduraksa-live-test-1";
-        string second = "paduraksa-live-test-2";
+        var provider = new DnsProviderFactory(new LiveHandlers(token, injection)).Create(kind, SecretId.New());
+        var name = "_acme-challenge." + zoneName;
+        var first = "paduraksa-live-test-1";
+        var second = "paduraksa-live-test-2";
 
         Assert.True((await provider.ValidateCredentialsAsync(Token)).Valid);
         try

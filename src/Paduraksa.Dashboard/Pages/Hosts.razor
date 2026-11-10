@@ -2,7 +2,6 @@
 @attribute [Route(DashboardRoutes.Hosts + "/{Key}")]
 @implements IDisposable
 @using Paduraksa.Contracts.Certificates
-@using Paduraksa.Dashboard.Editors
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
@@ -49,7 +48,7 @@ else
 
         @if (_rows is null)
         {
-            @for (int i = 0; i < 4; i++)
+            @for (var i = 0; i < 4; i++)
             {
                 <div class="pdk-row-skeleton">
                     <MudSkeleton SkeletonType="SkeletonType.Circle" Width="10px" Height="10px" />
@@ -85,9 +84,9 @@ else
                     <span role="columnheader">HTTPS</span>
                     <span role="columnheader">Status</span>
                 </div>
-                @foreach (HostRow row in Filtered)
+                @foreach (var row in Filtered)
                 {
-                    HostConfig host = row.Host;
+                    var host = row.Host;
                     <div class="pdk-dt-row pdk-dt-link @(host.Enabled ? null : "pdk-dt-off")" role="row" @onclick="() => Open(host)" data-host="@Primary(host)" @key="host.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-status-dot pdk-tone-@row.Health.Css()" title="@HealthText(row)" aria-hidden="true"></span>
@@ -96,7 +95,7 @@ else
                                 @if (host.Names.Count > 1 || host.Tags.Count > 0)
                                 {
                                     <span class="pdk-dt-chips">
-                                        @foreach (string name in host.Names.Skip(1).Take(3))
+                                        @foreach (var name in host.Names.Skip(1).Take(3))
                                         {
                                             <span class="pdk-name-chip pdk-mono">@name</span>
                                         }
@@ -104,7 +103,7 @@ else
                                         {
                                             <span class="pdk-name-chip">+@(host.Names.Count - 4)</span>
                                         }
-                                        @foreach (string tag in host.Tags)
+                                        @foreach (var tag in host.Tags)
                                         {
                                             <span class="pdk-tag">@tag</span>
                                         }
@@ -114,7 +113,7 @@ else
                         </div>
                         <div role="cell" class="pdk-dt-cell" data-label="Destination">
                             <ul class="pdk-dest-list">
-                                @foreach (HostDestination destination in row.Destinations.Take(3))
+                                @foreach (var destination in row.Destinations.Take(3))
                                 {
                                     <li class="@(destination.Missing ? "pdk-dest-missing" : null)">
                                         @if (destination.Path is { } path && (row.Destinations.Count > 1 || path != "/"))
@@ -212,7 +211,7 @@ else
     private async Task LoadAsync()
     {
         _failed = false;
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -228,8 +227,8 @@ else
         _mayReadCertificates = user.Has(Permission.CertificatesRead);
         try
         {
-            CurrentConfig current = await Config.GetCurrentAsync();
-            IReadOnlyList<CertificateSummary>? certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
+            var current = await Config.GetCurrentAsync();
+            var certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
             _rows = HostOverview.Rows(current.Document, certificates, Config.LiveWarnings, Time.GetUtcNow());
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -248,7 +247,7 @@ else
             return Drawers.Push<HostDrawer>(width: DrawerWidth.Wide);
         }
 
-        return HostId.TryParse(key, out HostId id)
+        return HostId.TryParse(key, out var id)
             ? Drawers.Push<HostDrawer>(new Dictionary<string, object?> { [nameof(HostDrawer.Id)] = id }, DrawerWidth.Wide)
             : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Host not found", "There is no such host", "Back to the hosts"), DrawerWidth.Narrow);
     }
@@ -263,8 +262,8 @@ else
             return;
         }
 
-        string name = ChangeView.HostTitle(host);
-        bool on = !host.Enabled;
+        var name = ChangeView.HostTitle(host);
+        var on = !host.Enabled;
         await Drawers.ReviewAsync(new ReviewRequest($"{(on ? "Switch on" : "Switch off")} {name}", new UpsertHostCommand(host with { Enabled = on }))
         {
             ApplyLabel = on ? "Switch on" : "Switch off",

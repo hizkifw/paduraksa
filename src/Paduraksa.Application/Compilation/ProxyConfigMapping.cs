@@ -6,9 +6,6 @@ using Paduraksa.Proxy.Config;
 
 using Yarp.ReverseProxy.LoadBalancing;
 
-using ProxyNet = Paduraksa.Proxy.Net;
-using ProxySnapshot = Paduraksa.Proxy.Snapshot;
-
 namespace Paduraksa.Application.Compilation;
 
 /// <summary>
@@ -53,25 +50,25 @@ public static class ProxyConfigMapping
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(inventory);
-        ConfigDocument canonical = CanonicalConfigJson.Canonicalize(document);
-        GlobalSettings settings = canonical.Settings;
+        var canonical = CanonicalConfigJson.Canonicalize(document);
+        var settings = canonical.Settings;
         List<CompileError> errors = [];
         List<MappedWarning> warnings = [];
         // The built-in defaults with the global layer: what a host that sets nothing inherits, and what an unknown host gets.
-        EffectiveHostSettings globalDefaults = HostSettingsLayers.Resolve(settings.Defaults);
+        var globalDefaults = HostSettingsLayers.Resolve(settings.Defaults);
 
         // First one wins on a duplicate ID (invalid anyway).
         Dictionary<ProfileId, HostSettings> profiles = [];
-        foreach (ProfileConfig profile in canonical.Profiles)
+        foreach (var profile in canonical.Profiles)
         {
             profiles.TryAdd(profile.Id, profile.Settings);
         }
 
-        HostSpec[] hosts = new HostSpec[canonical.Hosts.Count];
-        for (int i = 0; i < hosts.Length; i++)
+        var hosts = new HostSpec[canonical.Hosts.Count];
+        for (var i = 0; i < hosts.Length; i++)
         {
-            HostConfig host = canonical.Hosts[i];
-            HostSettings? profile = host.ProfileId is { } id ? profiles.GetValueOrDefault(id) : null;
+            var host = canonical.Hosts[i];
+            var profile = host.ProfileId is { } id ? profiles.GetValueOrDefault(id) : null;
             hosts[i] = MapHost(host, HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings), inventory, errors, warnings);
         }
 
@@ -122,8 +119,8 @@ public static class ProxyConfigMapping
     private static (CertificateId? Certificate, IReadOnlyDictionary<string, CertificateId>? ByName) BindCertificate(
         HostConfig host, CertificateInventory inventory, List<MappedWarning> warnings)
     {
-        CertificateBinding binding = host.Certificate;
-        CompileErrorSource where = CompileErrorSource.Host(host.Id);
+        var binding = host.Certificate;
+        var where = CompileErrorSource.Host(host.Id);
         switch (binding.Mode)
         {
             case CertificateBindingMode.Specific:
@@ -134,7 +131,7 @@ public static class ProxyConfigMapping
                 }
 
                 // A disabled host serves nothing, so its certificate only has to be valid (it is never loaded).
-                if (!inventory.TryGet(id, out InventoryCertificate? entry) || !(host.Enabled ? entry.IsUsable : entry.IsValid))
+                if (!inventory.TryGet(id, out var entry) || !(host.Enabled ? entry.IsUsable : entry.IsValid))
                 {
                     warnings.Add(new MappedWarning(
                         where,
@@ -163,8 +160,8 @@ public static class ProxyConfigMapping
             case CertificateBindingMode.Auto when host.Enabled:
                 Dictionary<string, CertificateId> byName = [];
                 List<string> uncoveredNames = [];
-                IEnumerable<InventoryCertificate> usable = inventory.Certificates.Where(c => c.IsUsable);
-                foreach (string name in CertificateSelection.ServerNames(host.Names))
+                var usable = inventory.Certificates.Where(c => c.IsUsable);
+                foreach (var name in CertificateSelection.ServerNames(host.Names))
                 {
                     if (CertificateSelection.Best(usable, name) is { } best)
                     {
@@ -192,12 +189,12 @@ public static class ProxyConfigMapping
     }
 
     private static string Why(CertificateId id, CertificateInventory inventory) =>
-        inventory.TryGet(id, out InventoryCertificate? entry) ? entry.UnusableReason ?? "it isn't loaded" : "the inventory has no such certificate";
+        inventory.TryGet(id, out var entry) ? entry.UnusableReason ?? "it isn't loaded" : "the inventory has no such certificate";
 
     private static HostSpec MapHost(
         HostConfig host, EffectiveHostSettings effective, CertificateInventory inventory, List<CompileError> errors, List<MappedWarning> warnings)
     {
-        CompileErrorSource where = CompileErrorSource.Host(host.Id);
+        var where = CompileErrorSource.Host(host.Id);
         if (host.Kind == HostKind.Admin && host.Settings.ForceHttps is false)
         {
             warnings.Add(new MappedWarning(
@@ -208,15 +205,15 @@ public static class ProxyConfigMapping
         }
 
         IpAllowListSettings?[] routeLists = [.. host.Routes.Select(r => HostSettingsLayers.ResolveRoute(effective, r.Settings))];
-        bool uniform = routeLists.All(list => HostSettingsLayers.SameRestriction(list, routeLists[0]));
-        PolicySpec[] hostChain = routeLists.Length == 0 ? AllowListPolicy(effective.IpAllowList)
+        var uniform = routeLists.All(list => HostSettingsLayers.SameRestriction(list, routeLists[0]));
+        var hostChain = routeLists.Length == 0 ? AllowListPolicy(effective.IpAllowList)
             : uniform ? AllowListPolicy(routeLists[0])
             : AllowListPolicy(Union(routeLists));
 
-        RouteSpec[] routes = new RouteSpec[host.Routes.Count];
-        for (int j = 0; j < routes.Length; j++)
+        var routes = new RouteSpec[host.Routes.Count];
+        for (var j = 0; j < routes.Length; j++)
         {
-            RouteConfig route = host.Routes[j];
+            var route = host.Routes[j];
             routes[j] = new RouteSpec
             {
                 Id = route.Id,
@@ -228,7 +225,7 @@ public static class ProxyConfigMapping
             };
         }
 
-        CertificateBinding binding = host.Certificate;
+        var binding = host.Certificate;
         if (!Enum.IsDefined(binding.Mode))
         {
             errors.Add(new(where, $"unknown certificate binding mode {binding.Mode}"));
@@ -245,7 +242,7 @@ public static class ProxyConfigMapping
             respond = new RespondSpec { StatusCode = fixedAnswer.StatusCode, Body = fixedAnswer.Body ?? string.Empty, ContentType = fixedAnswer.ContentType ?? string.Empty };
         }
 
-        (CertificateId? certificate, IReadOnlyDictionary<string, CertificateId>? certificatesByName) = BindCertificate(host, inventory, warnings);
+        var (certificate, certificatesByName) = BindCertificate(host, inventory, warnings);
         return new HostSpec
         {
             Id = host.Id,

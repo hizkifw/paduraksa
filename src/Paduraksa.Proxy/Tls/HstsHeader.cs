@@ -1,6 +1,4 @@
 using System.Globalization;
-
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Config;
@@ -45,7 +43,7 @@ public static class HstsHeader
             return StringValues.Empty;
         }
 
-        string value = "max-age=" + spec.MaxAgeSeconds.ToString(CultureInfo.InvariantCulture);
+        var value = "max-age=" + spec.MaxAgeSeconds.ToString(CultureInfo.InvariantCulture);
         if (spec.IncludeSubDomains)
         {
             value += "; includeSubDomains";
@@ -88,11 +86,11 @@ public static class HstsHeader
         // Label by label: a browser resolves a name whose every label is a number (decimal, or hexadecimal with 0x) as an
         // address, however many labels there are (127.1, 1.2.3, 0177.0.0.1) and with or without dots (2130706433, 0x7f).
         // One label that isn't a number makes it a DNS name, which is the kind HSTS is for.
-        int start = 0;
+        var start = 0;
         while (true)
         {
-            int dot = hostName[start..].IndexOf('.');
-            ReadOnlySpan<char> label = dot < 0 ? hostName[start..] : hostName[start..(start + dot)];
+            var dot = hostName[start..].IndexOf('.');
+            var label = dot < 0 ? hostName[start..] : hostName[start..(start + dot)];
             if (!IsNumericLabel(label))
             {
                 return false;
@@ -115,7 +113,7 @@ public static class HstsHeader
 
             if (label.Length > 2 && label[0] == '0' && (label[1] is 'x' or 'X'))
             {
-                foreach (char c in label[2..])
+                foreach (var c in label[2..])
                 {
                     if (!char.IsAsciiHexDigit(c))
                     {

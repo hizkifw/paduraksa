@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
-using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy;
@@ -94,11 +93,11 @@ public static class ProxyHostingExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        SnapshotPublisher publisher = endpoints.ServiceProvider.GetRequiredService<SnapshotPublisher>();
-        IConfigValidator validator = endpoints.ServiceProvider.GetRequiredService<IConfigValidator>();
+        var publisher = endpoints.ServiceProvider.GetRequiredService<SnapshotPublisher>();
+        var validator = endpoints.ServiceProvider.GetRequiredService<IConfigValidator>();
         return publisher.Attach(validator, () =>
         {
-            ReverseProxyConventionBuilder builder = endpoints.MapReverseProxy(static proxy =>
+            var builder = endpoints.MapReverseProxy(static proxy =>
             {
                 proxy.Use((Func<HttpContext, RequestDelegate, Task>)RejectUngatedRequests);
                 proxy.Use((Func<HttpContext, RequestDelegate, Task>)ReapplyGateHeaders);
@@ -128,7 +127,7 @@ public static class ProxyHostingExtensions
     /// </summary>
     private static Task RejectUngatedRequests(HttpContext context, RequestDelegate next)
     {
-        GateRequestState? state = context.Features.Get<IGateFeature>()?.State;
+        var state = context.Features.Get<IGateFeature>()?.State;
         if (state is { Route: { } route, Snapshot: { } snapshot }
             && (uint)route.Slot < (uint)snapshot.YarpEndpoints.Length
             && ReferenceEquals(snapshot.YarpEndpoints[route.Slot], context.GetEndpoint()))
@@ -144,7 +143,7 @@ public static class ProxyHostingExtensions
     private static EndpointDataSource YarpDataSource(IEndpointRouteBuilder endpoints)
     {
         EndpointDataSource? last = null;
-        foreach (EndpointDataSource source in endpoints.DataSources)
+        foreach (var source in endpoints.DataSources)
         {
             last = source;
         }

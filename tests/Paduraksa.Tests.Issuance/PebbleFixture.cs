@@ -49,8 +49,8 @@ public sealed class PebbleFixture : IAsyncLifetime
         try
         {
             // Random host ports; no random bad nonces and no authorization reuse, so a run is deterministic.
-            string name = $"paduraksa-pebble-{Environment.ProcessId}-{Environment.TickCount64}";
-            (int code, string output) = await DockerCli.RunAsync(
+            var name = $"paduraksa-pebble-{Environment.ProcessId}-{Environment.TickCount64}";
+            var (code, output) = await DockerCli.RunAsync(
                 "run", "-d", "--rm", "--name", name, "-p", "127.0.0.1::14000",
                 "-e", "PEBBLE_VA_ALWAYS_VALID=1", "-e", "PEBBLE_VA_NOSLEEP=1", "-e", "PEBBLE_WFE_NONCEREJECT=0", "-e", "PEBBLE_AUTHZREUSE=0",
                 Image, "-config", "/test/config/pebble-config.json");
@@ -61,9 +61,9 @@ public sealed class PebbleFixture : IAsyncLifetime
             }
 
             _container = name;
-            (_, string port) = await DockerCli.RunAsync("port", name, "14000/tcp");
+            var (_, port) = await DockerCli.RunAsync("port", name, "14000/tcp");
             // "127.0.0.1:32768" (and, on some hosts, a second line for IPv6)
-            string hostPort = port.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0].Trim();
+            var hostPort = port.Split('\n', StringSplitOptions.RemoveEmptyEntries)[0].Trim();
             Directory = new Uri($"https://127.0.0.1:{hostPort[(hostPort.LastIndexOf(':') + 1)..]}/dir", UriKind.Absolute);
             SkipReason = await WaitUntilServingAsync(Directory) is { } notReady ? $"Pebble did not become ready in time: {notReady}" : null;
         }
@@ -87,12 +87,12 @@ public sealed class PebbleFixture : IAsyncLifetime
         using HttpClient http = new(CreateHandler());
         // Pebble refuses a request without a User-Agent.
         http.DefaultRequestHeaders.UserAgent.ParseAdd("Paduraksa-Tests/1.0");
-        string last = "no answer";
-        for (int attempt = 0; attempt < 60; attempt++)
+        var last = "no answer";
+        for (var attempt = 0; attempt < 60; attempt++)
         {
             try
             {
-                using HttpResponseMessage response = await http.GetAsync(directory);
+                using var response = await http.GetAsync(directory);
                 if (response.IsSuccessStatusCode)
                 {
                     return null;

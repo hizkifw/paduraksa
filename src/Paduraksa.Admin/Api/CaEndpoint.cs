@@ -38,7 +38,7 @@ internal static class CaEndpoint
     public static void Map(RouteGroupBuilder api)
     {
         ArgumentNullException.ThrowIfNull(api);
-        RouteGroupBuilder ca = api.MapGroup(Prefix).WithTags("CA");
+        var ca = api.MapGroup(Prefix).WithTags("CA");
         ca.MapMethods("/root.pem", GetAndHead, GetRootPem).WithName("GetCaRootPem").WithSummary("Download the local CA root as PEM")
             .WithDescription("Anonymous. The public root certificate only, so the owner can trust it once and the admin UI is then trusted by their browsers.")
             .Produces(StatusCodes.Status200OK, contentType: PemContentType).ProducesApiProblems(404)

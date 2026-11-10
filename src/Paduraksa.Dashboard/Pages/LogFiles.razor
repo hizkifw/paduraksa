@@ -41,7 +41,7 @@ else if (_failed)
 else if (_files is null)
 {
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
-        @for (int i = 0; i < 3; i++)
+        @for (var i = 0; i < 3; i++)
         {
             <div class="pdk-row-skeleton">
                 <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" />
@@ -61,7 +61,7 @@ else if (_files.Count == 0)
 else
 {
     <div class="pdk-log-groups">
-        @foreach (IGrouping<string, LogFileSummary> group in _files.GroupBy(file => file.Log))
+        @foreach (var group in _files.GroupBy(file => file.Log))
         {
             <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-log="@group.Key">
                 <div class="pdk-card-head pdk-card-head-padded">
@@ -75,7 +75,7 @@ else
                         <span role="columnheader">Size</span>
                         <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
                     </div>
-                    @foreach (LogFileSummary file in group)
+                    @foreach (var file in group)
                     {
                         <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(file)" data-file="@file.Name" @key="file.Name">
                             <div role="cell" class="pdk-dt-main">
@@ -116,7 +116,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;

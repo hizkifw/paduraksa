@@ -1,11 +1,6 @@
 using System.Globalization;
 using System.Text;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
-using Paduraksa.Core.Logging;
-
 namespace Paduraksa.Server.Logging;
 
 /// <summary>
@@ -94,7 +89,7 @@ internal sealed class ErrorLogProvider : ILoggerProvider, ISupportExternalScope
         line.Append(": ").Append(message.ReplaceLineEndings(" "));
         if (exception is not null)
         {
-            foreach (string exceptionLine in exception.ToString().Split('\n'))
+            foreach (var exceptionLine in exception.ToString().Split('\n'))
             {
                 line.Append('\n').Append("    ").Append(exceptionLine.TrimEnd('\r'));
             }
@@ -120,9 +115,9 @@ internal sealed class ErrorLogProvider : ILoggerProvider, ISupportExternalScope
     {
         if (scope is IReadOnlyList<KeyValuePair<string, object?>> pairs)
         {
-            foreach (KeyValuePair<string, object?> pair in pairs)
+            foreach (var pair in pairs)
             {
-                string? rendered = pair.Key switch
+                var rendered = pair.Key switch
                 {
                     "App" => "app=" + Format(pair.Value),
                     _ => pair.Value?.ToString(),

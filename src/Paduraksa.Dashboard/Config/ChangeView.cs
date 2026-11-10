@@ -61,16 +61,16 @@ public static class ChangeView
         ObjectChange? head = null;
         string? headKey = null;
 
-        foreach (ConfigChange change in changes)
+        foreach (var change in changes)
         {
-            (string? parentKey, ObjectChange? parent) = change switch
+            var (parentKey, parent) = change switch
             {
                 RouteChange route => (route.HostId.ToString(), (ObjectChange?)Untouched(ChangedObject.Host, names.Host(route.HostId), route.HostId.ToString())),
                 DestinationChange destination => (destination.UpstreamId.ToString(), Untouched(ChangedObject.Upstream, names.Upstream(destination.UpstreamId), destination.UpstreamId.ToString())),
                 _ => (null, null),
             };
 
-            ObjectChange item = Describe(change, before, after, names);
+            var item = Describe(change, before, after, names);
             if (parentKey is null)
             {
                 Flush();
@@ -115,7 +115,7 @@ public static class ChangeView
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(command);
-        ConfigDocument? next = command switch
+        var next = command switch
         {
             UpsertHostCommand c => current with { Hosts = [.. current.Hosts.Where(h => h.Id != c.Host.Id), c.Host] },
             DeleteHostCommand c => current with { Hosts = [.. current.Hosts.Where(h => h.Id != c.HostId)] },
@@ -137,23 +137,23 @@ public static class ChangeView
     public static string Locate(string path, ConfigDocument? document)
     {
         ArgumentNullException.ThrowIfNull(path);
-        string[] segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length == 0)
         {
             return "This change";
         }
 
         List<string> parts = [];
-        int i = 0;
-        if (document is not null && segments.Length >= 2 && int.TryParse(segments[1], CultureInfo.InvariantCulture, out int index))
+        var i = 0;
+        if (document is not null && segments.Length >= 2 && int.TryParse(segments[1], CultureInfo.InvariantCulture, out var index))
         {
             switch (segments[0])
             {
                 case "hosts" when index < document.Hosts.Count:
-                    HostConfig host = document.Hosts[index];
+                    var host = document.Hosts[index];
                     parts.Add(HostTitle(host));
                     i = 2;
-                    if (segments.Length >= 4 && segments[2] == "routes" && int.TryParse(segments[3], CultureInfo.InvariantCulture, out int route) && route < host.Routes.Count)
+                    if (segments.Length >= 4 && segments[2] == "routes" && int.TryParse(segments[3], CultureInfo.InvariantCulture, out var route) && route < host.Routes.Count)
                     {
                         parts.Add($"Route {host.Routes[route].Path}");
                         i = 4;
@@ -161,10 +161,10 @@ public static class ChangeView
 
                     break;
                 case "upstreams" when index < document.Upstreams.Count:
-                    UpstreamConfig upstream = document.Upstreams[index];
+                    var upstream = document.Upstreams[index];
                     parts.Add(upstream.Name);
                     i = 2;
-                    if (segments.Length >= 4 && segments[2] == "destinations" && int.TryParse(segments[3], CultureInfo.InvariantCulture, out int destination) && destination < upstream.Destinations.Count)
+                    if (segments.Length >= 4 && segments[2] == "destinations" && int.TryParse(segments[3], CultureInfo.InvariantCulture, out var destination) && destination < upstream.Destinations.Count)
                     {
                         parts.Add(upstream.Destinations[destination].Address);
                         i = 4;
@@ -180,8 +180,8 @@ public static class ChangeView
 
         for (; i < segments.Length; i++)
         {
-            string segment = segments[i];
-            if (int.TryParse(segment, CultureInfo.InvariantCulture, out int position) && parts.Count > 0)
+            var segment = segments[i];
+            if (int.TryParse(segment, CultureInfo.InvariantCulture, out var position) && parts.Count > 0)
             {
                 parts[^1] = $"{Singular(parts[^1])} {position + 1}";
                 continue;
@@ -216,18 +216,18 @@ public static class ChangeView
             yield break;
         }
 
-        ConfigDocument side = change.Kind == ConfigChangeKind.Added ? after : before;
+        var side = change.Kind == ConfigChangeKind.Added ? after : before;
         switch (change)
         {
             case HostChange host when side.Hosts.FirstOrDefault(h => h.Id == host.HostId) is { } config:
-                foreach (RouteConfig route in config.Routes)
+                foreach (var route in config.Routes)
                 {
                     yield return Describe(new RouteChange(change.Kind, host.HostId, route.Id, change.Path, []), before, after, names);
                 }
 
                 break;
             case UpstreamChange upstream when side.Upstreams.FirstOrDefault(u => u.Id == upstream.UpstreamId) is { } config:
-                foreach (DestinationConfig destination in config.Destinations)
+                foreach (var destination in config.Destinations)
                 {
                     yield return Describe(new DestinationChange(change.Kind, upstream.UpstreamId, destination.Id, change.Path, []), before, after, names);
                 }
@@ -262,7 +262,7 @@ public static class ChangeView
 
     private static ObjectChange Describe(ConfigChange change, ConfigDocument before, ConfigDocument after, Names names)
     {
-        (ChangedObject kind, string title, JsonObject? old, JsonObject? @new, string[] skip) = change switch
+        (var kind, var title, var old, var @new, string[] skip) = change switch
         {
             HostChange c => (ChangedObject.Host, names.Host(c.HostId),
                 Node(before.Hosts.FirstOrDefault(h => h.Id == c.HostId), ConfigJsonContext.Default.HostConfig),
@@ -294,9 +294,9 @@ public static class ChangeView
         List<FieldChange> fields = [];
         if (change.Kind == ConfigChangeKind.Modified)
         {
-            foreach (string field in change.Fields)
+            foreach (var field in change.Fields)
             {
-                string relative = field.StartsWith(change.Path, StringComparison.Ordinal) ? field[change.Path.Length..] : field;
+                var relative = field.StartsWith(change.Path, StringComparison.Ordinal) ? field[change.Path.Length..] : field;
                 if (relative.Length == 0 || (skip.Contains(relative.TrimStart('/'), StringComparer.Ordinal) && relative != "/routes"))
                 {
                     continue;
@@ -307,8 +307,8 @@ public static class ChangeView
         }
         else
         {
-            JsonObject side = (change.Kind == ConfigChangeKind.Added ? @new : old) ?? [];
-            foreach ((string key, JsonNode? value) in side)
+            var side = (change.Kind == ConfigChangeKind.Added ? @new : old) ?? [];
+            foreach (var (key, value) in side)
             {
                 // What an added or removed object sets: its defaults (a switch left off, an empty list) say nothing.
                 if (skip.Contains(key, StringComparer.Ordinal) || value is null or JsonArray { Count: 0 } or JsonObject { Count: 0 }
@@ -318,8 +318,8 @@ public static class ChangeView
                     continue;
                 }
 
-                string path = "/" + key;
-                string? formatted = names.Format(path, value);
+                var path = "/" + key;
+                var formatted = names.Format(path, value);
                 fields.Add(change.Kind == ConfigChangeKind.Added
                     ? new FieldChange(path, LabelOf(path), null, formatted)
                     : new FieldChange(path, LabelOf(path), formatted, null));
@@ -331,7 +331,7 @@ public static class ChangeView
 
     private static string LabelOf(string relative)
     {
-        string[] segments = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var segments = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments is ["routes"])
         {
             return "Route order";
@@ -347,12 +347,12 @@ public static class ChangeView
     private static JsonNode? Resolve(JsonObject? root, string pointer)
     {
         JsonNode? node = root;
-        foreach (string segment in pointer.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var segment in pointer.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
             node = node switch
             {
                 JsonObject o => o[segment.Replace("~1", "/", StringComparison.Ordinal).Replace("~0", "~", StringComparison.Ordinal)],
-                JsonArray a when int.TryParse(segment, CultureInfo.InvariantCulture, out int i) && i < a.Count => a[i],
+                JsonArray a when int.TryParse(segment, CultureInfo.InvariantCulture, out var i) && i < a.Count => a[i],
                 _ => null,
             };
             if (node is null)
@@ -399,7 +399,7 @@ public static class ChangeView
                     return array.Count == 0 ? "none" : string.Join(", ", array.Select(item => Format(path, item) ?? "-"));
                 case JsonObject obj:
                     StringBuilder text = new();
-                    foreach ((string key, JsonNode? item) in obj)
+                    foreach (var (key, item) in obj)
                     {
                         if (item is null)
                         {
@@ -426,12 +426,12 @@ public static class ChangeView
 
         private string? Reference(string text)
         {
-            if (UpstreamId.TryParse(text, out UpstreamId upstream))
+            if (UpstreamId.TryParse(text, out var upstream))
             {
                 return Upstream(upstream);
             }
 
-            if (ProfileId.TryParse(text, out ProfileId profile))
+            if (ProfileId.TryParse(text, out var profile))
             {
                 return $"Profile {Profile(profile)}";
             }

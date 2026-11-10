@@ -65,14 +65,14 @@ public sealed partial class DnsProviderService
             return new DnsProviderResult(IssuanceChangeStatus.Denied);
         }
 
-        string label = (request.Label ?? string.Empty).Trim();
-        ConfigError? problem = !Enum.IsDefined(request.Kind) ? new ConfigError("/kind", IssuanceErrorCodes.KindUndefined, $"unknown DNS provider kind {request.Kind}")
+        var label = (request.Label ?? string.Empty).Trim();
+        var problem = !Enum.IsDefined(request.Kind) ? new ConfigError("/kind", IssuanceErrorCodes.KindUndefined, $"unknown DNS provider kind {request.Kind}")
             : label.Length == 0 ? new ConfigError("/label", IssuanceErrorCodes.LabelRequired, "a DNS provider needs a label")
             : label.Length > MaxLabelLength ? new ConfigError("/label", IssuanceErrorCodes.TextTooLong, $"the label is limited to {MaxLabelLength} characters")
             : null;
         if (problem is null)
         {
-            SecretMetadata? secret = await _secrets.DescribeAsync(request.CredentialSecretId, cancellationToken).ConfigureAwait(false);
+            var secret = await _secrets.DescribeAsync(request.CredentialSecretId, cancellationToken).ConfigureAwait(false);
             if (secret is not { Kind: SecretKind.DnsApiToken })
             {
                 problem = new ConfigError("/credentialSecretId", IssuanceErrorCodes.CredentialMissing, "the secret does not exist or is not a DNS API token");
@@ -84,7 +84,7 @@ public sealed partial class DnsProviderService
             return new DnsProviderResult(IssuanceChangeStatus.Invalid, Errors: [problem]);
         }
 
-        DateTimeOffset now = _time.GetUtcNow();
+        var now = _time.GetUtcNow();
         DnsProviderRow row = new()
         {
             Id = DnsProviderId.New(),
@@ -94,12 +94,12 @@ public sealed partial class DnsProviderService
             CreatedAt = now,
             UpdatedAt = now,
         };
-        DnsProviderResult result = await _config.ApplyOperationalChangeAsync(
+        var result = await _config.ApplyOperationalChangeAsync(
             async context =>
             {
                 context.DnsProviders.Add(row);
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                AuditEntry audit = IssuanceMapping.Entry(origin, "acme.dns_provider.create", row.Id, AuditOutcome.Success) with
+                var audit = IssuanceMapping.Entry(origin, "acme.dns_provider.create", row.Id, AuditOutcome.Success) with
                 {
                     Details = IssuanceMapping.Json(w => w.WriteString("kind", row.Kind.ToName())),
                 };
@@ -124,7 +124,7 @@ public sealed partial class DnsProviderService
             return new DnsProviderResult(IssuanceChangeStatus.Denied);
         }
 
-        DnsProviderResult result = await _config.ApplyOperationalChangeAsync(
+        var result = await _config.ApplyOperationalChangeAsync(
             async context =>
             {
                 if (!await context.DnsProviders.AnyAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false))
@@ -160,7 +160,7 @@ public sealed partial class DnsProviderService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            List<DnsProviderRow> rows = await context.DnsProviders.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+            var rows = await context.DnsProviders.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id).Select(IssuanceMapping.ToSummary)];
         }
     }
@@ -190,10 +190,10 @@ public sealed partial class DnsProviderService
             return new DnsProviderTestResult(Found: false, Valid: false) { Denied = true };
         }
 
-        DnsProviderTestResult result = await TestCoreAsync(id, cancellationToken).ConfigureAwait(false);
+        var result = await TestCoreAsync(id, cancellationToken).ConfigureAwait(false);
         if (result.Found)
         {
-            AuditEntry entry = IssuanceMapping.Entry(origin, "acme.dns_provider.test", id, result.Valid ? AuditOutcome.Success : AuditOutcome.Failed) with
+            var entry = IssuanceMapping.Entry(origin, "acme.dns_provider.test", id, result.Valid ? AuditOutcome.Success : AuditOutcome.Failed) with
             {
                 Details = IssuanceMapping.Json(w => w.WriteBoolean("valid", result.Valid)),
             };
@@ -205,7 +205,7 @@ public sealed partial class DnsProviderService
 
     private async Task<DnsProviderTestResult> TestCoreAsync(DnsProviderId id, CancellationToken cancellationToken)
     {
-        DnsProviderRow? provider = await FindRowAsync(id, cancellationToken).ConfigureAwait(false);
+        var provider = await FindRowAsync(id, cancellationToken).ConfigureAwait(false);
         if (provider is null)
         {
             return new DnsProviderTestResult(Found: false, Valid: false);
@@ -218,7 +218,7 @@ public sealed partial class DnsProviderService
 
         try
         {
-            DnsCredentialCheck check = await _providers.Create(provider.Kind, provider.CredentialSecretId)
+            var check = await _providers.Create(provider.Kind, provider.CredentialSecretId)
                 .ValidateCredentialsAsync(cancellationToken).ConfigureAwait(false);
             return new DnsProviderTestResult(Found: true, check.Valid, IssuanceMapping.Sanitize(check.Message) is { Length: > 0 } message ? message : null);
         }

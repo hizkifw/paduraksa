@@ -16,8 +16,8 @@ public sealed class OperationalChangeFeedTests
     {
         await using var h = await IssuanceHarness.CreateAsync();
         List<OperationalChange> seen = [];
-        using IDisposable failing = h.Config.Service.OperationalChanges.Subscribe(_ => throw new InvalidOperationException("a closed page"));
-        using IDisposable subscription = h.Config.Service.OperationalChanges.Subscribe(seen.Add);
+        using var failing = h.Config.Service.OperationalChanges.Subscribe(_ => throw new InvalidOperationException("a closed page"));
+        using var subscription = h.Config.Service.OperationalChanges.Subscribe(seen.Add);
 
         var account = await h.CreateAccountAsync();
         var provider = await h.CreateDnsProviderAsync();
@@ -30,7 +30,7 @@ public sealed class OperationalChangeFeedTests
         Assert.Contains(seen, change => change.Action == "acme.order.issued");
 
         subscription.Dispose();
-        int count = seen.Count;
+        var count = seen.Count;
         _ = await h.Issuance.RenewAsync(issued.CertificateId!.Value, Admin, Ct);
         Assert.Equal(count, seen.Count);
     }

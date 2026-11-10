@@ -15,14 +15,14 @@ public sealed class SettingsMergeReflectionTests
     [Fact]
     public void EveryLeafSurvivesAMergeFromEitherLayer()
     {
-        foreach (Leaf leaf in Leaves())
+        foreach (var leaf in Leaves())
         {
-            object sample = leaf.Sample();
+            var sample = leaf.Sample();
 
-            object? fromUpper = leaf.Read(HostSettingsLayers.Merge(new HostSettings(), leaf.Set(sample)));
+            var fromUpper = leaf.Read(HostSettingsLayers.Merge(new HostSettings(), leaf.Set(sample)));
             Assert.True(Equals(sample, fromUpper), $"{leaf.Name} did not survive a merge from the upper layer (got {fromUpper ?? "null"})");
 
-            object? fromLower = leaf.Read(HostSettingsLayers.Merge(leaf.Set(sample), new HostSettings()));
+            var fromLower = leaf.Read(HostSettingsLayers.Merge(leaf.Set(sample), new HostSettings()));
             Assert.True(Equals(sample, fromLower), $"{leaf.Name} did not survive a merge from the lower layer (got {fromLower ?? "null"})");
         }
     }
@@ -30,9 +30,9 @@ public sealed class SettingsMergeReflectionTests
     [Fact]
     public void TheBuiltInDefaultsStateAValueForEveryLeafThatHasOne()
     {
-        foreach (Leaf leaf in Leaves())
+        foreach (var leaf in Leaves())
         {
-            object? value = leaf.Read(HostSettingsLayers.BuiltIn);
+            var value = leaf.Read(HostSettingsLayers.BuiltIn);
             if (leaf.Name is nameof(HostSettings.IpAllowList) or $"{nameof(HostSettings.ServerHeader)}.{nameof(ServerHeaderSettings.Value)}")
             {
                 // The absence is the default: no restriction, and no custom Server value.
@@ -47,7 +47,7 @@ public sealed class SettingsMergeReflectionTests
     /// <summary>Every leaf of the contract, nested settings records opened up.</summary>
     private static IEnumerable<Leaf> Leaves()
     {
-        foreach (PropertyInfo property in typeof(HostSettings).GetProperties())
+        foreach (var property in typeof(HostSettings).GetProperties())
         {
             if (!typeof(ISettingsLayer).IsAssignableFrom(property.PropertyType))
             {
@@ -59,14 +59,14 @@ public sealed class SettingsMergeReflectionTests
                 continue;
             }
 
-            foreach (PropertyInfo inner in property.PropertyType.GetProperties().Where(p => p.Name != nameof(ISettingsLayer.SetsNothing)))
+            foreach (var inner in property.PropertyType.GetProperties().Where(p => p.Name != nameof(ISettingsLayer.SetsNothing)))
             {
                 yield return new Leaf(
                     $"{property.Name}.{inner.Name}",
                     () => Sample(inner.PropertyType),
                     sample =>
                     {
-                        object record = Activator.CreateInstance(property.PropertyType)!;
+                        var record = Activator.CreateInstance(property.PropertyType)!;
                         inner.SetValue(record, sample);
                         return Set(property, record);
                     },
@@ -85,7 +85,7 @@ public sealed class SettingsMergeReflectionTests
     /// <summary>A non-null sample of <paramref name="type"/>; a new leaf type has to be added here.</summary>
     private static object Sample(Type type)
     {
-        Type value = Nullable.GetUnderlyingType(type) ?? type;
+        var value = Nullable.GetUnderlyingType(type) ?? type;
         if (value == typeof(bool))
         {
             return true;
@@ -108,7 +108,7 @@ public sealed class SettingsMergeReflectionTests
 
         if (value.IsEnum)
         {
-            object zero = Activator.CreateInstance(value)!;
+            var zero = Activator.CreateInstance(value)!;
             return Enum.GetValues(value).Cast<object>().First(member => !member.Equals(zero));
         }
 

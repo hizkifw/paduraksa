@@ -1,6 +1,4 @@
 using Bunit;
-
-using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
@@ -18,8 +16,8 @@ public sealed class ProviderFormTests
     public async Task AnAccount_NeedsTheTermsAgreed()
     {
         await using DashboardTestContext context = new();
-        int calls = 0;
-        IRenderedComponent<AcmeAccountForm> form = context.Render<AcmeAccountForm>(p => p
+        var calls = 0;
+        var form = context.Render<AcmeAccountForm>(p => p
             .Add(f => f.Submit, _ => { calls++; return Task.FromResult<AcmeAccountResult?>(null); }));
 
         await form.InvokeAsync(() => form.Find(".pdk-acme-account-submit").Click());
@@ -36,7 +34,7 @@ public sealed class ProviderFormTests
         AcmeAccountSubmission? sent = null;
         string? hmacSeen = null;
         AcmeAccountSummary? created = null;
-        IRenderedComponent<AcmeAccountForm> form = context.Render<AcmeAccountForm>(p => p
+        var form = context.Render<AcmeAccountForm>(p => p
             .Add(f => f.Submit, submission =>
             {
                 sent = submission;
@@ -67,7 +65,7 @@ public sealed class ProviderFormTests
     public async Task ACaRefusal_IsShownWithTheCasWords()
     {
         await using DashboardTestContext context = new();
-        IRenderedComponent<AcmeAccountForm> form = context.Render<AcmeAccountForm>(p => p
+        var form = context.Render<AcmeAccountForm>(p => p
             .Add(f => f.Submit, _ => Task.FromResult<AcmeAccountResult?>(new AcmeAccountResult(IssuanceChangeStatus.Failed, Message: "invalid contact domain"))));
 
         form.Find(".pdk-acme-tos input").Change(true);
@@ -82,7 +80,7 @@ public sealed class ProviderFormTests
         await using DashboardTestContext context = new();
         DnsCredentialSubmission? sent = null;
         string? tokenSeen = null;
-        IRenderedComponent<DnsProviderForm> form = context.Render<DnsProviderForm>(p => p
+        var form = context.Render<DnsProviderForm>(p => p
             .Add(f => f.Submit, submission =>
             {
                 sent = submission;
@@ -107,8 +105,8 @@ public sealed class ProviderFormTests
     public async Task ADnsProvider_WithoutAToken_IsNotSent()
     {
         await using DashboardTestContext context = new();
-        int calls = 0;
-        IRenderedComponent<DnsProviderForm> form = context.Render<DnsProviderForm>(p => p
+        var calls = 0;
+        var form = context.Render<DnsProviderForm>(p => p
             .Add(f => f.Submit, _ => { calls++; return Task.FromResult<DnsProviderResult?>(null); }));
 
         await form.InvokeAsync(() => form.Find(".pdk-dns-submit").Click());
@@ -127,7 +125,7 @@ public sealed class ProviderFormTests
         await using DashboardTestContext context = new();
         DnsProviderTestResult result = new(Found: true, valid, valid ? null : "Cloudflare did not accept the token (6003)") { Denied = denied };
 
-        IRenderedComponent<DnsTestResultView> view = context.Render<DnsTestResultView>(p => p
+        var view = context.Render<DnsTestResultView>(p => p
             .Add(v => v.Result, result)
             .Add(v => v.Testing, testing)
             .Add(v => v.ProviderName, "Cloudflare"));
@@ -140,7 +138,7 @@ public sealed class ProviderFormTests
     [Fact]
     public void TheEabKey_IsReadAsTheCaShowsIt()
     {
-        byte[]? key = SecretInput.Base64UrlKey("c2VjcmV0LWhtYWMta2V5".AsSpan());
+        var key = SecretInput.Base64UrlKey("c2VjcmV0LWhtYWMta2V5".AsSpan());
         Assert.Equal("secret-hmac-key"u8.ToArray(), key);
         Assert.Null(SecretInput.Base64UrlKey("not base64url!".AsSpan()));
         Assert.Null(SecretInput.Base64UrlKey(string.Empty.AsSpan()));

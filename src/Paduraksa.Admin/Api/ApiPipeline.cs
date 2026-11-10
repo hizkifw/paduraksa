@@ -1,7 +1,4 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 
 namespace Paduraksa.Admin.Api;
@@ -26,7 +23,7 @@ internal sealed partial class ApiPipelineMiddleware(RequestDelegate next, ILogge
     public async Task InvokeAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        bool api = IsApiPath(context.Request.Path);
+        var api = IsApiPath(context.Request.Path);
         if (OpenApi.DocsContentSecurityPolicy.Applies(context.Request.Path))
         {
             context.Response.Headers.ContentSecurityPolicy = OpenApi.DocsContentSecurityPolicy.For(context);
@@ -43,14 +40,14 @@ internal sealed partial class ApiPipelineMiddleware(RequestDelegate next, ILogge
         }
         catch (BadHttpRequestException ex)
         {
-            string badRequestTrace = ApiProblems.TraceIdOf(context);
+            var badRequestTrace = ApiProblems.TraceIdOf(context);
             LogBadRequest(logger, badRequestTrace, ex.StatusCode);
             await WriteFailureAsync(context, ex.StatusCode, ReadFailureDetail(ex.StatusCode)).ConfigureAwait(false);
             return;
         }
         catch (Exception ex)
         {
-            string traceId = ApiProblems.TraceIdOf(context);
+            var traceId = ApiProblems.TraceIdOf(context);
             LogUnhandled(logger, ex, traceId, context.Request.Method, context.Request.Path);
             await WriteFailureAsync(
                 context,

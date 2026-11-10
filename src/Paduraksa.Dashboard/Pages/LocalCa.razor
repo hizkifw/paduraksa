@@ -56,7 +56,7 @@
     protected override async Task OnInitializedAsync()
     {
         _now = Time.GetUtcNow();
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -102,7 +102,7 @@
 
     private async Task CreateRootAsync()
     {
-        CommandOrigin? origin = await Caller.OriginAsync();
+        var origin = await Caller.OriginAsync();
         if (origin is null)
         {
             return;
@@ -110,7 +110,7 @@
 
         await Logger.TryAsync(Snackbar, "Couldn't create the local CA.", async () =>
         {
-            CertificateOperationResult result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin);
+            var result = await Operations.EnsureLocalCaAsync(new LocalCaRequest(), origin);
             if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
             {
                 Snackbar.Add("The local CA is ready. Install its root to trust what it issues.", Severity.Success);

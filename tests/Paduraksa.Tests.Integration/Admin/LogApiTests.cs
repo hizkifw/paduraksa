@@ -1,17 +1,13 @@
 using System.IO.Compression;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
-
 using Microsoft.Extensions.DependencyInjection;
-
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Logging;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Logging;
 using Paduraksa.Core.Logging;
 using Paduraksa.Tests.Integration.Hosting;
-
 using static Paduraksa.Tests.Integration.Admin.AdminApiHarness;
 
 namespace Paduraksa.Tests.Integration.Admin;
@@ -27,17 +23,20 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     [Fact]
     public async Task TheListNamesEachFileWithItsLogSizeAndCompression()
     {
-        AdminApiHarness api = StartAsync(shared);
+        var api = StartAsync(shared);
         // The file holds exactly what this test wrote: this class's hosts write the access log nowhere (TestHost gives them the
         // null sink), so no request of any test can add a line to the file a test is reading.
         Create(api, "access.log", "GET / 200\n");
-        CreateGzip(api, LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Access, DateTimeOffset.UtcNow.AddDays(-1))), "GET /two 404\n");
+        CreateGzip(api,
+            LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Access, DateTimeOffset.UtcNow.AddDays(-1))),
+            "GET /two 404\n");
 
-        using HttpResponseMessage response = await api.GetAsync("/api/v1/logs");
-        IReadOnlyList<LogFileSummary> files = await ReadAsync(response, AdminJsonContext.Default.IReadOnlyListLogFileSummary, Ct);
+        using var response = await api.GetAsync("/api/v1/logs");
+        IReadOnlyList<LogFileSummary> files =
+            await ReadAsync(response, AdminJsonContext.Default.IReadOnlyListLogFileSummary, Ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        LogFileSummary live = Assert.Single(files, file => file.Name == "access.log");
+        var live = Assert.Single(files, file => file.Name == "access.log");
         Assert.Equal("access", live.Log);
         Assert.Equal(10, live.Size);
         Assert.False(live.Compressed);
@@ -53,12 +52,12 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     [InlineData(null, HttpStatusCode.Unauthorized)]
     public async Task ReadingTheLogsNeedsTheReadPermission(string? caller, HttpStatusCode expected)
     {
-        AdminApiHarness api = StartAsync(shared);
+        var api = StartAsync(shared);
         Create(api, "error.log", "warn: one\n");
 
-        using HttpResponseMessage list = await api.GetAsync("/api/v1/logs", caller);
-        using HttpResponseMessage tail = await api.GetAsync("/api/v1/logs/error.log/tail", caller);
-        using HttpResponseMessage download = await api.GetAsync("/api/v1/logs/error.log", caller);
+        using var list = await api.GetAsync("/api/v1/logs", caller);
+        using var tail = await api.GetAsync("/api/v1/logs/error.log/tail", caller);
+        using var download = await api.GetAsync("/api/v1/logs/error.log", caller);
 
         Assert.Equal(expected, list.StatusCode);
         Assert.Equal(expected, tail.StatusCode);
@@ -68,13 +67,13 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     [Fact]
     public async Task ATailIsBoundedByLinesAndCanBeFiltered()
     {
-        AdminApiHarness api = StartAsync(shared);
+        var api = StartAsync(shared);
         Create(api, "access.log", string.Concat(Enumerable.Range(0, 1500).Select(i => $"GET /{i} 200\n")));
 
-        using HttpResponseMessage all = await api.GetAsync("/api/v1/logs/access.log/tail?lines=1000");
-        LogFileTail tail = await ReadAsync(all, AdminJsonContext.Default.LogFileTail, Ct);
-        using HttpResponseMessage filtered = await api.GetAsync("/api/v1/logs/access.log/tail?lines=5&filter=%2F1499");
-        LogFileTail matching = await ReadAsync(filtered, AdminJsonContext.Default.LogFileTail, Ct);
+        using var all = await api.GetAsync("/api/v1/logs/access.log/tail?lines=1000");
+        var tail = await ReadAsync(all, AdminJsonContext.Default.LogFileTail, Ct);
+        using var filtered = await api.GetAsync("/api/v1/logs/access.log/tail?lines=5&filter=%2F1499");
+        var matching = await ReadAsync(filtered, AdminJsonContext.Default.LogFileTail, Ct);
 
         Assert.Equal(1000, tail.Lines.Count);
         Assert.Equal("GET /1499 200", tail.Lines[^1]);
@@ -86,13 +85,14 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     [InlineData("/api/v1/logs/error.log/tail?lines=0")]
     [InlineData("/api/v1/logs/error.log/tail?lines=5000")]
     [InlineData("/api/v1/logs/error.log/tail?lines=many")]
-    [InlineData("/api/v1/logs/error.log/tail?filter=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData(
+        "/api/v1/logs/error.log/tail?filter=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
     public async Task ABadTailParameterIsAProblem(string path)
     {
-        AdminApiHarness api = StartAsync(shared);
+        var api = StartAsync(shared);
         Create(api, "error.log", "warn: one\n");
 
-        using HttpResponseMessage response = await api.GetAsync(path);
+        using var response = await api.GetAsync(path);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(400, (await ProblemAsync(response, Ct)).Status);
@@ -107,12 +107,12 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     [InlineData("%2Fetc%2Fpasswd")]
     public async Task OnlyTheWritersOwnNamesAreServed(string name)
     {
-        AdminApiHarness api = StartAsync(shared);
+        var api = StartAsync(shared);
         Create(api, "error.log", "warn: one\n");
         await System.IO.File.WriteAllTextAsync(Path.Combine(DirectoryOf(api), "notes.txt"), "not a log", Ct);
 
-        using HttpResponseMessage tail = await api.GetAsync("/api/v1/logs/" + name + "/tail");
-        using HttpResponseMessage download = await api.GetAsync("/api/v1/logs/" + name);
+        using var tail = await api.GetAsync("/api/v1/logs/" + name + "/tail");
+        using var download = await api.GetAsync("/api/v1/logs/" + name);
 
         Assert.Equal(HttpStatusCode.NotFound, tail.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, download.StatusCode);
@@ -126,16 +126,16 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
             return;
         }
 
-        AdminApiHarness api = StartAsync(shared);
-        string outside = Path.Combine(api.Host.Options.DataDirectory, "outside.txt");
+        var api = StartAsync(shared);
+        var outside = Path.Combine(api.Host.Options.DataDirectory, "outside.txt");
         await System.IO.File.WriteAllTextAsync(outside, "warn: from outside\n", Ct);
         // A rotated name of its own: the link it plants must not stand in for a file the class's other tests write.
-        string name = LogFileNames.Rotated(LogFileKind.Error, new DateTimeOffset(2026, 11, 9, 6, 0, 0, TimeSpan.Zero));
-        string link = Path.Combine(DirectoryOf(api), name);
+        var name = LogFileNames.Rotated(LogFileKind.Error, new DateTimeOffset(2026, 11, 9, 6, 0, 0, TimeSpan.Zero));
+        var link = Path.Combine(DirectoryOf(api), name);
         System.IO.File.CreateSymbolicLink(link, outside);
 
-        using HttpResponseMessage tail = await api.GetAsync("/api/v1/logs/" + name + "/tail");
-        using HttpResponseMessage download = await api.GetAsync("/api/v1/logs/" + name);
+        using var tail = await api.GetAsync("/api/v1/logs/" + name + "/tail");
+        using var download = await api.GetAsync("/api/v1/logs/" + name);
 
         Assert.Equal(HttpStatusCode.NotFound, tail.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, download.StatusCode);
@@ -144,14 +144,15 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     [Fact]
     public async Task ADownloadIsAnAttachmentOfTheFileItself()
     {
-        AdminApiHarness api = StartAsync(shared);
-        string rotated = LogFileNames.Rotated(LogFileKind.Access, new DateTimeOffset(2026, 11, 9, 12, 0, 0, TimeSpan.Zero));
+        var api = StartAsync(shared);
+        var rotated =
+            LogFileNames.Rotated(LogFileKind.Access, new DateTimeOffset(2026, 11, 9, 12, 0, 0, TimeSpan.Zero));
         Create(api, rotated, "GET / 200\nGET /two 404\n");
         CreateGzip(api, LogFileNames.Compressed(rotated), "GET / 200\n");
 
-        using HttpResponseMessage plain = await api.GetAsync("/api/v1/logs/" + rotated);
-        string body = await plain.Content.ReadAsStringAsync(Ct);
-        using HttpResponseMessage compressed = await api.GetAsync("/api/v1/logs/" + LogFileNames.Compressed(rotated));
+        using var plain = await api.GetAsync("/api/v1/logs/" + rotated);
+        var body = await plain.Content.ReadAsStringAsync(Ct);
+        using var compressed = await api.GetAsync("/api/v1/logs/" + LogFileNames.Compressed(rotated));
 
         Assert.Equal(HttpStatusCode.OK, plain.StatusCode);
         Assert.Equal("GET / 200\nGET /two 404\n", body);
@@ -164,12 +165,12 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     [Fact]
     public async Task AnUnreadableLogsDirectoryIsA500ProblemNotAnEmptyList()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(
+        await using var api = await AdminApiHarness.StartAsync(
             Ct,
             adminServices: services => services.AddSingleton<ILogFileStore>(new UnreadableLogStore()));
 
-        using HttpResponseMessage response = await api.GetAsync("/api/v1/logs");
-        ApiProblem problem = await ProblemAsync(response, Ct);
+        using var response = await api.GetAsync("/api/v1/logs");
+        var problem = await ProblemAsync(response, Ct);
 
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         Assert.Equal(500, problem.Status);
@@ -179,10 +180,10 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     [Fact]
     public async Task TheApiDescriptionListsTheLogEndpointsWithTheirPermission()
     {
-        AdminApiHarness api = StartAsync(shared);
+        var api = StartAsync(shared);
 
-        using HttpResponseMessage response = await api.GetAsync("/api/v1/openapi.json");
-        string document = await response.Content.ReadAsStringAsync(Ct);
+        using var response = await api.GetAsync("/api/v1/openapi.json");
+        var document = await response.Content.ReadAsStringAsync(Ct);
 
         Assert.Contains("/api/v1/logs", document, StringComparison.Ordinal);
         Assert.Contains("logs:read", document, StringComparison.Ordinal);
@@ -191,7 +192,7 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
     /// <summary>The class's shared host, whose log directory this class writes the files it reads.</summary>
     private static AdminApiHarness StartAsync(SharedAdminApi shared)
     {
-        AdminApiHarness api = shared.Api;
+        var api = shared.Api;
         System.IO.Directory.CreateDirectory(DirectoryOf(api));
         return api;
     }
@@ -209,7 +210,7 @@ public sealed class LogApiTests(SharedAdminApi shared) : IClassFixture<SharedAdm
 
     private static void CreateGzip(AdminApiHarness api, string name, string text)
     {
-        using FileStream file = System.IO.File.Create(Path.Combine(DirectoryOf(api), name));
+        using var file = System.IO.File.Create(Path.Combine(DirectoryOf(api), name));
         using GZipStream gzip = new(file, CompressionLevel.Fastest);
         gzip.Write(Encoding.UTF8.GetBytes(text));
     }

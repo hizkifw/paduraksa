@@ -18,9 +18,9 @@ public sealed class RawPathForwardingTests(TestUpstream upstream) : IClassFixtur
     [InlineData("/", "/a/")]
     public async Task ThePathIsForwardedAsReceived(string target, string expected)
     {
-        await using ProxyTestServer server = await StartAsync();
+        await using var server = await StartAsync();
 
-        (int status, string body, _) = await RawHttp.GetAsync(server.BaseAddress, "raw.test", target, TestContext.Current.CancellationToken);
+        var (status, body, _) = await RawHttp.GetAsync(server.BaseAddress, "raw.test", target, TestContext.Current.CancellationToken);
 
         Assert.Equal(200, status);
         Assert.Equal(expected, body);
@@ -31,9 +31,9 @@ public sealed class RawPathForwardingTests(TestUpstream upstream) : IClassFixtur
     [InlineData("/p%2Fq?z=%E2%82%AC", "?z=%E2%82%AC")]
     public async Task TheQueryIsForwardedUnchanged(string target, string expectedQuery)
     {
-        await using ProxyTestServer server = await StartAsync();
+        await using var server = await StartAsync();
 
-        (int status, _, string head) = await RawHttp.GetAsync(server.BaseAddress, "raw.test", target, TestContext.Current.CancellationToken);
+        var (status, _, head) = await RawHttp.GetAsync(server.BaseAddress, "raw.test", target, TestContext.Current.CancellationToken);
 
         Assert.Equal(200, status);
         Assert.Contains("x-query: " + expectedQuery, head, StringComparison.OrdinalIgnoreCase);

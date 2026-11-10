@@ -71,11 +71,11 @@
                     </Aside>
                     <ChildContent>
                         <div class="pdk-scope-areas">
-                            @foreach ((string area, IReadOnlyList<Permission> scopes) in Offered)
+                            @foreach (var (area, scopes) in Offered)
                             {
                                 <div class="pdk-scope-area" data-area="@area">
                                     <span class="pdk-scope-area-name">@area</span>
-                                    @foreach (Permission scope in scopes)
+                                    @foreach (var scope in scopes)
                                     {
                                         <label class="pdk-scope-option @(_scopes.Contains(scope) ? "pdk-selected" : null)" data-scope="@scope.ToName()">
                                             <MudCheckBox T="bool" Value="_scopes.Contains(scope)" ValueChanged="@(value => ToggleScope(scope, value))" Color="Color.Primary" Dense="true" />
@@ -158,7 +158,7 @@
         TokenLifetime.Month => _now.AddDays(30),
         TokenLifetime.Quarter => _now.AddDays(90),
         TokenLifetime.Year => _now.AddYears(1),
-        TokenLifetime.Custom when DateOnly.TryParseExact(_customDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly day) =>
+        TokenLifetime.Custom when DateOnly.TryParseExact(_customDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day) =>
             new DateTimeOffset(day.ToDateTime(new TimeOnly(23, 59, 59)), TimeSpan.Zero),
         _ => null,
     };
@@ -225,7 +225,7 @@
                 return;
             }
 
-            ApiTokenResult result = await Identity.IssueTokenAsync(origin, new IssueApiTokenRequest(_name.Trim(), [.. _scopes.Order()], ExpiresAt));
+            var result = await Identity.IssueTokenAsync(origin, new IssueApiTokenRequest(_name.Trim(), [.. _scopes.Order()], ExpiresAt));
             if (result is { Succeeded: true, Issued: { } issued })
             {
                 _issued = issued;
@@ -254,7 +254,7 @@
 
     private void Done()
     {
-        ApiTokenSummary? summary = _issued?.Summary;
+        var summary = _issued?.Summary;
         _issued = null;
         Level?.Close(summary);
     }

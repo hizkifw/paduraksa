@@ -3,8 +3,6 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.EntityFrameworkCore;
-
-using Paduraksa.Application.Audit;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;

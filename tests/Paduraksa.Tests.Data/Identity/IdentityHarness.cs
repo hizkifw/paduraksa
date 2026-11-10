@@ -8,7 +8,6 @@ using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
-using Paduraksa.Data;
 using Paduraksa.Data.Audit;
 using Paduraksa.Tests.Data.Config;
 

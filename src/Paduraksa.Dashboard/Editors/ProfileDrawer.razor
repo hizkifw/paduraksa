@@ -60,7 +60,7 @@
                     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
                         <strong>@(FieldErrors.Count == 1 ? "One thing to fix" : $"{FieldErrors.Count} things to fix"):</strong>
                         <ul class="pdk-error-list">
-                            @foreach ((string path, string message) in FieldErrors)
+                            @foreach (var (path, message) in FieldErrors)
                             {
                                 <li><span class="pdk-error-where">@ChangeView.Locate(path, null)</span> @message</li>
                             }
@@ -98,7 +98,7 @@
                         else
                         {
                             <ul class="pdk-list" data-section="usage-list">
-                                @foreach (HostConfig host in Hosts)
+                                @foreach (var host in Hosts)
                                 {
                                     <li class="pdk-list-row">
                                         <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
@@ -229,7 +229,7 @@
     /// <summary>How many settings the profile sets, counted once per record instance rather than on every render.</summary>
     private int SetCount()
     {
-        HostSettings? settings = Model?.Settings;
+        var settings = Model?.Settings;
         if (!ReferenceEquals(_countedSettings, settings))
         {
             _countedSettings = settings;
@@ -246,7 +246,7 @@
             return;
         }
 
-        ProfileConfig profile = ToConfig();
+        var profile = ToConfig();
         if (Stage)
         {
             Level?.Close(profile);

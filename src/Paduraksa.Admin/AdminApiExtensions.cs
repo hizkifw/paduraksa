@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -46,7 +44,7 @@ public static class AdminApiExtensions
     public static IEndpointRouteBuilder MapPaduraksaAdminApi(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        RouteGroupBuilder api = endpoints.MapGroup("/api/v1");
+        var api = endpoints.MapGroup("/api/v1");
         ConfigEndpoints.Map(api);
         RevisionEndpoints.Map(api);
         CertificateEndpoints.Map(api);

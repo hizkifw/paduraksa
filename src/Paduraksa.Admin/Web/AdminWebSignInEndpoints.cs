@@ -44,8 +44,8 @@ internal static class AdminWebSignInEndpoints
 
     private static async Task<IResult> SignInAsync(HttpContext http, IAntiforgery antiforgery, LoginService login, AdminThrottle throttle, AdminWebOptions web)
     {
-        IFormCollection? form = await ReadFormAsync(http, antiforgery).ConfigureAwait(false);
-        string returnUrl = LocalOrHome(form?[AdminWebForm.ReturnUrl], web);
+        var form = await ReadFormAsync(http, antiforgery).ConfigureAwait(false);
+        var returnUrl = LocalOrHome(form?[AdminWebForm.ReturnUrl], web);
         if (http.GetCaller() is not null)
         {
             return SeeOther(http, returnUrl);
@@ -56,14 +56,14 @@ internal static class AdminWebSignInEndpoints
             return SeeOther(http, Page(web.SignInPage, ApiCodes.Csrf.Refused, returnUrl, web));
         }
 
-        string username = form[AdminWebForm.Username].ToString();
-        string password = form[AdminWebForm.Password].ToString();
+        var username = form[AdminWebForm.Username].ToString();
+        var password = form[AdminWebForm.Password].ToString();
         if (username.Length == 0 || password.Length == 0)
         {
             return SeeOther(http, Page(web.SignInPage, ApiCodes.Auth.InvalidCredentials, returnUrl, web));
         }
 
-        SignInAttempt<LoginResult> attempt = await SignInFlow.LoginAsync(http, login, throttle, username, password, Channel.Dashboard).ConfigureAwait(false);
+        var attempt = await SignInFlow.LoginAsync(http, login, throttle, username, password, Channel.Dashboard).ConfigureAwait(false);
         return attempt switch
         {
             { HeldBack: not SignInHeldBack.No } => SeeOther(http, Page(web.SignInPage, HeldBackCode(attempt.HeldBack), returnUrl, web)),
@@ -75,8 +75,8 @@ internal static class AdminWebSignInEndpoints
 
     private static async Task<IResult> SecondFactorAsync(HttpContext http, IAntiforgery antiforgery, LoginService login, AdminThrottle throttle, AdminWebOptions web)
     {
-        IFormCollection? form = await ReadFormAsync(http, antiforgery).ConfigureAwait(false);
-        string returnUrl = LocalOrHome(form?[AdminWebForm.ReturnUrl], web);
+        var form = await ReadFormAsync(http, antiforgery).ConfigureAwait(false);
+        var returnUrl = LocalOrHome(form?[AdminWebForm.ReturnUrl], web);
         if (http.GetCaller() is not null)
         {
             return SeeOther(http, returnUrl);
@@ -88,9 +88,9 @@ internal static class AdminWebSignInEndpoints
         }
 
         // A recovery code is whatever was typed; a TOTP code tolerates the spaces an authenticator app shows ("123 456").
-        string? recoveryCode = NullIfEmpty(form?[AdminWebForm.RecoveryCode].ToString().Trim());
-        string? code = recoveryCode is null ? NullIfEmpty(form?[AdminWebForm.Code].ToString().Replace(" ", string.Empty, StringComparison.Ordinal)) : null;
-        string verifyPage = recoveryCode is null ? web.SecondFactorPage : QueryHelpers.AddQueryString(web.SecondFactorPage, AdminWebForm.RecoveryParameter, "1");
+        var recoveryCode = NullIfEmpty(form?[AdminWebForm.RecoveryCode].ToString().Trim());
+        var code = recoveryCode is null ? NullIfEmpty(form?[AdminWebForm.Code].ToString().Replace(" ", string.Empty, StringComparison.Ordinal)) : null;
+        var verifyPage = recoveryCode is null ? web.SecondFactorPage : QueryHelpers.AddQueryString(web.SecondFactorPage, AdminWebForm.RecoveryParameter, "1");
         if (form is null)
         {
             return SeeOther(http, Page(verifyPage, ApiCodes.Csrf.Refused, returnUrl, web));
@@ -101,7 +101,7 @@ internal static class AdminWebSignInEndpoints
             return SeeOther(http, Page(verifyPage, ApiCodes.Auth.InvalidCode, returnUrl, web));
         }
 
-        SignInAttempt<LoginResult> attempt = await SignInFlow.SecondFactorAsync(http, login, throttle, code, recoveryCode, Channel.Dashboard).ConfigureAwait(false);
+        var attempt = await SignInFlow.SecondFactorAsync(http, login, throttle, code, recoveryCode, Channel.Dashboard).ConfigureAwait(false);
         return attempt switch
         {
             { HeldBack: not SignInHeldBack.No } => SeeOther(http, Page(verifyPage, HeldBackCode(attempt.HeldBack), returnUrl, web)),
@@ -119,7 +119,7 @@ internal static class AdminWebSignInEndpoints
             return SeeOther(http, web.HomePage);
         }
 
-        (bool present, _, string? cookie) = AdminSessionCookie.Read(http.Request);
+        var (present, _, cookie) = AdminSessionCookie.Read(http.Request);
         if (present)
         {
             await sessions.LogoutAsync(cookie, http.GetClientContext(Channel.Dashboard), http.RequestAborted).ConfigureAwait(false);
@@ -132,13 +132,13 @@ internal static class AdminWebSignInEndpoints
     private static async Task<IResult> SetupAsync(
         HttpContext http, IAntiforgery antiforgery, SetupService setup, LoginService login, AdminThrottle throttle, AdminWebOptions web)
     {
-        IFormCollection? form = await ReadFormAsync(http, antiforgery).ConfigureAwait(false);
+        var form = await ReadFormAsync(http, antiforgery).ConfigureAwait(false);
         if (form is null)
         {
             return SeeOther(http, Page(web.SetupPage, ApiCodes.Csrf.Refused, null, web));
         }
 
-        string password = form[AdminWebForm.Password].ToString();
+        var password = form[AdminWebForm.Password].ToString();
         if (!string.Equals(password, form[AdminWebForm.ConfirmPassword].ToString(), StringComparison.Ordinal))
         {
             return SeeOther(http, Page(web.SetupPage, AdminWebForm.PasswordMismatch, null, web));
@@ -149,7 +149,7 @@ internal static class AdminWebSignInEndpoints
             form[AdminWebForm.Username].ToString(),
             password,
             NullIfEmpty(form[AdminWebForm.DisplayName].ToString().Trim()));
-        SignInAttempt<SetupResult> attempt = await SignInFlow.SetupAsync(http, setup, login, throttle, request, Channel.Dashboard).ConfigureAwait(false);
+        var attempt = await SignInFlow.SetupAsync(http, setup, login, throttle, request, Channel.Dashboard).ConfigureAwait(false);
         return attempt switch
         {
             { HeldBack: not SignInHeldBack.No } => SeeOther(http, Page(web.SetupPage, HeldBackCode(attempt.HeldBack), null, web)),

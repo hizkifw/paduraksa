@@ -22,7 +22,7 @@ internal static class TypedIdSchemas
     public static bool TryDescribe(Type type, out TypedIdSchema schema)
     {
         ArgumentNullException.ThrowIfNull(type);
-        TypedIdSchema? found = Cache.GetOrAdd(type, static t =>
+        var found = Cache.GetOrAdd(type, static t =>
             t.IsValueType && t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(ITypedId<>) && i.GenericTypeArguments[0] == t)
                 ? (TypedIdSchema?)DescribeMethod.MakeGenericMethod(t).Invoke(null, null)
                 : null);
@@ -33,7 +33,7 @@ internal static class TypedIdSchemas
     private static TypedIdSchema Describe<TId>()
         where TId : struct, ITypedId<TId>
     {
-        int width = TId.FormattedLength - TId.Prefix.Length - 1;
+        var width = TId.FormattedLength - TId.Prefix.Length - 1;
         return new TypedIdSchema(typeof(TId).Name, TId.Prefix, $"^{TId.Prefix}_[0-9A-Za-z]{{{width}}}$", TId.New().ToString() ?? string.Empty);
     }
 }

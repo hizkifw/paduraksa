@@ -48,23 +48,23 @@ public sealed class YarpUpstreamHealth(IProxyStateLookup state) : IUpstreamHealt
 {
     public UpstreamHealthSnapshot? Lookup(UpstreamId upstream)
     {
-        if (!state.TryGetCluster(upstream.ToString(), out ClusterState? cluster))
+        if (!state.TryGetCluster(upstream.ToString(), out var cluster))
         {
             return null;
         }
 
-        ClusterDestinationsState destinations = cluster.DestinationsState;
+        var destinations = cluster.DestinationsState;
         HashSet<string> available = new(StringComparer.OrdinalIgnoreCase);
-        foreach (DestinationState destination in destinations.AvailableDestinations)
+        foreach (var destination in destinations.AvailableDestinations)
         {
             available.Add(destination.DestinationId);
         }
 
         List<LiveDestination> healthy = [];
         List<LiveDestination> unhealthy = [];
-        foreach (DestinationState destination in destinations.AllDestinations)
+        foreach (var destination in destinations.AllDestinations)
         {
-            if (!DestinationId.TryParse(destination.DestinationId, out DestinationId id))
+            if (!DestinationId.TryParse(destination.DestinationId, out var id))
             {
                 continue;
             }

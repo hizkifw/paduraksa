@@ -1,6 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
-
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 
@@ -59,7 +57,7 @@ public static class AdminInternalRequestExtensions
             return null;
         }
 
-        string host = context.Request.Host.Value ?? string.Empty;
+        var host = context.Request.Host.Value ?? string.Empty;
         return new AdminRequestFacts(
             host,
             context.Request.IsHttps,
@@ -127,9 +125,9 @@ internal sealed class AdminForwardedHeadersMiddleware(RequestDelegate next, Admi
     /// <summary>Sets the connection's client address from a single <c>X-Forwarded-For</c> value; unknown (null) otherwise.</summary>
     private static void ApplyClient(HttpContext context)
     {
-        string value = context.Request.Headers["X-Forwarded-For"].ToString().Trim();
+        var value = context.Request.Headers["X-Forwarded-For"].ToString().Trim();
         IPAddress? address = null;
-        if (value.Length > 0 && !value.Contains(',', StringComparison.Ordinal) && IPAddress.TryParse(value, out IPAddress? parsed))
+        if (value.Length > 0 && !value.Contains(',', StringComparison.Ordinal) && IPAddress.TryParse(value, out var parsed))
         {
             address = parsed.IsIPv4MappedToIPv6 ? parsed.MapToIPv4() : parsed;
         }
@@ -140,7 +138,7 @@ internal sealed class AdminForwardedHeadersMiddleware(RequestDelegate next, Admi
     /// <summary>Sets the request scheme from <c>X-Forwarded-Proto</c> (exactly <c>http</c> or <c>https</c>).</summary>
     private static void ApplyScheme(HttpContext context)
     {
-        string value = context.Request.Headers["X-Forwarded-Proto"].ToString().Trim();
+        var value = context.Request.Headers["X-Forwarded-Proto"].ToString().Trim();
         if (value.Equals("https", StringComparison.OrdinalIgnoreCase))
         {
             context.Request.Scheme = "https";
@@ -154,7 +152,7 @@ internal sealed class AdminForwardedHeadersMiddleware(RequestDelegate next, Admi
     /// <summary>Sets the request host from <c>X-Forwarded-Host</c> (the public name and port the client used).</summary>
     private static void ApplyHost(HttpContext context)
     {
-        string value = context.Request.Headers["X-Forwarded-Host"].ToString().Trim();
+        var value = context.Request.Headers["X-Forwarded-Host"].ToString().Trim();
         if (value.Length == 0 || value.AsSpan().ContainsAnyExceptInRange('\x21', '\x7E'))
         {
             return;

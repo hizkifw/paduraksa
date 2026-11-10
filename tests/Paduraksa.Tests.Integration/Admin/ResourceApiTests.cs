@@ -7,7 +7,6 @@ using System.Text.Json.Nodes;
 using Paduraksa.Admin.Json;
 using Paduraksa.Contracts.Api;
 using Paduraksa.Contracts.Audit;
-using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
@@ -30,7 +29,7 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
     // The summaries of the certificate DTOs have nullable members without defaults, which the strict contract demands on read: the tests look at the JSON.
     private static async Task<JsonNode> NodeAsync(HttpResponseMessage response)
     {
-        string text = await response.Content.ReadAsStringAsync(Ct);
+        var text = await response.Content.ReadAsStringAsync(Ct);
         Assert.True(response.IsSuccessStatusCode, $"{(int)response.StatusCode}: {text}");
         return JsonNode.Parse(text)!;
     }
@@ -41,14 +40,14 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
 
     internal static (byte[] Pem, string Name) MakeCertificatePem(string name)
     {
-        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         CertificateRequest request = new($"CN={name}", key, HashAlgorithmName.SHA256);
         SubjectAlternativeNameBuilder names = new();
         names.AddDnsName(name);
         request.CertificateExtensions.Add(names.Build());
-        using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
 #pragma warning disable RS0030 // Test fixture: a throwaway key generated just above, written into the upload body, never persisted.
-        string pem = certificate.ExportCertificatePem() + "\n" + key.ExportPkcs8PrivateKeyPem();
+        var pem = certificate.ExportCertificatePem() + "\n" + key.ExportPkcs8PrivateKeyPem();
 #pragma warning restore RS0030
         return (Encoding.ASCII.GetBytes(pem), name);
     }
@@ -83,203 +82,203 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
     [Fact]
     public async Task ACertificateIsUploadedListedReadWithoutItsKeyAndDeleted()
     {
-        AdminApiHarness api = shared.Api;
-        (byte[] pem, string name) = MakeCertificatePem("upload.test");
+        var api = shared.Api;
+        var (pem, name) = MakeCertificatePem("upload.test");
 
-        using HttpResponseMessage created = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(pem, "my cert"));
+        using var created = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(pem, "my cert"));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        JsonNode summary = await CertificateAsync(created);
-        CertificateId id = IdOf(summary);
+        var summary = await CertificateAsync(created);
+        var id = IdOf(summary);
         Assert.Equal(CertificateSource.Uploaded.ToName(), summary["source"]!.GetValue<string>());
         Assert.Equal("my cert", summary["label"]!.GetValue<string>());
         Assert.Contains(name, summary["names"]!.AsArray().Select(n => n!.GetValue<string>()));
         Assert.Equal($"/api/v1/certificates/{id}", created.Headers.Location!.ToString());
 
-        using HttpResponseMessage list = await api.GetAsync("/api/v1/certificates?source=uploaded");
+        using var list = await api.GetAsync("/api/v1/certificates?source=uploaded");
         Assert.Contains((await NodeAsync(list)).AsArray(), certificate => certificate!["id"]!.GetValue<string>() == id.ToString());
-        using HttpResponseMessage other = await api.GetAsync("/api/v1/certificates?source=acme");
+        using var other = await api.GetAsync("/api/v1/certificates?source=acme");
         Assert.Empty((await NodeAsync(other)).AsArray());
-        using HttpResponseMessage badFilter = await api.GetAsync("/api/v1/certificates?source=bogus");
+        using var badFilter = await api.GetAsync("/api/v1/certificates?source=bogus");
         Assert.Equal(HttpStatusCode.BadRequest, badFilter.StatusCode);
 
-        using HttpResponseMessage detail = await api.GetAsync($"/api/v1/certificates/{id}");
-        string body = await detail.Content.ReadAsStringAsync(Ct);
+        using var detail = await api.GetAsync($"/api/v1/certificates/{id}");
+        var body = await detail.Content.ReadAsStringAsync(Ct);
         Assert.Contains("BEGIN CERTIFICATE", body, StringComparison.Ordinal);
         Assert.DoesNotContain("PRIVATE KEY", body, StringComparison.Ordinal);
         Assert.DoesNotContain("PRIVATE KEY", await created.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
 
-        using HttpResponseMessage replaced = await api.SendAsync(HttpMethod.Put, $"/api/v1/certificates/{id}", content: Upload(MakeCertificatePem("upload.test").Pem));
+        using var replaced = await api.SendAsync(HttpMethod.Put, $"/api/v1/certificates/{id}", content: Upload(MakeCertificatePem("upload.test").Pem));
         Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
 
-        using HttpResponseMessage deleted = await api.SendAsync(HttpMethod.Delete, $"/api/v1/certificates/{id}");
+        using var deleted = await api.SendAsync(HttpMethod.Delete, $"/api/v1/certificates/{id}");
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
-        using HttpResponseMessage gone = await api.GetAsync($"/api/v1/certificates/{id}");
+        using var gone = await api.GetAsync($"/api/v1/certificates/{id}");
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
     }
 
     [Fact]
     public async Task BadAndOversizeUploadsAreRejectedAsProblems()
     {
-        AdminApiHarness api = shared.Api;
+        var api = shared.Api;
 
-        using HttpResponseMessage huge = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(new byte[2 * 1024 * 1024]));
+        using var huge = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(new byte[2 * 1024 * 1024]));
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, huge.StatusCode);
         Assert.Equal(413, (await AdminApiHarness.ProblemAsync(huge, Ct)).Status);
 
-        using HttpResponseMessage overVaultLimit = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(new byte[1_100_000]));
-        ApiProblem tooLarge = await AdminApiHarness.ProblemAsync(overVaultLimit, Ct);
+        using var overVaultLimit = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(new byte[1_100_000]));
+        var tooLarge = await AdminApiHarness.ProblemAsync(overVaultLimit, Ct);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, overVaultLimit.StatusCode);
         Assert.Contains(tooLarge.Errors!, e => e.Code == "certificate.import.tooLarge");
 
-        using HttpResponseMessage garbage = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(Encoding.ASCII.GetBytes("not a certificate")));
+        using var garbage = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(Encoding.ASCII.GetBytes("not a certificate")));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, garbage.StatusCode);
 
-        using HttpResponseMessage json = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Json("{}"));
+        using var json = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Json("{}"));
         Assert.Equal(HttpStatusCode.UnsupportedMediaType, json.StatusCode);
 
         using MultipartFormDataContent noFile = [];
         noFile.Add(new StringContent("pw"), "password");
-        using HttpResponseMessage missing = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: noFile);
+        using var missing = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: noFile);
         Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
 
         using MultipartFormDataContent unknownPart = [];
         unknownPart.Add(new StringContent("x"), "surprise");
-        using HttpResponseMessage unknown = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: unknownPart);
+        using var unknown = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: unknownPart);
         Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
 
         using MultipartFormDataContent twice = [];
         twice.Add(new StringContent("one"), "password");
         twice.Add(new StringContent("two"), "password");
         twice.Add(new ByteArrayContent(MakeCertificatePem("dup.test").Pem), "file", "bundle.pem");
-        using HttpResponseMessage duplicate = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: twice);
+        using var duplicate = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: twice);
         Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
         using MultipartFormDataContent twoFiles = [];
         twoFiles.Add(new ByteArrayContent(MakeCertificatePem("a.test").Pem), "file", "a.pem");
         twoFiles.Add(new ByteArrayContent(MakeCertificatePem("b.test").Pem), "file", "b.pem");
-        using HttpResponseMessage secondFile = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: twoFiles);
+        using var secondFile = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: twoFiles);
         Assert.Equal(HttpStatusCode.Created, secondFile.StatusCode); // the first file is the upload; nothing after it is read
 
-        using HttpResponseMessage viewer = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", "viewer", content: Upload(MakeCertificatePem("v.test").Pem));
+        using var viewer = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", "viewer", content: Upload(MakeCertificatePem("v.test").Pem));
         Assert.Equal(HttpStatusCode.Forbidden, viewer.StatusCode);
     }
 
     [Fact]
     public async Task SelfSignedAndLocalCaCertificatesAreIssuedReissuedAndDeleted()
     {
-        AdminApiHarness api = shared.Api;
+        var api = shared.Api;
 
-        using HttpResponseMessage selfSigned = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", content: Json("""{"names":["ss.test"],"keySpec":"ecdsa-p256","label":"ss"}"""));
-        JsonNode created = await CertificateAsync(selfSigned);
-        CertificateId createdId = IdOf(created);
+        using var selfSigned = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", content: Json("""{"names":["ss.test"],"keySpec":"ecdsa-p256","label":"ss"}"""));
+        var created = await CertificateAsync(selfSigned);
+        var createdId = IdOf(created);
         Assert.Equal(HttpStatusCode.Created, selfSigned.StatusCode);
         Assert.Equal(CertificateSource.SelfSigned.ToName(), created["source"]!.GetValue<string>());
 
-        using HttpResponseMessage reissued = await api.SendAsync(HttpMethod.Post, $"/api/v1/certificates/{createdId}/reissue");
-        JsonNode again = await CertificateAsync(reissued);
+        using var reissued = await api.SendAsync(HttpMethod.Post, $"/api/v1/certificates/{createdId}/reissue");
+        var again = await CertificateAsync(reissued);
         Assert.Equal(createdId, IdOf(again));
         Assert.NotEqual(created["sha256Fingerprint"]!.GetValue<string>(), again["sha256Fingerprint"]!.GetValue<string>());
 
-        using HttpResponseMessage noNames = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", content: Json("""{"names":[]}"""));
+        using var noNames = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/self-signed", content: Json("""{"names":[]}"""));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, noNames.StatusCode);
         Assert.NotEmpty((await AdminApiHarness.ProblemAsync(noNames, Ct)).Errors!);
 
         // The local CA root exists from the first start (the admin listener's own certificate is issued from it), so a
         // leaf can always be issued and the "no local CA yet" answer (certificate.localCa.missing) is no longer reachable
         // through the API; CertificateOperationsTests asserts it where it can still arise.
-        using HttpResponseMessage ca = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/local-ca");
+        using var ca = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/local-ca");
         Assert.Equal(CertificateSource.LocalCaRoot.ToName(), (await CertificateAsync(ca))["source"]!.GetValue<string>());
-        using HttpResponseMessage leaf = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/local-ca/leaf", content: Json("""{"names":["leaf.test"]}"""));
+        using var leaf = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates/local-ca/leaf", content: Json("""{"names":["leaf.test"]}"""));
         Assert.Equal(CertificateSource.LocalCa.ToName(), (await CertificateAsync(leaf))["source"]!.GetValue<string>());
 
-        using HttpResponseMessage deleted = await api.SendAsync(HttpMethod.Delete, $"/api/v1/certificates/{createdId}");
+        using var deleted = await api.SendAsync(HttpMethod.Delete, $"/api/v1/certificates/{createdId}");
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
-        using HttpResponseMessage missing = await api.SendAsync(HttpMethod.Delete, $"/api/v1/certificates/{createdId}");
+        using var missing = await api.SendAsync(HttpMethod.Delete, $"/api/v1/certificates/{createdId}");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
 
     [Fact]
     public async Task AcmeRequestsAreValidatedAndOrdersReported()
     {
-        AdminApiHarness api = shared.Api;
+        var api = shared.Api;
         CertificateIssueRequest request = new(["a.example.com"], AcmeAccountId.New());
 
         // Nothing this test does may make an order. Another test on the shared host may have made one, so the list is compared
         // with itself rather than with emptiness.
-        using HttpResponseMessage before = await api.GetAsync("/api/v1/acme-orders");
+        using var before = await api.GetAsync("/api/v1/acme-orders");
         IReadOnlyList<AcmeOrderSummary> ordersBefore = await AdminApiHarness.ReadAsync(before, AdminJsonContext.Default.IReadOnlyListAcmeOrderSummary, Ct);
 
-        using HttpResponseMessage unknownAccount = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/certificates/acme", request, AdminJsonContext.Default.CertificateIssueRequest);
+        using var unknownAccount = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/certificates/acme", request, AdminJsonContext.Default.CertificateIssueRequest);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, unknownAccount.StatusCode);
         Assert.NotEmpty((await AdminApiHarness.ProblemAsync(unknownAccount, Ct)).Errors!);
 
-        using HttpResponseMessage orders = await api.GetAsync("/api/v1/acme-orders");
+        using var orders = await api.GetAsync("/api/v1/acme-orders");
         Assert.Equal(ordersBefore.Select(o => o.OrderId), (await AdminApiHarness.ReadAsync(orders, AdminJsonContext.Default.IReadOnlyListAcmeOrderSummary, Ct)).Select(o => o.OrderId));
-        using HttpResponseMessage noOrder = await api.GetAsync($"/api/v1/certificates/{CertificateId.New()}/order");
+        using var noOrder = await api.GetAsync($"/api/v1/certificates/{CertificateId.New()}/order");
         Assert.Equal(HttpStatusCode.NotFound, noOrder.StatusCode);
-        using HttpResponseMessage renew = await api.SendAsync(HttpMethod.Post, $"/api/v1/certificates/{CertificateId.New()}/renew");
+        using var renew = await api.SendAsync(HttpMethod.Post, $"/api/v1/certificates/{CertificateId.New()}/renew");
         Assert.Equal(HttpStatusCode.NotFound, renew.StatusCode);
-        using HttpResponseMessage viewer = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/certificates/acme", request, AdminJsonContext.Default.CertificateIssueRequest, "viewer");
+        using var viewer = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/certificates/acme", request, AdminJsonContext.Default.CertificateIssueRequest, "viewer");
         Assert.Equal(HttpStatusCode.Forbidden, viewer.StatusCode);
     }
 
     [Fact]
     public async Task AcmeAccountRequestsAreValidatedBeforeAnySecretOrCaIsTouched()
     {
-        AdminApiHarness api = shared.Api;
+        var api = shared.Api;
         // Nothing this test does may create an account, and another test on the shared host may have created one: this is a
         // delta, not emptiness.
-        using HttpResponseMessage before = await api.GetAsync("/api/v1/acme-accounts");
+        using var before = await api.GetAsync("/api/v1/acme-accounts");
         IReadOnlyList<AcmeAccountSummary> accountsBefore = await AdminApiHarness.ReadAsync(before, AdminJsonContext.Default.IReadOnlyListAcmeAccountSummary, Ct);
 
-        using HttpResponseMessage http = await api.SendAsync(HttpMethod.Post, "/api/v1/acme-accounts", content: Json("""{"directoryUrl":"http://ca.test/dir","termsOfServiceAgreed":true}"""));
+        using var http = await api.SendAsync(HttpMethod.Post, "/api/v1/acme-accounts", content: Json("""{"directoryUrl":"http://ca.test/dir","termsOfServiceAgreed":true}"""));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, http.StatusCode);
-        using HttpResponseMessage half = await api.SendAsync(HttpMethod.Post, "/api/v1/acme-accounts", content: Json("""{"directoryUrl":"https://ca.test/dir","termsOfServiceAgreed":true,"eabKid":"kid"}"""));
+        using var half = await api.SendAsync(HttpMethod.Post, "/api/v1/acme-accounts", content: Json("""{"directoryUrl":"https://ca.test/dir","termsOfServiceAgreed":true,"eabKid":"kid"}"""));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, half.StatusCode);
-        string halfBody = await half.Content.ReadAsStringAsync(Ct);
+        var halfBody = await half.Content.ReadAsStringAsync(Ct);
         Assert.Contains("acme.account.eab.incomplete", halfBody, StringComparison.Ordinal);
-        using HttpResponseMessage badKey = await api.SendAsync(HttpMethod.Post, "/api/v1/acme-accounts", content: Json("""{"directoryUrl":"https://ca.test/dir","termsOfServiceAgreed":true,"eabKid":"kid","eabHmacKey":"%%not base64%%"}"""));
+        using var badKey = await api.SendAsync(HttpMethod.Post, "/api/v1/acme-accounts", content: Json("""{"directoryUrl":"https://ca.test/dir","termsOfServiceAgreed":true,"eabKid":"kid","eabHmacKey":"%%not base64%%"}"""));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, badKey.StatusCode);
         Assert.DoesNotContain("not base64", await badKey.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
 
-        using HttpResponseMessage list = await api.GetAsync("/api/v1/acme-accounts");
+        using var list = await api.GetAsync("/api/v1/acme-accounts");
         Assert.Equal(accountsBefore.Select(a => a.Id), (await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListAcmeAccountSummary, Ct)).Select(a => a.Id));
-        using HttpResponseMessage unknown = await api.GetAsync($"/api/v1/acme-accounts/{AcmeAccountId.New()}");
+        using var unknown = await api.GetAsync($"/api/v1/acme-accounts/{AcmeAccountId.New()}");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
-        using HttpResponseMessage deactivate = await api.SendAsync(HttpMethod.Delete, $"/api/v1/acme-accounts/{AcmeAccountId.New()}");
+        using var deactivate = await api.SendAsync(HttpMethod.Delete, $"/api/v1/acme-accounts/{AcmeAccountId.New()}");
         Assert.Equal(HttpStatusCode.NotFound, deactivate.StatusCode);
     }
 
     [Fact]
     public async Task DnsCredentialsGoIntoTheVaultAndNeverComeBackInAnyResponseOrAuditEvent()
     {
-        AdminApiHarness api = shared.Api;
-        string kind = DnsProviderKind.Cloudflare.ToName();
+        var api = shared.Api;
+        var kind = DnsProviderKind.Cloudflare.ToName();
         List<string> bodies = [];
 
-        using HttpResponseMessage created = await api.SendAsync(HttpMethod.Post, "/api/v1/dns-providers", content: Json($$"""{"kind":"{{kind}}","label":"cf","credential":"{{DnsToken}}"}"""));
+        using var created = await api.SendAsync(HttpMethod.Post, "/api/v1/dns-providers", content: Json($$"""{"kind":"{{kind}}","label":"cf","credential":"{{DnsToken}}"}"""));
         bodies.Add(await created.Content.ReadAsStringAsync(Ct));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        DnsProviderSummary provider = System.Text.Json.JsonSerializer.Deserialize(bodies[0], AdminJsonContext.Default.DnsProviderSummary)!;
+        var provider = System.Text.Json.JsonSerializer.Deserialize(bodies[0], AdminJsonContext.Default.DnsProviderSummary)!;
         Assert.Equal(DnsProviderKind.Cloudflare, provider.Kind);
         Assert.DoesNotContain("credentialSecretId", bodies[0], StringComparison.Ordinal);
 
-        using HttpResponseMessage list = await api.GetAsync("/api/v1/dns-providers");
+        using var list = await api.GetAsync("/api/v1/dns-providers");
         bodies.Add(await list.Content.ReadAsStringAsync(Ct));
-        using HttpResponseMessage one = await api.GetAsync($"/api/v1/dns-providers/{provider.Id}");
+        using var one = await api.GetAsync($"/api/v1/dns-providers/{provider.Id}");
         bodies.Add(await one.Content.ReadAsStringAsync(Ct));
-        using HttpResponseMessage rotated = await api.SendAsync(HttpMethod.Put, $"/api/v1/dns-providers/{provider.Id}", content: Json($$"""{"credential":"{{RotatedToken}}"}"""));
+        using var rotated = await api.SendAsync(HttpMethod.Put, $"/api/v1/dns-providers/{provider.Id}", content: Json($$"""{"credential":"{{RotatedToken}}"}"""));
         bodies.Add(await rotated.Content.ReadAsStringAsync(Ct));
         Assert.Equal(HttpStatusCode.OK, rotated.StatusCode);
         Assert.Equal(provider.Id, System.Text.Json.JsonSerializer.Deserialize(bodies[^1], AdminJsonContext.Default.DnsProviderSummary)!.Id);
 
-        using HttpResponseMessage audit = await api.GetAsync("/api/v1/audit?action=acme.*");
-        string auditBody = await audit.Content.ReadAsStringAsync(Ct);
+        using var audit = await api.GetAsync("/api/v1/audit?action=acme.*");
+        var auditBody = await audit.Content.ReadAsStringAsync(Ct);
         bodies.Add(auditBody);
         Assert.Contains("acme.dns_provider.create", auditBody, StringComparison.Ordinal);
         Assert.Contains("acme.dns_provider.rotate", auditBody, StringComparison.Ordinal);
-        using HttpResponseMessage openApi = await api.GetAsync("/api/v1/openapi.json", null);
+        using var openApi = await api.GetAsync("/api/v1/openapi.json", null);
         bodies.Add(await openApi.Content.ReadAsStringAsync(Ct));
-        foreach (string body in bodies)
+        foreach (var body in bodies)
         {
             Assert.DoesNotContain(DnsToken, body, StringComparison.Ordinal);
             Assert.DoesNotContain(RotatedToken, body, StringComparison.Ordinal);
@@ -287,42 +286,42 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
             Assert.DoesNotContain("sec_", body, StringComparison.Ordinal);
         }
 
-        using HttpResponseMessage bad = await api.SendAsync(HttpMethod.Post, "/api/v1/dns-providers", content: Json($$"""{"kind":"{{kind}}","label":"  ","credential":"{{DnsToken}}"}"""));
+        using var bad = await api.SendAsync(HttpMethod.Post, "/api/v1/dns-providers", content: Json($$"""{"kind":"{{kind}}","label":"  ","credential":"{{DnsToken}}"}"""));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, bad.StatusCode);
         Assert.DoesNotContain(DnsToken, await bad.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
-        using HttpResponseMessage unknownKind = await api.SendAsync(HttpMethod.Post, "/api/v1/dns-providers", content: Json($$"""{"kind":"bogus","label":"x","credential":"{{DnsToken}}"}"""));
+        using var unknownKind = await api.SendAsync(HttpMethod.Post, "/api/v1/dns-providers", content: Json($$"""{"kind":"bogus","label":"x","credential":"{{DnsToken}}"}"""));
         Assert.Equal(HttpStatusCode.BadRequest, unknownKind.StatusCode);
         Assert.DoesNotContain(DnsToken, await unknownKind.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
 
-        using HttpResponseMessage missingTest = await api.SendAsync(HttpMethod.Post, $"/api/v1/dns-providers/{DnsProviderId.New()}/test");
+        using var missingTest = await api.SendAsync(HttpMethod.Post, $"/api/v1/dns-providers/{DnsProviderId.New()}/test");
         Assert.Equal(HttpStatusCode.NotFound, missingTest.StatusCode);
-        using HttpResponseMessage viewerTest = await api.SendAsync(HttpMethod.Post, $"/api/v1/dns-providers/{provider.Id}/test", "viewer");
+        using var viewerTest = await api.SendAsync(HttpMethod.Post, $"/api/v1/dns-providers/{provider.Id}/test", "viewer");
         Assert.Equal(HttpStatusCode.Forbidden, viewerTest.StatusCode);
-        using HttpResponseMessage operatorTest = await api.SendAsync(HttpMethod.Post, $"/api/v1/dns-providers/{provider.Id}/test", "operator");
+        using var operatorTest = await api.SendAsync(HttpMethod.Post, $"/api/v1/dns-providers/{provider.Id}/test", "operator");
         Assert.Equal(HttpStatusCode.Forbidden, operatorTest.StatusCode);
-        using HttpResponseMessage deleted = await api.SendAsync(HttpMethod.Delete, $"/api/v1/dns-providers/{provider.Id}");
+        using var deleted = await api.SendAsync(HttpMethod.Delete, $"/api/v1/dns-providers/{provider.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
-        using HttpResponseMessage gone = await api.GetAsync($"/api/v1/dns-providers/{provider.Id}");
+        using var gone = await api.GetAsync($"/api/v1/dns-providers/{provider.Id}");
         Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
     }
 
     [Fact]
     public async Task TheAuditLogIsQueriedByFilterAndPagedAndItsChainVerifies()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
-        foreach (string label in new[] { "x1", "x2", "x3" })
+        await using var api = await AdminApiHarness.StartAsync(Ct);
+        foreach (var label in new[] { "x1", "x2", "x3" })
         {
-            using HttpResponseMessage created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/hosts", ConfigTestSupport.RespondHost(label, $"{label}.test", "ok"), AdminJsonContext.Default.HostConfig, "admin");
+            using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/hosts", ConfigTestSupport.RespondHost(label, $"{label}.test", "ok"), AdminJsonContext.Default.HostConfig, "admin");
             Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         }
 
         async Task<Page<AuditEventSummary>> QueryAsync(string query) =>
             await AdminApiHarness.ReadAsync(await api.GetAsync("/api/v1/audit" + query, "auditor"), AdminJsonContext.Default.PageAuditEventSummary, Ct);
 
-        Page<AuditEventSummary> all = await QueryAsync(string.Empty);
+        var all = await QueryAsync(string.Empty);
         Assert.True(all.Items.Count >= 3);
-        ApiTokenId admin = api.TokenOf("admin");
-        Page<AuditEventSummary> byAdmin = await QueryAsync($"?actor={admin}&action=config.*");
+        var admin = api.TokenOf("admin");
+        var byAdmin = await QueryAsync($"?actor={admin}&action=config.*");
         Assert.Equal(3, byAdmin.Items.Count);
         Assert.All(byAdmin.Items, e => Assert.Equal(admin, e.Actor.Token));
         Assert.All(byAdmin.Items, e => Assert.Equal(Channel.Api, e.Channel));
@@ -330,18 +329,18 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         Assert.Empty((await QueryAsync($"?actor={api.UserOf("admin")}&action=config.*")).Items); // the actor is the token that made the change, not its owner
         Assert.Empty((await QueryAsync("?to=2000-01-01T00:00:00Z")).Items);
         Assert.Equal(all.Items.Count, (await QueryAsync("?from=2000-01-01T00:00:00Z")).Items.Count);
-        Page<AuditEventSummary> succeeded = await QueryAsync("?outcome=success");
+        var succeeded = await QueryAsync("?outcome=success");
         Assert.Equal(all.Items.Count(e => e.Outcome == AuditOutcome.Success), succeeded.Items.Count);
         Assert.All(succeeded.Items, e => Assert.Equal(AuditOutcome.Success, e.Outcome));
         Assert.All((await QueryAsync("?outcome=denied")).Items, e => Assert.Equal(AuditOutcome.Denied, e.Outcome));
-        AuditEventSummary one = byAdmin.Items[0];
+        var one = byAdmin.Items[0];
         Assert.Contains(one.Id, (await QueryAsync($"?target={one.Target}")).Items.Select(e => e.Id));
 
         List<AuditEventId> seen = [];
         string? cursor = null;
         do
         {
-            Page<AuditEventSummary> page = await QueryAsync("?limit=2" + (cursor is null ? string.Empty : "&cursor=" + cursor));
+            var page = await QueryAsync("?limit=2" + (cursor is null ? string.Empty : "&cursor=" + cursor));
             Assert.True(page.Items.Count <= 2);
             seen.AddRange(page.Items.Select(e => e.Id));
             cursor = page.NextCursor;
@@ -350,14 +349,14 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
         Assert.Equal(all.Items.Select(e => e.Id), seen);
         Assert.Equal(seen.OrderByDescending(i => i), seen);
 
-        foreach (string bad in new[] { "?from=yesterday", "?actor=nobody", "?action=A.B", "?action=a*b", "?target=%27%3B--", "?cursor=zzz", "?actor=" + new string('a', 200), "?action=" + new string('a', 200), "?target=" + new string('a', 200), "?from=2026-11-08", "?from=2026-11-09T00:00:00Z&to=2026-11-08T00:00:00Z", "?outcome=Success", "?outcome=ok" })
+        foreach (var bad in new[] { "?from=yesterday", "?actor=nobody", "?action=A.B", "?action=a*b", "?target=%27%3B--", "?cursor=zzz", "?actor=" + new string('a', 200), "?action=" + new string('a', 200), "?target=" + new string('a', 200), "?from=2026-11-08", "?from=2026-11-09T00:00:00Z&to=2026-11-08T00:00:00Z", "?outcome=Success", "?outcome=ok" })
         {
-            using HttpResponseMessage rejected = await api.GetAsync("/api/v1/audit" + bad, "auditor");
+            using var rejected = await api.GetAsync("/api/v1/audit" + bad, "auditor");
             Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
         }
 
-        using HttpResponseMessage verify = await api.GetAsync("/api/v1/audit/verify", "auditor");
-        AuditVerification verification = await AdminApiHarness.ReadAsync(verify, AdminJsonContext.Default.AuditVerification, Ct);
+        using var verify = await api.GetAsync("/api/v1/audit/verify", "auditor");
+        var verification = await AdminApiHarness.ReadAsync(verify, AdminJsonContext.Default.AuditVerification, Ct);
         Assert.True(verification.Intact);
         Assert.True(verification.VerifiedEvents >= all.Items.Count);
         Assert.Equal(64, verification.HeadHash!.Length);
@@ -366,45 +365,45 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
     [Fact]
     public async Task ASimulationRunsAgainstTheLiveConfigAndAgainstADraftWithoutChangingIt()
     {
-        await using AdminApiHarness api = await AdminApiHarness.StartAsync(Ct);
-        using HttpResponseMessage live = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/hosts", ConfigTestSupport.RespondHost("sim", "sim.test", "hello"), AdminJsonContext.Default.HostConfig);
-        ConfigRevisionId revision = (await AdminApiHarness.ReadAsync(live, AdminJsonContext.Default.ConfigCommandResult, Ct)).Revision!.Id;
+        await using var api = await AdminApiHarness.StartAsync(Ct);
+        using var live = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/hosts", ConfigTestSupport.RespondHost("sim", "sim.test", "hello"), AdminJsonContext.Default.HostConfig);
+        var revision = (await AdminApiHarness.ReadAsync(live, AdminJsonContext.Default.ConfigCommandResult, Ct)).Revision!.Id;
         SimulationRequest request = new("http://draft.test/", "203.0.113.9");
         SimulationRequest known = new("http://sim.test/", "203.0.113.9");
 
         async Task<HttpResponseMessage> SimulateAsync(SimulationRequest r, SimulationTarget? target, string caller = "viewer") =>
             await api.SendJsonAsync(HttpMethod.Post, "/api/v1/simulate", new SimulateBody(r, target), AdminJsonContext.Default.SimulateBody, caller);
 
-        using HttpResponseMessage liveKnown = await SimulateAsync(known, null);
-        SimulationResult knownResult = await AdminApiHarness.ReadAsync(liveKnown, AdminJsonContext.Default.SimulationResult, Ct);
+        using var liveKnown = await SimulateAsync(known, null);
+        var knownResult = await AdminApiHarness.ReadAsync(liveKnown, AdminJsonContext.Default.SimulationResult, Ct);
         Assert.Equal(SimulationStatus.Simulated, knownResult.Status);
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, knownResult.Outcome!.Kind);
 
-        using HttpResponseMessage liveUnknown = await SimulateAsync(request, SimulationTarget.Live);
-        SimulationOutcomeKind unknownKind = (await AdminApiHarness.ReadAsync(liveUnknown, AdminJsonContext.Default.SimulationResult, Ct)).Outcome!.Kind;
+        using var liveUnknown = await SimulateAsync(request, SimulationTarget.Live);
+        var unknownKind = (await AdminApiHarness.ReadAsync(liveUnknown, AdminJsonContext.Default.SimulationResult, Ct)).Outcome!.Kind;
         Assert.NotEqual(SimulationOutcomeKind.FixedAnswer, unknownKind);
 
-        HostConfig draft = ConfigTestSupport.RespondHost("draft", "draft.test", "drafted");
-        using HttpResponseMessage drafted = await SimulateAsync(request, new DraftCommandSimulationTarget(new UpsertHostCommand(draft)));
+        var draft = ConfigTestSupport.RespondHost("draft", "draft.test", "drafted");
+        using var drafted = await SimulateAsync(request, new DraftCommandSimulationTarget(new UpsertHostCommand(draft)));
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, (await AdminApiHarness.ReadAsync(drafted, AdminJsonContext.Default.SimulationResult, Ct)).Outcome!.Kind);
-        using HttpResponseMessage hosts = await api.GetAsync("/api/v1/hosts");
+        using var hosts = await api.GetAsync("/api/v1/hosts");
         Assert.Single(await AdminApiHarness.ReadAsync(hosts, AdminJsonContext.Default.IReadOnlyListHostConfig, Ct));
 
-        using HttpResponseMessage atRevision = await SimulateAsync(known, new RevisionSimulationTarget(revision));
+        using var atRevision = await SimulateAsync(known, new RevisionSimulationTarget(revision));
         Assert.Equal(SimulationStatus.Simulated, (await AdminApiHarness.ReadAsync(atRevision, AdminJsonContext.Default.SimulationResult, Ct)).Status);
-        using HttpResponseMessage noRevision = await SimulateAsync(known, new RevisionSimulationTarget(ConfigRevisionId.New()));
+        using var noRevision = await SimulateAsync(known, new RevisionSimulationTarget(ConfigRevisionId.New()));
         Assert.Equal(HttpStatusCode.NotFound, noRevision.StatusCode);
 
-        using HttpResponseMessage badRequest = await SimulateAsync(new SimulationRequest("not a url", "203.0.113.9"), null);
-        ApiProblem bad = await AdminApiHarness.ProblemAsync(badRequest, Ct);
+        using var badRequest = await SimulateAsync(new SimulationRequest("not a url", "203.0.113.9"), null);
+        var bad = await AdminApiHarness.ProblemAsync(badRequest, Ct);
         Assert.Equal(HttpStatusCode.BadRequest, badRequest.StatusCode);
         Assert.NotEmpty(bad.Errors!);
 
-        using HttpResponseMessage invalidDraft = await SimulateAsync(request, new DraftCommandSimulationTarget(new UpsertHostCommand(ConfigTestSupport.ProxyHost("bad", "bad.test", "nowhere"))));
+        using var invalidDraft = await SimulateAsync(request, new DraftCommandSimulationTarget(new UpsertHostCommand(ConfigTestSupport.ProxyHost("bad", "bad.test", "nowhere"))));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, invalidDraft.StatusCode);
         Assert.NotEmpty((await AdminApiHarness.ProblemAsync(invalidDraft, Ct)).Errors!);
 
-        using HttpResponseMessage auditor = await SimulateAsync(request, null, "auditor");
+        using var auditor = await SimulateAsync(request, null, "auditor");
         Assert.Equal(HttpStatusCode.Forbidden, auditor.StatusCode);
     }
 }

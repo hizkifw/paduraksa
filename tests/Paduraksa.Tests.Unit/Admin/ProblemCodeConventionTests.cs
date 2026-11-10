@@ -55,15 +55,15 @@ public sealed partial class ProblemCodeConventionTests
 
     private static IEnumerable<(string Name, string Code)> Codes()
     {
-        foreach (Type area in typeof(ApiCodes).GetNestedTypes(BindingFlags.Public))
+        foreach (var area in typeof(ApiCodes).GetNestedTypes(BindingFlags.Public))
         {
-            foreach ((string Name, string Code) code in Constants(area))
+            foreach (var code in Constants(area))
             {
                 yield return code;
             }
         }
 
-        foreach (Type type in (Type[])
+        foreach (var type in (Type[])
         [
             typeof(ConfigErrorCodes),
             typeof(ConfigWarningCodes),
@@ -72,7 +72,7 @@ public sealed partial class ProblemCodeConventionTests
             typeof(CertificateErrorCodes),
         ])
         {
-            foreach ((string Name, string Code) code in Constants(type))
+            foreach (var code in Constants(type))
             {
                 yield return code;
             }

@@ -57,7 +57,7 @@ public static class GateSimulator
             throw new ArgumentException("HTTP/3 only exists over TLS.", nameof(probe));
         }
 
-        foreach (ProbeHeader header in probe.Headers)
+        foreach (var header in probe.Headers)
         {
             if (string.Equals(header.Name, "Host", StringComparison.OrdinalIgnoreCase))
             {
@@ -65,31 +65,31 @@ public static class GateSimulator
             }
         }
 
-        RuntimeSnapshot bound = snapshot.IsBound ? snapshot : snapshot.Bind(1, PlaceholderEndpoints(snapshot));
+        var bound = snapshot.IsBound ? snapshot : snapshot.Bind(1, PlaceholderEndpoints(snapshot));
         List<GateStep> steps = [];
-        IPAddress peer = probe.PeerAddress ?? DefaultPeer(bound.TrustedProxies, probe);
+        var peer = probe.PeerAddress ?? DefaultPeer(bound.TrustedProxies, probe);
 
         if (listeners is not null && Admit(listeners, probe, peer, steps) is { } refused)
         {
             return new GateSimulation(refused, steps, null);
         }
 
-        SslProtocols tlsVersion = SslProtocols.None;
-        ProbeHttpVersion negotiated = probe.HttpVersion;
+        var tlsVersion = SslProtocols.None;
+        var negotiated = probe.HttpVersion;
         if (probe.Https && Handshake(bound, probe, steps, out tlsVersion, out negotiated) is { } rejected)
         {
             return new GateSimulation(rejected, steps, null);
         }
 
-        if (CheckRequest(probe, negotiated, steps, out string path, out string hostHeader) is { } bad)
+        if (CheckRequest(probe, negotiated, steps, out var path, out var hostHeader) is { } bad)
         {
             return new GateSimulation(bad, steps, null);
         }
 
-        DefaultHttpContext context = BuildContext(bound, probe, peer, negotiated, tlsVersion, path, hostHeader);
-        GateDecision decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, new RecordingGateTracer(steps));
-        GateOutcome outcome = OutcomeOf(decision, context, steps);
-        GateUpstream? upstream = outcome.Action == GateOutcomeAction.Forward && context.Features.Get<IGateFeature>()?.State.Route is { } route
+        var context = BuildContext(bound, probe, peer, negotiated, tlsVersion, path, hostHeader);
+        var decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, new RecordingGateTracer(steps));
+        var outcome = OutcomeOf(decision, context, steps);
+        var upstream = outcome.Action == GateOutcomeAction.Forward && context.Features.Get<IGateFeature>()?.State.Route is { } route
             ? route.Admin
                 ? new GateUpstream(UpstreamId.Empty, null, [], Admin: true)
                 : UpstreamOf(bound, route)
@@ -105,8 +105,8 @@ public static class GateSimulator
             return null;
         }
 
-        string routeId = snapshot.RouteIdBySlot[route.Slot].ToString();
-        foreach (RouteConfig candidate in snapshot.Yarp.Routes)
+        var routeId = snapshot.RouteIdBySlot[route.Slot].ToString();
+        foreach (var candidate in snapshot.Yarp.Routes)
         {
             if (string.Equals(candidate.RouteId, routeId, StringComparison.OrdinalIgnoreCase))
             {
@@ -119,13 +119,13 @@ public static class GateSimulator
 
     private static GateUpstream? UpstreamOf(RuntimeSnapshot snapshot, CompiledRoute route)
     {
-        string? clusterId = ClusterOf(snapshot, route);
-        if (clusterId is null || !UpstreamId.TryParse(clusterId, out UpstreamId upstream))
+        var clusterId = ClusterOf(snapshot, route);
+        if (clusterId is null || !UpstreamId.TryParse(clusterId, out var upstream))
         {
             return null;
         }
 
-        foreach (ClusterConfig cluster in snapshot.Yarp.Clusters)
+        foreach (var cluster in snapshot.Yarp.Clusters)
         {
             if (!string.Equals(cluster.ClusterId, clusterId, StringComparison.OrdinalIgnoreCase))
             {
@@ -133,9 +133,9 @@ public static class GateSimulator
             }
 
             List<GateDestination> destinations = [];
-            foreach (KeyValuePair<string, DestinationConfig> destination in cluster.Destinations ?? new Dictionary<string, DestinationConfig>())
+            foreach (var destination in cluster.Destinations ?? new Dictionary<string, DestinationConfig>())
             {
-                if (DestinationId.TryParse(destination.Key, out DestinationId id))
+                if (DestinationId.TryParse(destination.Key, out var id))
                 {
                     destinations.Add(new GateDestination(id, destination.Value.Address));
                 }
@@ -149,8 +149,8 @@ public static class GateSimulator
 
     private static Endpoint[] PlaceholderEndpoints(RuntimeSnapshot snapshot)
     {
-        Endpoint[] endpoints = new Endpoint[snapshot.RouteIdBySlot.Length];
-        for (int i = 0; i < endpoints.Length; i++)
+        var endpoints = new Endpoint[snapshot.RouteIdBySlot.Length];
+        for (var i = 0; i < endpoints.Length; i++)
         {
             endpoints[i] = new Endpoint(static _ => Task.CompletedTask, EndpointMetadataCollection.Empty, snapshot.RouteIdBySlot[i].ToString());
         }
@@ -162,7 +162,7 @@ public static class GateSimulator
     /// Returns the rejection, or null to go on.</summary>
     private static GateOutcome? Admit(ListenerFacts listeners, GateProbe probe, IPAddress peer, List<GateStep> steps)
     {
-        bool quic = probe.HttpVersion == ProbeHttpVersion.Http3;
+        var quic = probe.HttpVersion == ProbeHttpVersion.Http3;
         List<GateFact> facts = [new("transport", quic ? "quic" : "tcp")];
         string? refusal = null;
         if (quic)
@@ -178,8 +178,8 @@ public static class GateSimulator
         }
         else
         {
-            ProxyProtocolOptions? options = probe.Https ? listeners.HttpsProxyProtocol : listeners.HttpProxyProtocol;
-            IPAddress socket = probe.ProxyProtocol ? probe.TransportAddress ?? IPAddress.Loopback : peer;
+            var options = probe.Https ? listeners.HttpsProxyProtocol : listeners.HttpProxyProtocol;
+            var socket = probe.ProxyProtocol ? probe.TransportAddress ?? IPAddress.Loopback : peer;
             facts.Add(new("proxyProtocolListener", options is null ? "off" : "required"));
             facts.Add(new("socketPeer", socket.ToString()));
             refusal = ProxyProtocolAdmission.Check(options, IpKey.FromIPAddress(socket), probe.ProxyProtocol) switch
@@ -206,9 +206,9 @@ public static class GateSimulator
     private static GateOutcome? Handshake(
         RuntimeSnapshot snapshot, GateProbe probe, List<GateStep> steps, out SslProtocols tlsVersion, out ProbeHttpVersion negotiated)
     {
-        bool quic = probe.HttpVersion == ProbeHttpVersion.Http3;
-        string serverName = probe.ServerName ?? DefaultServerName(probe.Host);
-        TlsSelection selection = TlsHandshakeSelector.Select(snapshot.Certificates, serverName, quic);
+        var quic = probe.HttpVersion == ProbeHttpVersion.Http3;
+        var serverName = probe.ServerName ?? DefaultServerName(probe.Host);
+        var selection = TlsHandshakeSelector.Select(snapshot.Certificates, serverName, quic);
         List<GateFact> facts =
         [
             new("serverName", serverName.Length == 0 ? "(none)" : serverName),
@@ -220,7 +220,7 @@ public static class GateSimulator
 
         if (selection.Options is not { } options)
         {
-            string why = selection.Rejection == TlsRejectionReason.Http3Disabled
+            var why = selection.Rejection == TlsRejectionReason.Http3Disabled
                 ? $"HTTP/3 is disabled for '{serverName}': the QUIC handshake is rejected"
                 : serverName.Length == 0
                     ? "no SNI and no default certificate: the handshake is rejected"
@@ -241,9 +241,9 @@ public static class GateSimulator
             return new GateOutcome(GateOutcomeAction.Abort, GateReason.HandshakeRejected);
         }
 
-        CertificateId certificate = selection.Entry!.Certificate.Id;
-        string summary = $"{(selection.Match == CertificateMatchKind.Default ? "the default certificate" : "a certificate")}"
-            + $"{(certificate.IsEmpty ? string.Empty : $" {certificate}")} answers '{serverName}' ({TraceNames.Of(selection.Match)})";
+        var certificate = selection.Entry!.Certificate.Id;
+        var summary = $"{(selection.Match == CertificateMatchKind.Default ? "the default certificate" : "a certificate")}"
+                      + $"{(certificate.IsEmpty ? string.Empty : $" {certificate}")} answers '{serverName}' ({TraceNames.Of(selection.Match)})";
         if (!certificate.IsEmpty)
         {
             facts.Add(new("certificate", certificate.ToString()));
@@ -267,7 +267,7 @@ public static class GateSimulator
 
     private static bool Offers(SslServerAuthenticationOptions options, SslApplicationProtocol protocol)
     {
-        foreach (SslApplicationProtocol offered in options.ApplicationProtocols ?? [])
+        foreach (var offered in options.ApplicationProtocols ?? [])
         {
             if (offered == protocol)
             {
@@ -281,7 +281,7 @@ public static class GateSimulator
     /// <summary>The SNI a browser would send for this host: the name, unless it is an IP literal.</summary>
     private static string DefaultServerName(string host)
     {
-        ReadOnlySpan<char> name = HostTable.HostName(host);
+        var name = HostTable.HostName(host);
         return name.IsEmpty || name[0] == '[' || IPAddress.TryParse(name, out _) ? string.Empty : name.ToString();
     }
 
@@ -298,7 +298,7 @@ public static class GateSimulator
         string? refusal = null;
         if (version == ProbeHttpVersion.Http11)
         {
-            IReadOnlyList<string> hosts = probe.HostHeaders ?? [probe.Host];
+            var hosts = probe.HostHeaders ?? [probe.Host];
             facts.Add(new("hostHeaders", hosts.Count.ToString(CultureInfo.InvariantCulture)));
             if (hosts.Count != 1)
             {
@@ -345,7 +345,7 @@ public static class GateSimulator
     /// info, no path or whitespace characters.</summary>
     private static bool IsValidHost(string host)
     {
-        foreach (char c in host)
+        foreach (var c in host)
         {
             if (!(char.IsAsciiLetterOrDigit(c) || "-._~[]:%!$&'()*+,;=".Contains(c, StringComparison.Ordinal)))
             {
@@ -360,7 +360,7 @@ public static class GateSimulator
         RuntimeSnapshot snapshot, GateProbe probe, IPAddress peer, ProbeHttpVersion version, SslProtocols tlsVersion, string path, string hostHeader)
     {
         DefaultHttpContext context = new();
-        HttpRequest request = context.Request;
+        var request = context.Request;
         request.Method = probe.Method;
         request.Scheme = probe.Https ? "https" : "http";
         request.Protocol = version switch
@@ -376,7 +376,7 @@ public static class GateSimulator
             feature.RawTarget = probe.Path + (string.IsNullOrEmpty(probe.Query) ? string.Empty : "?" + probe.Query);
         }
 
-        foreach (ProbeHeader header in probe.Headers)
+        foreach (var header in probe.Headers)
         {
             request.Headers.Append(header.Name, header.Value);
         }
@@ -384,8 +384,8 @@ public static class GateSimulator
         request.Headers.Host = hostHeader;
         AddClientHeader(request.Headers, snapshot.TrustedProxies, probe);
 
-        IpKey address = IpKey.FromIPAddress(peer);
-        IpKey transport = probe.ProxyProtocol ? IpKey.FromIPAddress(probe.TransportAddress ?? IPAddress.Loopback) : address;
+        var address = IpKey.FromIPAddress(peer);
+        var transport = probe.ProxyProtocol ? IpKey.FromIPAddress(probe.TransportAddress ?? IPAddress.Loopback) : address;
         ClientInfo info = new(
             address,
             ClientPort,
@@ -405,7 +405,7 @@ public static class GateSimulator
     /// <summary>What the proxy in front would send: the client in the header its mode reads, unless the probe set one.</summary>
     private static void AddClientHeader(IHeaderDictionary headers, TrustedProxyPolicy policy, GateProbe probe)
     {
-        string? name = probe.Arrival switch
+        var name = probe.Arrival switch
         {
             ProbeArrival.TrustedProxy => policy.Mode == TrustedProxyMode.Generic ? policy.ForwardingHeader : TrustedProxyPolicy.XForwardedFor,
             ProbeArrival.CloudflareProxy or ProbeArrival.CloudflareTunnel => CloudflareHeaders.ConnectingIp,
@@ -425,7 +425,7 @@ public static class GateSimulator
             return probe.ClientAddress;
         }
 
-        bool matchesMode = probe.Arrival switch
+        var matchesMode = probe.Arrival switch
         {
             ProbeArrival.TrustedProxy => policy.Mode == TrustedProxyMode.Generic,
             ProbeArrival.CloudflareProxy => policy.Mode == TrustedProxyMode.CloudflareProxy,
@@ -433,7 +433,7 @@ public static class GateSimulator
         };
         if (matchesMode)
         {
-            foreach ((IpKey first, IpKey _) in policy.TrustedPeers.GetRanges())
+            foreach (var (first, _) in policy.TrustedPeers.GetRanges())
             {
                 return first.ToIPAddress();
             }
@@ -444,15 +444,15 @@ public static class GateSimulator
 
     private static GateOutcome OutcomeOf(GateDecision decision, DefaultHttpContext context, List<GateStep> steps)
     {
-        GateReason reason = ReasonOf(steps);
+        var reason = ReasonOf(steps);
         switch (decision.Action)
         {
             case GateAction.Forward:
                 return new GateOutcome(GateOutcomeAction.Forward, GateReason.Forwarded);
             case GateAction.Respond:
-                PrecomputedResponse response = decision.Response!;
+                var response = decision.Response!;
                 ResponseWriter.ApplyHeaders(context, response);
-                string? location = response.StatusCode / 100 == 3 && context.Response.Headers.Location.Count > 0
+                var location = response.StatusCode / 100 == 3 && context.Response.Headers.Location.Count > 0
                     ? context.Response.Headers.Location.ToString()
                     : null;
                 return new GateOutcome(GateOutcomeAction.Respond, reason, response.StatusCode, location, BodyOf(response));
@@ -469,14 +469,14 @@ public static class GateSimulator
             return null;
         }
 
-        string text = Encoding.UTF8.GetString(response.Body, 0, Math.Min(response.Body.Length, BodyPreviewLimit));
+        var text = Encoding.UTF8.GetString(response.Body, 0, Math.Min(response.Body.Length, BodyPreviewLimit));
         return response.Body.Length > BodyPreviewLimit ? text + "..." : text;
     }
 
     /// <summary>The step that stopped the request names the reason.</summary>
     private static GateReason ReasonOf(List<GateStep> steps)
     {
-        foreach (GateStep step in steps)
+        foreach (var step in steps)
         {
             if (step.Verdict == GateStepVerdict.Stopped)
             {
@@ -514,9 +514,9 @@ public static class GateSimulator
 
         StringBuilder text = new(raw.Length);
         List<byte> pending = [];
-        for (int i = 0; i < raw.Length; i++)
+        for (var i = 0; i < raw.Length; i++)
         {
-            if (raw[i] == '%' && i + 2 < raw.Length && TryHex(raw[i + 1], raw[i + 2], out byte value) && value is not (0x2F or 0x5C))
+            if (raw[i] == '%' && i + 2 < raw.Length && TryHex(raw[i + 1], raw[i + 2], out var value) && value is not (0x2F or 0x5C))
             {
                 pending.Add(value);
                 i += 2;
@@ -541,7 +541,7 @@ public static class GateSimulator
             Span<byte> span = [.. bytes];
             while (!span.IsEmpty)
             {
-                if (Rune.DecodeFromUtf8(span, out Rune rune, out int consumed) == System.Buffers.OperationStatus.Done)
+                if (Rune.DecodeFromUtf8(span, out var rune, out var consumed) == System.Buffers.OperationStatus.Done)
                 {
                     to.Append(rune.ToString());
                     span = span[consumed..];
@@ -567,11 +567,11 @@ public static class GateSimulator
         }
 
         List<string> output = [];
-        string[] segments = path.Split('/');
-        for (int i = 1; i < segments.Length; i++)
+        var segments = path.Split('/');
+        for (var i = 1; i < segments.Length; i++)
         {
-            string segment = segments[i];
-            bool last = i == segments.Length - 1;
+            var segment = segments[i];
+            var last = i == segments.Length - 1;
             if (segment == ".")
             {
                 if (last)
@@ -652,7 +652,7 @@ internal static class TraceNames
     public static string Of<T>(T value)
         where T : struct, Enum
     {
-        string name = value.ToString();
+        var name = value.ToString();
         return name switch
         {
             "IPv6Literal" => "ipv6Literal",

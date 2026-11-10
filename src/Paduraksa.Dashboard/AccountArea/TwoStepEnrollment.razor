@@ -95,8 +95,8 @@
         get
         {
             // The provisioning URI's secret parameter, read as a query (not by searching the text, where "secret=" could sit elsewhere).
-            string secret = Uri.TryCreate(_uri, UriKind.Absolute, out Uri? uri)
-                && Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("secret", out Microsoft.Extensions.Primitives.StringValues value)
+            var secret = Uri.TryCreate(_uri, UriKind.Absolute, out var uri)
+                         && Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("secret", out var value)
                     ? value.ToString()
                     : string.Empty;
             return string.Join(' ', secret.Chunk(4).Select(chunk => new string(chunk)));
@@ -119,7 +119,7 @@
     private async Task BeginAsync()
     {
         _error = null;
-        string password = _password ?? string.Empty;
+        var password = _password ?? string.Empty;
         _password = null;
         if (password.Length == 0)
         {
@@ -127,7 +127,7 @@
             return;
         }
 
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -137,7 +137,7 @@
         _busy = true;
         try
         {
-            TotpEnrollmentResult? result = await Identity.BeginTotpAsync(user.Session.OriginFor(Channel.Dashboard), password);
+            var result = await Identity.BeginTotpAsync(user.Session.OriginFor(Channel.Dashboard), password);
             switch (result)
             {
                 case null:
@@ -173,9 +173,9 @@
     private async Task ConfirmAsync()
     {
         _error = null;
-        string code = (_code ?? string.Empty).Replace(" ", string.Empty, StringComparison.Ordinal);
+        var code = (_code ?? string.Empty).Replace(" ", string.Empty, StringComparison.Ordinal);
         _code = null;
-        CommandOrigin? origin = code.Length == 0 ? null : await Caller.OriginAsync();
+        var origin = code.Length == 0 ? null : await Caller.OriginAsync();
         if (origin is null)
         {
             _error = code.Length == 0 ? "Enter the code your app shows." : null;
@@ -185,7 +185,7 @@
         _busy = true;
         try
         {
-            RecoveryCodesResult result = await Identity.ConfirmTotpAsync(origin, code);
+            var result = await Identity.ConfirmTotpAsync(origin, code);
             if (result is { Status: IdentityStatus.Succeeded, Codes: { } codes })
             {
                 // The secret is not needed any more: drop it now.

@@ -20,7 +20,7 @@ public sealed class LogFileNamesTests
     [Fact]
     public void ARotatedNameCarriesASortableUtcTimestamp()
     {
-        string name = LogFileNames.Rotated(LogFileKind.Error, Noon);
+        var name = LogFileNames.Rotated(LogFileKind.Error, Noon);
 
         Assert.Equal("error-20261109T120000Z.log", name);
         // Within one second, the sequence keeps the names apart and in order.
@@ -28,13 +28,13 @@ public sealed class LogFileNamesTests
         Assert.Equal("error-20261109T120000Z-10.log", LogFileNames.Rotated(LogFileKind.Error, Noon, 10));
         Assert.Equal("error-20261109T120000Z.log.gz", LogFileNames.Compressed(name));
 
-        string earlier = LogFileNames.Rotated(LogFileKind.Error, Noon.AddSeconds(-1));
-        string later = LogFileNames.Rotated(LogFileKind.Error, Noon.AddDays(1));
+        var earlier = LogFileNames.Rotated(LogFileKind.Error, Noon.AddSeconds(-1));
+        var later = LogFileNames.Rotated(LogFileKind.Error, Noon.AddDays(1));
         Assert.True(string.CompareOrdinal(earlier, name) < 0);
         Assert.True(string.CompareOrdinal(name, later) < 0);
         // Two rotations in one second have the same timestamp; the suffix only keeps the names apart.
         Assert.NotEqual(name, LogFileNames.Rotated(LogFileKind.Error, Noon, 2));
-        Assert.True(LogFileNames.TryParseRotated(LogFileNames.Rotated(LogFileKind.Error, Noon, 2), out _, out DateTimeOffset second, out _));
+        Assert.True(LogFileNames.TryParseRotated(LogFileNames.Rotated(LogFileKind.Error, Noon, 2), out _, out var second, out _));
         Assert.Equal(Noon, second);
     }
 
@@ -53,7 +53,7 @@ public sealed class LogFileNamesTests
     [InlineData("access-20261109T120000Z-17.log.gz", LogFileKind.Access, true)]
     public void ARotatedNameParsesBack(string name, LogFileKind kind, bool compressed)
     {
-        Assert.True(LogFileNames.TryParseRotated(name, out LogFileKind parsed, out DateTimeOffset at, out bool isCompressed));
+        Assert.True(LogFileNames.TryParseRotated(name, out var parsed, out var at, out var isCompressed));
 
         Assert.Equal(kind, parsed);
         Assert.Equal(compressed, isCompressed);

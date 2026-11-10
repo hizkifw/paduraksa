@@ -38,7 +38,7 @@ public sealed class ErrorLogTests : IDisposable
         ScopeProvider scopes = new();
         using (scopes.Push(new List<KeyValuePair<string, object?>> { new("App", "public") }))
         {
-            string entry = ErrorLogProvider.FormatEntry(
+            var entry = ErrorLogProvider.FormatEntry(
                 clock,
                 scopes,
                 LogLevel.Error,
@@ -47,7 +47,7 @@ public sealed class ErrorLogTests : IDisposable
                 "the gate said no\r\nand a second line",
                 Thrown());
 
-            string[] lines = entry.Split('\n');
+            var lines = entry.Split('\n');
             Assert.Equal("2026-11-09T12:00:00.500Z fail: Paduraksa.Proxy.Gate.GateMiddleware[12] => app=public: the gate said no and a second line", lines[0]);
             Assert.StartsWith("    System.InvalidOperationException: boom", lines[1], StringComparison.Ordinal);
             Assert.Contains(lines, line => line.TrimStart().StartsWith("at ", StringComparison.Ordinal));
@@ -57,7 +57,7 @@ public sealed class ErrorLogTests : IDisposable
     [Fact]
     public void AnEntryWithoutAScopeOrAnExceptionIsOneLine()
     {
-        string entry = ErrorLogProvider.FormatEntry(
+        var entry = ErrorLogProvider.FormatEntry(
             new FixedClock(DateTimeOffset.UnixEpoch), null, LogLevel.Warning, default, "Category", "one line", null);
 
         Assert.Equal("1970-01-01T00:00:00.000Z warn: Category[0]: one line", entry);
@@ -75,15 +75,15 @@ public sealed class ErrorLogTests : IDisposable
     [Fact]
     public async Task TheErrorLogKeepsWarningAndAboveByDefault()
     {
-        await using SharedServices shared = await StartAsync(new() { ["Logging:LogLevel:Default"] = "Information" });
-        ILogger logger = new RoleLoggerFactory(shared.LoggerFactory, HostRole.Core).CreateLogger("Paduraksa.Tests.Sample");
+        await using var shared = await StartAsync(new() { ["Logging:LogLevel:Default"] = "Information" });
+        var logger = new RoleLoggerFactory(shared.LoggerFactory, HostRole.Core).CreateLogger("Paduraksa.Tests.Sample");
 
         Write(logger, LogLevel.Information, "an information line");
         Write(logger, LogLevel.Warning, "a warning line");
         Write(logger, LogLevel.Error, "an error line");
         await shared.DisposeAsync();
 
-        List<string> lines = Read();
+        var lines = Read();
         Assert.DoesNotContain(lines, line => line.Contains("an information line", StringComparison.Ordinal));
         Assert.Contains(lines, line => line.Contains("warn: Paduraksa.Tests.Sample[0] => app=core: a warning line", StringComparison.Ordinal));
         Assert.Contains(lines, line => line.Contains("fail: Paduraksa.Tests.Sample[0] => app=core: an error line", StringComparison.Ordinal));
@@ -93,10 +93,10 @@ public sealed class ErrorLogTests : IDisposable
     public async Task ItsLevelIsItsOwnAndFollowsTheConsoleNowhere()
     {
         // The console drops everything below Critical; the error log is told to keep Information, and does.
-        await using SharedServices shared = await StartAsync(
+        await using var shared = await StartAsync(
             new() { ["Logging:LogLevel:Default"] = "Critical" },
             logs => logs.ErrorLevel = LogLevel.Information);
-        ILogger logger = new RoleLoggerFactory(shared.LoggerFactory, HostRole.Admin).CreateLogger("Paduraksa.Tests.Sample");
+        var logger = new RoleLoggerFactory(shared.LoggerFactory, HostRole.Admin).CreateLogger("Paduraksa.Tests.Sample");
 
         Write(logger, LogLevel.Information, "kept in the file only");
         await shared.DisposeAsync();
@@ -107,13 +107,13 @@ public sealed class ErrorLogTests : IDisposable
     [Fact]
     public async Task AnEventIdAndAnExceptionReachTheFileWithTheirStack()
     {
-        await using SharedServices shared = await StartAsync(new(), logs => logs.ErrorLevel = LogLevel.Error);
-        ILogger logger = shared.LoggerFactory.CreateLogger("Paduraksa.Tests.Throwing");
+        await using var shared = await StartAsync(new(), logs => logs.ErrorLevel = LogLevel.Error);
+        var logger = shared.LoggerFactory.CreateLogger("Paduraksa.Tests.Throwing");
 
         logger.Log(LogLevel.Error, new EventId(7, "Boom"), "it broke", Thrown(), static (state, _) => state);
         await shared.DisposeAsync();
 
-        List<string> lines = Read();
+        var lines = Read();
         Assert.Contains(lines, line => line.Contains("fail: Paduraksa.Tests.Throwing[7]: it broke", StringComparison.Ordinal));
         Assert.Contains(lines, line => line.Contains("InvalidOperationException: boom", StringComparison.Ordinal));
         Assert.Contains(lines, line => line.TrimStart().StartsWith("at ", StringComparison.Ordinal));
@@ -122,8 +122,8 @@ public sealed class ErrorLogTests : IDisposable
     [Fact]
     public async Task TheLoggingInfrastructureDoesNotWriteToTheFileAboutItself()
     {
-        await using SharedServices shared = await StartAsync(new(), logs => logs.ErrorLevel = LogLevel.Information);
-        ILogger infrastructure = shared.LoggerFactory.CreateLogger("Paduraksa.Server.Logging.RotatingLogFile");
+        await using var shared = await StartAsync(new(), logs => logs.ErrorLevel = LogLevel.Information);
+        var infrastructure = shared.LoggerFactory.CreateLogger("Paduraksa.Server.Logging.RotatingLogFile");
 
         Write(infrastructure, LogLevel.Error, "a report about the log files themselves");
         await shared.DisposeAsync();
@@ -143,16 +143,16 @@ public sealed class ErrorLogTests : IDisposable
             new RotatingLogFileTestSeams { Pause = pause, Taken = taken });
         using (writer)
         {
-            using ILoggerFactory factory = LoggerFactory.Create(logging =>
+            using var factory = LoggerFactory.Create(logging =>
             {
                 logging.SetMinimumLevel(LogLevel.Trace);
                 logging.AddProvider(new ErrorLogProvider(writer));
             });
-            ILogger logger = factory.CreateLogger("Paduraksa.Tests.Load");
+            var logger = factory.CreateLogger("Paduraksa.Tests.Load");
 
             writer.WriteLine("taken and stalled");
             Assert.True(taken.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
-            for (int i = 0; i < 20_000; i++)
+            for (var i = 0; i < 20_000; i++)
             {
                 Write(logger, LogLevel.Warning, "an entry under load");
             }
@@ -169,7 +169,7 @@ public sealed class ErrorLogTests : IDisposable
         PaduraksaOptions options = new() { DataDirectory = Path.Combine(_root, "data") };
         options.Logs.ResolvedDirectory = LogsDirectory;
         configureLogs?.Invoke(options.Logs);
-        SharedServices shared = SharedServices.Create(configuration, options);
+        var shared = SharedServices.Create(configuration, options);
         // The writers are background threads; a turn of the scheduler lets the provider's first entry land in the queue.
         await Task.Yield();
         return shared;
@@ -206,7 +206,7 @@ public sealed class ErrorLogTests : IDisposable
 
         public void ForEachScope<TState>(Action<object?, TState> callback, TState state)
         {
-            for (Scope? scope = _current.Value; scope is not null; scope = scope.Parent)
+            for (var scope = _current.Value; scope is not null; scope = scope.Parent)
             {
                 callback(scope.Value, state);
             }

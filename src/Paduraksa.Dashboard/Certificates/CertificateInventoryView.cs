@@ -50,7 +50,7 @@ public sealed record CertificateInventoryView(IReadOnlyList<CertificateRow> Rows
         ArgumentNullException.ThrowIfNull(issuance);
         List<CertificateSummary> summaries = [.. await certificates.ListAsync(null, cancellationToken).ConfigureAwait(false)];
         HashSet<CertificateId> builtInIds = [];
-        foreach (BuiltInCertificate builtIn in builtIns?.Current ?? [])
+        foreach (var builtIn in builtIns?.Current ?? [])
         {
             builtInIds.Add(builtIn.Id);
             summaries.Add(new CertificateSummary(
@@ -60,12 +60,12 @@ public sealed record CertificateInventoryView(IReadOnlyList<CertificateRow> Rows
                 Label: "Development placeholder", Notes: "Built into this process for development; new in every run."));
         }
 
-        Dictionary<CertificateId, AcmeOrderSummary> orders = (await issuance.ListOrdersAsync(cancellationToken).ConfigureAwait(false))
+        var orders = (await issuance.ListOrdersAsync(cancellationToken).ConfigureAwait(false))
             .ToDictionary(o => o.CertificateId);
         IReadOnlyDictionary<CertificateId, IReadOnlyList<CertificateUse>> uses = new Dictionary<CertificateId, IReadOnlyList<CertificateUse>>();
         if (config is not null)
         {
-            CurrentConfig current = await config.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+            var current = await config.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
             uses = CertificateUsage.Of(current.Document, summaries, now);
         }
 
@@ -80,9 +80,9 @@ public sealed record CertificateInventoryView(IReadOnlyList<CertificateRow> Rows
                 .OrderByDescending(r => r.Summary.CreatedAt)
                 .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase),
         ];
-        CertificateRow? admin = rows.FirstOrDefault(r => r.IsAdmin);
-        CertificateRow? root = rows.FirstOrDefault(r => r.IsRoot && r.Summary.Status == CertificateStatus.Active)
-            ?? rows.FirstOrDefault(r => r.IsRoot);
+        var admin = rows.FirstOrDefault(r => r.IsAdmin);
+        var root = rows.FirstOrDefault(r => r.IsRoot && r.Summary.Status == CertificateStatus.Active)
+                   ?? rows.FirstOrDefault(r => r.IsRoot);
         return new CertificateInventoryView([.. rows.Where(r => !r.IsAdmin && !r.IsRoot)], admin, root, config is not null);
     }
 

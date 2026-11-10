@@ -43,13 +43,13 @@ public sealed class PebbleRoot : IAsyncLifetime
         }
 
         _directory = Directory.CreateTempSubdirectory("paduraksa-pebble-").FullName;
-        string container = $"paduraksa-pebble-root-{Environment.ProcessId}-{Environment.TickCount64}";
+        var container = $"paduraksa-pebble-root-{Environment.ProcessId}-{Environment.TickCount64}";
         try
         {
             await RemoveLeftoversAsync();
 
             // `create` pulls the image when it is not there; nothing runs.
-            (int code, string output) = await DockerCli.RunAsync("create", "--name", container, Image);
+            var (code, output) = await DockerCli.RunAsync("create", "--name", container, Image);
             if (code != 0)
             {
                 SkipReason = $"Docker could not get the Pebble image: {output.Trim()}";
@@ -82,16 +82,16 @@ public sealed class PebbleRoot : IAsyncLifetime
     /// <summary>Removes Pebble containers a test run that was killed left behind: labelled with the id of a process that is gone.</summary>
     private static async Task RemoveLeftoversAsync()
     {
-        (int code, string listing) = await DockerCli.RunAsync("ps", "-a", "--filter", $"label={OwnerLabel}", "--format", $"{{{{.ID}}}} {{{{.Label \"{OwnerLabel}\"}}}}");
+        var (code, listing) = await DockerCli.RunAsync("ps", "-a", "--filter", $"label={OwnerLabel}", "--format", $"{{{{.ID}}}} {{{{.Label \"{OwnerLabel}\"}}}}");
         if (code != 0)
         {
             return;
         }
 
-        foreach (string line in listing.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var line in listing.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            string[] parts = line.Split(' ', 2);
-            if (parts.Length == 2 && int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out int owner) && !IsRunning(owner))
+            var parts = line.Split(' ', 2);
+            if (parts.Length == 2 && int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var owner) && !IsRunning(owner))
             {
                 _ = await DockerCli.RunAsync("rm", "-f", parts[0]);
             }
@@ -102,7 +102,7 @@ public sealed class PebbleRoot : IAsyncLifetime
     {
         try
         {
-            using System.Diagnostics.Process process = System.Diagnostics.Process.GetProcessById(processId);
+            using var process = System.Diagnostics.Process.GetProcessById(processId);
             return !process.HasExited;
         }
         catch (ArgumentException)
@@ -168,7 +168,7 @@ internal sealed class PebbleCa : IAsyncDisposable
     {
         while (true)
         {
-            int port = FreePort();
+            var port = FreePort();
             if (Array.IndexOf(taken, port) < 0)
             {
                 return port;
@@ -187,7 +187,7 @@ internal sealed class PebbleCa : IAsyncDisposable
     /// </remarks>
     public static async Task<PebbleCa> StartAsync(int validationPort, IReadOnlyList<string> names, CancellationToken cancellationToken)
     {
-        for (int attempt = 1; ; attempt++)
+        for (var attempt = 1; ; attempt++)
         {
             try
             {
@@ -206,15 +206,15 @@ internal sealed class PebbleCa : IAsyncDisposable
         // twice (the probes release it again), and Pebble then exits at once because two listeners can't share it. Every
         // port is picked per instance (and per attempt): the fixed TLS port 5001 every container used to share is the same
         // problem with anything else on the host (or a container that outlived its test).
-        int directoryPort = FreePort();
-        int managementPort = FreePortExcept(directoryPort);
-        int tlsPort = FreePortExcept(directoryPort, managementPort);
-        string directory = System.IO.Directory.CreateTempSubdirectory("paduraksa-pebble-config-").FullName;
-        string config = Path.Combine(directory, "pebble-config.json");
+        var directoryPort = FreePort();
+        var managementPort = FreePortExcept(directoryPort);
+        var tlsPort = FreePortExcept(directoryPort, managementPort);
+        var directory = System.IO.Directory.CreateTempSubdirectory("paduraksa-pebble-config-").FullName;
+        var config = Path.Combine(directory, "pebble-config.json");
         await File.WriteAllTextAsync(
             config, ConfigFor(validationPort, directoryPort, managementPort, tlsPort), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
 
-        string container = $"paduraksa-pebble-{Environment.ProcessId}-{Environment.TickCount64}-{validationPort}";
+        var container = $"paduraksa-pebble-{Environment.ProcessId}-{Environment.TickCount64}-{validationPort}";
         List<string> arguments =
         [
             // No --rm: when Pebble exits on its own (a lost port race) the container is still there for the readiness
@@ -223,13 +223,13 @@ internal sealed class PebbleCa : IAsyncDisposable
             "-e", "PEBBLE_VA_ALWAYS_VALID=0", "-e", "PEBBLE_VA_NOSLEEP=1", "-e", "PEBBLE_WFE_NONCEREJECT=0", "-e", "PEBBLE_AUTHZREUSE=0",
             "-v", $"{config}:/paduraksa/pebble-config.json:ro",
         ];
-        foreach (string name in names)
+        foreach (var name in names)
         {
             arguments.AddRange(["--add-host", $"{name}:127.0.0.1"]);
         }
 
         arguments.AddRange([PebbleRoot.Image, "-config", "/paduraksa/pebble-config.json"]);
-        (int code, string output) = await DockerCli.RunAsync([.. arguments]);
+        var (code, output) = await DockerCli.RunAsync([.. arguments]);
         if (code != 0)
         {
             System.IO.Directory.Delete(directory, recursive: true);
@@ -299,18 +299,18 @@ internal sealed class PebbleCa : IAsyncDisposable
 #pragma warning restore CA5359
         // Pebble refuses a request without a User-Agent.
         http.DefaultRequestHeaders.UserAgent.ParseAdd("Paduraksa-Tests/1.0");
-        TimeSpan timeout = TimeSpan.FromMinutes(2);
-        long started = Stopwatch.GetTimestamp();
-        string last = "no answer";
-        int attempt = 0;
+        var timeout = TimeSpan.FromMinutes(2);
+        var started = Stopwatch.GetTimestamp();
+        var last = "no answer";
+        var attempt = 0;
         while (Stopwatch.GetElapsedTime(started) < timeout)
         {
             // A container that already exited (a lost port race, a bad config) will never answer: say so at once instead
             // of polling it for the whole timeout. Cheap enough to check about once a second.
             if (attempt++ % 4 == 0)
             {
-                (int inspectCode, string state) = await DockerCli.RunAsync("inspect", "--format", "{{.State.Status}} {{.State.ExitCode}}", _container);
-                string status = state.Trim();
+                var (inspectCode, state) = await DockerCli.RunAsync("inspect", "--format", "{{.State.Status}} {{.State.ExitCode}}", _container);
+                var status = state.Trim();
                 if (inspectCode != 0)
                 {
                     // Docker itself may be briefly busy under load; the next probes will tell whether the container is gone.
@@ -326,7 +326,7 @@ internal sealed class PebbleCa : IAsyncDisposable
 
             try
             {
-                using HttpResponseMessage response = await http.GetAsync(Directory, cancellationToken);
+                using var response = await http.GetAsync(Directory, cancellationToken);
                 if (response.IsSuccessStatusCode)
                 {
                     return;
@@ -350,8 +350,8 @@ internal sealed class PebbleCa : IAsyncDisposable
             await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
         }
 
-        (_, string logs) = await DockerCli.RunAsync("logs", "--tail", "40", _container);
-        string diagnostics = $"{last}.{Environment.NewLine}docker logs:{Environment.NewLine}{logs.Trim()}";
+        var (_, logs) = await DockerCli.RunAsync("logs", "--tail", "40", _container);
+        var diagnostics = $"{last}.{Environment.NewLine}docker logs:{Environment.NewLine}{logs.Trim()}";
         if (logs.Contains("address already in use", StringComparison.Ordinal))
         {
             // One of the probed ports was taken between the probe and the bind: the caller retries the whole start with fresh ones.

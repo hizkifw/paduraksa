@@ -24,8 +24,8 @@ public sealed class CertificateFormTests
     public async Task WithoutAFile_NothingIsSent()
     {
         await using DashboardTestContext context = new();
-        int calls = 0;
-        IRenderedComponent<UploadCertificateForm> form = Render(context, _ => { calls++; return Task.FromResult<CertificateOperationResult?>(null); });
+        var calls = 0;
+        var form = Render(context, _ => { calls++; return Task.FromResult<CertificateOperationResult?>(null); });
 
         form.Find(".pdk-upload-submit").Click();
 
@@ -37,8 +37,8 @@ public sealed class CertificateFormTests
     public async Task AFileOverTheCap_IsRefusedBeforeAnythingIsSent()
     {
         await using DashboardTestContext context = new();
-        int calls = 0;
-        IRenderedComponent<UploadCertificateForm> form = Render(context, _ => { calls++; return Task.FromResult<CertificateOperationResult?>(null); });
+        var calls = 0;
+        var form = Render(context, _ => { calls++; return Task.FromResult<CertificateOperationResult?>(null); });
 
         form.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary(new byte[CertificateImportLimits.MaxBytes + 1], "big.pem"));
         form.Find(".pdk-upload-submit").Click();
@@ -92,7 +92,7 @@ public sealed class CertificateFormTests
     public async Task ARefusal_ShowsTheReason_AndThePasswordIsGoneAnyway()
     {
         await using DashboardTestContext context = new();
-        IRenderedComponent<UploadCertificateForm> form = Render(context, _ => Task.FromResult<CertificateOperationResult?>(new CertificateOperationResult(
+        var form = Render(context, _ => Task.FromResult<CertificateOperationResult?>(new CertificateOperationResult(
             CertificateOperationStatus.Invalid, Errors: [new ConfigError(string.Empty, "certificate.import.wrongPassword", "the password is wrong")])));
 
         form.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(Pem, "site.p12"));
@@ -124,7 +124,7 @@ public sealed class CertificateFormTests
     public void TheExpiryCountdown_IsColouredBySoonness(int days, string tone, string text)
     {
         DateTimeOffset now = new(2026, 11, 8, 12, 0, 0, TimeSpan.Zero);
-        DateTimeOffset notAfter = now.AddDays(days).AddMinutes(days >= 0 ? 1 : -1);
+        var notAfter = now.AddDays(days).AddMinutes(days >= 0 ? 1 : -1);
 
         Assert.Equal(tone, CertificateDisplay.ExpiryTone(notAfter, now));
         Assert.Equal(text, CertificateDisplay.ExpiresIn(notAfter, now));

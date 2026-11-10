@@ -32,7 +32,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         await Provider().CreateTxtAsync(Challenge, "v1", Token);
 
-        SecretInjection injection = Assert.Single(_handlers.Injections);
+        var injection = Assert.Single(_handlers.Injections);
         Assert.Equal(SecretInjectionKind.Authorization, injection.Kind);
         Assert.Equal("Bearer", injection.Scheme);
         Assert.Equal(["api.cloudflare.com"], injection.AllowedHosts);
@@ -65,7 +65,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     [Fact]
     public async Task ANameWithNoZoneInTheAccountIsPermanent()
     {
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () =>
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () =>
             await Provider().CreateTxtAsync("_acme-challenge.other.org", "v1", Token));
 
         Assert.False(ex.IsTransient);
@@ -75,7 +75,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     [Fact]
     public async Task TwoValuesAtOneNameCoexistAndDeleteRemovesOnlyTheNamedOne()
     {
-        IDnsProvider provider = Provider();
+        var provider = Provider();
 
         await provider.CreateTxtAsync(Challenge, "wildcard-value", Token);
         await provider.CreateTxtAsync(Challenge, "apex-value", Token);
@@ -88,7 +88,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     [Fact]
     public async Task CreateAndDeleteAreIdempotent()
     {
-        IDnsProvider provider = Provider();
+        var provider = Provider();
         await provider.CreateTxtAsync(Challenge, "v1", Token);
         await provider.CreateTxtAsync(Challenge, "v1", Token);
 
@@ -96,7 +96,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
         Assert.Single(_handlers.Calls, c => c.Method == HttpMethod.Post);
 
         await provider.DeleteTxtAsync(Challenge, "v1", Token);
-        int deletes = _handlers.Calls.Count(c => c.Method == HttpMethod.Delete);
+        var deletes = _handlers.Calls.Count(c => c.Method == HttpMethod.Delete);
         await provider.DeleteTxtAsync(Challenge, "v1", Token);
 
         Assert.Empty(_cloudflare.Records("example.com"));
@@ -122,7 +122,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
         _cloudflare.Seed("example.com", Challenge, "b");
         _cloudflare.Seed("example.com", Challenge, "c");
         _cloudflare.Seed("example.com", Challenge, "d");
-        IDnsProvider provider = Provider();
+        var provider = Provider();
 
         await provider.CreateTxtAsync(Challenge, "d", Token);
         Assert.DoesNotContain(_handlers.Calls, c => c.Method == HttpMethod.Post);
@@ -146,7 +146,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _cloudflare.Intercept = _ => FakeCloudflare.Error(HttpStatusCode.TooManyRequests, 971, "Rate limited", ("Retry-After", "120"));
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.True(ex.IsTransient);
         Assert.Equal(TimeSpan.FromSeconds(120), ex.RetryAfter);
@@ -156,7 +156,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     [Fact]
     public async Task AShortRetryAfterIsWaitedOutOnceInsideTheCall()
     {
-        bool limited = false;
+        var limited = false;
         _cloudflare.Intercept = call =>
         {
             if (limited || call.Path.EndsWith("/zones", StringComparison.Ordinal) is false)
@@ -184,7 +184,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _cloudflare.Intercept = _ => FakeCloudflare.Error(status, 9109, "Unauthorized to access requested resource");
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.Equal(transient, ex.IsTransient);
         Assert.Contains($"{(int)status}", ex.Message, StringComparison.Ordinal);
@@ -195,7 +195,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _handlers.TransportFailure = new HttpRequestException(HttpRequestError.ConnectionError, "connection refused");
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.True(ex.IsTransient);
     }
@@ -205,7 +205,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _cloudflare.Intercept = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>captive portal</html>") };
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.False(ex.IsTransient);
         Assert.DoesNotContain("captive", ex.Message, StringComparison.Ordinal);
@@ -216,7 +216,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _cloudflare.Intercept = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(new string('x', 5000)) };
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () =>
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () =>
             await Provider(new DnsProviderOptions { MaxResponseBytes = 1000 }).CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.Contains("1000 bytes", ex.Message, StringComparison.Ordinal);
@@ -227,7 +227,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _handlers.TransportFailure = new SecretTransportRefusedException("the destination 'api.cloudflare.com' is not one the secret allows");
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.False(ex.IsTransient);
         Assert.Contains("vault refused", ex.Message, StringComparison.Ordinal);
@@ -237,10 +237,10 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     public async Task NeitherErrorsNorLogsCarryTheToken()
     {
         _cloudflare.Intercept = call => call.Method == HttpMethod.Post ? FakeCloudflare.Error(HttpStatusCode.Forbidden, 10000, "Authentication error") : null;
-        IDnsProvider provider = Provider();
+        var provider = Provider();
         await provider.DeleteTxtAsync(Challenge, "v1", Token);
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await provider.CreateTxtAsync(Challenge, "v1", Token));
-        DnsCredentialCheck check = await provider.ValidateCredentialsAsync(Token);
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await provider.CreateTxtAsync(Challenge, "v1", Token));
+        var check = await provider.ValidateCredentialsAsync(Token);
 
         Assert.DoesNotContain(FakeSecretHandlers.Token, ex.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain(FakeSecretHandlers.Token, check.Message ?? string.Empty, StringComparison.Ordinal);
@@ -251,7 +251,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     [Fact]
     public async Task AValidTokenWithZoneAccessChecksOut()
     {
-        DnsCredentialCheck check = await Provider().ValidateCredentialsAsync(Token);
+        var check = await Provider().ValidateCredentialsAsync(Token);
 
         Assert.True(check.Valid);
         Assert.Null(check.Message);
@@ -263,7 +263,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _cloudflare.TokenStatus = "expired";
 
-        DnsCredentialCheck check = await Provider().ValidateCredentialsAsync(Token);
+        var check = await Provider().ValidateCredentialsAsync(Token);
 
         Assert.False(check.Valid);
         Assert.Contains("expired", check.Message, StringComparison.Ordinal);
@@ -274,7 +274,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _cloudflare.UserTokenVerifySupported = false;
 
-        DnsCredentialCheck check = await Provider().ValidateCredentialsAsync(Token);
+        var check = await Provider().ValidateCredentialsAsync(Token);
 
         Assert.True(check.Valid);
     }
@@ -285,7 +285,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
         FakeCloudflare empty = new();
         FakeSecretHandlers handlers = new(empty.Handle);
 
-        DnsCredentialCheck check = await new DnsProviderFactory(handlers, null, _time, _logs)
+        var check = await new DnsProviderFactory(handlers, null, _time, _logs)
             .Create(DnsProviderKind.Cloudflare, SecretId.New()).ValidateCredentialsAsync(Token);
 
         Assert.False(check.Valid);
@@ -297,7 +297,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _cloudflare.Intercept = _ => FakeCloudflare.Error(HttpStatusCode.Forbidden, 9109, "Unauthorized to access requested resource");
 
-        DnsCredentialCheck check = await Provider().ValidateCredentialsAsync(Token);
+        var check = await Provider().ValidateCredentialsAsync(Token);
 
         Assert.False(check.Valid);
         Assert.Contains("9109", check.Message, StringComparison.Ordinal);
@@ -306,7 +306,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     [Fact]
     public async Task ABadRecordNameOrValueIsRejectedBeforeAnythingIsSent()
     {
-        IDnsProvider provider = Provider();
+        var provider = Provider();
 
         await Assert.ThrowsAsync<ArgumentException>(async () => await provider.CreateTxtAsync("not a name", "v", Token));
         await Assert.ThrowsAsync<ArgumentException>(async () => await provider.CreateTxtAsync(Challenge, string.Empty, Token));
@@ -328,7 +328,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     {
         _cloudflare.SeedCname("example.com", Challenge, "validation.other.org");
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.False(ex.IsTransient);
         Assert.Contains("CNAME to validation.other.org", ex.Message, StringComparison.Ordinal);
@@ -340,12 +340,12 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     public async Task AListLongerThanThePageLimitIsRefusedNotCutOff()
     {
         _cloudflare.PageSize = 1;
-        for (int i = 0; i < 25; i++)
+        for (var i = 0; i < 25; i++)
         {
             _cloudflare.Seed("example.com", Challenge, "value" + i);
         }
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().DeleteTxtAsync(Challenge, "value24", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().DeleteTxtAsync(Challenge, "value24", Token));
 
         Assert.False(ex.IsTransient);
         Assert.DoesNotContain(_handlers.Calls, c => c.Method == HttpMethod.Delete);
@@ -374,7 +374,7 @@ public sealed class CloudflareDnsProviderTests : IDisposable
     [Fact]
     public async Task TheDefaultBatchPublishesAndRemovesRecordOneByOne()
     {
-        IDnsProvider provider = Provider();
+        var provider = Provider();
         DnsChallengeRecord[] records = [new(Challenge, "a"), new(Challenge, "b")];
 
         await provider.CreateTxtBatchAsync(records, Token);

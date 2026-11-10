@@ -1,4 +1,3 @@
-using System.Net;
 using System.Runtime.CompilerServices;
 
 using Microsoft.AspNetCore.Http;
@@ -38,7 +37,7 @@ public sealed class PolicyTests
     public void StaticPolicyAlwaysReturnsItsDecision()
     {
         GateRequestState state = new();
-        DefaultHttpContext context = TestContexts.Create("a.test");
+        var context = TestContexts.Create("a.test");
 
         Assert.Equal(PolicyDecision.Drop, Evaluate(new StaticPolicy(PolicyDecision.Drop), context, state));
         Assert.Equal(PolicyDecision.Respond(Forbidden), Evaluate(new StaticPolicy(PolicyDecision.Respond(Forbidden)), context, state));
@@ -54,7 +53,7 @@ public sealed class PolicyTests
     public void AllowListUsesTheResolvedClientAddress(string client, bool allowed)
     {
         IpAllowListPolicy policy = new(CidrSet.Parse(["192.0.2.1", "10.0.0.0/8", "2001:db8::/32"]), PolicyDecision.Respond(Forbidden));
-        DefaultHttpContext context = TestContexts.Create("a.test");
+        var context = TestContexts.Create("a.test");
         GateRequestState state = new() { ClientIp = new ClientIpResolution(IpKey.Parse(client), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted) };
 
         Assert.Equal(allowed ? PolicyDecision.Continue : PolicyDecision.Respond(Forbidden), Evaluate(policy, context, state));
@@ -77,7 +76,7 @@ public sealed class PolicyTests
     public void TheFormattedClientAddressIsCachedWhileTheClientRepeats()
     {
         GateRequestState state = new() { ClientIp = new ClientIpResolution(IpKey.Parse("::ffff:192.0.2.1"), ClientIpSource.Socket, ClientIpOutcome.PeerNotTrusted) };
-        string first = state.FormattedClientAddress();
+        var first = state.FormattedClientAddress();
         Assert.Equal("192.0.2.1", first);
 
         state.Reset();

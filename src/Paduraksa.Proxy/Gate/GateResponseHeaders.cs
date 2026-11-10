@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Proxy.Http;
-using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Proxy.Gate;
 
@@ -15,14 +14,14 @@ internal static class GateResponseHeaders
     public static void Reapply(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        GateRequestState? state = context.Features.Get<IGateFeature>()?.State;
+        var state = context.Features.Get<IGateFeature>()?.State;
         if (context.Response.HasStarted || state?.Host is not { } host)
         {
             return;
         }
 
-        ResponseHeaderOperation[] headers = host.ResponseHeaders;
-        for (int i = 0; i < headers.Length; i++)
+        var headers = host.ResponseHeaders;
+        for (var i = 0; i < headers.Length; i++)
         {
             _ = ResponseHeaders.Apply(context, in headers[i], state);
         }

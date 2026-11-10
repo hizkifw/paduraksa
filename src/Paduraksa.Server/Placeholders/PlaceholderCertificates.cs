@@ -73,18 +73,18 @@ internal sealed class PlaceholderCertificates : IServerCertificateSource, IBuilt
     /// <summary>Resolves directly, for tests that compile a proxy model without going through the inventory.</summary>
     public bool TryResolve(CertificateId id, [NotNullWhen(true)] out ServerCertificate? certificate)
     {
-        certificate = _certificates.TryGetValue(id, out Entry? entry) ? entry.Serving : null;
+        certificate = _certificates.TryGetValue(id, out var entry) ? entry.Serving : null;
         return certificate is not null;
     }
 
     public ValueTask<SslStreamCertificateContext?> LoadForServingAsync(CertificateId id, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(_certificates.TryGetValue(id, out Entry? entry) ? entry.Serving.Context : null);
+        ValueTask.FromResult(_certificates.TryGetValue(id, out var entry) ? entry.Serving.Context : null);
 
     /// <summary>The public facts of <paramref name="certificate"/> (its key never leaves it).</summary>
     internal static CertificateInfo InfoOf(X509Certificate2 certificate)
     {
         List<string> names = [];
-        foreach (X509Extension extension in certificate.Extensions)
+        foreach (var extension in certificate.Extensions)
         {
             if (extension.Oid?.Value == "2.5.29.17")
             {

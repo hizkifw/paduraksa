@@ -22,7 +22,7 @@ public static partial class SnapshotCompiler
         /// </summary>
         public void CompileHost(HostSpec spec)
         {
-            CompileErrorSource where = CompileErrorSource.Host(spec.Id);
+            var where = CompileErrorSource.Host(spec.Id);
             if (spec.Id.IsEmpty)
             {
                 Errors.Add(new(where, "the host ID is empty"));
@@ -51,14 +51,14 @@ public static partial class SnapshotCompiler
                 }
             }
 
-            IRequestPolicy[] hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors);
-            CompiledRoute[] routes = spec.Kind switch
+            var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors);
+            var routes = spec.Kind switch
             {
                 HostKind.Admin => CompileAdminRoute(spec, Options.AdminUpstream, RouteIdBySlot, YarpRoutes, where, Errors),
                 HostKind.Proxy => CompileRoutes(spec, Clusters, RouteIds, YarpRouteIds, YarpRoutes, RouteIdBySlot, where, Errors),
                 _ => RejectRoutes(spec, where, Errors),
             };
-            PrecomputedResponse? fixedResponse = CompileFixedResponse(spec, where, Errors);
+            var fixedResponse = CompileFixedResponse(spec, where, Errors);
 
             if (spec.ForceHttps)
             {
@@ -75,16 +75,16 @@ public static partial class SnapshotCompiler
                 Errors.Add(new(where, "a host without HTTPS can't name a certificate"));
             }
 
-            ServerCertificate? certificate = !spec.Https ? null
+            var certificate = !spec.Https ? null
                 : spec.Certificate is null ? DefaultCertificate
                 : ResolveCertificate(spec.Certificate, where, Options.Certificates, Errors);
-            Dictionary<string, ServerCertificate> nameCertificates = ResolveNameCertificates(spec, where, Options.Certificates, Errors);
-            TlsPolicy tls = CompileTlsPolicy(spec.Tls, where, Errors);
-            List<(ServerCertificate Certificate, List<string> Names)> serverNames =
+            var nameCertificates = ResolveNameCertificates(spec, where, Options.Certificates, Errors);
+            var tls = CompileTlsPolicy(spec.Tls, where, Errors);
+            var serverNames =
                 spec.Enabled ? GroupByCertificate(ServerNamesOf(spec.Names ?? []), certificate, nameCertificates) : [];
             // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only host has none:
             // its HTTPS rides on the default certificate's entry and that entry's settings).
-            ResponseHeaderOperation[] responseHeaders = CompileResponseHeaders(
+            var responseHeaders = CompileResponseHeaders(
                 serverHeader: spec.ServerHeader,
                 hsts: spec.Hsts,
                 altSvc: serverNames.Count > 0 ? AltSvc.ForHost(tls) : default,
@@ -119,11 +119,11 @@ public static partial class SnapshotCompiler
 
             // A disabled host's names go into a table of their own: validated like any others (duplicates within
             // the host included), but the host serves nothing, so it may share a name with another host.
-            HostTable.Builder nameTable = spec.Enabled ? Table : new HostTable.Builder();
-            bool namesValid = true;
-            foreach (string name in spec.Names ?? [])
+            var nameTable = spec.Enabled ? Table : new HostTable.Builder();
+            var namesValid = true;
+            foreach (var name in spec.Names ?? [])
             {
-                if (!nameTable.TryAdd(name, host, out string? nameError))
+                if (!nameTable.TryAdd(name, host, out var nameError))
                 {
                     Errors.Add(new(where, nameError!));
                     namesValid = false;
@@ -132,7 +132,7 @@ public static partial class SnapshotCompiler
 
             if (namesValid)
             {
-                foreach ((ServerCertificate named, List<string> names) in serverNames)
+                foreach (var (named, names) in serverNames)
                 {
                     AddServerNames(Certificates, names, named, tls, where, Errors);
                 }
@@ -141,7 +141,7 @@ public static partial class SnapshotCompiler
             if (spec.Enabled)
             {
                 Hosts.Add(host);
-                foreach (RouteSpec route in spec.Kind == HostKind.Proxy ? spec.Routes ?? [] : [])
+                foreach (var route in spec.Kind == HostKind.Proxy ? spec.Routes ?? [] : [])
                 {
                     if (WithoutDestinations.Contains(route.Upstream) && Reported.Add(route.Upstream))
                     {
@@ -197,9 +197,9 @@ public static partial class SnapshotCompiler
             ];
         }
 
-        int slot = routeIdBySlot.Count;
+        var slot = routeIdBySlot.Count;
         routeIdBySlot.Add(RouteId.Empty);
-        string routeId = YarpConfig.AdminClusterId + "-" + host.Id;
+        var routeId = YarpConfig.AdminClusterId + "-" + host.Id;
         yarpRoutes.Add(new RouteConfig
         {
             RouteId = routeId,
@@ -230,7 +230,7 @@ public static partial class SnapshotCompiler
         CompileErrorSource where,
         List<CompileError> errors)
     {
-        IReadOnlyList<RouteSpec> specs = host.Routes ?? [];
+        var specs = host.Routes ?? [];
         if (specs.Count == 0)
         {
             errors.Add(new(where, "a proxy host needs at least one route"));
@@ -242,20 +242,20 @@ public static partial class SnapshotCompiler
         }
 
         // Stable sort by Order: equal orders keep the listed order.
-        int[] order = new int[specs.Count];
-        for (int i = 0; i < order.Length; i++)
+        var order = new int[specs.Count];
+        for (var i = 0; i < order.Length; i++)
         {
             order[i] = i;
         }
 
         Array.Sort(order, (a, b) => specs[a].Order != specs[b].Order ? specs[a].Order.CompareTo(specs[b].Order) : a.CompareTo(b));
 
-        CompiledRoute[] routes = new CompiledRoute[specs.Count];
-        for (int i = 0; i < order.Length; i++)
+        var routes = new CompiledRoute[specs.Count];
+        for (var i = 0; i < order.Length; i++)
         {
-            RouteSpec spec = specs[order[i]];
-            string routeId = spec.Id.ToString();
-            CompileErrorSource routeWhere = CompileErrorSource.Route(host.Id, spec.Id);
+            var spec = specs[order[i]];
+            var routeId = spec.Id.ToString();
+            var routeWhere = CompileErrorSource.Route(host.Id, spec.Id);
             if (spec.Id.IsEmpty)
             {
                 errors.Add(new(routeWhere, "the route ID is empty"));
@@ -274,7 +274,7 @@ public static partial class SnapshotCompiler
                 errors.Add(new(routeWhere, $"unknown match kind {spec.Match}"));
             }
 
-            string path = spec.Path ?? string.Empty;
+            var path = spec.Path ?? string.Empty;
             if (path.Length == 0 || path[0] != '/' || path.Contains('?', StringComparison.Ordinal) || path.Contains('#', StringComparison.Ordinal))
             {
                 errors.Add(new(routeWhere, $"the path must start with '/' and have no query or fragment, got '{path}'"));
@@ -300,9 +300,9 @@ public static partial class SnapshotCompiler
             }
 
             // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
-            IRequestPolicy[] own = CompilePolicies(spec.Policies ?? [], routeWhere, errors);
+            var own = CompilePolicies(spec.Policies ?? [], routeWhere, errors);
 
-            int slot = routeIdBySlot.Count;
+            var slot = routeIdBySlot.Count;
             routeIdBySlot.Add(spec.Id);
             yarpRoutes.Add(new RouteConfig
             {
@@ -349,7 +349,7 @@ public static partial class SnapshotCompiler
                     return null;
                 }
 
-                if (!Uri.TryCreate(redirect.Target, UriKind.Absolute, out Uri? target)
+                if (!Uri.TryCreate(redirect.Target, UriKind.Absolute, out var target)
                     || (target.Scheme != Uri.UriSchemeHttp && target.Scheme != Uri.UriSchemeHttps))
                 {
                     errors.Add(new(where, $"the redirect target must be an absolute http or https URL, got '{redirect.Target}'"));

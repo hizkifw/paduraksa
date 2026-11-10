@@ -43,22 +43,22 @@ public static class SetupBanner
             "It works once and is useless after setup completes.",
         ];
 
-        int width = 0;
-        foreach (string line in lines)
+        var width = 0;
+        foreach (var line in lines)
         {
             width = Math.Max(width, line.Length);
         }
 
-        char topLeft = unicode ? '╔' : '+';
-        char topRight = unicode ? '╗' : '+';
-        char horizontal = unicode ? '═' : '-';
-        char vertical = unicode ? '║' : '|';
-        char bottomLeft = unicode ? '╚' : '+';
-        char bottomRight = unicode ? '╝' : '+';
+        var topLeft = unicode ? '╔' : '+';
+        var topRight = unicode ? '╗' : '+';
+        var horizontal = unicode ? '═' : '-';
+        var vertical = unicode ? '║' : '|';
+        var bottomLeft = unicode ? '╚' : '+';
+        var bottomRight = unicode ? '╝' : '+';
 
         StringBuilder banner = new();
         banner.Append(topLeft).Append(horizontal, width + 4).Append(topRight).Append('\n');
-        foreach (string line in lines)
+        foreach (var line in lines)
         {
             banner.Append(vertical).Append("  ").Append(line).Append(' ', width - line.Length + 2).Append(vertical).Append('\n');
         }

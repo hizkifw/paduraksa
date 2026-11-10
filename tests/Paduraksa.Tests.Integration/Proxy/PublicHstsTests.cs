@@ -1,8 +1,6 @@
 using System.Net;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Net;
-using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
@@ -65,7 +63,7 @@ public sealed class PublicHstsTests : IAsyncLifetime
     /// <summary>A started host with a certificate for every name these tests ask for, and <paramref name="model"/> live.</summary>
     private async Task<PaduraksaHost> StartedAsync(ProxyConfigModel model)
     {
-        PaduraksaHost host = TestHost.Create();
+        var host = TestHost.Create();
         await host.StartAsync(TestContext.Current.CancellationToken);
         host.Shared.Certificates.Set(TestIds.Certificate("app"), _certificates.Create("app.test", "app.test"));
         host.Shared.Certificates.Set(TestIds.Certificate("api"), _certificates.Create("api.test", "api.test"));
@@ -83,25 +81,25 @@ public sealed class PublicHstsTests : IAsyncLifetime
 
     private static async Task PublishAsync(PaduraksaHost host, ProxyConfigModel model)
     {
-        PublishResult result = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, model), TestContext.Current.CancellationToken);
+        var result = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, model), TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded, string.Join("; ", result.Errors));
     }
 
     private static async Task<(HttpResponseMessage Response, string[] Hsts)> SendAsync(
         PaduraksaHost host, string scheme, string hostHeader, string path = "/", Action<HttpRequestMessage>? configure = null)
     {
-        using HttpClient client = EdgeClient.Create(out _);
-        using HttpRequestMessage request = EdgeClient.Request(host, scheme, hostHeader, path);
+        using var client = EdgeClient.Create(out _);
+        using var request = EdgeClient.Request(host, scheme, hostHeader, path);
         configure?.Invoke(request);
-        HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
-        string[] hsts = response.Headers.TryGetValues(Header, out IEnumerable<string>? values) ? [.. values] : [];
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        string[] hsts = response.Headers.TryGetValues(Header, out var values) ? [.. values] : [];
         return (response, hsts);
     }
 
     [Fact]
     public async Task HstsGoesOnHttpsResponsesOfEveryKindAndReplacesTheUpstreams()
     {
-        await using PaduraksaHost host = await StartedAsync(App(
+        await using var host = await StartedAsync(App(
             ProxyHost("deny", "deny.test") with { Hsts = new HostHstsSpec { Enabled = true }, Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])] },
             new HostSpec
             {
@@ -111,7 +109,7 @@ public sealed class PublicHstsTests : IAsyncLifetime
                 Hsts = new HostHstsSpec { Enabled = true },
             }));
 
-        foreach ((string name, string path, HttpStatusCode status, string expected) in new (string Name, string Path, HttpStatusCode Status, string Expected)[]
+        foreach (var (name, path, status, expected) in new (string Name, string Path, HttpStatusCode Status, string Expected)[]
         {
             ("app.test", "/", HttpStatusCode.OK, OneYear), // forwarded
             ("full.test", "/", HttpStatusCode.OK, "max-age=63072000; includeSubDomains; preload"),
@@ -121,7 +119,7 @@ public sealed class PublicHstsTests : IAsyncLifetime
             ("api.test", "/nothing-takes-this", HttpStatusCode.NotFound, OneYear), // the gate's own 404: no route takes it
         })
         {
-            (HttpResponseMessage response, string[] hsts) = await SendAsync(host, "https", name, path);
+            var (response, hsts) = await SendAsync(host, "https", name, path);
             using (response)
             {
                 Assert.Equal(status, response.StatusCode);
@@ -133,9 +131,9 @@ public sealed class PublicHstsTests : IAsyncLifetime
     [Fact]
     public async Task WithoutHstsTheUpstreamsOwnPassesThrough()
     {
-        await using PaduraksaHost host = await StartedAsync(App());
+        await using var host = await StartedAsync(App());
 
-        (HttpResponseMessage response, string[] hsts) = await SendAsync(host, "https", "plain.test");
+        var (response, hsts) = await SendAsync(host, "https", "plain.test");
         using (response)
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -146,11 +144,11 @@ public sealed class PublicHstsTests : IAsyncLifetime
     [Fact]
     public async Task PlainHttpNeverCarriesIt()
     {
-        await using PaduraksaHost host = await StartedAsync(App(
+        await using var host = await StartedAsync(App(
             ProxyHost("secure", "secure.test") with { ForceHttps = true }));
 
         // A plain-HTTP request to a host that serves it: the upstream's own passes through, ours is never sent.
-        (HttpResponseMessage forwarded, string[] overHttp) = await SendAsync(host, "http", "app.test");
+        var (forwarded, overHttp) = await SendAsync(host, "http", "app.test");
         using (forwarded)
         {
             Assert.Equal(HttpStatusCode.OK, forwarded.StatusCode);
@@ -158,7 +156,7 @@ public sealed class PublicHstsTests : IAsyncLifetime
         }
 
         // A forced host's redirect is the gate's own answer: no header at all.
-        (HttpResponseMessage redirect, string[] overRedirect) = await SendAsync(host, "http", "secure.test");
+        var (redirect, overRedirect) = await SendAsync(host, "http", "secure.test");
         using (redirect)
         {
             Assert.Equal(HttpStatusCode.MovedPermanently, redirect.StatusCode);
@@ -171,9 +169,9 @@ public sealed class PublicHstsTests : IAsyncLifetime
     [InlineData("localhost")]
     public async Task IpLiteralsAndLoopbackNamesNeverGetOurs(string name)
     {
-        await using PaduraksaHost host = await StartedAsync(App());
+        await using var host = await StartedAsync(App());
 
-        (HttpResponseMessage response, string[] hsts) = await SendAsync(host, "https", name);
+        var (response, hsts) = await SendAsync(host, "https", name);
         using (response)
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -185,13 +183,13 @@ public sealed class PublicHstsTests : IAsyncLifetime
     [Fact]
     public async Task ATrustedTerminatorsHttpsCountsAndAnUntrustedOneDoesnt()
     {
-        await using PaduraksaHost host = await StartedAsync(App() with
+        await using var host = await StartedAsync(App() with
         {
             Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = ["127.0.0.0/8", "::1"] } },
         });
 
         // cloudflared terminates the visitor's TLS and forwards over plain HTTP, saying so in CF-Visitor.
-        (HttpResponseMessage response, string[] hsts) = await SendAsync(
+        var (response, hsts) = await SendAsync(
             host,
             "http",
             "app.test",
@@ -204,7 +202,7 @@ public sealed class PublicHstsTests : IAsyncLifetime
 
         // The same header from nobody trusted is a spoof: the request is plain HTTP, so nothing of ours.
         await PublishAsync(host, App());
-        (HttpResponseMessage spoofed, string[] none) = await SendAsync(
+        var (spoofed, none) = await SendAsync(
             host,
             "http",
             "app.test",

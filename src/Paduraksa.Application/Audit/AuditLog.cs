@@ -63,7 +63,7 @@ internal sealed partial class AuditLog
         ArgumentNullException.ThrowIfNull(entry);
         StoreChecks.RequireTransaction(context, "Appending an audit event");
         Validate(entry);
-        string? details = DetailsOf(entry);
+        var details = DetailsOf(entry);
 
         var latest = await context.AuditEvents
             .OrderByDescending(e => e.Id)
@@ -112,10 +112,10 @@ internal sealed partial class AuditLog
             writer.WriteStartObject();
             if (entry.Details is { } details)
             {
-                using JsonDocument existing = JsonDocument.Parse(details);
+                using var existing = JsonDocument.Parse(details);
                 if (existing.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    foreach (JsonProperty property in existing.RootElement.EnumerateObject())
+                    foreach (var property in existing.RootElement.EnumerateObject())
                     {
                         property.WriteTo(writer);
                     }

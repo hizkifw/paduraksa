@@ -102,7 +102,7 @@ public sealed class CanonicalConfigGoldenTests
                     Settings: new HostSettings { ForceHttps = true },
                     Routes: [new RouteConfig(RootRoute, AppUpstream)]),
             ]);
-        ConfigDocument emptyLayers = bare with
+        var emptyLayers = bare with
         {
             Hosts =
             [
@@ -124,12 +124,12 @@ public sealed class CanonicalConfigGoldenTests
 
     private static void AssertPinned(ConfigDocument document, string expectedSha256)
     {
-        byte[] bytes = CanonicalConfigJson.Serialize(document);
+        var bytes = CanonicalConfigJson.Serialize(document);
 
         // A round trip through the canonical form is the same document, so a change here can only be a contract change.
         Assert.Equal(bytes, CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(bytes)));
 
-        string actual = Convert.ToHexString(SHA256.HashData(bytes));
+        var actual = Convert.ToHexString(SHA256.HashData(bytes));
         Assert.True(
             actual == expectedSha256,
             $"The canonical bytes of the pinned document changed.{Environment.NewLine}sha256: {actual}{Environment.NewLine}bytes: {Encoding.UTF8.GetString(bytes)}");

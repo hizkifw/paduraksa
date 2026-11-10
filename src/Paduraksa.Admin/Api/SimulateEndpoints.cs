@@ -22,20 +22,20 @@ internal static class SimulateEndpoints
 
     private static async Task<IResult> SimulateAsync(HttpContext http, AdminCaller caller, RequestSimulator simulator, CancellationToken ct)
     {
-        BodyResult<SimulateBody> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.SimulateBody).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.SimulateBody).ConfigureAwait(false);
         if (!body.Ok)
         {
             return body.Problem!;
         }
 
-        SimulationResult result = await simulator.SimulateAsync(body.Value!.Target ?? SimulationTarget.Live, body.Value.Request, caller.Origin, ct).ConfigureAwait(false);
-        int status = ApiStatusMapping.Of(result.Status);
+        var result = await simulator.SimulateAsync(body.Value!.Target ?? SimulationTarget.Live, body.Value.Request, caller.Origin, ct).ConfigureAwait(false);
+        var status = ApiStatusMapping.Of(result.Status);
         if (ApiStatusMapping.IsSuccess(status))
         {
             return EndpointSupport.Json(result, AdminJsonContext.Default.SimulationResult, status);
         }
 
-        string detail = result.Status switch
+        var detail = result.Status switch
         {
             SimulationStatus.BadRequest => "The request to simulate is malformed; see errors.",
             SimulationStatus.Invalid => "The draft doesn't validate or compile, so there is no config to simulate against; see errors.",

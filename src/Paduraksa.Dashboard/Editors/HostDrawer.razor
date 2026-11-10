@@ -52,7 +52,7 @@
             @if (!Failed && !Denied)
             {
                 <div class="pdk-form" aria-busy="true">
-                    @for (int i = 0; i < 3; i++)
+                    @for (var i = 0; i < 3; i++)
                     {
                         <div class="pdk-section">
                             <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" Height="24px" />
@@ -78,9 +78,9 @@
                         <span>Made here, applied with this host in one revision when it uses them. Cancel the host and they go too.</span>
                     </div>
                     <ul class="pdk-staged-list">
-                        @foreach (UpstreamConfig upstream in _staged)
+                        @foreach (var upstream in _staged)
                         {
-                            bool used = Model.Kind == HostKind.Proxy && Model.Routes.Any(r => r.UpstreamId == upstream.Id);
+                            var used = Model.Kind == HostKind.Proxy && Model.Routes.Any(r => r.UpstreamId == upstream.Id);
                             <li data-staged="@upstream.Name" data-used="@(used ? "true" : "false")" class="@(used ? null : "pdk-staged-unused")">
                                 <MudIcon Icon="@Icons.Material.Outlined.Hub" Size="Size.Small" />
                                 <span class="pdk-staged-name">@upstream.Name</span>
@@ -100,9 +100,9 @@
                                 }
                             </li>
                         }
-                        @foreach (ProfileConfig profile in _stagedProfiles)
+                        @foreach (var profile in _stagedProfiles)
                         {
-                            bool picked = Model.ProfileId == profile.Id;
+                            var picked = Model.ProfileId == profile.Id;
                             <li data-staged="@profile.Name" data-used="@(picked ? "true" : "false")" class="@(picked ? null : "pdk-staged-unused")">
                                 <MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" />
                                 <span class="pdk-staged-name">@profile.Name</span>
@@ -245,9 +245,9 @@
             return;
         }
 
-        IReadOnlyDictionary<string, string> inline = InlineValidation.ForHost(DraftDocument, ToConfig());
+        var inline = InlineValidation.ForHost(DraftDocument, ToConfig());
         Dictionary<string, string> merged = new(_serverErrors, StringComparer.Ordinal);
-        foreach ((string path, string message) in inline)
+        foreach (var (path, message) in inline)
         {
             merged[path] = message;
         }
@@ -267,8 +267,8 @@
 
     private async Task NewUpstreamAsync(RouteEntry route)
     {
-        string? basis = SampleHost?.Split('.')[0];
-        DrawerResult result = await Drawers.OpenAsync<UpstreamDrawer>(
+        var basis = SampleHost?.Split('.')[0];
+        var result = await Drawers.OpenAsync<UpstreamDrawer>(
             new Dictionary<string, object?>
             {
                 [nameof(UpstreamDrawer.Stage)] = true,
@@ -286,7 +286,7 @@
 
     private async Task NewProfileAsync()
     {
-        DrawerResult result = await Drawers.OpenAsync<ProfileDrawer>(
+        var result = await Drawers.OpenAsync<ProfileDrawer>(
             new Dictionary<string, object?> { [nameof(ProfileDrawer.Stage)] = true, [nameof(ProfileDrawer.Draft)] = DraftDocument },
             DrawerWidth.Medium);
         if (result.As<ProfileConfig>() is { } profile && Model is not null)
@@ -305,7 +305,7 @@
         }
 
         string[] names = [.. Model.Names.Select(n => n.Value.Trim().TrimEnd('.').ToLowerInvariant()).Where(n => n.Length > 0)];
-        DrawerResult result = await Drawers.OpenAsync<CertificateCreateDrawer>(
+        var result = await Drawers.OpenAsync<CertificateCreateDrawer>(
             new Dictionary<string, object?> { [nameof(CertificateCreateDrawer.InitialNames)] = names },
             DrawerWidth.Medium);
         if (result.As<CertificateSummary>() is not { } certificate)
@@ -336,10 +336,10 @@
             return;
         }
 
-        HostConfig host = ToConfig();
-        IReadOnlyList<UpstreamConfig> upstreams = StagedChange.UsedUpstreams(host, _staged);
-        IReadOnlyList<ProfileConfig> profiles = StagedChange.UsedProfiles(host, _stagedProfiles);
-        string name = ChangeView.HostTitle(host);
+        var host = ToConfig();
+        var upstreams = StagedChange.UsedUpstreams(host, _staged);
+        var profiles = StagedChange.UsedProfiles(host, _stagedProfiles);
+        var name = ChangeView.HostTitle(host);
         ReviewRequest request;
         if (upstreams.Count == 0 && profiles.Count == 0)
         {
@@ -368,8 +368,8 @@
                 return;
             }
 
-            ConfigDocument after = StagedChange.Apply(head.Document, host, upstreams, profiles);
-            string with = string.Join(" and ", [.. upstreams.Select(u => $"upstream {u.Name}"), .. profiles.Select(p => $"profile {p.Name}")]);
+            var after = StagedChange.Apply(head.Document, host, upstreams, profiles);
+            var with = string.Join(" and ", [.. upstreams.Select(u => $"upstream {u.Name}"), .. profiles.Select(p => $"profile {p.Name}")]);
             _reviewed = after;
             request = new ReviewRequest(Model!.IsNew ? $"New host {name}" : $"Edit {name}", new ReplaceConfigCommand(after, head.Revision?.Id)
             {
@@ -381,7 +381,7 @@
             };
         }
 
-        ReviewRequest final = request with
+        var final = request with
         {
             SuccessMessage = Model.IsNew ? $"Created {name}" : $"Saved {name}",
             SampleHost = SampleHost,
@@ -397,7 +397,7 @@
             return;
         }
 
-        string name = ChangeView.HostTitle(_stored);
+        var name = ChangeView.HostTitle(_stored);
         await RunReviewAsync(new ReviewRequest($"Delete {name}", new DeleteHostCommand(Model.Id, Model.Version))
         {
             ApplyLabel = "Delete",
@@ -417,7 +417,7 @@
             return;
         }
 
-        int host = document.Hosts.ToList().FindIndex(h => h.Id == Model.Id);
+        var host = document.Hosts.ToList().FindIndex(h => h.Id == Model.Id);
         if (host >= 0)
         {
             OnInvalid([.. errors.Where(e => e.Path.StartsWith($"/hosts/{host}/", StringComparison.Ordinal) || e.Path == $"/hosts/{host}")
@@ -430,7 +430,7 @@
 
     private async Task EditStagedUpstreamAsync(UpstreamConfig staged)
     {
-        DrawerResult result = await Drawers.OpenAsync<UpstreamDrawer>(
+        var result = await Drawers.OpenAsync<UpstreamDrawer>(
             new Dictionary<string, object?>
             {
                 [nameof(UpstreamDrawer.Stage)] = true,
@@ -449,7 +449,7 @@
 
     private async Task EditStagedProfileAsync(ProfileConfig staged)
     {
-        DrawerResult result = await Drawers.OpenAsync<ProfileDrawer>(
+        var result = await Drawers.OpenAsync<ProfileDrawer>(
             new Dictionary<string, object?>
             {
                 [nameof(ProfileDrawer.Stage)] = true,
@@ -478,9 +478,9 @@
         Action<TId, IReadOnlyDictionary<string, string>> keep,
         string collection)
     {
-        for (int i = 0; i < objects.Count; i++)
+        for (var i = 0; i < objects.Count; i++)
         {
-            TId objectId = id(objects[i]);
+            var objectId = id(objects[i]);
             if (staged.Any(item => EqualityComparer<TId>.Default.Equals(id(item), objectId))
                 && InlineValidation.Relative(errors, $"/{collection}/{i}") is { Count: > 0 } found)
             {

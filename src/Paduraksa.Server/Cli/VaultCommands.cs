@@ -4,7 +4,6 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Core;
@@ -95,7 +94,7 @@ internal static class VaultCommands
         catch (OptionsValidationException ex)
         {
             await error.WriteLineAsync("Invalid configuration:").ConfigureAwait(false);
-            foreach (string failure in ex.Failures)
+            foreach (var failure in ex.Failures)
             {
                 await error.WriteLineAsync("  " + failure).ConfigureAwait(false);
             }
@@ -106,7 +105,7 @@ internal static class VaultCommands
         char[]? newKey = null;
         try
         {
-            bool fromStandardInput = newKeyFile == "-";
+            var fromStandardInput = newKeyFile == "-";
             if (fromStandardInput && standardInputIsTerminal)
             {
                 await error.WriteLineAsync("Standard input is a terminal: the key would be typed in the clear. Pipe it in or use --new-key-file <path>. Nothing changed.").ConfigureAwait(false);
@@ -126,15 +125,15 @@ internal static class VaultCommands
                 await error.WriteLineAsync($"Warning: {newKeyFile} can be read by other users. Restrict it (chmod 600) and delete it once the new key is in place.").ConfigureAwait(false);
             }
 
-            await using ServiceProvider services = new ServiceCollection()
+            await using var services = new ServiceCollection()
                 .AddPaduraksaVault(options.DataDirectory)
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
             // The old key is resolved (and the database opened with it) before anything is stored: it stays in memory throughout.
-            VaultStatus status = await services.GetRequiredService<IVaultLifecycle>().InitializeAsync(cancellationToken).ConfigureAwait(false);
+            var status = await services.GetRequiredService<IVaultLifecycle>().InitializeAsync(cancellationToken).ConfigureAwait(false);
 
             string? backup = null;
-            string keyPath = Path.Combine(options.DataDirectory, GeneratedKeyFileName);
+            var keyPath = Path.Combine(options.DataDirectory, GeneratedKeyFileName);
             if (status.KekSource == KekSourceKind.GeneratedFile)
             {
                 backup = StoreNewGeneratedKey(keyPath, newKey);
@@ -174,7 +173,7 @@ internal static class VaultCommands
             }
             else
             {
-                string where = status.KekSource == KekSourceKind.File ? "the file named by PADURAKSA_MASTER_KEY_FILE" : "PADURAKSA_MASTER_KEY";
+                var where = status.KekSource == KekSourceKind.File ? "the file named by PADURAKSA_MASTER_KEY_FILE" : "PADURAKSA_MASTER_KEY";
                 await output.WriteLineAsync(
                     $"Now make the new key the master key: put it in {where}, then start the service. It can't open the vault with the old key any more.").ConfigureAwait(false);
             }
@@ -207,16 +206,16 @@ internal static class VaultCommands
     /// </summary>
     private static string StoreNewGeneratedKey(string keyPath, char[] newKey)
     {
-        string backup = keyPath + ".old";
-        string temporary = keyPath + ".new";
+        var backup = keyPath + ".old";
+        var temporary = keyPath + ".new";
         if (File.Exists(backup))
         {
             throw new InvalidOperationException($"{backup} exists: it is the previous key of an earlier rotation. Check that the service works with the current key, then delete it, and run this again.");
         }
 
-        string directory = Path.GetDirectoryName(Path.GetFullPath(keyPath))!;
-        byte[] old = GC.AllocateArray<byte>(MaxKeyChars + 1, pinned: true);
-        byte[] fresh = GC.AllocateArray<byte>(Encoding.ASCII.GetByteCount(newKey) + 1, pinned: true);
+        var directory = Path.GetDirectoryName(Path.GetFullPath(keyPath))!;
+        var old = GC.AllocateArray<byte>(MaxKeyChars + 1, pinned: true);
+        var fresh = GC.AllocateArray<byte>(Encoding.ASCII.GetByteCount(newKey) + 1, pinned: true);
         try
         {
             int oldLength;
@@ -279,7 +278,7 @@ internal static class VaultCommands
     {
         try
         {
-            using Microsoft.Win32.SafeHandles.SafeFileHandle handle = File.OpenHandle(directory, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var handle = File.OpenHandle(directory, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             RandomAccess.FlushToDisk(handle);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -296,17 +295,17 @@ internal static class VaultCommands
 
     private static char[] ReadKey(string path)
     {
-        byte[] bytes = GC.AllocateArray<byte>(MaxKeyChars + 1, pinned: true);
+        var bytes = GC.AllocateArray<byte>(MaxKeyChars + 1, pinned: true);
         try
         {
             using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0);
-            int length = stream.ReadAtLeast(bytes, bytes.Length, throwOnEndOfStream: false);
+            var length = stream.ReadAtLeast(bytes, bytes.Length, throwOnEndOfStream: false);
             if (length > MaxKeyChars)
             {
                 throw new InvalidOperationException($"{path} is too large to be a key.");
             }
 
-            char[] chars = new char[length];
+            var chars = new char[length];
             try
             {
                 Encoding.ASCII.GetChars(bytes.AsSpan(0, length), chars);
@@ -325,10 +324,10 @@ internal static class VaultCommands
 
     private static char[] ReadKey(TextReader input)
     {
-        char[] buffer = GC.AllocateArray<char>(MaxKeyChars + 1, pinned: true);
+        var buffer = GC.AllocateArray<char>(MaxKeyChars + 1, pinned: true);
         try
         {
-            int length = input.ReadBlock(buffer, 0, buffer.Length);
+            var length = input.ReadBlock(buffer, 0, buffer.Length);
             if (length > MaxKeyChars)
             {
                 throw new InvalidOperationException("The key on standard input is too large to be a key.");
@@ -346,7 +345,7 @@ internal static class VaultCommands
 
     private static char[] GCPinned(ReadOnlySpan<char> text)
     {
-        char[] copy = GC.AllocateArray<char>(text.Length, pinned: true);
+        var copy = GC.AllocateArray<char>(text.Length, pinned: true);
         text.CopyTo(copy);
         return copy;
     }

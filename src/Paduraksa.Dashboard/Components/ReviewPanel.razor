@@ -19,7 +19,7 @@
                 case Phase.Loading:
                     <div class="pdk-review-loading" aria-busy="true">
                         <MudText Typo="Typo.body2" Class="pdk-muted">Checking the change against the current config...</MudText>
-                        @for (int i = 0; i < 3; i++)
+                        @for (var i = 0; i < 3; i++)
                         {
                             <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="72px" Class="mt-3" />
                         }
@@ -78,7 +78,7 @@
                         @if (_publishErrors.Count > 0)
                         {
                             <ul class="pdk-plain-list">
-                                @foreach (string error in _publishErrors)
+                                @foreach (var error in _publishErrors)
                                 {
                                     <li class="pdk-mono">@error</li>
                                 }
@@ -99,7 +99,7 @@
                         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-review-alert" data-review="invalid">
                             <strong>@(_errors.Count == 1 ? "One thing to fix" : $"{_errors.Count} things to fix") before this can go live.</strong>
                             <ul class="pdk-error-list">
-                                @foreach ((string where, string message) in _errors)
+                                @foreach (var (where, message) in _errors)
                                 {
                                     <li><span class="pdk-error-where">@where</span> @message</li>
                                 }
@@ -110,7 +110,7 @@
                     @if (_notices.Count > 0)
                     {
                         <ul class="pdk-notices" aria-label="Warnings">
-                            @foreach (string notice in _notices)
+                            @foreach (var notice in _notices)
                             {
                                 <li><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" /> <span>@notice</span></li>
                             }
@@ -248,7 +248,7 @@
         _simulation = new SimulationForm { Url = Request.SampleHost is null ? "https://" : $"https://{Request.SampleHost}/" };
         StateHasChanged();
 
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             // Never left loading: the drawer says why, and its exits work (the page is on its way to the sign-in page).
@@ -259,10 +259,10 @@
         _maySimulate = user.Has(Permission.Simulate);
         try
         {
-            CurrentConfig current = await Config.GetCurrentAsync();
+            var current = await Config.GetCurrentAsync();
             _before = current.Document;
             _after = Request.AfterDocument ?? ChangeView.Apply(current.Document, command) ?? current.Document;
-            ConfigCommandResult result = await Config.ExecuteAsync(command with { DryRun = true }, user.Session.OriginFor(Channel.Dashboard));
+            var result = await Config.ExecuteAsync(command with { DryRun = true }, user.Session.OriginFor(Channel.Dashboard));
             await ShowAsync(result, command);
             if (_phase == Phase.Ready)
             {
@@ -279,7 +279,7 @@
     private async Task ShowAsync(ConfigCommandResult result, ConfigCommand command)
     {
         _groups = ChangeView.Build(_before, _after, result.Changes);
-        bool objectCommand = command is not (ReplaceConfigCommand or RollbackConfigCommand);
+        var objectCommand = command is not (ReplaceConfigCommand or RollbackConfigCommand);
         _errors =
         [
             .. result.Errors.Select(e => (ChangeView.Locate(e.Path, objectCommand ? null : _after), ReviewNotices.Text(e, _after))),

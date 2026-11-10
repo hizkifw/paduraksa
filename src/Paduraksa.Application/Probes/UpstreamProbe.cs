@@ -48,7 +48,7 @@ public sealed partial class UpstreamProbe
             return new UpstreamProbeResult(UpstreamProbeOutcome.Denied);
         }
 
-        if (!Uri.TryCreate(address?.Trim(), UriKind.Absolute, out Uri? uri)
+        if (!Uri.TryCreate(address?.Trim(), UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
             || uri.UserInfo.Length > 0 || uri.IdnHost.Length == 0)
         {
@@ -56,7 +56,7 @@ public sealed partial class UpstreamProbe
         }
 
         using CancellationTokenSource timeout = new(Timeout, _time);
-        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         try
         {
             using Socket socket = new(SocketType.Stream, ProtocolType.Tcp);

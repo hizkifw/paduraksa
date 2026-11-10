@@ -23,7 +23,7 @@ internal sealed class DashboardHost : IAsyncDisposable
     {
         Host = host;
         _dataDirectory = dataDirectory;
-        string address = host.GetListenAddresses(HostRole.Admin).First(a => a.StartsWith("https://", StringComparison.Ordinal));
+        var address = host.GetListenAddresses(HostRole.Admin).First(a => a.StartsWith("https://", StringComparison.Ordinal));
         Admin = new UriBuilder("https", IPAddress.Loopback.ToString(), new Uri(address).Port).Uri;
     }
 
@@ -34,7 +34,7 @@ internal sealed class DashboardHost : IAsyncDisposable
 
     public static async Task<DashboardHost> StartAsync(CancellationToken cancellationToken)
     {
-        string dataDirectory = Directory.CreateTempSubdirectory("paduraksa-dashboard-").FullName;
+        var dataDirectory = Directory.CreateTempSubdirectory("paduraksa-dashboard-").FullName;
         Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Paduraksa:DataDirectory"] = Path.Combine(dataDirectory, "data"),
@@ -50,7 +50,7 @@ internal sealed class DashboardHost : IAsyncDisposable
             ["Logging:LogLevel:Default"] = "Warning",
         };
 
-        PaduraksaHost host = PaduraksaHost.Create(new PaduraksaHostOptions
+        var host = PaduraksaHost.Create(new PaduraksaHostOptions
         {
             EnvironmentName = "Testing",
             AllowEphemeralPorts = true,

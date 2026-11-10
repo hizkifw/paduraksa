@@ -112,8 +112,8 @@ public sealed partial class AdminJsonContext : JsonSerializerContext
         options.RespectRequiredConstructorParameters = true;
         options.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
         options.AllowDuplicateProperties = false;
-        JsonSerializerOptions contract = Default.Options;
-        foreach (JsonConverter converter in contract.Converters)
+        var contract = Default.Options;
+        foreach (var converter in contract.Converters)
         {
             if (!options.Converters.Any(c => c.GetType() == converter.GetType()))
             {

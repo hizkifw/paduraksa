@@ -41,7 +41,7 @@ public sealed class AuditQueryService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            IQueryable<AuditEvent> query = context.AuditEvents.AsNoTracking();
+            var query = context.AuditEvents.AsNoTracking();
             if (after is { } cursor)
             {
                 query = query.Where(e => e.Id < cursor);
@@ -49,21 +49,21 @@ public sealed class AuditQueryService
 
             if (filter.From is { } from)
             {
-                DateTimeOffset utc = from.ToUniversalTime();
+                var utc = from.ToUniversalTime();
                 query = query.Where(e => e.Timestamp >= utc);
             }
 
             if (filter.To is { } to)
             {
-                DateTimeOffset utc = to.ToUniversalTime();
+                var utc = to.ToUniversalTime();
                 query = query.Where(e => e.Timestamp < utc);
             }
 
             if (actor is { } who)
             {
-                ActorKind kind = who.Kind;
-                UserId? user = who.User;
-                ApiTokenId? token = who.Token;
+                var kind = who.Kind;
+                var user = who.User;
+                var token = who.Token;
                 query = kind switch
                 {
                     ActorKind.User => query.Where(e => e.ActorKind == kind && e.ActorUserId == user),
@@ -76,7 +76,7 @@ public sealed class AuditQueryService
             {
                 if (action.EndsWith('*'))
                 {
-                    string prefix = action[..^1];
+                    var prefix = action[..^1];
                     query = query.Where(e => e.Action.StartsWith(prefix));
                 }
                 else
@@ -96,8 +96,8 @@ public sealed class AuditQueryService
             }
 
             // One more than asked: whether it exists says whether older events remain.
-            List<AuditEvent> rows = await query.OrderByDescending(e => e.Id).Take(limit + 1).ToListAsync(cancellationToken).ConfigureAwait(false);
-            bool more = rows.Count > limit;
+            var rows = await query.OrderByDescending(e => e.Id).Take(limit + 1).ToListAsync(cancellationToken).ConfigureAwait(false);
+            var more = rows.Count > limit;
             AuditEventSummary[] items = [.. rows.Take(limit).Select(ToSummary)];
             return new AuditPage(items, more ? items[^1].Id : null);
         }
@@ -109,7 +109,7 @@ public sealed class AuditQueryService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            AuditChainReport report = await AuditChainVerifier.VerifyAsync(context, cancellationToken).ConfigureAwait(false);
+            var report = await AuditChainVerifier.VerifyAsync(context, cancellationToken).ConfigureAwait(false);
             return new AuditVerification(
                 report.IsIntact,
                 report.VerifiedEvents,
@@ -132,12 +132,12 @@ public sealed class AuditQueryService
             return (ActorKind.Cli, null, null);
         }
 
-        if (UserId.TryParse(actor, out UserId user))
+        if (UserId.TryParse(actor, out var user))
         {
             return (ActorKind.User, user, null);
         }
 
-        return ApiTokenId.TryParse(actor, out ApiTokenId token)
+        return ApiTokenId.TryParse(actor, out var token)
             ? (ActorKind.Token, null, token)
             : throw new ArgumentException("The actor must be 'system', 'cli', a user ID or an API token ID.", nameof(actor));
     }
@@ -156,7 +156,7 @@ public sealed class AuditQueryService
         {
             try
             {
-                using JsonDocument document = JsonDocument.Parse(e.Details);
+                using var document = JsonDocument.Parse(e.Details);
                 details = document.RootElement.Clone();
             }
             catch (JsonException)

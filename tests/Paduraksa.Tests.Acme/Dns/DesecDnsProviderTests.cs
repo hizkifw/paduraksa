@@ -32,7 +32,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         await Provider().CreateTxtAsync(Challenge, "v1", Token);
 
-        SecretInjection injection = Assert.Single(_handlers.Injections);
+        var injection = Assert.Single(_handlers.Injections);
         Assert.Equal("Token", injection.Scheme);
         Assert.Equal(["desec.io"], injection.AllowedHosts);
         Assert.All(_handlers.Calls, c => Assert.Equal("desec.io", c.Url.Host));
@@ -43,7 +43,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         await Provider().CreateTxtAsync(Challenge, "v1", Token);
 
-        (int ttl, IReadOnlyList<string> records) = _desec.Rrset("example.com", "_acme-challenge")!.Value;
+        var (ttl, records) = _desec.Rrset("example.com", "_acme-challenge")!.Value;
         Assert.Equal(3600, ttl);
         Assert.Equal(["\"v1\""], records);
         Assert.Contains(_handlers.Calls, c => c.Method == HttpMethod.Post && (string?)c.Json![0]!["subname"] == "_acme-challenge" && (string?)c.Json[0]!["type"] == "TXT");
@@ -56,7 +56,7 @@ public sealed class DesecDnsProviderTests : IDisposable
 
         await Provider().CreateTxtAsync(Challenge, "wildcard-value", Token);
 
-        (int ttl, IReadOnlyList<string> records) = _desec.Rrset("example.com", "_acme-challenge")!.Value;
+        var (ttl, records) = _desec.Rrset("example.com", "_acme-challenge")!.Value;
         Assert.Equal(7200, ttl);
         Assert.Equal(["\"apex-value\"", "\"wildcard-value\""], records);
         Assert.Contains(_handlers.Calls, c => c.Method == HttpMethod.Patch);
@@ -79,9 +79,9 @@ public sealed class DesecDnsProviderTests : IDisposable
     [Fact]
     public async Task CreateIsIdempotent()
     {
-        IDnsProvider provider = Provider();
+        var provider = Provider();
         await provider.CreateTxtAsync(Challenge, "v1", Token);
-        int writes = _handlers.Calls.Count(c => c.Method != HttpMethod.Get);
+        var writes = _handlers.Calls.Count(c => c.Method != HttpMethod.Get);
 
         await provider.CreateTxtAsync(Challenge, "v1", Token);
 
@@ -93,7 +93,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     public async Task DeleteRemovesOnlyTheNamedValueAndDeletesTheSetWhenItIsEmpty()
     {
         _desec.Seed("example.com", "_acme-challenge", 3600, "\"a\"", "\"b\"");
-        IDnsProvider provider = Provider();
+        var provider = Provider();
 
         await provider.DeleteTxtAsync(Challenge, "a", Token);
         Assert.Equal(["\"b\""], _desec.Rrset("example.com", "_acme-challenge")!.Value.Records);
@@ -107,7 +107,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     public async Task DeleteOfAValueOrASetThatIsNotThereWritesNothing()
     {
         _desec.Seed("example.com", "_acme-challenge", 3600, "\"a\"");
-        IDnsProvider provider = Provider();
+        var provider = Provider();
 
         await provider.DeleteTxtAsync(Challenge, "other", Token);
         await provider.DeleteTxtAsync("_acme-challenge.sub.example.com", "a", Token);
@@ -119,7 +119,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     [Fact]
     public async Task ValuesWithQuotesAndBackslashesAreEscapedAndMatchedUnescaped()
     {
-        IDnsProvider provider = Provider();
+        var provider = Provider();
 
         await provider.CreateTxtAsync(Challenge, "a\"b\\c", Token);
         Assert.Equal(["\"a\\\"b\\\\c\""], _desec.Rrset("example.com", "_acme-challenge")!.Value.Records);
@@ -143,7 +143,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     [Fact]
     public async Task ANameOutsideTheAccountsDomainsIsPermanent()
     {
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () =>
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () =>
             await Provider().CreateTxtAsync("_acme-challenge.other.org", "v1", Token));
 
         Assert.False(ex.IsTransient);
@@ -155,7 +155,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         _desec.Intercept = _ => FakeDesec.Detail(HttpStatusCode.TooManyRequests, "Request was throttled. Expected available in 300 seconds.", ("Retry-After", "300"));
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.True(ex.IsTransient);
         Assert.Equal(TimeSpan.FromSeconds(300), ex.RetryAfter);
@@ -165,7 +165,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     [Fact]
     public async Task AThrottleWithAShortRetryAfterIsWaitedOutOnce()
     {
-        bool throttled = false;
+        var throttled = false;
         _desec.Intercept = call =>
         {
             if (throttled || call.Method != HttpMethod.Patch && call.Method != HttpMethod.Post)
@@ -189,7 +189,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         _desec.Intercept = _ => FakeDesec.Detail(HttpStatusCode.TooManyRequests, "throttled", ("Retry-After", "1"));
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.True(ex.IsTransient);
         Assert.Single(_time.Delays);
@@ -202,7 +202,7 @@ public sealed class DesecDnsProviderTests : IDisposable
             ? FakeSecretHandlers.Json(HttpStatusCode.BadRequest, """{"records":["Ensure this field has no more than 500 items."]}""")
             : null;
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.False(ex.IsTransient);
         Assert.Contains("records: Ensure this field", ex.Message, StringComparison.Ordinal);
@@ -213,7 +213,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         _desec.Intercept = _ => FakeSecretHandlers.Empty(HttpStatusCode.ServiceUnavailable);
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.True(ex.IsTransient);
     }
@@ -232,10 +232,10 @@ public sealed class DesecDnsProviderTests : IDisposable
     public async Task ABadTokenIsAnInvalidResultAndTheTokenIsNeverInMessagesOrLogs()
     {
         _desec.Intercept = _ => FakeDesec.Detail(HttpStatusCode.Unauthorized, "Invalid token.");
-        IDnsProvider provider = Provider();
+        var provider = Provider();
 
-        DnsCredentialCheck check = await provider.ValidateCredentialsAsync(Token);
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await provider.CreateTxtAsync(Challenge, "v1", Token));
+        var check = await provider.ValidateCredentialsAsync(Token);
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await provider.CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.False(check.Valid);
         Assert.Contains("Invalid token.", check.Message, StringComparison.Ordinal);
@@ -248,7 +248,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     [Fact]
     public async Task AGoodTokenValidates()
     {
-        DnsCredentialCheck check = await Provider().ValidateCredentialsAsync(Token);
+        var check = await Provider().ValidateCredentialsAsync(Token);
 
         Assert.True(check.Valid);
         Assert.Contains(_handlers.Calls, c => c.Path.EndsWith("/domains/", StringComparison.Ordinal));
@@ -259,7 +259,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         _desec.AddDomain("example.org");
         _desec.Seed("example.com", "_acme-challenge.old", 3600, "\"x\"");
-        IDnsProvider provider = Provider();
+        var provider = Provider();
 
         await provider.CreateTxtBatchAsync(
             [
@@ -291,7 +291,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     public async Task APutWithoutSubnameAndTypeIsRefusedByDesecSoTheProviderNeverSendsOne()
     {
         _desec.Seed("example.com", "_acme-challenge", 3600, "\"a\"");
-        FakeDesec strict = _desec;
+        var strict = _desec;
         ApiCall bare = new(HttpMethod.Put, new Uri("https://desec.io/api/v1/domains/example.com/rrsets/_acme-challenge/TXT/"), """{"ttl":3600,"records":["\"b\""]}""", "Token " + FakeSecretHandlers.Token);
         Assert.Equal(HttpStatusCode.BadRequest, strict.Handle(bare).StatusCode);
 
@@ -304,7 +304,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     [Fact]
     public async Task ACreateThatMeetsASetMadeInTheMeantimeMergesIntoItOnce()
     {
-        bool raced = false;
+        var raced = false;
         _desec.Intercept = call =>
         {
             if (raced || call.Method != HttpMethod.Post)
@@ -327,7 +327,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         _desec.Intercept = call => call.Method == HttpMethod.Post ? FakeSecretHandlers.Json(HttpStatusCode.BadRequest, """[{"records":["Invalid."]}]""") : null;
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.False(ex.IsTransient);
     }
@@ -337,7 +337,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         _desec.SeedCname("example.com", "_acme-challenge", "validation.other.org.");
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await Provider().CreateTxtAsync(Challenge, "v1", Token));
 
         Assert.False(ex.IsTransient);
         Assert.Contains("CNAME", ex.Message, StringComparison.Ordinal);
@@ -358,7 +358,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     [Fact]
     public async Task AThrottleOfAMinuteIsWaitedOutInsideTheCallByDefault()
     {
-        bool throttled = false;
+        var throttled = false;
         _desec.Intercept = call =>
         {
             if (throttled || call.Method != HttpMethod.Post)
@@ -382,7 +382,7 @@ public sealed class DesecDnsProviderTests : IDisposable
     {
         await Provider().ValidateCredentialsAsync(Token);
 
-        ApiCall call = Assert.Single(_handlers.Calls);
+        var call = Assert.Single(_handlers.Calls);
         Assert.Equal("owns_qname", call.Query.TrimStart('?').Split('=')[0]);
     }
 }

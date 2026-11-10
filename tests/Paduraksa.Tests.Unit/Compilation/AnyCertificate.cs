@@ -23,7 +23,7 @@ internal sealed class AnyCertificate : IDisposable
 
     public AnyCertificate()
     {
-        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         CertificateRequest request = new("CN=paduraksa test", key, HashAlgorithmName.SHA256);
         _leaf = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
         _certificate = ServerCertificate.Create(_leaf, intermediates: null);
@@ -41,7 +41,7 @@ internal sealed class AnyCertificate : IDisposable
             named.Add(defaultId);
         }
 
-        foreach (HostConfig? host in document.Hosts ?? [])
+        foreach (var host in document.Hosts ?? [])
         {
             if (host?.Certificate is { CertificateId: { IsEmpty: false } id })
             {
@@ -49,7 +49,7 @@ internal sealed class AnyCertificate : IDisposable
             }
         }
 
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UtcNow;
         return new CertificateInventory(
         [
             .. named.Where(id => !Missing.Contains(id))

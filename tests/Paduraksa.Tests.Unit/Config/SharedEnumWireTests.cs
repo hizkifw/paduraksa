@@ -6,7 +6,6 @@ using System.Text.Json.Serialization.Metadata;
 using Paduraksa.Admin.Json;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
-using Paduraksa.Core.Ids;
 using Paduraksa.Core.Json;
 using Paduraksa.Core.Model;
 
@@ -66,7 +65,7 @@ public sealed class SharedEnumWireTests
                 .Select(p => (string)p.GetValue(null)!),
         ];
 
-        foreach (string name in Enum.GetNames<LoadBalancingPolicy>())
+        foreach (var name in Enum.GetNames<LoadBalancingPolicy>())
         {
             Assert.Contains(name, yarp);
         }
@@ -82,7 +81,7 @@ public sealed class SharedEnumWireTests
 
     private static void AssertEveryName(string written, byte[] canonical)
     {
-        foreach (string member in new[]
+        foreach (var member in new[]
         {
             "\"unknownHost\":\"close\"",
             "\"mode\":\"cloudflareTunnel\"",

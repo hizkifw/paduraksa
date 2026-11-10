@@ -44,7 +44,7 @@ internal sealed partial class DashboardConfig(
 
     public async Task<IReadOnlyList<UserSummary>> ListUsersAsync(CommandOrigin origin, CancellationToken cancellationToken = default)
     {
-        UserListResult result = await users.ListAsync(origin, cancellationToken).ConfigureAwait(false);
+        var result = await users.ListAsync(origin, cancellationToken).ConfigureAwait(false);
         return result.Status == IdentityStatus.Succeeded ? result.Users : [];
     }
 
@@ -54,7 +54,7 @@ internal sealed partial class DashboardConfig(
     public IDisposable Watch(Func<ConfigCommitted, Task> onCommitted)
     {
         ArgumentNullException.ThrowIfNull(onCommitted);
-        ConfigChangeSubscription subscription = config.Changes.Subscribe();
+        var subscription = config.Changes.Subscribe();
         _ = PumpAsync(subscription, onCommitted);
         return subscription;
     }
@@ -62,7 +62,7 @@ internal sealed partial class DashboardConfig(
     /// <summary>Hands each commit to the callback until the subscription is disposed (which completes its reader).</summary>
     private async Task PumpAsync(ConfigChangeSubscription subscription, Func<ConfigCommitted, Task> onCommitted)
     {
-        await foreach (ConfigCommitted committed in subscription.Reader.ReadAllAsync().ConfigureAwait(false))
+        await foreach (var committed in subscription.Reader.ReadAllAsync().ConfigureAwait(false))
         {
             try
             {

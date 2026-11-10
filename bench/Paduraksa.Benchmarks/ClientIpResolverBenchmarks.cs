@@ -60,7 +60,7 @@ public class ClientIpResolverBenchmarks
 
     private static ClientInfo Connection(string address)
     {
-        IpKey key = IpKey.Parse(address);
+        var key = IpKey.Parse(address);
         return new ClientInfo(key, 50000, ConnectionAddressSource.Socket, key, 50000);
     }
 }

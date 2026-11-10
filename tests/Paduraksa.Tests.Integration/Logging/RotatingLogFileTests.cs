@@ -30,7 +30,7 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public void LinesAreAppendedInOrderAndFlushed()
     {
-        using RotatingLogFile writer = Start(Clock());
+        using var writer = Start(Clock());
 
         writer.WriteLine("first");
         writer.WriteLine("second".AsSpan());
@@ -43,7 +43,7 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public void DisposeFlushesWhatIsStillQueued()
     {
-        RotatingLogFile writer = Start(Clock());
+        var writer = Start(Clock());
         writer.WriteLine("last words");
         writer.Dispose();
 
@@ -53,7 +53,7 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public void AFlushWakesTheWriterInsteadOfWaitingForItsTick()
     {
-        using RotatingLogFile writer = Start(Clock());
+        using var writer = Start(Clock());
         writer.WriteLine("warm");
         writer.Flush(); // the writer is now idle, waiting for work: what a host's stop finds
 
@@ -63,11 +63,11 @@ public sealed class RotatingLogFileTests : IDisposable
         const int Flushes = 5;
         long longest = 0;
         long total = 0;
-        for (int i = 0; i < Flushes; i++)
+        for (var i = 0; i < Flushes; i++)
         {
-            long started = Stopwatch.GetTimestamp();
+            var started = Stopwatch.GetTimestamp();
             writer.Flush();
-            long elapsed = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            var elapsed = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             longest = Math.Max(longest, elapsed);
             total += elapsed;
         }
@@ -78,7 +78,7 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public void LinesWrittenBeforeAFlushAreOnDiskWhenItReturns()
     {
-        using RotatingLogFile writer = Start(Clock());
+        using var writer = Start(Clock());
         writer.WriteLine("on disk when the flush returns");
 
         writer.Flush();
@@ -93,7 +93,7 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public async Task ConcurrentWritersKeepEachWritersOrder()
     {
-        using RotatingLogFile writer = Start(Clock());
+        using var writer = Start(Clock());
         const int Threads = 4;
         const int Lines = 50;
         using Barrier barrier = new(Threads);
@@ -101,7 +101,7 @@ public sealed class RotatingLogFileTests : IDisposable
         Task[] writing = [.. Enumerable.Range(0, Threads).Select(thread => Task.Run(() =>
         {
             barrier.SignalAndWait();
-            for (int line = 0; line < Lines; line++)
+            for (var line = 0; line < Lines; line++)
             {
                 writer.WriteLine($"thread {thread} line {line}");
             }
@@ -109,9 +109,9 @@ public sealed class RotatingLogFileTests : IDisposable
         await Task.WhenAll(writing).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         writer.Flush();
 
-        List<string> written = Read(LivePath());
+        var written = Read(LivePath());
         Assert.Equal(Threads * Lines, written.Count);
-        for (int thread = 0; thread < Threads; thread++)
+        for (var thread = 0; thread < Threads; thread++)
         {
             int[] sequence = [.. written.Where(l => l.StartsWith($"thread {thread} ", StringComparison.Ordinal)).Select(l => int.Parse(l.Split(' ')[3], System.Globalization.CultureInfo.InvariantCulture))];
             Assert.Equal(Enumerable.Range(0, Lines), sequence);
@@ -121,10 +121,10 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public void ItRotatesBySizeAndCompressesInTheBackgroundWithoutLosingALine()
     {
-        using RotatingLogFile writer = Start(Clock(), maxFileSize: 80);
+        using var writer = Start(Clock(), maxFileSize: 80);
         string[] lines = [.. Enumerable.Range(0, 24).Select(i => $"warn: a line of log number {i:D2}")];
 
-        foreach (string line in lines)
+        foreach (var line in lines)
         {
             writer.WriteLine(line);
         }
@@ -134,7 +134,7 @@ public sealed class RotatingLogFileTests : IDisposable
 
         List<string> found = [.. Read(LivePath()), .. Rotated().Order(StringComparer.Ordinal).SelectMany(ReadGzip)];
         Assert.Equal(lines.Order(StringComparer.Ordinal), found.Order(StringComparer.Ordinal));
-        foreach (string file in Rotated())
+        foreach (var file in Rotated())
         {
             Assert.InRange(ReadGzip(file).Sum(line => line.Length + 1), 1, 80);
         }
@@ -143,18 +143,18 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public void ItRotatesWhenTheUtcDateChanges()
     {
-        TestClock clock = Clock();
-        using RotatingLogFile writer = Start(clock);
+        var clock = Clock();
+        using var writer = Start(clock);
 
         writer.WriteLine("before midnight");
         writer.Flush();
         clock.Now = clock.Now.AddDays(1);
-        DateTimeOffset afterMidnight = clock.Now;
+        var afterMidnight = clock.Now;
         writer.WriteLine("after midnight");
         writer.Flush();
 
         WaitUntil(() => Rotated().Any(path => path.EndsWith(".gz", StringComparison.Ordinal)), "the daily rotation");
-        string dated = LogFileNames.Rotated(LogFileKind.Error, afterMidnight) + ".gz";
+        var dated = LogFileNames.Rotated(LogFileKind.Error, afterMidnight) + ".gz";
 
         Assert.Contains(dated, Rotated().Select(Path.GetFileName));
         Assert.Equal(["before midnight"], ReadGzip(Path.Combine(Directory, dated)));
@@ -164,7 +164,7 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public void TwoRotationsInTheSameSecondGetDistinctNames()
     {
-        using RotatingLogFile writer = Start(Clock(), maxFileSize: 16);
+        using var writer = Start(Clock(), maxFileSize: 16);
 
         writer.WriteLine("a line long enough to rotate");
         writer.WriteLine("another line, same second");
@@ -182,12 +182,12 @@ public sealed class RotatingLogFileTests : IDisposable
     public void StartupFinishesLeftoverRotatedFilesAndRemovesStaleTemps()
     {
         System.IO.Directory.CreateDirectory(Directory);
-        string leftover = LogFileNames.Rotated(LogFileKind.Error, Clock().Now.AddHours(-1));
+        var leftover = LogFileNames.Rotated(LogFileKind.Error, Clock().Now.AddHours(-1));
         System.IO.File.WriteAllText(Path.Combine(Directory, leftover), "warn: from a previous run\n");
         System.IO.File.WriteAllText(Path.Combine(Directory, leftover + ".gz.tmp"), "half a gzip");
         System.IO.File.WriteAllText(Path.Combine(Directory, "error-20260101T000000Z.log.gz.tmp"), "half a gzip");
 
-        using RotatingLogFile writer = Start(Clock());
+        using var writer = Start(Clock());
         WaitUntil(() => System.IO.File.Exists(Path.Combine(Directory, leftover + ".gz")) && !System.IO.File.Exists(Path.Combine(Directory, leftover)), "the leftover to be compressed");
 
         Assert.Equal(["warn: from a previous run"], ReadGzip(Path.Combine(Directory, leftover + ".gz")));
@@ -198,7 +198,7 @@ public sealed class RotatingLogFileTests : IDisposable
     public void RetentionKeepsTheNewestFilesUpToTheCount()
     {
         SeedRotated(5);
-        using RotatingLogFile writer = Start(Clock(), retainedFiles: 2, maxAge: TimeSpan.FromDays(3650));
+        using var writer = Start(Clock(), retainedFiles: 2, maxAge: TimeSpan.FromDays(3650));
 
         WaitUntil(() => Rotated().Count == 2, "retention by count");
 
@@ -215,19 +215,19 @@ public sealed class RotatingLogFileTests : IDisposable
     public void RetentionDeletesFilesOlderThanTheMaximumAge()
     {
         SeedRotated(3);
-        using RotatingLogFile writer = Start(Clock(), maxAge: TimeSpan.FromDays(2));
+        using var writer = Start(Clock(), maxAge: TimeSpan.FromDays(2));
 
         WaitUntil(() => Rotated().Count == 2, "retention by age");
         Assert.All(
             Rotated().Select(Path.GetFileName),
-            name => Assert.True(LogFileNames.TryParseRotated(name, out _, out DateTimeOffset at, out _) && at >= Clock().Now.AddDays(-2), name));
+            name => Assert.True(LogFileNames.TryParseRotated(name, out _, out var at, out _) && at >= Clock().Now.AddDays(-2), name));
     }
 
     [Fact]
     public void RetentionKeepsTheTotalSizeUnderItsLimit()
     {
         SeedRotated(4);
-        using RotatingLogFile writer = Start(Clock(), maxTotalSize: 10);
+        using var writer = Start(Clock(), maxTotalSize: 10);
 
         WaitUntil(() => Rotated().Count < 4, "retention by total size");
 
@@ -241,7 +241,7 @@ public sealed class RotatingLogFileTests : IDisposable
         System.IO.Directory.CreateDirectory(_root);
         System.IO.File.WriteAllText(Directory, "not a directory");
 
-        using RotatingLogFile writer = Start(Clock());
+        using var writer = Start(Clock());
         writer.WriteLine("a line that can't be written");
         writer.WriteLine("another one");
         writer.Flush();
@@ -263,11 +263,11 @@ public sealed class RotatingLogFileTests : IDisposable
         // capacity fills deterministically instead of depending on the scheduler.
         using ManualResetEventSlim pause = new(false);
         using ManualResetEventSlim taken = new(false);
-        using RotatingLogFile writer = Start(Clock(), seams: new RotatingLogFileTestSeams { Pause = pause, Taken = taken });
+        using var writer = Start(Clock(), seams: new RotatingLogFileTestSeams { Pause = pause, Taken = taken });
 
         writer.WriteLine("stalled");
         Assert.True(taken.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
-        for (int i = 0; i < 10_000; i++)
+        for (var i = 0; i < 10_000; i++)
         {
             writer.WriteLine($"dropped or queued {i}");
         }
@@ -287,10 +287,10 @@ public sealed class RotatingLogFileTests : IDisposable
         }
 
         System.IO.Directory.CreateDirectory(Directory);
-        string live = LivePath();
+        var live = LivePath();
         System.IO.File.CreateSymbolicLink(live, "/dev/full");
 
-        using RotatingLogFile writer = Start(Clock());
+        using var writer = Start(Clock());
         writer.WriteLine("a line a full disk refuses");
         WaitUntil(() => writer.Failures > 0, "the write failure to be counted");
 
@@ -314,12 +314,12 @@ public sealed class RotatingLogFileTests : IDisposable
     public void ARotationWhoseRenameFailsKeepsAppendingAndTriesAgain()
     {
         // A directory where the first rotated name would go: File.Move onto it fails, so the rotation fails and the live file stays live.
-        TestClock clock = Clock();
+        var clock = Clock();
         System.IO.Directory.CreateDirectory(Directory);
-        string blocked = Path.Combine(Directory, LogFileNames.Rotated(LogFileKind.Error, clock.Now));
+        var blocked = Path.Combine(Directory, LogFileNames.Rotated(LogFileKind.Error, clock.Now));
         System.IO.Directory.CreateDirectory(blocked);
 
-        using RotatingLogFile writer = Start(clock, maxFileSize: 24);
+        using var writer = Start(clock, maxFileSize: 24);
         writer.WriteLine("a line long enough to rotate");
         writer.WriteLine("a second line, still live");
         writer.Flush();
@@ -345,7 +345,7 @@ public sealed class RotatingLogFileTests : IDisposable
         SeedRotated(3);
 
         // A total budget smaller than the live file alone: the rotated files go, the live one stays.
-        using RotatingLogFile writer = Start(Clock(), maxTotalSize: 10, maxAge: TimeSpan.FromDays(3650));
+        using var writer = Start(Clock(), maxTotalSize: 10, maxAge: TimeSpan.FromDays(3650));
         WaitUntil(() => Rotated().Count == 0, "retention to empty the rotated files");
 
         Assert.True(System.IO.File.Exists(LivePath()));
@@ -356,11 +356,11 @@ public sealed class RotatingLogFileTests : IDisposable
     public async Task FlushingWhileDisposingNeverThrows()
     {
         // The events and queues are not disposed while the threads may still touch them, and a Flush that loses the race returns.
-        RotatingLogFile writer = Start(Clock());
+        var writer = Start(Clock());
         writer.WriteLine("one last line");
         Task[] flushing = [.. Enumerable.Range(0, 8).Select(_ => Task.Run(() =>
         {
-            for (int i = 0; i < 200; i++)
+            for (var i = 0; i < 200; i++)
             {
                 writer.Flush();
             }
@@ -375,7 +375,7 @@ public sealed class RotatingLogFileTests : IDisposable
     [Fact]
     public void ItRefusesToWriteAfterDisposeWithoutThrowing()
     {
-        RotatingLogFile writer = Start(Clock());
+        var writer = Start(Clock());
         writer.Dispose();
 
         writer.WriteLine("too late");
@@ -411,13 +411,13 @@ public sealed class RotatingLogFileTests : IDisposable
     private void SeedRotated(int count)
     {
         System.IO.Directory.CreateDirectory(Directory);
-        for (int day = 1; day <= count; day++)
+        for (var day = 1; day <= count; day++)
         {
-            DateTimeOffset at = Clock().Now.AddDays(-day);
-            string name = LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, at));
-            using FileStream file = System.IO.File.Create(Path.Combine(Directory, name));
+            var at = Clock().Now.AddDays(-day);
+            var name = LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, at));
+            using var file = System.IO.File.Create(Path.Combine(Directory, name));
             using GZipStream gzip = new(file, CompressionLevel.Fastest);
-            byte[] bytes = Encoding.UTF8.GetBytes($"warn: day {day}\n");
+            var bytes = Encoding.UTF8.GetBytes($"warn: day {day}\n");
             gzip.Write(bytes, 0, bytes.Length);
         }
     }
@@ -427,7 +427,7 @@ public sealed class RotatingLogFileTests : IDisposable
 
     private static List<string> ReadGzip(string path)
     {
-        using FileStream file = System.IO.File.OpenRead(path);
+        using var file = System.IO.File.OpenRead(path);
         using GZipStream gzip = new(file, CompressionMode.Decompress);
         using StreamReader reader = new(gzip, Encoding.UTF8);
         List<string> lines = [];
@@ -442,7 +442,7 @@ public sealed class RotatingLogFileTests : IDisposable
     /// <summary>Waits for background work (a flush interval, a gzip, retention) up to a generous bound; the assertion names what it waited for.</summary>
     internal static void WaitUntil(Func<bool> condition, string what, int seconds = 20)
     {
-        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(seconds);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(seconds);
         while (DateTimeOffset.UtcNow < deadline)
         {
             if (condition())

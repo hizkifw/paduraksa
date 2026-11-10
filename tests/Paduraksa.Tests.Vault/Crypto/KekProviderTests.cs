@@ -128,7 +128,7 @@ public sealed class KekProviderTests : IDisposable
         Assert.SkipWhen(OperatingSystem.IsWindows(), "Unix file modes.");
         Assert.SkipWhen(string.Equals(Environment.UserName, "root", StringComparison.Ordinal), "root bypasses file modes.");
 
-        string path = _data.File("secret.key");
+        var path = _data.File("secret.key");
         using (var kek = Kek.Generate())
         {
             Assert.True(KekProvider.TryCreateKeyFile(path, kek));
@@ -294,10 +294,10 @@ public sealed class KekProviderTests : IDisposable
     [Fact]
     public async Task AReaderWaitsForAFirstStartThatStillHoldsTheKeyFile()
     {
-        string path = _data.File(KekProvider.GeneratedFileName);
-        string text = NewKekText();
+        var path = _data.File(KekProvider.GeneratedFileName);
+        var text = NewKekText();
         using ManualResetEventSlim release = new();
-        Task writer = Task.Run(
+        var writer = Task.Run(
             () =>
             {
                 var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, BufferSize = 0 };
@@ -319,12 +319,12 @@ public sealed class KekProviderTests : IDisposable
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
 
-        Task<ResolvedKek> resolve = Task.Run(() => Resolve());
+        var resolve = Task.Run(() => Resolve());
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(resolve.IsCompleted); // Held exclusively: the reader cannot open it yet, and retries instead of failing.
         release.Set();
         await writer;
-        ResolvedKek resolved = await resolve;
+        var resolved = await resolve;
         using var kek = resolved.Kek;
 
         Assert.Equal(IdOf(text), kek.Id);
@@ -333,9 +333,9 @@ public sealed class KekProviderTests : IDisposable
     [Fact]
     public async Task AReaderNeverAcceptsAPartiallyWrittenKeyFile()
     {
-        string path = _data.File(KekProvider.GeneratedFileName);
-        string text = NewKekText();
-        byte[] bytes = System.Text.Encoding.ASCII.GetBytes(text + "\n");
+        var path = _data.File(KekProvider.GeneratedFileName);
+        var text = NewKekText();
+        var bytes = System.Text.Encoding.ASCII.GetBytes(text + "\n");
         var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.ReadWrite, BufferSize = 0 };
         if (!OperatingSystem.IsWindows())
         {
@@ -346,13 +346,13 @@ public sealed class KekProviderTests : IDisposable
         writer.Write(bytes.AsSpan(0, 10));
         writer.Flush();
 
-        Task<ResolvedKek> resolve = Task.Run(() => Resolve());
+        var resolve = Task.Run(() => Resolve());
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(resolve.IsCompleted); // Ten bytes are not a key: the reader waits for the rest instead of parsing them.
         writer.Write(bytes.AsSpan(10));
         writer.Flush(flushToDisk: true);
         writer.Dispose();
-        ResolvedKek resolved = await resolve;
+        var resolved = await resolve;
         using var kek = resolved.Kek;
 
         Assert.Equal(IdOf(text), kek.Id);

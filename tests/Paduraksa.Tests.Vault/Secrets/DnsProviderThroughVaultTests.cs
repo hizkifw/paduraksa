@@ -32,14 +32,14 @@ public sealed class DnsProviderThroughVaultTests : IDisposable
 
     private async Task<IDnsProvider> ProviderAsync(params string[] allowedHosts)
     {
-        SecretId id = await _vault.Get<ISecretStore>().PutAsync(SecretKind.DnsApiToken, Encoding.UTF8.GetBytes(FakeSecretHandlers.Token), SecretStoreTests.Dns(allowedHosts), Ct);
+        var id = await _vault.Get<ISecretStore>().PutAsync(SecretKind.DnsApiToken, Encoding.UTF8.GetBytes(FakeSecretHandlers.Token), SecretStoreTests.Dns(allowedHosts), Ct);
         return new DnsProviderFactory(_vault.Get<ISecretHttpHandlerFactory>()).Create(DnsProviderKind.Cloudflare, id);
     }
 
     [Fact]
     public async Task TheVaultAttachesTheBearerTokenAndTheRecordIsWritten()
     {
-        IDnsProvider provider = await ProviderAsync("api.cloudflare.com");
+        var provider = await ProviderAsync("api.cloudflare.com");
 
         await provider.CreateTxtAsync(Challenge, "v1", Ct);
         Assert.True((await provider.ValidateCredentialsAsync(Ct)).Valid);
@@ -53,9 +53,9 @@ public sealed class DnsProviderThroughVaultTests : IDisposable
     [Fact]
     public async Task ASecretThatDoesNotAllowTheApiHostIsRefusedPermanentlyWithoutTheTokenInTheMessage()
     {
-        IDnsProvider provider = await ProviderAsync("dns.example.net");
+        var provider = await ProviderAsync("dns.example.net");
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await provider.CreateTxtAsync(Challenge, "v1", Ct));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await provider.CreateTxtAsync(Challenge, "v1", Ct));
 
         Assert.False(ex.IsTransient);
         Assert.Contains("vault refused", ex.Message, StringComparison.Ordinal);
@@ -68,10 +68,10 @@ public sealed class DnsProviderThroughVaultTests : IDisposable
     {
         // A real DNS token is stored, so the vault is not empty; the provider below names a secret that does not exist.
         _ = await ProviderAsync("api.cloudflare.com");
-        SecretId unknown = SecretId.New();
-        IDnsProvider orphan = new DnsProviderFactory(_vault.Get<ISecretHttpHandlerFactory>()).Create(DnsProviderKind.Cloudflare, unknown);
+        var unknown = SecretId.New();
+        var orphan = new DnsProviderFactory(_vault.Get<ISecretHttpHandlerFactory>()).Create(DnsProviderKind.Cloudflare, unknown);
 
-        DnsProviderException ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await orphan.CreateTxtAsync(Challenge, "v1", Ct));
+        var ex = await Assert.ThrowsAsync<DnsProviderException>(async () => await orphan.CreateTxtAsync(Challenge, "v1", Ct));
 
         Assert.False(ex.IsTransient);
         Assert.Empty(_terminalSaw);
@@ -81,7 +81,7 @@ public sealed class DnsProviderThroughVaultTests : IDisposable
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            string? body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
             ApiCall call = new(request.Method, request.RequestUri!, body, request.Headers.Authorization?.ToString() ?? string.Empty);
             lock (owner._terminalSaw)
             {

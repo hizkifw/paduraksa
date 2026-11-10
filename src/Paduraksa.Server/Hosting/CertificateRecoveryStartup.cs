@@ -1,6 +1,3 @@
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Server.Configuration;
@@ -31,13 +28,13 @@ internal sealed partial class CertificateRecoveryStartup(
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _run = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stop.Token);
-        Task recovering = RecoverAsync(_run.Token);
+        var recovering = RecoverAsync(_run.Token);
         _running = recovering;
 
-        TimeSpan timeout = options.Certificates.RecoveryStartupTimeout;
+        var timeout = options.Certificates.RecoveryStartupTimeout;
         using CancellationTokenSource timer = new();
-        Task elapsed = Task.Delay(timeout, time, timer.Token);
-        Task finished = await Task.WhenAny(recovering, elapsed).ConfigureAwait(false);
+        var elapsed = Task.Delay(timeout, time, timer.Token);
+        var finished = await Task.WhenAny(recovering, elapsed).ConfigureAwait(false);
         await timer.CancelAsync().ConfigureAwait(false);
 
         if (finished == recovering || _run.IsCancellationRequested)

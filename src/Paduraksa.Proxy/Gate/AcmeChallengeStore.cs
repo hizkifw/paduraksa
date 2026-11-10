@@ -58,7 +58,7 @@ public sealed class AcmeChallengeStore : IAcmeChallengeStore
             throw new ArgumentException("A key authorization must be 1 to 1024 printable ASCII characters.", nameof(keyAuthorization));
         }
 
-        PrecomputedResponse response = PrecomputedResponse.Create(200, System.Text.Encoding.ASCII.GetBytes(keyAuthorization), "text/plain");
+        var response = PrecomputedResponse.Create(200, System.Text.Encoding.ASCII.GetBytes(keyAuthorization), "text/plain");
 
         // The cap check and the add must not interleave, or two publishers could both pass at MaxEntries - 1.
         lock (_writers)
@@ -68,7 +68,7 @@ public sealed class AcmeChallengeStore : IAcmeChallengeStore
                 throw new InvalidOperationException($"The challenge store already holds {_capacity} tokens.");
             }
 
-            _entries[token] = new Entry(response, _entries.TryGetValue(token, out Entry? existing) ? existing.Holders + 1 : 1);
+            _entries[token] = new Entry(response, _entries.TryGetValue(token, out var existing) ? existing.Holders + 1 : 1);
         }
     }
 
@@ -78,7 +78,7 @@ public sealed class AcmeChallengeStore : IAcmeChallengeStore
         ArgumentNullException.ThrowIfNull(token);
         lock (_writers)
         {
-            if (!_entries.TryGetValue(token, out Entry? entry))
+            if (!_entries.TryGetValue(token, out var entry))
             {
                 return false;
             }
@@ -105,7 +105,7 @@ public sealed class AcmeChallengeStore : IAcmeChallengeStore
             return false;
         }
 
-        if (_lookup.TryGetValue(token, out Entry? entry))
+        if (_lookup.TryGetValue(token, out var entry))
         {
             response = entry.Response;
             return true;
@@ -124,7 +124,7 @@ public sealed class AcmeChallengeStore : IAcmeChallengeStore
             return false;
         }
 
-        foreach (char c in value)
+        foreach (var c in value)
         {
             if (!(char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
             {
@@ -137,7 +137,7 @@ public sealed class AcmeChallengeStore : IAcmeChallengeStore
 
     private static bool IsPrintableAscii(string value)
     {
-        foreach (char c in value)
+        foreach (var c in value)
         {
             if (c is < '!' or > '~')
             {

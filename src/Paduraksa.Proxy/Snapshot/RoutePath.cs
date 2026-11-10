@@ -36,12 +36,12 @@ public static class RoutePath
         }
 
         // Each segment may not be empty (except a trailing one), ".", "..", or end in '.' or ' '.
-        int start = 1;
+        var start = 1;
         while (start <= path.Length)
         {
-            int length = path[start..].IndexOf('/');
-            int end = length < 0 ? path.Length : start + length;
-            ReadOnlySpan<char> segment = path[start..end];
+            var length = path[start..].IndexOf('/');
+            var end = length < 0 ? path.Length : start + length;
+            var segment = path[start..end];
             if (segment.IsEmpty)
             {
                 if (end != path.Length)
@@ -64,12 +64,12 @@ public static class RoutePath
     /// <c>path.Length + 1</c> long) and returns its length.</summary>
     internal static int Canonicalize(ReadOnlySpan<char> path, Span<char> destination)
     {
-        int written = 0;
-        int i = 0;
-        bool endsWithSeparator = false;
+        var written = 0;
+        var i = 0;
+        var endsWithSeparator = false;
         while (i < path.Length)
         {
-            int separator = SeparatorLength(path, i);
+            var separator = SeparatorLength(path, i);
             if (separator > 0)
             {
                 i += separator;
@@ -77,15 +77,15 @@ public static class RoutePath
                 continue;
             }
 
-            int start = i;
+            var start = i;
             while (i < path.Length && SeparatorLength(path, i) == 0)
             {
                 i++;
             }
 
             endsWithSeparator = false;
-            ReadOnlySpan<char> segment = path[start..i];
-            int parameters = segment.IndexOf(';');
+            var segment = path[start..i];
+            var parameters = segment.IndexOf(';');
             if (parameters >= 0)
             {
                 segment = segment[..parameters];
@@ -98,7 +98,7 @@ public static class RoutePath
 
             if (segment is "..")
             {
-                int parent = destination[..written].LastIndexOf('/');
+                var parent = destination[..written].LastIndexOf('/');
                 written = parent < 0 ? 0 : parent;
                 continue;
             }
@@ -130,13 +130,13 @@ public static class RoutePath
             return path;
         }
 
-        char[] buffer = new char[path.Length + 1];
+        var buffer = new char[path.Length + 1];
         return new string(buffer, 0, Canonicalize(path, buffer));
     }
 
     private static int SeparatorLength(ReadOnlySpan<char> path, int i)
     {
-        char c = path[i];
+        var c = path[i];
         if (c is '/' or '\\')
         {
             return 1;
@@ -144,8 +144,8 @@ public static class RoutePath
 
         if (c == '%' && i + 2 < path.Length)
         {
-            char hi = path[i + 1];
-            char lo = (char)(path[i + 2] | 0x20);
+            var hi = path[i + 1];
+            var lo = (char)(path[i + 2] | 0x20);
             if ((hi == '2' && lo == 'f') || (hi == '5' && lo == 'c'))
             {
                 return 3;

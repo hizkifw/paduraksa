@@ -9,8 +9,8 @@ public sealed class AdminCookieNameTests
     [Fact]
     public void TheProxyStripsExactlyTheCookieTheAdminSets()
     {
-        object? admin = LoadAssembly(Layer.Admin).GetType("Paduraksa.Admin.Auth.AdminSessionCookie")!.GetField("Name")!.GetRawConstantValue();
-        object? proxy = LoadAssembly(Layer.Proxy).GetType("Paduraksa.Proxy.Yarp.SessionCookieTransform")!
+        var admin = LoadAssembly(Layer.Admin).GetType("Paduraksa.Admin.Auth.AdminSessionCookie")!.GetField("Name")!.GetRawConstantValue();
+        var proxy = LoadAssembly(Layer.Proxy).GetType("Paduraksa.Proxy.Yarp.SessionCookieTransform")!
             .GetField("CookieName", BindingFlags.NonPublic | BindingFlags.Static)!.GetRawConstantValue();
 
         Assert.Equal("__Host-paduraksa-session", admin);

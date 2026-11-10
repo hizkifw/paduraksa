@@ -4,8 +4,6 @@ using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
-using Paduraksa.Proxy.Config;
-
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 using SystemIpNetwork = System.Net.IPNetwork;
@@ -36,12 +34,12 @@ public sealed class CompiledBehaviourTests : IDisposable
     {
         // Route A admits 10/8, route B 192.168.1/24; the host forces HTTPS. The outsider gets the same answer on every
         // path, over plain HTTP too (no redirect that would show the host serves it), and nothing tells the paths apart.
-        using GateHarness gate = Harness(SplitHost(drop));
-        int blocked = drop ? GateHarness.Aborted : 403;
+        using var gate = Harness(SplitHost(drop));
+        var blocked = drop ? GateHarness.Aborted : 403;
 
-        foreach (string scheme in (string[])["http", "https"])
+        foreach (var scheme in (string[])["http", "https"])
         {
-            foreach (string path in (string[])["/", "/a", "/a/x", "/b", "/nothing-here"])
+            foreach (var path in (string[])["/", "/a", "/a/x", "/b", "/nothing-here"])
             {
                 Assert.Equal(blocked, await gate.SendAsync("app.example.com", scheme, path, Outsider));
             }
@@ -51,7 +49,7 @@ public sealed class CompiledBehaviourTests : IDisposable
     [Fact]
     public async Task AClientInOneRoutesListGetsThroughThereOnly()
     {
-        using GateHarness gate = Harness(SplitHost(drop: false));
+        using var gate = Harness(SplitHost(drop: false));
 
         Assert.Equal(GateHarness.Forwarded, await gate.SendAsync("app.example.com", "https", "/a/x", InA));
         Assert.Equal(403, await gate.SendAsync("app.example.com", "https", "/b", InA));
@@ -66,10 +64,10 @@ public sealed class CompiledBehaviourTests : IDisposable
     [Fact]
     public async Task ALiftedRouteIsOpenToEveryone()
     {
-        ConfigDocument document = SplitHost(drop: false);
-        HostConfig host = document.Hosts[0];
+        var document = SplitHost(drop: false);
+        var host = document.Hosts[0];
         document = document with { Hosts = [host with { Routes = [host.Routes[0], host.Routes[1] with { Settings = new RouteSettings { IpAllowList = new IpAllowListSettings([]) } }] }] };
-        using GateHarness gate = Harness(document);
+        using var gate = Harness(document);
 
         Assert.Equal(GateHarness.Forwarded, await gate.SendAsync("app.example.com", "https", "/b", Outsider));
         Assert.Equal(403, await gate.SendAsync("app.example.com", "https", "/a", Outsider));
@@ -82,29 +80,29 @@ public sealed class CompiledBehaviourTests : IDisposable
     [Fact]
     public async Task TheGateDoesWhatTheDocumentSays()
     {
-        int checkedDocuments = 0;
-        for (int seed = 0; seed < 300; seed++)
+        var checkedDocuments = 0;
+        for (var seed = 0; seed < 300; seed++)
         {
             // The client is the socket peer: trusted proxies are their own tests.
-            ConfigDocument random = Random(seed);
-            ConfigDocument document = random with { Settings = random.Settings with { TrustedProxies = new TrustedProxySettings() } };
+            var random = Random(seed);
+            var document = random with { Settings = random.Settings with { TrustedProxies = new TrustedProxySettings() } };
             if (ConfigValidator.Validate(document).Count > 0)
             {
                 continue;
             }
 
             checkedDocuments++;
-            using GateHarness gate = Harness(document);
-            foreach (HostConfig host in document.Hosts.Where(h => h.Enabled))
+            using var gate = Harness(document);
+            foreach (var host in document.Hosts.Where(h => h.Enabled))
             {
-                foreach (string scheme in (string[])["http", "https"])
+                foreach (var scheme in (string[])["http", "https"])
                 {
-                    foreach (string path in Paths)
+                    foreach (var path in Paths)
                     {
-                        foreach (IPAddress client in Clients)
+                        foreach (var client in Clients)
                         {
-                            int expected = Reference.Answer(document, host, scheme, path, client);
-                            int actual = await gate.SendAsync(host.Names[0], scheme, path, client);
+                            var expected = Reference.Answer(document, host, scheme, path, client);
+                            var actual = await gate.SendAsync(host.Names[0], scheme, path, client);
                             Assert.True(expected == actual, $"seed {seed}, {scheme}://{host.Names[0]}{path} from {client}: expected {expected}, got {actual}");
                         }
                     }
@@ -117,7 +115,7 @@ public sealed class CompiledBehaviourTests : IDisposable
 
     private GateHarness Harness(ConfigDocument document)
     {
-        ConfigCompilation compilation = _certificates.Compile(document, Revision);
+        var compilation = _certificates.Compile(document, Revision);
         Assert.True(compilation.Succeeded, string.Join("; ", compilation.Errors.Select(e => $"{e.Path}: {e.Message}")));
         return new GateHarness(compilation.Snapshot!);
     }
@@ -146,16 +144,16 @@ public sealed class CompiledBehaviourTests : IDisposable
     {
         public static int Answer(ConfigDocument document, HostConfig host, string scheme, string path, IPAddress client)
         {
-            HostSettings defaults = document.Settings.Defaults;
-            HostSettings? profile = document.Profiles.FirstOrDefault(p => p.Id == host.ProfileId)?.Settings;
-            bool https = scheme == "https";
-            TlsMinimumVersion minimum = host.Settings.Tls?.MinimumVersion ?? profile?.Tls?.MinimumVersion ?? defaults.Tls?.MinimumVersion ?? TlsMinimumVersion.Tls12;
+            var defaults = document.Settings.Defaults;
+            var profile = document.Profiles.FirstOrDefault(p => p.Id == host.ProfileId)?.Settings;
+            var https = scheme == "https";
+            var minimum = host.Settings.Tls?.MinimumVersion ?? profile?.Tls?.MinimumVersion ?? defaults.Tls?.MinimumVersion ?? TlsMinimumVersion.Tls12;
             if (https && (host.Certificate.Mode == CertificateBindingMode.None || minimum == TlsMinimumVersion.Tls13))
             {
                 return 421; // no HTTPS, or a TLS 1.3 minimum this (unknown-version) connection doesn't show
             }
 
-            IpAllowListSettings? hostList = Restricting(host.Settings.IpAllowList ?? profile?.IpAllowList ?? defaults.IpAllowList);
+            var hostList = Restricting(host.Settings.IpAllowList ?? profile?.IpAllowList ?? defaults.IpAllowList);
             RouteConfig[] routes = [.. host.Routes.OrderBy(r => r.Order)];
             IpAllowListSettings?[] routeLists = [.. routes.Select(r => r.Settings.IpAllowList is { } own ? Restricting(own) : hostList)];
 
@@ -180,7 +178,7 @@ public sealed class CompiledBehaviourTests : IDisposable
                     return host.Respond!.StatusCode;
             }
 
-            int match = Array.FindIndex(routes, r => Matches(r, path));
+            var match = Array.FindIndex(routes, r => Matches(r, path));
             if (match < 0)
             {
                 return 404;

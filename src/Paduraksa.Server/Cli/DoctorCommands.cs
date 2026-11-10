@@ -1,6 +1,5 @@
 using System.CommandLine;
 using System.Net;
-using System.Net.Security;
 using System.Security.Authentication;
 
 using Microsoft.Extensions.Options;
@@ -80,17 +79,17 @@ internal static class DoctorCommands
             return ExitCodes.Failure;
         }
 
-        IReadOnlyList<Uri> uris = HealthUris(options);
-        bool plainHttp = uris[0].Scheme == Uri.UriSchemeHttp;
-        using HttpClient client = CreateClient(plainHttp);
+        var uris = HealthUris(options);
+        var plainHttp = uris[0].Scheme == Uri.UriSchemeHttp;
+        using var client = CreateClient(plainHttp);
 
         string? answerFailure = null;
         string? transportFailure = null;
-        foreach (Uri uri in uris)
+        foreach (var uri in uris)
         {
             try
             {
-                using HttpResponseMessage response = await client.GetAsync(uri, cancellationToken).ConfigureAwait(false);
+                using var response = await client.GetAsync(uri, cancellationToken).ConfigureAwait(false);
                 if (response.StatusCode == HttpStatusCode.OK)
                 {
                     await output.WriteLineAsync("healthy").ConfigureAwait(false);
@@ -118,7 +117,7 @@ internal static class DoctorCommands
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        PaduraksaListenOptions listen = options.Listen;
+        var listen = options.Listen;
         if (listen.AdminLoopbackHttp > 0)
         {
             // ListenLocalhost binds 127.0.0.1 and ::1; AdminBind is irrelevant here.
@@ -129,7 +128,7 @@ internal static class DoctorCommands
             ];
         }
 
-        if (!IPAddress.TryParse(listen.AdminBind, out IPAddress? bind) || bind.Equals(IPAddress.Any))
+        if (!IPAddress.TryParse(listen.AdminBind, out var bind) || bind.Equals(IPAddress.Any))
         {
             return [HealthUri(Uri.UriSchemeHttps, "127.0.0.1", listen.Admin)];
         }

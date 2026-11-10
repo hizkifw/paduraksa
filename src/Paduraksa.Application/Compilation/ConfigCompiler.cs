@@ -31,11 +31,11 @@ public sealed class ConfigCompiler : IConfigCompiler
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(inventory);
-        MappedConfig mapped = ProxyConfigMapping.Map(document, revision, inventory);
+        var mapped = ProxyConfigMapping.Map(document, revision, inventory);
         List<MappedWarning> warnings = [.. mapped.Warnings];
         if (!_options.AdminUpstream)
         {
-            foreach (HostConfig host in document.Hosts.Where(static h => h.Kind == HostKind.Admin))
+            foreach (var host in document.Hosts.Where(static h => h.Kind == HostKind.Admin))
             {
                 warnings.Add(new MappedWarning(
                     CompileErrorSource.Host(host.Id),
@@ -46,7 +46,7 @@ public sealed class ConfigCompiler : IConfigCompiler
         }
 
         // The inventory's resolver (usable certificates only) replaces whatever the options carry.
-        CompileResult result = SnapshotCompiler.Compile(mapped.Model, _options with { Certificates = inventory.Resolver });
+        var result = SnapshotCompiler.Compile(mapped.Model, _options with { Certificates = inventory.Resolver });
         CompileErrorPaths paths = new(document);
         if (result.Snapshot is { } snapshot && mapped.Errors.Count == 0)
         {

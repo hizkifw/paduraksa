@@ -9,8 +9,8 @@ public sealed class RequestIdsTests
     [Fact]
     public void AGeneratedIdIsACounterInBase32BehindAProcessPrefix()
     {
-        string first = RequestIds.Format(RequestIds.NextCounter());
-        string second = RequestIds.Format(RequestIds.NextCounter());
+        var first = RequestIds.Format(RequestIds.NextCounter());
+        var second = RequestIds.Format(RequestIds.NextCounter());
 
         Assert.Equal(RequestIds.GeneratedLength, first.Length);
         Assert.Equal(RequestIds.GeneratedLength, second.Length);
@@ -23,7 +23,7 @@ public sealed class RequestIdsTests
     [Fact]
     public void CounterValuesAreDistinctUnderConcurrency()
     {
-        long[] counters = new long[1_000];
+        var counters = new long[1_000];
         Parallel.For(0, counters.Length, i => counters[i] = RequestIds.NextCounter());
 
         Assert.Equal(counters.Length, counters.Distinct().Count());

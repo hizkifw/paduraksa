@@ -47,28 +47,28 @@ public sealed class YarpConfig
         }
 
         Dictionary<string, RouteConfig> routes = new(Routes.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (RouteConfig route in Routes)
+        foreach (var route in Routes)
         {
             routes[route.RouteId] = route;
         }
 
-        foreach (RouteConfig route in other.Routes)
+        foreach (var route in other.Routes)
         {
-            if (!routes.TryGetValue(route.RouteId, out RouteConfig? mine) || !mine.Equals(route))
+            if (!routes.TryGetValue(route.RouteId, out var mine) || !mine.Equals(route))
             {
                 return false;
             }
         }
 
         Dictionary<string, ClusterConfig> clusters = new(Clusters.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (ClusterConfig cluster in Clusters)
+        foreach (var cluster in Clusters)
         {
             clusters[cluster.ClusterId] = cluster;
         }
 
-        foreach (ClusterConfig cluster in other.Clusters)
+        foreach (var cluster in other.Clusters)
         {
-            if (!clusters.TryGetValue(cluster.ClusterId, out ClusterConfig? mine) || !mine.Equals(cluster))
+            if (!clusters.TryGetValue(cluster.ClusterId, out var mine) || !mine.Equals(cluster))
             {
                 return false;
             }

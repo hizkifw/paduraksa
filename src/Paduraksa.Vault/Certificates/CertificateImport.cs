@@ -295,7 +295,7 @@ internal sealed class CertificateImport(VaultRuntime runtime, CertificateStore s
         {
             foreach (var certificate in certificates.Where(c => c.HasPrivateKey))
             {
-                using AsymmetricAlgorithm? key = (AsymmetricAlgorithm?)certificate.GetRSAPrivateKey() ?? certificate.GetECDsaPrivateKey();
+                using var key = (AsymmetricAlgorithm?)certificate.GetRSAPrivateKey() ?? certificate.GetECDsaPrivateKey();
                 if (key is not null)
                 {
                     pkcs8 = KeyPairs.ExportPkcs8(key);

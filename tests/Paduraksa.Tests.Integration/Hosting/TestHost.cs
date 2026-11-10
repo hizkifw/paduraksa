@@ -63,7 +63,7 @@ internal static class TestHost
             ["Paduraksa:Admin:PasswordIterations"] = "100000", // the validator's floor: a test host creates an Owner and a few users, and each hash is real work
             ["Logging:LogLevel:Default"] = "Warning",
         };
-        foreach ((string key, string? value) in settings ?? new Dictionary<string, string?>())
+        foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
             config[key] = value;
         }
@@ -100,7 +100,7 @@ internal static class TestHost
     /// listed twice (TCP and UDP share it).</summary>
     public static Uri Endpoint(PaduraksaHost host, HostRole role, string scheme)
     {
-        string address = host.GetListenAddresses(role).Distinct().Single(a => a.StartsWith(scheme + "://", StringComparison.Ordinal));
+        var address = host.GetListenAddresses(role).Distinct().Single(a => a.StartsWith(scheme + "://", StringComparison.Ordinal));
         return new UriBuilder(scheme, IPAddress.Loopback.ToString(), new Uri(address).Port).Uri;
     }
 
@@ -110,7 +110,7 @@ internal static class TestHost
     /// </summary>
     public static HttpClient CreateClient(PaduraksaHost host)
     {
-        string pin = host.Shared.ServerCertificate.Certificate.GetCertHashString(HashAlgorithmName.SHA256);
+        var pin = host.Shared.ServerCertificate.Certificate.GetCertHashString(HashAlgorithmName.SHA256);
         SocketsHttpHandler handler = new()
         {
             UseCookies = false, // a test that wants a cookie sends it itself
@@ -181,14 +181,14 @@ internal static class TestHost
         chain.ChainPolicy.CustomTrustStore.Add(root);
         chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
         chain.ChainPolicy.DisableCertificateDownloads = true;
-        using X509Certificate2 leaf = X509CertificateLoader.LoadCertificate(certificate.GetRawCertData());
+        using var leaf = X509CertificateLoader.LoadCertificate(certificate.GetRawCertData());
         return chain.Build(leaf);
     }
 
     /// <summary>The process's local CA root (public data), or null before it exists.</summary>
     private static X509Certificate2? LocalCaRoot(PaduraksaHost host)
     {
-        VaultCertificate? root = host.Shared.Catalog.ListAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult()
+        var root = host.Shared.Catalog.ListAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult()
             .FirstOrDefault(static certificate => certificate.IsLocalCaRoot);
         return root is null ? null : X509CertificateLoader.LoadCertificate(CaRoot.PemToDer(root.Info.PublicChainPem));
     }

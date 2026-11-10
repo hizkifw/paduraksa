@@ -36,7 +36,7 @@
 @if (_accounts is null)
 {
     <div class="pdk-provider-list">
-        @for (int i = 0; i < 2; i++)
+        @for (var i = 0; i < 2; i++)
         {
             <MudPaper Class="pdk-card pdk-provider" Elevation="0" Outlined="true">
                 <MudSkeleton SkeletonType="SkeletonType.Circle" Width="34px" Height="34px" />
@@ -62,9 +62,9 @@ else if (_accounts.Count == 0)
 else
 {
     <div class="pdk-provider-list">
-        @foreach (AcmeAccountSummary account in _accounts)
+        @foreach (var account in _accounts)
         {
-            bool active = account.Status == AcmeAccountStatus.Active;
+            var active = account.Status == AcmeAccountStatus.Active;
             <MudPaper Class="pdk-card pdk-provider pdk-acme-row" Elevation="0" Outlined="true">
                 <span class="pdk-stat-icon pdk-tone-@(active ? "primary" : "default")"><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" /></span>
                 <div class="pdk-provider-main">
@@ -114,7 +114,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -164,7 +164,7 @@ else
 
     private async Task DeactivateAsync(AcmeAccountSummary account)
     {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
+        var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             "Deactivate this account?",
             $"The account at {ProviderDisplay.CaName(account.DirectoryUrl)} is deactivated for good (the CA can't undo it) and its key is deleted from the vault.",

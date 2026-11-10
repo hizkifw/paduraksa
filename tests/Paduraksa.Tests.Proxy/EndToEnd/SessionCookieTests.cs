@@ -23,15 +23,15 @@ public sealed class SessionCookieTests(HeaderEchoUpstream upstream) : IClassFixt
 
     private async Task<Dictionary<string, string>> SendAsync(params string[] cookieHeaders)
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(Model(), new() { ClientInfo = true });
-        using HttpClient client = ProxyTestServer.CreateClient();
-        using HttpRequestMessage request = server.Request("app.test", "/");
+        await using var server = await ProxyTestServer.StartAsync(Model(), new() { ClientInfo = true });
+        using var client = ProxyTestServer.CreateClient();
+        using var request = server.Request("app.test", "/");
         if (cookieHeaders.Length > 0)
         {
             request.Headers.TryAddWithoutValidation("Cookie", cookieHeaders);
         }
 
-        using HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return HeaderEchoUpstream.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }
@@ -39,7 +39,7 @@ public sealed class SessionCookieTests(HeaderEchoUpstream upstream) : IClassFixt
     [Fact]
     public async Task TheSessionCookieIsRemovedAndTheOthersAreIntact()
     {
-        Dictionary<string, string> seen = await SendAsync($"theme=dark; {Session}=secretvalue; lang=nl");
+        var seen = await SendAsync($"theme=dark; {Session}=secretvalue; lang=nl");
 
         Assert.Equal("theme=dark; lang=nl", seen["Cookie"]);
         Assert.DoesNotContain("secretvalue", string.Join('|', seen.Values), StringComparison.Ordinal);
@@ -48,7 +48,7 @@ public sealed class SessionCookieTests(HeaderEchoUpstream upstream) : IClassFixt
     [Fact]
     public async Task ASessionCookieAloneLeavesNoCookieHeader()
     {
-        Dictionary<string, string> seen = await SendAsync($"{Session}=secretvalue");
+        var seen = await SendAsync($"{Session}=secretvalue");
 
         Assert.False(seen.ContainsKey("Cookie"));
     }
@@ -56,7 +56,7 @@ public sealed class SessionCookieTests(HeaderEchoUpstream upstream) : IClassFixt
     [Fact]
     public async Task NoCookieMeansNoChange()
     {
-        Dictionary<string, string> seen = await SendAsync();
+        var seen = await SendAsync();
 
         Assert.False(seen.ContainsKey("Cookie"));
     }
@@ -64,7 +64,7 @@ public sealed class SessionCookieTests(HeaderEchoUpstream upstream) : IClassFixt
     [Fact]
     public async Task CookiesWithoutTheSessionCookieAreForwardedUntouched()
     {
-        Dictionary<string, string> seen = await SendAsync("a=1; b=2", "x" + Session + "=1");
+        var seen = await SendAsync("a=1; b=2", "x" + Session + "=1");
 
         Assert.Contains("a=1", seen["Cookie"], StringComparison.Ordinal);
         Assert.Contains("x" + Session + "=1", seen["Cookie"], StringComparison.Ordinal);

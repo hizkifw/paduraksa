@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>Log messages of the admin app's internal listener wiring.</summary>

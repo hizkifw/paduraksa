@@ -461,12 +461,12 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
 
         try
         {
-            foreach (string line in File.ReadLines("/proc/self/status"))
+            foreach (var line in File.ReadLines("/proc/self/status"))
             {
                 if (line.StartsWith("Uid:", StringComparison.Ordinal))
                 {
-                    string[] fields = line.Split('\t', StringSplitOptions.RemoveEmptyEntries);
-                    if (fields.Length >= 2 && int.TryParse(fields[1], out int uid))
+                    var fields = line.Split('\t', StringSplitOptions.RemoveEmptyEntries);
+                    if (fields.Length >= 2 && int.TryParse(fields[1], out var uid))
                     {
                         return $"{Environment.UserName} (uid {uid})";
                     }

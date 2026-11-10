@@ -16,7 +16,7 @@ public sealed class ProxyProtocolParserTests
     public void V1ValidHeadersParse(string line, string source, int sourcePort, string destination, int destinationPort)
     {
         var bytes = V1(line + "GET / HTTP/1.1\r\n");
-        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out int consumed));
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out var consumed));
         Assert.Equal(line.Length, consumed);
         Assert.Equal(1, header.Version);
         Assert.Equal(ProxyProtocolCommand.Proxy, header.Command);
@@ -32,7 +32,7 @@ public sealed class ProxyProtocolParserTests
     [InlineData("PROXY UNKNOWN ffff:f...f:ffff ffff:f...f:ffff 65535 65535\r\n")]
     public void V1UnknownHasNoAddresses(string line)
     {
-        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(V1(line), out var header, out int consumed));
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(V1(line), out var header, out var consumed));
         Assert.Equal(line.Length, consumed);
         Assert.False(header.HasAddresses);
     }
@@ -62,24 +62,24 @@ public sealed class ProxyProtocolParserTests
     [InlineData("GET / HTTP/1.1\r\n")]
     [InlineData("\x16\x03\x01")]
     public void V1InvalidHeadersAreRejected(string line) =>
-        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse(V1(line), out _, out int _));
+        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse(V1(line), out _, out var _));
 
     [Fact]
     public void V1LongerThan107BytesIsInvalid()
     {
         var line = "PROXY UNKNOWN " + new string('x', 200) + "\r\n";
-        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse(V1(line), out _, out int _));
+        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse(V1(line), out _, out var _));
 
         var exactly107 = "PROXY UNKNOWN " + new string('x', 107 - 16) + "\r\n";
         Assert.Equal(107, exactly107.Length);
-        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(V1(exactly107), out _, out int _));
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(V1(exactly107), out _, out var _));
     }
 
     [Fact]
     public void V2InetParses()
     {
         var bytes = Concat(V2(), V1("rest"));
-        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out int consumed));
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out var consumed));
         Assert.Equal(16 + 12, consumed);
         Assert.Equal(2, header.Version);
         Assert.Equal(ProxyProtocolCommand.Proxy, header.Command);
@@ -94,7 +94,7 @@ public sealed class ProxyProtocolParserTests
     public void V2Inet6WithTlvsParses()
     {
         var bytes = V2(family: 2, source: "2001:db8::77", destination: "2001:db8::1", tlvBytes: 300);
-        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out int consumed));
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out var consumed));
         Assert.Equal(bytes.Length, consumed);
         Assert.Equal(IpKey.Parse("2001:db8::77"), header.SourceAddress);
         Assert.Equal(IpKey.Parse("2001:db8::1"), header.DestinationAddress);
@@ -110,7 +110,7 @@ public sealed class ProxyProtocolParserTests
     public void V2WithoutAddresses(int command, int family, int transport)
     {
         var bytes = V2(command: command, family: family, transport: transport);
-        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out int consumed));
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out var header, out var consumed));
         Assert.Equal(bytes.Length, consumed);
         Assert.False(header.HasAddresses);
         Assert.Equal(command == 0 ? ProxyProtocolCommand.Local : ProxyProtocolCommand.Proxy, header.Command);
@@ -134,14 +134,14 @@ public sealed class ProxyProtocolParserTests
         badSignature[7] ^= 0xFF;
         Assert.Equal(ProxyProtocolParseStatus.Invalid, Parse(badSignature));
 
-        static ProxyProtocolParseStatus Parse(byte[] bytes) => ProxyProtocolParser.TryParse(bytes, out _, out int _);
+        static ProxyProtocolParseStatus Parse(byte[] bytes) => ProxyProtocolParser.TryParse(bytes, out _, out var _);
     }
 
     [Fact]
     public void V2MaxLengthIsConfigurable()
     {
         var bytes = V2(tlvBytes: 5000);
-        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out _, out int _, maxV2Length: 8192));
+        Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(bytes, out _, out var _, maxV2Length: 8192));
     }
 
     [Fact]
@@ -160,10 +160,10 @@ public sealed class ProxyProtocolParserTests
         {
             for (var length = 0; length < header.Length; length++)
             {
-                Assert.Equal(ProxyProtocolParseStatus.Incomplete, ProxyProtocolParser.TryParse(header.AsSpan(0, length), out _, out int _));
+                Assert.Equal(ProxyProtocolParseStatus.Incomplete, ProxyProtocolParser.TryParse(header.AsSpan(0, length), out _, out var _));
             }
 
-            Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(header, out _, out int consumed));
+            Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(header, out _, out var consumed));
             Assert.Equal(header.Length, consumed);
         }
     }
@@ -171,10 +171,10 @@ public sealed class ProxyProtocolParserTests
     [Fact]
     public void GarbageIsRejectedFromTheFirstBytes()
     {
-        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse("G"u8, out _, out int _));
-        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse("PRX"u8, out _, out int _));
-        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse([0x0D, 0x0A, 0x0D, 0x00], out _, out int _));
-        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse([0x16, 0x03, 0x01], out _, out int _)); // TLS ClientHello
+        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse("G"u8, out _, out var _));
+        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse("PRX"u8, out _, out var _));
+        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse([0x0D, 0x0A, 0x0D, 0x00], out _, out var _));
+        Assert.Equal(ProxyProtocolParseStatus.Invalid, ProxyProtocolParser.TryParse([0x16, 0x03, 0x01], out _, out var _)); // TLS ClientHello
     }
 
     [Fact]
@@ -186,7 +186,7 @@ public sealed class ProxyProtocolParserTests
             for (var split = 1; split < bytes.Length; split++)
             {
                 var sequence = TwoSegments(bytes, split);
-                Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(sequence, out var parsed, out long consumed));
+                Assert.Equal(ProxyProtocolParseStatus.Success, ProxyProtocolParser.TryParse(sequence, out var parsed, out var consumed));
                 Assert.Equal(header.Length, consumed);
                 Assert.True(parsed.HasAddresses);
             }
@@ -199,8 +199,8 @@ public sealed class ProxyProtocolParserTests
         var state = (V1: V1("PROXY TCP4 203.0.113.7 192.0.2.1 50123 443\r\n"), V2: V2(family: 2, source: "2001:db8::1", destination: "2001:db8::2", tlvBytes: 64));
         AllocAssert.Zero(state, static s =>
         {
-            _ = ProxyProtocolParser.TryParse(s.V1, out _, out int _);
-            _ = ProxyProtocolParser.TryParse(s.V2, out _, out int _);
+            _ = ProxyProtocolParser.TryParse(s.V1, out _, out var _);
+            _ = ProxyProtocolParser.TryParse(s.V2, out _, out var _);
         }, "ProxyProtocolParser.TryParse");
     }
 
@@ -214,9 +214,9 @@ public sealed class ProxyProtocolParserTests
         var state = (V1: TwoSegments(v1, 9), V2: TwoSegments(v2, 20), V2Single: new ReadOnlySequence<byte>(v2));
         AllocAssert.Zero(state, static s =>
         {
-            _ = ProxyProtocolParser.TryParse(s.V1, out _, out long _);
-            _ = ProxyProtocolParser.TryParse(s.V2, out _, out long _);
-            _ = ProxyProtocolParser.TryParse(s.V2Single, out _, out long _);
+            _ = ProxyProtocolParser.TryParse(s.V1, out _, out var _);
+            _ = ProxyProtocolParser.TryParse(s.V2, out _, out var _);
+            _ = ProxyProtocolParser.TryParse(s.V2Single, out _, out var _);
         }, "ProxyProtocolParser.TryParse(ReadOnlySequence, split)");
     }
 

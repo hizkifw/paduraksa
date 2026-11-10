@@ -60,10 +60,10 @@ public sealed record SetupProgress(
         ArgumentNullException.ThrowIfNull(providers);
         ArgumentNullException.ThrowIfNull(certificates);
         ArgumentNullException.ThrowIfNull(config);
-        CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
-        UserResult self = await users.GetAsync(origin, user.UserId, cancellationToken).ConfigureAwait(false);
-        bool providersVisible = user.Has(Permission.ProvidersRead);
-        IReadOnlyList<CertificateSummary>? inventory = user.Has(Permission.CertificatesRead)
+        var origin = user.Session.OriginFor(Channel.Dashboard);
+        var self = await users.GetAsync(origin, user.UserId, cancellationToken).ConfigureAwait(false);
+        var providersVisible = user.Has(Permission.ProvidersRead);
+        var inventory = user.Has(Permission.CertificatesRead)
             ? await certificates.ListAsync(null, cancellationToken).ConfigureAwait(false)
             : null;
         return new SetupProgress(

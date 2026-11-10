@@ -90,7 +90,7 @@ internal static class QuicTestSupport
 
     private static bool IsAddressInUse(Exception error)
     {
-        for (Exception? current = error; current is not null; current = current.InnerException)
+        for (var current = error; current is not null; current = current.InnerException)
         {
             // Kestrel's socket transport throws AddressInUseException; a UDP (QUIC) bind conflict surfaces as a
             // SocketException with AddressAlreadyInUse.

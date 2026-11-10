@@ -262,7 +262,7 @@ public sealed class CertificateRepublishTests
         public async Task<CertificateChangeResult> RegisterAsync(
             string label, string[] names, DateTimeOffset notBefore, DateTimeOffset notAfter, string fingerprint = "f1")
         {
-            CertificateRegistration registration = Registration(label) with
+            var registration = Registration(label) with
             {
                 Info = new CertificateInfo($"CN={label}", names, notBefore, notAfter, "CN=Test", "01", null, fingerprint, "ECDSA P-256", [], "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"),
             };

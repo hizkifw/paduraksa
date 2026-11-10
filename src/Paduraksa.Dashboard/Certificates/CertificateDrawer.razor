@@ -60,7 +60,7 @@
     protected override async Task OnInitializedAsync()
     {
         _now = Time.GetUtcNow();
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -87,7 +87,7 @@
         try
         {
             _now = Time.GetUtcNow();
-            CertificateInventoryView view = await CertificateInventoryView.LoadAsync(
+            var view = await CertificateInventoryView.LoadAsync(
                 CertificateInventory, Issuance, _usageKnown ? ConfigCommands : null, Services.GetService(typeof(IBuiltInCertificates)) as IBuiltInCertificates, _now);
             _row = view.Rows.FirstOrDefault(r => r.Id == Id) ?? (view.Admin?.Id == Id ? view.Admin : view.Root?.Id == Id ? view.Root : null);
             _missing = _row is null;
@@ -127,14 +127,14 @@
 
     private async Task ReissueAsync(CertificateRow row)
     {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
+        var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             $"Re-issue {row.Name}?",
             "A new key and certificate replace the current ones under the same ID, with the same names. Hosts that use it switch over at once.",
             "Re-issue",
             destructive: false,
             icon: Icons.Material.Rounded.Refresh);
-        CommandOrigin? origin = confirmed ? await Caller.OriginAsync() : null;
+        var origin = confirmed ? await Caller.OriginAsync() : null;
         if (origin is null)
         {
             return;
@@ -147,19 +147,19 @@
 
     private async Task DeleteAsync(CertificateRow row)
     {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
+        var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             $"Delete {row.Name}?",
             "The certificate and its key are removed from the vault. This can't be undone.",
             "Delete",
             detail: row.Uses.Count > 0 ? "Hosts that pick it automatically fall back to the next best certificate; one that names it keeps it from being deleted." : null);
-        CommandOrigin? origin = confirmed ? await Caller.OriginAsync() : null;
+        var origin = confirmed ? await Caller.OriginAsync() : null;
         if (origin is null)
         {
             return;
         }
 
-        bool deleted = false;
+        var deleted = false;
         await Logger.TryAsync(Snackbar, $"Couldn't delete {row.Name}.", async () =>
             deleted = Report(await Operations.DeleteAsync(row.Id, origin), $"{row.Name} was deleted."));
         if (deleted)
@@ -174,7 +174,7 @@
         if (result.Status is CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged)
         {
             Snackbar.Add(success, Severity.Success);
-            foreach (ConfigError warning in result.Warnings)
+            foreach (var warning in result.Warnings)
             {
                 Snackbar.Add(CertificateMessages.Sentence(warning.Message), Severity.Warning);
             }

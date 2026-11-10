@@ -22,7 +22,7 @@ internal sealed class RealCsrIssuance : ICertificateIssuance, IDisposable
 
     public void Dispose()
     {
-        foreach ((_, ECDsa key) in _staged.Values)
+        foreach (var (_, key) in _staged.Values)
         {
             key.Dispose();
         }
@@ -30,13 +30,13 @@ internal sealed class RealCsrIssuance : ICertificateIssuance, IDisposable
 
     public ValueTask<CsrResult> CreateKeyAndCsrAsync(CertificateId id, KeySpec spec, IReadOnlyList<string> names, CancellationToken cancellationToken)
     {
-        ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        string subject = names[0].Length <= 64 && !names[0].StartsWith('*') && !IPAddress.TryParse(names[0], out _) ? $"CN={names[0]}" : string.Empty;
+        var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var subject = names[0].Length <= 64 && !names[0].StartsWith('*') && !IPAddress.TryParse(names[0], out _) ? $"CN={names[0]}" : string.Empty;
         CertificateRequest request = new(subject, key, HashAlgorithmName.SHA256);
         SubjectAlternativeNameBuilder san = new();
-        foreach (string name in names)
+        foreach (var name in names)
         {
-            if (IPAddress.TryParse(name, out IPAddress? ip))
+            if (IPAddress.TryParse(name, out var ip))
             {
                 san.AddIpAddress(ip);
             }
@@ -47,8 +47,8 @@ internal sealed class RealCsrIssuance : ICertificateIssuance, IDisposable
         }
 
         request.CertificateExtensions.Add(san.Build());
-        byte[] der = request.CreateSigningRequest();
-        StagedKeyId token = StagedKeyId.New();
+        var der = request.CreateSigningRequest();
+        var token = StagedKeyId.New();
         lock (_gate)
         {
             if (_staged.Remove(id, out var previous))
@@ -75,14 +75,14 @@ internal sealed class RealCsrIssuance : ICertificateIssuance, IDisposable
             key = entry.Key;
         }
 
-        string pem = Encoding.ASCII.GetString(pemChain.Span);
+        var pem = Encoding.ASCII.GetString(pemChain.Span);
         List<X509Certificate2> chain = [];
-        for (ReadOnlySpan<char> rest = pem; PemEncoding.TryFind(rest, out PemFields fields); rest = rest[fields.Location.End..])
+        for (ReadOnlySpan<char> rest = pem; PemEncoding.TryFind(rest, out var fields); rest = rest[fields.Location.End..])
         {
             chain.Add(X509CertificateLoader.LoadCertificate(Convert.FromBase64String(new string(rest[fields.Base64Data]))));
         }
 
-        X509Certificate2 leaf = chain[0];
+        var leaf = chain[0];
         if (!leaf.GetECDsaPublicKey()!.ExportSubjectPublicKeyInfo().AsSpan().SequenceEqual(key.ExportSubjectPublicKeyInfo()))
         {
             throw new CryptographicException("The chain does not match the staged key.");
@@ -95,7 +95,7 @@ internal sealed class RealCsrIssuance : ICertificateIssuance, IDisposable
 
         string? aki = null;
         List<string> names = [];
-        foreach (X509Extension extension in leaf.Extensions)
+        foreach (var extension in leaf.Extensions)
         {
             switch (extension.Oid?.Value)
             {
@@ -138,7 +138,7 @@ internal sealed class RealCsrIssuance : ICertificateIssuance, IDisposable
     /// <summary>The serial number as the DER INTEGER's content bytes (a leading 00 kept), which is what ARI names a certificate by.</summary>
     private static byte[] SerialContent(X509Certificate2 certificate)
     {
-        AsnReader tbs = new AsnReader(certificate.RawData, AsnEncodingRules.DER).ReadSequence().ReadSequence();
+        var tbs = new AsnReader(certificate.RawData, AsnEncodingRules.DER).ReadSequence().ReadSequence();
         if (tbs.PeekTag().HasSameClassAndValue(new Asn1Tag(TagClass.ContextSpecific, 0)))
         {
             _ = tbs.ReadEncodedValue();

@@ -28,7 +28,7 @@ internal static class ConfigNormalization
     /// </summary>
     public static bool TryNormalizeHostName(string? name, [NotNullWhen(true)] out string? normalized, [NotNullWhen(false)] out string? error)
     {
-        if (HostNames.TryNormalize(name, out string value, out _, out error))
+        if (HostNames.TryNormalize(name, out var value, out _, out error))
         {
             normalized = value;
             return true;
@@ -44,7 +44,7 @@ internal static class ConfigNormalization
     /// validation to report).
     /// </summary>
     public static string CanonicalHostName(string? name) =>
-        TryNormalizeHostName(name, out string? normalized, out _) ? normalized : (name ?? string.Empty).Trim();
+        TryNormalizeHostName(name, out var normalized, out _) ? normalized : (name ?? string.Empty).Trim();
 
     /// <summary>
     /// An address or CIDR in the form the parser prints: lowercase, compressed IPv6, IPv4-mapped blocks as IPv4, and a
@@ -53,8 +53,8 @@ internal static class ConfigNormalization
     /// </summary>
     public static string CanonicalAddress(string? value)
     {
-        string trimmed = (value ?? string.Empty).Trim();
-        if (!IpNetwork.TryParse(trimmed, out IpNetwork network))
+        var trimmed = (value ?? string.Empty).Trim();
+        if (!IpNetwork.TryParse(trimmed, out var network))
         {
             return trimmed;
         }
@@ -66,7 +66,7 @@ internal static class ConfigNormalization
     /// blank or the default (<see cref="DefaultForwardingHeader"/>), which is what null means.</summary>
     public static string? CanonicalForwardingHeader(string? header)
     {
-        string value = (header ?? string.Empty).Trim().ToLowerInvariant();
+        var value = (header ?? string.Empty).Trim().ToLowerInvariant();
         return value.Length == 0 || value == DefaultForwardingHeader ? null : value;
     }
 

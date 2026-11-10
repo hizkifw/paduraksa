@@ -48,8 +48,8 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     public static IReadOnlyList<ExpiringCertificate> ExpiringOf(IReadOnlyList<CertificateSummary> inventory, ConfigDocument? document, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(inventory);
-        DateTimeOffset horizon = now.AddDays(ExpiryHorizonDays);
-        IReadOnlyDictionary<CertificateId, IReadOnlyList<CertificateUse>>? uses = document is null ? null : CertificateUsage.Of(document, inventory, now);
+        var horizon = now.AddDays(ExpiryHorizonDays);
+        var uses = document is null ? null : CertificateUsage.Of(document, inventory, now);
         return
         [
             .. inventory
@@ -78,34 +78,34 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
         List<AttentionItem> items = [];
         if (certificates is not null)
         {
-            foreach (CertificateSummary failed in certificates.Where(c => c.Status == CertificateStatus.Failed))
+            foreach (var failed in certificates.Where(c => c.Status == CertificateStatus.Failed))
             {
                 items.Add(new AttentionItem(Tone.Error, $"{HostOverview.CertificateName(failed)} failed to issue",
                     failed.StatusMessage ?? "The CA refused it; the scheduler tries again.", DashboardRoutes.Certificate(failed.Id), "Open certificate"));
             }
         }
 
-        foreach (ExpiringCertificate soon in expiring ?? [])
+        foreach (var soon in expiring ?? [])
         {
-            TimeSpan left = soon.NotAfter - now;
-            string when = left <= TimeSpan.Zero ? "has expired" : left.TotalDays < 1 ? "expires today" : $"expires in {Plural((int)left.TotalDays, "day", "days")}";
+            var left = soon.NotAfter - now;
+            var when = left <= TimeSpan.Zero ? "has expired" : left.TotalDays < 1 ? "expires today" : $"expires in {Plural((int)left.TotalDays, "day", "days")}";
             items.Add(new AttentionItem(left <= TimeSpan.FromDays(7) ? Tone.Error : Tone.Warning, $"{soon.Name} {when}",
                 $"A {soon.Source} certificate in use. Renew it, or check why it hasn't renewed on its own.",
                 soon.Id is { } id ? DashboardRoutes.Certificate(id) : DashboardRoutes.Certificates, "Open certificate"));
         }
 
-        foreach (HostRow row in hosts ?? [])
+        foreach (var row in hosts ?? [])
         {
             if (row.Health == Tone.Warning)
             {
-                string detail = row.Problems.Count > 0 ? string.Join(" ", row.Problems) : row.Certificate?.Detail ?? "Needs attention.";
+                var detail = row.Problems.Count > 0 ? string.Join(" ", row.Problems) : row.Certificate?.Detail ?? "Needs attention.";
                 items.Add(new AttentionItem(Tone.Warning, HostName(row.Host), detail, DashboardRoutes.Host(row.Host.Id), "Open host"));
             }
         }
 
         if (document is not null)
         {
-            foreach (UpstreamConfig upstream in document.Upstreams)
+            foreach (var upstream in document.Upstreams)
             {
                 if (!upstream.Destinations.Any(d => d.Enabled) && HostOverview.UsesOf(document, upstream.Id).Any(u => u.Host.Enabled))
                 {

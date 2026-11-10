@@ -43,7 +43,7 @@ public sealed class OperationalChangeFeed
             handlers = _handlers;
         }
 
-        foreach (Action<OperationalChange> handler in handlers)
+        foreach (var handler in handlers)
         {
             try
             {

@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Http.Features;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Benchmarks;
@@ -38,14 +37,14 @@ internal static class BenchConfig
 
     public static ProxyConfigModel Model()
     {
-        UpstreamId upstream = UpstreamId.New();
+        var upstream = UpstreamId.New();
         List<HostSpec> hosts = [];
-        for (int i = 0; i < ExactHosts; i++)
+        for (var i = 0; i < ExactHosts; i++)
         {
             hosts.Add(Proxy($"h{i}.test"));
         }
 
-        for (int i = 0; i < WildcardHosts; i++)
+        for (var i = 0; i < WildcardHosts; i++)
         {
             hosts.Add(Proxy($"*.w{i}.test"));
         }
@@ -102,14 +101,14 @@ internal static class BenchConfig
 
     private static RuntimeSnapshot Compile(ProxyConfigModel model)
     {
-        CompileResult result = SnapshotCompiler.Compile(model);
+        var result = SnapshotCompiler.Compile(model);
         return result.Snapshot ?? throw new InvalidOperationException(string.Join(Environment.NewLine, result.Errors));
     }
 
     private static RuntimeSnapshot Bind(RuntimeSnapshot candidate)
     {
-        Endpoint[] endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
-        for (int i = 0; i < endpoints.Length; i++)
+        var endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
+        for (var i = 0; i < endpoints.Length; i++)
         {
             endpoints[i] = new Endpoint(static _ => Task.CompletedTask, EndpointMetadataCollection.Empty, candidate.RouteIdBySlot[i].ToString());
         }

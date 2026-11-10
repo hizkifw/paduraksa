@@ -43,7 +43,7 @@ public sealed class CompiledRoute
             path = "/";
         }
 
-        string route = Path;
+        var route = Path;
         if (MatchKind == RouteMatchKind.Exact)
         {
             return path.Equals(route, StringComparison.OrdinalIgnoreCase);

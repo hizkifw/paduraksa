@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
-using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Layout;
 using Paduraksa.Dashboard.Pages;
 using Paduraksa.Dashboard.Setup;
@@ -19,14 +18,14 @@ public sealed class OverviewAndNavigationTests
     public async Task TheOverview_ListsWhatNeedsThePerson_WithWhereToFixIt()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        var config = ConfigPages.SignIn(context, Role.Operator);
         UpstreamConfig off = new(UpstreamId.New(), "media", Destinations: [new DestinationConfig(DestinationId.New(), "http://10.0.0.9:8096", Enabled: false)]);
         HostConfig host = new(HostId.New(), ["media.home.test"], Routes: [new RouteConfig(RouteId.New(), off.Id)]);
         config.Document = new ConfigDocument(Upstreams: [off], Hosts: [host]);
         config.LiveWarnings = [new ConfigWarning("/hosts/0", "certificate.auto.noCoverage", "no valid certificate covers media.home.test")];
         context.ComponentFactories.AddStub<SetupChecklist>();
 
-        IRenderedComponent<Home> page = context.Render<Home>();
+        var page = context.Render<Home>();
 
         await page.WaitForStateAsync(() => page.FindAll(".pdk-attention-item").Count == 2);
         // The broken one first: the upstream with nothing switched on, then the host the live config warns about.
@@ -45,7 +44,7 @@ public sealed class OverviewAndNavigationTests
         ConfigPages.SignIn(context, Role.Viewer).Document = new ConfigDocument();
         context.ComponentFactories.AddStub<SetupChecklist>();
 
-        IRenderedComponent<Home> page = context.Render<Home>();
+        var page = context.Render<Home>();
 
         await page.WaitForStateAsync(() => page.FindAll("[data-state=all-good]").Count == 1);
         Assert.Contains("No hosts yet", page.Find("[data-section=hosts]").TextContent, StringComparison.Ordinal);
@@ -65,7 +64,7 @@ public sealed class OverviewAndNavigationTests
         using DashboardTestContext context = new();
         context.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
 
-        IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
+        var menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(Role.Owner))));
 
         Assert.Equal(entry, Assert.Single(menu.FindAll(".pdk-nav-active .pdk-nav-label")).TextContent);
@@ -77,7 +76,7 @@ public sealed class OverviewAndNavigationTests
         using DashboardTestContext context = new();
         context.Services.GetRequiredService<NavigationManager>().NavigateTo(DashboardRoutes.Account);
 
-        IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
+        var menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(Role.Owner))));
 
         Assert.Empty(menu.FindAll(".pdk-nav-active"));
@@ -90,7 +89,7 @@ public sealed class OverviewAndNavigationTests
     {
         using DashboardTestContext context = new();
 
-        IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
+        var menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(role))));
 
         string[] all = ["Global defaults", "Users and roles", "API tokens"];

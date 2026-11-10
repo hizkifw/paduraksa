@@ -1,6 +1,4 @@
 using System.Net;
-
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Admin.Auth;
@@ -48,7 +46,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         ValidateAdmin(options.Admin, failures);
 
-        PaduraksaListenOptions listen = options.Listen;
+        var listen = options.Listen;
         (string Name, int Port)[] ports =
         [
             ("Http", listen.Http),
@@ -57,10 +55,10 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             ("AdminLoopbackHttp", listen.AdminLoopbackHttp),
         ];
 
-        foreach ((string portName, int port) in ports)
+        foreach (var (portName, port) in ports)
         {
             // The loopback fallback is the only optional listener: 0 is "off" for it, never an OS-assigned port.
-            int min = portName == "AdminLoopbackHttp" ? 0 : allowEphemeralPorts ? 0 : 1;
+            var min = portName == "AdminLoopbackHttp" ? 0 : allowEphemeralPorts ? 0 : 1;
             if (port < min || port > MaxPort)
             {
                 failures.Add($"{PaduraksaOptions.SectionName}:Listen:{portName} must be between {min} and {MaxPort}, was {port}.");
@@ -69,11 +67,11 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         // The admin listener may bind a different address than the public ones, but sharing a
         // port number between them is always a misconfiguration.
-        IEnumerable<IGrouping<int, (string Name, int Port)>> clashes = ports
+        var clashes = ports
             .Where(static p => p.Port > 0)
             .GroupBy(static p => p.Port)
             .Where(static g => g.Count() > 1);
-        foreach (IGrouping<int, (string Name, int Port)> clash in clashes)
+        foreach (var clash in clashes)
         {
             failures.Add($"{PaduraksaOptions.SectionName}:Listen ports must be distinct; {string.Join(", ", clash.Select(static p => p.Name))} all use {clash.Key}.");
         }
@@ -89,7 +87,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         }
         else
         {
-            foreach (string source in listen.AdminAllowedSources.Where(static s => !AdminSourcePolicy.TryParseBlock(s, out _)))
+            foreach (var source in listen.AdminAllowedSources.Where(static s => !AdminSourcePolicy.TryParseBlock(s, out _)))
             {
                 failures.Add($"{PaduraksaOptions.SectionName}:Listen:AdminAllowedSources entry '{source}' is not an IP address or CIDR block (an IPv4-mapped IPv6 block must be written as IPv4).");
             }
@@ -119,8 +117,8 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
     private static void ValidateCertificates(PaduraksaOptions options, List<string> failures)
     {
-        string key = $"{PaduraksaOptions.SectionName}:Certificates";
-        PaduraksaCertificateOptions certificates = options.Certificates;
+        var key = $"{PaduraksaOptions.SectionName}:Certificates";
+        var certificates = options.Certificates;
         if (certificates is null)
         {
             failures.Add($"{key} must not be null.");
@@ -133,7 +131,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
     private static void ValidateAccessLog(PaduraksaOptions options, List<string> failures)
     {
         const string Key = PaduraksaOptions.SectionName + ":AccessLog";
-        PaduraksaAccessLogOptions accessLog = options.AccessLog;
+        var accessLog = options.AccessLog;
         if (accessLog is null)
         {
             failures.Add($"{Key} must not be null.");
@@ -142,7 +140,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         // The ring's capacity must be a power of two (its slot arithmetic is a mask), and a size that isn't one would only
         // surface as an exception in the middle of composition.
-        int size = accessLog.RingSize;
+        var size = accessLog.RingSize;
         if (size < Proxy.Logging.AccessLogRing.MinimumCapacity || size > Proxy.Logging.AccessLogRing.MaximumCapacity || (size & (size - 1)) != 0)
         {
             failures.Add(
@@ -150,9 +148,9 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         }
 
         // The list itself can't be null (it is created with the options and never replaced), so only its entries are checked.
-        for (int i = 0; i < accessLog.SensitiveQueryKeys.Count; i++)
+        for (var i = 0; i < accessLog.SensitiveQueryKeys.Count; i++)
         {
-            string name = accessLog.SensitiveQueryKeys[i] ?? string.Empty;
+            var name = accessLog.SensitiveQueryKeys[i] ?? string.Empty;
             if (name.Length == 0 || name.Length > MaxSensitiveQueryKeyLength || name.Any(char.IsControl) || name.Contains('&', StringComparison.Ordinal)
                 || name.Contains('=', StringComparison.Ordinal) || name.Contains(' ', StringComparison.Ordinal))
             {
@@ -167,8 +165,8 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
     private static void ValidateAcme(PaduraksaOptions options, List<string> failures)
     {
-        string key = $"{PaduraksaOptions.SectionName}:Acme";
-        PaduraksaAcmeOptions acme = options.Acme;
+        var key = $"{PaduraksaOptions.SectionName}:Acme";
+        var acme = options.Acme;
         if (acme is null)
         {
             failures.Add($"{key} must not be null.");
@@ -230,7 +228,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             return;
         }
 
-        for (int i = 0; i < settings.Resolvers.Count; i++)
+        for (var i = 0; i < settings.Resolvers.Count; i++)
         {
             if (!IPEndPoint.TryParse(settings.Resolvers[i]?.Trim() ?? string.Empty, out _))
             {
@@ -369,9 +367,9 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         }
 
         CertificateNameRules rules = new();
-        for (int i = 0; i < admin.CertificateNames.Count; i++)
+        for (var i = 0; i < admin.CertificateNames.Count; i++)
         {
-            string? name = admin.CertificateNames[i];
+            var name = admin.CertificateNames[i];
             if (string.IsNullOrWhiteSpace(name))
             {
                 failures.Add($"{Key}:{nameof(AdminOptions.CertificateNames)} entry {i} is empty.");
@@ -398,16 +396,16 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
     private static void ValidateProxyProtocol(string name, ProxyProtocolListenOptions? options, List<string> failures)
     {
-        string key = $"{PaduraksaOptions.SectionName}:Listen:{name}";
+        var key = $"{PaduraksaOptions.SectionName}:Listen:{name}";
         if (options is null)
         {
             failures.Add($"{key} must not be null.");
             return;
         }
 
-        foreach (string source in options.TrustedSources)
+        foreach (var source in options.TrustedSources)
         {
-            if (!IpNetwork.TryParse(source ?? string.Empty, out _, out string? error))
+            if (!IpNetwork.TryParse(source ?? string.Empty, out _, out var error))
             {
                 failures.Add($"{key}:TrustedSources has '{source}', which isn't an IP address or CIDR ({error}).");
             }

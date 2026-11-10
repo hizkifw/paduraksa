@@ -44,8 +44,8 @@ public sealed record CaRoot(
     public static byte[] PemToDer(string pem)
     {
         ArgumentNullException.ThrowIfNull(pem);
-        PemFields fields = PemEncoding.Find(pem);
-        string base64 = pem[fields.Base64Data].Replace("\n", string.Empty, StringComparison.Ordinal).Replace("\r", string.Empty, StringComparison.Ordinal);
+        var fields = PemEncoding.Find(pem);
+        var base64 = pem[fields.Base64Data].Replace("\n", string.Empty, StringComparison.Ordinal).Replace("\r", string.Empty, StringComparison.Ordinal);
         return Convert.FromBase64String(base64);
     }
 }

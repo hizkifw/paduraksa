@@ -22,7 +22,7 @@
         <div class="pdk-admin-cert-body">
             <ExpiryCountdown NotAfter="Admin.Summary.NotAfter" Now="Now" />
             <div class="pdk-name-chips">
-                @foreach (string name in Admin.Summary.Names.Take(6))
+                @foreach (var name in Admin.Summary.Names.Take(6))
                 {
                     <span class="pdk-name-chip pdk-mono">@name</span>
                 }

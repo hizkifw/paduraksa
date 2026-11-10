@@ -1,6 +1,5 @@
 @using Paduraksa.Application.Compilation
 @using Paduraksa.Contracts.Certificates
-@using Paduraksa.Dashboard.SettingsArea
 @* The host form, in the host drawer: names and kind first, then what the kind needs, the certificate, the settings
    layers, tags and notes. Every reference is a picker of what exists with "New ..." last, which stacks a drawer and puts
    the new object in. Errors show at their fields, from the inline validator once a field is touched and from the dry
@@ -11,7 +10,7 @@
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
             <strong>@(Errors.Count == 1 ? "One thing to fix" : $"{Errors.Count} things to fix"):</strong>
             <ul class="pdk-error-list">
-                @foreach ((string path, string message) in Errors)
+                @foreach (var (path, message) in Errors)
                 {
                     <li><span class="pdk-error-where">@ChangeView.Locate(path, null)</span> @message</li>
                 }
@@ -29,10 +28,10 @@
         </Aside>
         <ChildContent>
             <div class="pdk-name-list">
-                @for (int i = 0; i < Model.Names.Count; i++)
+                @for (var i = 0; i < Model.Names.Count; i++)
                 {
-                    int index = i;
-                    TextEntry entry = Model.Names[index];
+                    var index = i;
+                    var entry = Model.Names[index];
                     <div class="pdk-name-row" @key="entry">
                         <MudTextField T="string" Value="entry.Value" ValueChanged="@(value => SetNameAsync(entry, index, value))" Immediate="true" DebounceInterval="250"
                                       Label="@(index == 0 ? "Hostname" : $"Hostname {index + 1}")" Placeholder="app.example.com" Variant="Variant.Outlined" Margin="Margin.Dense"
@@ -69,10 +68,10 @@
         {
             case HostKind.Proxy:
                 <div class="pdk-routes" data-section="routes">
-                    @for (int i = 0; i < Model.Routes.Count; i++)
+                    @for (var i = 0; i < Model.Routes.Count; i++)
                     {
-                        int index = i;
-                        RouteEntry route = Model.Routes[index];
+                        var index = i;
+                        var route = Model.Routes[index];
                         <div class="pdk-route-row" @key="route">
                             <MudSelect T="RouteMatchKind" Value="route.Match" ValueChanged="@(value => SetAsync(() => route.Match = value, $"/routes/{index}/match"))" Label="Match"
                                        Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-route-match">
@@ -87,7 +86,7 @@
                                        OnNew="@(OnNewUpstream.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewUpstream.InvokeAsync(route)) : default)"
                                        HelperText="@(Destination(route.UpstreamId) ?? (Upstreams.Count == 0 ? "None yet: choose New upstream..." : null))"
                                        Error="@(E($"/routes/{index}/upstreamId") is not null)" ErrorText="@E($"/routes/{index}/upstreamId")" data-field="@($"route-upstream-{index}")">
-                                @foreach (UpstreamConfig upstream in Upstreams)
+                                @foreach (var upstream in Upstreams)
                                 {
                                     <MudSelectItem T="UpstreamId?" Value="upstream.Id">
                                         <span class="pdk-picker-item">
@@ -166,7 +165,7 @@
             <MudSelectItem T="string" Value="AutoChoice">
                 <span class="pdk-picker-item"><span>Automatic</span><span class="pdk-picker-hint">one that covers the hostnames</span></span>
             </MudSelectItem>
-            @foreach (CertificateSummary certificate in PickableCertificates)
+            @foreach (var certificate in PickableCertificates)
             {
                 <MudSelectItem T="string" Value="@CertificateKey(certificate.Id)">
                     <span class="pdk-picker-item">
@@ -195,7 +194,7 @@
                            HelperText="@(Profiles.Count == 0 ? "None yet: the global defaults apply." : null)"
                            Error="@(E("/profileId") is not null)" ErrorText="@E("/profileId")" data-field="profile">
                     <MudSelectItem T="ProfileId?" Value="null">No profile</MudSelectItem>
-                    @foreach (ProfileConfig profile in Profiles)
+                    @foreach (var profile in Profiles)
                     {
                         <MudSelectItem T="ProfileId?" Value="profile.Id">
                             <span class="pdk-picker-item">
@@ -324,7 +323,7 @@
 
     private static string CertificateKey(CertificateId id) => $"cert:{id}";
 
-    private string? E(string path) => (ShowAll || _touched.Contains(path)) && Errors.TryGetValue(path, out string? message) ? message : null;
+    private string? E(string path) => (ShowAll || _touched.Contains(path)) && Errors.TryGetValue(path, out var message) ? message : null;
 
     private string? FirstUnder(string prefix) =>
         ShowAll || _touched.Contains(prefix)
@@ -383,7 +382,7 @@
                 Model.CertificateId = null;
                 break;
             default:
-                if (key.StartsWith("cert:", StringComparison.Ordinal) && CertificateId.TryParse(key["cert:".Length..], out CertificateId id))
+                if (key.StartsWith("cert:", StringComparison.Ordinal) && CertificateId.TryParse(key["cert:".Length..], out var id))
                 {
                     Model.CertificateMode = CertificateBindingMode.Specific;
                     Model.CertificateId = id;

@@ -21,7 +21,7 @@ internal sealed class TouchedObjects
     {
         ArgumentNullException.ThrowIfNull(changes);
         TouchedObjects touched = new() { Settings = changes.Any(c => c is SettingsChange) };
-        foreach (ConfigChange change in changes)
+        foreach (var change in changes)
         {
             switch (change)
             {

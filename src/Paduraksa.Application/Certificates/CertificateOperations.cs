@@ -118,7 +118,7 @@ public sealed partial class CertificateOperations
             return Invalid(labelError);
         }
 
-        CertificateId id = replaceId ?? CertificateId.New();
+        var id = replaceId ?? CertificateId.New();
         if (id == AdminCertificate.Id)
         {
             // The admin listener's certificate is the process's own: an upload may not take its ID, and the answer
@@ -162,7 +162,7 @@ public sealed partial class CertificateOperations
             return Forbidden();
         }
 
-        TimeSpan validity = request.Validity ?? DefaultSelfSignedValidity;
+        var validity = request.Validity ?? DefaultSelfSignedValidity;
         return await CreateWithNamesAsync(
             CertificateSource.SelfSigned,
             request.Names,
@@ -182,8 +182,8 @@ public sealed partial class CertificateOperations
             return Forbidden();
         }
 
-        IReadOnlyList<CertificateSummary> roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot), cancellationToken).ConfigureAwait(false);
-        CertificateSummary? active = roots.FirstOrDefault(r => r.Status == CertificateStatus.Active);
+        var roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot), cancellationToken).ConfigureAwait(false);
+        var active = roots.FirstOrDefault(r => r.Status == CertificateStatus.Active);
         if (active is not null)
         {
             return new CertificateOperationResult(CertificateOperationStatus.Unchanged, active);
@@ -191,7 +191,7 @@ public sealed partial class CertificateOperations
 
         // A root row that is not active is what a crash (or a failed activation) left behind: it is completed under its own ID
         // (the vault's ensure is idempotent for it) instead of being passed over as "unchanged" forever.
-        TimeSpan validity = request.Validity ?? DefaultRootValidity;
+        var validity = request.Validity ?? DefaultRootValidity;
         try
         {
             return await CreateWithNamesAsync(
@@ -212,7 +212,7 @@ public sealed partial class CertificateOperations
 
     private async Task<CertificateOperationResult> AdoptExistingRootAsync(LocalCaExistsException exists, string? label, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        CertificateChangeResult registered = await _certificates.RegisterAsync(
+        var registered = await _certificates.RegisterAsync(
             new CertificateRegistration(exists.ExistingId, CertificateSource.LocalCaRoot, exists.Info, CertificateStatus.Active, label), origin, cancellationToken).ConfigureAwait(false);
         return registered.Status switch
         {
@@ -237,7 +237,7 @@ public sealed partial class CertificateOperations
             return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.LocalCaMissing, "there is no local CA yet; create it first"));
         }
 
-        TimeSpan validity = request.Validity ?? DefaultLeafValidity;
+        var validity = request.Validity ?? DefaultLeafValidity;
         return await CreateWithNamesAsync(
             CertificateSource.LocalCa,
             request.Names,
@@ -263,19 +263,19 @@ public sealed partial class CertificateOperations
             return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.Managed, "the admin listener's certificate is managed by the process and can't be re-issued here"));
         }
 
-        CertificateDetail? current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
+        var current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
         if (current is null)
         {
             return new CertificateOperationResult(CertificateOperationStatus.NotFound);
         }
 
-        CertificateSummary summary = current.Summary;
+        var summary = current.Summary;
         if (summary.Source is not (CertificateSource.SelfSigned or CertificateSource.LocalCa))
         {
             return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.NotReissuable, $"a {summary.Source.ToName()} certificate can't be re-issued here"));
         }
 
-        KeySpec spec = request?.KeySpec ?? KeySpecOf(summary.KeyAlgorithm);
+        var spec = request?.KeySpec ?? KeySpecOf(summary.KeyAlgorithm);
         CertificateInfo info;
         try
         {
@@ -308,14 +308,14 @@ public sealed partial class CertificateOperations
 
         // The managed admin certificate is refused by the inventory (audited there, like the in-use refusal below), so no
         // check is needed here; the query below is what the local-CA-root refusal needs.
-        CertificateDetail? current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
+        var current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
         if (current?.Summary.Source == CertificateSource.LocalCaRoot
             && (await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCa), cancellationToken).ConfigureAwait(false)).Count > 0)
         {
             return Invalid(new ConfigError(string.Empty, CertificateErrorCodes.LocalCaInUse, "leaf certificates issued by the local CA still exist (the admin listener's own among them); the root can't be deleted while they do"));
         }
 
-        CertificateChangeResult change = await _certificates.DeleteAsync(id, origin, cancellationToken).ConfigureAwait(false);
+        var change = await _certificates.DeleteAsync(id, origin, cancellationToken).ConfigureAwait(false);
         switch (change.Status)
         {
             case CertificateChangeStatus.Committed:
@@ -367,10 +367,10 @@ public sealed partial class CertificateOperations
         CertificateId? newId = null,
         bool republish = true)
     {
-        CertificateId id = existingPendingId ?? newId ?? CertificateId.New();
+        var id = existingPendingId ?? newId ?? CertificateId.New();
         if (existingPendingId is null)
         {
-            CertificateChangeResult pending = await _certificates.RegisterPendingAsync(id, source, names, label, origin, cancellationToken).ConfigureAwait(false);
+            var pending = await _certificates.RegisterPendingAsync(id, source, names, label, origin, cancellationToken).ConfigureAwait(false);
             if (pending.Status != CertificateChangeStatus.Committed)
             {
                 return FromChange(pending);
@@ -490,14 +490,14 @@ public sealed partial class CertificateOperations
 
     private async Task<CertificateOperationResult> DeleteOrphanKeyAsync(CertificateId id, CancellationToken cancellationToken)
     {
-        bool deleted = await _issuance.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
+        var deleted = await _issuance.DeleteAsync(id, cancellationToken).ConfigureAwait(false);
         return new CertificateOperationResult(deleted ? CertificateOperationStatus.Completed : CertificateOperationStatus.NotFound);
     }
 
     /// <summary>For a replacement: the certificate must exist and be of the expected source. Null if it is.</summary>
     private async Task<CertificateOperationResult?> CheckReplaceableAsync(CertificateId id, CertificateSource expected, CancellationToken cancellationToken)
     {
-        CertificateDetail? current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
+        var current = await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false);
         return current is null
             ? new CertificateOperationResult(CertificateOperationStatus.NotFound)
             : current.Summary.Source != expected
@@ -507,13 +507,13 @@ public sealed partial class CertificateOperations
 
     private async Task<CertificateSummary?> FindLocalCaAsync(CancellationToken cancellationToken)
     {
-        IReadOnlyList<CertificateSummary> roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot, Status: CertificateStatus.Active), cancellationToken).ConfigureAwait(false);
+        var roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot, Status: CertificateStatus.Active), cancellationToken).ConfigureAwait(false);
         return roots.Count > 0 ? roots[0] : null;
     }
 
     private async ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        bool allowed = await _authorizer.IsAllowedAsync(operation, origin, cancellationToken).ConfigureAwait(false);
+        var allowed = await _authorizer.IsAllowedAsync(operation, origin, cancellationToken).ConfigureAwait(false);
         if (!allowed)
         {
             LogForbidden(operation, origin.Actor);

@@ -2,9 +2,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Snapshot;
-using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
-using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
 
 using Yarp.ReverseProxy.Configuration;
@@ -47,7 +45,7 @@ public sealed class SnapshotCompilerTests
     [Fact]
     public void CompilesHostsRoutesAndYarpConfig()
     {
-        RuntimeSnapshot snapshot = Compile(Sample, Port8443);
+        var snapshot = Compile(Sample, Port8443);
 
         Assert.Equal(0, snapshot.Generation);
         Assert.Equal(TestIds.Revision("rev-1"), snapshot.Revision);
@@ -56,16 +54,16 @@ public sealed class SnapshotCompilerTests
         Assert.Equal([0, 1, 2], snapshot.HostsByIndex.Select(h => h.Index));
         Assert.Equal(421, snapshot.Default.Response!.StatusCode);
 
-        CompiledHost site = snapshot.Hosts.Find("www.example.com")!;
+        var site = snapshot.Hosts.Find("www.example.com")!;
         Assert.Same(site, snapshot.Hosts.Find("example.com"));
         Assert.Null(snapshot.Hosts.Find("off.test"));
 
         // Ordered by Order, then as listed: the /api route (Order 0) comes before the root (Order 10).
-        RouteId siteApi = TestIds.Route("site-api");
-        RouteId siteRoot = TestIds.Route("site-root");
+        var siteApi = TestIds.Route("site-api");
+        var siteRoot = TestIds.Route("site-root");
         Assert.Equal([siteApi, siteRoot], site.Routes.Select(r => r.Id));
         Assert.Equal(new[] { siteApi, siteRoot }.Order(), snapshot.RouteIdBySlot.Order());
-        foreach (CompiledRoute route in site.Routes)
+        foreach (var route in site.Routes)
         {
             Assert.Equal(route.Id, snapshot.RouteIdBySlot[route.Slot]);
         }
@@ -78,12 +76,12 @@ public sealed class SnapshotCompilerTests
         Assert.Equal(":8443", site.HttpsRedirect!.Safe.Redirect!.PortSuffix);
 
         // YARP's IDs are the typed IDs' canonical strings.
-        RouteConfig api = Assert.Single(snapshot.Yarp.Routes, r => r.RouteId == siteApi.ToString());
+        var api = Assert.Single(snapshot.Yarp.Routes, r => r.RouteId == siteApi.ToString());
         Assert.Equal(TestIds.Upstream("api").ToString(), api.ClusterId);
         Assert.Equal($"/.paduraksa/r/{siteApi}/{{**rest}}", api.Match.Path);
         Assert.Null(api.Match.Hosts);
 
-        ClusterConfig web = Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == TestIds.Upstream("web").ToString());
+        var web = Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == TestIds.Upstream("web").ToString());
         Assert.Equal(
             new[] { TestIds.Destination("web-d0").ToString(), TestIds.Destination("web-d1").ToString() }.Order(StringComparer.Ordinal),
             web.Destinations!.Keys.Order(StringComparer.Ordinal));
@@ -105,25 +103,25 @@ public sealed class SnapshotCompilerTests
             Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])],
         };
 
-        RuntimeSnapshot snapshot = Compile(
+        var snapshot = Compile(
             new ProxyConfigModel { Hosts = [admin] },
             new SnapshotCompilerOptions { AdminUpstream = true, PublicHttpsPort = 8443 });
 
-        CompiledHost host = snapshot.Hosts.Find("admin.test")!;
+        var host = snapshot.Hosts.Find("admin.test")!;
         Assert.Equal(HostKind.Admin, host.Kind);
         Assert.NotNull(host.HttpsRedirect);
         Assert.Single(host.Policies);
-        CompiledRoute route = Assert.Single(host.Routes);
+        var route = Assert.Single(host.Routes);
         Assert.True(route.Admin);
         Assert.Equal(RouteId.Empty, route.Id);
         Assert.Equal("/", route.Path);
         Assert.Equal(RouteMatchKind.Prefix, route.MatchKind);
         Assert.Equal(RouteId.Empty, Assert.Single(snapshot.RouteIdBySlot));
 
-        RouteConfig yarpRoute = Assert.Single(snapshot.Yarp.Routes);
+        var yarpRoute = Assert.Single(snapshot.Yarp.Routes);
         Assert.Equal(YarpConfig.AdminClusterId, yarpRoute.ClusterId);
         Assert.StartsWith(SnapshotCompiler.InternalRoutePrefix, yarpRoute.Match.Path, StringComparison.Ordinal);
-        ClusterConfig cluster = Assert.Single(snapshot.Yarp.Clusters);
+        var cluster = Assert.Single(snapshot.Yarp.Clusters);
         Assert.Equal(YarpConfig.AdminClusterId, cluster.ClusterId);
         Assert.Equal(YarpConfig.AdminUpstreamAddress, cluster.Destinations!["admin"].Address);
         Assert.Equal(System.Net.HttpVersion.Version11, cluster.HttpRequest!.Version);
@@ -161,7 +159,7 @@ public sealed class SnapshotCompilerTests
         HostSpec admin = new() { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, ForceHttps = true };
         SnapshotCompilerOptions withListener = new() { AdminUpstream = true };
 
-        CompileResult disabled = SnapshotCompiler.Compile(
+        var disabled = SnapshotCompiler.Compile(
             new ProxyConfigModel
             {
                 Upstreams = [Upstream("web", "http://10.0.0.1/")],
@@ -169,20 +167,20 @@ public sealed class SnapshotCompilerTests
             },
             withListener with { AdminUpstream = false });
         Assert.Empty(disabled.Errors);
-        RuntimeSnapshot disabledSnapshot = disabled.Snapshot!;
-        CompiledHost disabledAdmin = disabledSnapshot.Hosts.Find("admin.test")!;
+        var disabledSnapshot = disabled.Snapshot!;
+        var disabledAdmin = disabledSnapshot.Hosts.Find("admin.test")!;
         Assert.Equal(-1, Assert.Single(disabledAdmin.Routes).Slot);
         Assert.DoesNotContain(RouteId.Empty, disabledSnapshot.RouteIdBySlot);
         Assert.DoesNotContain(disabledSnapshot.Yarp.Routes, route => route.ClusterId == YarpConfig.AdminClusterId);
         Assert.DoesNotContain(disabledSnapshot.Yarp.Clusters, cluster => cluster.ClusterId == YarpConfig.AdminClusterId);
         Assert.NotNull(disabledSnapshot.Hosts.Find("app.test"));
 
-        CompileResult noHttps = SnapshotCompiler.Compile(
+        var noHttps = SnapshotCompiler.Compile(
             new ProxyConfigModel { Hosts = [admin with { ForceHttps = false, Https = false }] }, withListener);
         Assert.Contains(noHttps.Errors, e => e.Message.Contains("forces HTTPS", StringComparison.Ordinal));
         Assert.Contains(noHttps.Errors, e => e.Message.Contains("served over HTTPS", StringComparison.Ordinal));
 
-        CompileResult parts = SnapshotCompiler.Compile(
+        var parts = SnapshotCompiler.Compile(
             new ProxyConfigModel
             {
                 Upstreams = [Upstream("web", "http://10.0.0.1/")],
@@ -192,7 +190,7 @@ public sealed class SnapshotCompilerTests
         Assert.Contains(parts.Errors, e => e.Message.Contains("no routes of its own", StringComparison.Ordinal));
         Assert.Contains(parts.Errors, e => e.Message.Contains("redirect or respond", StringComparison.Ordinal));
 
-        CompileResult twice = SnapshotCompiler.Compile(
+        var twice = SnapshotCompiler.Compile(
             new ProxyConfigModel { Hosts = [admin, admin with { Id = TestIds.Host("admin2"), Names = ["admin2.test"] }] }, withListener);
         Assert.Contains(twice.Errors, e => e.Message.Contains("only one admin host", StringComparison.Ordinal));
     }
@@ -200,7 +198,7 @@ public sealed class SnapshotCompilerTests
     [Fact]
     public void ActiveHealthChecksCompileIntoTheCluster()
     {
-        RuntimeSnapshot snapshot = Compile(new ProxyConfigModel
+        var snapshot = Compile(new ProxyConfigModel
         {
             Upstreams =
             [
@@ -209,7 +207,7 @@ public sealed class SnapshotCompilerTests
             ],
         });
 
-        HealthCheckConfig both = Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == TestIds.Upstream("both").ToString()).HealthCheck!;
+        var both = Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == TestIds.Upstream("both").ToString()).HealthCheck!;
         Assert.True(both.Passive!.Enabled);
         Assert.True(both.Active!.Enabled);
         Assert.Equal("/healthz", both.Active.Path);
@@ -217,7 +215,7 @@ public sealed class SnapshotCompilerTests
         Assert.Equal(TimeSpan.FromSeconds(2), both.Active.Timeout);
         Assert.Equal("ConsecutiveFailures", both.Active.Policy);
 
-        HealthCheckConfig active = Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == TestIds.Upstream("active").ToString()).HealthCheck!;
+        var active = Assert.Single(snapshot.Yarp.Clusters, c => c.ClusterId == TestIds.Upstream("active").ToString()).HealthCheck!;
         Assert.Null(active.Passive);
         Assert.Equal("/", active.Active!.Path);
     }
@@ -225,13 +223,13 @@ public sealed class SnapshotCompilerTests
     [Fact]
     public void RedirectAndRespondHostsGetPrecomputedAnswers()
     {
-        RuntimeSnapshot snapshot = Compile(Sample);
+        var snapshot = Compile(Sample);
 
-        PrecomputedResponse redirect = snapshot.Hosts.Find("old.test")!.FixedResponse!;
+        var redirect = snapshot.Hosts.Find("old.test")!.FixedResponse!;
         Assert.Equal(301, redirect.StatusCode);
         Assert.Equal(new RedirectTarget("https://example.com", false, string.Empty, true), redirect.Redirect);
 
-        PrecomputedResponse respond = snapshot.Hosts.Find("soon.test")!.FixedResponse!;
+        var respond = snapshot.Hosts.Find("soon.test")!.FixedResponse!;
         Assert.Equal(503, respond.StatusCode);
         Assert.Equal("coming soon"u8.ToArray(), respond.Body);
 
@@ -242,20 +240,20 @@ public sealed class SnapshotCompilerTests
             Kind = HostKind.Redirect,
             Redirect = new RedirectSpec { Target = "https://x.test/landing?a=1", StatusCode = 302, PreservePath = false },
         };
-        PrecomputedResponse fixedResponse = Compile(new ProxyConfigModel { Hosts = [fixedRedirect] }).HostsByIndex[0].FixedResponse!;
+        var fixedResponse = Compile(new ProxyConfigModel { Hosts = [fixedRedirect] }).HostsByIndex[0].FixedResponse!;
         Assert.Equal("https://x.test/landing?a=1", fixedResponse.Location);
     }
 
     [Fact]
     public void YarpConfigIsAPureFunctionOfContent()
     {
-        RuntimeSnapshot first = Compile(Sample);
-        RuntimeSnapshot again = Compile(Sample with { Revision = TestIds.Revision("rev-2") });
-        RuntimeSnapshot policyOnly = Compile(Sample with
+        var first = Compile(Sample);
+        var again = Compile(Sample with { Revision = TestIds.Revision("rev-2") });
+        var policyOnly = Compile(Sample with
         {
             Hosts = [Sample.Hosts[0] with { Policies = [new DropPolicySpec()], ForceHttps = false }, .. Sample.Hosts.Skip(1)],
         });
-        RuntimeSnapshot moved = Compile(Sample with
+        var moved = Compile(Sample with
         {
             Hosts = [Sample.Hosts[0] with { Routes = [Route("site-root", "api"), Sample.Hosts[0].Routes[1]] }, .. Sample.Hosts.Skip(1)],
         });
@@ -268,7 +266,7 @@ public sealed class SnapshotCompilerTests
     [Fact]
     public void EmptyConfigCompilesToAnEmptySnapshot()
     {
-        RuntimeSnapshot snapshot = Compile(ProxyConfigModel.Empty);
+        var snapshot = Compile(ProxyConfigModel.Empty);
 
         Assert.Equal(0, snapshot.Hosts.Count);
         Assert.True(snapshot.Yarp.IsEmpty);
@@ -346,7 +344,7 @@ public sealed class SnapshotCompilerTests
     [MemberData(nameof(InvalidConfigs))]
     public void InvalidConfigsAreRejectedWithAReason(string because, ProxyConfigModel model, string expected)
     {
-        CompileResult result = SnapshotCompiler.Compile(model);
+        var result = SnapshotCompiler.Compile(model);
 
         Assert.False(result.Succeeded, because);
         Assert.Null(result.Snapshot);
@@ -381,9 +379,9 @@ public sealed class SnapshotCompilerTests
     [MemberData(nameof(AttributedErrors))]
     public void ErrorsNameTheObjectTheyAreAbout(string because, ProxyConfigModel model, CompileErrorSource expected)
     {
-        CompileResult result = SnapshotCompiler.Compile(model);
+        var result = SnapshotCompiler.Compile(model);
 
-        CompileError error = Assert.Single(result.Errors);
+        var error = Assert.Single(result.Errors);
         Assert.True(expected == error.Source, $"{because}: {error}");
         Assert.StartsWith($"{expected}: ", error.ToString(), StringComparison.Ordinal);
     }
@@ -391,7 +389,7 @@ public sealed class SnapshotCompilerTests
     [Fact]
     public void BodilessStatusesCompileWithAnEmptyBody()
     {
-        RuntimeSnapshot snapshot = Compile(Hosts(
+        var snapshot = Compile(Hosts(
             new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 204 } },
             Respond("b", "b.test") with { Policies = [new DenyPolicySpec(304, string.Empty)] }));
 
@@ -408,18 +406,18 @@ public sealed class SnapshotCompilerTests
             Hosts = [ProxyHost("a", "a.test", Route("r", "u")) with { Enabled = false }],
         };
 
-        RuntimeSnapshot snapshot = Compile(model);
+        var snapshot = Compile(model);
         Assert.Empty(Assert.Single(snapshot.Yarp.Clusters).Destinations!);
 
-        CompileResult routed = SnapshotCompiler.Compile(model with { Hosts = [.. model.Hosts, ProxyHost("b", "b.test", Route("s", "u")), ProxyHost("c", "c.test", Route("t", "u"))] });
-        CompileError error = Assert.Single(routed.Errors);
+        var routed = SnapshotCompiler.Compile(model with { Hosts = [.. model.Hosts, ProxyHost("b", "b.test", Route("s", "u")), ProxyHost("c", "c.test", Route("t", "u"))] });
+        var error = Assert.Single(routed.Errors);
         Assert.Equal(CompileErrorSource.Upstream(TestIds.Upstream("u")), error.Source);
     }
 
     [Fact]
     public void ADisabledHostMayShareANameWithAnotherHost()
     {
-        RuntimeSnapshot snapshot = Compile(Hosts(Respond("staged", "a.test") with { Enabled = false }, Respond("live", "A.TEST.")));
+        var snapshot = Compile(Hosts(Respond("staged", "a.test") with { Enabled = false }, Respond("live", "A.TEST.")));
 
         Assert.Equal(TestIds.Host("live"), snapshot.Hosts.Find("a.test")!.Id);
     }
@@ -427,7 +425,7 @@ public sealed class SnapshotCompilerTests
     [Fact]
     public void EveryErrorIsReported()
     {
-        CompileResult result = SnapshotCompiler.Compile(Hosts(Respond("a", "x.test"), Respond("a", "x.test"), Respond("b", "y.test") with { Id = HostId.Empty }));
+        var result = SnapshotCompiler.Compile(Hosts(Respond("a", "x.test"), Respond("a", "x.test"), Respond("b", "y.test") with { Id = HostId.Empty }));
 
         Assert.Equal(3, result.Errors.Count);
     }

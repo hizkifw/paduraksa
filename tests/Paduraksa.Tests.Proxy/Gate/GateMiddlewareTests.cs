@@ -69,13 +69,13 @@ public sealed class GateMiddlewareTests : IDisposable
     [InlineData("secure.test", "/x", "secure-root")]
     public void ForwardsWithTheRoutesEndpointFromTheSameSnapshot(string host, string path, string route)
     {
-        DefaultHttpContext context = TestContexts.Create(host, path, scheme: host.StartsWith("secure", StringComparison.Ordinal) ? "https" : "http");
+        var context = TestContexts.Create(host, path, scheme: host.StartsWith("secure", StringComparison.Ordinal) ? "https" : "http");
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         Assert.Equal(GateAction.Forward, decision.Action);
         Assert.Equal(TestIds.Route(route).ToString(), context.GetEndpoint()!.DisplayName);
-        GateRequestState state = context.Features.Get<IGateFeature>()!.State;
+        var state = context.Features.Get<IGateFeature>()!.State;
         Assert.Same(_store.Current, state.Snapshot);
         Assert.Equal(TestIds.Route(route), state.Route!.Id);
         Assert.Same(state.Snapshot!.YarpEndpoints[state.Route.Slot], context.GetEndpoint());
@@ -89,9 +89,9 @@ public sealed class GateMiddlewareTests : IDisposable
     [InlineData(null)]
     public void UnknownHostsGetTheDefaultBehaviour(string? host)
     {
-        DefaultHttpContext context = TestContexts.Create(host);
+        var context = TestContexts.Create(host);
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         Assert.Equal(GateAction.Respond, decision.Action);
         Assert.Same(_store.Current.Default.Response, decision.Response);
@@ -110,7 +110,7 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void AProxyHostWithoutAMatchingRouteAnswers404()
     {
-        GateDecision decision = _gate.Decide(TestContexts.Create("narrow.test", "/other"));
+        var decision = _gate.Decide(TestContexts.Create("narrow.test", "/other"));
 
         Assert.Equal(GateAction.Respond, decision.Action);
         Assert.Same(_store.Current.NoRoute, decision.Response);
@@ -122,9 +122,9 @@ public sealed class GateMiddlewareTests : IDisposable
     [InlineData("POST", 308)]
     public void PlainHttpToAForcedHttpsHostIsRedirected(string method, int status)
     {
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/x", method);
+        var context = TestContexts.Create("secure.test", "/x", method);
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         Assert.Equal(GateAction.Respond, decision.Action);
         Assert.Equal(status, decision.Response!.StatusCode);
@@ -136,8 +136,8 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void RedirectAndRespondHostsAnswerFromPrecomputedResponses()
     {
-        GateDecision redirect = _gate.Decide(TestContexts.Create("old.test", "/a"));
-        GateDecision respond = _gate.Decide(TestContexts.Create("soon.test", "/a"));
+        var redirect = _gate.Decide(TestContexts.Create("old.test", "/a"));
+        var respond = _gate.Decide(TestContexts.Create("soon.test", "/a"));
 
         Assert.Equal(308, redirect.Response!.StatusCode);
         Assert.Same(_store.Current.Hosts.Find("old.test")!.FixedResponse, redirect.Response);
@@ -147,8 +147,8 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void PolicyRespondAndDropStopTheChain()
     {
-        GateDecision denied = _gate.Decide(TestContexts.Create("app.test", "/blocked/x"));
-        GateDecision dropped = _gate.Decide(TestContexts.Create("app.test", "/drop"));
+        var denied = _gate.Decide(TestContexts.Create("app.test", "/blocked/x"));
+        var dropped = _gate.Decide(TestContexts.Create("app.test", "/drop"));
 
         Assert.Equal(GateAction.Respond, denied.Action);
         Assert.Equal(451, denied.Response!.StatusCode);
@@ -162,9 +162,9 @@ public sealed class GateMiddlewareTests : IDisposable
     [InlineData("2001:db8::5", false)]
     public void HostLevelAllowListAppliesToEveryRoute(string remote, bool allowed)
     {
-        DefaultHttpContext context = TestContexts.Create("app.test", "/api", remote: IPAddress.Parse(remote));
+        var context = TestContexts.Create("app.test", "/api", remote: IPAddress.Parse(remote));
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         Assert.Equal(allowed ? GateAction.Forward : GateAction.Respond, decision.Action);
         if (!allowed)
@@ -181,7 +181,7 @@ public sealed class GateMiddlewareTests : IDisposable
     [InlineData("locked-soon.test", "http", "/")]
     public void HostPoliciesRunBeforeRedirectsFixedAnswersAndRouting(string host, string scheme, string path)
     {
-        GateDecision blocked = _gate.Decide(TestContexts.Create(host, path, scheme: scheme, remote: IPAddress.Parse("203.0.113.9")));
+        var blocked = _gate.Decide(TestContexts.Create(host, path, scheme: scheme, remote: IPAddress.Parse("203.0.113.9")));
 
         Assert.Equal(GateAction.Respond, blocked.Action);
         Assert.Equal(403, blocked.Response!.StatusCode);
@@ -194,7 +194,7 @@ public sealed class GateMiddlewareTests : IDisposable
     [InlineData("locked-soon.test", "http", "/", 503)]
     public void AllowedClientsGetTheHostsUsualAnswer(string host, string scheme, string path, int status)
     {
-        GateDecision allowed = _gate.Decide(TestContexts.Create(host, path, scheme: scheme, remote: IPAddress.Parse("10.0.0.5")));
+        var allowed = _gate.Decide(TestContexts.Create(host, path, scheme: scheme, remote: IPAddress.Parse("10.0.0.5")));
 
         Assert.Equal(status, allowed.Response!.StatusCode);
     }
@@ -231,7 +231,7 @@ public sealed class GateMiddlewareTests : IDisposable
     {
         ClientIpResolution resolved = new(IpKey.Parse("10.0.0.5"), ClientIpSource.CfConnectingIp, ClientIpOutcome.FromHeader, CloudflareHeadersTrusted: true);
         GateMiddleware gate = new(_store, new FixedAddress(resolved));
-        DefaultHttpContext context = TestContexts.Create("app.test", "/api", remote: IPAddress.Parse("203.0.113.9"));
+        var context = TestContexts.Create("app.test", "/api", remote: IPAddress.Parse("203.0.113.9"));
 
         Assert.Equal(GateAction.Forward, gate.Decide(context).Action);
         Assert.Equal(resolved, context.Features.Get<IGateFeature>()!.State.ClientIp);
@@ -241,9 +241,9 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void PerRequestStateIsPooledAndReset()
     {
-        DefaultHttpContext context = TestContexts.Create("app.test", "/api");
+        var context = TestContexts.Create("app.test", "/api");
         _gate.Decide(context);
-        GateRequestState first = context.Features.Get<IGateFeature>()!.State;
+        var first = context.Features.Get<IGateFeature>()!.State;
         Assert.NotNull(first.Route);
 
         context.Request.Headers.Host = "unknown.test";
@@ -257,7 +257,7 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void WorksWithoutPersistentState()
     {
-        DefaultHttpContext context = TestContexts.Create("app.test", "/api");
+        var context = TestContexts.Create("app.test", "/api");
         context.Features.Set<IPersistentStateFeature>(null);
 
         Assert.Equal(GateAction.Forward, _gate.Decide(context).Action);
@@ -267,10 +267,10 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void ARequestKeepsTheSnapshotItStartedWith()
     {
-        DefaultHttpContext context = TestContexts.Create("app.test", "/api");
+        var context = TestContexts.Create("app.test", "/api");
         _gate.Decide(context);
-        RuntimeSnapshot seen = context.Features.Get<IGateFeature>()!.State.Snapshot!;
-        Endpoint endpoint = context.GetEndpoint()!;
+        var seen = context.Features.Get<IGateFeature>()!.State.Snapshot!;
+        var endpoint = context.GetEndpoint()!;
 
         _store.Publish(Bound(Config, generation: 2));
 
@@ -283,7 +283,7 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public async Task InvokeForwardsRespondsOrAborts()
     {
-        int nextCalls = 0;
+        var nextCalls = 0;
         RequestDelegate next = _ =>
         {
             nextCalls++;
@@ -293,12 +293,12 @@ public sealed class GateMiddlewareTests : IDisposable
         await _gate.InvokeAsync(TestContexts.Create("app.test", "/api"), next);
         Assert.Equal(1, nextCalls);
 
-        DefaultHttpContext denied = TestContexts.Create("app.test", "/blocked");
+        var denied = TestContexts.Create("app.test", "/blocked");
         await _gate.InvokeAsync(denied, next);
         Assert.Equal(451, denied.Response.StatusCode);
         Assert.Equal(1, nextCalls);
 
-        DefaultHttpContext dropped = TestContexts.Create("app.test", "/drop");
+        var dropped = TestContexts.Create("app.test", "/drop");
         AbortProbe probe = new();
         dropped.Features.Set<IHttpRequestLifetimeFeature>(probe);
         await _gate.InvokeAsync(dropped, next);
@@ -309,7 +309,7 @@ public sealed class GateMiddlewareTests : IDisposable
     [Fact]
     public void ForwardDecisionDoesNotAllocate()
     {
-        DefaultHttpContext context = TestContexts.Create("x.app.test:8443", "/api/items/42");
+        var context = TestContexts.Create("x.app.test:8443", "/api/items/42");
         AllocAssert.Zero((_gate, context), static s => _ = s._gate.Decide(s.context), "gate forward (host + route + policy + SetEndpoint)");
     }
 
@@ -326,7 +326,7 @@ public sealed class GateMiddlewareTests : IDisposable
             (_gate, contexts),
             static s =>
             {
-                foreach (DefaultHttpContext context in s.contexts)
+                foreach (var context in s.contexts)
                 {
                     _ = s._gate.Decide(context);
                 }
@@ -353,7 +353,7 @@ public sealed class GateMiddlewareTests : IDisposable
             (_gate, contexts),
             static s =>
             {
-                foreach (DefaultHttpContext context in s.contexts)
+                foreach (var context in s.contexts)
                 {
                     _ = s._gate.Decide(context);
                 }

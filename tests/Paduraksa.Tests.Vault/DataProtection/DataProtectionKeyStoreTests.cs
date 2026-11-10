@@ -1,9 +1,6 @@
-using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.EntityFrameworkCore;
-
-using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Tests.Vault.Testing;
 using Paduraksa.Vault;
@@ -182,7 +179,7 @@ public sealed class DataProtectionKeyStoreTests : IDisposable
     [Fact]
     public async Task RejectsAnEmptyNameOrElement()
     {
-        foreach ((string name, string element) in new[] { ("", ElementA), ("   ", ElementA), ("key-1", ""), ("key-1", "   ") })
+        foreach (var (name, element) in new[] { ("", ElementA), ("   ", ElementA), ("key-1", ""), ("key-1", "   ") })
         {
             await Assert.ThrowsAsync<ArgumentException>(async () => await Keys.StoreAsync(name, element, Ct));
         }

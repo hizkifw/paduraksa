@@ -18,14 +18,14 @@ public sealed class AllocationTests
     [Fact]
     public void Base62OverSpansDoesNotAllocate()
     {
-        long allocated = AllocatedOnDedicatedThread(static () =>
+        var allocated = AllocatedOnDedicatedThread(static () =>
         {
             Span<char> chars = stackalloc char[Base62.Width128];
             Span<byte> bytes = stackalloc byte[Base62.Width128];
-            Guid guid = UuidV4Generator.Next();
+            var guid = UuidV4Generator.Next();
 
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 1000; i++)
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 1000; i++)
             {
                 Base62.TryEncode(guid, chars);
                 Base62.TryEncode(guid, bytes);
@@ -44,20 +44,20 @@ public sealed class AllocationTests
     private static void AssertNoAllocations<T>(T id)
         where T : struct, ITypedId<T>
     {
-        long allocated = AllocatedOnDedicatedThread(() =>
+        var allocated = AllocatedOnDedicatedThread(() =>
         {
             Span<char> chars = stackalloc char[64];
             Span<byte> bytes = stackalloc byte[64];
             ReadOnlySpan<char> text = id.ToString();
             ReadOnlySpan<byte> utf8 = Encoding.UTF8.GetBytes(id.ToString()!);
 
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < 1000; i++)
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 1000; i++)
             {
                 Assert.True(id.TryFormat(chars, out _, default, null));
                 Assert.True(id.TryFormat(bytes, out _, default, null));
-                Assert.True(T.TryParse(text, out T a) && a.Equals(id));
-                Assert.True(T.TryParse(utf8, out T b) && b.Equals(id));
+                Assert.True(T.TryParse(text, out var a) && a.Equals(id));
+                Assert.True(T.TryParse(utf8, out var b) && b.Equals(id));
                 _ = T.Parse(text);
                 _ = id.CompareTo(a);
             }
@@ -85,13 +85,13 @@ public sealed class AllocationTests
             {
                 try
                 {
-                    for (int round = 0; round < 3; round++)
+                    for (var round = 0; round < 3; round++)
                     {
                         _ = measure(); // warm-up: JIT, tiering/OSR, statics, the thread's runtime state
                     }
 
-                    long smallest = long.MaxValue;
-                    for (int round = 0; round < 3; round++)
+                    var smallest = long.MaxValue;
+                    for (var round = 0; round < 3; round++)
                     {
                         smallest = Math.Min(smallest, measure());
                     }

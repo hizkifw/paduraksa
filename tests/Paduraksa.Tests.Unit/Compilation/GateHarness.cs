@@ -22,8 +22,8 @@ internal sealed class GateHarness : IDisposable
 
     public GateHarness(RuntimeSnapshot candidate)
     {
-        Endpoint[] endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
-        for (int i = 0; i < endpoints.Length; i++)
+        var endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
+        for (var i = 0; i < endpoints.Length; i++)
         {
             endpoints[i] = new Endpoint(static _ => Task.CompletedTask, EndpointMetadataCollection.Empty, candidate.RouteIdBySlot[i].ToString());
         }
@@ -46,7 +46,7 @@ internal sealed class GateHarness : IDisposable
         context.Request.Path = path;
         context.Connection.RemoteIpAddress = client;
 
-        bool forwarded = false;
+        var forwarded = false;
         await _gate.InvokeAsync(context, _ =>
         {
             forwarded = true;

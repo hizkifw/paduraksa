@@ -64,7 +64,7 @@ internal sealed class KestrelLikeHeaders : IHeaderDictionary
 
     public StringValues this[string key]
     {
-        get => _values.TryGetValue(key, out StringValues value) ? value : StringValues.Empty;
+        get => _values.TryGetValue(key, out var value) ? value : StringValues.Empty;
         set => _values[key] = value;
     }
 
@@ -78,7 +78,7 @@ internal sealed class KestrelLikeHeaders : IHeaderDictionary
         ContentLength = null;
     }
 
-    public bool Contains(KeyValuePair<string, StringValues> item) => _values.TryGetValue(item.Key, out StringValues v) && v == item.Value;
+    public bool Contains(KeyValuePair<string, StringValues> item) => _values.TryGetValue(item.Key, out var v) && v == item.Value;
 
     public bool ContainsKey(string key) => _values.ContainsKey(key);
 

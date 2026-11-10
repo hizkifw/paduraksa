@@ -24,7 +24,7 @@ internal static class CommandErrors
         ArgumentNullException.ThrowIfNull(errors);
         List<ConfigError> own = [];
         List<ConfigError> related = [];
-        foreach (ConfigError error in errors)
+        foreach (var error in errors)
         {
             if (ownPath is not null && IsAtOrBelow(error.Path, ownPath))
             {
@@ -43,16 +43,16 @@ internal static class CommandErrors
     /// <paramref name="document"/> (<c>/hosts/3</c>), or null when it isn't there.</summary>
     public static string? PathOf(ConfigDocument document, string list, string id)
     {
-        int index = IdsOf(document, list).IndexOf(id);
+        var index = IdsOf(document, list).IndexOf(id);
         return index < 0 ? null : $"/{list}/{index.ToString(CultureInfo.InvariantCulture)}";
     }
 
     /// <summary>The host index of a pointer at or below <c>/hosts/{i}</c>; null for any other pointer.</summary>
     public static int? HostIndexOf(string path)
     {
-        string[] parts = path.Split('/', 4);
+        var parts = path.Split('/', 4);
         return parts.Length >= 3 && parts[0].Length == 0 && parts[1] == "hosts"
-            && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int index)
+            && int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var index)
             ? index
             : null;
     }
@@ -82,20 +82,20 @@ internal static class CommandErrors
         public static IndexMap Between(ConfigDocument from, ConfigDocument to)
         {
             IndexMap map = new();
-            foreach (string list in ObjectLists)
+            foreach (var list in ObjectLists)
             {
-                List<string> target = IdsOf(to, list);
+                var target = IdsOf(to, list);
                 Dictionary<string, int> positions = new(StringComparer.Ordinal);
-                for (int i = 0; i < target.Count; i++)
+                for (var i = 0; i < target.Count; i++)
                 {
                     positions.TryAdd(target[i], i);
                 }
 
-                List<string> source = IdsOf(from, list);
+                var source = IdsOf(from, list);
                 Dictionary<int, int> indices = [];
-                for (int i = 0; i < source.Count; i++)
+                for (var i = 0; i < source.Count; i++)
                 {
-                    if (positions.TryGetValue(source[i], out int j))
+                    if (positions.TryGetValue(source[i], out var j))
                     {
                         indices[i] = j;
                     }
@@ -111,17 +111,17 @@ internal static class CommandErrors
         public string Remap(string pointer)
         {
             // "/hosts/3/...": list token, index token, rest.
-            string[] parts = pointer.Split('/', 4);
+            var parts = pointer.Split('/', 4);
             if (parts.Length < 3
                 || parts[0].Length != 0
-                || !_byList.TryGetValue(parts[1], out Dictionary<int, int>? indices)
-                || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out int index)
-                || !indices.TryGetValue(index, out int mapped))
+                || !_byList.TryGetValue(parts[1], out var indices)
+                || !int.TryParse(parts[2], NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+                || !indices.TryGetValue(index, out var mapped))
             {
                 return pointer;
             }
 
-            string head = $"/{parts[1]}/{mapped.ToString(CultureInfo.InvariantCulture)}";
+            var head = $"/{parts[1]}/{mapped.ToString(CultureInfo.InvariantCulture)}";
             return parts.Length == 4 ? $"{head}/{parts[3]}" : head;
         }
     }

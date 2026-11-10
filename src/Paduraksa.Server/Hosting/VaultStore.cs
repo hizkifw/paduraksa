@@ -1,8 +1,4 @@
 using System.Net.Security;
-
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Application.Certificates;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
@@ -48,12 +44,12 @@ internal static class VaultStore
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
-        ServiceProvider container = builder.Own(new ServiceCollection()
+        var container = builder.Own(new ServiceCollection()
             .AddSingleton(loggerFactory)
             .AddPaduraksaVault(dataDirectory, new CertificateNameRules())
             .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
 
-        IVaultLifecycle lifecycle = builder.AddOwnedElsewhere(container.GetRequiredService<IVaultLifecycle>());
+        var lifecycle = builder.AddOwnedElsewhere(container.GetRequiredService<IVaultLifecycle>());
         return new VaultCapabilities(
             lifecycle,
             container.GetRequiredService<IServerCertificateSource>(),

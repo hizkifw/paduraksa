@@ -21,7 +21,7 @@ public sealed class LogOptionsTests
     [InlineData("Paduraksa:Logs:Directory", "~/logs", "Directory")]
     public void ABadLogSettingIsRefusedAtStartup(string key, string value, string named)
     {
-        OptionsValidationException exception = Assert.Throws<OptionsValidationException>(() =>
+        var exception = Assert.Throws<OptionsValidationException>(() =>
             PaduraksaHost.LoadOptions(TestHost.CreateOptions(settings: new Dictionary<string, string?> { [key] = value })));
 
         Assert.Contains(named, string.Join(" ", exception.Failures), StringComparison.Ordinal);
@@ -30,7 +30,7 @@ public sealed class LogOptionsTests
     [Fact]
     public void TheLogsLiveUnderTheDataDirectoryByDefault()
     {
-        string data = TestDataDirectories.NewPath();
+        var data = TestDataDirectories.NewPath();
 
         var options = PaduraksaHost.LoadOptions(TestHost.CreateOptions(settings: new Dictionary<string, string?> { ["Paduraksa:DataDirectory"] = data }));
 
@@ -42,7 +42,7 @@ public sealed class LogOptionsTests
     [Fact]
     public void ARelativeLogsDirectoryIsRelativeToTheDataDirectoryAndAnAbsoluteOneIsKept()
     {
-        string data = TestDataDirectories.NewPath();
+        var data = TestDataDirectories.NewPath();
 
         var relative = PaduraksaHost.LoadOptions(TestHost.CreateOptions(settings: new Dictionary<string, string?>
         {

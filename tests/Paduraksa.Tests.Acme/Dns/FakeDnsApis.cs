@@ -53,7 +53,7 @@ internal sealed class FakeSecretHandlers(Func<ApiCall, HttpResponseMessage> api)
     public static HttpResponseMessage Json(HttpStatusCode status, string json, params (string Name, string Value)[] headers)
     {
         HttpResponseMessage response = new(status) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
-        foreach ((string name, string value) in headers)
+        foreach (var (name, value) in headers)
         {
             response.Headers.TryAddWithoutValidation(name, value);
         }
@@ -67,7 +67,7 @@ internal sealed class FakeSecretHandlers(Func<ApiCall, HttpResponseMessage> api)
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Uri url = request.RequestUri!;
+            var url = request.RequestUri!;
             if (url.Scheme != Uri.UriSchemeHttps)
             {
                 throw new SecretTransportRefusedException("the request is not an absolute https URL");
@@ -78,12 +78,12 @@ internal sealed class FakeSecretHandlers(Func<ApiCall, HttpResponseMessage> api)
                 throw new SecretTransportRefusedException($"the destination '{url.IdnHost}' is not one the caller allowed");
             }
 
-            string authorization = how.Kind switch
+            var authorization = how.Kind switch
             {
                 SecretInjectionKind.Authorization => $"{how.Scheme} {Token}",
                 _ => throw new NotSupportedException(),
             };
-            string? body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
+            var body = request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken);
             lock (owner.Calls)
             {
                 owner.Calls.Add(new ApiCall(request.Method, url, body, authorization));
@@ -94,7 +94,7 @@ internal sealed class FakeSecretHandlers(Func<ApiCall, HttpResponseMessage> api)
                 throw failure;
             }
 
-            HttpResponseMessage response = owner._api(new ApiCall(request.Method, url, body, authorization));
+            var response = owner._api(new ApiCall(request.Method, url, body, authorization));
             response.RequestMessage = request;
             return response;
         }
@@ -186,7 +186,7 @@ internal sealed class FakeCloudflare
             return Error(HttpStatusCode.Unauthorized, 10000, "Authentication error");
         }
 
-        string[] parts = call.Path.Replace("/client/v4/", string.Empty, StringComparison.Ordinal).Split('/');
+        var parts = call.Path.Replace("/client/v4/", string.Empty, StringComparison.Ordinal).Split('/');
         switch (parts)
         {
             case ["user", "tokens", "verify"]:
@@ -201,33 +201,33 @@ internal sealed class FakeCloudflare
 
                 if (call.Params["name"] is { } zoneName)
                 {
-                    string result = _zones.TryGetValue(zoneName, out string? zoneId) ? $$"""[{"id":"{{zoneId}}","name":"{{zoneName}}"}]""" : "[]";
+                    var result = _zones.TryGetValue(zoneName, out var zoneId) ? $$"""[{"id":"{{zoneId}}","name":"{{zoneName}}"}]""" : "[]";
                     return Ok($$$"""{"success":true,"errors":[],"result":{{{result}}}}""");
                 }
 
-                string all = string.Join(',', _zones.Select(z => $$"""{"id":"{{z.Value}}","name":"{{z.Key}}"}"""));
+                var all = string.Join(',', _zones.Select(z => $$"""{"id":"{{z.Value}}","name":"{{z.Key}}"}"""));
                 return Ok($$"""{"success":true,"errors":[],"result":[{{all}}]}""");
             case ["zones", var zone, "dns_records"] when call.Method == HttpMethod.Get:
                 {
                     var matching = _records.Where(r => r.Zone == zone && r.Type == call.Params["type"] && r.Name == call.Params["name"]).ToList();
-                    int page = int.Parse(call.Params["page"] ?? "1", System.Globalization.CultureInfo.InvariantCulture);
-                    int pages = Math.Max(1, (matching.Count + PageSize - 1) / PageSize);
-                    string items = string.Join(',', matching.Skip((page - 1) * PageSize).Take(PageSize).Select(r =>
+                    var page = int.Parse(call.Params["page"] ?? "1", System.Globalization.CultureInfo.InvariantCulture);
+                    var pages = Math.Max(1, (matching.Count + PageSize - 1) / PageSize);
+                    var items = string.Join(',', matching.Skip((page - 1) * PageSize).Take(PageSize).Select(r =>
                         $$"""{"id":"{{r.Id}}","type":"TXT","name":"{{r.Name}}","content":{{JsonValue.Create(QuoteContent ? "\"" + r.Content + "\"" : r.Content)!.ToJsonString()}}}"""));
                     return Ok($$$"""{"success":true,"errors":[],"result":[{{{items}}}],"result_info":{"page":{{{page}}},"per_page":{{{PageSize}}},"total_pages":{{{pages}}},"count":1,"total_count":{{{matching.Count}}}}}""");
                 }
 
             case ["zones", var zone, "dns_records"] when call.Method == HttpMethod.Post:
                 {
-                    JsonNode body = call.Json!;
-                    string name = (string)body["name"]!;
-                    string content = (string)body["content"]!;
+                    var body = call.Json!;
+                    var name = (string)body["name"]!;
+                    var content = (string)body["content"]!;
                     if (_records.Any(r => r.Zone == zone && r.Type == "TXT" && r.Name == name && r.Content == content))
                     {
                         return Error(HttpStatusCode.BadRequest, 81058, "An identical record already exists.");
                     }
 
-                    string id = "rec-" + _next++;
+                    var id = "rec-" + _next++;
                     _records.Add((zone, id, "TXT", name, content));
                     return Ok($$$"""{"success":true,"errors":[],"result":{"id":"{{{id}}}"}}""");
                 }
@@ -288,12 +288,12 @@ internal sealed class FakeDesec
             Writes++;
         }
 
-        string[] parts = call.Path.Replace("/api/v1/", string.Empty, StringComparison.Ordinal).Trim('/').Split('/');
+        var parts = call.Path.Replace("/api/v1/", string.Empty, StringComparison.Ordinal).Trim('/').Split('/');
         switch (parts)
         {
             case ["domains"]:
                 {
-                    IEnumerable<KeyValuePair<string, int>> found = call.Params["owns_qname"] is { } qname
+                    var found = call.Params["owns_qname"] is { } qname
                         ? _domains.Where(d => qname == d.Key || qname.EndsWith("." + d.Key, StringComparison.OrdinalIgnoreCase)).OrderByDescending(d => d.Key.Length).Take(1)
                         : _domains;
                     return FakeSecretHandlers.Json(HttpStatusCode.OK, "[" + string.Join(',', found.Select(d => $$"""{"name":"{{d.Key}}","minimum_ttl":{{d.Value}}}""")) + "]");
@@ -307,9 +307,9 @@ internal sealed class FakeDesec
                         return FakeSecretHandlers.Json(HttpStatusCode.BadRequest, """{"non_field_errors":["Expected a list of items."]}""");
                     }
 
-                    bool create = call.Method == HttpMethod.Post;
+                    var create = call.Method == HttpMethod.Post;
                     Dictionary<(string, string, string), (int, List<string>)?> staged = [];
-                    foreach (JsonNode? item in items)
+                    foreach (var item in items)
                     {
                         if (item?["subname"] is null || item["type"] is null)
                         {
@@ -317,7 +317,7 @@ internal sealed class FakeDesec
                         }
 
                         (string, string, string) key = (domain, (string)item["subname"]!, (string)item["type"]!);
-                        bool exists = _rrsets.ContainsKey(key);
+                        var exists = _rrsets.ContainsKey(key);
                         if (create == exists)
                         {
                             return FakeSecretHandlers.Json(HttpStatusCode.BadRequest, create
@@ -332,7 +332,7 @@ internal sealed class FakeDesec
                             continue;
                         }
 
-                        int ttl = item["ttl"] is { } t ? (int)t : _rrsets[key].Ttl;
+                        var ttl = item["ttl"] is { } t ? (int)t : _rrsets[key].Ttl;
                         if (ttl < _domains[domain])
                         {
                             return FakeSecretHandlers.Json(HttpStatusCode.BadRequest, $$"""[{"ttl":["Ensure this value is greater than or equal to {{_domains[domain]}}."]}]""");
@@ -358,7 +358,7 @@ internal sealed class FakeDesec
 
             case ["domains", var domain, "rrsets", var sub, var type]:
                 {
-                    string subname = sub == "@" ? string.Empty : sub;
+                    var subname = sub == "@" ? string.Empty : sub;
                     if (!_rrsets.TryGetValue((domain, subname, type), out var set))
                     {
                         return Detail(HttpStatusCode.NotFound, "Not found.");
@@ -375,13 +375,13 @@ internal sealed class FakeDesec
                         return FakeSecretHandlers.Empty(HttpStatusCode.NoContent);
                     }
 
-                    JsonNode body = call.Json!;
+                    var body = call.Json!;
                     if (call.Method == HttpMethod.Put && (body["subname"] is null || body["type"] is null || body["ttl"] is null || body["records"] is null))
                     {
                         return FakeSecretHandlers.Json(HttpStatusCode.BadRequest, """{"subname":["This field is required."],"type":["This field is required."]}""");
                     }
 
-                    int ttl = body["ttl"] is { } given ? (int)given : set.Ttl;
+                    var ttl = body["ttl"] is { } given ? (int)given : set.Ttl;
                     if (ttl < _domains[domain])
                     {
                         return FakeSecretHandlers.Json(HttpStatusCode.BadRequest, $$"""{"ttl":["Ensure this value is greater than or equal to {{_domains[domain]}}."]}""");

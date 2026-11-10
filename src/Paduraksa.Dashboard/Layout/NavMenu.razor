@@ -3,7 +3,7 @@
 @* The side navigation: only the pages the user may see, the open page's area marked, and a "soon" badge on a page that
    is still a placeholder. *@
 <nav class="pdk-nav" aria-label="Main">
-    @foreach (IGrouping<string?, NavigationEntry> group in _entries.GroupBy(entry => entry.Group))
+    @foreach (var group in _entries.GroupBy(entry => entry.Group))
     {
         if (group.Key is not null)
         {
@@ -11,9 +11,9 @@
         }
 
         <ul class="pdk-nav-list">
-            @foreach (NavigationEntry entry in group)
+            @foreach (var entry in group)
             {
-                bool active = ReferenceEquals(entry, _active);
+                var active = ReferenceEquals(entry, _active);
                 <li>
                     <a href="@entry.Href" class="pdk-nav-link @(active ? "pdk-nav-active" : null)" aria-current="@(active ? "page" : null)">
                         <MudIcon Icon="@entry.Icon" Size="Size.Small" Class="pdk-nav-icon" />
@@ -40,7 +40,7 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        DashboardPrincipal? user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
+        var user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
         _entries = [.. DashboardNavigation.VisibleTo(permission => user?.Has(permission) == true)];
         Mark();
     }

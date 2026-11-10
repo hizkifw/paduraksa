@@ -2,8 +2,6 @@
 using System.CommandLine;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
-
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
@@ -25,16 +23,16 @@ public sealed class DoctorCommandsTests
             ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
         };
 
-        (PaduraksaHost host, _) = await TestPorts.StartOnFreePortAsync(port =>
+        var (host, _) = await TestPorts.StartOnFreePortAsync(port =>
         {
             settings["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
             return TestHost.Create(settings: settings);
         });
 
-        await using PaduraksaHost started = host;
+        await using var started = host;
         try
         {
-            (int exitCode, string output, string error) = await ProbeAsync(TestHost.CreateOptions(settings: settings));
+            var (exitCode, output, error) = await ProbeAsync(TestHost.CreateOptions(settings: settings));
 
             Assert.Equal(0, exitCode);
             Assert.Equal("healthy", output.Trim());
@@ -50,11 +48,11 @@ public sealed class DoctorCommandsTests
     public async Task LivenessUsesHttpsToTheAdminPortOtherwise()
     {
         // Bound at port 0 and read back: a port probed first can be taken by another test between the probe and the bind.
-        await using PaduraksaHost host = TestHost.Create();
+        await using var host = TestHost.Create();
         await host.StartAsync(Ct);
         try
         {
-            int port = TestHost.Endpoint(host, HostRole.Admin, "https").Port;
+            var port = TestHost.Endpoint(host, HostRole.Admin, "https").Port;
             Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
             {
                 ["Paduraksa:Listen:Admin"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -74,14 +72,14 @@ public sealed class DoctorCommandsTests
     public async Task LivenessFailsWhenNothingListens()
     {
         // A port held bound but never listening for as long as the probe runs: a probed one could be taken meanwhile.
-        using TestPorts.DeadPort dead = TestPorts.ReserveDeadPort();
+        using var dead = TestPorts.ReserveDeadPort();
         Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Paduraksa:Listen:Admin"] = dead.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Paduraksa:Listen:AdminBind"] = "127.0.0.1",
         };
 
-        (int exitCode, _, string error) = await ProbeAsync(TestHost.CreateOptions(settings: settings));
+        var (exitCode, _, error) = await ProbeAsync(TestHost.CreateOptions(settings: settings));
 
         Assert.Equal(1, exitCode);
         Assert.Contains("did not answer", error, StringComparison.Ordinal);
@@ -93,7 +91,7 @@ public sealed class DoctorCommandsTests
         using StringWriter output = new();
         using StringWriter error = new();
 
-        int exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(
+        var exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(
             TestHost.CreateOptions(), liveness: false, output, error, Ct);
 
         Assert.Equal(1, exitCode);
@@ -105,13 +103,13 @@ public sealed class DoctorCommandsTests
     {
         // GetRequiredValue on an absent bool option threw; GetValue keeps `paduraksa doctor` a parse-level success that
         // exits 1 with the usage line.
-        RootCommand root = Paduraksa.Server.Cli.PaduraksaCli.BuildRootCommand();
-        ParseResult parse = root.Parse(["doctor"]);
+        var root = Paduraksa.Server.Cli.PaduraksaCli.BuildRootCommand();
+        var parse = root.Parse(["doctor"]);
         Assert.Empty(parse.Errors);
 
         using StringWriter output = new();
         using StringWriter error = new();
-        int exitCode = await parse.InvokeAsync(new InvocationConfiguration { Output = output, Error = error, ProcessTerminationTimeout = null }, Ct);
+        var exitCode = await parse.InvokeAsync(new InvocationConfiguration { Output = output, Error = error, ProcessTerminationTimeout = null }, Ct);
 
         Assert.Equal(1, exitCode);
         Assert.Contains("--liveness", error.ToString(), StringComparison.Ordinal);
@@ -122,12 +120,12 @@ public sealed class DoctorCommandsTests
     {
         TcpListener listener = new(IPAddress.Loopback, 0);
         listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        Task server = Task.Run(async () =>
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var server = Task.Run(async () =>
         {
-            using TcpClient client = await listener.AcceptTcpClientAsync(Ct);
-            using NetworkStream stream = client.GetStream();
-            byte[] buffer = new byte[1024];
+            using var client = await listener.AcceptTcpClientAsync(Ct);
+            using var stream = client.GetStream();
+            var buffer = new byte[1024];
             _ = await stream.ReadAsync(buffer, Ct);
             await stream.WriteAsync("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"u8.ToArray(), Ct);
         }, Ct);
@@ -140,7 +138,7 @@ public sealed class DoctorCommandsTests
                 ["Paduraksa:Listen:AdminLoopbackHttp"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
             };
 
-            (int exitCode, _, string error) = await ProbeAsync(TestHost.CreateOptions(settings: settings));
+            var (exitCode, _, error) = await ProbeAsync(TestHost.CreateOptions(settings: settings));
 
             Assert.Equal(1, exitCode);
             Assert.Contains("503", error, StringComparison.Ordinal);
@@ -187,7 +185,7 @@ public sealed class DoctorCommandsTests
     {
         using StringWriter output = new();
         using StringWriter error = new();
-        int exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(options, liveness: true, output, error, Ct);
+        var exitCode = await Paduraksa.Server.Cli.DoctorCommands.LivenessAsync(options, liveness: true, output, error, Ct);
         return (exitCode, output.ToString(), error.ToString());
     }
 }

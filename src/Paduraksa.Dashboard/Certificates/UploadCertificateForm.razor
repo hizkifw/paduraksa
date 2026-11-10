@@ -3,7 +3,6 @@
    sent. *@
 @using Microsoft.Extensions.Logging
 @inject ILogger<UploadCertificateForm> Logger
-@using Microsoft.AspNetCore.Components.Forms
 
 <div class="pdk-form-stack">
     <div class="pdk-drop @(_file is not null ? "pdk-drop-filled" : null) @(_fileError is not null ? "pdk-drop-error" : null)">
@@ -47,7 +46,7 @@
     @if (_errors.Count > 0)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert">
-            @foreach (string error in _errors)
+            @foreach (var error in _errors)
             {
                 <div>@error</div>
             }
@@ -131,18 +130,18 @@
         }
 
         // The password leaves the component's state before anything is awaited, and lives on only in this array until the call is done.
-        char[] password = (_password ?? string.Empty).ToCharArray();
+        var password = (_password ?? string.Empty).ToCharArray();
         _password = string.Empty;
-        IBrowserFile file = _file;
-        IBrowserFile? keyFile = _keyFile;
+        var file = _file;
+        var keyFile = _keyFile;
         _busy = true;
         CertificateOperationResult? result = null;
         try
         {
-            Stream data = file.OpenReadStream(CertificateImportLimits.MaxBytes);
+            var data = file.OpenReadStream(CertificateImportLimits.MaxBytes);
             await using (data.ConfigureAwait(true))
             {
-                Stream upload = keyFile is null ? data : new PemConcatStream(data, keyFile.OpenReadStream(CertificateImportLimits.MaxBytes));
+                var upload = keyFile is null ? data : new PemConcatStream(data, keyFile.OpenReadStream(CertificateImportLimits.MaxBytes));
                 await using (upload.ConfigureAwait(true))
                 {
                     result = await Submit(new CertificateUpload(upload, password, string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));

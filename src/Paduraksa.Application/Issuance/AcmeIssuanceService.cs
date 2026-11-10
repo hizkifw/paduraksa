@@ -140,14 +140,14 @@ public sealed partial class AcmeIssuanceService
             return new IssuanceResult(IssuanceOutcome.Forbidden);
         }
 
-        (List<string> names, ConfigError? problem) = await ValidateAsync(request, cancellationToken).ConfigureAwait(false);
+        var (names, problem) = await ValidateAsync(request, cancellationToken).ConfigureAwait(false);
         if (problem is not null)
         {
             return new IssuanceResult(IssuanceOutcome.Invalid, Errors: [problem]);
         }
 
-        CertificateId id = CertificateId.New();
-        CertificateChangeResult registered = await _certificates.RegisterPendingAsync(id, CertificateSource.Acme, names, request.Label, origin, cancellationToken).ConfigureAwait(false);
+        var id = CertificateId.New();
+        var registered = await _certificates.RegisterPendingAsync(id, CertificateSource.Acme, names, request.Label, origin, cancellationToken).ConfigureAwait(false);
         if (registered.Status != CertificateChangeStatus.Committed)
         {
             return new IssuanceResult(
@@ -155,7 +155,7 @@ public sealed partial class AcmeIssuanceService
                 Errors: registered.Errors);
         }
 
-        DateTimeOffset now = _time.GetUtcNow();
+        var now = _time.GetUtcNow();
         try
         {
             var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -232,20 +232,20 @@ public sealed partial class AcmeIssuanceService
 
         try
         {
-            AcmeOrderRow? row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
+            var row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
             if (row is null)
             {
                 return false;
             }
 
-            DateTimeOffset now = _time.GetUtcNow();
+            var now = _time.GetUtcNow();
             switch (row.Status)
             {
                 case AcmeOrderStatus.Pending or AcmeOrderStatus.Ordered or AcmeOrderStatus.Finalizing:
                 case AcmeOrderStatus.Failed when row.RetryAt is not { } retryAt || retryAt <= now:
                 case AcmeOrderStatus.Valid when row.NextRenewalAt is { } renewAt && renewAt <= now:
                     LogDue(id, row.Status);
-                    IssuanceResult result = await RunCoreAsync(row, CommandOrigin.System, null, cancellationToken).ConfigureAwait(false);
+                    var result = await RunCoreAsync(row, CommandOrigin.System, null, cancellationToken).ConfigureAwait(false);
                     return result.Outcome is not (IssuanceOutcome.InProgress or IssuanceOutcome.NotFound or IssuanceOutcome.Unavailable);
                 case AcmeOrderStatus.Valid when row.AriCheckAt is { } checkAt && checkAt <= now:
                     _ = await RefreshCoreAsync(row, cancellationToken).ConfigureAwait(false);
@@ -267,10 +267,10 @@ public sealed partial class AcmeIssuanceService
     public async Task<AcmeOrderSummary?> RefreshRenewalInfoAsync(CertificateId id, CancellationToken cancellationToken = default)
     {
         // Under the certificate's guard, so a late write cannot overwrite the schedule an issuance just made; busy: it shows what is stored.
-        bool held = _running.TryAdd(id, 0);
+        var held = _running.TryAdd(id, 0);
         try
         {
-            AcmeOrderRow? row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
+            var row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
             return row is null ? null : held ? await RefreshCoreAsync(row, cancellationToken).ConfigureAwait(false) : IssuanceMapping.ToSummary(row);
         }
         finally
@@ -284,15 +284,15 @@ public sealed partial class AcmeIssuanceService
 
     private async Task<AcmeOrderSummary> RefreshCoreAsync(AcmeOrderRow row, CancellationToken cancellationToken)
     {
-        CertificateId id = row.CertificateId;
-        CertificateDetail? certificate = row.Status == AcmeOrderStatus.Valid ? await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false) : null;
-        AcmeAccountRow? account = certificate is null ? null : await LoadAccountAsync(row.AccountId, cancellationToken).ConfigureAwait(false);
+        var id = row.CertificateId;
+        var certificate = row.Status == AcmeOrderStatus.Valid ? await _certificates.GetAsync(id, cancellationToken).ConfigureAwait(false) : null;
+        var account = certificate is null ? null : await LoadAccountAsync(row.AccountId, cancellationToken).ConfigureAwait(false);
         if (certificate is null || account is null || certificate.Summary.AuthorityKeyIdentifier is not { } aki)
         {
             return IssuanceMapping.ToSummary(row);
         }
 
-        DateTimeOffset now = _time.GetUtcNow();
+        var now = _time.GetUtcNow();
         AcmeRenewalInfo? info;
         try
         {
@@ -306,9 +306,9 @@ public sealed partial class AcmeIssuanceService
             return IssuanceMapping.ToSummary(row);
         }
 
-        DateTimeOffset notBefore = certificate.Summary.NotBefore;
-        DateTimeOffset notAfter = certificate.Summary.NotAfter;
-        double random = _random();
+        var notBefore = certificate.Summary.NotBefore;
+        var notAfter = certificate.Summary.NotAfter;
+        var random = _random();
         await UpdateAsync(
             row,
             r =>
@@ -337,7 +337,7 @@ public sealed partial class AcmeIssuanceService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            List<AcmeOrderRow> rows = await context.AcmeOrders.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+            var rows = await context.AcmeOrders.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.OrderByDescending(o => o.CreatedAt).ThenBy(o => o.Id).Select(IssuanceMapping.ToSummary)];
         }
     }
@@ -345,7 +345,7 @@ public sealed partial class AcmeIssuanceService
     /// <summary>The ACME state of one certificate; null when it has no order.</summary>
     public async Task<AcmeOrderSummary?> GetOrderAsync(CertificateId id, CancellationToken cancellationToken = default)
     {
-        AcmeOrderRow? row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
+        var row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
         return row is null ? null : IssuanceMapping.ToSummary(row);
     }
 
@@ -362,13 +362,13 @@ public sealed partial class AcmeIssuanceService
             return (names, new ConfigError("/names", IssuanceErrorCodes.TooManyNames, $"an order is limited to {MaxNames} names"));
         }
 
-        names = CertificateNames.Normalize(request.Names, out List<string> rejected);
+        names = CertificateNames.Normalize(request.Names, out var rejected);
         if (rejected.Count > 0 || names.Count == 0)
         {
             return (names, new ConfigError("/names", IssuanceErrorCodes.NameInvalid, $"'{(rejected.Count > 0 ? rejected[0] : request.Names[0])}' is not a DNS name, a wildcard or an IP address"));
         }
 
-        foreach (string name in names)
+        foreach (var name in names)
         {
             try
             {
@@ -413,7 +413,7 @@ public sealed partial class AcmeIssuanceService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            AcmeAccountStatus? account = await context.AcmeAccounts.AsNoTracking()
+            var account = await context.AcmeAccounts.AsNoTracking()
                 .Where(a => a.Id == request.AccountId).Select(a => (AcmeAccountStatus?)a.Status).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
             if (account is null)
             {
@@ -447,7 +447,7 @@ public sealed partial class AcmeIssuanceService
     }
 
     private static AcmeIdentifier ToIdentifier(string name) =>
-        IPAddress.TryParse(name, out IPAddress? address) ? AcmeIdentifier.Ip(address) : AcmeIdentifier.Dns(name);
+        IPAddress.TryParse(name, out var address) ? AcmeIdentifier.Ip(address) : AcmeIdentifier.Dns(name);
 
     private async Task<AcmeOrderRow?> LoadAsync(CertificateId id, CancellationToken cancellationToken)
     {
@@ -473,13 +473,13 @@ public sealed partial class AcmeIssuanceService
     /// </summary>
     private async Task UpdateAsync(AcmeOrderRow row, Action<AcmeOrderRow> change, CancellationToken cancellationToken)
     {
-        DateTimeOffset now = _time.GetUtcNow();
+        var now = _time.GetUtcNow();
         change(row);
         row.UpdatedAt = now;
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            AcmeOrderRow stored = await context.AcmeOrders.FirstAsync(o => o.Id == row.Id, cancellationToken).ConfigureAwait(false);
+            var stored = await context.AcmeOrders.FirstAsync(o => o.Id == row.Id, cancellationToken).ConfigureAwait(false);
             change(stored);
             stored.UpdatedAt = now;
             await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -496,7 +496,7 @@ public sealed partial class AcmeIssuanceService
         try
         {
             // Read under the guard: what is decided from the row (a renewal or a continuation) must not be stale.
-            AcmeOrderRow? row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
+            var row = await LoadAsync(id, cancellationToken).ConfigureAwait(false);
             return row is null ? new IssuanceResult(IssuanceOutcome.NotFound, id) : await RunCoreAsync(row, origin, progress, cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -509,7 +509,7 @@ public sealed partial class AcmeIssuanceService
     /// <summary>One run for a row read under the certificate's guard: a finished issuance starts a new order, anything else continues.</summary>
     private async Task<IssuanceResult> RunCoreAsync(AcmeOrderRow row, CommandOrigin origin, IProgress<AcmeOrderProgress>? progress, CancellationToken cancellationToken)
     {
-        CertificateId id = row.CertificateId;
+        var id = row.CertificateId;
         if (_config.Status is { AcceptsCommands: false } unusable)
         {
             // Nothing could be recorded, so don't start: the CA would be asked again every look without a backoff.
@@ -519,11 +519,11 @@ public sealed partial class AcmeIssuanceService
                 Errors: [new ConfigError(string.Empty, ConfigService.StoreUnavailableCode, $"The config store is unavailable, so issuance is paused: {unusable.Problem}.")]);
         }
 
-        bool startFresh = row.Status == AcmeOrderStatus.Valid;
+        var startFresh = row.Status == AcmeOrderStatus.Valid;
         try
         {
-            AcmeAccountRow account = await LoadAccountAsync(row.AccountId, cancellationToken).ConfigureAwait(false)
-                ?? throw new IssuanceFailureException("The ACME account of this certificate no longer exists.");
+            var account = await LoadAccountAsync(row.AccountId, cancellationToken).ConfigureAwait(false)
+                          ?? throw new IssuanceFailureException("The ACME account of this certificate no longer exists.");
             if (account.Status != AcmeAccountStatus.Active)
             {
                 throw new IssuanceFailureException("The ACME account of this certificate is deactivated; order it again with another account.");
@@ -539,8 +539,8 @@ public sealed partial class AcmeIssuanceService
             Report(attempt, AcmeProgressStage.Starting);
             LogAttempt(id, row.Status, startFresh);
             await UpdateAsync(row, r => r.LastAttemptAt = _time.GetUtcNow(), cancellationToken).ConfigureAwait(false);
-            CertificateInfo info = await DriveAsync(attempt, startFresh, cancellationToken).ConfigureAwait(false);
-            CertificateDetail? issued = await _certificates.GetAsync(id, CancellationToken.None).ConfigureAwait(false);
+            var info = await DriveAsync(attempt, startFresh, cancellationToken).ConfigureAwait(false);
+            var issued = await _certificates.GetAsync(id, CancellationToken.None).ConfigureAwait(false);
             LogIssued(id, info.Sha256Fingerprint, info.NotAfter);
             Report(attempt, AcmeProgressStage.Issued);
             return new IssuanceResult(IssuanceOutcome.Issued, id, issued?.Summary);
@@ -559,24 +559,24 @@ public sealed partial class AcmeIssuanceService
     /// <summary>Records a failed attempt: the row, an audit event, and the certificate's own status where it matters.</summary>
     private async Task<IssuanceResult> FailAsync(AcmeOrderRow row, Exception ex, CommandOrigin origin, IProgress<AcmeOrderProgress>? progress)
     {
-        (AcmeFailureKind kind, TimeSpan? retryAfter, string message) = Classify(ex);
+        var (kind, retryAfter, message) = Classify(ex);
         message = IssuanceMapping.Sanitize(message, 1024);
         // The CA no longer knows the account: it cannot order again, so say so on the account row too.
-        bool accountGone = ex is AcmeProblemException { Type: AcmeProblemTypes.AccountDoesNotExist };
-        DateTimeOffset now = _time.GetUtcNow();
-        int attempts = row.Attempts + 1;
-        DateTimeOffset retryAt = now + RenewalSchedule.Backoff(kind, attempts, retryAfter, _random(), _options);
+        var accountGone = ex is AcmeProblemException { Type: AcmeProblemTypes.AccountDoesNotExist };
+        var now = _time.GetUtcNow();
+        var attempts = row.Attempts + 1;
+        var retryAt = now + RenewalSchedule.Backoff(kind, attempts, retryAfter, _random(), _options);
         // Work that cannot be continued (the staged key is gone, the CSR was refused) must not be resumed: start over next time.
-        bool dropOrder = row.AttachedInfo is null
-            && (ex is StagedKeyMismatchException or IssuanceFailureException { DropsOrder: true }
-                || (ex is AcmeProblemException && row.Status == AcmeOrderStatus.Finalizing && kind == AcmeFailureKind.Permanent));
+        var dropOrder = row.AttachedInfo is null
+                        && (ex is StagedKeyMismatchException or IssuanceFailureException { DropsOrder: true }
+                            || (ex is AcmeProblemException && row.Status == AcmeOrderStatus.Finalizing && kind == AcmeFailureKind.Permanent));
 
         // The failure is recorded even if the caller is cancelling: that is what the scheduler needs to see after a restart.
-        CancellationToken token = CancellationToken.None;
+        var token = CancellationToken.None;
         await _config.ApplyOperationalChangeAsync(
             async context =>
             {
-                AcmeOrderRow? stored = await context.AcmeOrders.FirstOrDefaultAsync(o => o.Id == row.Id, token).ConfigureAwait(false);
+                var stored = await context.AcmeOrders.FirstOrDefaultAsync(o => o.Id == row.Id, token).ConfigureAwait(false);
                 if (stored is null)
                 {
                     return (0, null);
@@ -597,7 +597,7 @@ public sealed partial class AcmeIssuanceService
 
                 if (accountGone)
                 {
-                    AcmeAccountRow? account = await context.AcmeAccounts.FirstOrDefaultAsync(a => a.Id == row.AccountId, token).ConfigureAwait(false);
+                    var account = await context.AcmeAccounts.FirstOrDefaultAsync(a => a.Id == row.AccountId, token).ConfigureAwait(false);
                     if (account is { Status: AcmeAccountStatus.Active })
                     {
                         account.Status = AcmeAccountStatus.Deactivated;
@@ -606,7 +606,7 @@ public sealed partial class AcmeIssuanceService
                 }
 
                 await context.SaveChangesAsync(token).ConfigureAwait(false);
-                AuditEntry audit = IssuanceMapping.Entry(origin, "acme.order.failed", stored.Id, AuditOutcome.Failed) with
+                var audit = IssuanceMapping.Entry(origin, "acme.order.failed", stored.Id, AuditOutcome.Failed) with
                 {
                     Details = IssuanceMapping.Json(w =>
                     {
@@ -629,7 +629,7 @@ public sealed partial class AcmeIssuanceService
         LogFailed(row.CertificateId, kind, attempts, retryAt, message);
         Report(row, progress, new AcmeOrderProgress(row.CertificateId, AcmeProgressStage.Failed, row.ChallengeType, now, message, retryAt));
 
-        CertificateDetail? certificate = await _certificates.GetAsync(row.CertificateId, token).ConfigureAwait(false);
+        var certificate = await _certificates.GetAsync(row.CertificateId, token).ConfigureAwait(false);
         if (certificate is { Summary: { } summary }
             && (summary.Status == CertificateStatus.Pending || (summary.Status == CertificateStatus.Active && now > summary.NotAfter)))
         {

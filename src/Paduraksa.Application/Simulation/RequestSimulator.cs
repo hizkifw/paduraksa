@@ -112,12 +112,12 @@ public sealed partial class RequestSimulator : IDisposable
             return new SimulationResult(SimulationStatus.Denied, source);
         }
 
-        if (!SimulationRequests.TryBuild(request, out GateProbe? probe, out List<ConfigError> problems))
+        if (!SimulationRequests.TryBuild(request, out var probe, out var problems))
         {
             return new SimulationResult(SimulationStatus.BadRequest, source, Errors: problems);
         }
 
-        bool compiles = target is not LiveSimulationTarget;
+        var compiles = target is not LiveSimulationTarget;
         if (compiles && !await _compiles.WaitAsync(_busyWait, cancellationToken).ConfigureAwait(false))
         {
             return new SimulationResult(
@@ -149,11 +149,11 @@ public sealed partial class RequestSimulator : IDisposable
             return failure;
         }
 
-        GateSimulation run = GateSimulator.Run(resolved.Snapshot!, probe!, _challenges, _listeners);
+        var run = GateSimulator.Run(resolved.Snapshot!, probe!, _challenges, _listeners);
         List<string> notes = [.. resolved.Notes];
-        SimulationUpstream? upstream = run.Upstream is null ? null : DescribeUpstream(run.Upstream, resolved.Source.Kind != SimulationTargetKind.Live, notes);
+        var upstream = run.Upstream is null ? null : DescribeUpstream(run.Upstream, resolved.Source.Kind != SimulationTargetKind.Live, notes);
         List<SimulationStep> trace = new(run.Steps.Count);
-        foreach (GateStep step in run.Steps)
+        foreach (var step in run.Steps)
         {
             trace.Add(Describe(step));
         }
@@ -191,7 +191,7 @@ public sealed partial class RequestSimulator : IDisposable
         switch (target)
         {
             case LiveSimulationTarget:
-                RuntimeSnapshot live = _store.Current;
+                var live = _store.Current;
                 return new Resolved(live, new SimulationSource(SimulationTargetKind.Live, live.Revision.IsEmpty ? null : live.Revision))
                 {
                     Notes = _store.HasPublished ? [] : ["No config has been published yet: this is the bootstrap snapshot, which answers 503 to everything."],
@@ -232,8 +232,8 @@ public sealed partial class RequestSimulator : IDisposable
                 Errors: [stored.Problem ?? new ConfigError(string.Empty, SimulationErrorCodes.RevisionUnreadable, "The revision's document can't be read by this build.")]));
         }
 
-        ConfigService.SimulationCompilation compiled = await _config.CompileForSimulationAsync(document, id, cancellationToken).ConfigureAwait(false);
-        ConfigCompilation compilation = compiled.Compilation;
+        var compiled = await _config.CompileForSimulationAsync(document, id, cancellationToken).ConfigureAwait(false);
+        var compilation = compiled.Compilation;
         List<string> notes = [$"Revision {stored.Revision}, compiled now against today's certificate inventory; it was not published."];
         if (compiled.InventoryUnreadable)
         {
@@ -251,9 +251,9 @@ public sealed partial class RequestSimulator : IDisposable
     private async Task<Resolved> ResolveDraftDocumentAsync(ConfigDocument document, CommandOrigin origin, CancellationToken cancellationToken)
     {
         Resolved resolved = default!;
-        for (int attempt = 0; attempt < 2; attempt++)
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            ConfigRevisionId? head = (await _config.GetCurrentAsync(cancellationToken).ConfigureAwait(false)).Revision?.Id;
+            var head = (await _config.GetCurrentAsync(cancellationToken).ConfigureAwait(false)).Revision?.Id;
             resolved = await ResolveDraftAsync(new ReplaceConfigCommand(document, head), SimulationTargetKind.DraftDocument, origin, cancellationToken).ConfigureAwait(false);
             if (resolved.Failure is not { Status: SimulationStatus.DraftRejected })
             {
@@ -267,8 +267,8 @@ public sealed partial class RequestSimulator : IDisposable
     private async Task<Resolved> ResolveDraftAsync(ConfigCommand command, SimulationTargetKind kind, CommandOrigin origin, CancellationToken cancellationToken)
     {
         SimulationSource source = new(kind);
-        ConfigService.DraftPlan plan = await _config.PlanDraftAsync(command, origin, cancellationToken).ConfigureAwait(false);
-        ConfigCommandResult result = plan.Result;
+        var plan = await _config.PlanDraftAsync(command, origin, cancellationToken).ConfigureAwait(false);
+        var result = plan.Result;
         switch (result.Status)
         {
             case ConfigCommandStatus.DryRun when plan.Candidate is { } candidate:
@@ -281,7 +281,7 @@ public sealed partial class RequestSimulator : IDisposable
             case ConfigCommandStatus.Unavailable:
                 return new Resolved(new SimulationResult(SimulationStatus.Unavailable, source, Errors: result.Errors));
             default:
-                string why = result.Status switch
+                var why = result.Status switch
                 {
                     ConfigCommandStatus.Conflict => "the draft was made on an older version of the config than the current one",
                     ConfigCommandStatus.NotFound => "the object (or revision) the draft refers to doesn't exist",
@@ -296,11 +296,11 @@ public sealed partial class RequestSimulator : IDisposable
 
     private SimulationUpstream DescribeUpstream(GateUpstream upstream, bool targetIsNotLive, List<string> notes)
     {
-        UpstreamHealthSnapshot? live = _health?.Lookup(upstream.Id);
+        var live = _health?.Lookup(upstream.Id);
         List<SimulationDestination> destinations = [];
-        foreach (GateDestination destination in upstream.Destinations)
+        foreach (var destination in upstream.Destinations)
         {
-            SimulationHealth health = SimulationHealth.Unknown;
+            var health = SimulationHealth.Unknown;
             if (live is not null)
             {
                 // The ID and the address both: a draft that moved a destination says nothing about the one the proxy knows.
@@ -330,7 +330,7 @@ public sealed partial class RequestSimulator : IDisposable
 
         static bool Contains(IReadOnlyList<LiveDestination> known, GateDestination destination)
         {
-            foreach (LiveDestination candidate in known)
+            foreach (var candidate in known)
             {
                 if (candidate.Id == destination.Id && string.Equals(candidate.Address, destination.Address, StringComparison.OrdinalIgnoreCase))
                 {
@@ -344,9 +344,9 @@ public sealed partial class RequestSimulator : IDisposable
 
     private static SimulationOutcome Describe(GateSimulation run)
     {
-        GateOutcome outcome = run.Outcome;
-        string summary = "forwarded to the route's upstream";
-        foreach (GateStep step in run.Steps)
+        var outcome = run.Outcome;
+        var summary = "forwarded to the route's upstream";
+        foreach (var step in run.Steps)
         {
             if (step.Verdict == GateStepVerdict.Stopped)
             {
@@ -355,7 +355,7 @@ public sealed partial class RequestSimulator : IDisposable
             }
         }
 
-        SimulationOutcomeKind kind = outcome.Action switch
+        var kind = outcome.Action switch
         {
             GateOutcomeAction.Forward => SimulationOutcomeKind.ForwardToUpstream,
             GateOutcomeAction.Abort => outcome.Reason switch
@@ -381,7 +381,7 @@ public sealed partial class RequestSimulator : IDisposable
     private static SimulationStep Describe(GateStep step)
     {
         List<SimulationFact> facts = new(step.Facts.Count);
-        foreach (GateFact fact in step.Facts)
+        foreach (var fact in step.Facts)
         {
             facts.Add(new SimulationFact(fact.Name, fact.Value));
         }

@@ -49,21 +49,21 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
             return new DnsPropagationResult(DnsPropagationOutcome.Propagated, "There was nothing to look for.");
         }
 
-        IReadOnlyList<IPEndPoint> resolvers = Resolvers();
-        long started = _time.GetTimestamp();
+        var resolvers = Resolvers();
+        var started = _time.GetTimestamp();
         List<string> unplaced = [.. expected.Select(r => r.Name).Distinct(StringComparer.Ordinal)];
         List<Zone> zones = [];
-        TimeSpan pause = _options.InitialInterval;
-        int discoveryFailures = 0;
-        for (int round = 1; ; round++)
+        var pause = _options.InitialInterval;
+        var discoveryFailures = 0;
+        for (var round = 1; ; round++)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            for (int i = unplaced.Count - 1; i >= 0; i--)
+            for (var i = unplaced.Count - 1; i >= 0; i--)
             {
                 if (await FindZoneAsync(unplaced[i], resolvers, cancellationToken).ConfigureAwait(false) is { } found)
                 {
-                    Zone zone = zones.Find(z => z.Apex == found.Apex) ?? found;
+                    var zone = zones.Find(z => z.Apex == found.Apex) ?? found;
                     if (!zones.Contains(zone))
                     {
                         zones.Add(zone);
@@ -79,7 +79,7 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
 
             if (unplaced.Count > 0 && ++discoveryFailures >= _options.UnreachableRounds)
             {
-                string detail = $"The name servers of {string.Join(", ", unplaced)} could not be found through {string.Join(", ", resolvers)}.";
+                var detail = $"The name servers of {string.Join(", ", unplaced)} could not be found through {string.Join(", ", resolvers)}.";
                 LogUnverifiable(detail);
                 return new DnsPropagationResult(DnsPropagationOutcome.Unverifiable, detail);
             }
@@ -90,25 +90,25 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
             {
                 if (zones.Any(z => z.Hosts.All(h => h.Excluded(_options))))
                 {
-                    string detail = $"No authoritative name server of {string.Join(", ", zones.Where(z => z.Hosts.All(h => h.Excluded(_options))).Select(z => z.Apex))} answered.";
+                    var detail = $"No authoritative name server of {string.Join(", ", zones.Where(z => z.Hosts.All(h => h.Excluded(_options))).Select(z => z.Apex))} answered.";
                     LogUnverifiable(detail);
                     return new DnsPropagationResult(DnsPropagationOutcome.Unverifiable, detail);
                 }
 
                 if (zones.All(z => z.Hosts.All(h => h.Satisfied || h.Excluded(_options))))
                 {
-                    int skipped = zones.Sum(z => z.Hosts.Count(h => !h.Satisfied));
-                    string detail = $"{zones.Sum(z => z.Hosts.Count(h => h.Satisfied))} name server(s) return the record(s) after {round} round(s)"
-                        + (skipped > 0 ? $"; {skipped} gave no authoritative answer and were skipped." : ".");
+                    var skipped = zones.Sum(z => z.Hosts.Count(h => !h.Satisfied));
+                    var detail = $"{zones.Sum(z => z.Hosts.Count(h => h.Satisfied))} name server(s) return the record(s) after {round} round(s)"
+                                 + (skipped > 0 ? $"; {skipped} gave no authoritative answer and were skipped." : ".");
                     LogPropagated(detail);
                     return new DnsPropagationResult(DnsPropagationOutcome.Propagated, detail);
                 }
             }
 
-            TimeSpan remaining = _options.Timeout - _time.GetElapsedTime(started);
+            var remaining = _options.Timeout - _time.GetElapsedTime(started);
             if (remaining <= TimeSpan.Zero)
             {
-                string detail = unplaced.Count > 0
+                var detail = unplaced.Count > 0
                     ? $"The name servers of {string.Join(", ", unplaced)} could not be found in time."
                     : $"After {round} round(s) these name servers still lack the record(s): {string.Join(", ", zones.SelectMany(z => z.Hosts.Where(h => !h.Satisfied && !h.Excluded(_options))).Select(h => h.Name))}.";
                 LogTimedOut(detail);
@@ -135,14 +135,14 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
         List<IPEndPoint> system = [];
         try
         {
-            foreach (NetworkInterface network in NetworkInterface.GetAllNetworkInterfaces())
+            foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (network.OperationalStatus != OperationalStatus.Up)
                 {
                     continue;
                 }
 
-                foreach (IPAddress address in network.GetIPProperties().DnsAddresses)
+                foreach (var address in network.GetIPProperties().DnsAddresses)
                 {
                     // fec0::/10 site-local addresses are a Windows placeholder for "no IPv6 resolver", not a server.
                     if (!address.IsIPv6SiteLocal && !system.Any(e => e.Address.Equals(address)))
@@ -163,11 +163,11 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
     /// <summary>The first resolver that gives a usable answer to a recursive query, or null when none does.</summary>
     private async Task<DnsResponse?> AskResolversAsync(IReadOnlyList<IPEndPoint> resolvers, string name, DnsRecordType type, CancellationToken cancellationToken)
     {
-        foreach (IPEndPoint resolver in resolvers)
+        foreach (var resolver in resolvers)
         {
             try
             {
-                DnsResponse response = await _client.QueryAsync(resolver, name, type, recursionDesired: true, cancellationToken).ConfigureAwait(false);
+                var response = await _client.QueryAsync(resolver, name, type, recursionDesired: true, cancellationToken).ConfigureAwait(false);
                 if (Usable(response))
                 {
                     return response;
@@ -185,9 +185,9 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
     /// <summary>The zone that holds <paramref name="name"/> (the closest ancestor with NS records) and its name servers, or null when the resolvers cannot say.</summary>
     private async Task<Zone?> FindZoneAsync(string name, IReadOnlyList<IPEndPoint> resolvers, CancellationToken cancellationToken)
     {
-        foreach (string candidate in DnsNames.ZoneCandidates(name))
+        foreach (var candidate in DnsNames.ZoneCandidates(name))
         {
-            DnsResponse? response = await AskResolversAsync(resolvers, candidate, DnsRecordType.NS, cancellationToken).ConfigureAwait(false);
+            var response = await AskResolversAsync(resolvers, candidate, DnsRecordType.NS, cancellationToken).ConfigureAwait(false);
             if (response is null)
             {
                 return null;
@@ -216,16 +216,16 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
             return;
         }
 
-        foreach (IPAddress address in host.Addresses)
+        foreach (var address in host.Addresses)
         {
             IPEndPoint server = new(address, _options.AuthoritativePort);
-            bool answered = true;
-            bool complete = true;
-            foreach (IGrouping<string, DnsChallengeRecord> group in zone.Records.GroupBy(r => r.Name, StringComparer.Ordinal))
+            var answered = true;
+            var complete = true;
+            foreach (var group in zone.Records.GroupBy(r => r.Name, StringComparer.Ordinal))
             {
                 try
                 {
-                    DnsResponse response = await _client.QueryAsync(server, group.Key, DnsRecordType.TXT, recursionDesired: false, cancellationToken).ConfigureAwait(false);
+                    var response = await _client.QueryAsync(server, group.Key, DnsRecordType.TXT, recursionDesired: false, cancellationToken).ConfigureAwait(false);
                     if (!response.Authoritative || !Usable(response))
                     {
                         // Lame: a server that does not claim the zone says nothing about it.
@@ -260,7 +260,7 @@ public sealed partial class AuthoritativeDnsPropagationCheck : IDnsPropagationCh
     private async Task<List<IPAddress>> ResolveAsync(string host, IReadOnlyList<IPEndPoint> resolvers, CancellationToken cancellationToken)
     {
         List<IPAddress> addresses = [];
-        foreach (DnsRecordType type in (DnsRecordType[])[DnsRecordType.A, DnsRecordType.AAAA])
+        foreach (var type in (DnsRecordType[])[DnsRecordType.A, DnsRecordType.AAAA])
         {
             if (await AskResolversAsync(resolvers, host, type, cancellationToken).ConfigureAwait(false) is { } response)
             {

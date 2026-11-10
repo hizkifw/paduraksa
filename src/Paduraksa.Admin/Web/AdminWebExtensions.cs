@@ -61,11 +61,11 @@ public static class AdminWebExtensions
     public static WebApplication UsePaduraksaAdminWeb(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
-        AdminWebOptions web = app.Services.GetRequiredService<AdminWebOptions>();
-        AdminPipelineHooks hooks = app.Services.GetRequiredService<AdminPipelineHooks>();
+        var web = app.Services.GetRequiredService<AdminWebOptions>();
+        var hooks = app.Services.GetRequiredService<AdminPipelineHooks>();
         hooks.SetupPaths.Add(web.SetupPage);
         hooks.SetupPaths.Add(web.SetupAction);
-        foreach (string prefix in web.StaticAssetPathPrefixes)
+        foreach (var prefix in web.StaticAssetPathPrefixes)
         {
             hooks.SetupAllowedPathPrefixes.Add(prefix);
             hooks.StaticAssetPathPrefixes.Add(prefix);
@@ -112,7 +112,7 @@ internal sealed class AdminSessionAuthenticationHandler(
             return Task.CompletedTask;
         }
 
-        string returnUrl = Request.PathBase.Add(Request.Path) + Request.QueryString;
+        var returnUrl = Request.PathBase.Add(Request.Path) + Request.QueryString;
         Response.Redirect(AdminWebSignInEndpoints.IsLocalPath(returnUrl) && returnUrl != web.HomePage
             ? QueryHelpers.AddQueryString(web.SignInPage, AdminWebForm.ReturnUrl, returnUrl)
             : web.SignInPage);

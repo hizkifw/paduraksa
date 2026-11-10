@@ -32,7 +32,7 @@ public sealed class ConnectionTlsGateTests : IDisposable
 
     public ConnectionTlsGateTests()
     {
-        ServerCertificate certificate = _pki.Leaf("shared", "*.test");
+        var certificate = _pki.Leaf("shared", "*.test");
         _store.Publish(Bound(
             new ProxyConfigModel
             {
@@ -83,10 +83,10 @@ public sealed class ConnectionTlsGateTests : IDisposable
     [InlineData("plain.test", "http", "HTTP/1.1", -1)]
     public void TheGateAnswers421ForAWeakerConnection(string host, string scheme, string protocol, int status)
     {
-        DefaultHttpContext context = TestContexts.Create(host, "/", scheme: scheme);
+        var context = TestContexts.Create(host, "/", scheme: scheme);
         context.Request.Protocol = protocol;
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         if (status < 0)
         {
@@ -102,7 +102,7 @@ public sealed class ConnectionTlsGateTests : IDisposable
     [Fact]
     public void CheckingAllocatesNothing()
     {
-        DefaultHttpContext context = TestContexts.Create("tcp.test", "/", scheme: "https");
+        var context = TestContexts.Create("tcp.test", "/", scheme: "https");
         context.Request.Protocol = "HTTP/3";
         AllocAssert.Zero((_gate, context), static s => _ = s._gate.Decide(s.context), "gate answering 421");
     }

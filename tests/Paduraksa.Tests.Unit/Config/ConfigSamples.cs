@@ -70,7 +70,7 @@ internal static class ConfigSamples
         string[] addresses = ["10.0.0.0/8", "192.168.1.0/24", "2001:db8::/32", "203.0.113.7", "::1"];
         IpAllowListSettings AllowList()
         {
-            string[] list = Some(addresses);
+            var list = Some(addresses);
             return new IpAllowListSettings(list, DropDenied: list.Length > 0 && Coin());
         }
 
@@ -128,7 +128,7 @@ internal static class ConfigSamples
         [
             .. Enumerable.Range(0, random.Next(5)).Select(i =>
             {
-                HostKind kind = (HostKind)random.Next(3);
+                var kind = (HostKind)random.Next(3);
                 return new HostConfig(
                     NewId<HostId>(),
                     [$"h{i}.example.com", .. Some([$"*.h{i}.example.com", $"alt{i}.example.org", $"b\u00fccher{i}.example"])],

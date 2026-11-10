@@ -22,7 +22,7 @@ internal sealed class PlaceholderServerCertificate : IDisposable
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
 
-        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         CertificateRequest request = new("CN=Paduraksa placeholder", key, HashAlgorithmName.SHA256);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(certificateAuthority: false, hasPathLengthConstraint: false, pathLengthConstraint: 0, critical: true));
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, critical: true));
@@ -34,8 +34,8 @@ internal sealed class PlaceholderServerCertificate : IDisposable
         san.AddIpAddress(IPAddress.IPv6Loopback);
         request.CertificateExtensions.Add(san.Build());
 
-        DateTimeOffset now = timeProvider.GetUtcNow();
-        X509Certificate2 certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(365));
+        var now = timeProvider.GetUtcNow();
+        var certificate = request.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(365));
 
         if (OperatingSystem.IsWindows())
         {

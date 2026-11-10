@@ -93,9 +93,9 @@ public sealed partial class AccessLogDrainService : BackgroundService
     /// <summary>The pass itself.</summary>
     private void DrainRing()
     {
-        while (_ring.TryRead(out AccessLogEntry entry))
+        while (_ring.TryRead(out var entry))
         {
-            int length = AccessLogFormatter.Format(in entry, _options, _buffer);
+            var length = AccessLogFormatter.Format(in entry, _options, _buffer);
             if (length < 0)
             {
                 // Only reachable with a buffer smaller than MaxLineLength.
@@ -120,7 +120,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
             return;
         }
 
-        long now = Stopwatch.GetTimestamp();
+        var now = Stopwatch.GetTimestamp();
         if (_lastDropReport != 0 && Stopwatch.GetElapsedTime(_lastDropReport, now) < ReportInterval)
         {
             // Keep counting: the next report says how many were lost in the whole interval.
@@ -149,7 +149,7 @@ public sealed partial class AccessLogDrainService : BackgroundService
 
     private void ReportFailure(Exception exception)
     {
-        long now = Stopwatch.GetTimestamp();
+        var now = Stopwatch.GetTimestamp();
         if (_lastFailureReport != 0 && Stopwatch.GetElapsedTime(_lastFailureReport, now) < ReportInterval)
         {
             return;

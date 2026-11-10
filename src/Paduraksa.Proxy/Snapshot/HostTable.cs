@@ -56,7 +56,7 @@ public sealed class HostTable
     public CompiledHost? Find(ReadOnlySpan<char> hostHeader, out HostMatchKind kind)
     {
         kind = HostMatchKind.None;
-        ReadOnlySpan<char> host = HostName(hostHeader);
+        var host = HostName(hostHeader);
         if (host.IsEmpty)
         {
             return null;
@@ -65,8 +65,8 @@ public sealed class HostTable
         if (host[0] == '[')
         {
             if (_ipv6Literals.Count > 0 && host.Length > 2 && host[^1] == ']'
-                && HostNames.TryParseIPv6Literal(host[1..^1], out UInt128 key)
-                && _ipv6Literals.TryGetValue(key, out CompiledHost? literal))
+                && HostNames.TryParseIPv6Literal(host[1..^1], out var key)
+                && _ipv6Literals.TryGetValue(key, out var literal))
             {
                 kind = HostMatchKind.IPv6Literal;
                 return literal;
@@ -75,7 +75,7 @@ public sealed class HostTable
             return null;
         }
 
-        if (_exactBySpan.TryGetValue(host, out CompiledHost? exact))
+        if (_exactBySpan.TryGetValue(host, out var exact))
         {
             kind = HostMatchKind.Exact;
             return exact;
@@ -86,9 +86,9 @@ public sealed class HostTable
             // Wildcard parent: everything after the first dot, so exactly one label is covered. The covered label must
             // be a plain ASCII label too, which keeps odd Host values out of redirect Locations. (CertificateTable.Find
             // can't check that: SslStream hands the TCP callback IDN labels decoded to Unicode.)
-            int dot = host.IndexOf('.');
+            var dot = host.IndexOf('.');
             if (dot > 0 && !host[..dot].ContainsAnyExcept(DnsNames.LabelChars)
-                && _wildcardBySpan.TryGetValue(host[(dot + 1)..], out CompiledHost? wildcard))
+                && _wildcardBySpan.TryGetValue(host[(dot + 1)..], out var wildcard))
             {
                 kind = HostMatchKind.Wildcard;
                 return wildcard;
@@ -104,14 +104,14 @@ public sealed class HostTable
     /// </summary>
     public static ReadOnlySpan<char> HostName(ReadOnlySpan<char> hostHeader)
     {
-        ReadOnlySpan<char> host = hostHeader;
+        var host = hostHeader;
         if (!host.IsEmpty && host[0] == '[')
         {
-            int close = host.IndexOf(']');
+            var close = host.IndexOf(']');
             return close < 0 ? host : host[..(close + 1)];
         }
 
-        int colon = host.LastIndexOf(':');
+        var colon = host.LastIndexOf(':');
         if (colon >= 0)
         {
             host = host[..colon];
@@ -139,7 +139,7 @@ public sealed class HostTable
         public bool TryAdd(string name, CompiledHost host, out string? error)
         {
             ArgumentNullException.ThrowIfNull(host);
-            if (!HostNames.TryNormalize(name, out string normalized, out HostNameKind kind, out error))
+            if (!HostNames.TryNormalize(name, out var normalized, out var kind, out error))
             {
                 return false;
             }
@@ -149,7 +149,7 @@ public sealed class HostTable
             switch (kind)
             {
                 case HostNameKind.IPv6Literal:
-                    _ = HostNames.TryParseIPv6Literal(normalized.AsSpan(1, normalized.Length - 2), out UInt128 key);
+                    _ = HostNames.TryParseIPv6Literal(normalized.AsSpan(1, normalized.Length - 2), out var key);
                     added = _ipv6Literals.TryAdd(key, host);
                     existing = added ? null : _ipv6Literals[key];
                     break;

@@ -28,14 +28,14 @@ public class CertificateTableBenchmarks
     public void Setup()
     {
         _leaf = CreateLeaf();
-        ServerCertificate certificate = ServerCertificate.Create(_leaf, intermediates: null);
+        var certificate = ServerCertificate.Create(_leaf, intermediates: null);
         CertificateTableBuilder builder = new();
-        for (int i = 0; i < BenchConfig.ExactHosts; i++)
+        for (var i = 0; i < BenchConfig.ExactHosts; i++)
         {
             builder.Add([$"h{i}.test"], certificate, TlsPolicy.Default);
         }
 
-        for (int i = 0; i < BenchConfig.WildcardHosts; i++)
+        for (var i = 0; i < BenchConfig.WildcardHosts; i++)
         {
             builder.Add([$"*.w{i}.test"], certificate, TlsPolicy.Default);
         }
@@ -57,13 +57,13 @@ public class CertificateTableBenchmarks
 
     private static X509Certificate2 CreateLeaf()
     {
-        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         CertificateRequest request = new("CN=Paduraksa benchmark", key, HashAlgorithmName.SHA256);
         SubjectAlternativeNameBuilder san = new();
         san.AddDnsName("localhost");
         san.AddIpAddress(IPAddress.Loopback);
         request.CertificateExtensions.Add(san.Build());
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var now = DateTimeOffset.UtcNow;
         return request.CreateSelfSigned(now.AddMinutes(-5), now.AddDays(1));
     }
 }

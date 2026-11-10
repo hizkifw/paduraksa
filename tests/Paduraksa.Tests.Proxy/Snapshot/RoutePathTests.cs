@@ -30,7 +30,7 @@ public sealed class RoutePathTests
     [InlineData("/ADMIN/X", "/ADMIN/X")]
     public void CanonicalViewNormalisesTheSpellingsUpstreamsTreatAlike(string path, string expected)
     {
-        char[] buffer = new char[path.Length + 1];
+        var buffer = new char[path.Length + 1];
         Assert.Equal(expected, new string(buffer, 0, RoutePath.Canonicalize(path, buffer)));
         Assert.Equal(expected, RoutePath.Canonicalize(path));
     }
@@ -63,12 +63,12 @@ public sealed class RoutePathTests
     public void CanonicalisingDoesNotAllocate()
     {
         string[] paths = ["//admin/x", "/admin;a/x", "/admin%2Fx", "/x\\..\\admin"];
-        char[] buffer = new char[64];
+        var buffer = new char[64];
         AllocAssert.Zero(
             (paths, buffer),
             static s =>
             {
-                foreach (string path in s.paths)
+                foreach (var path in s.paths)
                 {
                     _ = RoutePath.IsCanonical(path);
                     _ = RoutePath.Canonicalize(path, s.buffer);

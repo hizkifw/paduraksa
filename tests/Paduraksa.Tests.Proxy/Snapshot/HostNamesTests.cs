@@ -22,7 +22,7 @@ public sealed class HostNamesTests
     [InlineData("[::ffff:192.0.2.1]", "[::ffff:192.0.2.1]", "IPv6Literal")]
     public void ValidNamesAreNormalised(string input, string expected, string kind)
     {
-        Assert.True(HostNames.TryNormalize(input, out string normalized, out HostNameKind actualKind, out string? error), error);
+        Assert.True(HostNames.TryNormalize(input, out var normalized, out var actualKind, out var error), error);
         Assert.Equal(expected, normalized);
         Assert.Equal(kind, actualKind.ToString());
     }
@@ -61,7 +61,7 @@ public sealed class HostNamesTests
     [InlineData("b\u00ADcher.test")] // soft hyphen
     public void InvalidNamesAreRejected(string input)
     {
-        Assert.False(HostNames.TryNormalize(input, out _, out _, out string? error));
+        Assert.False(HostNames.TryNormalize(input, out _, out _, out var error));
         Assert.False(string.IsNullOrEmpty(error));
     }
 
@@ -74,8 +74,8 @@ public sealed class HostNamesTests
     [InlineData("xn--zzzzzzzzzzzzzzzzzzzzzz.test")]
     public void AcceptedDnsNamesAreValidServerNames(string input)
     {
-        Assert.True(HostNames.TryNormalize(input, out string normalized, out _, out string? error), error);
-        string canonical = ServerNames.Normalize(normalized, out bool wildcard, out _);
+        Assert.True(HostNames.TryNormalize(input, out var normalized, out _, out var error), error);
+        var canonical = ServerNames.Normalize(normalized, out var wildcard, out _);
         Assert.Equal(normalized, wildcard ? "*." + canonical : canonical);
     }
 

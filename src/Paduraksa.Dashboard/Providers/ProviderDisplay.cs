@@ -33,13 +33,13 @@ public static class ProviderDisplay
     /// <summary>The CA's name for a directory URL (a preset's), else the URL's host.</summary>
     public static string CaName(string directoryUrl)
     {
-        AcmeCaPreset? preset = Presets.FirstOrDefault(p => string.Equals(p.DirectoryUrl, directoryUrl, StringComparison.OrdinalIgnoreCase));
+        var preset = Presets.FirstOrDefault(p => string.Equals(p.DirectoryUrl, directoryUrl, StringComparison.OrdinalIgnoreCase));
         if (preset is not null)
         {
             return preset.Name;
         }
 
-        return Uri.TryCreate(directoryUrl, UriKind.Absolute, out Uri? uri) ? uri.Host : directoryUrl;
+        return Uri.TryCreate(directoryUrl, UriKind.Absolute, out var uri) ? uri.Host : directoryUrl;
     }
 
     /// <summary>Whether the directory is a staging (untrusted) one.</summary>
@@ -49,7 +49,7 @@ public static class ProviderDisplay
     public static string AccountName(AcmeAccountSummary account)
     {
         ArgumentNullException.ThrowIfNull(account);
-        string who = account.Label is { Length: > 0 } label ? label
+        var who = account.Label is { Length: > 0 } label ? label
             : account.Contacts.Count > 0 ? Contact(account.Contacts[0])
             : "No contact";
         return $"{who} - {CaName(account.DirectoryUrl)}";

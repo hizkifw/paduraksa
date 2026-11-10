@@ -22,9 +22,9 @@ public static class NameList
             return "Enter at least one name.";
         }
 
-        foreach (string name in names)
+        foreach (var name in names)
         {
-            bool ip = System.Net.IPAddress.TryParse(name, out _);
+            var ip = System.Net.IPAddress.TryParse(name, out _);
             if (ip)
             {
                 if (!allowIps)
@@ -35,7 +35,7 @@ public static class NameList
                 continue;
             }
 
-            string host = name.StartsWith("*.", StringComparison.Ordinal) ? name[2..] : name;
+            var host = name.StartsWith("*.", StringComparison.Ordinal) ? name[2..] : name;
             if (name.StartsWith("*.", StringComparison.Ordinal) && !allowWildcards)
             {
                 return $"'{name}' is a wildcard, which only DNS-01 can prove.";

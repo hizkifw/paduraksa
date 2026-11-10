@@ -7,12 +7,6 @@ using Paduraksa.Proxy.Config;
 
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
-using Contract = Paduraksa.Contracts.Config;
-using ProxyLogging = Paduraksa.Proxy.Logging;
-using ProxyNet = Paduraksa.Proxy.Net;
-using ProxySnapshot = Paduraksa.Proxy.Snapshot;
-using ProxyTls = Paduraksa.Proxy.Tls;
-
 namespace Paduraksa.Tests.Unit.Compilation;
 
 public sealed class ProxyConfigMappingTests
@@ -168,7 +162,7 @@ public sealed class ProxyConfigMappingTests
 
         Assert.Empty(ConfigValidator.Validate(document));
         using AnyCertificate certificates = new();
-        MappedConfig mapped = ProxyConfigMapping.Map(document, Revision, certificates.InventoryFor(document));
+        var mapped = ProxyConfigMapping.Map(document, Revision, certificates.InventoryFor(document));
         Assert.Empty(mapped.Errors);
         Assert.Equivalent(expected, mapped.Model, strict: true);
     }
@@ -176,9 +170,9 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void TwoSpellingsOfOneConfigMapToTheSameModel()
     {
-        for (int seed = 0; seed < 50; seed++)
+        for (var seed = 0; seed < 50; seed++)
         {
-            ConfigDocument document = Random(seed);
+            var document = Random(seed);
             Assert.Equivalent(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model, ProxyConfigMapping.Map(Respelled(document, seed), Revision, CertificateInventory.Empty).Model, strict: true);
         }
     }
@@ -187,7 +181,7 @@ public sealed class ProxyConfigMappingTests
     public void WithoutRouteOverridesTheListGuardsTheWholeHost()
     {
         // Also when a route "overrides" it with the same list.
-        HostSpec host = MapOnlyHost(
+        var host = MapOnlyHost(
             new HostSettings { IpAllowList = Lan },
             new RouteSettings(),
             new RouteSettings { IpAllowList = new IpAllowListSettings([" 192.168.0.0/16", "192.168.0.0/16"]) });
@@ -199,7 +193,7 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void RoutesThatAllOverrideAlikeGuardTheWholeHost()
     {
-        HostSpec host = MapOnlyHost(null, new RouteSettings { IpAllowList = Lan }, new RouteSettings { IpAllowList = Lan });
+        var host = MapOnlyHost(null, new RouteSettings { IpAllowList = Lan }, new RouteSettings { IpAllowList = Lan });
 
         Assert.Equal(Lan.Addresses, Assert.IsType<IpAllowListPolicySpec>(Assert.Single(host.Policies)).Addresses);
         Assert.All(host.Routes, r => Assert.Empty(r.Policies));
@@ -208,7 +202,7 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void ARouteCanTightenTheHostsList()
     {
-        HostSpec host = MapOnlyHost(
+        var host = MapOnlyHost(
             new HostSettings { IpAllowList = Lan },
             new RouteSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"], DropDenied: true) },
             new RouteSettings { IpAllowList = new IpAllowListSettings(["192.168.1.7"], DropDenied: true) });
@@ -223,7 +217,7 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void TheUnionDropsOnlyWhenEveryRouteDrops()
     {
-        HostSpec host = MapOnlyHost(
+        var host = MapOnlyHost(
             new HostSettings { IpAllowList = Lan },
             new RouteSettings(),
             new RouteSettings { IpAllowList = new IpAllowListSettings(["192.168.1.7", "10.0.0.1"], DropDenied: true) });
@@ -236,7 +230,7 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void ARouteCanLiftTheHostsList()
     {
-        HostSpec host = MapOnlyHost(new HostSettings { IpAllowList = Lan }, new RouteSettings(), new RouteSettings { IpAllowList = new IpAllowListSettings([]) });
+        var host = MapOnlyHost(new HostSettings { IpAllowList = Lan }, new RouteSettings(), new RouteSettings { IpAllowList = new IpAllowListSettings([]) });
 
         // Anyone may reach the lifted route, so the host chain hides nothing.
         Assert.Empty(host.Policies);
@@ -247,7 +241,7 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void ARouteCanRestrictAnUnrestrictedHost()
     {
-        HostSpec host = MapOnlyHost(null, new RouteSettings(), new RouteSettings { IpAllowList = Lan });
+        var host = MapOnlyHost(null, new RouteSettings(), new RouteSettings { IpAllowList = Lan });
 
         Assert.Empty(host.Policies);
         Assert.Empty(host.Routes[0].Policies);
@@ -257,16 +251,16 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void AnAdminHostTakesTheSameHsts()
     {
-        ConfigDocument document = Document(
+        var document = Document(
             defaults: new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = 86_400 } },
             profile: null,
             host: null);
-        ConfigDocument admin = document with
+        var admin = document with
         {
             Hosts = [document.Hosts[0] with { Kind = HostKind.Admin, Routes = [], Settings = new HostSettings { Hsts = new HstsSettings { Preload = false } } }],
         };
 
-        HostSpec host = Assert.Single(ProxyConfigMapping.Map(admin, Revision, CertificateInventory.Empty).Model.Hosts);
+        var host = Assert.Single(ProxyConfigMapping.Map(admin, Revision, CertificateInventory.Empty).Model.Hosts);
 
         Assert.Equal(HostKind.Admin, host.Kind);
         Assert.Equal(new HostHstsSpec { Enabled = true, MaxAgeSeconds = 86_400, IncludeSubDomains = false, Preload = false }, host.Hsts);
@@ -275,7 +269,7 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void AnEmptyListLiftsAnInheritedOne()
     {
-        ConfigDocument document = Document(
+        var document = Document(
             defaults: new HostSettings { IpAllowList = Lan },
             profile: new HostSettings(),
             host: new HostSettings { IpAllowList = new IpAllowListSettings([]) });
@@ -286,7 +280,7 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void AMissingProfileAddsNoLayer()
     {
-        ConfigDocument document = Document(new HostSettings { ForceHttps = true }, new HostSettings { ForceHttps = false }, null);
+        var document = Document(new HostSettings { ForceHttps = true }, new HostSettings { ForceHttps = false }, null);
         document = document with { Hosts = [document.Hosts[0] with { ProfileId = Id<ProfileId>(99) }] };
 
         Assert.True(Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts).ForceHttps);
@@ -298,15 +292,15 @@ public sealed class ProxyConfigMappingTests
         using AnyCertificate certificates = new();
         HostSpec Bound(CertificateBinding binding)
         {
-            ConfigDocument document = Document(null, null, null);
-            ConfigDocument bound = document with { Hosts = [document.Hosts[0] with { Certificate = binding }] };
+            var document = Document(null, null, null);
+            var bound = document with { Hosts = [document.Hosts[0] with { Certificate = binding }] };
             return Assert.Single(ProxyConfigMapping.Map(bound, Revision, certificates.InventoryFor(bound)).Model.Hosts);
         }
 
-        HostSpec auto = Bound(new CertificateBinding());
-        HostSpec specific = Bound(new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = Id<CertificateId>(5) });
-        HostSpec none = Bound(new CertificateBinding { Mode = CertificateBindingMode.None });
-        HostSpec missing = Bound(new CertificateBinding { Mode = CertificateBindingMode.Specific });
+        var auto = Bound(new CertificateBinding());
+        var specific = Bound(new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = Id<CertificateId>(5) });
+        var none = Bound(new CertificateBinding { Mode = CertificateBindingMode.None });
+        var missing = Bound(new CertificateBinding { Mode = CertificateBindingMode.Specific });
 
         Assert.Equal((true, (CertificateId?)null), (auto.Https, auto.Certificate));
         Assert.Equal((true, (CertificateId?)Id<CertificateId>(5)), (specific.Https, specific.Certificate));
@@ -317,8 +311,8 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void ValuesTheModelCantCarryAreReportedByTheMapping()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Upstreams = [document.Upstreams[0] with { LoadBalancing = (LoadBalancingPolicy)9 }],
             Hosts =
@@ -329,7 +323,7 @@ public sealed class ProxyConfigMappingTests
             ],
         };
 
-        MappedConfig mapped = ProxyConfigMapping.Map(changed, Revision, CertificateInventory.Empty);
+        var mapped = ProxyConfigMapping.Map(changed, Revision, CertificateInventory.Empty);
 
         Assert.Equal(
             [
@@ -345,10 +339,10 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void LoadBalancingPoliciesMapToYarpNames()
     {
-        foreach (LoadBalancingPolicy policy in Enum.GetValues<LoadBalancingPolicy>())
+        foreach (var policy in Enum.GetValues<LoadBalancingPolicy>())
         {
-            ConfigDocument document = Valid();
-            ConfigDocument changed = document with { Upstreams = [document.Upstreams[0] with { LoadBalancing = policy }] };
+            var document = Valid();
+            var changed = document with { Upstreams = [document.Upstreams[0] with { LoadBalancing = policy }] };
 
             Assert.Equal(policy.ToString(), Assert.Single(ProxyConfigMapping.Map(changed, Revision, CertificateInventory.Empty).Model.Upstreams).LoadBalancing);
         }
@@ -362,9 +356,9 @@ public sealed class ProxyConfigMappingTests
         ConfigDocument document = new(
             Hosts: [new HostConfig(Id<HostId>(50), ["admin.example.com"], Kind: HostKind.Admin, Settings: new HostSettings { ForceHttps = false })]);
 
-        MappedConfig mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
 
-        MappedWarning warning = Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.AdminForceHttpsIgnored);
+        var warning = Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.AdminForceHttpsIgnored);
         Assert.Equal("/settings/forceHttps", warning.Member);
         Assert.Equal(CompileErrorSource.Host(Id<HostId>(50)), warning.Source);
         Assert.Contains("always served over HTTPS", warning.Message, StringComparison.Ordinal);
@@ -373,8 +367,8 @@ public sealed class ProxyConfigMappingTests
     // One proxy host with two routes ("/" and "/b") under a profile-less, default-less document.
     private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second)
     {
-        ConfigDocument document = Document(null, null, host);
-        HostConfig config = document.Hosts[0] with
+        var document = Document(null, null, host);
+        var config = document.Hosts[0] with
         {
             Routes = [new RouteConfig(RootRoute, AppUpstream, Settings: first), new RouteConfig(ApiRoute, AppUpstream, Path: "/b", Settings: second)],
         };

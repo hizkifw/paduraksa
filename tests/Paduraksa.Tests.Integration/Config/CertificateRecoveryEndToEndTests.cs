@@ -36,40 +36,40 @@ public sealed class CertificateRecoveryEndToEndTests
     [Fact]
     public async Task ADatabaseLostWhileTheVaultKeepsItsKeysGetsTheCertificatesBackAndServesThemAgain()
     {
-        string data = TestDataDirectories.NewPath();
+        var data = TestDataDirectories.NewPath();
         CertificateSummary root;
         CertificateSummary leaf;
         CertificateSummary selfSigned;
         string adminFingerprint;
-        await using (PaduraksaHost first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
+        await using (var first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
         {
             await first.StartAsync(Ct);
-            CertificateOperations operations = first.Shared.CertificateOperations;
+            var operations = first.Shared.CertificateOperations;
             root = (await operations.EnsureLocalCaAsync(new LocalCaRequest(), Origin, Ct)).Certificate!;
             leaf = (await operations.IssueFromLocalCaAsync(new LocalCaLeafRequest(["local.test"]), Origin, Ct)).Certificate!;
             selfSigned = (await operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["self.test"]), Origin, Ct)).Certificate!;
             adminFingerprint = (await first.Shared.CertificateService.GetAsync(AdminCertificate.Id, Ct))!.Summary.Sha256Fingerprint;
-            HostConfig bound = RespondHost("l", "local.test", "ok") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = leaf.Id } };
+            var bound = RespondHost("l", "local.test", "ok") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = leaf.Id } };
             await CommitAsync(first, new UpsertHostCommand(bound), Ct);
         }
 
         // The database goes; the vault's file, its master key and the last-known-good config stay.
         SqliteConnection.ClearAllPools();
-        foreach (string file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
+        foreach (var file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
         {
             File.Delete(file);
         }
 
-        await using PaduraksaHost host = TestHost.Create(settings: NoPlaceholder, dataDirectory: data);
+        await using var host = TestHost.Create(settings: NoPlaceholder, dataDirectory: data);
         await host.StartAsync(Ct);
 
-        CertificateRecoveryResult recovery = await RecoveredAsync(host);
+        var recovery = await RecoveredAsync(host);
         Assert.Empty(recovery.Failed);
         // The admin listener's own certificate is in the vault too: the recovery skips it and the admin
         // certificate service adopts it, so only the certificates this test made are pinned to the recovery's list.
         Assert.Contains(leaf.Id, recovery.Recovered);
         Assert.Contains(selfSigned.Id, recovery.Recovered);
-        IReadOnlyList<CertificateSummary> inventory = await host.Shared.CertificateService.ListAsync(null, Ct);
+        var inventory = await host.Shared.CertificateService.ListAsync(null, Ct);
         Assert.Equal(CertificateSource.LocalCaRoot, inventory.Single(c => c.Id == root.Id).Source);
         Assert.Equal(CertificateSource.LocalCa, inventory.Single(c => c.Id == leaf.Id).Source);
         Assert.Equal(CertificateSource.Uploaded, inventory.Single(c => c.Id == selfSigned.Id).Source);
@@ -78,7 +78,7 @@ public sealed class CertificateRecoveryEndToEndTests
             id => Assert.Equal((CertificateStatus.Active, CertificateRecovery.Label), (inventory.Single(c => c.Id == id).Status, inventory.Single(c => c.Id == id).Label)));
 
         // The admin listener's own certificate was adopted from the vault, not re-issued: the served fingerprint survives.
-        CertificateSummary adminLeaf = Assert.Single(await host.Shared.CertificateService.ListAsync(null, Ct), c => c.Id == AdminCertificate.Id);
+        var adminLeaf = Assert.Single(await host.Shared.CertificateService.ListAsync(null, Ct), c => c.Id == AdminCertificate.Id);
         Assert.Equal((CertificateStatus.Active, AdminCertificate.Label), (adminLeaf.Status, adminLeaf.Label));
         Assert.Equal(adminFingerprint, adminLeaf.Sha256Fingerprint);
         Assert.Equal(leaf.Sha256Fingerprint, inventory.Single(c => c.Id == leaf.Id).Sha256Fingerprint);
@@ -87,7 +87,7 @@ public sealed class CertificateRecoveryEndToEndTests
         Assert.Empty(host.Shared.Config.Warnings);
 
         // The recovered local CA is the local CA: asking for it again finds it instead of making another.
-        CertificateOperationResult again = await host.Shared.CertificateOperations.EnsureLocalCaAsync(new LocalCaRequest(), Origin, Ct);
+        var again = await host.Shared.CertificateOperations.EnsureLocalCaAsync(new LocalCaRequest(), Origin, Ct);
         Assert.Equal(root.Id, again.Certificate!.Id);
         Assert.Equal(CertificateOperationStatus.Unchanged, again.Status);
     }
@@ -95,18 +95,18 @@ public sealed class CertificateRecoveryEndToEndTests
     [Fact]
     public async Task TheFirstRequestAfterALostDatabaseIsServedTheVaultHeldCertificate()
     {
-        string data = TestDataDirectories.NewPath();
+        var data = TestDataDirectories.NewPath();
         CertificateSummary leaf;
-        await using (PaduraksaHost first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
+        await using (var first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
         {
             await first.StartAsync(Ct);
             leaf = (await first.Shared.CertificateOperations.IssueFromLocalCaAsync(new LocalCaLeafRequest(["first.test"]), Origin, Ct)).Certificate!;
-            HostConfig bound = RespondHost("f", "first.test", "ok") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = leaf.Id } };
+            var bound = RespondHost("f", "first.test", "ok") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = leaf.Id } };
             await CommitAsync(first, new UpsertHostCommand(bound), Ct);
         }
 
         SqliteConnection.ClearAllPools();
-        foreach (string file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
+        foreach (var file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
         {
             File.Delete(file);
         }
@@ -117,7 +117,7 @@ public sealed class CertificateRecoveryEndToEndTests
         {
             ["Paduraksa:Certificates:RecoveryStartupTimeout"] = "00:01:00",
         };
-        await using PaduraksaHost host = TestHost.Create(settings: settings, dataDirectory: data);
+        await using var host = TestHost.Create(settings: settings, dataDirectory: data);
         await host.StartAsync(Ct);
 
         // No wait for RecoveryCompletion: the recovery is an awaited start step, and the publish it queues is part of the
@@ -129,20 +129,20 @@ public sealed class CertificateRecoveryEndToEndTests
     [Fact]
     public async Task ARestartThatLostNothingChangesNothing()
     {
-        string data = TestDataDirectories.NewPath();
+        var data = TestDataDirectories.NewPath();
         CertificateSummary made;
-        await using (PaduraksaHost first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
+        await using (var first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
         {
             await first.StartAsync(Ct);
             made = (await first.Shared.CertificateOperations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["same.test"], Label: "mine"), Origin, Ct)).Certificate!;
         }
 
-        await using PaduraksaHost host = TestHost.Create(settings: NoPlaceholder, dataDirectory: data);
+        await using var host = TestHost.Create(settings: NoPlaceholder, dataDirectory: data);
         await host.StartAsync(Ct);
-        CertificateRecoveryResult recovery = await RecoveredAsync(host);
+        var recovery = await RecoveredAsync(host);
 
         Assert.Empty(recovery.Recovered);
-        CertificateSummary only = Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.SelfSigned), Ct));
+        var only = Assert.Single(await host.Shared.CertificateService.ListAsync(new CertificateQuery(Source: CertificateSource.SelfSigned), Ct));
         Assert.Equal((made.Id, CertificateSource.SelfSigned, "mine"), (only.Id, only.Source, only.Label));
     }
 }

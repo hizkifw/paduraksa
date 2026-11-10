@@ -63,7 +63,7 @@
                     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
                         <strong>@(FieldErrors.Count == 1 ? "One thing to fix" : $"{FieldErrors.Count} things to fix"):</strong>
                         <ul class="pdk-error-list">
-                            @foreach ((string path, string message) in FieldErrors)
+                            @foreach (var (path, message) in FieldErrors)
                             {
                                 <li><span class="pdk-error-where">@ChangeView.Locate(path, null)</span> @message</li>
                             }
@@ -77,10 +77,10 @@
                                   Error="@(E("/name") is not null)" ErrorText="@E("/name")" data-field="name" spellcheck="false" autocomplete="off" />
 
                     <div class="pdk-destination-list">
-                        @for (int i = 0; i < Model.Destinations.Count; i++)
+                        @for (var i = 0; i < Model.Destinations.Count; i++)
                         {
-                            int index = i;
-                            DestinationEntry destination = Model.Destinations[index];
+                            var index = i;
+                            var destination = Model.Destinations[index];
                             <div class="pdk-destination-row" @key="destination">
                                 <MudTextField T="string" Value="destination.Address" ValueChanged="@(value => SetAddress(destination, index, value))"
                                               Immediate="true" DebounceInterval="250" Label="@(index == 0 ? "Address" : $"Address {index + 1}")" Placeholder="http://192.168.1.10:8096"
@@ -102,7 +102,7 @@
                                     <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="@(() => Set(() => Model.Destinations.Remove(destination), "/destinations"))"
                                                    aria-label="@($"Remove destination {index + 1}")" />
                                 }
-                                @if (_probes.TryGetValue(destination, out UpstreamProbeResult? probe))
+                                @if (_probes.TryGetValue(destination, out var probe))
                                 {
                                     <div class="pdk-probe-line" role="status" data-reachable="@(probe.Reachable ? "true" : "false")">
                                         <StatusChip Tone="@(probe.Reachable ? Tone.Success : probe.Outcome == UpstreamProbeOutcome.Invalid ? Tone.Warning : Tone.Error)" Dot="true"
@@ -194,7 +194,7 @@
                         else
                         {
                             <ul class="pdk-list" data-section="usage-list">
-                                @foreach ((HostConfig host, RouteConfig route) in Uses)
+                                @foreach (var (host, route) in Uses)
                                 {
                                     <li class="pdk-list-row">
                                         <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
@@ -274,9 +274,9 @@
     public static string UniqueName(ConfigDocument document, string basis)
     {
         ArgumentNullException.ThrowIfNull(document);
-        string name = string.IsNullOrWhiteSpace(basis) ? "upstream" : basis.Trim().ToLowerInvariant();
-        string candidate = name;
-        for (int i = 2; document.Upstreams.Any(u => string.Equals(u.Name, candidate, StringComparison.OrdinalIgnoreCase)); i++)
+        var name = string.IsNullOrWhiteSpace(basis) ? "upstream" : basis.Trim().ToLowerInvariant();
+        var candidate = name;
+        for (var i = 2; document.Upstreams.Any(u => string.Equals(u.Name, candidate, StringComparison.OrdinalIgnoreCase)); i++)
         {
             candidate = $"{name}-{i}";
         }
@@ -348,7 +348,7 @@
 
     private async Task CheckAsync(DestinationEntry destination)
     {
-        CommandOrigin? origin = await Caller.OriginAsync();
+        var origin = await Caller.OriginAsync();
         if (origin is null || Probe is not { } probe)
         {
             return;
@@ -388,7 +388,7 @@
             return;
         }
 
-        UpstreamConfig upstream = ToConfig();
+        var upstream = ToConfig();
         if (Stage)
         {
             Level?.Close(upstream);

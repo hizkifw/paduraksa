@@ -31,7 +31,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
     [Fact]
     public async Task ACommaListIsNotAChain()
     {
-        await using TestContext context = await TestContext.CreateAsync(_root);
+        await using var context = await TestContext.CreateAsync(_root);
 
         await context.InvokeAsync(x => x.Request.Headers["X-Forwarded-For"] = "203.0.113.1, 198.51.100.7");
 
@@ -42,7 +42,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
     [Fact]
     public async Task RepeatedHeaderLinesAreUnknown()
     {
-        await using TestContext context = await TestContext.CreateAsync(_root);
+        await using var context = await TestContext.CreateAsync(_root);
 
         await context.InvokeAsync(x =>
         {
@@ -55,7 +55,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
     [Fact]
     public async Task AnIpv4MappedAddressIsShownAsIpv4()
     {
-        await using TestContext context = await TestContext.CreateAsync(_root);
+        await using var context = await TestContext.CreateAsync(_root);
 
         await context.InvokeAsync(x => x.Request.Headers["X-Forwarded-For"] = "::ffff:203.0.113.1");
 
@@ -66,7 +66,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
     [Fact]
     public async Task AnInvalidProtoIsIgnored()
     {
-        await using TestContext context = await TestContext.CreateAsync(_root);
+        await using var context = await TestContext.CreateAsync(_root);
 
         await context.InvokeAsync(x =>
         {
@@ -81,7 +81,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
     [Fact]
     public async Task AMissingSecretRefusesTheHopAndTrustsNothing()
     {
-        await using TestContext context = await TestContext.CreateAsync(_root);
+        await using var context = await TestContext.CreateAsync(_root);
 
         await context.InvokeAsync(x =>
         {
@@ -100,7 +100,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
     [Fact]
     public async Task ARestrictedAllowlistRefusesAnUnknownClientAddress()
     {
-        await using TestContext context = await TestContext.CreateAsync(_root, allowedSources: ["127.0.0.1/32"]);
+        await using var context = await TestContext.CreateAsync(_root, allowedSources: ["127.0.0.1/32"]);
 
         await context.InvokeAsync();
 
@@ -112,7 +112,7 @@ public sealed class AdminForwardedHeadersTests : IDisposable
     [Fact]
     public async Task AValidHopRewritesTheClientSchemeAndHost()
     {
-        await using TestContext context = await TestContext.CreateAsync(_root);
+        await using var context = await TestContext.CreateAsync(_root);
 
         await context.InvokeAsync(x =>
         {

@@ -1,18 +1,8 @@
 using System.Net;
-
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Admin;
 using Paduraksa.Admin.Auth;
-using Paduraksa.Admin.Certificates;
 using Paduraksa.Admin.Identity;
 using Paduraksa.Admin.Web;
 using Paduraksa.Application.Commands;
@@ -57,7 +47,7 @@ internal static partial class AdminApp
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        WebApplicationBuilder builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions
         {
             ApplicationName = context.ApplicationName,
             EnvironmentName = context.EnvironmentName,
@@ -65,9 +55,9 @@ internal static partial class AdminApp
         });
         HostSetup.ApplyCommon(builder, context, HostRole.Admin);
 
-        PaduraksaListenOptions listen = context.Options.Listen;
+        var listen = context.Options.Listen;
         // The validator already checked this; failing here would mean options that bypassed it.
-        if (!IPAddress.TryParse(listen.AdminBind, out IPAddress? bind))
+        if (!IPAddress.TryParse(listen.AdminBind, out var bind))
         {
             throw new InvalidOperationException(
                 $"{PaduraksaOptions.SectionName}:Listen:AdminBind must be an IP address, was '{listen.AdminBind}'.");
@@ -76,11 +66,13 @@ internal static partial class AdminApp
         // The local CA's certificate, ensured by the core host's AdminCertificateService before this app starts and hot-swapped
         // per handshake on a renewal. On any failure that service keeps serving the previous certificate (the in-memory
         // placeholder until one was ever loaded), so this listener is always up.
-        AdminCertificateService adminCertificate = context.Shared.AdminCertificate;
+        var adminCertificate = context.Shared.AdminCertificate;
 
         AdminSourcePolicy sources = new(listen.AdminAllowedSources);
-        AdminInternalListener internalListener = context.Shared.AdminInternal;
-        ILogger logger = new RoleLoggerFactory(context.Shared.LoggerFactory, HostRole.Admin).CreateLogger(typeof(AdminApp).FullName!);
+        var internalListener = context.Shared.AdminInternal;
+        var logger =
+            new RoleLoggerFactory(context.Shared.LoggerFactory, HostRole.Admin)
+                .CreateLogger(typeof(AdminApp).FullName!);
         ListenOptions? internalListenOptions = null;
         builder.WebHost.UseKestrelCore().UseKestrelHttpsConfiguration();
         builder.WebHost.ConfigureKestrel(kestrel =>
@@ -125,7 +117,8 @@ internal static partial class AdminApp
         });
         builder.Services.AddRoutingCore();
         builder.Services.AddSingleton(sources);
-        builder.Services.AddPaduraksaAdminAuth(context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp, [.. listen.AdminAllowedSources]));
+        builder.Services.AddPaduraksaAdminAuth(
+            context.Options.Admin.ToSecurityOptions(listen.AdminLoopbackHttp, [.. listen.AdminAllowedSources]));
         builder.Services.AddPaduraksaAdminApi();
         builder.Services.AddPaduraksaAdminWeb(DashboardWeb);
         builder.Services.AddPaduraksaDashboard(new DashboardOptions
@@ -134,14 +127,16 @@ internal static partial class AdminApp
             SessionRecheckInterval = context.Options.Admin.SessionRecheckInterval,
         });
         // The dashboard's password checks (change password, TOTP, recovery codes) share the API's derivation slots.
-        builder.Services.Replace(ServiceDescriptor.Singleton<IPasswordCheckSlots>(static sp => new AdminPasswordCheckSlots(sp.GetRequiredService<AdminThrottle>())));
+        builder.Services.Replace(ServiceDescriptor.Singleton<IPasswordCheckSlots>(static sp =>
+            new AdminPasswordCheckSlots(sp.GetRequiredService<AdminThrottle>())));
         DashboardAssets.Use(builder);
 
         HostSetup.ApplyCallerServices(builder, context, HostRole.Admin);
         HostSetup.PinListenerConfiguration(builder);
 
-        WebApplication app = builder.Build();
-        app.Lifetime.ApplicationStarted.Register(() => CompleteInternalListener(internalListener, internalListenOptions, logger));
+        var app = builder.Build();
+        app.Lifetime.ApplicationStarted.Register(() =>
+            CompleteInternalListener(internalListener, internalListenOptions, logger));
         app.UsePaduraksaAdminApi();
         app.UsePaduraksaAdminAuth();
         app.UsePaduraksaAdminWeb();
@@ -159,7 +154,8 @@ internal static partial class AdminApp
     /// Finishes the internal listener once Kestrel has bound: the Unix socket's mode is set to 0600 (the directory is already
     /// 0700), or the fallback's OS-assigned port is recorded so the proxy's connect callback can reach it.
     /// </summary>
-    private static void CompleteInternalListener(AdminInternalListener listener, ListenOptions? internalOptions, ILogger logger)
+    private static void CompleteInternalListener(AdminInternalListener listener, ListenOptions? internalOptions,
+        ILogger logger)
     {
         if (!listener.Enabled)
         {
@@ -170,7 +166,7 @@ internal static partial class AdminApp
         {
             if (listener.UsesUnixSocket)
             {
-                string path = listener.SocketPath!;
+                var path = listener.SocketPath!;
                 if (!OperatingSystem.IsWindows())
                 {
                     File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
@@ -187,17 +183,19 @@ internal static partial class AdminApp
                 return;
             }
 
-            int? port = internalOptions?.IPEndPoint?.Port;
+            var port = internalOptions?.IPEndPoint?.Port;
             if (port is > 0)
             {
                 listener.BindLoopback(port.Value);
-                LogInternalLoopback(logger, listener.FallbackReason?.Message ?? "unknown reason", $"127.0.0.1:{port.Value}");
+                LogInternalLoopback(logger, listener.FallbackReason?.Message ?? "unknown reason",
+                    $"127.0.0.1:{port.Value}");
                 return;
             }
 
             LogInternalPortUnknown(logger);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException
+                                       or InvalidOperationException)
         {
             LogInternalFinishFailed(logger, ex);
         }
@@ -245,9 +243,9 @@ internal static partial class AdminApp
     /// </remarks>
     private static void MapHealth(WebApplication app)
     {
-        SnapshotStore snapshots = app.Services.GetRequiredService<SnapshotStore>();
-        HealthState health = app.Services.GetRequiredService<HealthState>();
-        ConfigService config = app.Services.GetRequiredService<ConfigService>();
+        var snapshots = app.Services.GetRequiredService<SnapshotStore>();
+        var health = app.Services.GetRequiredService<HealthState>();
+        var config = app.Services.GetRequiredService<ConfigService>();
 
         // Live: the process is up and a snapshot is loaded.
         app.MapMethods("/healthz", GetAndHead, context =>
@@ -256,12 +254,13 @@ internal static partial class AdminApp
         // Ready: listeners bound, a snapshot live and not draining; degraded or not (see the remarks). The vault is implied:
         // the core host starts it first and a vault that can't start stops the process before any listener binds.
         app.MapMethods("/readyz", GetAndHead, context =>
-            WriteStatusAsync(context, health.IsReady && snapshots.HasPublished, config.Status.IsDegraded ? "degraded\n" : "ready\n", "not ready\n"));
+            WriteStatusAsync(context, health.IsReady && snapshots.HasPublished,
+                config.Status.IsDegraded ? "degraded\n" : "ready\n", "not ready\n"));
     }
 
     private static Task WriteStatusAsync(HttpContext context, bool healthy, string okBody, string failBody)
     {
-        HttpResponse response = context.Response;
+        var response = context.Response;
         response.StatusCode = healthy ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable;
         response.Headers.CacheControl = "no-store";
         response.ContentType = "text/plain; charset=utf-8";
@@ -273,15 +272,21 @@ internal static partial class AdminApp
     [LoggerMessage(Level = LogLevel.Information, Message = "The admin internal listener is the Unix socket {Path}")]
     private static partial void LogInternalSocket(ILogger logger, string path);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "The admin internal TCP fallback listener is {Address}; the Unix socket couldn't be used: {Reason}")]
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "The admin internal TCP fallback listener is {Address}; the Unix socket couldn't be used: {Reason}")]
     private static partial void LogInternalLoopback(ILogger logger, string reason, string address);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Couldn't check the owner of {Path}; this platform exposes no statx owner. Continuing with the symlink check only")]
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message =
+            "Couldn't check the owner of {Path}; this platform exposes no statx owner. Continuing with the symlink check only")]
     private static partial void LogOwnershipSkipped(ILogger logger, string path);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "The admin internal listener bound, but its loopback port could not be read; proxied admin requests answer 502")]
+    [LoggerMessage(Level = LogLevel.Error,
+        Message =
+            "The admin internal listener bound, but its loopback port could not be read; proxied admin requests answer 502")]
     private static partial void LogInternalPortUnknown(ILogger logger);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Could not finish the admin internal listener; proxied admin requests may answer 502")]
+    [LoggerMessage(Level = LogLevel.Error,
+        Message = "Could not finish the admin internal listener; proxied admin requests may answer 502")]
     private static partial void LogInternalFinishFailed(ILogger logger, Exception exception);
 }

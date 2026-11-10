@@ -53,7 +53,7 @@ internal sealed class ManualTimeProvider(DateTimeOffset now) : TimeProvider
                 return;
             }
 
-            foreach (ManualTimer timer in due)
+            foreach (var timer in due)
             {
                 timer.Fire();
             }

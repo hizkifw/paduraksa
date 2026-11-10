@@ -195,12 +195,12 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
                 throw new InvalidOperationException("The publisher is already attached to a YARP instance.");
             }
 
-            Pending? pending = _queued;
+            var pending = _queued;
             _queued = null;
             if (pending is not null)
             {
                 // Startup is synchronous here (YARP's own initial load blocks the same way).
-                IReadOnlyList<string> errors = ValidateCoreAsync(validator, pending.Candidate.Yarp).GetAwaiter().GetResult();
+                var errors = ValidateCoreAsync(validator, pending.Candidate.Yarp).GetAwaiter().GetResult();
                 if (errors.Count > 0)
                 {
                     LogInvalid(_logger, pending.Candidate.RevisionLabel, string.Join("; ", errors));
@@ -229,7 +229,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
             _yarpApplied = ConfigProvider.CurrentContent;
             if (pending is not null)
             {
-                pending.Complete(TryCaptureEndpoints(endpoints, pending.Candidate, out Endpoint[] captured, out string? problem)
+                pending.Complete(TryCaptureEndpoints(endpoints, pending.Candidate, out var captured, out var problem)
                     ? Swap(pending.Candidate, captured)
                     : PublishResult.Fail(PublishStatus.Failed, problem!));
             }
@@ -314,7 +314,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
 
     private async Task<PublishResult> PublishAttachedAsync(Attachment attachment, RuntimeSnapshot candidate)
     {
-        IReadOnlyList<string> errors = await ValidateCoreAsync(attachment.Validator, candidate.Yarp).ConfigureAwait(false);
+        var errors = await ValidateCoreAsync(attachment.Validator, candidate.Yarp).ConfigureAwait(false);
         if (errors.Count > 0)
         {
             LogInvalid(_logger, candidate.RevisionLabel, string.Join("; ", errors));
@@ -323,7 +323,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
 
         if (_yarpApplied is null || !_yarpApplied.ContentEquals(candidate.Yarp))
         {
-            PublishResult? failure = await ApplyToYarpAsync(candidate.Yarp, NextRevisionId(candidate)).ConfigureAwait(false);
+            var failure = await ApplyToYarpAsync(candidate.Yarp, NextRevisionId(candidate)).ConfigureAwait(false);
             if (failure is not null)
             {
                 await RestoreYarpAsync().ConfigureAwait(false);
@@ -332,7 +332,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         }
 
         // YARP has signalled; its endpoints normally match already. Allow a short grace.
-        long started = _timeProvider.GetTimestamp();
+        var started = _timeProvider.GetTimestamp();
         Endpoint[] endpoints;
         string? problem;
         while (!TryCaptureEndpoints(attachment.Endpoints, candidate, out endpoints, out problem))
@@ -355,7 +355,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     /// <summary>Waits for YARP's verdict. Returns <see langword="null"/> when YARP applied the config.</summary>
     private async Task<PublishResult?> ApplyToYarpAsync(YarpConfig content, string revisionId)
     {
-        Task<Exception?> outcome = ApplyListener.Expect(revisionId);
+        var outcome = ApplyListener.Expect(revisionId);
         ConfigProvider.Update(content, revisionId);
         Exception? rejected;
         try
@@ -391,10 +391,10 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     /// the previous one back so the two agree again. Best effort: a failure leaves YARP's state unknown.</summary>
     private async Task RestoreYarpAsync()
     {
-        YarpConfig restore = Store.Current.Yarp;
+        var restore = Store.Current.Yarp;
         _yarpApplied = null;
-        string revisionId = string.Create(CultureInfo.InvariantCulture, $"{Store.Current.RevisionLabel}#restore#{Interlocked.Increment(ref _attempt)}");
-        PublishResult? failure = await ApplyToYarpAsync(restore, revisionId).ConfigureAwait(false);
+        var revisionId = string.Create(CultureInfo.InvariantCulture, $"{Store.Current.RevisionLabel}#restore#{Interlocked.Increment(ref _attempt)}");
+        var failure = await ApplyToYarpAsync(restore, revisionId).ConfigureAwait(false);
         if (failure is not null)
         {
             LogRestoreFailed(_logger, revisionId, string.Join("; ", failure.Errors));
@@ -419,26 +419,26 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         }
 
         Dictionary<string, RouteConfig> wanted = new(candidate.Yarp.Routes.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (RouteConfig route in candidate.Yarp.Routes)
+        foreach (var route in candidate.Yarp.Routes)
         {
             wanted[route.RouteId] = route;
         }
 
         Dictionary<string, Endpoint> live = new(StringComparer.OrdinalIgnoreCase);
-        foreach (Endpoint endpoint in source.Endpoints)
+        foreach (var endpoint in source.Endpoints)
         {
             if (endpoint.Metadata.GetMetadata<RouteModel>() is { } model
-                && wanted.TryGetValue(model.Config.RouteId, out RouteConfig? expected)
+                && wanted.TryGetValue(model.Config.RouteId, out var expected)
                 && expected.Equals(model.Config))
             {
                 live[model.Config.RouteId] = endpoint;
             }
         }
 
-        for (int slot = 0; slot < endpoints.Length; slot++)
+        for (var slot = 0; slot < endpoints.Length; slot++)
         {
-            string routeId = candidate.Yarp.Routes[slot].RouteId;
-            if (!live.TryGetValue(routeId, out Endpoint? endpoint))
+            var routeId = candidate.Yarp.Routes[slot].RouteId;
+            if (!live.TryGetValue(routeId, out var endpoint))
             {
                 problem = $"YARP has no endpoint for route '{routeId}' matching the published config.";
                 return false;
@@ -453,7 +453,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     /// <summary>Callers hold <see cref="_lock"/>, which makes the generation assignment single-writer.</summary>
     private PublishResult Swap(RuntimeSnapshot candidate, Endpoint[] endpoints)
     {
-        long generation = Store.Current.Generation + 1;
+        var generation = Store.Current.Generation + 1;
         Store.Publish(candidate.Bind(generation, endpoints));
         LogPublished(_logger, generation, candidate.RevisionLabel, candidate.HostsByIndex.Length, candidate.RouteIdBySlot.Length);
         return PublishResult.Published(generation);
@@ -463,21 +463,21 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     {
         List<string> errors = [];
         HashSet<string> clusterIds = new(StringComparer.OrdinalIgnoreCase);
-        foreach (ClusterConfig cluster in config.Clusters)
+        foreach (var cluster in config.Clusters)
         {
             if (!clusterIds.Add(cluster.ClusterId))
             {
                 errors.Add($"cluster '{cluster.ClusterId}': duplicate cluster ID");
             }
 
-            foreach (Exception error in await validator.ValidateClusterAsync(cluster).ConfigureAwait(false))
+            foreach (var error in await validator.ValidateClusterAsync(cluster).ConfigureAwait(false))
             {
                 errors.Add($"cluster '{cluster.ClusterId}': {error.Message}");
             }
         }
 
         HashSet<string> routeIds = new(StringComparer.OrdinalIgnoreCase);
-        foreach (RouteConfig route in config.Routes)
+        foreach (var route in config.Routes)
         {
             if (!routeIds.Add(route.RouteId))
             {
@@ -489,7 +489,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
                 errors.Add($"route '{route.RouteId}': cluster '{route.ClusterId}' doesn't exist");
             }
 
-            foreach (Exception error in await validator.ValidateRouteAsync(route).ConfigureAwait(false))
+            foreach (var error in await validator.ValidateRouteAsync(route).ConfigureAwait(false))
             {
                 errors.Add($"route '{route.RouteId}': {error.Message}");
             }

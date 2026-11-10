@@ -4,8 +4,6 @@ using System.Text.Json;
 using Bunit;
 
 using MudBlazor;
-
-using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.SettingsArea;
@@ -232,12 +230,12 @@ public sealed class HostSettingsFieldsTests
     [MemberData(nameof(FieldNames))]
     public async Task EveryField_SetsItsRecord_ShowsWhatItInherits_AndClearsAndShowsErrors(string name)
     {
-        Field field = Fields.Single(row => row.Name == name);
+        var field = Fields.Single(row => row.Name == name);
         await using DashboardTestContext context = new();
         Holder holder = new() { Value = field.Layer };
 
         // The row is there, and its inherit choice names the value the layer below sets.
-        IRenderedComponent<HostSettingsFields> fields = Render(context, holder, field.Layer);
+        var fields = Render(context, holder, field.Layer);
         Assert.Single(fields.FindAll($"[data-field={field.DataField}]"));
         if (field.InheritText is { } inherited)
         {
@@ -258,12 +256,12 @@ public sealed class HostSettingsFieldsTests
         if (field.ValidatorPath is { } validatorPath)
         {
             Holder errored = new() { Value = field.ErrorLayer };
-            IRenderedComponent<HostSettingsFields> withError = Render(
+            var withError = Render(
                 context,
                 errored,
                 field.ErrorLayer,
                 errors: new Dictionary<string, string>(StringComparer.Ordinal) { ["/settings" + (field.ShowsAtField ? field.Path : validatorPath)] = Message });
-            string row = Row(withError, field.DataField);
+            var row = Row(withError, field.DataField);
             if (field.ShowsAtField)
             {
                 Assert.Contains(Message, row, StringComparison.Ordinal);
@@ -293,11 +291,11 @@ public sealed class HostSettingsFieldsTests
         // Walked from the contract itself, nested records included: a field added to HostSettings has to get its row here, or
         // this test names it. It is the dashboard's counterpart to SettingsInheritanceTests' completeness check.
         List<string> contract = [];
-        foreach (PropertyInfo property in typeof(HostSettings).GetProperties())
+        foreach (var property in typeof(HostSettings).GetProperties())
         {
             if (typeof(ISettingsLayer).IsAssignableFrom(property.PropertyType))
             {
-                foreach (PropertyInfo nested in property.PropertyType.GetProperties().Where(p => p.Name != nameof(ISettingsLayer.SetsNothing)))
+                foreach (var nested in property.PropertyType.GetProperties().Where(p => p.Name != nameof(ISettingsLayer.SetsNothing)))
                 {
                     contract.Add($"{Camel(property.Name)}.{Camel(nested.Name)}");
                 }
@@ -320,7 +318,7 @@ public sealed class HostSettingsFieldsTests
     /// <summary>The settings row around a field: the row MudBlazor puts the error text and class in.</summary>
     private static string Row(IRenderedComponent<HostSettingsFields> fields, string field)
     {
-        AngleSharp.Dom.IElement element = fields.Find($"[data-field={field}]");
+        var element = fields.Find($"[data-field={field}]");
         while (!element.ClassList.Contains("pdk-setting") && element.ParentElement is { } parent)
         {
             element = parent;
@@ -363,14 +361,14 @@ public sealed class HostSettingsFieldsTests
     private static async Task AssertMaxAgePresetAsync(DashboardTestContext context, Field field)
     {
         Holder holder = new() { Value = field.Layer };
-        IRenderedComponent<HostSettingsFields> fields = Render(context, holder, field.Layer);
+        var fields = Render(context, holder, field.Layer);
 
         await SetChoice(fields, HstsMaxAgeChoice.TwoYears);
         AssertSettings(new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = 63_072_000 } }, holder.Value);
 
         Holder stored = new() { Value = new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = 63_072_000 } } };
-        IRenderedComponent<HostSettingsFields> shown = Render(context, stored, stored.Value);
-        string select = shown.Find("[data-field=hsts-max-age]").TextContent;
+        var shown = Render(context, stored, stored.Value);
+        var select = shown.Find("[data-field=hsts-max-age]").TextContent;
         Assert.Contains("2 years", select, StringComparison.Ordinal);
         Assert.DoesNotContain("Custom seconds", select, StringComparison.Ordinal);
     }
@@ -389,7 +387,7 @@ public sealed class HostSettingsFieldsTests
     /// <summary>The control's input: MudBlazor puts the unmatched <c>data-field</c> on the input itself or on its wrapper.</summary>
     private static AngleSharp.Dom.IElement InputOf(IRenderedComponent<HostSettingsFields> fields, string field)
     {
-        AngleSharp.Dom.IElement element = fields.Find($"[data-field={field}]");
+        var element = fields.Find($"[data-field={field}]");
         return element.LocalName is "input" or "textarea" ? element : element.QuerySelector("input, textarea")!;
     }
 

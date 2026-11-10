@@ -43,23 +43,23 @@ public static class OrderProgressModel
     {
         ArgumentNullException.ThrowIfNull(reports);
         StepDefinition[] definitions = [.. Definitions.Where(d => challenge == AcmeChallengeType.Dns01 || !d.DnsOnly)];
-        AcmeOrderProgress? failure = reports.Count > 0 && reports[^1].Stage == AcmeProgressStage.Failed ? reports[^1] : null;
-        AcmeOrderProgress? latest = reports.LastOrDefault(r => r.Stage != AcmeProgressStage.Failed);
+        var failure = reports.Count > 0 && reports[^1].Stage == AcmeProgressStage.Failed ? reports[^1] : null;
+        var latest = reports.LastOrDefault(r => r.Stage != AcmeProgressStage.Failed);
         // A stage that completes its step (the order exists, the answers are up, the names are valid) makes the next step the active one.
-        int current = latest is null ? (failure is null ? -1 : 0)
+        var current = latest is null ? (failure is null ? -1 : 0)
             : IndexOf(definitions, latest.Stage) + (latest.Stage is AcmeProgressStage.OrderCreated or AcmeProgressStage.ChallengePublished or AcmeProgressStage.Validated ? 1 : 0);
-        bool issued = latest?.Stage == AcmeProgressStage.Issued;
+        var issued = latest?.Stage == AcmeProgressStage.Issued;
 
         List<ProgressStep> steps = new(definitions.Length);
-        for (int i = 0; i < definitions.Length; i++)
+        for (var i = 0; i < definitions.Length; i++)
         {
-            StepDefinition definition = definitions[i];
-            AcmeOrderProgress? reached = reports.LastOrDefault(r => definition.Stages.Contains(r.Stage));
-            StepState state =
+            var definition = definitions[i];
+            var reached = reports.LastOrDefault(r => definition.Stages.Contains(r.Stage));
+            var state =
                 issued || i < current ? (reached is null && i > 0 ? StepState.Skipped : StepState.Done)
                 : i == current ? (failure is not null ? StepState.Failed : StepState.Active)
                 : StepState.Waiting;
-            string title = state == StepState.Active ? definition.ActiveTitle : definition.Title;
+            var title = state == StepState.Active ? definition.ActiveTitle : definition.Title;
 
             steps.Add(new ProgressStep(
                 title,
@@ -97,7 +97,7 @@ public static class OrderProgressModel
 
     private static int IndexOf(StepDefinition[] definitions, AcmeProgressStage stage)
     {
-        for (int i = 0; i < definitions.Length; i++)
+        for (var i = 0; i < definitions.Length; i++)
         {
             if (definitions[i].Stages.Contains(stage))
             {

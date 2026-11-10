@@ -7,7 +7,7 @@
     @if (RotateFor is null)
     {
         <div class="pdk-choice-grid" role="radiogroup" aria-label="Provider">
-            @foreach (DnsProviderKind kind in Kinds)
+            @foreach (var kind in Kinds)
             {
                 <button type="button" class="pdk-choice pdk-dns-kind-@kind.ToName() @(_kind == kind ? "pdk-choice-on" : null)" role="radio"
                         aria-checked="@(_kind == kind ? "true" : "false")" disabled="@_busy" @onclick="() => _kind = kind">
@@ -33,7 +33,7 @@
     @if (_errors.Count > 0)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert">
-            @foreach (string error in _errors)
+            @foreach (var error in _errors)
             {
                 <div>@error</div>
             }
@@ -94,7 +94,7 @@
         }
 
         _errors = [];
-        string label = RotateFor?.Label ?? (string.IsNullOrWhiteSpace(_label) ? $"{ProviderDisplay.KindLabel(_kind)}" : _label.Trim());
+        var label = RotateFor?.Label ?? (string.IsNullOrWhiteSpace(_label) ? $"{ProviderDisplay.KindLabel(_kind)}" : _label.Trim());
         _labelError = null;
         _credentialError = string.IsNullOrWhiteSpace(_credential) ? "Paste the provider's API token." : null;
         if (_credentialError is not null)
@@ -103,7 +103,7 @@
         }
 
         // The token leaves the component's state before anything is awaited, and lives on only in this array until the call is done.
-        char[] credential = _credential!.Trim().ToCharArray();
+        var credential = _credential!.Trim().ToCharArray();
         _credential = null;
         _busy = true;
         DnsProviderResult? result;

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
-using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
@@ -53,10 +52,10 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         };
         // h2c: one connection, a few concurrent streams. Kestrel pools streams that end gracefully, so after warm-up
         // the per-stream state in IPersistentStateFeature is reused just like on an H1 keep-alive connection.
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(
+        await using var server = await ProxyTestServer.StartAsync(
             model,
             new() { MeasureGate = true, Protocols = h2c ? HttpProtocols.Http2 : HttpProtocols.Http1 });
-        using HttpClient client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
 
         await SendAsync(server, client, host, path, expected, Warmup);
         server.GateStats!.Reset();
@@ -107,8 +106,8 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         };
         // Loopback stands in for Cloudflare's edge.
         SnapshotCompilerOptions options = new() { CloudflareEdgeRanges = CidrSet.Parse(["127.0.0.0/8"]) };
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, CompilerOptions = options, ClientInfo = true });
-        using HttpClient client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, CompilerOptions = options, ClientInfo = true });
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
         void WithHeader(HttpRequestMessage request) => request.Headers.TryAddWithoutValidation(header, value);
 
         await SendAsync(server, client, "app.test", "/", HttpStatusCode.OK, Warmup, WithHeader);
@@ -122,19 +121,19 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
 
     private static async Task SendAsync(ProxyTestServer server, HttpClient client, string host, string path, HttpStatusCode expected, int count, Action<HttpRequestMessage>? configure = null)
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        int next = 0;
-        Task[] workers = new Task[Connections];
-        for (int w = 0; w < workers.Length; w++)
+        var ct = TestContext.Current.CancellationToken;
+        var next = 0;
+        var workers = new Task[Connections];
+        for (var w = 0; w < workers.Length; w++)
         {
             workers[w] = Task.Run(
                 async () =>
                 {
                     while (Interlocked.Increment(ref next) <= count)
                     {
-                        using HttpRequestMessage request = server.Request(host, path);
+                        using var request = server.Request(host, path);
                         configure?.Invoke(request);
-                        using HttpResponseMessage response = await client.SendAsync(request, ct);
+                        using var response = await client.SendAsync(request, ct);
                         Assert.Equal(expected, response.StatusCode);
                         await response.Content.LoadIntoBufferAsync(ct);
                     }

@@ -20,14 +20,14 @@ internal static class RenewalSchedule
     {
         if (renewalInfo is not null)
         {
-            DateTimeOffset pick = renewalInfo.PickTime(Math.Clamp(random, 0d, 1d));
-            DateTimeOffset latest = notAfter - ((notAfter - notBefore) * options.RenewalRemainingFraction);
+            var pick = renewalInfo.PickTime(Math.Clamp(random, 0d, 1d));
+            var latest = notAfter - ((notAfter - notBefore) * options.RenewalRemainingFraction);
             return pick < latest ? pick : latest;
         }
 
-        TimeSpan lifetime = notAfter - notBefore;
-        TimeSpan remaining = lifetime * options.RenewalRemainingFraction;
-        TimeSpan jitter = remaining * (options.RenewalJitterFraction * Math.Clamp(random, 0d, 1d));
+        var lifetime = notAfter - notBefore;
+        var remaining = lifetime * options.RenewalRemainingFraction;
+        var jitter = remaining * (options.RenewalJitterFraction * Math.Clamp(random, 0d, 1d));
         return notAfter - remaining - jitter;
     }
 
@@ -41,7 +41,7 @@ internal static class RenewalSchedule
     /// <summary>When ARI is asked again: the CA's <c>Retry-After</c> if it sent one, bounded by the options.</summary>
     public static DateTimeOffset NextAriCheck(DateTimeOffset now, TimeSpan? retryAfter, AcmeIssuanceOptions options)
     {
-        TimeSpan wait = retryAfter ?? options.AriDefaultRecheck;
+        var wait = retryAfter ?? options.AriDefaultRecheck;
         if (wait < options.AriMinRecheck)
         {
             wait = options.AriMinRecheck;
@@ -61,7 +61,7 @@ internal static class RenewalSchedule
     /// </summary>
     public static TimeSpan Backoff(AcmeFailureKind kind, int attempts, TimeSpan? retryAfter, double random, AcmeIssuanceOptions options)
     {
-        (TimeSpan first, TimeSpan cap) = kind switch
+        var (first, cap) = kind switch
         {
             AcmeFailureKind.Transient => (options.TransientBackoff, options.TransientBackoffCap),
             AcmeFailureKind.RateLimited => (options.RateLimitBackoff, options.RateLimitBackoffCap),
@@ -70,11 +70,11 @@ internal static class RenewalSchedule
         };
 
         // The exponential part stops where jitter can still reach the cap but not pass it, so the jitter stays symmetric at the cap.
-        double spread = options.BackoffJitterFraction;
-        double ceiling = cap.Ticks / (1d + spread);
-        int doublings = Math.Clamp(attempts - 1, 0, 20);
-        double jitter = 1d + (spread * ((2d * Math.Clamp(random, 0d, 1d)) - 1d));
-        TimeSpan wait = TimeSpan.FromTicks((long)(Math.Min(first.Ticks * Math.Pow(2, doublings), ceiling) * jitter));
+        var spread = options.BackoffJitterFraction;
+        var ceiling = cap.Ticks / (1d + spread);
+        var doublings = Math.Clamp(attempts - 1, 0, 20);
+        var jitter = 1d + (spread * ((2d * Math.Clamp(random, 0d, 1d)) - 1d));
+        var wait = TimeSpan.FromTicks((long)(Math.Min(first.Ticks * Math.Pow(2, doublings), ceiling) * jitter));
         if (kind is AcmeFailureKind.RateLimited or AcmeFailureKind.Transient && retryAfter is { } asked && asked > wait)
         {
             wait = asked;

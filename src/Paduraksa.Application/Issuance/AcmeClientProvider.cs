@@ -63,7 +63,7 @@ public sealed class AcmeClientProvider : IAcmeClientProvider, IDisposable
     public void Dispose()
     {
         _disposed = true;
-        foreach (Lazy<AcmeClient> client in _clients.Values)
+        foreach (var client in _clients.Values)
         {
             if (client.IsValueCreated)
             {

@@ -10,7 +10,7 @@ public sealed class ConfigurationListBindingTests
     [Fact]
     public void AScalarListIsSplitTrimmedAndEmptied()
     {
-        PaduraksaOptions options = Load(
+        var options = Load(
             ("Paduraksa:Listen:AdminAllowedSources", " 192.168.1.0/24, 10.0.0.0/8 ,, "),
             ("Paduraksa:Admin:CertificateNames", "admin.example.com, paduraksa.lan"),
             ("Paduraksa:Listen:HttpProxyProtocol:TrustedSources", "192.0.2.10, 198.51.100.0/24"),
@@ -32,7 +32,7 @@ public sealed class ConfigurationListBindingTests
     [Fact]
     public void TheAccessLogDefaultsToTheWellKnownSensitiveNames()
     {
-        PaduraksaOptions options = Load();
+        var options = Load();
 
         Assert.Equal(Paduraksa.Proxy.Logging.AccessLogRing.DefaultCapacity, options.AccessLog.RingSize);
         Assert.True(options.AccessLog.LogQueryString);
@@ -46,7 +46,7 @@ public sealed class ConfigurationListBindingTests
     [Fact]
     public void IndexedKeysStillBind()
     {
-        PaduraksaOptions options = Load(
+        var options = Load(
             ("Paduraksa:Listen:AdminAllowedSources:0", "192.168.1.0/24"),
             ("Paduraksa:Listen:AdminAllowedSources:1", "10.0.0.0/8"),
             ("Paduraksa:Admin:CertificateNames:0", "admin.example.com"));
@@ -59,7 +59,7 @@ public sealed class ConfigurationListBindingTests
     [Fact]
     public void AScalarBesideIndexedKeysWinsAndSaysSo()
     {
-        PaduraksaOptions options = Load(
+        var options = Load(
             ("Paduraksa:Listen:AdminAllowedSources", "10.0.0.0/8"),
             ("Paduraksa:Listen:AdminAllowedSources:0", "192.168.1.0/24"));
 
@@ -71,7 +71,7 @@ public sealed class ConfigurationListBindingTests
     public async Task AnIgnoredFormIsLoggedAtStartup()
     {
         LogCapture logs = new();
-        await using PaduraksaHost host = TestHost.Create(
+        await using var host = TestHost.Create(
             settings: new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
             {
                 ["Paduraksa:Listen:AdminAllowedSources"] = "10.0.0.0/8",
@@ -79,14 +79,14 @@ public sealed class ConfigurationListBindingTests
             },
             logs: logs);
 
-        LogEntry entry = Assert.Single(logs.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("both as a scalar", StringComparison.Ordinal));
+        var entry = Assert.Single(logs.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("both as a scalar", StringComparison.Ordinal));
         Assert.Contains("AdminAllowedSources", entry.Message, StringComparison.Ordinal);
     }
 
     private static PaduraksaOptions Load(params (string Key, string Value)[] settings)
     {
         Dictionary<string, string?> values = new(StringComparer.OrdinalIgnoreCase);
-        foreach ((string key, string value) in settings)
+        foreach (var (key, value) in settings)
         {
             values[key] = value;
         }

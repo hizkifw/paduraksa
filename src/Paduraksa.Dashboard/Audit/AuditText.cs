@@ -68,12 +68,12 @@ public static class AuditText
     public static string Describe(string action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        if (Actions.TryGetValue(action, out string? words))
+        if (Actions.TryGetValue(action, out var words))
         {
             return words;
         }
 
-        string[] parts = action.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var parts = action.Split('.', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length == 0 ? action : FieldLabels.Of(string.Join(' ', parts.Skip(1).DefaultIfEmpty(parts[0])).Replace('_', ' '));
     }
 
@@ -116,9 +116,9 @@ public static class AuditText
         return actor.Kind switch
         {
             ActorKind.User when actor.User == me => "You",
-            ActorKind.User when actor.User is { } user && users.TryGetValue(user, out string? name) => name,
+            ActorKind.User when actor.User is { } user && users.TryGetValue(user, out var name) => name,
             ActorKind.User when actor.User is { } user => $"User {Identity.IdentityText.ShortId(user.ToString())}",
-            ActorKind.Token when actor.Token is { } token && tokens.TryGetValue(token, out string? name) => $"Token \"{name}\"",
+            ActorKind.Token when actor.Token is { } token && tokens.TryGetValue(token, out var name) => $"Token \"{name}\"",
             ActorKind.Token when actor.Token is { } token => $"Token {Identity.IdentityText.ShortId(token.ToString())}",
             ActorKind.Cli => "The CLI",
             _ => "Paduraksa",
@@ -133,22 +133,22 @@ public static class AuditText
             return null;
         }
 
-        if (HostId.TryParse(target, out HostId host))
+        if (HostId.TryParse(target, out var host))
         {
             return DashboardRoutes.Host(host);
         }
 
-        if (UpstreamId.TryParse(target, out UpstreamId upstream))
+        if (UpstreamId.TryParse(target, out var upstream))
         {
             return DashboardRoutes.Upstream(upstream);
         }
 
-        if (ProfileId.TryParse(target, out ProfileId profile))
+        if (ProfileId.TryParse(target, out var profile))
         {
             return DashboardRoutes.Profile(profile);
         }
 
-        return ConfigRevisionId.TryParse(target, out ConfigRevisionId revision) ? DashboardRoutes.Revision(revision) : null;
+        return ConfigRevisionId.TryParse(target, out var revision) ? DashboardRoutes.Revision(revision) : null;
     }
 
     /// <summary>The details, indented, for the expanded row.</summary>

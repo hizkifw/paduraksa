@@ -29,18 +29,18 @@ public sealed class PublicProxyTests
     [Fact]
     public async Task BootsWithAnEmptyConfigAndServesPublishedOnes()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
+        using var client = TestHost.CreateClient(host);
 
-        RuntimeSnapshot boot = host.Shared.SnapshotStore.Current;
+        var boot = host.Shared.SnapshotStore.Current;
         Assert.Equal(1, boot.Generation);
         Assert.Equal(0, boot.Hosts.Count);
         Assert.True(host.Shared.SnapshotPublisher.IsAttached);
 
-        PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, new ProxyConfigModel
+        var published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, new ProxyConfigModel
         {
             Revision = TestIds.Revision("it-1"),
             Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("app"), Destinations = [new(TestIds.Destination("app-1"), upstream.Address)] }],
@@ -54,43 +54,43 @@ public sealed class PublicProxyTests
         Assert.Equal(2, published.Generation);
 
         // Plain HTTP (H1) and HTTPS (H2) both reach the upstream through YARP.
-        using HttpResponseMessage overHttp = await client.SendAsync(Request(host, "http", "app.test", "/hello"), ct);
+        using var overHttp = await client.SendAsync(Request(host, "http", "app.test", "/hello"), ct);
         Assert.Equal(HttpStatusCode.OK, overHttp.StatusCode);
         Assert.Equal("upstream:/hello", await overHttp.Content.ReadAsStringAsync(ct));
 
-        using HttpRequestMessage h2 = Request(host, "https", "app.test", "/h2");
+        using var h2 = Request(host, "https", "app.test", "/h2");
         h2.Version = HttpVersion.Version20;
         h2.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
-        using HttpResponseMessage overHttps = await client.SendAsync(h2, ct);
+        using var overHttps = await client.SendAsync(h2, ct);
         Assert.Equal(HttpVersion.Version20, overHttps.Version);
         Assert.Equal("upstream:/h2", await overHttps.Content.ReadAsStringAsync(ct));
 
         // Forced HTTPS: plain HTTP is redirected to the public HTTPS port (443 by default), HTTPS is proxied.
         using HttpClient noRedirects = new(new SocketsHttpHandler { AllowAutoRedirect = false });
-        using HttpResponseMessage redirect = await noRedirects.SendAsync(Request(host, "http", "secure.test", "/x?y=1"), ct);
+        using var redirect = await noRedirects.SendAsync(Request(host, "http", "secure.test", "/x?y=1"), ct);
         Assert.Equal(HttpStatusCode.MovedPermanently, redirect.StatusCode);
         Assert.Equal("https://secure.test/x?y=1", redirect.Headers.Location!.OriginalString);
-        using HttpResponseMessage secure = await client.SendAsync(Request(host, "https", "secure.test", "/x"), ct);
+        using var secure = await client.SendAsync(Request(host, "https", "secure.test", "/x"), ct);
         Assert.Equal("upstream:/x", await secure.Content.ReadAsStringAsync(ct));
 
         // Unknown hosts still get the default.
-        using HttpResponseMessage unknown = await client.SendAsync(Request(host, "http", "nobody.test", "/"), ct);
+        using var unknown = await client.SendAsync(Request(host, "http", "nobody.test", "/"), ct);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
     }
 
     [Fact]
     public async Task AStartupConfigWithRoutesDoesNotBlockStartupAndGoesLiveWhenYarpAttaches()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
-        string data = TestDataDirectories.NewPath();
-        RevisionRef startup = await ConfigTestSupport.SeedAsync(
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
+        var data = TestDataDirectories.NewPath();
+        var startup = await ConfigTestSupport.SeedAsync(
             data,
             new ConfigDocument(Upstreams: [ConfigTestSupport.Upstream("app", upstream.Address)], Hosts: [ConfigTestSupport.ProxyHost("app", "app.test", "app")]),
             ct);
 
         // The core host alone: its start returns although the publish needs YARP, which doesn't exist yet.
-        await using (PaduraksaHost coreOnly = TestHost.Create(dataDirectory: data))
+        await using (var coreOnly = TestHost.Create(dataDirectory: data))
         {
             await coreOnly.Core.StartAsync(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
             Assert.False(coreOnly.Shared.SnapshotStore.HasPublished);
@@ -98,24 +98,24 @@ public sealed class PublicProxyTests
         }
 
         // The whole process: the public app's start attaches YARP, so the config is live before any listener accepts.
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        await using var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct).WaitAsync(TimeSpan.FromSeconds(10), ct);
         Assert.True(host.Shared.SnapshotStore.HasPublished);
         Assert.Equal(startup.Id, host.Shared.SnapshotStore.Current.Revision);
-        using HttpClient client = TestHost.CreateAdminClient(host);
-        using HttpResponseMessage ready = await client.GetAsync(new Uri(TestHost.Endpoint(host, HostRole.Admin, "https"), "/readyz"), ct);
+        using var client = TestHost.CreateAdminClient(host);
+        using var ready = await client.GetAsync(new Uri(TestHost.Endpoint(host, HostRole.Admin, "https"), "/readyz"), ct);
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
-        using HttpResponseMessage proxied = await client.SendAsync(Request(host, "http", "app.test", "/started"), ct);
+        using var proxied = await client.SendAsync(Request(host, "http", "app.test", "/started"), ct);
         Assert.Equal("upstream:/started", await proxied.Content.ReadAsStringAsync(ct));
     }
 
     [Fact]
     public async Task TheAuthorizationMiddlewareNeverRunsOnThePublicApp()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
         SpyAuthorizationPolicyProvider spy = new();
-        await using PaduraksaHost host = TestHost.Create(configureServices: (role, services) =>
+        await using var host = TestHost.Create(configureServices: (role, services) =>
         {
             if (role == HostRole.Public)
             {
@@ -124,19 +124,19 @@ public sealed class PublicProxyTests
         });
         await host.StartAsync(ct);
         Assert.Same(spy, host.Public.Services.GetRequiredService<IAuthorizationPolicyProvider>());
-        PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, new ProxyConfigModel
+        var published = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, new ProxyConfigModel
         {
             Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("app"), Destinations = [new(TestIds.Destination("app-1"), upstream.Address)] }],
             Hosts = [new HostSpec { Id = TestIds.Host("app"), Names = ["app.test"], Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("app") }] }],
         }), ct);
         Assert.True(published.Succeeded);
-        using HttpClient client = TestHost.CreateClient(host);
+        using var client = TestHost.CreateClient(host);
 
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
-            using HttpResponseMessage proxied = await client.SendAsync(Request(host, "https", "app.test", "/p"), ct);
+            using var proxied = await client.SendAsync(Request(host, "https", "app.test", "/p"), ct);
             Assert.Equal(HttpStatusCode.OK, proxied.StatusCode);
-            using HttpResponseMessage answered = await client.SendAsync(Request(host, "http", "nobody.test", "/"), ct);
+            using var answered = await client.SendAsync(Request(host, "http", "nobody.test", "/"), ct);
             Assert.Equal(HttpStatusCode.NotFound, answered.StatusCode);
         }
 
@@ -147,20 +147,20 @@ public sealed class PublicProxyTests
     public async Task SanityTheSpySeesTheImplicitAuthorizationMiddlewareOfAWebApplication()
     {
         // Proves the guard above can fail: a WebApplication with YARP's services auto-inserts UseAuthorization().
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         SpyAuthorizationPolicyProvider spy = new();
-        WebApplicationBuilder builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
+        var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions());
         builder.WebHost.UseKestrelCore().ConfigureKestrel(k => k.Listen(IPAddress.Loopback, 0));
         builder.Services.AddRoutingCore();
         builder.Services.AddReverseProxy();
         builder.Services.AddSingleton<IAuthorizationPolicyProvider>(spy);
-        await using WebApplication app = builder.Build();
+        await using var app = builder.Build();
         app.UseRouting();
         app.Run(static context => context.Response.WriteAsync("ok"));
         await app.StartAsync(ct);
         using HttpClient client = new();
 
-        using HttpResponseMessage response = await client.GetAsync(new Uri(app.Urls.Single()), ct);
+        using var response = await client.GetAsync(new Uri(app.Urls.Single()), ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(spy.FallbackCalls > 0);
@@ -175,7 +175,7 @@ public sealed class PublicProxyTests
             model = model with { Defaults = model.Defaults with { Certificate = PlaceholderCertificates.Id } };
         }
 
-        CompileResult result = SnapshotCompiler.Compile(model, (options ?? host.Shared.PublicListeners.CompilerOptions) with { Certificates = host.Shared.Certificates });
+        var result = SnapshotCompiler.Compile(model, (options ?? host.Shared.PublicListeners.CompilerOptions) with { Certificates = host.Shared.Certificates });
         Assert.True(result.Succeeded, string.Join("; ", result.Errors));
         return result.Snapshot!;
     }
@@ -221,14 +221,14 @@ public sealed class PublicProxyTests
 
         public static async Task<EchoUpstream> StartAsync(CancellationToken ct)
         {
-            IHost host = new HostBuilder()
+            var host = new HostBuilder()
                 .ConfigureLogging(static logging => logging.ClearProviders())
                 .ConfigureWebHost(static web => web
                     .UseKestrel(static kestrel => kestrel.Listen(IPAddress.Loopback, 0))
                     .Configure(static app => app.Run(static context => context.Response.WriteAsync("upstream:" + context.Request.Path))))
                 .Build();
             await host.StartAsync(ct);
-            string address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+            var address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
             return new EchoUpstream(host, address + "/");
         }
 

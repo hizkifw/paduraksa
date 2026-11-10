@@ -26,7 +26,7 @@ public sealed class ForwardedSchemeTests
             headers["X-Forwarded-Proto"] = proto;
         }
 
-        ClientIpResolution client = ClientIpResolver.Resolve(IpKey.Parse(peer), ClientIpSource.Socket, headers, policy);
+        var client = ClientIpResolver.Resolve(IpKey.Parse(peer), ClientIpSource.Socket, headers, policy);
         return ForwardedScheme.Resolve(in client, headers, policy);
     }
 
@@ -74,7 +74,7 @@ public sealed class ForwardedSchemeTests
             values,
             static v =>
             {
-                foreach (StringValues value in v)
+                foreach (var value in v)
                 {
                     _ = ForwardedScheme.TryParseVisitor(value, out _);
                 }

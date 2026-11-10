@@ -99,7 +99,7 @@
     /// <summary>While a drawer is open the page behind it is inert: Tab stays in the drawer, and nothing behind the backdrop takes a click.</summary>
     private void OnDrawersChanged()
     {
-        bool open = Drawers.Levels.Count > 0;
+        var open = Drawers.Levels.Count > 0;
         if (open != _drawersOpen)
         {
             _drawersOpen = open;

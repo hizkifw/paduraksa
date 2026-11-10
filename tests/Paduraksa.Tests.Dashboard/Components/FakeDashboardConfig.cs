@@ -80,7 +80,7 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
     /// <summary>Announces a commit to every page that watches.</summary>
     public async Task CommitAsync(ConfigCommitted committed)
     {
-        foreach (Func<ConfigCommitted, Task> watcher in _watchers.ToArray())
+        foreach (var watcher in _watchers.ToArray())
         {
             await watcher(committed);
         }

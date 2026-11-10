@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Tests.Vault.Testing;
-using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.Persistence;
 using Paduraksa.Vault.Secrets;
 
@@ -24,12 +23,14 @@ public sealed class SecretStoreTests : IDisposable
 
     internal static SecretOptions Dns(params string[] hosts) => new("Cloudflare", null, hosts);
 
-    internal static SecretOptions Mac(MacAlgorithm algorithm = MacAlgorithm.HmacSha256, string? label = "key") => new(label, algorithm, null);
+    internal static SecretOptions Mac(MacAlgorithm algorithm = MacAlgorithm.HmacSha256, string? label = "key") =>
+        new(label, algorithm, null);
 
     [Fact]
     public async Task PutThenDescribeReturnsOnlyMetadata()
     {
-        var id = await Store.PutAsync(SecretKind.DnsApiToken, Value, Dns("API.Example.com.", "ns.example.com", "api.example.com"), Ct);
+        var id = await Store.PutAsync(SecretKind.DnsApiToken, Value,
+            Dns("API.Example.com.", "ns.example.com", "api.example.com"), Ct);
 
         var metadata = await Store.DescribeAsync(id, Ct);
 
@@ -80,13 +81,16 @@ public sealed class SecretStoreTests : IDisposable
     [Fact]
     public async Task ValueAndLabelSizesAreBounded()
     {
-        await Assert.ThrowsAsync<ArgumentException>(async () => await Store.PutAsync(SecretKind.HmacSigningKey, ReadOnlyMemory<byte>.Empty, new(null, MacAlgorithm.HmacSha256, null), Ct));
-        await Assert.ThrowsAsync<ArgumentException>(
-            async () => await Store.PutAsync(SecretKind.HmacSigningKey, new byte[SecretStore.MaxValueBytes + 1], new(null, MacAlgorithm.HmacSha256, null), Ct));
-        await Assert.ThrowsAsync<ArgumentException>(
-            async () => await Store.PutAsync(SecretKind.HmacSigningKey, Value, new(new string('x', SecretStore.MaxLabelLength + 1), MacAlgorithm.HmacSha256, null), Ct));
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () => await Store.PutAsync((SecretKind)99, Value, new(null, null, null), Ct));
-        await Store.PutAsync(SecretKind.HmacSigningKey, new byte[SecretStore.MaxValueBytes], new(null, MacAlgorithm.HmacSha256, null), Ct);
+        await Assert.ThrowsAsync<ArgumentException>(async () => await Store.PutAsync(SecretKind.HmacSigningKey,
+            ReadOnlyMemory<byte>.Empty, new(null, MacAlgorithm.HmacSha256, null), Ct));
+        await Assert.ThrowsAsync<ArgumentException>(async () => await Store.PutAsync(SecretKind.HmacSigningKey,
+            new byte[SecretStore.MaxValueBytes + 1], new(null, MacAlgorithm.HmacSha256, null), Ct));
+        await Assert.ThrowsAsync<ArgumentException>(async () => await Store.PutAsync(SecretKind.HmacSigningKey, Value,
+            new(new string('x', SecretStore.MaxLabelLength + 1), MacAlgorithm.HmacSha256, null), Ct));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+            await Store.PutAsync((SecretKind)99, Value, new(null, null, null), Ct));
+        await Store.PutAsync(SecretKind.HmacSigningKey, new byte[SecretStore.MaxValueBytes],
+            new(null, MacAlgorithm.HmacSha256, null), Ct);
     }
 
     [Fact]
@@ -118,15 +122,19 @@ public sealed class SecretStoreTests : IDisposable
         Assert.Equal("Renamed", changed.Label);
         Assert.Equal(["other.example.com"], changed.AllowedHosts);
         Assert.Equal("Tsig", same.Label);
-        await Assert.ThrowsAsync<ArgumentException>(async () => await Store.ReplaceAsync(mac, Value, new(null, MacAlgorithm.HmacSha512, null), Ct));
-        await Assert.ThrowsAsync<ArgumentException>(async () => await Store.ReplaceAsync(dns, Value, new(null, null, null), Ct));
-        await Assert.ThrowsAsync<ArgumentException>(async () => await Store.ReplaceAsync(dns, ReadOnlyMemory<byte>.Empty, null, Ct));
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await Store.ReplaceAsync(mac, Value, new(null, MacAlgorithm.HmacSha512, null), Ct));
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await Store.ReplaceAsync(dns, Value, new(null, null, null), Ct));
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await Store.ReplaceAsync(dns, ReadOnlyMemory<byte>.Empty, null, Ct));
         Assert.Equal(2, (await Store.DescribeAsync(mac, Ct))!.Version);
     }
 
     [Fact]
     public async Task ReplaceOfAnUnknownSecretIsKeyNotFound() =>
-        await Assert.ThrowsAsync<KeyNotFoundException>(async () => await Store.ReplaceAsync(SecretId.New(), Value, null, Ct));
+        await Assert.ThrowsAsync<KeyNotFoundException>(async () =>
+            await Store.ReplaceAsync(SecretId.New(), Value, null, Ct));
 
     [Fact]
     public async Task DeleteRemovesTheSecretOnce()
@@ -179,7 +187,8 @@ public sealed class SecretStoreTests : IDisposable
             var bytes = new byte[stream.Length];
             await stream.ReadExactlyAsync(bytes, Ct);
             Assert.True(bytes.AsSpan().IndexOf(Value) < 0, $"The plaintext is in {Path.GetFileName(file)}.");
-            Assert.True(bytes.AsSpan().IndexOf("PLAINTEXT-MARKER"u8) < 0, $"Part of the plaintext is in {Path.GetFileName(file)}.");
+            Assert.True(bytes.AsSpan().IndexOf("PLAINTEXT-MARKER"u8) < 0,
+                $"Part of the plaintext is in {Path.GetFileName(file)}.");
         }
     }
 
@@ -198,13 +207,17 @@ public sealed class SecretStoreTests : IDisposable
     [Fact]
     public async Task ASealedValueMovedToAnotherRowDoesNotOpen()
     {
-        var victim = await Store.PutAsync(SecretKind.HmacSigningKey, "victim-value"u8.ToArray(), new(null, MacAlgorithm.HmacSha256, null), Ct);
-        var donor = await Store.PutAsync(SecretKind.HmacSigningKey, "donor-value"u8.ToArray(), new(null, MacAlgorithm.HmacSha256, null), Ct);
+        var victim = await Store.PutAsync(SecretKind.HmacSigningKey, "victim-value"u8.ToArray(),
+            new(null, MacAlgorithm.HmacSha256, null), Ct);
+        var donor = await Store.PutAsync(SecretKind.HmacSigningKey, "donor-value"u8.ToArray(),
+            new(null, MacAlgorithm.HmacSha256, null), Ct);
         var donorSealed = (await Sealed(donor))[donor];
 
-        await Update(s => s.Where(r => r.Id == victim).ExecuteUpdateAsync(u => u.SetProperty(r => r.Sealed, donorSealed), Ct));
+        await Update(s =>
+            s.Where(r => r.Id == victim).ExecuteUpdateAsync(u => u.SetProperty(r => r.Sealed, donorSealed), Ct));
 
-        await Assert.ThrowsAnyAsync<CryptographicException>(async () => await _vault.Get<SecretReader>().OpenAsync(victim, false, Ct));
+        await Assert.ThrowsAnyAsync<CryptographicException>(async () =>
+            await _vault.Get<SecretReader>().OpenAsync(victim, false, Ct));
     }
 
     [Fact]
@@ -213,9 +226,11 @@ public sealed class SecretStoreTests : IDisposable
         var id = await Store.PutAsync(SecretKind.EabHmacKey, Value, new(null, MacAlgorithm.HmacSha256, null), Ct);
 
         // Same row, same bytes, only the kind differs.
-        await Update(s => s.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.Kind, SecretKind.TsigKey), Ct));
+        await Update(s =>
+            s.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.Kind, SecretKind.TsigKey), Ct));
 
-        await Assert.ThrowsAnyAsync<CryptographicException>(async () => await _vault.Get<SecretReader>().OpenAsync(id, false, Ct));
+        await Assert.ThrowsAnyAsync<CryptographicException>(async () =>
+            await _vault.Get<SecretReader>().OpenAsync(id, false, Ct));
     }
 
     [Fact]
@@ -226,7 +241,8 @@ public sealed class SecretStoreTests : IDisposable
         // Same row, same bytes, only the version differs (a rolled-back or forged row).
         await Update(s => s.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.Version, 7), Ct));
 
-        await Assert.ThrowsAnyAsync<CryptographicException>(async () => await _vault.Get<SecretReader>().OpenAsync(id, false, Ct));
+        await Assert.ThrowsAnyAsync<CryptographicException>(async () =>
+            await _vault.Get<SecretReader>().OpenAsync(id, false, Ct));
     }
 
     [Fact]
@@ -254,9 +270,12 @@ public sealed class SecretStoreTests : IDisposable
     {
         var id = await Store.PutAsync(SecretKind.TsigKey, Value, Mac(MacAlgorithm.HmacSha256), Ct);
 
-        await Update(s => s.Where(r => r.Id == id).ExecuteUpdateAsync(u => u.SetProperty(r => r.MacAlgorithm, MacAlgorithm.HmacSha512), Ct));
+        await Update(s =>
+            s.Where(r => r.Id == id)
+                .ExecuteUpdateAsync(u => u.SetProperty(r => r.MacAlgorithm, MacAlgorithm.HmacSha512), Ct));
 
-        await Assert.ThrowsAnyAsync<CryptographicException>(async () => await _vault.Get<SecretReader>().OpenAsync(id, false, Ct));
+        await Assert.ThrowsAnyAsync<CryptographicException>(async () =>
+            await _vault.Get<SecretReader>().OpenAsync(id, false, Ct));
     }
 
     private async Task Update(Func<DbSet<SecretRow>, Task<int>> change)
@@ -268,7 +287,8 @@ public sealed class SecretStoreTests : IDisposable
     private async Task<Dictionary<SecretId, byte[]>> Sealed(params SecretId[] ids)
     {
         await using var context = await _vault.Get<IDbContextFactory<VaultDbContext>>().CreateDbContextAsync(Ct);
-        return await context.Secrets.AsNoTracking().Where(s => ids.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.Sealed, Ct);
+        return await context.Secrets.AsNoTracking().Where(s => ids.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.Sealed, Ct);
     }
 
     [Fact]

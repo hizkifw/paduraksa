@@ -17,7 +17,7 @@
     /// <summary>Flips the palette and remembers the choice in the theme cookie (not a secret; read on the next page load).</summary>
     private async Task ToggleAsync()
     {
-        string value = Theme.Toggle();
+        var value = Theme.Toggle();
         await JS.InvokeVoidAsync("paduraksa.setTheme", value);
     }
 

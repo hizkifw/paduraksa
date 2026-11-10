@@ -24,10 +24,10 @@ public sealed class SettingsEndToEndTests
     [Fact]
     public async Task Users_Tokens_Defaults_Audit_AndMyAccount()
     {
-        (IPlaywright playwright, IBrowser browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using IPlaywright ownedPlaywright = playwright;
-        await using IBrowser ownedBrowser = browser;
-        await using DashboardHost host = await DashboardHost.StartAsync(Ct);
+        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
+        using var ownedPlaywright = playwright;
+        await using var ownedBrowser = browser;
+        await using var host = await DashboardHost.StartAsync(Ct);
         BrowserNewContextOptions options = new()
         {
             BaseURL = host.Admin.ToString(),
@@ -35,15 +35,15 @@ public sealed class SettingsEndToEndTests
             ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
             ColorScheme = ColorScheme.Dark,
         };
-        await using IBrowserContext ownerContext = await browser.NewContextAsync(options);
-        IPage page = await ownerContext.NewPageAsync();
-        List<string> problems = PlaywrightBrowser.CollectProblems(page);
+        await using var ownerContext = await browser.NewContextAsync(options);
+        var page = await ownerContext.NewPageAsync();
+        var problems = PlaywrightBrowser.CollectProblems(page);
 
         await SetUpAsync(page, host);
 
         // A second browser signed in as the Owner too: its session is ended from My account at the end.
-        await using IBrowserContext otherContext = await browser.NewContextAsync(options);
-        IPage other = await otherContext.NewPageAsync();
+        await using var otherContext = await browser.NewContextAsync(options);
+        var other = await otherContext.NewPageAsync();
         await SignInAsync(other, DashboardHost.OwnerName, DashboardHost.OwnerPassword);
 
         // Users and roles, from the side navigation: add a Viewer.
@@ -60,9 +60,9 @@ public sealed class SettingsEndToEndTests
         await PlaywrightBrowser.ScreenshotAsync(page, "users");
 
         // The Viewer, in a browser of their own, is offered no change.
-        await using (IBrowserContext viewerContext = await browser.NewContextAsync(options))
+        await using (var viewerContext = await browser.NewContextAsync(options))
         {
-            IPage viewer = await viewerContext.NewPageAsync();
+            var viewer = await viewerContext.NewPageAsync();
             await SignInAsync(viewer, ViewerName, ViewerPassword);
             await viewer.GotoAsync("/hosts");
             await ExpectHeadingAsync(viewer, "Hosts");
@@ -90,9 +90,9 @@ public sealed class SettingsEndToEndTests
         await page.ClickAsync("[data-preset=read]");
         await PlaywrightBrowser.ScreenshotAsync(page, "token-create", fullPage: false);
         await page.ClickAsync("[data-action=issue]");
-        ILocator secret = page.Locator("[data-secret=token] code");
+        var secret = page.Locator("[data-secret=token] code");
         await Expect(secret).ToBeVisibleAsync(new() { Timeout = 15_000 });
-        string token = (await secret.TextContentAsync())!.Trim();
+        var token = (await secret.TextContentAsync())!.Trim();
         Assert.StartsWith("pdk_", token, StringComparison.Ordinal);
         await PlaywrightBrowser.ScreenshotAsync(page, "token-created", fullPage: false);
         await page.ClickAsync("[data-action=done]");
@@ -101,11 +101,11 @@ public sealed class SettingsEndToEndTests
         await Expect(page.Locator("[data-token='e2e script']")).ToBeVisibleAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "tokens");
 
-        await using (IAPIRequestContext api = await playwright.APIRequest.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true }))
+        await using (var api = await playwright.APIRequest.NewContextAsync(new() { BaseURL = host.Admin.ToString(), IgnoreHTTPSErrors = true }))
         {
-            IAPIResponse me = await api.GetAsync("api/v1/auth/me", new() { Headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" } });
+            var me = await api.GetAsync("api/v1/auth/me", new() { Headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" } });
             Assert.True(me.Ok, $"auth/me answered {me.Status}");
-            using JsonDocument caller = JsonDocument.Parse(await me.TextAsync());
+            using var caller = JsonDocument.Parse(await me.TextAsync());
             Assert.Equal("token", caller.RootElement.GetProperty("authKind").GetString());
             Assert.Equal(DashboardHost.OwnerName, caller.RootElement.GetProperty("user").GetProperty("username").GetString());
         }
@@ -120,7 +120,7 @@ public sealed class SettingsEndToEndTests
         await page.GetByText("421 Misdirected Request").ClickAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "defaults");
         await page.ClickAsync("[data-action=review]");
-        ILocator apply = page.Locator(".pdk-sheet [data-review=apply]");
+        var apply = page.Locator(".pdk-sheet [data-review=apply]");
         await Expect(apply).ToBeEnabledAsync(new() { Timeout = 15_000 });
         await Expect(page.Locator(".pdk-diff")).ToContainTextAsync("421 Misdirected Request");
         await PlaywrightBrowser.SettleAsync(page);
@@ -161,7 +161,7 @@ public sealed class SettingsEndToEndTests
         await page.ClickAsync(".pdk-totp-begin");
         await Expect(page.Locator("svg.pdk-qr")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await page.Locator(".pdk-totp-manual summary").ClickAsync();
-        string key = (await page.Locator(".pdk-totp-secret").TextContentAsync())!.Replace(" ", string.Empty, StringComparison.Ordinal);
+        var key = (await page.Locator(".pdk-totp-secret").TextContentAsync())!.Replace(" ", string.Empty, StringComparison.Ordinal);
         await PlaywrightBrowser.ScreenshotAsync(page, "account-totp-qr", fullPage: false);
         await page.FillAsync(".pdk-totp-code input", TotpOracle.CodeFor($"otpauth://totp/x?secret={key}"));
         await page.ClickAsync(".pdk-totp-confirm");
@@ -180,7 +180,7 @@ public sealed class SettingsEndToEndTests
 
         // Phone width: the pages fit without scrolling sideways.
         await page.SetViewportSizeAsync(390, 844);
-        foreach ((string path, string shot) in new[] { ("/settings/users", "users-phone"), ("/settings/tokens", "tokens-phone"), ("/settings/defaults", "defaults-phone"), ("/audit", "audit-phone"), ("/account", "account-phone") })
+        foreach (var (path, shot) in new[] { ("/settings/users", "users-phone"), ("/settings/tokens", "tokens-phone"), ("/settings/defaults", "defaults-phone"), ("/audit", "audit-phone"), ("/account", "account-phone") })
         {
             await page.GotoAsync(path);
             await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
@@ -195,11 +195,11 @@ public sealed class SettingsEndToEndTests
     [Fact]
     public async Task TheLogsPageListsAFileReadsItsLastLinesAndDownloadsIt()
     {
-        (IPlaywright playwright, IBrowser browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using IPlaywright ownedPlaywright = playwright;
-        await using IBrowser ownedBrowser = browser;
-        await using DashboardHost host = await DashboardHost.StartAsync(Ct);
-        await using IBrowserContext context = await browser.NewContextAsync(new BrowserNewContextOptions
+        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
+        using var ownedPlaywright = playwright;
+        await using var ownedBrowser = browser;
+        await using var host = await DashboardHost.StartAsync(Ct);
+        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = host.Admin.ToString(),
             IgnoreHTTPSErrors = true,
@@ -207,12 +207,12 @@ public sealed class SettingsEndToEndTests
             ColorScheme = ColorScheme.Dark,
             AcceptDownloads = true,
         });
-        IPage page = await context.NewPageAsync();
+        var page = await context.NewPageAsync();
         await SetUpAsync(page, host);
 
         // A line in the error log, written by the process's own writer: appending through a handle of the test's would race the
         // writer's buffered stream, whose next flush could land over it.
-        ILogger browserTest = host.Host.Shared.LoggerFactory.CreateLogger("Paduraksa.Tests.BrowserTest");
+        var browserTest = host.Host.Shared.LoggerFactory.CreateLogger("Paduraksa.Tests.BrowserTest");
 #pragma warning disable CA1848 // One line in a test; a LoggerMessage delegate would be noise.
         browserTest.LogWarning("the browser test's own line");
 #pragma warning restore CA1848
@@ -227,7 +227,7 @@ public sealed class SettingsEndToEndTests
         await Expect(page.Locator(".pdk-drawer [data-section=tail]")).ToContainTextAsync("the browser test's own line", new() { Timeout = 15_000 });
         await PlaywrightBrowser.ScreenshotAsync(page, "logs", fullPage: false);
 
-        IDownload download = await page.RunAndWaitForDownloadAsync(() => page.ClickAsync(".pdk-drawer [data-action=download]"));
+        var download = await page.RunAndWaitForDownloadAsync(() => page.ClickAsync(".pdk-drawer [data-action=download]"));
         Assert.Equal("error.log", download.SuggestedFilename);
 
         // Phone width: the log page fits without scrolling sideways.
@@ -240,9 +240,9 @@ public sealed class SettingsEndToEndTests
 
     private static async Task ExpectInsideWindowAsync(IPage page, ILocator element)
     {
-        LocatorBoundingBoxResult? box = await element.BoundingBoxAsync();
+        var box = await element.BoundingBoxAsync();
         Assert.NotNull(box);
-        int width = page.ViewportSize!.Width;
+        var width = page.ViewportSize!.Width;
         Assert.True(box.X >= 0 && box.X + box.Width <= width, $"The element spans {box.X} to {box.X + box.Width} in a {width} px window.");
     }
 

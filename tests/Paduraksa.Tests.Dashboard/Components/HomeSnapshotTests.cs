@@ -13,13 +13,13 @@ public sealed class HomeSnapshotTests
     [Fact]
     public void WithTheConfig_OnlyTheCertificatesInUseAreListed_WithTheirSourceInWords()
     {
-        CertificateSummary used = Certificate("app.example.com", CertificateSource.LocalCa, Now.AddDays(5));
-        CertificateSummary unused = Certificate("old.example.com", CertificateSource.Uploaded, Now.AddDays(3));
+        var used = Certificate("app.example.com", CertificateSource.LocalCa, Now.AddDays(5));
+        var unused = Certificate("old.example.com", CertificateSource.Uploaded, Now.AddDays(3));
         ConfigDocument document = new(Hosts: [new HostConfig(HostId.New(), ["app.example.com"])]);
 
-        IReadOnlyList<ExpiringCertificate> expiring = HomeSnapshot.ExpiringOf([used, unused], document, Now);
+        var expiring = HomeSnapshot.ExpiringOf([used, unused], document, Now);
 
-        ExpiringCertificate only = Assert.Single(expiring);
+        var only = Assert.Single(expiring);
         Assert.Equal("app.example.com", only.Name);
         Assert.Equal("Local CA", only.Source);
     }
@@ -27,11 +27,11 @@ public sealed class HomeSnapshotTests
     [Fact]
     public void WithoutTheConfig_EveryActiveCertificateThatEndsSoonIsListed()
     {
-        CertificateSummary soon = Certificate("a.example.com", CertificateSource.Uploaded, Now.AddDays(3));
-        CertificateSummary sooner = Certificate("b.example.com", CertificateSource.Acme, Now.AddDays(1));
-        CertificateSummary later = Certificate("c.example.com", CertificateSource.Acme, Now.AddDays(90));
+        var soon = Certificate("a.example.com", CertificateSource.Uploaded, Now.AddDays(3));
+        var sooner = Certificate("b.example.com", CertificateSource.Acme, Now.AddDays(1));
+        var later = Certificate("c.example.com", CertificateSource.Acme, Now.AddDays(90));
 
-        IReadOnlyList<ExpiringCertificate> expiring = HomeSnapshot.ExpiringOf([soon, sooner, later], null, Now);
+        var expiring = HomeSnapshot.ExpiringOf([soon, sooner, later], null, Now);
 
         Assert.Equal(["b.example.com", "a.example.com"], expiring.Select(e => e.Name));
         Assert.Equal(["ACME", "Uploaded"], expiring.Select(e => e.Source));

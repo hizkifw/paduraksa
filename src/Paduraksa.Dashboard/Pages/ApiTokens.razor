@@ -1,6 +1,5 @@
 @attribute [Route(SettingsRoutes.Tokens)]
 @implements IDisposable
-@using System.Globalization
 @using Microsoft.Extensions.Logging
 @using Paduraksa.Application.Commands
 @using Paduraksa.Application.Identity
@@ -55,7 +54,7 @@
     {
         @if (!_failed)
         {
-            @for (int i = 0; i < 3; i++)
+            @for (var i = 0; i < 3; i++)
             {
                 <div class="pdk-row-skeleton">
                     <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" />
@@ -92,9 +91,9 @@
                 <span role="columnheader">Status</span>
                 <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
             </div>
-            @foreach (TokenRow row in Shown)
+            @foreach (var row in Shown)
             {
-                (string label, Tone tone) = IdentityText.State(row.Token, _now);
+                var (label, tone) = IdentityText.State(row.Token, _now);
                 <div class="pdk-dt-row" role="row" @key="row.Token.Id">
                     <div class="pdk-dt-main" role="cell">
                         <span class="pdk-list-icon pdk-tone-@tone.Css()"><MudIcon Icon="@Icons.Material.Outlined.Key" Size="Size.Small" /></span>
@@ -109,7 +108,7 @@
                     }
                     <span role="cell" class="pdk-dt-cell" data-label="Scopes">
                         <span class="pdk-dt-chips">
-                            @foreach (Permission scope in row.Token.Scopes.Take(3))
+                            @foreach (var scope in row.Token.Scopes.Take(3))
                             {
                                 <span class="pdk-tag pdk-mono">@scope.ToName()</span>
                             }
@@ -179,7 +178,7 @@
 
     private async Task LoadAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -189,8 +188,8 @@
         _held = user.Permissions;
         _mayIssue = user.Has(Permission.TokensOwn);
         _mayAll = user.Has(Permission.TokensAll);
-        UserId me = user.UserId;
-        CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
+        var me = user.UserId;
+        var origin = user.Session.OriginFor(Channel.Dashboard);
         _failed = false;
         try
         {
@@ -198,13 +197,13 @@
             if (_everyone && _mayAll)
             {
                 // One read for the tokens and one for their owners' names, however many users there are.
-                Dictionary<UserId, string> names = (await Identity.ListUsersAsync(origin)).Users.ToDictionary(u => u.Id, u => u.DisplayName);
-                ApiTokenListResult tokens = await Identity.ListAllTokensAsync(origin);
+                var names = (await Identity.ListUsersAsync(origin)).Users.ToDictionary(u => u.Id, u => u.DisplayName);
+                var tokens = await Identity.ListAllTokensAsync(origin);
                 rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, t.UserId == me ? "You" : names.GetValueOrDefault(t.UserId, t.UserId.ToString()), t.UserId == me)));
             }
             else
             {
-                ApiTokenListResult tokens = await Identity.ListTokensAsync(origin);
+                var tokens = await Identity.ListTokensAsync(origin);
                 rows.AddRange(tokens.Tokens.Select(t => new TokenRow(t, "You", true)));
             }
 
@@ -233,7 +232,7 @@
 
     private async Task AskRevokeAsync(TokenRow row)
     {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
+        var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             $"Revoke {row.Token.Name}?",
             "Whatever uses it is refused from now on.",

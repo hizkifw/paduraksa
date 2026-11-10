@@ -13,9 +13,7 @@ using Microsoft.Extensions.Logging;
 
 using Paduraksa.Core.Logging;
 using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
-using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
@@ -36,58 +34,58 @@ public sealed class AccessLogEndToEndTests
     [Fact]
     public async Task EveryOutcomeGetsOneLineInTheDocumentedFormat()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
         CapturingSink sink = new();
-        await using PaduraksaHost host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
+        await using var host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
         await host.StartAsync(ct);
         await PublishAsync(host, upstream, ct);
         // Plain HTTP everywhere, and the redirect is the answer under test, not a hop to follow.
         using HttpClient client = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false }) { Timeout = TimeSpan.FromSeconds(10) };
         // A path segment only this test uses: a stray connection to the reused port (another test's, under a parallel run)
         // can add a line, but it can't carry this tag, so the lines we assert on are ours alone.
-        string tag = NextTag();
+        var tag = NextTag();
 
         // Forwarded.
-        using (HttpRequestMessage request = Request(host, "http", "app.test", $"/{tag}/hello?q=1&token=s3cret&page=2"))
+        using (var request = Request(host, "http", "app.test", $"/{tag}/hello?q=1&token=s3cret&page=2"))
         {
             request.Headers.TryAddWithoutValidation("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.topsecret.signature");
             request.Headers.TryAddWithoutValidation("Cookie", "__Host-paduraksa-session=live; theme=dark");
             request.Headers.TryAddWithoutValidation("User-Agent", "IntegrationTest/1.0");
             request.Headers.TryAddWithoutValidation("Referer", "https://ref.example/");
-            using HttpResponseMessage response = await client.SendAsync(request, ct);
+            using var response = await client.SendAsync(request, ct);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal($"upstream:/{tag}/hello", await response.Content.ReadAsStringAsync(ct));
-            string id = Assert.Single(response.Headers.GetValues(RequestIds.HeaderName));
+            var id = Assert.Single(response.Headers.GetValues(RequestIds.HeaderName));
             Assert.Equal(RequestIds.GeneratedLength, id.Length);
         }
 
         // Refused by an IP allow list.
-        using (HttpResponseMessage denied = await client.SendAsync(Request(host, "http", "blocked.test", $"/{tag}/blocked"), ct))
+        using (var denied = await client.SendAsync(Request(host, "http", "blocked.test", $"/{tag}/blocked"), ct))
         {
             Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
         }
 
         // Redirected to HTTPS.
-        using (HttpResponseMessage redirect = await client.SendAsync(Request(host, "http", "secure.test", $"/{tag}/x?y=1"), ct))
+        using (var redirect = await client.SendAsync(Request(host, "http", "secure.test", $"/{tag}/x?y=1"), ct))
         {
             Assert.Equal(HttpStatusCode.MovedPermanently, redirect.StatusCode);
         }
 
         // An unknown host.
-        using (HttpResponseMessage unknown = await client.SendAsync(Request(host, "http", "nobody.test", $"/{tag}/unknown"), ct))
+        using (var unknown = await client.SendAsync(Request(host, "http", "nobody.test", $"/{tag}/unknown"), ct))
         {
             Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         }
 
-        string forwarded = await sink.WaitForLineAsync($"/{tag}/hello?", ct);
-        string refused = await sink.WaitForLineAsync($"/{tag}/blocked", ct);
-        string redirected = await sink.WaitForLineAsync($"/{tag}/x?y=1", ct);
-        string unknownHost = await sink.WaitForLineAsync($"/{tag}/unknown", ct);
-        IReadOnlyList<string> lines = sink.Lines;
+        var forwarded = await sink.WaitForLineAsync($"/{tag}/hello?", ct);
+        var refused = await sink.WaitForLineAsync($"/{tag}/blocked", ct);
+        var redirected = await sink.WaitForLineAsync($"/{tag}/x?y=1", ct);
+        var unknownHost = await sink.WaitForLineAsync($"/{tag}/unknown", ct);
+        var lines = sink.Lines;
 
         // The forwarded line, field by field.
-        string[] fields = Fields(forwarded);
+        var fields = Fields(forwarded);
         Assert.Equal(13, fields.Length);
         Assert.True(DateTime.TryParseExact(fields[0], "yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out _), fields[0]);
         Assert.Equal("127.0.0.1", fields[1]);
@@ -107,7 +105,7 @@ public sealed class AccessLogEndToEndTests
         Assert.Equal("\"IntegrationTest/1.0\"", fields[12]);
 
         // Nothing secret, from either request.
-        foreach (string line in lines)
+        foreach (var line in lines)
         {
             Assert.DoesNotContain("topsecret", line, StringComparison.Ordinal);
             Assert.DoesNotContain("Bearer", line, StringComparison.Ordinal);
@@ -130,21 +128,21 @@ public sealed class AccessLogEndToEndTests
     [Fact]
     public async Task AHostThatTurnsTheLogOffStillServesRequestsAndLogsNothing()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
         CapturingSink sink = new();
-        await using PaduraksaHost host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
+        await using var host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
         await host.StartAsync(ct);
         await PublishAsync(host, upstream, ct, quiet: true);
-        using HttpClient client = TestHost.CreateClient(host);
-        string tag = NextTag();
+        using var client = TestHost.CreateClient(host);
+        var tag = NextTag();
 
-        using HttpResponseMessage quiet = await client.SendAsync(Request(host, "http", "quiet.test", $"/{tag}/quiet"), ct);
+        using var quiet = await client.SendAsync(Request(host, "http", "quiet.test", $"/{tag}/quiet"), ct);
 
         Assert.Equal(HttpStatusCode.OK, quiet.StatusCode);
         // A request to the logged host, recorded after the quiet one, proves the drain is running: by the time its line is
         // out, a line for the quiet request would be out too.
-        using HttpResponseMessage logged = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/logged"), ct);
+        using var logged = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/logged"), ct);
         Assert.Equal(HttpStatusCode.OK, logged.StatusCode);
         await sink.WaitForLineAsync($"/{tag}/logged", ct);
 
@@ -155,16 +153,16 @@ public sealed class AccessLogEndToEndTests
     [Fact]
     public async Task ShutdownFlushesWhatIsLeftInTheRing()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
         CapturingSink sink = new();
-        PaduraksaHost host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
+        var host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
         await host.StartAsync(ct);
         await PublishAsync(host, upstream, ct);
-        using HttpClient client = TestHost.CreateClient(host);
+        using var client = TestHost.CreateClient(host);
 
-        string tag = NextTag();
-        using HttpResponseMessage response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/at-stop"), ct);
+        var tag = NextTag();
+        using var response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/at-stop"), ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         await host.StopAsync(ct);
@@ -177,23 +175,23 @@ public sealed class AccessLogEndToEndTests
     [Fact]
     public async Task AFailedForwardIs502WithTheUpstreamLegRecorded()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
         CapturingSink sink = new();
-        await using PaduraksaHost host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
+        await using var host = TestHost.Create(configureShared: shared => shared.Replace<IAccessLogSink>(sink));
         await host.StartAsync(ct);
         // A port that stays dead for the whole test: bound, never listening, held open until the test ends.
-        using TestPorts.DeadPort dead = TestPorts.ReserveDeadPort();
+        using var dead = TestPorts.ReserveDeadPort();
         await PublishAsync(host, upstream, ct, deadAddress: dead.Address);
-        using HttpClient client = TestHost.CreateClient(host);
-        string tag = NextTag();
+        using var client = TestHost.CreateClient(host);
+        var tag = NextTag();
 
         // dead.test forwards to that port: YARP answers 502 itself.
-        using HttpResponseMessage failed = await client.SendAsync(Request(host, "http", "dead.test", $"/{tag}/gone"), ct);
+        using var failed = await client.SendAsync(Request(host, "http", "dead.test", $"/{tag}/gone"), ct);
         Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
 
-        string line = await sink.WaitForLineAsync($"/{tag}/gone", ct);
-        string[] fields = Fields(line);
+        var line = await sink.WaitForLineAsync($"/{tag}/gone", ct);
+        var fields = Fields(line);
         Assert.Equal(13, fields.Length);
         Assert.Contains("\"dead.test\"", fields[2], StringComparison.Ordinal);
         Assert.Equal("502", fields[4]);
@@ -205,21 +203,21 @@ public sealed class AccessLogEndToEndTests
     [Fact]
     public async Task RealRequestsLandInTheAccessLogUnderTheDataDirectory()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
-        string data = TestDataDirectories.NewPath();
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
+        var data = TestDataDirectories.NewPath();
         // No sink is swapped here: the process's own writer, over <data>/logs/access.log, is what the drain writes into.
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        await using var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
         await PublishAsync(host, upstream, ct);
-        using HttpClient client = TestHost.CreateClient(host);
-        string tag = NextTag();
+        using var client = TestHost.CreateClient(host);
+        var tag = NextTag();
 
-        using HttpResponseMessage response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/on-disk?token=s3cret"), ct);
+        using var response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/on-disk?token=s3cret"), ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        string line = await WaitForLogAsync(data, tag, ct);
-        string[] fields = Fields(line);
+        var line = await WaitForLogAsync(data, tag, ct);
+        var fields = Fields(line);
         Assert.Equal(13, fields.Length);
         Assert.Equal("\"app.test\"", fields[2]);
         Assert.Equal($"\"GET /{tag}/on-disk?token=REDACTED HTTP/1.1\"", fields[3]);
@@ -230,16 +228,16 @@ public sealed class AccessLogEndToEndTests
     [Fact]
     public async Task ALineWrittenJustBeforeStoppingReachesTheFile()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using EchoUpstream upstream = await EchoUpstream.StartAsync(ct);
-        string data = TestDataDirectories.NewPath();
-        PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        var ct = TestContext.Current.CancellationToken;
+        await using var upstream = await EchoUpstream.StartAsync(ct);
+        var data = TestDataDirectories.NewPath();
+        var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
         await PublishAsync(host, upstream, ct);
-        using HttpClient client = TestHost.CreateClient(host);
-        string tag = NextTag();
+        using var client = TestHost.CreateClient(host);
+        var tag = NextTag();
 
-        using HttpResponseMessage response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/at-stop"), ct);
+        using var response = await client.SendAsync(Request(host, "http", "app.test", $"/{tag}/at-stop"), ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         // The drain's last pass and its flush happen while the core host stops; the log files are only disposed afterwards, with
@@ -247,9 +245,9 @@ public sealed class AccessLogEndToEndTests
         // disposed before the drain, or a drain that skipped its last flush, would leave it in a buffer (the writer's own flush
         // tick is a second away) instead.
         await host.StopAsync(ct);
-        string path = Path.Combine(data, LogFileNames.DefaultDirectoryName, LogFileNames.Live(LogFileKind.Access));
+        var path = Path.Combine(data, LogFileNames.DefaultDirectoryName, LogFileNames.Live(LogFileKind.Access));
         Assert.True(File.Exists(path), $"no access log at {path}");
-        string log = await File.ReadAllTextAsync(path, ct);
+        var log = await File.ReadAllTextAsync(path, ct);
         Assert.Contains($"GET /{tag}/at-stop", log, StringComparison.Ordinal);
 
         await host.DisposeAsync();
@@ -258,13 +256,13 @@ public sealed class AccessLogEndToEndTests
     /// <summary>The access log's contents once a line carrying <paramref name="tag"/> is in it; the writer flushes once a second.</summary>
     private static async Task<string> WaitForLogAsync(string data, string tag, CancellationToken ct)
     {
-        string path = Path.Combine(data, LogFileNames.DefaultDirectoryName, LogFileNames.Live(LogFileKind.Access));
-        long deadline = Environment.TickCount64 + 15_000;
+        var path = Path.Combine(data, LogFileNames.DefaultDirectoryName, LogFileNames.Live(LogFileKind.Access));
+        var deadline = Environment.TickCount64 + 15_000;
         while (true)
         {
             if (File.Exists(path))
             {
-                string log = await File.ReadAllTextAsync(path, ct);
+                var log = await File.ReadAllTextAsync(path, ct);
                 string[] lines = [.. log.Split('\n', StringSplitOptions.RemoveEmptyEntries)];
                 if (lines.FirstOrDefault(line => line.Contains(tag, StringComparison.Ordinal)) is { } found)
                 {
@@ -327,7 +325,7 @@ public sealed class AccessLogEndToEndTests
                 new HostSpec { Id = TestIds.Host("secure"), Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Id = TestIds.Route("secure-root"), Upstream = TestIds.Upstream("app") }] },
             ],
         };
-        PublishResult published = await host.Shared.SnapshotPublisher.PublishAsync(PublicProxyTests.Compile(host, model), ct);
+        var published = await host.Shared.SnapshotPublisher.PublishAsync(PublicProxyTests.Compile(host, model), ct);
         Assert.True(published.Succeeded, string.Join("; ", published.Errors));
     }
 
@@ -342,9 +340,9 @@ public sealed class AccessLogEndToEndTests
     private static string[] Fields(string line)
     {
         List<string> fields = [];
-        int start = 0;
-        bool quoted = false;
-        for (int i = 0; i < line.Length; i++)
+        var start = 0;
+        var quoted = false;
+        for (var i = 0; i < line.Length; i++)
         {
             if (line[i] == '"' && (i == 0 || line[i - 1] != '\\'))
             {
@@ -380,7 +378,7 @@ public sealed class AccessLogEndToEndTests
         /// </summary>
         public async Task<string> WaitForLineAsync(string fragment, CancellationToken ct)
         {
-            long deadline = Environment.TickCount64 + 15_000;
+            var deadline = Environment.TickCount64 + 15_000;
             while (true)
             {
                 string[] matches = [.. Lines.Where(line => line.Contains(fragment, StringComparison.Ordinal))];
@@ -419,14 +417,14 @@ public sealed class AccessLogEndToEndTests
 
         public static async Task<EchoUpstream> StartAsync(CancellationToken ct)
         {
-            IHost host = new HostBuilder()
+            var host = new HostBuilder()
                 .ConfigureLogging(static logging => logging.ClearProviders())
                 .ConfigureWebHost(static web => web
                     .UseKestrel(static kestrel => kestrel.Listen(IPAddress.Loopback, 0))
                     .Configure(static app => app.Run(static context => context.Response.WriteAsync("upstream:" + context.Request.Path))))
                 .Build();
             await host.StartAsync(ct);
-            string address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+            var address = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
             return new EchoUpstream(host, address + "/");
         }
 

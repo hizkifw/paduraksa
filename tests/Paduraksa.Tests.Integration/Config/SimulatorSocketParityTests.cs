@@ -12,8 +12,6 @@ using Paduraksa.Proxy.Simulation;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
 using Paduraksa.Tests.Integration.Proxy;
-using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Integration.Config.ConfigTestSupport;
 
 namespace Paduraksa.Tests.Integration.Config;
@@ -30,7 +28,7 @@ public sealed class SimulatorSocketParityTests
 
     private static async Task<PaduraksaHost> StartAsync(CancellationToken ct)
     {
-        PaduraksaHost host = TestHost.Create();
+        var host = TestHost.Create();
         await host.StartAsync(ct);
         await CommitAsync(host, new UpsertHostCommand(RespondHost("app", "app.test", "app-body")), ct);
         await CommitAsync(host, new UpsertHostCommand(RespondHost("strict", "strict.test", "strict-body") with { Settings = new HostSettings { Tls = new TlsSettings { MinimumVersion = TlsMinimumVersion.Tls13 } } }), ct);
@@ -51,8 +49,8 @@ public sealed class SimulatorSocketParityTests
     [Fact]
     public async Task ADuplicateOrInvalidHostOnHttp1IsA400BeforeTheGate()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = await StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = await StartAsync(ct);
 
         // The server: 400 for two Hosts, and for a Host that isn't one. The default host (404) never gets to answer.
         Assert.Equal(400, Status(await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: app.test\r\nHost: app.test\r\nConnection: close\r\n\r\n"))));
@@ -61,17 +59,17 @@ public sealed class SimulatorSocketParityTests
         Assert.Equal(200, Status(await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: app.test\r\nConnection: close\r\n\r\n"))));
 
         // The simulation says the same.
-        SimulationResult duplicate = await SimulateAsync(host, new SimulationRequest("http://app.test/", "203.0.113.7", Headers: [new SimulationHeader("Host", "app.test"), new SimulationHeader("Host", "app.test")]), ct);
+        var duplicate = await SimulateAsync(host, new SimulationRequest("http://app.test/", "203.0.113.7", Headers: [new SimulationHeader("Host", "app.test"), new SimulationHeader("Host", "app.test")]), ct);
         Assert.Equal(SimulationOutcomeKind.RejectedByServer, duplicate.Outcome!.Kind);
         Assert.Equal(400, duplicate.Outcome.StatusCode);
-        SimulationResult invalid = await SimulateAsync(host, new SimulationRequest("http://app.test/", "203.0.113.7", Headers: [new SimulationHeader("Host", "a@b")]), ct);
+        var invalid = await SimulateAsync(host, new SimulationRequest("http://app.test/", "203.0.113.7", Headers: [new SimulationHeader("Host", "a@b")]), ct);
         Assert.Equal(SimulationOutcomeKind.RejectedByServer, invalid.Outcome!.Kind);
-        SimulationResult fine = await SimulateAsync(host, new SimulationRequest("http://app.test/", "203.0.113.7"), ct);
+        var fine = await SimulateAsync(host, new SimulationRequest("http://app.test/", "203.0.113.7"), ct);
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, fine.Outcome!.Kind);
         Assert.Equal(200, fine.Outcome.StatusCode);
 
         // No Host at all can't be said in a request DTO: the probe can.
-        GateSimulation none = GateSimulator.Run(host.Shared.SnapshotStore.Current, new GateProbe { Host = "app.test", HostHeaders = [], ClientAddress = IPAddress.Loopback });
+        var none = GateSimulator.Run(host.Shared.SnapshotStore.Current, new GateProbe { Host = "app.test", HostHeaders = [], ClientAddress = IPAddress.Loopback });
         Assert.Equal(GateReason.RejectedByServer, none.Outcome.Reason);
         Assert.Equal(400, none.Outcome.StatusCode);
     }
@@ -79,27 +77,27 @@ public sealed class SimulatorSocketParityTests
     [Fact]
     public async Task ADotSegmentPathReachesTheAcmeTokenAsTheServerSeesIt()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = await StartAsync(ct);
-        string path = $"/x/../.well-known/./acme-challenge/{Token}";
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = await StartAsync(ct);
+        var path = $"/x/../.well-known/./acme-challenge/{Token}";
 
         // The server normalises before the gate: the challenge is answered, on any Host.
-        string real = await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes($"GET {path} HTTP/1.1\r\nHost: nobody.test\r\nConnection: close\r\n\r\n"));
+        var real = await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes($"GET {path} HTTP/1.1\r\nHost: nobody.test\r\nConnection: close\r\n\r\n"));
         Assert.Equal(200, Status(real));
         Assert.EndsWith(KeyAuthorization, real, StringComparison.Ordinal);
 
-        SimulationResult simulated = await SimulateAsync(host, new SimulationRequest($"http://nobody.test{path}", "203.0.113.7"), ct);
+        var simulated = await SimulateAsync(host, new SimulationRequest($"http://nobody.test{path}", "203.0.113.7"), ct);
         Assert.Equal(SimulationOutcomeKind.AcmeChallengeAnswer, simulated.Outcome!.Kind);
         Assert.Equal(200, simulated.Outcome.StatusCode);
         Assert.Equal(KeyAuthorization, simulated.Outcome.Body);
 
         // Escaped dots, and a path that isn't UTF-8.
-        string escaped = await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes($"GET /a/%2E%2E/.well-known/acme-challenge/{Token} HTTP/1.1\r\nHost: nobody.test\r\nConnection: close\r\n\r\n"));
+        var escaped = await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes($"GET /a/%2E%2E/.well-known/acme-challenge/{Token} HTTP/1.1\r\nHost: nobody.test\r\nConnection: close\r\n\r\n"));
         Assert.Equal(200, Status(escaped));
         Assert.Equal(SimulationOutcomeKind.AcmeChallengeAnswer, AcmeKind(await SimulateAsync(host, new SimulationRequest($"http://nobody.test/a/%2E%2E/.well-known/acme-challenge/{Token}", "203.0.113.7"), ct)));
 
-        int invalid = Status(await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes("GET /%C3 HTTP/1.1\r\nHost: app.test\r\nConnection: close\r\n\r\n")));
-        SimulationResult invalidSimulated = await SimulateAsync(host, new SimulationRequest("http://app.test/%C3", "203.0.113.7"), ct);
+        var invalid = Status(await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes("GET /%C3 HTTP/1.1\r\nHost: app.test\r\nConnection: close\r\n\r\n")));
+        var invalidSimulated = await SimulateAsync(host, new SimulationRequest("http://app.test/%C3", "203.0.113.7"), ct);
         Assert.Equal(200, invalid); // not a 400: the server leaves bytes that aren't UTF-8 encoded
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, invalidSimulated.Outcome!.Kind);
         Assert.Equal(200, invalidSimulated.Outcome.StatusCode);
@@ -110,15 +108,15 @@ public sealed class SimulatorSocketParityTests
     [Fact]
     public async Task ATls12ClientToANameThatRequiresTls13NeverGetsAHandshake()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = await StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = await StartAsync(ct);
 
         // Real: TLS 1.2 only is refused, TLS 1.3 works.
         Assert.False(await HandshakeSucceedsAsync(host, "strict.test", SslProtocols.Tls12, SslApplicationProtocol.Http11, ct));
         Assert.True(await HandshakeSucceedsAsync(host, "strict.test", SslProtocols.Tls13, SslApplicationProtocol.Http11, ct));
         Assert.True(await HandshakeSucceedsAsync(host, "app.test", SslProtocols.Tls12, SslApplicationProtocol.Http11, ct));
 
-        SimulationResult tooOld = await SimulateAsync(host, new SimulationRequest("https://strict.test/", "203.0.113.7", Tls: new SimulationTls(TlsVersion: SimulationTlsVersion.Tls12)), ct);
+        var tooOld = await SimulateAsync(host, new SimulationRequest("https://strict.test/", "203.0.113.7", Tls: new SimulationTls(TlsVersion: SimulationTlsVersion.Tls12)), ct);
         Assert.Equal(SimulationOutcomeKind.HandshakeRejected, tooOld.Outcome!.Kind);
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, (await SimulateAsync(host, new SimulationRequest("https://strict.test/", "203.0.113.7"), ct)).Outcome!.Kind);
         Assert.Equal(SimulationOutcomeKind.FixedAnswer, (await SimulateAsync(host, new SimulationRequest("https://app.test/", "203.0.113.7", Tls: new SimulationTls(TlsVersion: SimulationTlsVersion.Tls12)), ct)).Outcome!.Kind);
@@ -127,41 +125,41 @@ public sealed class SimulatorSocketParityTests
     [Fact]
     public async Task AnH2ClientToANameThatOffersOnlyHttp11FallsBackToHttp11()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = await StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = await StartAsync(ct);
 
         // Real: the same client negotiates h2 for app.test and http/1.1 for h1.test, and both are answered 200.
-        using HttpClient client = EdgeClient.Create(out _);
+        using var client = EdgeClient.Create(out _);
         await AssertAnsweredOverAsync(host, client, "app.test", HttpVersion.Version20, ct);
         await AssertAnsweredOverAsync(host, client, "h1.test", HttpVersion.Version11, ct);
 
-        SimulationResult app = await SimulateAsync(host, new SimulationRequest("https://app.test/", "203.0.113.7"), ct);
-        SimulationResult h1 = await SimulateAsync(host, new SimulationRequest("https://h1.test/", "203.0.113.7"), ct);
+        var app = await SimulateAsync(host, new SimulationRequest("https://app.test/", "203.0.113.7"), ct);
+        var h1 = await SimulateAsync(host, new SimulationRequest("https://h1.test/", "203.0.113.7"), ct);
         Assert.Equal("h2", Fact(app, SimulationStepKind.TlsHandshake, "alpn"));
         Assert.Equal("http/1.1", Fact(h1, SimulationStepKind.TlsHandshake, "alpn"));
         Assert.Equal(200, h1.Outcome!.StatusCode);
 
         // A connection negotiated for app.test (h2) that asks for h1.test is misdirected: a 421 on the wire, and in the trace.
-        int status = await Http2Client.StatusAsync(host, "app.test", "h1.test", "/", [], ct);
+        var status = await Http2Client.StatusAsync(host, "app.test", "h1.test", "/", [], ct);
         Assert.Equal(421, status);
-        SimulationResult coalesced = await SimulateAsync(host, new SimulationRequest("https://h1.test/", "203.0.113.7", Tls: new SimulationTls("app.test")), ct);
+        var coalesced = await SimulateAsync(host, new SimulationRequest("https://h1.test/", "203.0.113.7", Tls: new SimulationTls("app.test")), ct);
         Assert.Equal(SimulationOutcomeKind.MisdirectedRequest, coalesced.Outcome!.Kind);
     }
 
     [Fact]
     public async Task OnHttp2TheAuthorityIsTheHostWhateverTheHostHeaderSays()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using PaduraksaHost host = await StartAsync(ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = await StartAsync(ct);
 
         // Real: :authority names app.test (answered 200 by that host); a different Host header changes nothing.
-        int same = await Http2Client.StatusAsync(host, "app.test", "app.test", "/", [], ct);
-        int differs = await Http2Client.StatusAsync(host, "app.test", "app.test", "/", [("host", "nobody.test")], ct);
-        int duplicate = await Http2Client.StatusAsync(host, "app.test", "app.test", "/", [("host", "nobody.test"), ("host", "other.test")], ct);
+        var same = await Http2Client.StatusAsync(host, "app.test", "app.test", "/", [], ct);
+        var differs = await Http2Client.StatusAsync(host, "app.test", "app.test", "/", [("host", "nobody.test")], ct);
+        var duplicate = await Http2Client.StatusAsync(host, "app.test", "app.test", "/", [("host", "nobody.test"), ("host", "other.test")], ct);
 
         Assert.Equal(200, same);
         SimulationRequest request = new("https://app.test/", "203.0.113.7", Headers: [new SimulationHeader("Host", "nobody.test")]);
-        SimulationResult simulated = await SimulateAsync(host, request, ct);
+        var simulated = await SimulateAsync(host, request, ct);
 
         // What the server did with a Host header that disagrees is what the simulation must say; pinned below.
         Assert.Equal(differs, simulated.Outcome!.StatusCode ?? -1);
@@ -170,9 +168,9 @@ public sealed class SimulatorSocketParityTests
 
     private static async Task AssertAnsweredOverAsync(PaduraksaHost host, HttpClient client, string name, Version expected, CancellationToken ct)
     {
-        using HttpRequestMessage request = EdgeClient.Request(host, "https", name, "/", HttpVersion.Version20);
+        using var request = EdgeClient.Request(host, "https", name, "/", HttpVersion.Version20);
         request.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
-        using HttpResponseMessage response = await client.SendAsync(request, ct);
+        using var response = await client.SendAsync(request, ct);
         Assert.Equal(200, (int)response.StatusCode);
         Assert.Equal(expected, response.Version);
     }
@@ -228,7 +226,7 @@ internal static class Http2Client
         List<byte> block = [0x82, 0x87];
         Literal(block, 0x04, path);
         Literal(block, 0x01, authority);
-        foreach ((string name, string value) in headers)
+        foreach (var (name, value) in headers)
         {
             block.Add(0x00);
             Text(block, name);
@@ -241,9 +239,9 @@ internal static class Http2Client
         await tls.WriteAsync(request.ToArray(), ct);
         await tls.FlushAsync(ct);
 
-        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        byte[] header = new byte[9];
+        var header = new byte[9];
         while (true)
         {
             try
@@ -255,11 +253,11 @@ internal static class Http2Client
                 return -1;
             }
 
-            int length = (header[0] << 16) | (header[1] << 8) | header[2];
-            byte[] payload = new byte[length];
+            var length = (header[0] << 16) | (header[1] << 8) | header[2];
+            var payload = new byte[length];
             await tls.ReadExactlyAsync(payload, timeout.Token);
-            byte type = header[3];
-            int stream = ((header[5] & 0x7f) << 24) | (header[6] << 16) | (header[7] << 8) | header[8];
+            var type = header[3];
+            var stream = ((header[5] & 0x7f) << 24) | (header[6] << 16) | (header[7] << 8) | header[8];
             if (type == 0x4 && (header[4] & 0x1) == 0)
             {
                 await tls.WriteAsync(new byte[] { 0, 0, 0, 4, 1, 0, 0, 0, 0 }, timeout.Token); // SETTINGS ack
@@ -285,7 +283,7 @@ internal static class Http2Client
         }
 
         // A literal with the :status name (index 8): the value follows as text.
-        int length = block[1] & 0x7f;
+        var length = block[1] & 0x7f;
         return int.Parse(Encoding.ASCII.GetString(block, 2, length), System.Globalization.CultureInfo.InvariantCulture);
     }
 
@@ -297,7 +295,7 @@ internal static class Http2Client
 
     private static void Text(List<byte> block, string value)
     {
-        byte[] bytes = Encoding.ASCII.GetBytes(value);
+        var bytes = Encoding.ASCII.GetBytes(value);
         block.Add((byte)bytes.Length);
         block.AddRange(bytes);
     }

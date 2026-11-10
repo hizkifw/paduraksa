@@ -21,18 +21,18 @@ public sealed partial class DashboardEndToEndTests
     [Fact]
     public async Task SetUp_SignInWithTotp_SeeTheOverview_LoseTheSessionToARevocation_AndSignOut()
     {
-        (IPlaywright playwright, IBrowser browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using IPlaywright ownedPlaywright = playwright;
-        await using IBrowser ownedBrowser = browser;
-        await using DashboardHost host = await DashboardHost.StartAsync(Ct);
-        await using IBrowserContext context = await browser.NewContextAsync(new BrowserNewContextOptions
+        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
+        using var ownedPlaywright = playwright;
+        await using var ownedBrowser = browser;
+        await using var host = await DashboardHost.StartAsync(Ct);
+        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = host.Admin.ToString(),
             IgnoreHTTPSErrors = true, // the admin's certificate comes from the process's own local CA
             ViewportSize = new ViewportSize { Width = 1366, Height = 860 },
             ColorScheme = ColorScheme.Dark,
         });
-        IPage page = await context.NewPageAsync();
+        var page = await context.NewPageAsync();
         List<string> policyViolations = [];
         page.Console += (_, message) =>
         {
@@ -60,7 +60,7 @@ public sealed partial class DashboardEndToEndTests
         await ExpectOverviewAsync(page);
 
         // A second factor for the Owner, through the API with the browser's own session.
-        (string provisioningUri, string recoveryCode) = await EnrolTotpAsync(context);
+        var (provisioningUri, recoveryCode) = await EnrolTotpAsync(context);
 
         // Sign out from the user menu.
         await SignOutAsync(page);
@@ -135,27 +135,27 @@ public sealed partial class DashboardEndToEndTests
     /// <summary>Starts and confirms a TOTP enrolment as the signed-in browser; returns the provisioning URI and one recovery code.</summary>
     private static async Task<(string ProvisioningUri, string RecoveryCode)> EnrolTotpAsync(IBrowserContext context)
     {
-        using JsonDocument started = await PostJsonAsync(context, "api/v1/me/totp/enrollment", new { password = DashboardHost.OwnerPassword });
-        string uri = started.RootElement.GetProperty("provisioningUri").GetString()!;
-        using JsonDocument confirmed = await PostJsonAsync(context, "api/v1/me/totp/enrollment/confirm", new { code = TotpOracle.CodeFor(uri) });
+        using var started = await PostJsonAsync(context, "api/v1/me/totp/enrollment", new { password = DashboardHost.OwnerPassword });
+        var uri = started.RootElement.GetProperty("provisioningUri").GetString()!;
+        using var confirmed = await PostJsonAsync(context, "api/v1/me/totp/enrollment/confirm", new { code = TotpOracle.CodeFor(uri) });
         return (uri, confirmed.RootElement.GetProperty("codes")[0].GetString()!);
     }
 
     /// <summary>Ends the browser's own session through the API, as another tab or another admin would.</summary>
     private static async Task RevokeOwnSessionAsync(IBrowserContext context)
     {
-        IAPIResponse me = await context.APIRequest.GetAsync("api/v1/auth/me", new() { Headers = SameOrigin });
+        var me = await context.APIRequest.GetAsync("api/v1/auth/me", new() { Headers = SameOrigin });
         Assert.True(me.Ok, $"auth/me answered {me.Status}");
-        using JsonDocument caller = JsonDocument.Parse(await me.TextAsync());
-        string session = caller.RootElement.GetProperty("sessionId").GetString()!;
-        IAPIResponse revoked = await context.APIRequest.DeleteAsync($"api/v1/sessions/{session}", new() { Headers = SameOrigin });
+        using var caller = JsonDocument.Parse(await me.TextAsync());
+        var session = caller.RootElement.GetProperty("sessionId").GetString()!;
+        var revoked = await context.APIRequest.DeleteAsync($"api/v1/sessions/{session}", new() { Headers = SameOrigin });
         Assert.True(revoked.Ok, $"revoking the session answered {revoked.Status}");
     }
 
     private static async Task<JsonDocument> PostJsonAsync(IBrowserContext context, string path, object body)
     {
-        IAPIResponse response = await context.APIRequest.PostAsync(path, new() { DataObject = body, Headers = SameOrigin });
-        string text = await response.TextAsync();
+        var response = await context.APIRequest.PostAsync(path, new() { DataObject = body, Headers = SameOrigin });
+        var text = await response.TextAsync();
         Assert.True(response.Ok, $"{path} answered {response.Status}: {text}");
         return JsonDocument.Parse(text);
     }

@@ -48,7 +48,7 @@
 
     private async Task Open(TwoFactorStep step)
     {
-        DrawerResult result = await Drawers.OpenAsync<TwoFactorDrawer>(TwoFactorDrawer.For(step, Username), step == TwoFactorStep.Enrol ? DrawerWidth.Medium : DrawerWidth.Narrow);
+        var result = await Drawers.OpenAsync<TwoFactorDrawer>(TwoFactorDrawer.For(step, Username), step == TwoFactorStep.Enrol ? DrawerWidth.Medium : DrawerWidth.Narrow);
         if (!result.Canceled)
         {
             await Changed.InvokeAsync();

@@ -105,7 +105,7 @@ public sealed class HostTableTests
         HostTable.Builder builder = new();
         Assert.True(builder.TryAdd(first, Host("one"), out _));
 
-        Assert.False(builder.TryAdd(second, Host("two"), out string? error));
+        Assert.False(builder.TryAdd(second, Host("two"), out var error));
         Assert.Contains("duplicate host name", error, StringComparison.Ordinal);
         Assert.Contains($"'{TestIds.Host("one")}'", error, StringComparison.Ordinal);
         Assert.Contains($"'{TestIds.Host("two")}'", error, StringComparison.Ordinal);
@@ -127,7 +127,7 @@ public sealed class HostTableTests
             (Table, inputs),
             static s =>
             {
-                foreach (string input in s.inputs)
+                foreach (var input in s.inputs)
                 {
                     _ = s.Table.Find(input);
                 }
@@ -148,9 +148,9 @@ public sealed class HostTableTests
     private static HostTable Build(params (string Name, CompiledHost Host)[] entries)
     {
         HostTable.Builder builder = new();
-        foreach ((string name, CompiledHost host) in entries)
+        foreach (var (name, host) in entries)
         {
-            Assert.True(builder.TryAdd(name, host, out string? error), error);
+            Assert.True(builder.TryAdd(name, host, out var error), error);
         }
 
         return builder.Build();

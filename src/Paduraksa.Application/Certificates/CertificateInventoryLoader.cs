@@ -76,7 +76,7 @@ internal sealed partial class CertificateInventoryLoader
     public async Task<CertificateInventory> LoadAsync(ConfigDbContext? context, ConfigDocument document, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
-        DateTimeOffset now = _timeProvider.GetUtcNow();
+        var now = _timeProvider.GetUtcNow();
         List<InventoryCertificate> entries = [];
         HashSet<CertificateId> seen = [];
         CertificateId? fallbackDefault = null;
@@ -85,7 +85,7 @@ internal sealed partial class CertificateInventoryLoader
         // The admin listener's own certificate never takes part in the proxy's selection: it is reserved
         // for the admin port, so Auto never picks it, a Specific binding to it is refused by the validator, and its validity
         // boundaries never trigger a config republish (the table query below leaves it out too).
-        foreach (BuiltInCertificate builtIn in _builtIns?.Current ?? [])
+        foreach (var builtIn in _builtIns?.Current ?? [])
         {
             if (builtIn.Id == AdminCertificate.Id)
             {
@@ -104,7 +104,7 @@ internal sealed partial class CertificateInventoryLoader
 
         if (context is not null)
         {
-            foreach (InventoryCertificate stored in await ReadTableAsync(context, now, boundaries, cancellationToken).ConfigureAwait(false))
+            foreach (var stored in await ReadTableAsync(context, now, boundaries, cancellationToken).ConfigureAwait(false))
             {
                 if (seen.Add(stored.Id))
                 {
@@ -124,9 +124,9 @@ internal sealed partial class CertificateInventoryLoader
                 break;
             }
 
-            foreach (CertificateId id in toLoad)
+            foreach (var id in toLoad)
             {
-                (ServerCertificate? serving, string? reason) = _simulation
+                var (serving, reason) = _simulation
                     ? await ServeForSimulationAsync(id, now, cancellationToken).ConfigureAwait(false)
                     : (await LoadOneAsync(id, cancellationToken).ConfigureAwait(false), null);
                 if (serving is not null)
@@ -142,9 +142,9 @@ internal sealed partial class CertificateInventoryLoader
 
         return new CertificateInventory(
             [
-                .. entries.Select(e => loaded.TryGetValue(e.Id, out ServerCertificate? serving)
+                .. entries.Select(e => loaded.TryGetValue(e.Id, out var serving)
                     ? e with { Serving = serving }
-                    : failed.TryGetValue(e.Id, out string? reason) ? e with { UnusableReason = reason } : e),
+                    : failed.TryGetValue(e.Id, out var reason) ? e with { UnusableReason = reason } : e),
             ],
             fallbackDefault,
             boundaries.Count == 0 ? null : boundaries.Min());
@@ -159,8 +159,8 @@ internal sealed partial class CertificateInventoryLoader
     /// cref="Judge"/>: the table's row can be older than the vault's renewed pair).</summary>
     private async Task<(ServerCertificate? Serving, string? Reason)> ServeForSimulationAsync(CertificateId id, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        bool builtIn = false;
-        foreach (BuiltInCertificate candidate in _builtIns?.Current ?? [])
+        var builtIn = false;
+        foreach (var candidate in _builtIns?.Current ?? [])
         {
             builtIn |= candidate.Id == id;
         }
@@ -206,7 +206,7 @@ internal sealed partial class CertificateInventoryLoader
             .Select(n => new { n.CertificateId, n.Name })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
-        ILookup<CertificateId, string> namesById = names.ToLookup(n => n.CertificateId, n => n.Name);
+        var namesById = names.ToLookup(n => n.CertificateId, n => n.Name);
         return [.. rows.Select(r => Judge(r.Id, r.Status, [.. namesById[r.Id]], r.NotBefore, r.NotAfter, now, boundaries))];
     }
 
@@ -250,9 +250,9 @@ internal sealed partial class CertificateInventoryLoader
         DateTimeOffset now,
         List<DateTimeOffset> boundaries)
     {
-        DateTimeOffset validFrom = notBefore - NotBeforeTolerance;
-        DateTimeOffset expiredFrom = notAfter + TimeSpan.FromSeconds(1);
-        string? reason = ValidityReason(status, notBefore, notAfter, now);
+        var validFrom = notBefore - NotBeforeTolerance;
+        var expiredFrom = notAfter + TimeSpan.FromSeconds(1);
+        var reason = ValidityReason(status, notBefore, notAfter, now);
         if (status == CertificateStatus.Active)
         {
             if (validFrom > now)
@@ -272,8 +272,8 @@ internal sealed partial class CertificateInventoryLoader
     /// <summary>Why a certificate with this status and validity period can't be used at <paramref name="now"/>; null when it can.</summary>
     private static string? ValidityReason(CertificateStatus status, DateTimeOffset notBefore, DateTimeOffset notAfter, DateTimeOffset now)
     {
-        DateTimeOffset validFrom = notBefore - NotBeforeTolerance;
-        DateTimeOffset expiredFrom = notAfter + TimeSpan.FromSeconds(1);
+        var validFrom = notBefore - NotBeforeTolerance;
+        var expiredFrom = notAfter + TimeSpan.FromSeconds(1);
         return status switch
         {
             CertificateStatus.Pending => "it is pending: no chain is attached yet",

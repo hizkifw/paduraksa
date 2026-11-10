@@ -48,8 +48,8 @@ public static class CanonicalConfigJson
             throw new JsonException(UnsupportedApiVersionMessage(version), "$.apiVersion", null, null);
         }
 
-        ConfigDocument document = JsonSerializer.Deserialize(utf8Json, ConfigJsonContext.Default.ConfigDocument)
-            ?? throw new JsonException("The config document can't be null.");
+        var document = JsonSerializer.Deserialize(utf8Json, ConfigJsonContext.Default.ConfigDocument)
+                       ?? throw new JsonException("The config document can't be null.");
         RejectNullElements(document);
         return document;
     }
@@ -97,7 +97,7 @@ public static class CanonicalConfigJson
 
             while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
             {
-                bool isApiVersion = reader.ValueTextEquals("apiVersion"u8);
+                var isApiVersion = reader.ValueTextEquals("apiVersion"u8);
                 if (!reader.Read())
                 {
                     return null;
@@ -128,8 +128,8 @@ public static class CanonicalConfigJson
     public static ConfigDocument Canonicalize(ConfigDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        GlobalSettings settings = document.Settings ?? new();
-        TrustedProxySettings trusted = settings.TrustedProxies ?? new();
+        var settings = document.Settings ?? new();
+        var trusted = settings.TrustedProxies ?? new();
         return document with
         {
             Settings = settings with
@@ -171,7 +171,7 @@ public static class CanonicalConfigJson
         catch (JsonException ex)
         {
             // The only JsonException this block throws is our own null-element check, so a fixed sentence with the pointer is exact.
-            string pointer = ToJsonPointer(ex.Path);
+            var pointer = ToJsonPointer(ex.Path);
             return new ConfigError(
                 pointer,
                 InvalidJsonCode,
@@ -189,7 +189,7 @@ public static class CanonicalConfigJson
     {
         static void Check<T>(IReadOnlyList<T>? items, string path)
         {
-            for (int i = 0; i < (items?.Count ?? 0); i++)
+            for (var i = 0; i < (items?.Count ?? 0); i++)
             {
                 if (items![i] is null)
                 {
@@ -203,26 +203,26 @@ public static class CanonicalConfigJson
         Settings(document.Settings.Defaults, "$.settings.defaults");
         Check(document.Settings.TrustedProxies.Proxies, "$.settings.trustedProxies.proxies");
         Check(document.Profiles, "$.profiles");
-        for (int i = 0; i < document.Profiles.Count; i++)
+        for (var i = 0; i < document.Profiles.Count; i++)
         {
             Settings(document.Profiles[i].Settings, $"$.profiles[{i}].settings");
         }
 
         Check(document.Upstreams, "$.upstreams");
-        for (int i = 0; i < document.Upstreams.Count; i++)
+        for (var i = 0; i < document.Upstreams.Count; i++)
         {
             Check(document.Upstreams[i].Destinations, $"$.upstreams[{i}].destinations");
         }
 
         Check(document.Hosts, "$.hosts");
-        for (int i = 0; i < document.Hosts.Count; i++)
+        for (var i = 0; i < document.Hosts.Count; i++)
         {
-            HostConfig host = document.Hosts[i];
-            string path = $"$.hosts[{i}]";
+            var host = document.Hosts[i];
+            var path = $"$.hosts[{i}]";
             Check(host.Names, $"{path}.names");
             Settings(host.Settings, $"{path}.settings");
             Check(host.Routes, $"{path}.routes");
-            for (int j = 0; j < host.Routes.Count; j++)
+            for (var j = 0; j < host.Routes.Count; j++)
             {
                 Check(host.Routes[j].Settings.IpAllowList?.Addresses, $"{path}.routes[{j}].settings.ipAllowList.addresses");
             }
@@ -251,26 +251,26 @@ public static class CanonicalConfigJson
         }
 
         StringBuilder pointer = new();
-        int i = jsonPath[0] == '$' ? 1 : 0;
+        var i = jsonPath[0] == '$' ? 1 : 0;
         while (i < jsonPath.Length)
         {
             if (jsonPath[i] == '.')
             {
-                int end = jsonPath.IndexOfAny(['.', '['], i + 1);
+                var end = jsonPath.IndexOfAny(['.', '['], i + 1);
                 end = end < 0 ? jsonPath.Length : end;
                 AppendToken(pointer, jsonPath[(i + 1)..end]);
                 i = end;
             }
             else if (jsonPath.AsSpan(i).StartsWith("['"))
             {
-                int end = jsonPath.IndexOf("']", i + 2, StringComparison.Ordinal);
+                var end = jsonPath.IndexOf("']", i + 2, StringComparison.Ordinal);
                 end = end < 0 ? jsonPath.Length : end;
                 AppendToken(pointer, jsonPath[(i + 2)..end].Replace("\\'", "'", StringComparison.Ordinal));
                 i = Math.Min(end + 2, jsonPath.Length);
             }
             else if (jsonPath[i] == '[')
             {
-                int end = jsonPath.IndexOf(']', i + 1);
+                var end = jsonPath.IndexOf(']', i + 1);
                 end = end < 0 ? jsonPath.Length : end;
                 AppendToken(pointer, jsonPath[(i + 1)..end]);
                 i = Math.Min(end + 1, jsonPath.Length);

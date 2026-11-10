@@ -63,7 +63,7 @@ internal static class ConfigCommandResponses
     {
         ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(result);
-        int status = ApiStatusMapping.Of(result.Status, kind);
+        var status = ApiStatusMapping.Of(result.Status, kind);
         if (result.Status == ConfigCommandStatus.PublishFailed)
         {
             if (result.Version is { } stored)

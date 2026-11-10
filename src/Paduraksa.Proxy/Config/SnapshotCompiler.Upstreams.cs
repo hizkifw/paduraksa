@@ -22,9 +22,9 @@ public static partial class SnapshotCompiler
         // Insertion-ordered by construction.
         Dictionary<UpstreamId, ClusterConfig> clusters = [];
         Dictionary<string, UpstreamId> clusterIds = new(StringComparer.OrdinalIgnoreCase);
-        foreach (UpstreamSpec spec in upstreams)
+        foreach (var spec in upstreams)
         {
-            CompileErrorSource where = CompileErrorSource.Upstream(spec.Id);
+            var where = CompileErrorSource.Upstream(spec.Id);
             if (spec.Id.IsEmpty)
             {
                 errors.Add(new(where, "the upstream ID is empty"));
@@ -37,7 +37,7 @@ public static partial class SnapshotCompiler
                 continue;
             }
 
-            string clusterId = spec.Id.ToString();
+            var clusterId = spec.Id.ToString();
             if (!clusterIds.TryAdd(clusterId, spec.Id))
             {
                 errors.Add(new(where, CaseCollision("upstream", clusterId, clusterIds[clusterId].ToString())));
@@ -53,22 +53,22 @@ public static partial class SnapshotCompiler
                 withoutDestinations.Add(spec.Id);
             }
 
-            foreach (DestinationSpec destination in spec.Destinations ?? [])
+            foreach (var destination in spec.Destinations ?? [])
             {
-                string destinationId = destination.Id.ToString();
-                CompileErrorSource destinationWhere = CompileErrorSource.Destination(spec.Id, destination.Id);
+                var destinationId = destination.Id.ToString();
+                var destinationWhere = CompileErrorSource.Destination(spec.Id, destination.Id);
                 if (destination.Id.IsEmpty)
                 {
                     errors.Add(new(destinationWhere, "the destination ID is empty"));
                 }
-                else if (!Uri.TryCreate(destination.Address, UriKind.Absolute, out Uri? address)
+                else if (!Uri.TryCreate(destination.Address, UriKind.Absolute, out var address)
                     || (address.Scheme != Uri.UriSchemeHttp && address.Scheme != Uri.UriSchemeHttps))
                 {
                     errors.Add(new(destinationWhere, $"needs an absolute http or https address, got '{destination.Address}'"));
                 }
                 else if (!destinationIds.TryAdd(destinationId, destination.Id))
                 {
-                    DestinationId existing = destinationIds[destinationId];
+                    var existing = destinationIds[destinationId];
                     errors.Add(new(destinationWhere, existing == destination.Id
                         ? "duplicate destination ID"
                         : CaseCollision("destination", destinationId, existing.ToString())));
@@ -136,8 +136,8 @@ public static partial class SnapshotCompiler
 
     private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors)
     {
-        IRequestPolicy[] policies = new IRequestPolicy[specs.Count];
-        for (int i = 0; i < specs.Count; i++)
+        var policies = new IRequestPolicy[specs.Count];
+        for (var i = 0; i < specs.Count; i++)
         {
             policies[i] = CompilePolicy(specs[i], where, errors);
         }
@@ -160,8 +160,8 @@ public static partial class SnapshotCompiler
             case DropPolicySpec:
                 return new StaticPolicy(PolicyDecision.Drop);
             case IpAllowListPolicySpec allow:
-                CidrSet allowed = CompileCidrs(allow.Addresses ?? [], where, errors);
-                PolicyDecision denied = allow.DropDenied
+                var allowed = CompileCidrs(allow.Addresses ?? [], where, errors);
+                var denied = allow.DropDenied
                     ? PolicyDecision.Drop
                     : PolicyDecision.Respond(PrecomputedResponse.Text(StatusCodes.Status403Forbidden, "forbidden\n"));
                 return new IpAllowListPolicy(allowed, denied);
@@ -176,9 +176,9 @@ public static partial class SnapshotCompiler
     private static TrustedProxyPolicy CompileTrustedProxies(TrustedProxySpec? spec, SnapshotCompilerOptions options, List<CompileError> errors)
     {
         spec ??= TrustedProxySpec.Off;
-        CompileErrorSource where = CompileErrorSource.TrustedProxies;
-        IReadOnlyList<string> proxies = spec.Proxies ?? [];
-        bool cloudflare = spec.Mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
+        var where = CompileErrorSource.TrustedProxies;
+        var proxies = spec.Proxies ?? [];
+        var cloudflare = spec.Mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
         if (spec.Header is not null && spec.Mode != TrustedProxyMode.Generic)
         {
             errors.Add(new(where, "a header is only configurable in Generic mode (Cloudflare modes read CF-Connecting-IP)"));
@@ -217,7 +217,7 @@ public static partial class SnapshotCompiler
                     return TrustedProxyPolicy.Off;
                 }
 
-                CidrSet peers = CompileCidrs(proxies, where, errors);
+                var peers = CompileCidrs(proxies, where, errors);
                 if (spec.Mode == TrustedProxyMode.CloudflareTunnel)
                 {
                     return TrustedProxyPolicy.CloudflareTunnel(peers, spec.UseTrueClientIp, spec.ForwardedForFallback);
@@ -249,9 +249,9 @@ public static partial class SnapshotCompiler
     private static CidrSet CompileCidrs(IReadOnlyList<string> blocks, CompileErrorSource where, List<CompileError> errors)
     {
         CidrSet.Builder builder = new();
-        foreach (string block in blocks)
+        foreach (var block in blocks)
         {
-            if (!IpNetwork.TryParse(block ?? string.Empty, out IpNetwork network, out string? error))
+            if (!IpNetwork.TryParse(block ?? string.Empty, out var network, out var error))
             {
                 errors.Add(new(where, $"'{block}' isn't an IP address or CIDR ({error})"));
                 continue;

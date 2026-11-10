@@ -4,7 +4,6 @@ using System.Text;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Admin.Auth;
@@ -23,20 +22,20 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     [Fact]
     public async Task EveryAdminResponseCarriesTheSecurityHeaders()
     {
-        AdminHarness h = shared.Harness;
+        var h = shared.Harness;
 
-        foreach (string path in new[] { "/api/v1/auth/me", "/api/v1/setup", "/healthz", "/", "/api/v1/missing" })
+        foreach (var path in new[] { "/api/v1/auth/me", "/api/v1/setup", "/healthz", "/", "/api/v1/missing" })
         {
             // Reached by name, as a LAN client would: HSTS applies. By a loopback name it does not (see below).
-            using AdminResponse response = await h.SendAsync(HttpMethod.Get, path, headers: new Dictionary<string, string> { ["Host"] = "admin.example.test" });
+            using var response = await h.SendAsync(HttpMethod.Get, path, headers: new Dictionary<string, string> { ["Host"] = "admin.example.test" });
 
             AssertSecurityHeaders(response, path.StartsWith("/api/", StringComparison.Ordinal));
             Assert.StartsWith("max-age=", response.Header("Strict-Transport-Security"), StringComparison.Ordinal);
         }
 
-        foreach (string host in new[] { "localhost:9443", "127.0.0.1:9443", "[::1]:9443" })
+        foreach (var host in new[] { "localhost:9443", "127.0.0.1:9443", "[::1]:9443" })
         {
-            using AdminResponse loopback = await h.SendAsync(HttpMethod.Get, "/healthz", headers: new Dictionary<string, string> { ["Host"] = host });
+            using var loopback = await h.SendAsync(HttpMethod.Get, "/healthz", headers: new Dictionary<string, string> { ["Host"] = host });
             Assert.Null(loopback.Header("Strict-Transport-Security"));
         }
     }
@@ -56,41 +55,41 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     [Fact]
     public async Task TheShortCircuitResponsesCarryTheSecurityHeadersToo()
     {
-        await using AdminHarness gated = await AdminHarness.StartAsync(new Dictionary<string, string?> { ["Paduraksa:Admin:RateLimit:PermitsPerIp"] = "2" });
-        using (AdminResponse closed = await gated.GetAsync("/api/v1/users"))
+        await using var gated = await AdminHarness.StartAsync(new Dictionary<string, string?> { ["Paduraksa:Admin:RateLimit:PermitsPerIp"] = "2" });
+        using (var closed = await gated.GetAsync("/api/v1/users"))
         {
             Assert.Equal(HttpStatusCode.ServiceUnavailable, closed.Status);
             AssertSecurityHeaders(closed, api: true);
         }
 
-        for (int i = 0; i < 2; i++)
+        for (var i = 0; i < 2; i++)
         {
-            using AdminResponse wrong = await gated.PostAsync("/api/v1/setup", Body.Setup("wrong", "user" + i, AdminHarness.Password));
+            using var wrong = await gated.PostAsync("/api/v1/setup", Body.Setup("wrong", "user" + i, AdminHarness.Password));
             Assert.Equal(HttpStatusCode.Forbidden, wrong.Status);
         }
 
-        using (AdminResponse limited = await gated.PostAsync("/api/v1/setup", Body.Setup("wrong", "user3", AdminHarness.Password)))
+        using (var limited = await gated.PostAsync("/api/v1/setup", Body.Setup("wrong", "user3", AdminHarness.Password)))
         {
             Assert.Equal(HttpStatusCode.TooManyRequests, limited.Status);
             AssertSecurityHeaders(limited, api: true);
         }
 
-        await using AdminHarness open = await AdminHarness.StartAsync();
-        string cookie = await open.SetUpOwnerAsync();
-        using (AdminResponse unauthorized = await open.GetAsync("/api/v1/auth/me"))
+        await using var open = await AdminHarness.StartAsync();
+        var cookie = await open.SetUpOwnerAsync();
+        using (var unauthorized = await open.GetAsync("/api/v1/auth/me"))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.Status);
             Assert.Equal("Bearer", unauthorized.Header("WWW-Authenticate"));
             AssertSecurityHeaders(unauthorized, api: true);
         }
 
-        using (AdminResponse crossSite = await open.SendAsync(HttpMethod.Post, "/api/v1/me/password", "{}", cookie, headers: new Dictionary<string, string> { ["Sec-Fetch-Site"] = "cross-site" }))
+        using (var crossSite = await open.SendAsync(HttpMethod.Post, "/api/v1/me/password", "{}", cookie, headers: new Dictionary<string, string> { ["Sec-Fetch-Site"] = "cross-site" }))
         {
             Assert.Equal(HttpStatusCode.Forbidden, crossSite.Status);
             AssertSecurityHeaders(crossSite, api: true);
         }
 
-        using (AdminResponse requireAuth = await open.GetAsync("/api/v1/users"))
+        using (var requireAuth = await open.GetAsync("/api/v1/users"))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, requireAuth.Status); // the permission requirement's 401 has the same shape and challenge
             Assert.Equal("Bearer", requireAuth.Header("WWW-Authenticate"));
@@ -101,10 +100,10 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     [Fact]
     public async Task ARequestBodyOverTheLimitIsRefusedBeforeItIsRead()
     {
-        AdminHarness h = smallBody.Harness;
+        var h = smallBody.Harness;
 
-        using AdminResponse big = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", new string('x', 4096)));
-        using AdminResponse fine = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password));
+        using var big = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", new string('x', 4096)));
+        using var fine = await h.PostAsync("/api/v1/auth/login", Body.Login("owner", AdminHarness.Password));
 
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, big.Status);
         Assert.Equal(HttpStatusCode.OK, fine.Status);
@@ -113,14 +112,14 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     [Fact]
     public async Task ABodyOverTheLimitIsRefusedWhateverItsLengthIsDeclared_OverHttp1AndHttp2()
     {
-        AdminHarness h = smallBody.Harness;
-        string big = Body.Login("owner", new string('x', 4096));
+        var h = smallBody.Harness;
+        var big = Body.Login("owner", new string('x', 4096));
 
-        foreach (Version version in new[] { HttpVersion.Version11, HttpVersion.Version20 })
+        foreach (var version in new[] { HttpVersion.Version11, HttpVersion.Version20 })
         {
-            using AdminResponse declared = await h.SendAsync(HttpMethod.Post, "/api/v1/auth/login", big, version: version);
-            using AdminResponse streamed = await h.SendAsync(HttpMethod.Post, "/api/v1/auth/login", big, version: version, streamed: true);
-            using AdminResponse fine = await h.SendAsync(HttpMethod.Post, "/api/v1/auth/login", Body.Login("owner", AdminHarness.Password), version: version, streamed: true);
+            using var declared = await h.SendAsync(HttpMethod.Post, "/api/v1/auth/login", big, version: version);
+            using var streamed = await h.SendAsync(HttpMethod.Post, "/api/v1/auth/login", big, version: version, streamed: true);
+            using var fine = await h.SendAsync(HttpMethod.Post, "/api/v1/auth/login", Body.Login("owner", AdminHarness.Password), version: version, streamed: true);
 
             Assert.Equal(HttpStatusCode.RequestEntityTooLarge, declared.Status);
             Assert.Equal(HttpStatusCode.RequestEntityTooLarge, streamed.Status);
@@ -131,12 +130,12 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     [Fact]
     public async Task UnknownPropertiesAndMissingMembersInABodyAreRefused()
     {
-        AdminHarness h = shared.Harness;
+        var h = shared.Harness;
 
-        using AdminResponse unknown = await h.PostAsync("/api/v1/auth/login", """{"username":"owner","password":"x","admin":true}""");
-        using AdminResponse missing = await h.PostAsync("/api/v1/auth/login", """{"username":"owner"}""");
-        using AdminResponse notJson = await h.PostAsync("/api/v1/auth/login", "nope");
-        using AdminResponse nulls = await h.PostAsync("/api/v1/auth/login", """{"username":"owner","password":null}""");
+        using var unknown = await h.PostAsync("/api/v1/auth/login", """{"username":"owner","password":"x","admin":true}""");
+        using var missing = await h.PostAsync("/api/v1/auth/login", """{"username":"owner"}""");
+        using var notJson = await h.PostAsync("/api/v1/auth/login", "nope");
+        using var nulls = await h.PostAsync("/api/v1/auth/login", """{"username":"owner","password":null}""");
 
         Assert.Equal(HttpStatusCode.BadRequest, unknown.Status);
         Assert.Equal(HttpStatusCode.BadRequest, missing.Status);
@@ -148,33 +147,33 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     public async Task AClientOutsideTheAllowlistIsRefusedAtTheConnection_AndLoopbackIsNotImplied()
     {
         // The test client connects from 127.0.0.1, which these blocks do not include.
-        await using AdminHarness outside = await AdminHarness.StartAsync(new Dictionary<string, string?>
+        await using var outside = await AdminHarness.StartAsync(new Dictionary<string, string?>
         {
             ["Paduraksa:Listen:AdminAllowedSources:0"] = "203.0.113.0/24",
             ["Paduraksa:Listen:AdminAllowedSources:1"] = "2001:db8::/32",
         });
         await Assert.ThrowsAnyAsync<HttpRequestException>(() => outside.GetAsync("/healthz"));
 
-        await using AdminHarness listed = await AdminHarness.StartAsync(new Dictionary<string, string?>
+        await using var listed = await AdminHarness.StartAsync(new Dictionary<string, string?>
         {
             ["Paduraksa:Listen:AdminAllowedSources:0"] = "203.0.113.0/24",
             ["Paduraksa:Listen:AdminAllowedSources:1"] = "127.0.0.1/32",
         });
-        using AdminResponse response = await listed.GetAsync("/healthz");
+        using var response = await listed.GetAsync("/healthz");
         Assert.Equal(HttpStatusCode.OK, response.Status);
     }
 
     [Fact]
     public async Task TheLoopbackListenerIsNotSubjectToTheAllowlist()
     {
-        (AdminHarness started, int port) = await StartWithLoopbackListenerAsync(new Dictionary<string, string?>
+        var (started, port) = await StartWithLoopbackListenerAsync(new Dictionary<string, string?>
         {
             ["Paduraksa:Listen:AdminAllowedSources:0"] = "203.0.113.0/24",
         });
-        await using AdminHarness h = started;
+        await using var h = started;
         using HttpClient http = new(new SocketsHttpHandler { UseCookies = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
-        using HttpResponseMessage response = await http.GetAsync("/healthz", AdminHarness.Ct);
+        using var response = await http.GetAsync("/healthz", AdminHarness.Ct);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -182,11 +181,11 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     [Fact]
     public async Task TheLoopbackListenerAnswersOnlyToALoopbackHostName()
     {
-        AdminHarness h = loopback.Harness;
-        int port = loopback.Port;
+        var h = loopback.Harness;
+        var port = loopback.Port;
         using HttpClient http = new(new SocketsHttpHandler { UseCookies = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
-        foreach ((string host, HttpStatusCode expected) in new[]
+        foreach (var (host, expected) in new[]
         {
             ($"localhost:{port}", HttpStatusCode.OK),
             ($"127.0.0.1:{port}", HttpStatusCode.OK),
@@ -200,30 +199,30 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
         {
             using HttpRequestMessage request = new(HttpMethod.Get, "/healthz");
             request.Headers.Host = host;
-            using HttpResponseMessage response = await http.SendAsync(request, AdminHarness.Ct);
+            using var response = await http.SendAsync(request, AdminHarness.Ct);
             Assert.True(expected == response.StatusCode, $"{host}: {response.StatusCode}");
         }
 
         // Only that listener: the HTTPS one serves any host name (a LAN name, an IP).
-        using AdminResponse https = await h.SendAsync(HttpMethod.Get, "/healthz", headers: new Dictionary<string, string> { ["Host"] = "evil.example" });
+        using var https = await h.SendAsync(HttpMethod.Get, "/healthz", headers: new Dictionary<string, string> { ["Host"] = "evil.example" });
         Assert.Equal(HttpStatusCode.OK, https.Status);
     }
 
     [Fact]
     public async Task TheLoopbackFallbackListenerServesTheSameAppOverPlainHttp()
     {
-        AdminHarness h = loopback.Harness;
-        int port = loopback.Port;
-        string token = await h.SetupTokenAsync();
+        var h = loopback.Harness;
+        var port = loopback.Port;
+        var token = await h.SetupTokenAsync();
         using HttpClient http = new(new SocketsHttpHandler { UseCookies = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
 
         // The listener is bound to loopback only.
-        IReadOnlyList<string> addresses = h.Host.GetListenAddresses(HostRole.Admin);
+        var addresses = h.Host.GetListenAddresses(HostRole.Admin);
         Assert.Contains(addresses, a => a.StartsWith("https://", StringComparison.Ordinal));
         Assert.All(addresses.Where(a => a.StartsWith("http://", StringComparison.Ordinal)), a =>
             Assert.Matches(@"^http://(localhost|127\.0\.0\.1|\[::1\]):" + port + "$", a));
 
-        using (HttpResponseMessage health = await http.GetAsync("/healthz", AdminHarness.Ct))
+        using (var health = await http.GetAsync("/healthz", AdminHarness.Ct))
         {
             Assert.Equal(HttpStatusCode.OK, health.StatusCode);
             Assert.False(health.Headers.Contains("Strict-Transport-Security")); // HSTS is for HTTPS responses
@@ -232,29 +231,29 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
 
         // Setup works over it, and the cookie is still Secure (Chromium and Firefox accept that for loopback http).
         using StringContent setup = new(Body.Setup(token, "owner", AdminHarness.Password), Encoding.UTF8, "application/json");
-        using HttpResponseMessage created = await http.PostAsync("/api/v1/setup", setup, AdminHarness.Ct);
+        using var created = await http.PostAsync("/api/v1/setup", setup, AdminHarness.Ct);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        string line = created.Headers.GetValues("Set-Cookie").Single();
+        var line = created.Headers.GetValues("Set-Cookie").Single();
         Assert.StartsWith("__Host-paduraksa-session=", line, StringComparison.Ordinal);
         Assert.Contains("secure", line, StringComparison.OrdinalIgnoreCase);
-        string cookie = line.Split(';')[0];
+        var cookie = line.Split(';')[0];
 
         // The same-origin check uses the request's own scheme: http://127.0.0.1:<port> is its own origin there.
         using HttpRequestMessage me = new(HttpMethod.Get, "/api/v1/auth/me");
         me.Headers.TryAddWithoutValidation("Cookie", cookie);
-        using HttpResponseMessage meResponse = await http.SendAsync(me, AdminHarness.Ct);
+        using var meResponse = await http.SendAsync(me, AdminHarness.Ct);
         Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
 
         using HttpRequestMessage logout = new(HttpMethod.Post, "/api/v1/auth/logout");
         logout.Headers.TryAddWithoutValidation("Cookie", cookie);
         logout.Headers.TryAddWithoutValidation("Origin", $"http://127.0.0.1:{port}");
-        using HttpResponseMessage logoutResponse = await http.SendAsync(logout, AdminHarness.Ct);
+        using var logoutResponse = await http.SendAsync(logout, AdminHarness.Ct);
         Assert.Equal(HttpStatusCode.NoContent, logoutResponse.StatusCode);
 
         using HttpRequestMessage forged = new(HttpMethod.Post, "/api/v1/auth/logout");
         forged.Headers.TryAddWithoutValidation("Cookie", cookie);
         forged.Headers.TryAddWithoutValidation("Origin", $"https://127.0.0.1:{port}");
-        using HttpResponseMessage forgedResponse = await http.SendAsync(forged, AdminHarness.Ct);
+        using var forgedResponse = await http.SendAsync(forged, AdminHarness.Ct);
         Assert.Equal(HttpStatusCode.Forbidden, forgedResponse.StatusCode);
     }
 
@@ -262,22 +261,22 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     public async Task AuthenticationNeverClearsOrReplacesACallerSetAheadOfIt()
     {
         UserIdHolder holder = new();
-        await using AdminHarness h = await AdminHarness.StartAsync(configureServices: (role, services) =>
+        await using var h = await AdminHarness.StartAsync(configureServices: (role, services) =>
         {
             if (role == HostRole.Admin)
             {
                 services.AddSingleton<IStartupFilter>(new PresetCallerFilter(holder));
             }
         });
-        string cookie = await h.SetUpOwnerAsync();
-        using (AdminResponse me = await h.GetAsync("/api/v1/auth/me", cookie))
+        var cookie = await h.SetUpOwnerAsync();
+        using (var me = await h.GetAsync("/api/v1/auth/me", cookie))
         {
             holder.User = me.Json.GetProperty("user").GetProperty("id").GetString();
         }
 
         // No credentials at all, and a bad bearer token: the preset caller stands in both cases.
-        using AdminResponse anonymous = await h.GetAsync("/api/v1/auth/me");
-        using AdminResponse badBearer = await h.GetAsync("/api/v1/auth/me", bearer: "pdk_garbage");
+        using var anonymous = await h.GetAsync("/api/v1/auth/me");
+        using var badBearer = await h.GetAsync("/api/v1/auth/me", bearer: "pdk_garbage");
 
         Assert.Equal(HttpStatusCode.OK, anonymous.Status);
         Assert.Equal(HttpStatusCode.OK, badBearer.Status);
@@ -341,7 +340,7 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
 
         // One name more than the cap leaves no room for the process's own names, so it is refused rather than truncated.
         PaduraksaOptions tooMany = new();
-        for (int i = 0; i <= AdminCertificateNames.MaxConfiguredNames; i++)
+        for (var i = 0; i <= AdminCertificateNames.MaxConfiguredNames; i++)
         {
             tooMany.Admin.CertificateNames.Add($"admin{i}.lan");
         }
@@ -359,10 +358,10 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
     /// </summary>
     private static async Task<(AdminHarness Harness, int Port)> StartWithLoopbackListenerAsync(Dictionary<string, string?>? settings = null)
     {
-        (PaduraksaHost host, int port) = await TestPorts.StartOnFreePortAsync(port =>
+        var (host, port) = await TestPorts.StartOnFreePortAsync(port =>
         {
             Dictionary<string, string?> config = new(StringComparer.OrdinalIgnoreCase);
-            foreach ((string key, string? value) in settings ?? [])
+            foreach (var (key, value) in settings ?? [])
             {
                 config[key] = value;
             }
@@ -386,7 +385,7 @@ public sealed class HardeningTests(SharedOwnerSession shared, SharedSmallBodyHos
         {
             app.Use((context, nextMiddleware) =>
             {
-                if (holder.User is { } text && UserId.TryParse(text, out UserId id))
+                if (holder.User is { } text && UserId.TryParse(text, out var id))
                 {
                     context.SetCaller(new AdminCaller(new CommandOrigin(Actor.ForUser(id), Channel.Api, null)) { User = id });
                 }

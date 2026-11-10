@@ -19,7 +19,7 @@ public sealed class ProviderActions(AcmeAccountService accounts, DnsProviderServ
     public async Task<AcmeAccountResult?> CreateAccountAsync(AcmeAccountSubmission submission, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submission);
-        CommandOrigin? origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
+        var origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
         if (origin is null)
         {
             return null;
@@ -55,20 +55,20 @@ public sealed class ProviderActions(AcmeAccountService accounts, DnsProviderServ
 
     public async Task<AcmeAccountResult?> DeactivateAccountAsync(AcmeAccountId id, CancellationToken cancellationToken = default)
     {
-        CommandOrigin? origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
+        var origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
         return origin is null ? null : await accounts.DeactivateAsync(id, origin, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DnsProviderResult?> CreateProviderAsync(DnsCredentialSubmission submission, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submission);
-        CommandOrigin? origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
+        var origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
         if (origin is null)
         {
             return null;
         }
 
-        byte[] credential = SecretInput.Utf8(submission.Credential);
+        var credential = SecretInput.Utf8(submission.Credential);
         try
         {
             return await providers.CreateWithCredentialAsync(submission.Kind, submission.Label, credential, origin, cancellationToken).ConfigureAwait(false);
@@ -82,13 +82,13 @@ public sealed class ProviderActions(AcmeAccountService accounts, DnsProviderServ
     public async Task<DnsProviderResult?> RotateCredentialAsync(DnsProviderId id, DnsCredentialSubmission submission, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submission);
-        CommandOrigin? origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
+        var origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
         if (origin is null)
         {
             return null;
         }
 
-        byte[] credential = SecretInput.Utf8(submission.Credential);
+        var credential = SecretInput.Utf8(submission.Credential);
         try
         {
             return await providers.RotateCredentialAsync(id, credential, origin, cancellationToken).ConfigureAwait(false);
@@ -101,13 +101,13 @@ public sealed class ProviderActions(AcmeAccountService accounts, DnsProviderServ
 
     public async Task<DnsProviderResult?> DeleteProviderAsync(DnsProviderId id, CancellationToken cancellationToken = default)
     {
-        CommandOrigin? origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
+        var origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
         return origin is null ? null : await providers.DeleteWithCredentialAsync(id, origin, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<DnsProviderTestResult?> TestAsync(DnsProviderId id, CancellationToken cancellationToken = default)
     {
-        CommandOrigin? origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
+        var origin = await caller.OriginAsync(cancellationToken).ConfigureAwait(false);
         return origin is null ? null : await providers.TestAsync(id, origin, cancellationToken).ConfigureAwait(false);
     }
 }

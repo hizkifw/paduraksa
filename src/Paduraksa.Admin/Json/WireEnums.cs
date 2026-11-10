@@ -32,7 +32,7 @@ internal static class WireEnums
     public static IReadOnlyList<string>? NamesOf(Type enumType)
     {
         ArgumentNullException.ThrowIfNull(enumType);
-        if (ModelEnums.TryGetValue(enumType, out IReadOnlyList<string>? names))
+        if (ModelEnums.TryGetValue(enumType, out var names))
         {
             return names;
         }

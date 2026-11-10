@@ -39,7 +39,7 @@ internal static class AccessLogTransform
 
     public static ValueTask OnResponseAsync(ResponseTransformContext context)
     {
-        HttpContext httpContext = context.HttpContext;
+        var httpContext = context.HttpContext;
         if (httpContext.Features.Get<IGateFeature>()?.State is not { } state)
         {
             return ValueTask.CompletedTask;

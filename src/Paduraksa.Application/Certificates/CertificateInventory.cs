@@ -53,7 +53,7 @@ public sealed class CertificateInventory
         ArgumentNullException.ThrowIfNull(certificates);
         _byId = new Dictionary<CertificateId, InventoryCertificate>(certificates.Count);
         List<InventoryCertificate> unique = new(certificates.Count);
-        foreach (InventoryCertificate certificate in certificates)
+        foreach (var certificate in certificates)
         {
             if (_byId.TryAdd(certificate.Id, certificate))
             {
@@ -64,7 +64,7 @@ public sealed class CertificateInventory
         Certificates = unique;
         NextBoundary = nextBoundary;
         _resolver = new UsableResolver(_byId);
-        FallbackDefault = fallbackDefault is { } id && _byId.TryGetValue(id, out InventoryCertificate? entry) && entry.IsUsable ? id : null;
+        FallbackDefault = fallbackDefault is { } id && _byId.TryGetValue(id, out var entry) && entry.IsUsable ? id : null;
     }
 
     /// <summary>No certificates.</summary>
@@ -94,7 +94,7 @@ public sealed class CertificateInventory
     {
         public bool TryResolve(CertificateId id, [NotNullWhen(true)] out ServerCertificate? certificate)
         {
-            certificate = byId.TryGetValue(id, out InventoryCertificate? entry) ? entry.Serving : null;
+            certificate = byId.TryGetValue(id, out var entry) ? entry.Serving : null;
             return certificate is not null;
         }
     }

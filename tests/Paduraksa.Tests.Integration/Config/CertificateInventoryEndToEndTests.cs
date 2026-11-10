@@ -23,25 +23,25 @@ public sealed class CertificateInventoryEndToEndTests
     [Fact]
     public async Task ACertificateChangeRepublishesTheLatestRevisionWithoutANewOne()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         using TestCertificates certificates = new();
-        await using PaduraksaHost host = TestHost.Create();
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        CertificateService service = host.Shared.CertificateService;
+        var service = host.Shared.CertificateService;
 
         // Issued: the vault would create the key and chain, then the service records them, and the Auto host is covered.
-        ServerCertificate v1 = certificates.Create("a.test v1", "a.test");
+        var v1 = certificates.Create("a.test v1", "a.test");
         host.Shared.Certificates.Provide(A, v1);
         await RegisterAsync(service, A, v1);
-        RevisionRef revision = await CommitAsync(host, new UpsertHostCommand(RespondHost("a", "a.test", "a")), ct);
+        var revision = await CommitAsync(host, new UpsertHostCommand(RespondHost("a", "a.test", "a")), ct);
         Assert.Equal("a.test v1", await EdgeClient.ServedSubjectAsync(host, "a.test"));
         Assert.Empty(host.Shared.Config.Warnings);
 
         // Renewed under the same ID: no new revision, a new snapshot generation, and new handshakes get the new certificate.
-        long generation = host.Shared.SnapshotStore.Current.Generation;
-        ServerCertificate v2 = certificates.Create("a.test v2", "a.test");
+        var generation = host.Shared.SnapshotStore.Current.Generation;
+        var v2 = certificates.Create("a.test v2", "a.test");
         host.Shared.Certificates.Provide(A, v2);
-        CertificateChangeResult renewed = await RegisterAsync(service, A, v2);
+        var renewed = await RegisterAsync(service, A, v2);
 
         Assert.Equal(CertificateChangeStatus.Committed, renewed.Status);
         Assert.True(renewed.Publish!.Succeeded);
@@ -58,28 +58,28 @@ public sealed class CertificateInventoryEndToEndTests
     [Fact]
     public async Task ADeletedCertificateLeavesItsHostsOnTheDefaultWithAWarningAndIsRefusedWhileBound()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         using TestCertificates certificates = new();
-        await using PaduraksaHost host = TestHost.Create();
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        CertificateService service = host.Shared.CertificateService;
-        ServerCertificate cert = certificates.Create("a.test", "a.test");
+        var service = host.Shared.CertificateService;
+        var cert = certificates.Create("a.test", "a.test");
         host.Shared.Certificates.Provide(A, cert);
         await RegisterAsync(service, A, cert);
         await CommitAsync(host, new UpsertHostCommand(RespondHost("a", "a.test", "a") with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = A } }), ct);
         Assert.Equal("a.test", await EdgeClient.ServedSubjectAsync(host, "a.test"));
 
-        CertificateChangeResult refused = await service.DeleteAsync(A, Origin, ct);
+        var refused = await service.DeleteAsync(A, Origin, ct);
 
         Assert.Equal(CertificateChangeStatus.Invalid, refused.Status);
-        ConfigError error = Assert.Single(refused.Errors);
+        var error = Assert.Single(refused.Errors);
         Assert.Equal(("/hosts/0/certificate", CertificateErrorCodes.InUse), (error.Path, error.Code));
         Assert.Equal("a.test", await EdgeClient.ServedSubjectAsync(host, "a.test"));
 
         // Back to Auto, then the delete goes through; nothing covers the host any more.
-        HostConfig a = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single();
+        var a = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single();
         await CommitAsync(host, new UpsertHostCommand(a with { Certificate = new CertificateBinding() }), ct);
-        CertificateChangeResult deleted = await service.DeleteAsync(A, Origin, ct);
+        var deleted = await service.DeleteAsync(A, Origin, ct);
 
         Assert.Equal(CertificateChangeStatus.Committed, deleted.Status);
         Assert.True(deleted.Publish!.Succeeded);
@@ -91,17 +91,17 @@ public sealed class CertificateInventoryEndToEndTests
     [Fact]
     public async Task ThePlaceholderKeepsAConfigThatNamesNoDefaultOrItsStableIdStarting()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
         CertificateBinding placeholder = new() { Mode = CertificateBindingMode.Specific, CertificateId = PlaceholderCertificates.Id };
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(ct);
             await CommitAsync(first, new UpsertHostCommand(RespondHost("p", "p.test", "p") with { Certificate = placeholder }), ct);
         }
 
         // A new process has a new placeholder certificate under the same ID: the stored document still compiles and serves.
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        await using var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
 
         Assert.False(host.Shared.Config.Status.IsDegraded);
@@ -113,14 +113,14 @@ public sealed class CertificateInventoryEndToEndTests
     [Fact]
     public async Task ARestoreAfterALostDatabaseKeepsHostsWithSpecificBindingsAndTheNextCertificateChangeKeepsServingThem()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         using TestCertificates certificates = new();
-        string data = TestDataDirectories.NewPath();
+        var data = TestDataDirectories.NewPath();
         CertificateBinding specific = new() { Mode = CertificateBindingMode.Specific, CertificateId = A };
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(ct);
-            ServerCertificate original = certificates.Create("one.test", "one.test");
+            var original = certificates.Create("one.test", "one.test");
             first.Shared.Certificates.Provide(A, original);
             await RegisterAsync(first.Shared.CertificateService, A, original);
             await CommitAsync(first, new UpsertHostCommand(RespondHost("one", "one.test", "one") with { Certificate = specific }), ct);
@@ -128,25 +128,25 @@ public sealed class CertificateInventoryEndToEndTests
         }
 
         SqliteConnection.ClearAllPools();
-        foreach (string file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
+        foreach (var file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
         {
             File.Delete(file);
         }
 
         // The inventory went with the database: the restore degrades the binding with a warning instead of failing.
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        await using var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
+        using var client = TestHost.CreateClient(host);
         Assert.False(host.Shared.Config.Status.IsDegraded);
-        RevisionRef restored = host.Shared.Config.Status.Revision!;
+        var restored = host.Shared.Config.Status.Revision!;
         Assert.Equal(1, restored.Seq);
         Assert.Contains(host.Shared.Config.Warnings, w => w.Code == "certificate.specific.unusable");
         Assert.Equal((HttpStatusCode.OK, "one"), await GetAsync(client, host, "one.test", "/", ct));
 
         // The certificate is registered again (the vault would re-describe it): the host is served, nothing else changes.
-        ServerCertificate again = certificates.Create("one.test", "one.test");
+        var again = certificates.Create("one.test", "one.test");
         host.Shared.Certificates.Provide(A, again);
-        CertificateChangeResult result = await RegisterAsync(host.Shared.CertificateService, A, again);
+        var result = await RegisterAsync(host.Shared.CertificateService, A, again);
 
         Assert.True(result.Publish!.Succeeded);
         Assert.Equal(restored, (await host.Shared.Config.GetCurrentAsync(ct)).Revision);

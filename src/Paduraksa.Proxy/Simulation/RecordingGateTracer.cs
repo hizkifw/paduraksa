@@ -1,11 +1,8 @@
-using System.Security.Authentication;
-
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Model;
-using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
@@ -25,9 +22,9 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
 
     public void ClientResolved(HttpContext context, RuntimeSnapshot snapshot, in ClientIpResolution client, bool isHttps)
     {
-        TrustedProxyPolicy policy = snapshot.TrustedProxies;
+        var policy = snapshot.TrustedProxies;
         IpKey peer = default;
-        string peerKind = "socket";
+        var peerKind = "socket";
         if (context.Features.Get<IClientInfoFeature>()?.ClientInfo is { } info)
         {
             peer = info.Address;
@@ -38,7 +35,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             peer = IpKey.FromIPAddress(remote);
         }
 
-        string? header = HeaderOf(client.Source, policy);
+        var header = HeaderOf(client.Source, policy);
         if (header is null && client.IsFallback)
         {
             // The peer was used because the header it should have sent was absent or didn't parse.
@@ -64,7 +61,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
         facts.Add(new("schemeSource", TraceNames.Of(client.Scheme.Source)));
         facts.Add(new("scheme", isHttps ? "https" : "http"));
 
-        string summary = client.Outcome switch
+        var summary = client.Outcome switch
         {
             ClientIpOutcome.PeerNotTrusted when policy.Mode == TrustedProxyMode.Off => $"client {client.Address}: the connection's peer (no trusted proxies are configured)",
             ClientIpOutcome.PeerNotTrusted => $"client {client.Address}: the connection's peer; {peer} is not a trusted proxy, so forwarding headers are ignored",
@@ -77,12 +74,12 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
 
     public void AcmeChallenge(HttpContext context, bool answered)
     {
-        string path = context.Request.Path.Value ?? string.Empty;
-        bool challengePath = path.StartsWith(AcmeChallengeStore.PathPrefix, StringComparison.Ordinal);
+        var path = context.Request.Path.Value ?? string.Empty;
+        var challengePath = path.StartsWith(AcmeChallengeStore.PathPrefix, StringComparison.Ordinal);
 
         // Three outcomes: answered; a challenge path nothing answered, which falls through to the pipeline like any
         // request (say why); or no challenge path at all.
-        string? why = challengePath && !answered
+        var why = challengePath && !answered
             ? context.Request.IsHttps
                 ? "the request is HTTPS, and an HTTP-01 challenge is only answered over plain HTTP"
                 : !(HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
@@ -90,8 +87,8 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
                     : "no challenge is waiting for its token"
             : null;
 
-        GateStepVerdict verdict = answered ? GateStepVerdict.Stopped : challengePath ? GateStepVerdict.Passed : GateStepVerdict.Skipped;
-        string summary = answered
+        var verdict = answered ? GateStepVerdict.Stopped : challengePath ? GateStepVerdict.Passed : GateStepVerdict.Skipped;
+        var summary = answered
             ? "answered the ACME HTTP-01 challenge with its key authorization"
             : challengePath
                 ? $"an ACME HTTP-01 challenge path, but nothing answers it ({why}): handled like any request"
@@ -127,8 +124,8 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             return;
         }
 
-        string why = hostHeader.Count == 1 ? $"no host takes '{hostHeader[0]}'" : $"the request has {hostHeader.Count} Host headers (exactly one is required)";
-        string answer = fallback.Action == DefaultHostAction.Close
+        var why = hostHeader.Count == 1 ? $"no host takes '{hostHeader[0]}'" : $"the request has {hostHeader.Count} Host headers (exactly one is required)";
+        var answer = fallback.Action == DefaultHostAction.Close
             ? "the default host behaviour closes the connection"
             : $"the default host behaviour answers {fallback.Response!.StatusCode}";
         facts.Add(new("defaultHost", fallback.Action == DefaultHostAction.Close ? "close" : $"respond {fallback.Response!.StatusCode}"));
@@ -144,7 +141,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
     {
         List<GateFact> facts = [];
         // A hand-built list past the gate's buffer has outcomes only for its head: report what it has rather than throw.
-        for (int i = 0; i < operations.Length && i < outcomes.Length; i++)
+        for (var i = 0; i < operations.Length && i < outcomes.Length; i++)
         {
             if (outcomes[i] == HeaderOutcome.None)
             {
@@ -160,7 +157,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
         }
 
         IReadOnlyList<GateFact> all = facts;
-        int existing = steps.FindLastIndex(step => step is { Kind: GateStepKind.ResponseHeaders } && step.Host == host?.Id);
+        var existing = steps.FindLastIndex(step => step is { Kind: GateStepKind.ResponseHeaders } && step.Host == host?.Id);
         if (existing >= 0)
         {
             all = [.. steps[existing].Facts, .. facts];
@@ -188,7 +185,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
     /// <summary>One header as a fact: the value it carries, or why the answer doesn't carry it.</summary>
     private static GateFact Describe(HttpContext context, in ResponseHeaderOperation operation, HeaderOutcome outcome)
     {
-        string name = operation.Name;
+        var name = operation.Name;
         return outcome switch
         {
             HeaderOutcome.Sent => new(name, operation.Value.ToString()),
@@ -213,7 +210,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             return;
         }
 
-        TlsPolicy tls = host.Tls;
+        var tls = host.Tls;
         List<GateFact> facts =
         [
             new("servedOverHttps", Flag(host.Https)),
@@ -227,7 +224,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             facts.Add(new("tlsVersion", TraceNames.Of(handshake.Protocol)));
         }
 
-        string summary = mismatch switch
+        var summary = mismatch switch
         {
             TlsMismatch.None => $"the {context.Request.Protocol} connection satisfies the host's TLS settings",
             TlsMismatch.HostNotServedOverHttps => "the host isn't served over HTTPS (no certificate covers it): 421",
@@ -245,7 +242,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
 
     public void PolicyEvaluated(PolicyScope scope, int index, IRequestPolicy policy, in RequestView request, PolicyDecision verdict)
     {
-        bool stopped = verdict.Action != PolicyAction.Continue;
+        var stopped = verdict.Action != PolicyAction.Continue;
         List<GateFact> facts = [new("policy", policy.Name), new("verdict", TraceNames.Of(verdict.Action))];
         if (verdict.Response is { } response)
         {
@@ -280,8 +277,8 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
 
     public void RouteMatch(CompiledHost host, ReadOnlySpan<char> path, ReadOnlySpan<char> canonicalPath, CompiledRoute? route)
     {
-        string raw = path.ToString();
-        string canonical = canonicalPath.ToString();
+        var raw = path.ToString();
+        var canonical = canonicalPath.ToString();
         List<GateFact> facts = [new("path", raw), new("matchedPath", canonical)];
         if (route is null)
         {
@@ -335,7 +332,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             return;
         }
 
-        string? cluster = GateSimulator.ClusterOf(snapshot, route);
+        var cluster = GateSimulator.ClusterOf(snapshot, route);
         if (cluster is not null)
         {
             facts.Add(new("cluster", cluster));

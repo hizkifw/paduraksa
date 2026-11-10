@@ -16,7 +16,7 @@ public sealed class TrustedProxyCompileTests
     [Fact]
     public void GenericModeTrustsTheListedProxiesAndReadsTheHeader()
     {
-        TrustedProxyPolicy policy = Compile(With(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8", "2001:db8::1"], Header = "X-Real-IP" })).TrustedProxies;
+        var policy = Compile(With(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8", "2001:db8::1"], Header = "X-Real-IP" })).TrustedProxies;
 
         Assert.Equal(TrustedProxyMode.Generic, policy.Mode);
         Assert.Equal("X-Real-IP", policy.ForwardingHeader);
@@ -33,19 +33,19 @@ public sealed class TrustedProxyCompileTests
     {
         TrustedProxySpec spec = new() { Mode = TrustedProxyMode.CloudflareProxy, UseTrueClientIp = true, ForwardedForFallback = true };
 
-        TrustedProxyPolicy baked = Compile(With(spec)).TrustedProxies;
+        var baked = Compile(With(spec)).TrustedProxies;
         Assert.Same(CloudflareIpRanges.Default, baked.TrustedPeers);
         Assert.True(baked.UseTrueClientIp);
         Assert.Equal(TrustedProxyPolicy.XForwardedFor, baked.ForwardingHeader);
 
-        CidrSet refreshed = CidrSet.Parse(["127.0.0.0/8"]);
+        var refreshed = CidrSet.Parse(["127.0.0.0/8"]);
         Assert.Same(refreshed, Compile(With(spec), new SnapshotCompilerOptions { CloudflareEdgeRanges = refreshed }).TrustedProxies.TrustedPeers);
     }
 
     [Fact]
     public void CloudflareTunnelTrustsCloudflared()
     {
-        TrustedProxyPolicy policy = Compile(With(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = ["172.18.0.0/16"] })).TrustedProxies;
+        var policy = Compile(With(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = ["172.18.0.0/16"] })).TrustedProxies;
 
         Assert.Equal(TrustedProxyMode.CloudflareTunnel, policy.Mode);
         Assert.True(policy.IsTrustedPeer(IpKey.Parse("172.18.0.5")));
@@ -72,7 +72,7 @@ public sealed class TrustedProxyCompileTests
     [MemberData(nameof(Invalid))]
     public void InvalidSettingsFailTheCompile(TrustedProxySpec spec, string expected)
     {
-        CompileResult result = SnapshotCompiler.Compile(With(spec));
+        var result = SnapshotCompiler.Compile(With(spec));
 
         Assert.False(result.Succeeded);
         Assert.Contains(result.Errors, e => e.Source is TrustedProxiesErrorSource && e.Message.Contains(expected, StringComparison.Ordinal));

@@ -19,7 +19,7 @@
     </div>
 
     <ol class="pdk-steps">
-        @foreach (ProgressStep step in OrderProgressModel.Steps(ChallengeType, Reports))
+        @foreach (var step in OrderProgressModel.Steps(ChallengeType, Reports))
         {
             <li class="pdk-step-item pdk-step-@step.State.ToString().ToLowerInvariant()" data-state="@step.State.ToString().ToLowerInvariant()">
                 <span class="pdk-step-marker" aria-hidden="true">
@@ -99,7 +99,7 @@
                 return "starting";
             }
 
-            TimeSpan elapsed = ((Failed || Issued ? Reports[^1].At : Now ?? Reports[^1].At) - Reports[0].At).Duration();
+            var elapsed = ((Failed || Issued ? Reports[^1].At : Now ?? Reports[^1].At) - Reports[0].At).Duration();
             return elapsed.TotalMinutes >= 1 ? $"{(int)elapsed.TotalMinutes} min {elapsed.Seconds} s" : $"{Math.Max(0, (int)elapsed.TotalSeconds)} s";
         }
     }

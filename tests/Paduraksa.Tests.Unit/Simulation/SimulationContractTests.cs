@@ -17,7 +17,7 @@ public sealed class SimulationContractTests
     [Fact]
     public void ARequestReadsWithDefaultsFromAUrlAndAnIp()
     {
-        SimulationRequest request = Deserialize<SimulationRequest>("{\"url\":\"https://app.example.com/a?b=1\",\"clientIp\":\"203.0.113.7\"}");
+        var request = Deserialize<SimulationRequest>("{\"url\":\"https://app.example.com/a?b=1\",\"clientIp\":\"203.0.113.7\"}");
 
         Assert.Equal(SimulationArrival.Direct, request.Arrival);
         Assert.Empty(request.Headers);
@@ -39,7 +39,7 @@ public sealed class SimulationContractTests
             TransportIp: "192.0.2.1",
             Tls: new SimulationTls("app.example.com", SimulationHttpVersion.Http3, SimulationTlsVersion.Tls13));
 
-        string json = JsonSerializer.Serialize(request, SimulationJsonContext.Default.SimulationRequest);
+        var json = JsonSerializer.Serialize(request, SimulationJsonContext.Default.SimulationRequest);
 
         Assert.Contains("\"arrival\":\"cloudflareTunnel\"", json, StringComparison.Ordinal);
         Assert.Contains("\"httpVersion\":\"http3\"", json, StringComparison.Ordinal);
@@ -50,7 +50,7 @@ public sealed class SimulationContractTests
     [Fact]
     public void EveryTargetKindRoundTripsWithItsKind()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         SimulationTarget[] targets =
         [
             SimulationTarget.Live,
@@ -61,17 +61,17 @@ public sealed class SimulationContractTests
         ];
         string[] kinds = ["live", "revision", "draftDocument", "draftCommand", "draftCommand"];
 
-        for (int i = 0; i < targets.Length; i++)
+        for (var i = 0; i < targets.Length; i++)
         {
-            string json = JsonSerializer.Serialize(targets[i], SimulationJsonContext.Default.SimulationTarget);
+            var json = JsonSerializer.Serialize(targets[i], SimulationJsonContext.Default.SimulationTarget);
             Assert.StartsWith($"{{\"kind\":\"{kinds[i]}\"", json, StringComparison.Ordinal);
-            SimulationTarget read = JsonSerializer.Deserialize(json, SimulationJsonContext.Default.SimulationTarget)!;
+            var read = JsonSerializer.Deserialize(json, SimulationJsonContext.Default.SimulationTarget)!;
             Assert.Equal(targets[i].GetType(), read.GetType());
         }
 
-        string command = JsonSerializer.Serialize(targets[4], SimulationJsonContext.Default.SimulationTarget);
+        var command = JsonSerializer.Serialize(targets[4], SimulationJsonContext.Default.SimulationTarget);
         Assert.Contains("\"command\":\"deleteUpstream\"", command, StringComparison.Ordinal);
-        DeleteUpstreamCommand back = Assert.IsType<DeleteUpstreamCommand>(Assert.IsType<DraftCommandSimulationTarget>(JsonSerializer.Deserialize(command, SimulationJsonContext.Default.SimulationTarget)).Command);
+        var back = Assert.IsType<DeleteUpstreamCommand>(Assert.IsType<DraftCommandSimulationTarget>(JsonSerializer.Deserialize(command, SimulationJsonContext.Default.SimulationTarget)).Command);
         Assert.Equal(AppUpstream, back.UpstreamId);
         Assert.Equal(4, back.Version);
         Assert.True(back.DryRun);
@@ -92,12 +92,12 @@ public sealed class SimulationContractTests
             Errors: [new ConfigError("/x", "code", "message")],
             Notes: ["note"]);
 
-        string json = JsonSerializer.Serialize(result, SimulationJsonContext.Default.SimulationResult);
+        var json = JsonSerializer.Serialize(result, SimulationJsonContext.Default.SimulationResult);
 
         Assert.Contains($"\"host\":\"{AppHost}\"", json, StringComparison.Ordinal);
         Assert.Contains("\"kind\":\"forwardToUpstream\"", json, StringComparison.Ordinal);
         Assert.Contains("\"health\":\"healthy\"", json, StringComparison.Ordinal);
-        SimulationResult read = JsonSerializer.Deserialize(json, SimulationJsonContext.Default.SimulationResult)!;
+        var read = JsonSerializer.Deserialize(json, SimulationJsonContext.Default.SimulationResult)!;
         Assert.Equal(result.Upstream!.Destinations, read.Upstream!.Destinations);
         Assert.Equal(AppHost, read.Trace[0].Host);
         Assert.Equal(result.Errors, read.Errors);
@@ -107,7 +107,7 @@ public sealed class SimulationContractTests
     [Fact]
     public void AUrlAndAClientAreEnough()
     {
-        GateProbe probe = Build(new SimulationRequest("https://App.Example.com/a%2Fb/../c?x=1&y=%20#frag", "203.0.113.7"));
+        var probe = Build(new SimulationRequest("https://App.Example.com/a%2Fb/../c?x=1&y=%20#frag", "203.0.113.7"));
 
         Assert.True(probe.Https);
         Assert.Equal("app.example.com", probe.Host);
@@ -130,7 +130,7 @@ public sealed class SimulationContractTests
     [InlineData("http://192.0.2.1/?q", "192.0.2.1", "/", false)]
     public void TheHostHeaderIsTheUrlsAuthorityWithoutADefaultPort(string url, string host, string path, bool https)
     {
-        GateProbe probe = Build(new SimulationRequest(url, "192.0.2.9"));
+        var probe = Build(new SimulationRequest(url, "192.0.2.9"));
 
         Assert.Equal(host, probe.Host);
         Assert.Equal(path, probe.Path);
@@ -141,7 +141,7 @@ public sealed class SimulationContractTests
     [Fact]
     public void EveryPartOfTheRequestIsCarriedOver()
     {
-        GateProbe probe = Build(new SimulationRequest(
+        var probe = Build(new SimulationRequest(
             "https://app.example.com/",
             "203.0.113.7",
             " POST ",
@@ -173,10 +173,10 @@ public sealed class SimulationContractTests
     [InlineData("https://app.example.com/", "fe80::1%eth0", "/clientIp", SimulationErrorCodes.ClientIpInvalid)]
     public void AMalformedRequestIsReportedByField(string url, string client, string path, string code)
     {
-        Assert.False(SimulationRequests.TryBuild(new SimulationRequest(url, client), out GateProbe? probe, out List<ConfigError> errors));
+        Assert.False(SimulationRequests.TryBuild(new SimulationRequest(url, client), out var probe, out var errors));
 
         Assert.Null(probe);
-        ConfigError error = Assert.Single(errors);
+        var error = Assert.Single(errors);
         Assert.Equal(path, error.Path);
         Assert.Equal(code, error.Code);
     }
@@ -194,7 +194,7 @@ public sealed class SimulationContractTests
             TransportIp: "bad",
             Tls: new SimulationTls("x.example.com", SimulationHttpVersion.Http3));
 
-        Assert.False(SimulationRequests.TryBuild(request, out _, out List<ConfigError> errors));
+        Assert.False(SimulationRequests.TryBuild(request, out _, out var errors));
 
         Assert.Equal(
             ["/clientIp", "/peerIp", "/transportIp", "/method", "/headers/0/name", "/headers/1/value", "/tls"],
@@ -211,7 +211,7 @@ public sealed class SimulationContractTests
     [Fact]
     public void HostHeadersAreTheHttp1HostsAndOtherHeadersStay()
     {
-        GateProbe probe = Build(new SimulationRequest(
+        var probe = Build(new SimulationRequest(
             "https://app.example.com/", "192.0.2.9", Headers: [new SimulationHeader("host", "a.test"), new SimulationHeader("User-Agent", "x"), new SimulationHeader("HOST", "b.test")]));
 
         Assert.Equal(["a.test", "b.test"], probe.HostHeaders);
@@ -227,7 +227,7 @@ public sealed class SimulationContractTests
     [InlineData("H2cOnHttp", "/tls")]
     public void AFieldThatWouldChangeNothingIsRefusedNotIgnored(string which, string path)
     {
-        SimulationRequest request = which switch
+        var request = which switch
         {
             "TransportIp" => new SimulationRequest("https://app.example.com/", "192.0.2.9", TransportIp: "192.0.2.1"),
             "PeerIp" => new SimulationRequest("https://app.example.com/", "192.0.2.9", PeerIp: "192.0.2.1"),
@@ -236,7 +236,7 @@ public sealed class SimulationContractTests
             _ => new SimulationRequest("http://app.example.com/", "192.0.2.9", Tls: new SimulationTls(HttpVersion: SimulationHttpVersion.Http2)),
         };
 
-        Assert.False(SimulationRequests.TryBuild(request, out _, out List<ConfigError> errors));
+        Assert.False(SimulationRequests.TryBuild(request, out _, out var errors));
 
         Assert.Equal(path, Assert.Single(errors).Path);
     }
@@ -245,7 +245,7 @@ public sealed class SimulationContractTests
     public void ThePeerIsAllowedBehindAProxyOrWithProxyProtocol()
     {
         Assert.Equal("10.0.0.1", Build(new SimulationRequest("https://app.example.com/", "192.0.2.9", Arrival: SimulationArrival.TrustedProxy, PeerIp: "10.0.0.1")).PeerAddress!.ToString());
-        GateProbe protocol = Build(new SimulationRequest("https://app.example.com/", "192.0.2.9", PeerIp: "192.0.2.9", ProxyProtocol: true, TransportIp: "192.0.2.1"));
+        var protocol = Build(new SimulationRequest("https://app.example.com/", "192.0.2.9", PeerIp: "192.0.2.9", ProxyProtocol: true, TransportIp: "192.0.2.1"));
         Assert.True(protocol.ProxyProtocol);
         Assert.Equal("192.0.2.1", protocol.TransportAddress!.ToString());
     }
@@ -253,22 +253,22 @@ public sealed class SimulationContractTests
     [Fact]
     public void KestrelsDefaultLimitsAreEnforced()
     {
-        string ok = "http://app.example.com/" + new string('a', SimulationRequests.MaxRequestLineBytes - 100);
+        var ok = "http://app.example.com/" + new string('a', SimulationRequests.MaxRequestLineBytes - 100);
         Assert.True(SimulationRequests.TryBuild(new SimulationRequest(ok, "192.0.2.9"), out _, out _));
 
         // The request line: method, target and version together.
-        Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/" + new string('a', SimulationRequests.MaxRequestLineBytes), "192.0.2.9"), out _, out List<ConfigError> line));
+        Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/" + new string('a', SimulationRequests.MaxRequestLineBytes), "192.0.2.9"), out _, out var line));
         Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(line).Code);
-        string nearly = "http://app.example.com/" + new string('a', SimulationRequests.MaxRequestLineBytes - 20);
+        var nearly = "http://app.example.com/" + new string('a', SimulationRequests.MaxRequestLineBytes - 20);
         Assert.False(SimulationRequests.TryBuild(new SimulationRequest(nearly, "192.0.2.9", "OPTIONS" + new string('X', 20)), out _, out _));
 
         // The number of headers, and their total size.
         SimulationHeader[] many = [.. Enumerable.Range(0, SimulationRequests.MaxHeaderCount + 1).Select(i => new SimulationHeader($"X-{i}", "v"))];
-        Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", Headers: many), out _, out List<ConfigError> count));
+        Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", Headers: many), out _, out var count));
         Assert.Equal("/headers", Assert.Single(count).Path);
         Assert.True(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", Headers: many[..SimulationRequests.MaxHeaderCount]), out _, out _));
         SimulationHeader[] heavy = [.. Enumerable.Range(0, 10).Select(i => new SimulationHeader($"X-{i}", new string('v', 4000)))];
-        Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", Headers: heavy), out _, out List<ConfigError> size));
+        Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", Headers: heavy), out _, out var size));
         Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(size).Code);
 
         // The method.
@@ -279,7 +279,7 @@ public sealed class SimulationContractTests
     public void KestrelsLimitsAreCountedInBytesNotCharacters()
     {
         // The URL: 8,192 UTF-8 bytes in 4,089 characters passes; two more bytes do not.
-        string url = "http://a.test/" + new string('é', 4089);
+        var url = "http://a.test/" + new string('é', 4089);
         Assert.Equal(SimulationRequests.MaxRequestLineBytes, Encoding.UTF8.GetByteCount(url));
         Assert.True(SimulationRequests.TryBuild(new SimulationRequest(url, "192.0.2.9"), out _, out _));
         Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(Errors("http://a.test/" + new string('é', 4090), "192.0.2.9")).Code);
@@ -305,20 +305,20 @@ public sealed class SimulationContractTests
     [InlineData("http://app.example.com/a\u007fb")]
     public void ControlCharactersInTheQueryAndBackslashesInTheAuthorityAreRefused(string url)
     {
-        Assert.False(SimulationRequests.TryBuild(new SimulationRequest(url, "192.0.2.9"), out _, out List<ConfigError> errors));
+        Assert.False(SimulationRequests.TryBuild(new SimulationRequest(url, "192.0.2.9"), out _, out var errors));
 
         Assert.Equal("/url", Assert.Single(errors).Path);
     }
 
     private static GateProbe Build(SimulationRequest request)
     {
-        Assert.True(SimulationRequests.TryBuild(request, out GateProbe? probe, out List<ConfigError> errors), string.Join("; ", errors.Select(e => $"{e.Path} {e.Message}")));
+        Assert.True(SimulationRequests.TryBuild(request, out var probe, out var errors), string.Join("; ", errors.Select(e => $"{e.Path} {e.Message}")));
         return probe!;
     }
 
     private static List<ConfigError> Errors(string url, string client, string? method = null, IReadOnlyList<SimulationHeader>? headers = null)
     {
-        Assert.False(SimulationRequests.TryBuild(new SimulationRequest(url, client, method, headers ?? []), out _, out List<ConfigError> errors));
+        Assert.False(SimulationRequests.TryBuild(new SimulationRequest(url, client, method, headers ?? []), out _, out var errors));
         return errors;
     }
 

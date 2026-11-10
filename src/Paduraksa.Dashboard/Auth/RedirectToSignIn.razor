@@ -9,7 +9,7 @@
     /// </summary>
     protected override void OnInitialized()
     {
-        string returnUrl = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+        var returnUrl = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
         Dictionary<string, string?> query = [];
         if (returnUrl != DashboardRoutes.Home)
         {

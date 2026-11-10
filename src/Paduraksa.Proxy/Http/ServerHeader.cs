@@ -45,7 +45,7 @@ public static class ServerHeader
             return false;
         }
 
-        foreach (char c in value)
+        foreach (var c in value)
         {
             if (c is < ' ' or > '~')
             {

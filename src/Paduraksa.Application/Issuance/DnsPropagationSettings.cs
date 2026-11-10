@@ -39,9 +39,9 @@ public sealed class DnsPropagationSettings
         }
 
         List<IPEndPoint> resolvers = [];
-        foreach (string text in Resolvers)
+        foreach (var text in Resolvers)
         {
-            if (!IPEndPoint.TryParse(text.Trim(), out IPEndPoint? endpoint))
+            if (!IPEndPoint.TryParse(text.Trim(), out var endpoint))
             {
                 throw new ArgumentException($"DNS propagation: '{text}' is not a resolver address.");
             }

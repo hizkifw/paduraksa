@@ -65,20 +65,20 @@ internal sealed class AdminCsrfMiddleware(RequestDelegate next, AdminPipelineHoo
 {
     public async Task InvokeAsync(HttpContext context)
     {
-        HttpRequest request = context.Request;
-        bool everyMethod = hooks.SameOriginPathPrefixes.Any(prefix => request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
-        bool covered = everyMethod
-            || (!IsSafe(request.Method)
-                && request.Headers.Authorization.Count == 0
-                && (request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
-                    || context.GetEndpoint()?.Metadata.GetMetadata<AdminSameOriginMetadata>() is not null));
+        var request = context.Request;
+        var everyMethod = hooks.SameOriginPathPrefixes.Any(prefix => request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
+        var covered = everyMethod
+                      || (!IsSafe(request.Method)
+                          && request.Headers.Authorization.Count == 0
+                          && (request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+                              || context.GetEndpoint()?.Metadata.GetMetadata<AdminSameOriginMetadata>() is not null));
         if (!covered)
         {
             await next(context).ConfigureAwait(false);
             return;
         }
 
-        string? refusal = Check(context, checkBody: !everyMethod);
+        var refusal = Check(context, checkBody: !everyMethod);
         if (refusal is not null)
         {
             await AdminProblems.Forbidden("Cross-site request refused", refusal, ApiCodes.Csrf.Refused).ExecuteAsync(context).ConfigureAwait(false);
@@ -90,10 +90,10 @@ internal sealed class AdminCsrfMiddleware(RequestDelegate next, AdminPipelineHoo
 
     private static string? Check(HttpContext context, bool checkBody)
     {
-        HttpRequest request = context.Request;
-        bool hasCookie = AdminSessionCookie.Read(request).Present;
-        string? site = request.Headers["Sec-Fetch-Site"].FirstOrDefault();
-        string? origin = request.Headers.Origin.FirstOrDefault();
+        var request = context.Request;
+        var hasCookie = AdminSessionCookie.Read(request).Present;
+        var site = request.Headers["Sec-Fetch-Site"].FirstOrDefault();
+        var origin = request.Headers.Origin.FirstOrDefault();
 
         if (!string.IsNullOrEmpty(site))
         {
@@ -132,7 +132,7 @@ internal sealed class AdminCsrfMiddleware(RequestDelegate next, AdminPipelineHoo
 
     private static bool HasAllowedContentType(HttpContext context)
     {
-        if (!Microsoft.Net.Http.Headers.MediaTypeHeaderValue.TryParse(context.Request.ContentType, out Microsoft.Net.Http.Headers.MediaTypeHeaderValue? type))
+        if (!Microsoft.Net.Http.Headers.MediaTypeHeaderValue.TryParse(context.Request.ContentType, out var type))
         {
             return false;
         }
@@ -142,13 +142,13 @@ internal sealed class AdminCsrfMiddleware(RequestDelegate next, AdminPipelineHoo
             return true;
         }
 
-        IReadOnlyList<string>? extra = context.GetEndpoint()?.Metadata.GetMetadata<AdminContentTypesMetadata>()?.ContentTypes;
+        var extra = context.GetEndpoint()?.Metadata.GetMetadata<AdminContentTypesMetadata>()?.ContentTypes;
         return extra is not null && extra.Any(t => type.MediaType.Equals(t, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool OriginMatches(string origin, HttpRequest request)
     {
-        if (!Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri) || uri.PathAndQuery != "/" || !string.IsNullOrEmpty(uri.UserInfo))
+        if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.PathAndQuery != "/" || !string.IsNullOrEmpty(uri.UserInfo))
         {
             return false;
         }
@@ -158,8 +158,8 @@ internal sealed class AdminCsrfMiddleware(RequestDelegate next, AdminPipelineHoo
             return false;
         }
 
-        int defaultPort = request.IsHttps ? 443 : 80;
-        int port = request.Host.Port ?? defaultPort;
+        var defaultPort = request.IsHttps ? 443 : 80;
+        var port = request.Host.Port ?? defaultPort;
         return string.Equals(uri.Host, request.Host.Host, StringComparison.OrdinalIgnoreCase) && uri.Port == port;
     }
 }

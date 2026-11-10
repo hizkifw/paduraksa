@@ -19,7 +19,7 @@ public sealed class QuicClientInfoGateTests
 
         Assert.True(QuicClientInfoGate.Gate(endPoint, connection));
 
-        ClientInfo info = connection.Features.Get<IClientInfoFeature>()!.ClientInfo;
+        var info = connection.Features.Get<IClientInfoFeature>()!.ClientInfo;
         Assert.Equal(IpKey.Parse("127.0.0.1"), info.Address);
         Assert.Equal(4433, info.Port);
         Assert.Equal(ConnectionAddressSource.Socket, info.Source);

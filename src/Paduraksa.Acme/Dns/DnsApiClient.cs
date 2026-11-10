@@ -58,12 +58,12 @@ internal sealed partial class DnsApiClient : IDisposable
     /// </summary>
     public async Task<DnsApiResponse> SendAsync(HttpMethod method, Uri url, byte[]? jsonBody, CancellationToken cancellationToken)
     {
-        DnsApiResponse response = await SendOnceAsync(method, url, jsonBody, cancellationToken).ConfigureAwait(false);
+        var response = await SendOnceAsync(method, url, jsonBody, cancellationToken).ConfigureAwait(false);
         if (response.Status == HttpStatusCode.TooManyRequests
             && response.RetryAfter is { } wait && wait > TimeSpan.Zero && wait <= _options.MaxInlineRetryAfter)
         {
             // The provider's hint is the floor; up to 25% more keeps a burst of throttled clients from asking in lockstep.
-            TimeSpan delay = wait + TimeSpan.FromMilliseconds(wait.TotalMilliseconds * Random.Shared.NextDouble() * 0.25);
+            var delay = wait + TimeSpan.FromMilliseconds(wait.TotalMilliseconds * Random.Shared.NextDouble() * 0.25);
             LogThrottled(_provider, delay);
             await Task.Delay(delay, _time, cancellationToken).ConfigureAwait(false);
             response = await SendOnceAsync(method, url, jsonBody, cancellationToken).ConfigureAwait(false);
@@ -71,7 +71,7 @@ internal sealed partial class DnsApiClient : IDisposable
 
         if (response.Status == HttpStatusCode.TooManyRequests)
         {
-            string hint = response.RetryAfter is { } after ? $"; it asked to wait {Math.Ceiling(after.TotalSeconds)} seconds" : string.Empty;
+            var hint = response.RetryAfter is { } after ? $"; it asked to wait {Math.Ceiling(after.TotalSeconds)} seconds" : string.Empty;
             throw new DnsProviderException($"{_provider} is rate limiting this account{hint}.", isTransient: true) { RetryAfter = response.RetryAfter, IsRateLimited = true };
         }
 
@@ -107,12 +107,12 @@ internal sealed partial class DnsApiClient : IDisposable
         }
 
         // On the system clock, so a virtual clock in a test cannot cancel a call that is merely waiting for a server.
-        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_options.RequestTimeout);
         try
         {
-            using HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
-            byte[] body = await ReadBoundedAsync(response, deadline.Token).ConfigureAwait(false);
+            using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false);
+            var body = await ReadBoundedAsync(response, deadline.Token).ConfigureAwait(false);
             return new DnsApiResponse(response.StatusCode, body, RetryAfterOf(response));
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -138,11 +138,11 @@ internal sealed partial class DnsApiClient : IDisposable
             throw TooLarge();
         }
 
-        Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using (stream.ConfigureAwait(false))
         {
             using MemoryStream buffer = new();
-            byte[] chunk = new byte[8192];
+            var chunk = new byte[8192];
             int read;
             while ((read = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
             {
@@ -163,8 +163,8 @@ internal sealed partial class DnsApiClient : IDisposable
 
     private TimeSpan? RetryAfterOf(HttpResponseMessage response)
     {
-        RetryConditionHeaderValue? header = response.Headers.RetryAfter;
-        TimeSpan? wait = header?.Delta ?? (header?.Date is { } date ? date - _time.GetUtcNow() : null);
+        var header = response.Headers.RetryAfter;
+        var wait = header?.Delta ?? (header?.Date is { } date ? date - _time.GetUtcNow() : null);
         return wait is { } w ? (w < TimeSpan.Zero ? TimeSpan.Zero : w) : null;
     }
 

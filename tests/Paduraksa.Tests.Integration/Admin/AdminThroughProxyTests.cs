@@ -9,7 +9,6 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.WebSockets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -34,9 +33,9 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task TheAdminHostServesACookieSessionThroughThePublicProxy()
     {
-        AdminProxyHarness harness = shared.Harness;
+        var harness = shared.Harness;
 
-        using HttpResponseMessage me = await harness.SendAsync(
+        using var me = await harness.SendAsync(
             HttpMethod.Get,
             "/api/v1/auth/me",
             cookie: harness.SessionHeader,
@@ -44,7 +43,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
             headers: new Dictionary<string, string> { [AdminInternalListener.HeaderName] = "forged-by-the-client" });
         Assert.True(me.StatusCode == HttpStatusCode.OK, $"{(int)me.StatusCode}: {await me.Content.ReadAsStringAsync(Ct)}");
 
-        using JsonDocument json = JsonDocument.Parse(await me.Content.ReadAsStringAsync(Ct));
+        using var json = JsonDocument.Parse(await me.Content.ReadAsStringAsync(Ct));
         Assert.Equal(AdminHarness.OwnerName, json.RootElement.GetProperty("user").GetProperty("username").GetString());
         Assert.Equal("session", json.RootElement.GetProperty("authKind").GetString());
 
@@ -55,20 +54,20 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task CsrfUsesThePublicOriginAndRefusesAForeignOne()
     {
-        AdminProxyHarness harness = shared.Harness;
+        var harness = shared.Harness;
         // A session of its own: the test signs out, and the class's other tests keep using the harness's.
-        string cookie = await shared.NewSessionAsync();
+        var cookie = await shared.NewSessionAsync();
 
         // Origin only (no Sec-Fetch-Site): it must equal the scheme/host/port the public client used.
-        using HttpResponseMessage foreign = await harness.SendAsync(
+        using var foreign = await harness.SendAsync(
             HttpMethod.Post, "/api/v1/auth/logout", cookie: cookie, origin: "https://evil.test");
         Assert.Equal(HttpStatusCode.Forbidden, foreign.StatusCode);
-        using (JsonDocument problem = JsonDocument.Parse(await foreign.Content.ReadAsStringAsync(Ct)))
+        using (var problem = JsonDocument.Parse(await foreign.Content.ReadAsStringAsync(Ct)))
         {
             Assert.Equal("csrf.refused", problem.RootElement.GetProperty("code").GetString());
         }
 
-        using HttpResponseMessage sameOrigin = await harness.SendAsync(
+        using var sameOrigin = await harness.SendAsync(
             HttpMethod.Post, "/api/v1/auth/logout", cookie: cookie, origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.NoContent, sameOrigin.StatusCode);
     }
@@ -76,15 +75,15 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task TheSessionCookieReachesTheAdminAndNoOtherUpstreamAndCookieTossingIsStripped()
     {
-        (IHost upstream, string address) = await HeaderEchoUpstreamHost.StartAsync(
+        var (upstream, address) = await HeaderEchoUpstreamHost.StartAsync(
             static response => response.Headers["Set-Cookie"] = "__Host-paduraksa-session=tossed; Path=/; Secure",
             Ct);
-        using IHost upstreamHost = upstream;
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync(upstreamAddress: address);
+        using var upstreamHost = upstream;
+        await using var harness = await AdminProxyHarness.StartAsync(upstreamAddress: address);
 
         // The upstream sees every cookie but the admin session cookie, and its own Set-Cookie for that name is removed. The
         // internal hop header a client sends is removed too; it never reaches an upstream.
-        using HttpResponseMessage other = await harness.SendAsync(
+        using var other = await harness.SendAsync(
             HttpMethod.Get,
             "/",
             host: AdminProxyHarness.OtherHost,
@@ -94,14 +93,14 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
                 [AdminInternalListener.HeaderName] = "forged-by-the-client",
             });
         Assert.Equal(HttpStatusCode.OK, other.StatusCode);
-        Dictionary<string, string> seen = HeaderEchoUpstreamHost.Parse(await other.Content.ReadAsStringAsync(Ct));
+        var seen = HeaderEchoUpstreamHost.Parse(await other.Content.ReadAsStringAsync(Ct));
         Assert.Equal("theme=dark", seen["Cookie"]);
         Assert.DoesNotContain("live", string.Join('|', seen.Values), StringComparison.Ordinal);
         Assert.False(seen.ContainsKey(AdminInternalListener.HeaderName));
         Assert.False(other.Headers.TryGetValues("Set-Cookie", out _));
 
         // The admin route carries the cookie through.
-        using HttpResponseMessage admin = await harness.SendAsync(
+        using var admin = await harness.SendAsync(
             HttpMethod.Get, "/api/v1/auth/me", cookie: harness.SessionHeader, origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.OK, admin.StatusCode);
     }
@@ -109,7 +108,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task TheThrottleSeesTheForwardedClientSoTwoClientsAreSeparate()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync(
+        await using var harness = await AdminProxyHarness.StartAsync(
             settings: new Dictionary<string, string?>
             {
                 ["Paduraksa:Admin:RateLimit:PermitsPerIp"] = "1",
@@ -117,18 +116,18 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
             },
             trustedProxies: new TrustedProxySettings(TrustedProxyMode.Generic, ["127.0.0.1/32"], TrustForwardedProto: true));
 
-        string body = Body.Login(AdminHarness.OwnerName, AdminHarness.Password);
-        using HttpResponseMessage first = await harness.SendAsync(
+        var body = Body.Login(AdminHarness.OwnerName, AdminHarness.Password);
+        using var first = await harness.SendAsync(
             HttpMethod.Post, "/api/v1/auth/login", body, origin: "https://" + AdminProxyHarness.AdminHost,
             headers: new Dictionary<string, string> { ["X-Forwarded-For"] = "203.0.113.1" });
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
 
-        using HttpResponseMessage sameClient = await harness.SendAsync(
+        using var sameClient = await harness.SendAsync(
             HttpMethod.Post, "/api/v1/auth/login", body, origin: "https://" + AdminProxyHarness.AdminHost,
             headers: new Dictionary<string, string> { ["X-Forwarded-For"] = "203.0.113.1" });
         Assert.Equal(HttpStatusCode.TooManyRequests, sameClient.StatusCode);
 
-        using HttpResponseMessage otherClient = await harness.SendAsync(
+        using var otherClient = await harness.SendAsync(
             HttpMethod.Post, "/api/v1/auth/login", body, origin: "https://" + AdminProxyHarness.AdminHost,
             headers: new Dictionary<string, string> { ["X-Forwarded-For"] = "203.0.113.2" });
         Assert.Equal(HttpStatusCode.OK, otherClient.StatusCode);
@@ -137,10 +136,10 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task ClientSentForwardedHeadersAreOverwritten()
     {
-        AdminProxyHarness harness = shared.Harness;
+        var harness = shared.Harness;
 
         // If the admin trusted the client's spoofed proto/host, this Origin wouldn't match; it matches the public request.
-        using HttpResponseMessage accepted = await harness.SendAsync(
+        using var accepted = await harness.SendAsync(
             HttpMethod.Post,
             "/api/v1/auth/login",
             Body.Login(AdminHarness.OwnerName, AdminHarness.Password),
@@ -154,7 +153,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
 
         // The spoofed Origin is refused: the overwritten host/proto, not the client's, decide.
-        using HttpResponseMessage refused = await harness.SendAsync(
+        using var refused = await harness.SendAsync(
             HttpMethod.Post,
             "/api/v1/auth/logout",
             cookie: harness.SessionHeader,
@@ -162,7 +161,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
         Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
 
         // The client IP the admin recorded is the public listener's peer, not the spoofed address.
-        IReadOnlyList<AuditRecord> logins = await harness.AuditAsync("auth.login");
+        var logins = await harness.AuditAsync("auth.login");
         Assert.NotEmpty(logins);
         Assert.All(logins, entry => Assert.Equal("127.0.0.1", entry.ClientIp));
     }
@@ -170,14 +169,14 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task TheInternalSocketIsPrivateAndReachableOnlyThroughTheAdminHost()
     {
-        AdminProxyHarness harness = shared.Harness;
+        var harness = shared.Harness;
 
-        AdminInternalListener internalListener = harness.Host.Shared.AdminInternal;
+        var internalListener = harness.Host.Shared.AdminInternal;
         Assert.True(internalListener.Enabled);
         if (!OperatingSystem.IsWindows())
         {
             Assert.True(internalListener.UsesUnixSocket, "this platform should bind the Unix socket");
-            string socket = internalListener.SocketPath!;
+            var socket = internalListener.SocketPath!;
             Assert.Equal(
                 UnixFileMode.UserRead | UnixFileMode.UserWrite,
                 File.GetUnixFileMode(socket));
@@ -187,25 +186,25 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
         }
 
         // Only the admin host's name reaches it: an unknown name is the default 404, not the admin app's problem.
-        using HttpResponseMessage unknown = await harness.SendAsync(
+        using var unknown = await harness.SendAsync(
             HttpMethod.Get, "/api/v1/auth/me", host: "not-the-admin.test", origin: "https://not-the-admin.test");
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
 
         // And the configured admin host does reach it (an anonymous call is the admin API's own 401 problem).
-        using HttpResponseMessage admin = await harness.SendAsync(
+        using var admin = await harness.SendAsync(
             HttpMethod.Get, "/api/v1/auth/me", origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.Unauthorized, admin.StatusCode);
-        using JsonDocument problem = JsonDocument.Parse(await admin.Content.ReadAsStringAsync(Ct));
+        using var problem = JsonDocument.Parse(await admin.Content.ReadAsStringAsync(Ct));
         Assert.Equal("auth.required", problem.RootElement.GetProperty("code").GetString());
     }
 
     [Fact]
     public async Task ARequestWithoutTheInternalHopSecretIsRefused()
     {
-        AdminProxyHarness harness = shared.Harness;
-        AdminInternalListener listener = harness.Host.Shared.AdminInternal;
+        var harness = shared.Harness;
+        var listener = harness.Host.Shared.AdminInternal;
 
-        (int status, string headers, string body) = await InternalAsync(
+        var (status, headers, body) = await InternalAsync(
             listener, "GET", "/healthz", secret: null, xff: "203.0.113.9", proto: "https");
 
         Assert.Equal(HttpStatusCode.Forbidden, (HttpStatusCode)status);
@@ -216,25 +215,25 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task TheAllowlistAppliesPerRequestToTheForwardedClient()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync(
+        await using var harness = await AdminProxyHarness.StartAsync(
             settings: new Dictionary<string, string?>
             {
                 ["Paduraksa:Listen:AdminAllowedSources:0"] = "127.0.0.1/32",
             },
             trustedProxies: new TrustedProxySettings(TrustedProxyMode.Generic, ["127.0.0.1/32"], TrustForwardedProto: true));
 
-        using HttpResponseMessage denied = await harness.SendAsync(
+        using var denied = await harness.SendAsync(
             HttpMethod.Get,
             "/healthz",
             headers: new Dictionary<string, string> { ["X-Forwarded-For"] = "203.0.113.9" });
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
-        using (JsonDocument problem = JsonDocument.Parse(await denied.Content.ReadAsStringAsync(Ct)))
+        using (var problem = JsonDocument.Parse(await denied.Content.ReadAsStringAsync(Ct)))
         {
             Assert.Equal("admin.sourceDenied", problem.RootElement.GetProperty("code").GetString());
         }
 
         // A missing X-Forwarded-For is unknown, not loopback: the same restricted list refuses it.
-        (int status, _, string body) = await InternalAsync(
+        var (status, _, body) = await InternalAsync(
             harness.Host.Shared.AdminInternal, "GET", "/healthz", secret: harness.Host.Shared.AdminInternal.Secret, xff: null, proto: "https");
         Assert.Equal(HttpStatusCode.Forbidden, (HttpStatusCode)status);
         Assert.Contains("\"code\":\"admin.sourceDenied\"", body, StringComparison.Ordinal);
@@ -243,15 +242,15 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task HstsFollowsTheForwardedScheme()
     {
-        AdminProxyHarness harness = shared.Harness;
-        AdminInternalListener listener = harness.Host.Shared.AdminInternal;
+        var harness = shared.Harness;
+        var listener = harness.Host.Shared.AdminInternal;
 
-        (int httpsStatus, string httpsHeaders, _) = await InternalAsync(
+        var (httpsStatus, httpsHeaders, _) = await InternalAsync(
             listener, "GET", "/healthz", listener.Secret, xff: "127.0.0.1", proto: "https");
         Assert.Equal(HttpStatusCode.OK, (HttpStatusCode)httpsStatus);
         Assert.Contains("Strict-Transport-Security", httpsHeaders, StringComparison.OrdinalIgnoreCase);
 
-        (int httpStatus, string httpHeaders, _) = await InternalAsync(
+        var (httpStatus, httpHeaders, _) = await InternalAsync(
             listener, "GET", "/healthz", listener.Secret, xff: "127.0.0.1", proto: "http");
         Assert.Equal(HttpStatusCode.OK, (HttpStatusCode)httpStatus);
         Assert.DoesNotContain("Strict-Transport-Security", httpHeaders, StringComparison.OrdinalIgnoreCase);
@@ -262,15 +261,15 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     {
         // The admin app sets its own header on the internal listener; the host's resolved HSTS, when it has one, is the
         // one the browser sees. The class's own host is the one with no setting of its own.
-        AdminProxyHarness plain = shared.Harness;
-        using (HttpResponseMessage untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
+        var plain = shared.Harness;
+        using (var untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
         {
             Assert.Equal(HttpStatusCode.OK, untouched.StatusCode);
             Assert.Equal("max-age=31536000", Assert.Single(untouched.Headers.GetValues("Strict-Transport-Security")));
         }
 
-        AdminProxyHarness configured = shared.Configured;
-        using HttpResponseMessage ours = await configured.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: configured.SessionHeader);
+        var configured = shared.Configured;
+        using var ours = await configured.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: configured.SessionHeader);
         Assert.Equal(HttpStatusCode.OK, ours.StatusCode);
         Assert.Equal("max-age=600", Assert.Single(ours.Headers.GetValues("Strict-Transport-Security")));
     }
@@ -279,21 +278,21 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     public async Task TheAdminHostsOwnServerHeaderSettingWinsThroughTheProxy()
     {
         // An admin host through the proxy follows its own resolved Server setting, like any other host.
-        AdminProxyHarness plain = shared.Harness;
-        using (HttpResponseMessage untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
+        var plain = shared.Harness;
+        using (var untouched = await plain.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: plain.SessionHeader))
         {
             Assert.Equal(HttpStatusCode.OK, untouched.StatusCode);
             Assert.Equal("Paduraksa", Assert.Single(untouched.Headers.GetValues("Server")));
         }
 
         // The admin app's own listener doesn't add Kestrel's either; the host's header is the one on the public response.
-        AdminInternalListener listener = plain.Host.Shared.AdminInternal;
-        (int status, string headers, _) = await InternalAsync(listener, "GET", "/healthz", listener.Secret, xff: "127.0.0.1", proto: "https");
+        var listener = plain.Host.Shared.AdminInternal;
+        var (status, headers, _) = await InternalAsync(listener, "GET", "/healthz", listener.Secret, xff: "127.0.0.1", proto: "https");
         Assert.Equal(HttpStatusCode.OK, (HttpStatusCode)status);
         Assert.DoesNotContain("Server:", headers, StringComparison.OrdinalIgnoreCase);
 
-        AdminProxyHarness configured = shared.Configured;
-        using HttpResponseMessage ours = await configured.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: configured.SessionHeader);
+        var configured = shared.Configured;
+        using var ours = await configured.SendAsync(HttpMethod.Get, "/api/v1/auth/me", cookie: configured.SessionHeader);
         Assert.Equal(HttpStatusCode.OK, ours.StatusCode);
         Assert.Equal("admin-edge/1.0", Assert.Single(ours.Headers.GetValues("Server")));
     }
@@ -301,34 +300,34 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task SetupIsRefusedThroughTheInternalListener()
     {
-        AdminProxyHarness harness = shared.Harness;
+        var harness = shared.Harness;
 
-        using HttpResponseMessage get = await harness.SendAsync(
+        using var get = await harness.SendAsync(
             HttpMethod.Get, "/api/v1/setup", origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.Forbidden, get.StatusCode);
-        using JsonDocument problem = JsonDocument.Parse(await get.Content.ReadAsStringAsync(Ct));
+        using var problem = JsonDocument.Parse(await get.Content.ReadAsStringAsync(Ct));
         Assert.Equal("setup.viaProxy", problem.RootElement.GetProperty("code").GetString());
 
-        using HttpResponseMessage post = await harness.SendAsync(
+        using var post = await harness.SendAsync(
             HttpMethod.Post,
             "/api/v1/setup",
             """{"setupToken":"x","username":"x","password":"x"}""",
             origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.Forbidden, post.StatusCode);
-        using JsonDocument postProblem = JsonDocument.Parse(await post.Content.ReadAsStringAsync(Ct));
+        using var postProblem = JsonDocument.Parse(await post.Content.ReadAsStringAsync(Ct));
         Assert.Equal("setup.viaProxy", postProblem.RootElement.GetProperty("code").GetString());
     }
 
     [Fact]
     public async Task TheTcpFallbackWorksEndToEndAndStillRequiresTheHopSecret()
     {
-        string dataDirectory = Path.Combine(TestDataDirectories.NewPath(), new string('d', 120), "data");
+        var dataDirectory = Path.Combine(TestDataDirectories.NewPath(), new string('d', 120), "data");
         LogCapture logs = new();
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync(
+        await using var harness = await AdminProxyHarness.StartAsync(
             settings: new Dictionary<string, string?> { ["Paduraksa:DataDirectory"] = dataDirectory },
             logs: logs);
 
-        AdminInternalListener listener = harness.Host.Shared.AdminInternal;
+        var listener = harness.Host.Shared.AdminInternal;
         Assert.False(listener.UsesUnixSocket);
         Assert.NotNull(listener.LoopbackEndPoint);
         Assert.NotNull(listener.FallbackReason);
@@ -336,12 +335,12 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
             && entry.Message.Contains("TCP fallback", StringComparison.Ordinal));
 
         // The proxied path works over the fallback.
-        using HttpResponseMessage me = await harness.SendAsync(
+        using var me = await harness.SendAsync(
             HttpMethod.Get, "/api/v1/auth/me", cookie: harness.SessionHeader, origin: "https://" + AdminProxyHarness.AdminHost);
         Assert.Equal(HttpStatusCode.OK, me.StatusCode);
 
         // A local process on the fallback port can't forge forwarded headers without the secret.
-        (int status, _, string body) = await InternalAsync(
+        var (status, _, body) = await InternalAsync(
             listener, "GET", "/healthz", secret: null, xff: "203.0.113.9", proto: "https");
         Assert.Equal(HttpStatusCode.Forbidden, (HttpStatusCode)status);
         Assert.Contains("\"code\":\"admin.internalHop\"", body, StringComparison.Ordinal);
@@ -350,7 +349,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task AWebSocketUpgradePassesThroughTheAdminPipeline()
     {
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync(
+        await using var harness = await AdminProxyHarness.StartAsync(
             configureServices: static (role, services) =>
             {
                 if (role == HostRole.Admin)
@@ -359,8 +358,8 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
                 }
             });
 
-        string key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
-        string response = await UpgradeAsync(harness, "/ws-echo", key);
+        var key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+        var response = await UpgradeAsync(harness, "/ws-echo", key);
         Assert.StartsWith("HTTP/1.1 101", response, StringComparison.Ordinal);
         Assert.Contains("Sec-WebSocket-Accept:", response, StringComparison.OrdinalIgnoreCase);
     }
@@ -368,10 +367,10 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task TheDashboardAndItsCircuitWorkThroughTheProxy()
     {
-        AdminProxyHarness harness = shared.Harness;
+        var harness = shared.Harness;
 
         // The page, as a browser on the public name opens it: the dashboard's policy, and HSTS for the public HTTPS name.
-        using (HttpResponseMessage page = await harness.SendAsync(
+        using (var page = await harness.SendAsync(
             HttpMethod.Get, "/", cookie: harness.SessionHeader, headers: new Dictionary<string, string> { ["Accept"] = "text/html" }))
         {
             Assert.Equal(HttpStatusCode.OK, page.StatusCode);
@@ -381,31 +380,31 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
 
         // The circuit: negotiate, then the WebSocket upgrade, both through the public listener and the hop-checked internal one.
         string connectionToken;
-        using (HttpResponseMessage negotiate = await harness.SendAsync(
+        using (var negotiate = await harness.SendAsync(
             HttpMethod.Post, "/_blazor/negotiate?negotiateVersion=1", cookie: harness.SessionHeader, fetchSite: "same-origin"))
         {
             Assert.Equal(HttpStatusCode.OK, negotiate.StatusCode);
-            using JsonDocument body = JsonDocument.Parse(await negotiate.Content.ReadAsStringAsync(Ct));
+            using var body = JsonDocument.Parse(await negotiate.Content.ReadAsStringAsync(Ct));
             connectionToken = body.RootElement.GetProperty("connectionToken").GetString()!;
         }
 
-        string key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
-        string upgraded = await UpgradeAsync(harness, $"/_blazor?id={Uri.EscapeDataString(connectionToken)}", key, harness.SessionHeader);
+        var key = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+        var upgraded = await UpgradeAsync(harness, $"/_blazor?id={Uri.EscapeDataString(connectionToken)}", key, harness.SessionHeader);
         Assert.StartsWith("HTTP/1.1 101", upgraded, StringComparison.Ordinal);
 
         // Without the session the hub refuses the upgrade.
-        string refused = await UpgradeAsync(harness, $"/_blazor?id={Uri.EscapeDataString(connectionToken)}", key);
+        var refused = await UpgradeAsync(harness, $"/_blazor?id={Uri.EscapeDataString(connectionToken)}", key);
         Assert.StartsWith("HTTP/1.1 401", refused, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task TheSetupPageIsNotServedThroughTheProxy()
     {
-        AdminProxyHarness harness = shared.Harness;
+        var harness = shared.Harness;
 
-        foreach ((HttpMethod method, string path) in new[] { (HttpMethod.Get, "/setup"), (HttpMethod.Post, "/auth/setup") })
+        foreach (var (method, path) in new[] { (HttpMethod.Get, "/setup"), (HttpMethod.Post, "/auth/setup") })
         {
-            using HttpResponseMessage response = await harness.SendAsync(method, path, fetchSite: "same-origin");
+            using var response = await harness.SendAsync(method, path, fetchSite: "same-origin");
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
             Assert.Contains("\"code\":\"setup.viaProxy\"", await response.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
         }
@@ -415,21 +414,21 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     public async Task TheLockoutGuardRefusesThroughTheProxyAndForceAllows()
     {
         // Its own host: the forced delete removes the admin host from the config.
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
-        string path = $"/api/v1/hosts/{AdminProxyHarness.AdminHostId}";
+        await using var harness = await AdminProxyHarness.StartAsync();
+        var path = $"/api/v1/hosts/{AdminProxyHarness.AdminHostId}";
 
-        using HttpResponseMessage refused = await harness.SendAsync(
+        using var refused = await harness.SendAsync(
             HttpMethod.Delete, path, cookie: harness.SessionHeader, origin: "https://" + AdminProxyHarness.AdminHost,
             headers: new Dictionary<string, string> { ["If-Match"] = "\"1\"" });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
-        using (JsonDocument problem = JsonDocument.Parse(await refused.Content.ReadAsStringAsync(Ct)))
+        using (var problem = JsonDocument.Parse(await refused.Content.ReadAsStringAsync(Ct)))
         {
             Assert.Contains(
                 problem.RootElement.GetProperty("errors").EnumerateArray(),
                 error => error.GetProperty("code").GetString() == "host.admin.lockout");
         }
 
-        using HttpResponseMessage forced = await harness.SendAsync(
+        using var forced = await harness.SendAsync(
             HttpMethod.Delete, path + "?force=true", cookie: harness.SessionHeader, origin: "https://" + AdminProxyHarness.AdminHost,
             headers: new Dictionary<string, string> { ["If-Match"] = "\"1\"" });
         Assert.Equal(HttpStatusCode.NoContent, forced.StatusCode);
@@ -439,10 +438,10 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     public async Task TheAdminHostCanBeDeletedOverTheNormalAdminPort()
     {
         // Its own host: the delete removes the admin host from the config.
-        await using AdminProxyHarness harness = await AdminProxyHarness.StartAsync();
+        await using var harness = await AdminProxyHarness.StartAsync();
 
         // The ordinary admin port is not the admin host, so the guard doesn't apply there.
-        using AdminResponse deleted = await harness.Admin.SendAsync(
+        using var deleted = await harness.Admin.SendAsync(
             HttpMethod.Delete,
             $"/api/v1/hosts/{AdminProxyHarness.AdminHostId}",
             cookie: harness.OwnerCookie,
@@ -453,10 +452,10 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
     [Fact]
     public async Task ClientSentForwardedHeadersAreIgnoredOnTheAdminPort()
     {
-        AdminProxyHarness harness = shared.Harness;
+        var harness = shared.Harness;
 
         // A spoofed Host/Proto on the admin listener must not turn the admin into another origin: the CSRF check refuses.
-        using AdminResponse refused = await harness.Admin.SendAsync(
+        using var refused = await harness.Admin.SendAsync(
             HttpMethod.Post,
             "/api/v1/auth/logout",
             cookie: harness.OwnerCookie,
@@ -478,7 +477,7 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
         string? xff,
         string? proto)
     {
-        using Socket socket = listener.UsesUnixSocket
+        using var socket = listener.UsesUnixSocket
             ? new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified)
             : new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         EndPoint endpoint = listener.UsesUnixSocket
@@ -507,17 +506,17 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
         request.Append("\r\n");
         await stream.WriteAsync(Encoding.ASCII.GetBytes(request.ToString()), Ct).ConfigureAwait(false);
         using StreamReader reader = new(stream, Encoding.ASCII);
-        string response = await reader.ReadToEndAsync(Ct).ConfigureAwait(false);
-        int split = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
-        string headers = split < 0 ? response : response[..split];
-        string body = split < 0 ? string.Empty : response[(split + 4)..];
-        int status = int.Parse(headers.Split("\r\n", 2)[0].Split(' ')[1], CultureInfo.InvariantCulture);
+        var response = await reader.ReadToEndAsync(Ct).ConfigureAwait(false);
+        var split = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        var headers = split < 0 ? response : response[..split];
+        var body = split < 0 ? string.Empty : response[(split + 4)..];
+        var status = int.Parse(headers.Split("\r\n", 2)[0].Split(' ')[1], CultureInfo.InvariantCulture);
         return (status, headers, body);
     }
 
     private static async Task<string> UpgradeAsync(AdminProxyHarness harness, string path, string key, string? cookie = null)
     {
-        Uri endpoint = TestHost.Endpoint(harness.Host, HostRole.Public, "https");
+        var endpoint = TestHost.Endpoint(harness.Host, HostRole.Public, "https");
         using TcpClient tcp = new();
         await tcp.ConnectAsync(IPAddress.Loopback, endpoint.Port, Ct);
         await using SslStream tls = new(tcp.GetStream());
@@ -529,16 +528,16 @@ public sealed class AdminThroughProxyTests(SharedAdminProxy shared) : IClassFixt
                 RemoteCertificateValidationCallback = static (_, certificate, _, _) => certificate is not null,
             },
             Ct).WaitAsync(TimeSpan.FromSeconds(10), Ct);
-        string request = $"GET {path} HTTP/1.1\r\nHost: {AdminProxyHarness.AdminHost}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-            + $"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: https://{AdminProxyHarness.AdminHost}\r\n"
-            + (cookie is null ? string.Empty : $"Cookie: {cookie}\r\n")
-            + "\r\n";
+        var request = $"GET {path} HTTP/1.1\r\nHost: {AdminProxyHarness.AdminHost}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                      + $"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nOrigin: https://{AdminProxyHarness.AdminHost}\r\n"
+                      + (cookie is null ? string.Empty : $"Cookie: {cookie}\r\n")
+                      + "\r\n";
         await tls.WriteAsync(Encoding.ASCII.GetBytes(request), Ct);
         using StreamReader reader = new(tls, Encoding.ASCII);
         StringBuilder head = new();
         while (true)
         {
-            string? line = await reader.ReadLineAsync(Ct);
+            var line = await reader.ReadLineAsync(Ct);
             if (line is null || line.Length == 0)
             {
                 break;
@@ -576,7 +575,7 @@ internal sealed class AdminWebSocketEcho : IStartupFilter
                 return;
             }
 
-            using System.Net.WebSockets.WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
+            using var socket = await context.WebSockets.AcceptWebSocketAsync();
             await socket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "ok", context.RequestAborted);
         });
     };

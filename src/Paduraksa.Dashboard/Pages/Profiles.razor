@@ -1,7 +1,6 @@
 @attribute [Route(DashboardRoutes.Profiles)]
 @attribute [Route(DashboardRoutes.Profiles + "/{Key}")]
 @implements IDisposable
-@using Paduraksa.Dashboard.Editors
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
@@ -41,7 +40,7 @@ else
     <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true">
         @if (_document is null)
         {
-            @for (int i = 0; i < 2; i++)
+            @for (var i = 0; i < 2; i++)
             {
                 <div class="pdk-row-skeleton">
                     <MudSkeleton SkeletonType="SkeletonType.Text" Width="24%" />
@@ -71,10 +70,10 @@ else
                     <span role="columnheader">Used by</span>
                     <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
                 </div>
-                @foreach (ProfileConfig profile in _document.Profiles.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+                @foreach (var profile in _document.Profiles.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
                 {
-                    IReadOnlyList<HostConfig> hosts = ProfileEditModel.HostsUsing(_document, profile.Id);
-                    IReadOnlyList<string> sets = SettingsSummary.Summary(profile.Settings);
+                    var hosts = ProfileEditModel.HostsUsing(_document, profile.Id);
+                    var sets = SettingsSummary.Summary(profile.Settings);
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(profile)" data-profile="@profile.Name" @key="profile.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Badge" Size="Size.Small" /></span>
@@ -94,7 +93,7 @@ else
                             else
                             {
                                 <span class="pdk-dt-chips">
-                                    @foreach (string part in sets)
+                                    @foreach (var part in sets)
                                     {
                                         <StatusChip Tone="Tone.Primary" Text="@part" />
                                     }
@@ -109,7 +108,7 @@ else
                             else
                             {
                                 <span class="pdk-dt-chips">
-                                    @foreach (HostConfig host in hosts)
+                                    @foreach (var host in hosts)
                                     {
                                         <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
                                     }
@@ -176,7 +175,7 @@ else
 
     private async Task LoadAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -208,7 +207,7 @@ else
             return Drawers.Push<ProfileDrawer>(width: DrawerWidth.Medium);
         }
 
-        return ProfileId.TryParse(key, out ProfileId id)
+        return ProfileId.TryParse(key, out var id)
             ? Drawers.Push<ProfileDrawer>(new Dictionary<string, object?> { [nameof(ProfileDrawer.Id)] = id }, DrawerWidth.Medium)
             : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Profile not found", "There is no such profile", "Back to the profiles"), DrawerWidth.Narrow);
     }
@@ -223,7 +222,7 @@ else
         }
 
         // Refused here with the hosts named, rather than by the dry run with a pointer: the validator would refuse it the same way.
-        IReadOnlyList<HostConfig> hosts = ProfileEditModel.HostsUsing(_document, profile.Id);
+        var hosts = ProfileEditModel.HostsUsing(_document, profile.Id);
         if (hosts.Count > 0)
         {
             _deleteRefusal = $"{profile.Name} is still used by {string.Join(", ", hosts.Select(ChangeView.HostTitle))}, so it can't be deleted. "

@@ -6,7 +6,7 @@
         @if (Result.Errors.Count > 0 || Result.RelatedErrors.Count > 0)
         {
             <ul class="pdk-plain-list">
-                @foreach (ConfigError error in Result.Errors.Concat(Result.RelatedErrors))
+                @foreach (var error in Result.Errors.Concat(Result.RelatedErrors))
                 {
                     <li>@ReviewNotices.Text(error)</li>
                 }
@@ -16,7 +16,7 @@
 }
 else
 {
-    (Tone tone, string icon, string title) = SimulationForm.Describe(Result.Outcome, UpstreamName);
+    var (tone, icon, title) = SimulationForm.Describe(Result.Outcome, UpstreamName);
     <section class="pdk-outcome pdk-tone-@tone.Css()" aria-live="polite">
         <span class="pdk-outcome-icon"><MudIcon Icon="@icon" /></span>
         <div class="pdk-outcome-text">
@@ -42,7 +42,7 @@ else
         <div class="pdk-sim-upstream">
             <MudText Typo="Typo.subtitle2" HtmlTag="h3">Destinations of @(UpstreamName ?? upstream.Id.ToString())</MudText>
             <ul class="pdk-list">
-                @foreach (SimulationDestination destination in upstream.Destinations)
+                @foreach (var destination in upstream.Destinations)
                 {
                     <li class="pdk-list-row">
                         <span class="pdk-status-dot pdk-tone-@HealthTone(destination.Health).Css()" aria-hidden="true"></span>
@@ -57,11 +57,11 @@ else
     @if (Result.Warnings.Count > 0 || Result.Notes.Count > 0)
     {
         <ul class="pdk-sim-notes">
-            @foreach (ConfigWarning warning in Result.Warnings)
+            @foreach (var warning in Result.Warnings)
             {
                 <li class="pdk-tone-warning"><MudIcon Icon="@Icons.Material.Outlined.WarningAmber" Size="Size.Small" /> @ReviewNotices.Sentence(warning.Message)</li>
             }
-            @foreach (string note in Result.Notes)
+            @foreach (var note in Result.Notes)
             {
                 <li><MudIcon Icon="@Icons.Material.Outlined.Info" Size="Size.Small" /> @ReviewNotices.Sentence(note)</li>
             }
@@ -69,9 +69,9 @@ else
     }
 
     <ol class="pdk-trace" aria-label="Trace">
-        @foreach (SimulationStep step in Result.Trace)
+        @foreach (var step in Result.Trace)
         {
-            (Tone stepTone, string stepIcon, string word) = SimulationForm.Verdict(step.Verdict, tone);
+            var (stepTone, stepIcon, word) = SimulationForm.Verdict(step.Verdict, tone);
             <li class="pdk-trace-step pdk-trace-@step.Verdict.ToString().ToLowerInvariant() pdk-tone-@stepTone.Css()">
                 <span class="pdk-trace-marker"><MudIcon Icon="@stepIcon" Size="Size.Small" /></span>
                 <div class="pdk-trace-body">
@@ -83,7 +83,7 @@ else
                     @if (step.Facts.Count > 0 && !Compact)
                     {
                         <dl class="pdk-facts">
-                            @foreach (SimulationFact fact in step.Facts)
+                            @foreach (var fact in step.Facts)
                             {
                                 <div class="pdk-fact"><dt>@fact.Name</dt><dd class="pdk-mono">@fact.Value</dd></div>
                             }

@@ -24,11 +24,11 @@ public sealed class ClientAddressSourceTests
     [Fact]
     public void WithoutTrustedProxiesTheConnectionIsTheClient()
     {
-        DefaultHttpContext context = TestContexts.Create("a.test", remote: IPAddress.Parse("::ffff:127.0.0.1"));
+        var context = TestContexts.Create("a.test", remote: IPAddress.Parse("::ffff:127.0.0.1"));
         context.Request.Headers[CloudflareHeaders.ConnectingIp] = "198.51.100.7";
         context.Request.Headers["X-Forwarded-For"] = "198.51.100.8";
 
-        ClientIpResolution resolved = _source.Resolve(context, Snapshot(TrustedProxySpec.Off));
+        var resolved = _source.Resolve(context, Snapshot(TrustedProxySpec.Off));
 
         // The dual-mode spelling of an IPv4 peer is normalised: TCP on [::] and QUIC give the same key.
         Assert.Equal(IpKey.Parse("127.0.0.1"), resolved.Address);
@@ -41,10 +41,10 @@ public sealed class ClientAddressSourceTests
     public void TheConnectionsClientInfoWinsOverTheSocketAddress()
     {
         // A PROXY protocol header said the client is 203.0.113.9; the socket peer is the load balancer.
-        DefaultHttpContext context = TestContexts.Create("a.test", remote: IPAddress.Parse("10.0.0.2"));
+        var context = TestContexts.Create("a.test", remote: IPAddress.Parse("10.0.0.2"));
         context.Features.Set<IClientInfoFeature>(new ClientInfo(IpKey.Parse("203.0.113.9"), 4444, ConnectionAddressSource.ProxyProtocol, IpKey.Parse("10.0.0.2"), 5555));
 
-        ClientIpResolution resolved = _source.Resolve(context, Snapshot(TrustedProxySpec.Off));
+        var resolved = _source.Resolve(context, Snapshot(TrustedProxySpec.Off));
 
         Assert.Equal(IpKey.Parse("203.0.113.9"), resolved.Address);
         Assert.Equal(ClientIpSource.ProxyProtocol, resolved.Source);
@@ -56,10 +56,10 @@ public sealed class ClientAddressSourceTests
     [InlineData("192.0.2.50", "198.51.100.7", "192.0.2.50", false)] // anyone else: header ignored
     public void CloudflareProxyTrustsOnlyTheEdge(string peer, string header, string expected, bool trusted)
     {
-        DefaultHttpContext context = TestContexts.Create("a.test", remote: IPAddress.Parse(peer));
+        var context = TestContexts.Create("a.test", remote: IPAddress.Parse(peer));
         context.Request.Headers[CloudflareHeaders.ConnectingIp] = header;
 
-        ClientIpResolution resolved = _source.Resolve(context, CloudflareProxy);
+        var resolved = _source.Resolve(context, CloudflareProxy);
 
         Assert.Equal(IpKey.Parse(expected), resolved.Address);
         Assert.Equal(trusted, resolved.CloudflareHeadersTrusted);
@@ -69,10 +69,10 @@ public sealed class ClientAddressSourceTests
     [Fact]
     public void TheBakedInEdgeRangesDoNotTrustLoopback()
     {
-        DefaultHttpContext context = TestContexts.Create("a.test");
+        var context = TestContexts.Create("a.test");
         context.Request.Headers[CloudflareHeaders.ConnectingIp] = "198.51.100.7";
 
-        ClientIpResolution resolved = _source.Resolve(context, Snapshot(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }, SnapshotCompilerOptions.Default));
+        var resolved = _source.Resolve(context, Snapshot(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }, SnapshotCompilerOptions.Default));
 
         Assert.Equal(IpKey.Parse("127.0.0.1"), resolved.Address);
         Assert.False(resolved.PeerTrusted);
@@ -81,10 +81,10 @@ public sealed class ClientAddressSourceTests
     [Fact]
     public void GenericModeTakesTheRightMostUntrustedForwardedEntry()
     {
-        DefaultHttpContext context = TestContexts.Create("a.test");
+        var context = TestContexts.Create("a.test");
         context.Request.Headers["X-Forwarded-For"] = "198.51.100.1, 203.0.113.5, 127.0.0.2";
 
-        ClientIpResolution resolved = _source.Resolve(context, Snapshot(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["127.0.0.0/8"] }));
+        var resolved = _source.Resolve(context, Snapshot(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["127.0.0.0/8"] }));
 
         Assert.Equal(IpKey.Parse("203.0.113.5"), resolved.Address);
         Assert.True(resolved.PeerTrusted);
@@ -94,9 +94,9 @@ public sealed class ClientAddressSourceTests
     [Fact]
     public void FallbacksFromATrustedPeerAreCounted()
     {
-        RuntimeSnapshot snapshot = CloudflareProxy;
-        DefaultHttpContext missing = TestContexts.Create("a.test");
-        DefaultHttpContext invalid = TestContexts.Create("a.test");
+        var snapshot = CloudflareProxy;
+        var missing = TestContexts.Create("a.test");
+        var invalid = TestContexts.Create("a.test");
         invalid.Request.Headers[CloudflareHeaders.ConnectingIp] = "not-an-ip";
 
         Assert.Equal(ClientIpOutcome.HeaderMissing, _source.Resolve(missing, snapshot).Outcome);
@@ -110,7 +110,7 @@ public sealed class ClientAddressSourceTests
     [Fact]
     public void TheTrustedSchemeIsResolvedInTheSameStep()
     {
-        DefaultHttpContext context = TestContexts.Create("a.test");
+        var context = TestContexts.Create("a.test");
         context.Request.Headers[CloudflareHeaders.ConnectingIp] = "198.51.100.7";
         context.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"https\"}";
 
@@ -122,9 +122,9 @@ public sealed class ClientAddressSourceTests
     [Fact]
     public void CloudflareOverPlainHttpForAPlainHttpVisitorIsCounted()
     {
-        DefaultHttpContext flexible = TestContexts.Create("a.test");
+        var flexible = TestContexts.Create("a.test");
         flexible.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"http\"}";
-        DefaultHttpContext secure = TestContexts.Create("a.test", scheme: "https");
+        var secure = TestContexts.Create("a.test", scheme: "https");
         secure.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"http\"}";
 
         _ = _source.Resolve(flexible, CloudflareProxy);
@@ -138,7 +138,7 @@ public sealed class ClientAddressSourceTests
     [Fact]
     public void ResolvingAllocatesNothing()
     {
-        DefaultHttpContext context = TestContexts.Create("a.test", remote: IPAddress.Parse("::ffff:127.0.0.1"));
+        var context = TestContexts.Create("a.test", remote: IPAddress.Parse("::ffff:127.0.0.1"));
         context.Request.Headers[CloudflareHeaders.ConnectingIp] = "2001:db8::7";
         context.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"https\"}";
         context.Features.Set<IClientInfoFeature>(ClientInfo.FromEndPoint(new IPEndPoint(IPAddress.Loopback, 1234)));

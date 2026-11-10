@@ -18,7 +18,7 @@ internal static class TestSnapshots
 
     public static RuntimeSnapshot Compile(ProxyConfigModel model, SnapshotCompilerOptions? options = null)
     {
-        CompileResult result = SnapshotCompiler.Compile(model, options);
+        var result = SnapshotCompiler.Compile(model, options);
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
         return result.Snapshot!;
     }
@@ -26,9 +26,9 @@ internal static class TestSnapshots
     /// <summary>Compiles and binds with one fake endpoint per slot, named after the YARP route ID.</summary>
     public static RuntimeSnapshot Bound(ProxyConfigModel model, long generation = 1, SnapshotCompilerOptions? options = null)
     {
-        RuntimeSnapshot candidate = Compile(model, options);
-        Endpoint[] endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
-        for (int i = 0; i < endpoints.Length; i++)
+        var candidate = Compile(model, options);
+        var endpoints = new Endpoint[candidate.RouteIdBySlot.Length];
+        for (var i = 0; i < endpoints.Length; i++)
         {
             endpoints[i] = new Endpoint(static _ => Task.CompletedTask, EndpointMetadataCollection.Empty, candidate.RouteIdBySlot[i].ToString());
         }
@@ -39,8 +39,8 @@ internal static class TestSnapshots
     /// <summary>Destinations are labelled <c>{label}-d0</c>, <c>{label}-d1</c>, ...</summary>
     public static UpstreamSpec Upstream(string label, params string[] addresses)
     {
-        DestinationSpec[] destinations = new DestinationSpec[addresses.Length];
-        for (int i = 0; i < addresses.Length; i++)
+        var destinations = new DestinationSpec[addresses.Length];
+        for (var i = 0; i < addresses.Length; i++)
         {
             destinations[i] = new DestinationSpec(TestIds.Destination($"{label}-d{i}"), addresses[i]);
         }

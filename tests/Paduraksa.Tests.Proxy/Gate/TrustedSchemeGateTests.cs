@@ -36,14 +36,14 @@ public sealed class TrustedSchemeGateTests : IDisposable
     [InlineData("192.0.2.9", "{\"scheme\":\"https\"}", false)] // not cloudflared: the header is a spoof
     public void PlainHttpBehindATrustedTerminatorIsNotRedirected(string peer, string? visitor, bool forwarded)
     {
-        GateAction expected = forwarded ? GateAction.Forward : GateAction.Respond;
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/x", remote: IPAddress.Parse(peer));
+        var expected = forwarded ? GateAction.Forward : GateAction.Respond;
+        var context = TestContexts.Create("secure.test", "/x", remote: IPAddress.Parse(peer));
         if (visitor is not null)
         {
             context.Request.Headers[CloudflareHeaders.Visitor] = visitor;
         }
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         Assert.Equal(expected, decision.Action);
         Assert.Equal(expected == GateAction.Forward, context.Features.Get<IGateFeature>()!.State.IsHttps);
@@ -57,7 +57,7 @@ public sealed class TrustedSchemeGateTests : IDisposable
     public void ATrustedPlainHttpVisitorOverTlsIsRedirectedToo()
     {
         // Over TLS to us, but Cloudflare says the visitor used HTTP: the visitor gets sent to HTTPS.
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/x", scheme: "https");
+        var context = TestContexts.Create("secure.test", "/x", scheme: "https");
         context.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"http\"}";
 
         Assert.Equal(GateAction.Respond, _gate.Decide(context).Action);
@@ -66,7 +66,7 @@ public sealed class TrustedSchemeGateTests : IDisposable
     [Fact]
     public void DecidingWithTheTrustedSchemeAllocatesNothing()
     {
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/x");
+        var context = TestContexts.Create("secure.test", "/x");
         context.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"https\"}";
         context.Request.Headers[CloudflareHeaders.ConnectingIp] = "198.51.100.7";
         AllocAssert.Zero((_gate, context), static s => _ = s._gate.Decide(s.context), "gate with a trusted CF-Visitor");

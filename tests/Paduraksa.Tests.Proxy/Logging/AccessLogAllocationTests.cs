@@ -3,8 +3,6 @@ using System.Net;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Logging;
@@ -35,8 +33,8 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
                 ProxyHost("off", "quiet.test", Route("off-root", "web")) with { AccessLog = false },
             ],
         };
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true });
-        using HttpClient client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true });
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
 
         await SendAsync(server, client, host, path, expected, Warmup);
         server.GateStats!.Reset();
@@ -47,7 +45,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         // A line per request, in order, none dropped: the log really was on for these requests.
         Assert.True(server.AccessLog.EntriesWritten >= Measured, $"only {server.AccessLog.EntriesWritten} lines were queued");
         Assert.Equal(0, server.AccessLog.Dropped);
-        Assert.True(server.AccessLog.TryRead(out AccessLogEntry entry));
+        Assert.True(server.AccessLog.TryRead(out var entry));
         Assert.Equal(path, entry.Path);
         Assert.False(string.IsNullOrEmpty(entry.RequestId));
     }
@@ -60,10 +58,10 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             Upstreams = [Upstream("web", upstream.Address("a"))],
             Hosts = [ProxyHost("off", "quiet.test", Route("off-root", "web")) with { AccessLog = false }],
         };
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model);
-        using HttpClient client = ProxyTestServer.CreateClient();
+        await using var server = await ProxyTestServer.StartAsync(model);
+        using var client = ProxyTestServer.CreateClient();
 
-        using HttpResponseMessage response = await client.SendAsync(server.Request("quiet.test", "/x"), TestContext.Current.CancellationToken);
+        using var response = await client.SendAsync(server.Request("quiet.test", "/x"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("/a/x", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
@@ -72,18 +70,18 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
 
     private static async Task SendAsync(ProxyTestServer server, HttpClient client, string host, string path, HttpStatusCode expected, int count)
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        int next = 0;
-        Task[] workers = new Task[Connections];
-        for (int w = 0; w < workers.Length; w++)
+        var ct = TestContext.Current.CancellationToken;
+        var next = 0;
+        var workers = new Task[Connections];
+        for (var w = 0; w < workers.Length; w++)
         {
             workers[w] = Task.Run(
                 async () =>
                 {
                     while (Interlocked.Increment(ref next) <= count)
                     {
-                        using HttpRequestMessage request = server.Request(host, path);
-                        using HttpResponseMessage response = await client.SendAsync(request, ct);
+                        using var request = server.Request(host, path);
+                        using var response = await client.SendAsync(request, ct);
                         Assert.Equal(expected, response.StatusCode);
                         await response.Content.LoadIntoBufferAsync(ct);
                     }

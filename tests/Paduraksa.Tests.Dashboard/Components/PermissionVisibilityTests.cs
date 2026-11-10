@@ -5,7 +5,6 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 
 using Paduraksa.Core.Model;
-using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Layout;
 
@@ -20,7 +19,7 @@ public sealed class PermissionVisibilityTests
     public void TheNavigation_ListsThePagesTheRoleMaySee(Role role, string[] expected)
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
+        var menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(role))));
 
         Assert.Equal(expected, menu.FindAll(".pdk-nav-label").Select(label => label.TextContent));
@@ -30,7 +29,7 @@ public sealed class PermissionVisibilityTests
     public void TheNavigation_ShowsNothingPermissionBoundToAnAnonymousState()
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
+        var menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(null)));
 
         Assert.Equal(["Overview"], menu.FindAll(".pdk-nav-label").Select(label => label.TextContent));
@@ -40,7 +39,7 @@ public sealed class PermissionVisibilityTests
     public void PlaceholderPages_AreMarkedSoon()
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<NavMenu> menu = context.Render<NavMenu>(parameters =>
+        var menu = context.Render<NavMenu>(parameters =>
             parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(Role.Owner))));
 
         Assert.Equal(DashboardNavigation.Entries.Count(entry => !entry.Available), menu.FindAll(".pdk-soon").Count);
@@ -52,7 +51,7 @@ public sealed class PermissionVisibilityTests
     public void IfPermitted_ShowsItsContentOnlyWithThePermission(Role role, bool shown)
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<IfPermitted> gate = RenderGate(context, TestUsers.User(role));
+        var gate = RenderGate(context, TestUsers.User(role));
 
         Assert.Equal(shown, gate.FindAll("button.add").Count == 1);
         Assert.Equal(!shown, gate.FindAll("span.why").Count == 1);
@@ -62,7 +61,7 @@ public sealed class PermissionVisibilityTests
     public void IfPermitted_ShowsNothingToAnAnonymousState()
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<IfPermitted> gate = RenderGate(context, null);
+        var gate = RenderGate(context, null);
 
         Assert.Empty(gate.FindAll("button.add"));
     }

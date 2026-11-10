@@ -1,5 +1,4 @@
 @using Paduraksa.Contracts.Audit
-@using Paduraksa.Contracts.Identity
 
 <DrawerShell Title="@AuditText.Describe(Event.Action)" Subtitle="@RevisionText.Exact(Event.Timestamp)"
              Icon="@Icons.Material.Outlined.FactCheck" IconTone="AuditText.ToneOf(Event.Outcome)" Name="audit-event">

@@ -26,18 +26,18 @@ public class CidrSetBenchmarks
         CidrSet.Builder builder = new();
         List<string> v4 = [];
         List<string> v6 = [];
-        for (int i = 0; i < Ranges; i++)
+        for (var i = 0; i < Ranges; i++)
         {
             if (i % 2 == 0)
             {
                 // 11.0.0.0 - 126.255.255.0 /24s: never 10/8 or 127/8, so the miss below stays a miss.
-                string block = $"{random.Next(11, 127)}.{random.Next(256)}.{random.Next(256)}.0/24";
+                var block = $"{random.Next(11, 127)}.{random.Next(256)}.{random.Next(256)}.0/24";
                 v4.Add(block);
                 builder.Add(block);
             }
             else
             {
-                string block = $"2001:db8:{random.Next(65536):x}::/48";
+                var block = $"2001:db8:{random.Next(65536):x}::/48";
                 v6.Add(block);
                 builder.Add(block);
             }

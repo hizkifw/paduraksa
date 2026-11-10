@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
-using Paduraksa.Storage.Sqlite;
 using Paduraksa.Tests.Vault.Testing;
 using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.Persistence;

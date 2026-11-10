@@ -26,7 +26,7 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
     public void Offer(RevisionRef committed, string what, bool pending = false)
     {
         ArgumentNullException.ThrowIfNull(committed);
-        string message = pending
+        var message = pending
             ? $"{what}. Saved as {committed}; it goes live in a moment."
             : $"{what}. Live as {committed}.";
         if (_offered is { } previous)
@@ -73,12 +73,12 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
             return null;
         }
 
-        RevisionDetail? detail = await config.GetRevisionAsync(committed.Id).ConfigureAwait(false);
-        string note = $"Undo {committed}";
+        var detail = await config.GetRevisionAsync(committed.Id).ConfigureAwait(false);
+        var note = $"Undo {committed}";
         ConfigCommand command = detail?.Revision.ParentId is { } parent
             ? new RollbackConfigCommand(parent, committed.Id) { Message = note }
             : new ReplaceConfigCommand(ConfigService.InitialDocument, committed.Id) { Message = note };
-        ConfigCommandResult result = await config.ExecuteAsync(command, origin).ConfigureAwait(false);
+        var result = await config.ExecuteAsync(command, origin).ConfigureAwait(false);
         switch (result.Status)
         {
             case ConfigCommandStatus.Committed:
@@ -97,7 +97,7 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
                 snackbar.Add(Identity.IdentityText.CantChangeConfig, Severity.Error);
                 break;
             default:
-                string why = result.Errors.Count > 0 ? ReviewNotices.Text(result.Errors[0]) : "The config store refused it.";
+                var why = result.Errors.Count > 0 ? ReviewNotices.Text(result.Errors[0]) : "The config store refused it.";
                 snackbar.Add($"Couldn't undo {committed}. {why}", Severity.Error);
                 break;
         }

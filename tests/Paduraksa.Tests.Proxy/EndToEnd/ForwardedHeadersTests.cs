@@ -47,14 +47,14 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     [Fact]
     public async Task WithoutTrustedProxiesEveryClientHeaderIsReplacedOrRemoved()
     {
-        Dictionary<string, string> seen = await SendAsync(Model(TrustedProxySpec.Off), Spoof, "/a%2Fb?q=1");
+        var seen = await SendAsync(Model(TrustedProxySpec.Off), Spoof, "/a%2Fb?q=1");
 
         Assert.Equal("127.0.0.1", seen["X-Forwarded-For"]); // one address, the IPv4-mapped peer as dotted quad
         Assert.Equal("127.0.0.1", seen["X-Real-IP"]);
         Assert.Equal("http", seen["X-Forwarded-Proto"]); // an untrusted client can't claim https
         Assert.Equal("app.test", seen["X-Forwarded-Host"]);
         Assert.Equal("/a%2Fb?q=1", seen["target"]); // the raw-target forwarding is untouched
-        foreach (string removed in (string[])["Forwarded", "X-Forwarded-Prefix", "X-Forwarded-Port", .. AnyCloudflare])
+        foreach (var removed in (string[])["Forwarded", "X-Forwarded-Prefix", "X-Forwarded-Port", .. AnyCloudflare])
         {
             Assert.False(seen.ContainsKey(removed), removed);
         }
@@ -63,7 +63,7 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     [Fact]
     public async Task ATrustedCloudflareEdgePassesTheClientAndItsHeaders()
     {
-        Dictionary<string, string> seen = await SendAsync(Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }), Spoof, "/");
+        var seen = await SendAsync(Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }), Spoof, "/");
 
         Assert.Equal("198.51.100.7", seen["X-Forwarded-For"]);
         Assert.Equal("198.51.100.7", seen["X-Real-IP"]);
@@ -80,11 +80,11 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     public async Task AnUntrustedPeerInCloudflareModeCannotSpoofCloudflare()
     {
         // Loopback isn't in the baked-in edge ranges, so here the client's CF-* headers are fake.
-        Dictionary<string, string> seen = await SendAsync(Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }), Spoof, "/", SnapshotCompilerOptions.Default);
+        var seen = await SendAsync(Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }), Spoof, "/", SnapshotCompilerOptions.Default);
 
         Assert.Equal("127.0.0.1", seen["X-Forwarded-For"]);
         Assert.Equal("http", seen["X-Forwarded-Proto"]);
-        foreach (string removed in AnyCloudflare)
+        foreach (var removed in AnyCloudflare)
         {
             Assert.False(seen.ContainsKey(removed), removed);
         }
@@ -93,7 +93,7 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     [Fact]
     public async Task GenericProxiesYieldOneCleanAddressAndNoCloudflareHeaders()
     {
-        Dictionary<string, string> seen = await SendAsync(
+        var seen = await SendAsync(
             Model(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["127.0.0.0/8"] }),
             static request =>
             {
@@ -109,7 +109,7 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
         // The proxy's X-Forwarded-Proto isn't trusted by default (it may be the client's): our own scheme.
         Assert.Equal("http", seen["X-Forwarded-Proto"]);
         // A trusted nginx passes client headers through, so they are as untrusted as the client.
-        foreach (string removed in AnyCloudflare)
+        foreach (var removed in AnyCloudflare)
         {
             Assert.False(seen.ContainsKey(removed), removed);
         }
@@ -118,7 +118,7 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     [Fact]
     public async Task GenericProxiesCanBeTrustedForTheScheme()
     {
-        Dictionary<string, string> seen = await SendAsync(
+        var seen = await SendAsync(
             Model(new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["127.0.0.0/8"], TrustForwardedProto = true }),
             static request => request.Headers.TryAddWithoutValidation("X-Forwarded-Proto", "HTTPS"),
             "/");
@@ -130,7 +130,7 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     public async Task CloudflareFlexibleIsForwardedAsHttp()
     {
         // CF-Visitor beats the edge's X-Forwarded-Proto: the visitor's own scheme.
-        Dictionary<string, string> seen = await SendAsync(
+        var seen = await SendAsync(
             Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }),
             static request =>
             {
@@ -162,7 +162,7 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     public async Task ATunnelClientOnTheLanCannotForgeCloudflareAccess()
     {
         // Tunnel mode trusts cloudflared at 10.0.0.2 only; this client connects directly from loopback.
-        Dictionary<string, string> seen = await SendAsync(Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = ["10.0.0.2"] }), Spoof, "/");
+        var seen = await SendAsync(Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = ["10.0.0.2"] }), Spoof, "/");
 
         Assert.False(seen.ContainsKey("Cf-Access-Authenticated-User-Email"));
         Assert.False(seen.ContainsKey("Cf-Access-Jwt-Assertion"));
@@ -171,11 +171,11 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
 
     private static async Task<Dictionary<string, string>> SendAsync(ProxyConfigModel model, Action<HttpRequestMessage> configure, string pathAndQuery, SnapshotCompilerOptions? options = null)
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model, new() { CompilerOptions = options ?? LoopbackEdge, ClientInfo = true });
-        using HttpClient client = ProxyTestServer.CreateClient();
-        using HttpRequestMessage request = server.Request("app.test", pathAndQuery);
+        await using var server = await ProxyTestServer.StartAsync(model, new() { CompilerOptions = options ?? LoopbackEdge, ClientInfo = true });
+        using var client = ProxyTestServer.CreateClient();
+        using var request = server.Request("app.test", pathAndQuery);
         configure(request);
-        using HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return HeaderEchoUpstream.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
     }

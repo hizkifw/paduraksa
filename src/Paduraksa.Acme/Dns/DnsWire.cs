@@ -61,10 +61,10 @@ internal static class DnsWire
         message.Add(0x00);
         message.AddRange(stackalloc byte[8] { 0, 1, 0, 0, 0, 0, 0, (byte)(edns ? 1 : 0) });
 
-        int nameLength = 1;
-        foreach (string label in name.TrimEnd('.').Split('.'))
+        var nameLength = 1;
+        foreach (var label in name.TrimEnd('.').Split('.'))
         {
-            byte[] bytes = Latin1.GetBytes(label);
+            var bytes = Latin1.GetBytes(label);
             if (bytes.Length is 0 or > 63)
             {
                 throw new ArgumentException($"'{name}' is not a DNS name.", nameof(name));
@@ -105,8 +105,8 @@ internal static class DnsWire
             throw new DnsFormatException("The message is shorter than a DNS header or longer than 65535 bytes.");
         }
 
-        ushort id = BinaryPrimitives.ReadUInt16BigEndian(message);
-        ushort flags = BinaryPrimitives.ReadUInt16BigEndian(message[2..]);
+        var id = BinaryPrimitives.ReadUInt16BigEndian(message);
+        var flags = BinaryPrimitives.ReadUInt16BigEndian(message[2..]);
         if ((flags & 0x8000) == 0)
         {
             throw new DnsFormatException("The message is a query, not a response.");
@@ -129,11 +129,11 @@ internal static class DnsWire
             throw new DnsFormatException($"The response has more than {MaxAnswers} answers.");
         }
 
-        int position = HeaderLength;
-        string questionName = ReadName(message, ref position);
+        var position = HeaderLength;
+        var questionName = ReadName(message, ref position);
         Require(message, position, 4);
-        ushort questionType = BinaryPrimitives.ReadUInt16BigEndian(message[position..]);
-        ushort questionClass = BinaryPrimitives.ReadUInt16BigEndian(message[(position + 2)..]);
+        var questionType = BinaryPrimitives.ReadUInt16BigEndian(message[position..]);
+        var questionClass = BinaryPrimitives.ReadUInt16BigEndian(message[(position + 2)..]);
         position += 4;
         if (questionClass != ClassIn)
         {
@@ -141,16 +141,16 @@ internal static class DnsWire
         }
 
         List<DnsRecord> records = new(answers);
-        for (int i = 0; i < answers; i++)
+        for (var i = 0; i < answers; i++)
         {
-            string name = ReadName(message, ref position);
+            var name = ReadName(message, ref position);
             Require(message, position, 10);
-            ushort type = BinaryPrimitives.ReadUInt16BigEndian(message[position..]);
-            ushort recordClass = BinaryPrimitives.ReadUInt16BigEndian(message[(position + 2)..]);
+            var type = BinaryPrimitives.ReadUInt16BigEndian(message[position..]);
+            var recordClass = BinaryPrimitives.ReadUInt16BigEndian(message[(position + 2)..]);
             int length = BinaryPrimitives.ReadUInt16BigEndian(message[(position + 8)..]);
             position += 10;
             Require(message, position, length);
-            int end = position + length;
+            var end = position + length;
             if (recordClass == ClassIn)
             {
                 records.Add(ReadRecord(message, name, type, position, end));
@@ -164,7 +164,7 @@ internal static class DnsWire
 
     private static DnsRecord ReadRecord(ReadOnlySpan<byte> message, string name, ushort type, int start, int end)
     {
-        ReadOnlySpan<byte> data = message[start..end];
+        var data = message[start..end];
         switch ((DnsRecordType)type)
         {
             case DnsRecordType.A:
@@ -174,15 +174,15 @@ internal static class DnsWire
             case DnsRecordType.NS:
             case DnsRecordType.CNAME:
                 {
-                    int position = start;
-                    string target = ReadName(message, ref position);
+                    var position = start;
+                    var target = ReadName(message, ref position);
                     return position <= end ? new DnsRecord(name, type, null, target, null) : throw new DnsFormatException("A name runs past its record.");
                 }
 
             case DnsRecordType.TXT:
                 {
                     StringBuilder text = new();
-                    int position = 0;
+                    var position = 0;
                     while (position < data.Length)
                     {
                         int length = data[position++];
@@ -210,9 +210,9 @@ internal static class DnsWire
     private static string ReadName(ReadOnlySpan<byte> message, ref int position)
     {
         StringBuilder name = new();
-        int cursor = position;
-        int resume = -1;
-        int jumps = 0;
+        var cursor = position;
+        var resume = -1;
+        var jumps = 0;
         while (true)
         {
             Require(message, cursor, 1);
@@ -226,7 +226,7 @@ internal static class DnsWire
             if ((length & 0xC0) == 0xC0)
             {
                 Require(message, cursor, 2);
-                int target = ((length & 0x3F) << 8) | message[cursor + 1];
+                var target = ((length & 0x3F) << 8) | message[cursor + 1];
                 if (target >= cursor || target < HeaderLength)
                 {
                     throw new DnsFormatException("A compression pointer does not point backward into the message body.");
@@ -253,7 +253,7 @@ internal static class DnsWire
                 throw new DnsFormatException("A name is longer than 255 bytes.");
             }
 
-            foreach (byte b in message.Slice(cursor + 1, length))
+            foreach (var b in message.Slice(cursor + 1, length))
             {
                 if (b is <= 0x20 or >= 0x7F or (byte)'.')
                 {

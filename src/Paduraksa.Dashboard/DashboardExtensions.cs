@@ -79,7 +79,7 @@ public static class DashboardExtensions
     public static RazorComponentsEndpointConventionBuilder MapPaduraksaDashboard(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        RazorComponentsEndpointConventionBuilder components = endpoints.MapRazorComponents<App>()
+        var components = endpoints.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode(server => server.ContentSecurityFrameAncestorsPolicy = null);
 
         // Last in line (like MapFallback), and only a candidate for a browser's page request: everything else keeps the answer routing
@@ -110,7 +110,7 @@ public static class DashboardExtensions
                 return false;
             }
 
-            PathString path = httpContext.Request.Path;
+            var path = httpContext.Request.Path;
             return (HttpMethods.IsGet(httpContext.Request.Method) || HttpMethods.IsHead(httpContext.Request.Method))
                 && !path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
                 && !path.StartsWithSegments(DashboardRoutes.CircuitHub, StringComparison.OrdinalIgnoreCase)

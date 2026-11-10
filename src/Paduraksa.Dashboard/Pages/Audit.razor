@@ -118,11 +118,11 @@ else
                 {
                     <MudSelectItem T="string" Value="@me.ToString()">You</MudSelectItem>
                 }
-                @foreach ((UserId id, string name) in _users.Where(u => u.Key != _me).OrderBy(u => u.Value, StringComparer.OrdinalIgnoreCase))
+                @foreach (var (id, name) in _users.Where(u => u.Key != _me).OrderBy(u => u.Value, StringComparer.OrdinalIgnoreCase))
                 {
                     <MudSelectItem T="string" Value="@id.ToString()">@name</MudSelectItem>
                 }
-                @foreach ((ApiTokenId id, string name) in _tokens.OrderBy(t => t.Value, StringComparer.OrdinalIgnoreCase))
+                @foreach (var (id, name) in _tokens.OrderBy(t => t.Value, StringComparer.OrdinalIgnoreCase))
                 {
                     <MudSelectItem T="string" Value="@id.ToString()">Token "@name"</MudSelectItem>
                 }
@@ -133,7 +133,7 @@ else
                           Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" Immediate="true" DebounceInterval="400" Clearable="true"
                           Error="@(ActionError is not null)" ErrorText="@ActionError" list="pdk-audit-actions" spellcheck="false" data-field="action" />
             <datalist id="pdk-audit-actions">
-                @foreach (string suggestion in AuditText.Suggestions)
+                @foreach (var suggestion in AuditText.Suggestions)
                 {
                     <option value="@suggestion"></option>
                 }
@@ -144,7 +144,7 @@ else
             <MudSelect T="AuditOutcome?" Value="_outcome" ValueChanged="@(value => SetAsync(() => _outcome = value))" Label="Outcome" Variant="Variant.Outlined"
                        Margin="Margin.Dense" Dense="true" data-field="outcome">
                 <MudSelectItem T="AuditOutcome?" Value="null">Any outcome</MudSelectItem>
-                @foreach (AuditOutcome outcome in Enum.GetValues<AuditOutcome>())
+                @foreach (var outcome in Enum.GetValues<AuditOutcome>())
                 {
                     <MudSelectItem T="AuditOutcome?" Value="outcome">@AuditText.Name(outcome)</MudSelectItem>
                 }
@@ -171,7 +171,7 @@ else
         {
             @if (!_failed)
             {
-                @for (int i = 0; i < 6; i++)
+                @for (var i = 0; i < 6; i++)
                 {
                     <div class="pdk-row-skeleton">
                         <MudSkeleton SkeletonType="SkeletonType.Text" Width="12%" />
@@ -190,7 +190,7 @@ else
         else
         {
             <ul class="pdk-audit-list" aria-label="Audit events">
-                @foreach (AuditEventSummary e in _events)
+                @foreach (var e in _events)
                 {
                     <li @key="e.Id" class="pdk-audit-row" data-event="@e.Id" data-action="@e.Action" data-outcome="@e.Outcome.ToName()">
                         <button type="button" class="pdk-audit-summary" @onclick="() => OpenAsync(e)" aria-haspopup="dialog">
@@ -290,7 +290,7 @@ else
             return;
         }
 
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -320,23 +320,23 @@ else
     /// <summary>The names the page may read, to say who acted: users with users:read, one's own tokens, everyone's with tokens:all.</summary>
     private async Task LoadNamesAsync(DashboardPrincipal user)
     {
-        CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
+        var origin = user.Session.OriginFor(Channel.Dashboard);
         Dictionary<UserId, string> users = [];
         Dictionary<ApiTokenId, string> tokens = [];
         try
         {
             if (user.Has(Permission.UsersRead))
             {
-                foreach (UserSummary listed in (await Identity.ListUsersAsync(origin)).Users)
+                foreach (var listed in (await Identity.ListUsersAsync(origin)).Users)
                 {
                     users[listed.Id] = listed.DisplayName;
                 }
             }
 
-            ApiTokenListResult? owned = user.Has(Permission.TokensAll) ? await Identity.ListAllTokensAsync(origin)
+            var owned = user.Has(Permission.TokensAll) ? await Identity.ListAllTokensAsync(origin)
                 : user.Has(Permission.TokensOwn) ? await Identity.ListTokensAsync(origin)
                 : null;
-            foreach (ApiTokenSummary token in owned?.Tokens ?? [])
+            foreach (var token in owned?.Tokens ?? [])
             {
                 tokens[token.Id] = token.Name;
             }
@@ -356,8 +356,8 @@ else
         null => "Anyone",
         "system" => "Paduraksa (system)",
         "cli" => "The CLI",
-        _ when UserId.TryParse(actor, out UserId user) => user == _me ? "You" : _users.GetValueOrDefault(user, actor),
-        _ when ApiTokenId.TryParse(actor, out ApiTokenId token) && _tokens.TryGetValue(token, out string? name) => $"Token \"{name}\"",
+        _ when UserId.TryParse(actor, out var user) => user == _me ? "You" : _users.GetValueOrDefault(user, actor),
+        _ when ApiTokenId.TryParse(actor, out var token) && _tokens.TryGetValue(token, out var name) => $"Token \"{name}\"",
         _ => actor,
     };
 
@@ -369,8 +369,8 @@ else
             return null;
         }
 
-        DateTimeOffset now = Time.GetUtcNow();
-        (DateTimeOffset? from, DateTimeOffset? to) = _range switch
+        var now = Time.GetUtcNow();
+        var (from, to) = _range switch
         {
             AuditRange.Hour => (now.AddHours(-1), (DateTimeOffset?)null),
             AuditRange.Day => (now.AddDays(-1), null),
@@ -390,7 +390,7 @@ else
 
     /// <summary>A <c>datetime-local</c> value, read as UTC (the page shows UTC throughout, so every admin reads the same).</summary>
     private static DateTimeOffset? ParseLocal(string? value) =>
-        DateTime.TryParseExact(value, ["yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss"], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTime parsed)
+        DateTime.TryParseExact(value, ["yyyy-MM-ddTHH:mm", "yyyy-MM-ddTHH:mm:ss"], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed)
             ? new DateTimeOffset(parsed, TimeSpan.Zero)
             : null;
 
@@ -426,7 +426,7 @@ else
         _failed = false;
         try
         {
-            AuditPage page = await AuditLog.QueryAsync(filter, PageSize, null);
+            var page = await AuditLog.QueryAsync(filter, PageSize, null);
             _events = [.. page.Items];
             _after = page.Next;
         }
@@ -450,7 +450,7 @@ else
         {
             await Logger.TryAsync(Snackbar, "Couldn't load the older events.", async () =>
             {
-                AuditPage page = await AuditLog.QueryAsync(filter, PageSize, after);
+                var page = await AuditLog.QueryAsync(filter, PageSize, after);
                 _events?.AddRange(page.Items);
                 _after = page.Next;
             });
@@ -516,12 +516,12 @@ else
             await Logger.TryAsync(Snackbar, "Couldn't export the events.", async () =>
             {
                 ArrayBufferWriter<byte> output = new();
-                int written = 0;
+                var written = 0;
                 AuditEventId? after = null;
                 do
                 {
-                    AuditPage page = await AuditLog.QueryAsync(filter, AuditQueryPage, after);
-                    foreach (AuditEventSummary e in page.Items.Take(ExportLimit - written))
+                    var page = await AuditLog.QueryAsync(filter, AuditQueryPage, after);
+                    foreach (var e in page.Items.Take(ExportLimit - written))
                     {
                         AuditText.WriteLine(output, e);
                         written++;
@@ -531,7 +531,7 @@ else
                 }
                 while (after is not null && written < ExportLimit);
 
-                string name = $"paduraksa-audit-{Time.GetUtcNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.jsonl";
+                var name = $"paduraksa-audit-{Time.GetUtcNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.jsonl";
                 using MemoryStream content = new(output.WrittenMemory.ToArray());
                 if (await Browser.DownloadAsync(name, "application/x-ndjson", content))
                 {

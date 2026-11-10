@@ -305,7 +305,7 @@ public sealed class AcmeRenewalSchedulerTests
         Assert.Equal(1, h.Server.OrderCount);
 
         readiness.Ready.SetResult();
-        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
         while (h.Server.OrderCount == 1 && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(25), Ct);

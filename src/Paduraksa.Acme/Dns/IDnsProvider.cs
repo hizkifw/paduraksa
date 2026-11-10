@@ -41,7 +41,7 @@ public interface IDnsProvider
     async ValueTask CreateTxtBatchAsync(IReadOnlyList<DnsChallengeRecord> records, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(records);
-        foreach (DnsChallengeRecord record in records)
+        foreach (var record in records)
         {
             await CreateTxtAsync(record.Name, record.Value, cancellationToken).ConfigureAwait(false);
         }
@@ -56,7 +56,7 @@ public interface IDnsProvider
     {
         ArgumentNullException.ThrowIfNull(records);
         DnsProviderException? first = null;
-        foreach (DnsChallengeRecord record in records)
+        foreach (var record in records)
         {
             try
             {

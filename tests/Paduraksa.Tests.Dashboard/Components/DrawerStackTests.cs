@@ -12,7 +12,6 @@ using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Config;
 using Paduraksa.Dashboard.Drawers;
-using Paduraksa.Dashboard.Editors;
 using Paduraksa.Dashboard.Pages;
 
 namespace Paduraksa.Tests.Dashboard.Components;
@@ -28,9 +27,9 @@ public sealed class DrawerStackTests
     public async Task ALevel_HandsItsResultBack_AndClosingOneClosesTheLevelsAboveIt()
     {
         DrawerStack stack = new();
-        DrawerLevel bottom = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Bottom", "b"));
-        DrawerLevel middle = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Middle", "m"));
-        DrawerLevel top = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Top", "t"));
+        var bottom = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Bottom", "b"));
+        var middle = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Middle", "m"));
+        var top = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Top", "t"));
         Assert.Same(top, stack.Top);
         Assert.Same(middle, top.Parent);
         Assert.Equal([0, 1, 2], new[] { bottom.Depth, middle.Depth, top.Depth });
@@ -41,7 +40,7 @@ public sealed class DrawerStackTests
         Assert.Same(middle, stack.Top);
 
         // A level closing takes the ones above it along, cancelled; the ones below stay.
-        DrawerLevel again = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Again", "a"));
+        var again = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Again", "a"));
         middle.Close(42);
         Assert.True((await Done(again)).Canceled);
         Assert.Equal(42, (await Done(middle)).As<int>());
@@ -57,8 +56,8 @@ public sealed class DrawerStackTests
     {
         await using DashboardTestContext context = new();
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        IRenderedComponent<DrawerHost> host = context.Render<DrawerHost>();
-        DrawerStack stack = context.Services.GetRequiredService<DrawerStack>();
+        var host = context.Render<DrawerHost>();
+        var stack = context.Services.GetRequiredService<DrawerStack>();
         DrawerLevel bottom = null!;
         DrawerLevel top = null!;
         await host.InvokeAsync(() =>
@@ -92,8 +91,8 @@ public sealed class DrawerStackTests
     {
         await using DashboardTestContext context = new();
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        IRenderedComponent<DrawerHost> host = context.Render<DrawerHost>();
-        DrawerStack stack = context.Services.GetRequiredService<DrawerStack>();
+        var host = context.Render<DrawerHost>();
+        var stack = context.Services.GetRequiredService<DrawerStack>();
         DrawerLevel level = null!;
         await host.InvokeAsync(() => level = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("New host", "b")));
         level.IsDirty = true;
@@ -125,7 +124,7 @@ public sealed class DrawerStackTests
     public async Task ABusyLevel_StaysOpenUntilItIsDone()
     {
         DrawerStack stack = new();
-        DrawerLevel level = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Review", "r"));
+        var level = stack.Push<NotFoundDrawer>(NotFoundDrawer.For("Review", "r"));
         level.Busy = true;
 
         stack.Escape();
@@ -141,24 +140,24 @@ public sealed class DrawerStackTests
     public async Task AnUpstreamMadeFromTheHostDrawer_IsAppliedWithTheHost_AsOneRevision()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        var config = ConfigPages.SignIn(context, Role.Operator);
         config.Document = new ConfigDocument();
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        var drawers = context.Render<DrawerHost>();
         context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
         await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "jelly.home.test");
         Assert.Equal("jelly.home.test", drawers.FindComponent<HostForm>().Instance.Model.Names[0].Value);
 
         // "New upstream..." on the first route stacks the upstream form on the host's.
-        UpstreamConfig upstream = await MakeUpstreamAsync(drawers, "jellyfin", "http://10.0.0.5:8096");
+        var upstream = await MakeUpstreamAsync(drawers, "jellyfin", "http://10.0.0.5:8096");
 
         Assert.Single(drawers.FindAll(".pdk-sheet"));
         Assert.Contains("jellyfin", drawers.Find("[data-staged=jellyfin]").TextContent, StringComparison.Ordinal);
         Assert.Empty(config.Executed);
 
         // Review changes stacks on the host and holds the host's submit until it closes.
-        Task reviewing = drawers.Find("form[data-drawer=host]").SubmitAsync();
+        var reviewing = drawers.Find("form[data-drawer=host]").SubmitAsync();
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
         Assert.Equal(2, drawers.FindAll(".pdk-sheet").Count);
         await drawers.Find("[data-review=apply]").ClickAsync(new());
@@ -166,11 +165,11 @@ public sealed class DrawerStackTests
 
         // One dry run and one commit, both of the whole document: the new upstream and the host that routes to it, together.
         Assert.Equal(2, config.Executed.Count);
-        ReplaceConfigCommand applied = Assert.IsType<ReplaceConfigCommand>(config.Executed[^1]);
+        var applied = Assert.IsType<ReplaceConfigCommand>(config.Executed[^1]);
         Assert.False(applied.DryRun);
         Assert.True(config.Executed[0].DryRun);
         Assert.Equal(upstream.Id, Assert.Single(applied.Document.Upstreams).Id);
-        HostConfig host = Assert.Single(applied.Document.Hosts);
+        var host = Assert.Single(applied.Document.Hosts);
         Assert.Equal(["jelly.home.test"], host.Names);
         Assert.Equal(upstream.Id, Assert.Single(host.Routes).UpstreamId);
         Assert.Equal("New host jelly.home.test with upstream jellyfin", applied.Message);
@@ -181,17 +180,17 @@ public sealed class DrawerStackTests
     public async Task AStagedUpstream_OpensAgainToBeChanged_AndAReviewsRefusalOfIt_ShowsAtItsFields()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        var config = ConfigPages.SignIn(context, Role.Operator);
         config.Document = new ConfigDocument();
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        var drawers = context.Render<DrawerHost>();
         context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
         await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "app.home.test");
-        UpstreamConfig made = await MakeUpstreamAsync(drawers, "app", "http://10.0.0.7:8080");
+        var made = await MakeUpstreamAsync(drawers, "app", "http://10.0.0.7:8080");
 
         // Opened again from the host's drawer: still the same new upstream, with what it was given; the change comes back staged.
-        Task editing = drawers.Find("[data-staged=app] [data-action=edit-staged]").ClickAsync(new());
+        var editing = drawers.Find("[data-staged=app] [data-action=edit-staged]").ClickAsync(new());
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=upstream] input[data-field=name]").Count == 1);
         Assert.Equal("app", drawers.Find("[data-drawer=upstream] input[data-field=name]").GetAttribute("value"));
         Assert.StartsWith("Not applied yet", drawers.Find("[data-drawer=upstream] .pdk-drawer-subtitle").TextContent, StringComparison.Ordinal);
@@ -205,7 +204,7 @@ public sealed class DrawerStackTests
         config.Results = command => command is ReplaceConfigCommand { DryRun: true }
             ? new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [new ConfigError("/upstreams/0/destinations/0/address", "upstream.address.invalid", "the address points at this proxy")])
             : new ConfigCommandResult(ConfigCommandStatus.DryRun);
-        Task reviewing = drawers.Find("form[data-drawer=host]").SubmitAsync();
+        var reviewing = drawers.Find("form[data-drawer=host]").SubmitAsync();
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=invalid]").Count == 1);
         Assert.Contains("app-backend", drawers.Find("[data-review=invalid] .pdk-error-where").TextContent, StringComparison.Ordinal);
         await drawers.InvokeAsync(drawers.Instance.EscapeAsync);
@@ -222,8 +221,8 @@ public sealed class DrawerStackTests
     {
         await using DashboardTestContext context = new();
         context.SetRendererInfo(new RendererInfo("Server", isInteractive: true));
-        IRenderedComponent<DrawerHost> host = context.Render<DrawerHost>();
-        DrawerStack stack = context.Services.GetRequiredService<DrawerStack>();
+        var host = context.Render<DrawerHost>();
+        var stack = context.Services.GetRequiredService<DrawerStack>();
         await host.InvokeAsync(() =>
         {
             stack.Push<NotFoundDrawer>(NotFoundDrawer.For("app.home.test", "a"), DrawerWidth.Wide);
@@ -240,17 +239,17 @@ public sealed class DrawerStackTests
     public async Task AStagedUpstreamNoRouteUses_SaysItWontBeCreated()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        var config = ConfigPages.SignIn(context, Role.Operator);
         config.Document = new ConfigDocument();
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        var drawers = context.Render<DrawerHost>();
         context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
         await MakeUpstreamAsync(drawers, "app", "http://10.0.0.7:8080");
         Assert.Equal("true", drawers.Find("[data-staged=app]").GetAttribute("data-used"));
 
         // The route goes elsewhere: the staged upstream stays listed, but says it won't be created with the host.
-        HostForm form = drawers.FindComponent<HostForm>().Instance;
+        var form = drawers.FindComponent<HostForm>().Instance;
         await drawers.InvokeAsync(() =>
         {
             form.Model.Routes[0].UpstreamId = null;
@@ -265,15 +264,15 @@ public sealed class DrawerStackTests
     public async Task LeavingAPageWithADirtyRoutedDrawer_GoesWhereThePersonWent_NotBackToTheList()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        var config = ConfigPages.SignIn(context, Role.Operator);
         UpstreamConfig app = new(UpstreamId.New(), "app", Version: 1, Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);
         HostConfig host = new(HostId.New(), ["app.home.test"], Version: 1, Routes: [new RouteConfig(RouteId.New(), app.Id)]);
         config.Document = new ConfigDocument(Upstreams: [app], Hosts: [host]);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
-        NavigationManager navigation = context.Services.GetRequiredService<NavigationManager>();
+        var drawers = context.Render<DrawerHost>();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo(DashboardRoutes.Host(host.Id));
-        IRenderedComponent<Hosts> page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, host.Id.ToString()));
+        var page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, host.Id.ToString()));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
         await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "changed.home.test");
 
@@ -293,12 +292,12 @@ public sealed class DrawerStackTests
     public async Task ADrawerThatTakesThePlaceOfTheTopOne_TakesFocus()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Viewer);
+        var config = ConfigPages.SignIn(context, Role.Viewer);
         HostConfig one = new(HostId.New(), ["one.home.test"], Version: 1, Kind: HostKind.Respond, Respond: new RespondConfig(200, "one"));
         HostConfig two = new(HostId.New(), ["two.home.test"], Version: 1, Kind: HostKind.Respond, Respond: new RespondConfig(200, "two"));
         config.Document = new ConfigDocument(Hosts: [one, two]);
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
-        IRenderedComponent<Hosts> page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, one.Id.ToString()));
+        var drawers = context.Render<DrawerHost>();
+        var page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, one.Id.ToString()));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] .pdk-form").Count == 1);
         Assert.Empty(context.JSInterop.Invocations["paduraksa.drawers.focusTop"]);
 
@@ -313,10 +312,10 @@ public sealed class DrawerStackTests
     public async Task CancellingTheHost_LeavesNoUpstreamBehind()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        var config = ConfigPages.SignIn(context, Role.Operator);
         config.Document = new ConfigDocument();
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        var drawers = context.Render<DrawerHost>();
         context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
         await MakeUpstreamAsync(drawers, "app", "http://10.0.0.7:8080");
@@ -342,9 +341,9 @@ public sealed class DrawerStackTests
     /// <summary>Chooses "New upstream..." on the host's first route, fills the upstream drawer and hands it back.</summary>
     private static async Task<UpstreamConfig> MakeUpstreamAsync(IRenderedComponent<DrawerHost> drawers, string name, string address)
     {
-        HostForm form = drawers.FindComponent<HostForm>().Instance;
-        RouteEntry route = Assert.Single(form.Model.Routes);
-        Task choosing = drawers.InvokeAsync(() => form.OnNewUpstream.InvokeAsync(route));
+        var form = drawers.FindComponent<HostForm>().Instance;
+        var route = Assert.Single(form.Model.Routes);
+        var choosing = drawers.InvokeAsync(() => form.OnNewUpstream.InvokeAsync(route));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=upstream] input[data-field=name]").Count == 1);
         Assert.Equal(2, drawers.FindAll(".pdk-sheet").Count);
         Assert.Equal("Back to New host", drawers.Find("[data-drawer=upstream] [data-drawer-action=back]").GetAttribute("aria-label"));
@@ -354,7 +353,7 @@ public sealed class DrawerStackTests
         await drawers.Find("form[data-drawer=upstream]").SubmitAsync();
         await choosing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
 
-        UpstreamId id = route.UpstreamId ?? throw new InvalidOperationException("The route didn't get the new upstream.");
+        var id = route.UpstreamId ?? throw new InvalidOperationException("The route didn't get the new upstream.");
         return new UpstreamConfig(id, name, Destinations: [new DestinationConfig(DestinationId.New(), address)]);
     }
 }

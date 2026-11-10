@@ -30,8 +30,8 @@ public sealed class SnapshotStoreTests
     public void PublishSwapsAndFiresTheChangeToken()
     {
         using SnapshotStore store = new();
-        IChangeToken token = store.GetChangeToken();
-        RuntimeSnapshot first = Candidate().Bind(1, []);
+        var token = store.GetChangeToken();
+        var first = Candidate().Bind(1, []);
 
         store.Publish(first);
 
@@ -57,7 +57,7 @@ public sealed class SnapshotStoreTests
     public void UnboundSnapshotsAreRefused()
     {
         using SnapshotStore store = new();
-        RuntimeSnapshot unbound = Candidate(routes: ["r1"]);
+        var unbound = Candidate(routes: ["r1"]);
 
         Assert.False(unbound.IsBound);
         Assert.Throws<ArgumentException>(() => store.Publish(unbound));
@@ -66,14 +66,14 @@ public sealed class SnapshotStoreTests
     [Fact]
     public void BindNeedsOneEndpointPerSlotAndKeepsTheContent()
     {
-        RuntimeSnapshot candidate = Candidate(routes: ["r1", "r2"]);
+        var candidate = Candidate(routes: ["r1", "r2"]);
         Endpoint e1 = new(static _ => Task.CompletedTask, null, "r1");
         Endpoint e2 = new(static _ => Task.CompletedTask, null, "r2");
 
         Assert.Throws<ArgumentException>(() => candidate.Bind(1, [e1]));
         Assert.Throws<ArgumentOutOfRangeException>(() => candidate.Bind(0, [e1, e2]));
 
-        RuntimeSnapshot bound = candidate.Bind(7, [e1, e2]);
+        var bound = candidate.Bind(7, [e1, e2]);
         Assert.True(bound.IsBound);
         Assert.Equal(7, bound.Generation);
         Assert.Equal([e1, e2], bound.YarpEndpoints);
@@ -91,11 +91,11 @@ public sealed class SnapshotStoreTests
         const int Generations = 2_000;
         ConfigRevisionId[] revisions = [.. Enumerable.Range(0, Generations + 1).Select(g => TestIds.Revision("rev" + g.ToString(CultureInfo.InvariantCulture)))];
         long torn = 0;
-        Task reader = Task.Run(() =>
+        var reader = Task.Run(() =>
         {
             while (!stop.IsCancellationRequested)
             {
-                RuntimeSnapshot s = store.Current;
+                var s = store.Current;
                 if (s.Generation > 0 && s.Revision != revisions[s.Generation])
                 {
                     Interlocked.Increment(ref torn);
@@ -103,7 +103,7 @@ public sealed class SnapshotStoreTests
             }
         }, TestContext.Current.CancellationToken);
 
-        for (int g = 1; g <= Generations; g++)
+        for (var g = 1; g <= Generations; g++)
         {
             store.Publish(Candidate(revisions[g]).Bind(g, []));
         }
@@ -116,8 +116,8 @@ public sealed class SnapshotStoreTests
     private static RuntimeSnapshot Candidate(ConfigRevisionId revision = default, string[]? routes = null)
     {
         RouteId[] routeIds = [.. (routes ?? []).Select(TestIds.Route)];
-        RouteConfig[] yarpRoutes = new RouteConfig[routeIds.Length];
-        for (int i = 0; i < yarpRoutes.Length; i++)
+        var yarpRoutes = new RouteConfig[routeIds.Length];
+        for (var i = 0; i < yarpRoutes.Length; i++)
         {
             yarpRoutes[i] = new RouteConfig { RouteId = routeIds[i].ToString(), ClusterId = TestIds.Upstream("c").ToString(), Match = new RouteMatch { Path = "/x" } };
         }

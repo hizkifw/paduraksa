@@ -18,11 +18,11 @@ internal static class TestPorts
     /// <summary>A port free on IPv4 loopback and, where there is IPv6, on ::1 too: a loopback listener binds both.</summary>
     public static int FreePort()
     {
-        for (int attempt = 0; attempt < 50; attempt++)
+        for (var attempt = 0; attempt < 50; attempt++)
         {
             using TcpListener v4 = new(IPAddress.Loopback, 0);
             v4.Start();
-            int port = ((IPEndPoint)v4.LocalEndpoint).Port;
+            var port = ((IPEndPoint)v4.LocalEndpoint).Port;
             if (!Socket.OSSupportsIPv6)
             {
                 return port;
@@ -82,7 +82,7 @@ internal static class TestPorts
     /// <summary>The bind lost a race for the port (Kestrel wraps the socket error).</summary>
     public static bool IsAddressInUse(Exception error)
     {
-        for (Exception? current = error; current is not null; current = current.InnerException)
+        for (var current = error; current is not null; current = current.InnerException)
         {
             if (current is AddressInUseException or SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse })
             {
@@ -97,10 +97,10 @@ internal static class TestPorts
     public static async Task<(PaduraksaHost Host, int Port)> StartOnFreePortAsync(Func<int, PaduraksaHost> create, int attempts = 5)
     {
         ArgumentNullException.ThrowIfNull(create);
-        for (int attempt = 1; ; attempt++)
+        for (var attempt = 1; ; attempt++)
         {
-            int port = FreePort();
-            PaduraksaHost host = create(port);
+            var port = FreePort();
+            var host = create(port);
             if (await TryStartAsync(host, attempt, attempts).ConfigureAwait(false))
             {
                 return (host, port);
@@ -112,9 +112,9 @@ internal static class TestPorts
     public static async Task<PaduraksaHost> StartOnPortAsync(int port, Func<PaduraksaHost> create, int attempts = 5)
     {
         ArgumentNullException.ThrowIfNull(create);
-        for (int attempt = 1; ; attempt++)
+        for (var attempt = 1; ; attempt++)
         {
-            PaduraksaHost host = create();
+            var host = create();
             if (await TryStartAsync(host, attempt, attempts).ConfigureAwait(false))
             {
                 return host;

@@ -1,10 +1,3 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Proxy;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
@@ -35,9 +28,9 @@ internal static partial class PublicApp
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        PaduraksaListenOptions listen = context.Options.Listen;
-        PublicListenerSetup listeners = context.Shared.PublicListeners;
-        ILogger logger = new RoleLoggerFactory(context.Shared.LoggerFactory, HostRole.Public).CreateLogger(typeof(PublicApp).FullName!);
+        var listen = context.Options.Listen;
+        var listeners = context.Shared.PublicListeners;
+        var logger = new RoleLoggerFactory(context.Shared.LoggerFactory, HostRole.Public).CreateLogger(typeof(PublicApp).FullName!);
         if (listeners.Http3)
         {
             // The positive half of the libmsquic check: this line only appears when QUIC actually loaded.
@@ -48,7 +41,7 @@ internal static partial class PublicApp
             LogHttp3Unavailable(logger);
         }
 
-        IHostBuilder builder = new HostBuilder()
+        var builder = new HostBuilder()
             .UseContentRoot(context.ContentRootPath)
             .UseEnvironment(context.EnvironmentName)
             .ConfigureHostConfiguration(host => host.AddInMemoryCollection(new Dictionary<string, string?>
@@ -65,7 +58,7 @@ internal static partial class PublicApp
                     {
                         kestrel.AddServerHeader = false;
                         kestrel.ListenPublicHttp(address: null, listen.Http, http => http.UseClientInfo(listeners.HttpProxyProtocol));
-                        bool http3 = kestrel.ListenPublicHttps(
+                        var http3 = kestrel.ListenPublicHttps(
                             new PublicHttpsListenerOptions
                             {
                                 Port = listen.Https,
@@ -88,12 +81,12 @@ internal static partial class PublicApp
                     .Configure(static app =>
                     {
                         // The simulator reads destination health from this app's YARP while it runs.
-                        DeferredUpstreamHealth health = app.ApplicationServices.GetRequiredService<DeferredUpstreamHealth>();
+                        var health = app.ApplicationServices.GetRequiredService<DeferredUpstreamHealth>();
                         health.Attach(app.ApplicationServices.GetRequiredService<IUpstreamHealth>());
                         app.ApplicationServices.GetRequiredService<IHostApplicationLifetime>().ApplicationStopped.Register(health.Detach);
                         // The access log wraps everything, the gate included: every outcome gets a line.
                         app.Use(app.ApplicationServices.GetRequiredService<AccessLogMiddleware>().InvokeAsync);
-                        GateMiddleware gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
+                        var gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
                         app.Use(gate.InvokeAsync);
                         app.UseRouting();
                         app.UseEndpoints(static endpoints => endpoints.MapPaduraksaProxy());

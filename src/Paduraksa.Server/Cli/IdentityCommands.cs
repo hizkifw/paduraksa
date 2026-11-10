@@ -3,7 +3,6 @@ using System.Text;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Application.Commands;
@@ -67,7 +66,7 @@ internal static class IdentityCommands
     internal static Task<int> SetupTokenAsync(PaduraksaHostOptions? hostOptions, TextWriter output, TextWriter error, CancellationToken cancellationToken) =>
         RunAsync(hostOptions, error, async services =>
         {
-            string? token = await services.Setup.EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
+            var token = await services.Setup.EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
             await output.WriteLineAsync(token is null
                 ? "Setup is complete: there is no setup token."
                 : SetupBanner.Render(token, services.Setup.TokenPath)).ConfigureAwait(false);
@@ -85,7 +84,7 @@ internal static class IdentityCommands
         CancellationToken cancellationToken) =>
         RunAsync(hostOptions, error, async services =>
         {
-            string? password = standardInputIsTerminal
+            var password = standardInputIsTerminal
                 ? await PromptAsync(output, error).ConfigureAwait(false)
                 : (await standardInput.ReadLineAsync(cancellationToken).ConfigureAwait(false))?.TrimEnd('\r');
             if (string.IsNullOrEmpty(password))
@@ -94,7 +93,7 @@ internal static class IdentityCommands
                 return ExitCodes.Failure;
             }
 
-            IdentityResult result = await services.Users.ResetPasswordAsync(CommandOrigin.Cli, username, password, cancellationToken).ConfigureAwait(false);
+            var result = await services.Users.ResetPasswordAsync(CommandOrigin.Cli, username, password, cancellationToken).ConfigureAwait(false);
             switch (result.Status)
             {
                 case IdentityStatus.Succeeded:
@@ -113,7 +112,7 @@ internal static class IdentityCommands
     internal static Task<int> Disable2faAsync(PaduraksaHostOptions? hostOptions, string username, TextWriter output, TextWriter error, CancellationToken cancellationToken) =>
         RunAsync(hostOptions, error, async services =>
         {
-            IdentityResult result = await services.TwoFactor.DisableForUserAsync(CommandOrigin.Cli, username, cancellationToken).ConfigureAwait(false);
+            var result = await services.TwoFactor.DisableForUserAsync(CommandOrigin.Cli, username, cancellationToken).ConfigureAwait(false);
             if (result.Succeeded)
             {
                 await output.WriteLineAsync($"The second factor of {username} is off and their sessions are ended.").ConfigureAwait(false);
@@ -144,7 +143,7 @@ internal static class IdentityCommands
         catch (OptionsValidationException ex)
         {
             await error.WriteLineAsync("Invalid configuration:").ConfigureAwait(false);
-            foreach (string failure in ex.Failures)
+            foreach (var failure in ex.Failures)
             {
                 await error.WriteLineAsync("  " + failure).ConfigureAwait(false);
             }
@@ -155,7 +154,7 @@ internal static class IdentityCommands
         try
         {
             Directory.CreateDirectory(options.DataDirectory);
-            await using ServiceProvider provider = new ServiceCollection()
+            await using var provider = new ServiceCollection()
                 .AddPaduraksaDbContextFactory<ConfigDbContext>(Path.Combine(options.DataDirectory, ConfigDatabase.FileName))
                 .AddPaduraksaVault(options.DataDirectory)
                 .AddPaduraksaIdentity(options.DataDirectory, options.Admin.ToIdentityOptions())
@@ -181,9 +180,9 @@ internal static class IdentityCommands
     private static async Task<string?> PromptAsync(TextWriter output, TextWriter error)
     {
         await output.WriteAsync("New password: ").ConfigureAwait(false);
-        string first = ReadHidden();
+        var first = ReadHidden();
         await output.WriteAsync("Repeat it: ").ConfigureAwait(false);
-        string second = ReadHidden();
+        var second = ReadHidden();
         if (first == second)
         {
             return first;

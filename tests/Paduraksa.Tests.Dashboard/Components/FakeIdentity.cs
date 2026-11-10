@@ -70,8 +70,8 @@ internal sealed class FakeDashboardIdentity : IDashboardIdentity
             return Task.FromResult(new UserResult(UpdateStatus));
         }
 
-        int index = Users.FindIndex(u => u.Id == id);
-        UserSummary updated = Users[index] with
+        var index = Users.FindIndex(u => u.Id == id);
+        var updated = Users[index] with
         {
             DisplayName = request.DisplayName ?? Users[index].DisplayName,
             Roles = request.Roles ?? Users[index].Roles,
@@ -165,7 +165,7 @@ internal sealed class FakeDashboardIdentity : IDashboardIdentity
 
     public Task<ApiTokenResult> RevokeTokenAsync(CommandOrigin origin, ApiTokenId id, CancellationToken cancellationToken = default)
     {
-        int index = Tokens.FindIndex(t => t.Id == id);
+        var index = Tokens.FindIndex(t => t.Id == id);
         Tokens[index] = Tokens[index] with { Revoked = true };
         return Task.FromResult(new ApiTokenResult(IdentityStatus.Succeeded, Token: Tokens[index]));
     }
@@ -235,7 +235,7 @@ internal static class IdentityPages
         context.Services.AddSingleton<IDashboardIdentity>(identity);
         context.Services.AddSingleton<IDashboardAudit>(audit);
         context.Services.AddScoped<DashboardBrowser>();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, role, out SessionIdentity session);
+        var config = ConfigPages.SignIn(context, role, out var session);
         DashboardPrincipal user = new(session, RolePermissions.Of(session.Session.Roles));
         identity.Users.Add(new UserSummary(
             user.Session.Session.UserId, user.Session.Session.Username, user.Session.Session.DisplayName, user.Session.Session.Roles,

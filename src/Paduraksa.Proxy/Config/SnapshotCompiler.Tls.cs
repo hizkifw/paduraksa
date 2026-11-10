@@ -27,7 +27,7 @@ public static partial class SnapshotCompiler
             return null;
         }
 
-        if (!resolver.TryResolve(certificateId, out ServerCertificate? certificate))
+        if (!resolver.TryResolve(certificateId, out var certificate))
         {
             errors.Add(new(where, $"certificate '{certificateId}' doesn't exist"));
             return null;
@@ -54,17 +54,17 @@ public static partial class SnapshotCompiler
         }
 
         HashSet<string> hostNames = new(StringComparer.Ordinal);
-        foreach (string name in spec.Names ?? [])
+        foreach (var name in spec.Names ?? [])
         {
-            if (HostNames.TryNormalize(name, out string normalizedName, out _, out _))
+            if (HostNames.TryNormalize(name, out var normalizedName, out _, out _))
             {
                 hostNames.Add(normalizedName);
             }
         }
 
-        foreach ((string name, CertificateId id) in named)
+        foreach (var (name, id) in named)
         {
-            if (!HostNames.TryNormalize(name, out string normalized, out HostNameKind kind, out _) || !hostNames.Contains(normalized))
+            if (!HostNames.TryNormalize(name, out var normalized, out var kind, out _) || !hostNames.Contains(normalized))
             {
                 errors.Add(new(where, $"a certificate is named for '{name}', which is not one of the host's names"));
             }
@@ -87,15 +87,15 @@ public static partial class SnapshotCompiler
         List<string> names, ServerCertificate? hostCertificate, Dictionary<string, ServerCertificate> nameCertificates)
     {
         List<(ServerCertificate Certificate, List<string> Names)> groups = [];
-        foreach (string name in names)
+        foreach (var name in names)
         {
-            ServerCertificate? certificate = nameCertificates.GetValueOrDefault(name) ?? hostCertificate;
+            var certificate = nameCertificates.GetValueOrDefault(name) ?? hostCertificate;
             if (certificate is null)
             {
                 continue;
             }
 
-            int group = groups.FindIndex(g => ReferenceEquals(g.Certificate, certificate));
+            var group = groups.FindIndex(g => ReferenceEquals(g.Certificate, certificate));
             if (group < 0)
             {
                 groups.Add((certificate, [name]));
@@ -134,9 +134,9 @@ public static partial class SnapshotCompiler
     private static List<string> ServerNamesOf(IReadOnlyList<string> names)
     {
         List<string> serverNames = new(names.Count);
-        foreach (string name in names)
+        foreach (var name in names)
         {
-            if (HostNames.TryNormalize(name, out string normalized, out HostNameKind kind, out _)
+            if (HostNames.TryNormalize(name, out var normalized, out var kind, out _)
                 && kind != HostNameKind.IPv6Literal
                 && !(kind == HostNameKind.Exact && IpParser.TryParseIPv4(normalized, out _)))
             {

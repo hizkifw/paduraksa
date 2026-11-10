@@ -12,8 +12,8 @@ public sealed class PrecomputedResponseTests
     [Fact]
     public void TextResponseCarriesStatusBodyAndHeaders()
     {
-        PrecomputedResponse response = PrecomputedResponse.Text(404, "nope\n");
-        DefaultHttpContext context = TestContexts.Create("a.test");
+        var response = PrecomputedResponse.Text(404, "nope\n");
+        var context = TestContexts.Create("a.test");
 
         ResponseWriter.ApplyHeaders(context, response);
 
@@ -27,13 +27,13 @@ public sealed class PrecomputedResponseTests
     [Fact]
     public async Task BodyIsWrittenExceptForHead()
     {
-        PrecomputedResponse response = PrecomputedResponse.Create(200, "hello"u8, "text/plain");
+        var response = PrecomputedResponse.Create(200, "hello"u8, "text/plain");
 
-        DefaultHttpContext get = WithBody(TestContexts.Create("a.test"), out MemoryStream getBody);
+        var get = WithBody(TestContexts.Create("a.test"), out var getBody);
         await ResponseWriter.WriteAsync(get, response);
         Assert.Equal("hello", Encoding.UTF8.GetString(getBody.ToArray()));
 
-        DefaultHttpContext head = WithBody(TestContexts.Create("a.test", method: "HEAD"), out MemoryStream headBody);
+        var head = WithBody(TestContexts.Create("a.test", method: "HEAD"), out var headBody);
         await ResponseWriter.WriteAsync(head, response);
         Assert.Empty(headBody.ToArray());
         Assert.Equal(5, head.Response.ContentLength);
@@ -42,8 +42,8 @@ public sealed class PrecomputedResponseTests
     [Fact]
     public void FixedRedirectHasAPrecomputedLocation()
     {
-        PrecomputedResponse response = PrecomputedResponse.RedirectTo(302, "https://elsewhere.test/landing");
-        DefaultHttpContext context = TestContexts.Create("a.test", "/x");
+        var response = PrecomputedResponse.RedirectTo(302, "https://elsewhere.test/landing");
+        var context = TestContexts.Create("a.test", "/x");
 
         ResponseWriter.ApplyHeaders(context, response);
 
@@ -58,8 +58,8 @@ public sealed class PrecomputedResponseTests
     [InlineData(443, "[2001:db8::1]:80", "/v6", "https://[2001:db8::1]/v6")]
     public void HttpsRedirectKeepsHostAndTargetAndUsesThePublicPort(int publicPort, string host, string rawTarget, string expected)
     {
-        PrecomputedResponse response = PrecomputedResponse.RedirectTo(301, RedirectTarget.Https(publicPort));
-        DefaultHttpContext context = TestContexts.Create(host, rawTarget.Split('?')[0], rawTarget: rawTarget);
+        var response = PrecomputedResponse.RedirectTo(301, RedirectTarget.Https(publicPort));
+        var context = TestContexts.Create(host, rawTarget.Split('?')[0], rawTarget: rawTarget);
 
         ResponseWriter.ApplyHeaders(context, response);
 
@@ -70,7 +70,7 @@ public sealed class PrecomputedResponseTests
     public void LocationFallsBackToPathAndQueryWithoutARawTarget()
     {
         RedirectTarget target = new("https://new.test", IncludeRequestHost: false, string.Empty, AppendPathAndQuery: true);
-        DefaultHttpContext context = TestContexts.Create("old.test", "/a b", rawTarget: "*");
+        var context = TestContexts.Create("old.test", "/a b", rawTarget: "*");
         context.Request.QueryString = new QueryString("?q=1");
 
         Assert.Equal("https://new.test/a%20b?q=1", ResponseWriter.BuildLocation(context, target));
@@ -91,8 +91,8 @@ public sealed class PrecomputedResponseTests
         Assert.Throws<ArgumentException>(() => PrecomputedResponse.Text(status, "x"));
         Assert.Throws<ArgumentException>(() => PrecomputedResponse.Create(status, "x"u8, "text/plain"));
 
-        PrecomputedResponse empty = PrecomputedResponse.Text(status, string.Empty);
-        DefaultHttpContext context = TestContexts.Create("a.test");
+        var empty = PrecomputedResponse.Text(status, string.Empty);
+        var context = TestContexts.Create("a.test");
         ResponseWriter.ApplyHeaders(context, empty);
 
         Assert.Equal(status, context.Response.StatusCode);
@@ -102,9 +102,9 @@ public sealed class PrecomputedResponseTests
     [Fact]
     public void HeaderSetupDoesNotAllocate()
     {
-        PrecomputedResponse text = PrecomputedResponse.Text(403, "forbidden\n");
-        PrecomputedResponse redirect = PrecomputedResponse.RedirectTo(308, "https://x.test/");
-        DefaultHttpContext context = TestContexts.Create("a.test");
+        var text = PrecomputedResponse.Text(403, "forbidden\n");
+        var redirect = PrecomputedResponse.RedirectTo(308, "https://x.test/");
+        var context = TestContexts.Create("a.test");
 
         AllocAssert.Zero(
             (context, text, redirect),

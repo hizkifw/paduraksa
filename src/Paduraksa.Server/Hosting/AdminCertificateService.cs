@@ -2,9 +2,6 @@ using System.Net.Security;
 using System.Security.Authentication;
 
 using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Admin.Certificates;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
@@ -127,13 +124,13 @@ internal sealed partial class AdminCertificateService : BackgroundService
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
         _run = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _stop.Token);
-        Task ensure = EnsureAsync(_run.Token);
+        var ensure = EnsureAsync(_run.Token);
         _running = ensure;
 
-        TimeSpan timeout = _options.Admin.CertificateStartupTimeout;
+        var timeout = _options.Admin.CertificateStartupTimeout;
         using CancellationTokenSource timer = new();
-        Task elapsed = Task.Delay(timeout, _time, timer.Token);
-        Task finished = await Task.WhenAny(ensure, elapsed).ConfigureAwait(false);
+        var elapsed = Task.Delay(timeout, _time, timer.Token);
+        var finished = await Task.WhenAny(ensure, elapsed).ConfigureAwait(false);
         await timer.CancelAsync().ConfigureAwait(false); // the timer is not needed either way
 
         if (finished == ensure || _run.IsCancellationRequested)
@@ -176,7 +173,7 @@ internal sealed partial class AdminCertificateService : BackgroundService
     /// <summary>The daily renewal check, in the background (the host's start has already run once).</summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        CancellationToken runToken = _run?.Token ?? stoppingToken;
+        var runToken = _run?.Token ?? stoppingToken;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -246,7 +243,7 @@ internal sealed partial class AdminCertificateService : BackgroundService
         {
             try
             {
-                CertificateOperationResult leaf = await _operations.EnsureAdminCertificateAsync(DesiredNames(), CommandOrigin.System, cancellationToken).ConfigureAwait(false);
+                var leaf = await _operations.EnsureAdminCertificateAsync(DesiredNames(), CommandOrigin.System, cancellationToken).ConfigureAwait(false);
                 if (leaf.Status is not (CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged) || leaf.Certificate is null)
                 {
                     throw new InvalidOperationException($"the inventory refused the admin certificate: {Problems(leaf)}");
@@ -274,11 +271,11 @@ internal sealed partial class AdminCertificateService : BackgroundService
     {
         try
         {
-            IReadOnlyList<VaultCertificate> held = await _catalog.ListAsync(cancellationToken).ConfigureAwait(false);
-            VaultCertificate? root = held.FirstOrDefault(static certificate => certificate.IsLocalCaRoot);
+            var held = await _catalog.ListAsync(cancellationToken).ConfigureAwait(false);
+            var root = held.FirstOrDefault(static certificate => certificate.IsLocalCaRoot);
             _caRoot.Publish(root is null ? null : CaRoot.Of(root));
 
-            VaultCertificate? leaf = held.FirstOrDefault(certificate => certificate.Id == AdminCertificate.Id);
+            var leaf = held.FirstOrDefault(certificate => certificate.Id == AdminCertificate.Id);
             if (leaf is null)
             {
                 return;
@@ -290,7 +287,7 @@ internal sealed partial class AdminCertificateService : BackgroundService
                 return;
             }
 
-            SslStreamCertificateContext? context = await _source.LoadForServingAsync(AdminCertificate.Id, cancellationToken).ConfigureAwait(false);
+            var context = await _source.LoadForServingAsync(AdminCertificate.Id, cancellationToken).ConfigureAwait(false);
             if (context is null)
             {
                 throw new InvalidOperationException("the vault holds no usable key and chain for the admin certificate");
@@ -333,7 +330,7 @@ internal sealed partial class AdminCertificateService : BackgroundService
 
         if (!setupComplete && _logger.IsEnabled(LogLevel.Information))
         {
-            string urls = string.Join(", ", AdminCertificateNames.Urls(leaf.SubjectAlternativeNames, _options.Listen.Admin));
+            var urls = string.Join(", ", AdminCertificateNames.Urls(leaf.SubjectAlternativeNames, _options.Listen.Admin));
             LogTrust(_logger, urls, root.Sha256Fingerprint);
         }
     }

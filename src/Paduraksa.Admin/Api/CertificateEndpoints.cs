@@ -29,7 +29,7 @@ internal static class CertificateEndpoints
 
     public static void Map(RouteGroupBuilder api)
     {
-        RouteGroupBuilder certificates = api.MapGroup("/certificates").WithTags("Certificates");
+        var certificates = api.MapGroup("/certificates").WithTags("Certificates");
         certificates.MapGet("/", ListAsync).WithName("ListCertificates").WithSummary("List certificates")
             .WithDescription("Public data only. Filters: source, status (their names) and name (the certificates covering a host name).")
             .Produces<IReadOnlyList<CertificateSummary>>().ProducesApiProblems(400).RequirePermission(Permission.CertificatesRead);
@@ -99,8 +99,8 @@ internal static class CertificateEndpoints
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "source and status must be names the API uses, e.g. source=acme, status=active.");
         }
 
-        string? name = http.Request.Query["name"].ToString() is { Length: > 0 } covers ? covers : null;
-        IReadOnlyList<CertificateSummary> list = await certificates.ListAsync(new CertificateQuery(source, status, name), ct).ConfigureAwait(false);
+        var name = http.Request.Query["name"].ToString() is { Length: > 0 } covers ? covers : null;
+        var list = await certificates.ListAsync(new CertificateQuery(source, status, name), ct).ConfigureAwait(false);
         return EndpointSupport.Json(list, AdminJsonContext.Default.IReadOnlyListCertificateSummary);
     }
 
@@ -121,13 +121,13 @@ internal static class CertificateEndpoints
     /// </summary>
     private static async Task<IResult> UploadCoreAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CertificateId? replace, CancellationToken ct)
     {
-        if (!MediaTypeHeaderValue.TryParse(http.Request.ContentType, out MediaTypeHeaderValue? contentType)
+        if (!MediaTypeHeaderValue.TryParse(http.Request.ContentType, out var contentType)
             || !contentType.MediaType.Equals("multipart/form-data", StringComparison.OrdinalIgnoreCase))
         {
             return ApiProblems.Problem(StatusCodes.Status415UnsupportedMediaType, "Send the upload as multipart/form-data.");
         }
 
-        string? boundary = HeaderUtilities.RemoveQuotes(contentType.Boundary).Value;
+        var boundary = HeaderUtilities.RemoveQuotes(contentType.Boundary).Value;
         if (string.IsNullOrEmpty(boundary) || boundary.Length > 128)
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The multipart body has no usable boundary.");
@@ -135,14 +135,14 @@ internal static class CertificateEndpoints
 
         char[] password = [];
         string? label = null;
-        bool sawPassword = false;
-        bool sawLabel = false;
+        var sawPassword = false;
+        var sawLabel = false;
         try
         {
             MultipartReader reader = new(boundary, http.Request.Body) { HeadersLengthLimit = 8 * 1024, BodyLengthLimit = ApiEndpointConventions.UploadBodyLimit };
             while (await reader.ReadNextSectionAsync(ct).ConfigureAwait(false) is { } section)
             {
-                if (!ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out ContentDispositionHeaderValue? disposition)
+                if (!ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out var disposition)
                     || !disposition.DispositionType.Equals("form-data", StringComparison.OrdinalIgnoreCase))
                 {
                     return ApiProblems.Problem(StatusCodes.Status400BadRequest, "Every part must be form-data with a name.");
@@ -157,7 +157,7 @@ internal static class CertificateEndpoints
                         }
 
                         sawPassword = true;
-                        byte[]? passwordBytes = await ReadSmallAsync(section.Body, MaxPasswordBytes, ct).ConfigureAwait(false);
+                        var passwordBytes = await ReadSmallAsync(section.Body, MaxPasswordBytes, ct).ConfigureAwait(false);
                         if (passwordBytes is null)
                         {
                             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The password part is too long.");
@@ -173,7 +173,7 @@ internal static class CertificateEndpoints
                         }
 
                         sawLabel = true;
-                        byte[]? labelBytes = await ReadSmallAsync(section.Body, MaxLabelBytes, ct).ConfigureAwait(false);
+                        var labelBytes = await ReadSmallAsync(section.Body, MaxLabelBytes, ct).ConfigureAwait(false);
                         if (labelBytes is null)
                         {
                             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The label part is too long.");
@@ -182,7 +182,7 @@ internal static class CertificateEndpoints
                         label = labelBytes.Length == 0 ? null : Encoding.UTF8.GetString(labelBytes);
                         break;
                     case "file":
-                        CertificateOperationResult result = await operations.UploadAsync(section.Body, password, label, replace, caller.Origin, ct).ConfigureAwait(false);
+                        var result = await operations.UploadAsync(section.Body, password, label, replace, caller.Origin, ct).ConfigureAwait(false);
                         return OperationResult(result, replace is null ? MutationKind.Create : MutationKind.Change);
                     default:
                         return ApiProblems.Problem(StatusCodes.Status400BadRequest, "The parts are 'password', 'label' and 'file'.");
@@ -203,7 +203,7 @@ internal static class CertificateEndpoints
 
     private static async Task<IResult> SelfSignedAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
     {
-        BodyResult<SelfSignedCertificateRequest> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.SelfSignedCertificateRequest).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.SelfSignedCertificateRequest).ConfigureAwait(false);
         return body.Ok
             ? OperationResult(await operations.IssueSelfSignedAsync(body.Value!, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create)
             : body.Problem!;
@@ -214,7 +214,7 @@ internal static class CertificateEndpoints
         LocalCaRequest request = new();
         if (HasBody(http))
         {
-            BodyResult<LocalCaRequest> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.LocalCaRequest).ConfigureAwait(false);
+            var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.LocalCaRequest).ConfigureAwait(false);
             if (!body.Ok)
             {
                 return body.Problem!;
@@ -228,7 +228,7 @@ internal static class CertificateEndpoints
 
     private static async Task<IResult> LocalCaLeafAsync(HttpContext http, AdminCaller caller, CertificateOperations operations, CancellationToken ct)
     {
-        BodyResult<LocalCaLeafRequest> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.LocalCaLeafRequest).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.LocalCaLeafRequest).ConfigureAwait(false);
         return body.Ok
             ? OperationResult(await operations.IssueFromLocalCaAsync(body.Value!, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create)
             : body.Problem!;
@@ -239,7 +239,7 @@ internal static class CertificateEndpoints
         ReissueRequest? request = null;
         if (HasBody(http))
         {
-            BodyResult<ReissueRequest> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.ReissueRequest).ConfigureAwait(false);
+            var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.ReissueRequest).ConfigureAwait(false);
             if (!body.Ok)
             {
                 return body.Problem!;
@@ -253,14 +253,14 @@ internal static class CertificateEndpoints
 
     private static async Task<IResult> DeleteAsync(HttpContext http, AdminCaller caller, CertificateId id, CertificateOperations operations, CancellationToken ct)
     {
-        CertificateOperationResult result = await operations.DeleteAsync(id, caller.Origin, ct).ConfigureAwait(false);
+        var result = await operations.DeleteAsync(id, caller.Origin, ct).ConfigureAwait(false);
         // Gone is 204; when something needs the operator's eye (the vault key could not be removed) the result is the body.
         return result is { Status: CertificateOperationStatus.Completed, Warnings.Count: 0 } ? Results.NoContent() : OperationResult(result, MutationKind.Change);
     }
 
     private static async Task<IResult> RequestAcmeAsync(HttpContext http, AdminCaller caller, AcmeIssuanceService issuance, IHostApplicationLifetime lifetime)
     {
-        BodyResult<CertificateIssueRequest> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CertificateIssueRequest).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CertificateIssueRequest).ConfigureAwait(false);
         return body.Ok
             ? IssuanceAnswer(http, await issuance.RequestCertificateAsync(body.Value!, caller.Origin, lifetime.ApplicationStopping).ConfigureAwait(false), MutationKind.Create)
             : body.Problem!;
@@ -279,7 +279,7 @@ internal static class CertificateEndpoints
 
     private static IResult OperationResult(CertificateOperationResult result, MutationKind kind)
     {
-        int status = ApiStatusMapping.Of(result.Status, kind);
+        var status = ApiStatusMapping.Of(result.Status, kind);
         if (!ApiStatusMapping.IsSuccess(status))
         {
             return ApiProblems.Problem(status, result.Status switch
@@ -296,10 +296,10 @@ internal static class CertificateEndpoints
 
     private static IResult IssuanceAnswer(HttpContext http, IssuanceResult result, MutationKind kind)
     {
-        int status = ApiStatusMapping.Of(result.Outcome, kind);
+        var status = ApiStatusMapping.Of(result.Outcome, kind);
         if (!ApiStatusMapping.IsSuccess(status))
         {
-            string? instance = result.CertificateId is { } id ? EndpointSupport.Path("certificates", id) : null;
+            var instance = result.CertificateId is { } id ? EndpointSupport.Path("certificates", id) : null;
             return ApiProblems.Problem(status, result.Outcome switch
             {
                 IssuanceOutcome.Failed => result.Message is { Length: > 0 } message ? $"The CA did not issue the certificate: {message}. The renewal scheduler retries." : "The CA did not issue the certificate. The renewal scheduler retries.",
@@ -319,8 +319,8 @@ internal static class CertificateEndpoints
 
     private static async Task<byte[]?> ReadSmallAsync(Stream stream, int max, CancellationToken ct)
     {
-        byte[] buffer = new byte[max + 1];
-        int total = 0;
+        var buffer = new byte[max + 1];
+        var total = 0;
         int read;
         while ((read = await stream.ReadAsync(buffer.AsMemory(total), ct).ConfigureAwait(false)) > 0)
         {
@@ -332,7 +332,7 @@ internal static class CertificateEndpoints
             }
         }
 
-        byte[] result = buffer[..total];
+        var result = buffer[..total];
         CryptographicOperations.ZeroMemory(buffer);
         return result;
     }

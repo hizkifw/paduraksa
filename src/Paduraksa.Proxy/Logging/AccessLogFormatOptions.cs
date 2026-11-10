@@ -31,7 +31,7 @@ public sealed record AccessLogFormatOptions
     /// <summary>Whether a parameter of this name is redacted. Cold path, so a set lookup is fine.</summary>
     public bool IsSensitive(ReadOnlySpan<char> name)
     {
-        foreach (string key in SensitiveQueryKeys)
+        foreach (var key in SensitiveQueryKeys)
         {
             if (name.Equals(key, StringComparison.OrdinalIgnoreCase))
             {

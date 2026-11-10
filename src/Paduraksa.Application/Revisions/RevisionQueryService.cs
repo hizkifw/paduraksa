@@ -43,7 +43,7 @@ public sealed class RevisionQueryService
                 return null;
             }
 
-            bool more = rows.Count > limit;
+            var more = rows.Count > limit;
             RevisionSummary[] items = [.. rows.Take(limit).Select(ToSummary)];
             return new RevisionPage(items, more ? items[^1].Id : null);
         }
@@ -66,7 +66,7 @@ public sealed class RevisionQueryService
                 return null;
             }
 
-            bool more = rows.Count > limit;
+            var more = rows.Count > limit;
             RevisionTimelineEntry[] items = [.. rows.Take(limit).Select(row => new RevisionTimelineEntry(ToSummary(row), ReadChanges(row)))];
             return new RevisionTimelinePage(items, more ? items[^1].Revision.Id : null);
         }
@@ -78,7 +78,7 @@ public sealed class RevisionQueryService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            StoredRevision? stored = await ConfigRevisionStore.GetAsync(context, id, cancellationToken).ConfigureAwait(false);
+            var stored = await ConfigRevisionStore.GetAsync(context, id, cancellationToken).ConfigureAwait(false);
             return stored is null ? null : new RevisionDetail(ToSummary(stored.Info), ReadChanges(stored.Info), ReadDocument(stored));
         }
     }
@@ -89,8 +89,8 @@ public sealed class RevisionQueryService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            StoredRevision? older = await ConfigRevisionStore.GetAsync(context, from, cancellationToken).ConfigureAwait(false);
-            StoredRevision? newer = await ConfigRevisionStore.GetAsync(context, to, cancellationToken).ConfigureAwait(false);
+            var older = await ConfigRevisionStore.GetAsync(context, from, cancellationToken).ConfigureAwait(false);
+            var newer = await ConfigRevisionStore.GetAsync(context, to, cancellationToken).ConfigureAwait(false);
             return older is null || newer is null
                 ? null
                 : new RevisionDiff(from, to, ConfigDiff.Compare(ReadDocument(older), ReadDocument(newer)));

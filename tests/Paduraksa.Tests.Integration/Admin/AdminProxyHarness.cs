@@ -61,9 +61,9 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
         LogCapture? logs = null,
         HostSettings? adminHostSettings = null)
     {
-        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-        AdminHarness admin = await AdminHarness.StartAsync(settings, configureServices, logs);
-        string ownerCookie = await admin.SetUpOwnerAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var admin = await AdminHarness.StartAsync(settings, configureServices, logs);
+        var ownerCookie = await admin.SetUpOwnerAsync();
 
         List<HostConfig> hosts =
         [
@@ -83,15 +83,15 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
             Settings: new GlobalSettings(TrustedProxies: trustedProxies),
             Upstreams: upstreams,
             Hosts: hosts);
-        CurrentConfig current = await admin.Host.Shared.Config.GetCurrentAsync(cancellationToken);
+        var current = await admin.Host.Shared.Config.GetCurrentAsync(cancellationToken);
         await ConfigTestSupport.CommitAsync(admin.Host, new ReplaceConfigCommand(document, current.Revision?.Id), cancellationToken);
 
-        HttpClient publicClient = TestHost.CreateClient(admin.Host);
+        var publicClient = TestHost.CreateClient(admin.Host);
         publicClient.Timeout = TimeSpan.FromSeconds(20);
         AdminProxyHarness harness = new(admin, publicClient, ownerCookie, ownerCookie);
 
         // Sign in once through the proxy, so the proxied session cookie is a real one.
-        using HttpResponseMessage login = await harness.SendAsync(
+        using var login = await harness.SendAsync(
             HttpMethod.Post, "/api/v1/auth/login", Body.Login(AdminHarness.OwnerName, AdminPassword),
             origin: "https://" + AdminHost);
         if (login.StatusCode != HttpStatusCode.OK)
@@ -124,7 +124,7 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
         string? fetchSite = null,
         IReadOnlyDictionary<string, string>? headers = null)
     {
-        using HttpRequestMessage request = Request(method, path, host);
+        using var request = Request(method, path, host);
         if (json is not null)
         {
             request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
@@ -145,7 +145,7 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
             request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", fetchSite);
         }
 
-        foreach ((string name, string value) in headers ?? new Dictionary<string, string>())
+        foreach (var (name, value) in headers ?? new Dictionary<string, string>())
         {
             request.Headers.TryAddWithoutValidation(name, value);
         }
@@ -154,7 +154,7 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
     }
 
     public static string? SessionCookieOf(HttpResponseMessage response) =>
-        response.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values)
+        response.Headers.TryGetValues("Set-Cookie", out var values)
             ? values.Select(line => line.Split(';', 2)[0])
                 .Where(pair => pair.StartsWith("__Host-paduraksa-session=", StringComparison.Ordinal) && pair.Length > "__Host-paduraksa-session=".Length)
                 .Select(pair => pair["__Host-paduraksa-session=".Length..])
@@ -169,7 +169,7 @@ internal sealed class AdminProxyHarness : IAsyncDisposable
     /// </summary>
     public async Task<string> NewSessionAsync()
     {
-        using HttpResponseMessage login = await SendAsync(
+        using var login = await SendAsync(
             HttpMethod.Post, "/api/v1/auth/login", Body.Login(AdminHarness.OwnerName, AdminPassword), origin: "https://" + AdminHost);
         if (login.StatusCode != HttpStatusCode.OK)
         {

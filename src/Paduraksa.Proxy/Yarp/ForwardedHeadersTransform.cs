@@ -47,17 +47,17 @@ internal static class ForwardedHeadersTransform
 
     public static ValueTask ApplyAsync(RequestTransformContext context)
     {
-        HttpRequestHeaders upstream = context.ProxyRequest.Headers;
-        HttpRequest request = context.HttpContext.Request;
-        GateRequestState? state = context.HttpContext.Features.Get<IGateFeature>()?.State;
+        var upstream = context.ProxyRequest.Headers;
+        var request = context.HttpContext.Request;
+        var state = context.HttpContext.Features.Get<IGateFeature>()?.State;
 
-        string proto = (state?.IsHttps ?? request.IsHttps) ? Https : Http;
+        var proto = (state?.IsHttps ?? request.IsHttps) ? Https : Http;
 
         upstream.Remove(ForwardingHeaders.XForwardedFor);
         upstream.Remove(ForwardingHeaders.XRealIp);
         upstream.Remove(ForwardingHeaders.XForwardedProto);
         upstream.Remove(ForwardingHeaders.XForwardedHost);
-        foreach (string name in Dropped)
+        foreach (var name in Dropped)
         {
             upstream.Remove(name);
         }
@@ -74,13 +74,13 @@ internal static class ForwardedHeadersTransform
 
         if (state is not null && state.ClientAddress != IpKey.Unspecified)
         {
-            string client = state.FormattedClientAddress();
+            var client = state.FormattedClientAddress();
             upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedFor, client);
             upstream.TryAddWithoutValidation(ForwardingHeaders.XRealIp, client);
         }
 
         upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedProto, proto);
-        StringValues host = request.Headers.Host;
+        var host = request.Headers.Host;
         if (host.Count == 1 && !string.IsNullOrEmpty(host[0]))
         {
             upstream.TryAddWithoutValidation(ForwardingHeaders.XForwardedHost, host[0]);
@@ -100,7 +100,7 @@ internal static class ForwardedHeadersTransform
     /// <summary>The first header <see cref="CloudflareHeaders.IsStrippedWhenUntrusted"/> applies to, or null. 0 B.</summary>
     internal static string? FindCloudflareHeader(HttpRequestHeaders headers)
     {
-        foreach (KeyValuePair<string, HeaderStringValues> header in headers.NonValidated)
+        foreach (var header in headers.NonValidated)
         {
             if (CloudflareHeaders.IsStrippedWhenUntrusted(header.Key))
             {

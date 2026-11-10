@@ -10,16 +10,16 @@
 
 @if (Stack.Levels.Count > 0)
 {
-    int count = Stack.Levels.Count;
+    var count = Stack.Levels.Count;
     @* One backdrop for the whole stack, keyed so it never fades in on push/pop; a level under the top dims itself (its ::after), and being inert its clicks reach the backdrop. *@
     <div class="pdk-stack" data-depth="@count">
         <div @key="BackdropKey" class="pdk-stack-backdrop" style="@($"z-index: {BaseZ}")" @onclick="() => Stack.Top?.RequestClose()" aria-hidden="true"></div>
-        @for (int i = 0; i < count; i++)
+        @for (var i = 0; i < count; i++)
         {
-            DrawerLevel level = Stack.Levels[i];
-            int below = count - 1 - i;
-            bool top = below == 0;
-            bool asking = top && Asking;
+            var level = Stack.Levels[i];
+            var below = count - 1 - i;
+            var top = below == 0;
+            var asking = top && Asking;
             <aside @key="level.Id" class="@($"pdk-sheet pdk-sheet-{level.Width.ToString().ToLowerInvariant()}{(top ? " pdk-sheet-top" : " pdk-sheet-under")}")"
                    style="@($"--pdk-under: {below}; z-index: {BaseZ + 1 + i}")" data-level="@i" data-top="@(top ? "true" : null)"
                    inert="@(!top)" role="dialog" aria-modal="@(top ? "true" : null)" aria-labelledby="@DrawerShell.TitleId(level)" tabindex="-1">
@@ -31,7 +31,7 @@
                 </div>
                 @if (asking)
                 {
-                    string? warning = _leavingTo is null ? null : Stack.Levels.Select(l => l.LeaveWarning).FirstOrDefault(w => w is not null);
+                    var warning = _leavingTo is null ? null : Stack.Levels.Select(l => l.LeaveWarning).FirstOrDefault(w => w is not null);
                     <div class="pdk-discard" role="alertdialog" aria-labelledby="pdk-discard-title" aria-describedby="pdk-discard-text" data-drawer="discard">
                         <div class="pdk-discard-card">
                             <span class="pdk-discard-icon pdk-tone-warning"><MudIcon Icon="@Icons.Material.Outlined.EditOff" Size="Size.Small" /></span>
@@ -96,8 +96,8 @@
 
             // Focus follows the stack: into a level as it opens, back to what opened it as it closes; into a level that took the place of
             // another (one host's drawer for another's) as well.
-            int depth = Stack.Levels.Count;
-            int? top = Stack.Top?.Id;
+            var depth = Stack.Levels.Count;
+            var top = Stack.Top?.Id;
             if (depth != _rendered)
             {
                 _rendered = depth;
@@ -111,7 +111,7 @@
             }
 
             // The question takes focus as it shows, and gives it back as it goes.
-            bool asking = Asking;
+            var asking = Asking;
             if (asking != _renderedAsking)
             {
                 _renderedAsking = asking;
@@ -186,7 +186,7 @@
         {
             _ = InvokeAsync(() =>
             {
-                foreach (DrawerLevel level in Stack.Levels)
+                foreach (var level in Stack.Levels)
                 {
                     level.IsDirty = false;
                 }
@@ -226,7 +226,7 @@
             // Nothing holds the person back any more, and the navigation that was held back goes ahead. The drawers close as the page
             // that opened them goes (or as their address does): closing them here first would let a drawer with an address send the
             // person back to its list.
-            foreach (DrawerLevel level in Stack.Levels)
+            foreach (var level in Stack.Levels)
             {
                 level.IsDirty = false;
                 level.Busy = false;

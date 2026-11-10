@@ -35,7 +35,7 @@ public sealed class OrderProgressTests
     {
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<OrderProgressView> view = Render(context, AcmeChallengeType.Http01, Reports(reached));
+        var view = Render(context, AcmeChallengeType.Http01, Reports(reached));
 
         Assert.Equal(states, view.FindAll(".pdk-step-item").Select(step => step.GetAttribute("data-state")));
         Assert.DoesNotContain("propagation", view.Markup, StringComparison.OrdinalIgnoreCase);
@@ -50,7 +50,7 @@ public sealed class OrderProgressTests
         context.Services.AddSingleton(TimeProvider.System);
         IssuanceResult? finished = null;
 
-        IRenderedComponent<AcmeRunPanel> panel = context.Render<AcmeRunPanel>(parameters => parameters
+        var panel = context.Render<AcmeRunPanel>(parameters => parameters
             .Add(p => p.Start, _ => Task.FromException<IssuanceResult>(new InvalidOperationException("database is locked")))
             .Add(p => p.ChallengeType, AcmeChallengeType.Http01)
             .Add(p => p.Finished, result => finished = result));
@@ -69,7 +69,7 @@ public sealed class OrderProgressTests
         reports[^1] = reports[^1] with { Detail = "2 TXT records at _acme-challenge.example.com." };
         reports.Add(new AcmeOrderProgress(Id, AcmeProgressStage.PropagationCheck, AcmeChallengeType.Dns01, Start.AddSeconds(5)));
 
-        IRenderedComponent<OrderProgressView> view = Render(context, AcmeChallengeType.Dns01, reports);
+        var view = Render(context, AcmeChallengeType.Dns01, reports);
 
         Assert.Equal(["done", "done", "done", "active", "waiting", "waiting", "waiting"], view.FindAll(".pdk-step-item").Select(s => s.GetAttribute("data-state")));
         Assert.Contains("Checking DNS propagation", view.Markup, StringComparison.Ordinal);
@@ -89,7 +89,7 @@ public sealed class OrderProgressTests
             new(Id, AcmeProgressStage.Finalizing, AcmeChallengeType.Http01, Start),
         ];
 
-        IRenderedComponent<OrderProgressView> view = Render(context, AcmeChallengeType.Http01, reports);
+        var view = Render(context, AcmeChallengeType.Http01, reports);
 
         Assert.Equal(["done", "skipped", "skipped", "done", "active", "waiting"], view.FindAll(".pdk-step-item").Select(s => s.GetAttribute("data-state")));
     }
@@ -101,7 +101,7 @@ public sealed class OrderProgressTests
         List<AcmeOrderProgress> reports = [.. Reports(AcmeProgressStage.Validating)];
         reports.Add(new AcmeOrderProgress(Id, AcmeProgressStage.Failed, AcmeChallengeType.Http01, Start.AddMinutes(1), "The authorization for example.com ended invalid: connection refused", Start.AddHours(1)));
 
-        IRenderedComponent<OrderProgressView> view = Render(context, AcmeChallengeType.Http01, reports, attempts: 1);
+        var view = Render(context, AcmeChallengeType.Http01, reports, attempts: 1);
 
         Assert.Equal(["done", "done", "done", "failed", "waiting", "waiting"], view.FindAll(".pdk-step-item").Select(s => s.GetAttribute("data-state")));
         Assert.Single(view.FindAll(".pdk-progress-failed"));

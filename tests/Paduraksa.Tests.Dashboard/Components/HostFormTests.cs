@@ -16,14 +16,14 @@ public sealed class HostFormTests
     [Fact]
     public async Task ANewHost_StartsAsAProxy_WithOneRouteToTheOnlyUpstream()
     {
-        HostEditModel model = HostEditModel.New(App.Id);
+        var model = HostEditModel.New(App.Id);
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<HostForm> form = Render(context, model);
+        var form = Render(context, model);
 
         Assert.Single(form.FindAll("[data-section=routes]"));
         Assert.Empty(form.FindAll("[data-section=redirect]"));
-        HostConfig sent = model.ToConfig();
+        var sent = model.ToConfig();
         Assert.Equal(HostKind.Proxy, sent.Kind);
         Assert.Equal(App.Id, Assert.Single(sent.Routes).UpstreamId);
         Assert.Equal(0, sent.Version);
@@ -35,17 +35,17 @@ public sealed class HostFormTests
     [InlineData("Admin", HostKind.Admin, "admin")]
     public async Task SwitchingTheKind_ShowsItsFields_AndSendsOnlyItsPart(string button, HostKind kind, string section)
     {
-        HostEditModel model = HostEditModel.New(App.Id);
+        var model = HostEditModel.New(App.Id);
         model.Names[0].Value = "app.example.com";
         await using DashboardTestContext context = new();
-        IRenderedComponent<HostForm> form = Render(context, model);
+        var form = Render(context, model);
 
         form.FindAll(".mud-toggle-item").Single(b => b.TextContent.Trim() == button).Click();
 
         Assert.Equal(kind, model.Kind);
         Assert.Single(form.FindAll($"[data-section={section}]"));
         Assert.Empty(form.FindAll("[data-section=routes]"));
-        HostConfig sent = model.ToConfig();
+        var sent = model.ToConfig();
         Assert.Empty(sent.Routes);
         Assert.Equal(kind == HostKind.Redirect, sent.Redirect is not null);
         Assert.Equal(kind == HostKind.Respond, sent.Respond is not null);
@@ -54,13 +54,13 @@ public sealed class HostFormTests
     [Fact]
     public async Task ErrorsShowAtTheirFields_OnceReviewWasAttempted()
     {
-        HostEditModel model = HostEditModel.New(App.Id);
+        var model = HostEditModel.New(App.Id);
         model.Names[0].Value = "not a name";
-        IReadOnlyDictionary<string, string> errors = InlineValidation.ForHost(new ConfigDocument(Upstreams: [App]), model.ToConfig());
+        var errors = InlineValidation.ForHost(new ConfigDocument(Upstreams: [App]), model.ToConfig());
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<HostForm> quiet = Render(context, model, errors, showAll: false);
-        IRenderedComponent<HostForm> shown = Render(context, model, errors, showAll: true);
+        var quiet = Render(context, model, errors, showAll: false);
+        var shown = Render(context, model, errors, showAll: true);
 
         Assert.Contains("/names/0", errors.Keys);
         Assert.Empty(quiet.FindAll("[data-form=errors]"));
@@ -75,10 +75,10 @@ public sealed class HostFormTests
     {
         HostConfig taken = new(HostId.New(), ["app.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200));
         ConfigDocument current = new(Upstreams: [App], Hosts: [taken]);
-        HostEditModel model = HostEditModel.New(null);
+        var model = HostEditModel.New(null);
         model.Names[0].Value = "app.example.com";
 
-        IReadOnlyDictionary<string, string> errors = InlineValidation.ForHost(current, model.ToConfig());
+        var errors = InlineValidation.ForHost(current, model.ToConfig());
 
         Assert.Contains(errors.Keys, path => path.StartsWith("/names", StringComparison.Ordinal));
 
@@ -104,16 +104,16 @@ public sealed class HostFormTests
     [Fact]
     public void Editing_KeepsTheStoredVersion_AndWhatTheFormDoesNotShow()
     {
-        RouteId route = RouteId.New();
+        var route = RouteId.New();
         RouteSettings routeSettings = new() { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) };
         HostConfig stored = new(HostId.New(), ["app.example.com"], Version: 7, Routes: [new RouteConfig(route, App.Id, Path: "/api", Settings: routeSettings)], Tags: ["media"]);
 
-        HostEditModel model = HostEditModel.From(stored);
+        var model = HostEditModel.From(stored);
         model.Enabled = false;
-        HostConfig sent = model.ToConfig();
+        var sent = model.ToConfig();
 
         Assert.Equal((stored.Id, 7L, false), (sent.Id, sent.Version, sent.Enabled));
-        RouteConfig kept = Assert.Single(sent.Routes);
+        var kept = Assert.Single(sent.Routes);
         Assert.Equal((route, "/api"), (kept.Id, kept.Path));
         Assert.Same(routeSettings, kept.Settings);
         Assert.Equal(["media"], sent.Tags);
@@ -122,10 +122,10 @@ public sealed class HostFormTests
     [Fact]
     public async Task ReadOnly_OffersNoWayToAddOrRemove()
     {
-        HostEditModel model = HostEditModel.From(new HostConfig(HostId.New(), ["a.example.com", "b.example.com"], Routes: [new RouteConfig(RouteId.New(), App.Id)]));
+        var model = HostEditModel.From(new HostConfig(HostId.New(), ["a.example.com", "b.example.com"], Routes: [new RouteConfig(RouteId.New(), App.Id)]));
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<HostForm> form = Render(context, model, readOnly: true);
+        var form = Render(context, model, readOnly: true);
 
         Assert.DoesNotContain(form.FindAll("button"), b => b.TextContent.Contains("Add a", StringComparison.Ordinal));
         Assert.Empty(form.FindAll("button[aria-label^=Remove]"));
@@ -135,9 +135,9 @@ public sealed class HostFormTests
     public async Task TheAccessLogAndRequestIdFieldsAreInEveryLayerAndBindBackToTheHost()
     {
         await using DashboardTestContext context = new();
-        HostEditModel model = HostEditModel.New(App.Id);
+        var model = HostEditModel.New(App.Id);
         model.Names[0].Value = "app.example.com";
-        IRenderedComponent<HostForm> form = Render(context, model);
+        var form = Render(context, model);
 
         // Both fields are there, inheriting by default, and say what they would inherit.
         Assert.Single(form.FindAll("[data-field=access-log]"));
@@ -154,7 +154,7 @@ public sealed class HostFormTests
             await form.FindComponents<MudSelect<RequestIdPropagation?>>().Single(select => select.Instance.Label == "Request ID").Instance.ValueChanged.InvokeAsync(RequestIdPropagation.UpstreamOnly);
         });
 
-        HostConfig sent = model.ToConfig();
+        var sent = model.ToConfig();
         Assert.False(sent.Settings.AccessLog);
         Assert.Equal(RequestIdPropagation.UpstreamOnly, sent.Settings.RequestIdPropagation);
 

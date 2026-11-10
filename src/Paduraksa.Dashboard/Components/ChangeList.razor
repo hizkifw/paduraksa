@@ -5,12 +5,12 @@
 else
 {
     <div class="pdk-diff" role="list" aria-label="Changes">
-        @foreach ((ChangeGroup group, string groupKey) in Keyed(Groups, g => g.Head.Key))
+        @foreach (var (group, groupKey) in Keyed(Groups, g => g.Head.Key))
         {
             <section @key="groupKey" class="pdk-diff-group pdk-diff-@KindCss(group.Head.Kind)" role="listitem">
                 @Header(group.Head)
                 @Fields(group.Head)
-                @foreach ((ObjectChange child, string childKey) in Keyed(group.Children, c => c.Key))
+                @foreach (var (child, childKey) in Keyed(group.Children, c => c.Key))
                 {
                     <div @key="childKey" class="pdk-diff-child pdk-diff-@KindCss(child.Kind)">
                         @Header(child)
@@ -37,10 +37,10 @@ else
     private static IEnumerable<(T Item, string Key)> Keyed<T>(IEnumerable<T> items, Func<T, string> keyOf)
     {
         Dictionary<string, int> seen = new(StringComparer.Ordinal);
-        foreach (T item in items)
+        foreach (var item in items)
         {
-            string key = keyOf(item);
-            int earlier = seen.GetValueOrDefault(key);
+            var key = keyOf(item);
+            var earlier = seen.GetValueOrDefault(key);
             seen[key] = earlier + 1;
             yield return (item, earlier == 0 ? key : $"{key}#{earlier}");
         }
@@ -71,7 +71,7 @@ else
         @if (change.Fields.Count > 0)
         {
             <dl class="pdk-diff-fields">
-                @foreach (FieldChange field in change.Fields)
+                @foreach (var field in change.Fields)
                 {
                     <div class="pdk-diff-field">
                         <dt>@field.Label</dt>

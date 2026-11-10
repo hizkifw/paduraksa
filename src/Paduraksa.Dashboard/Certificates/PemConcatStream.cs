@@ -32,7 +32,7 @@ internal sealed class PemConcatStream(Stream first, Stream second) : Stream
             switch (_part)
             {
                 case 0:
-                    int read = await first.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                    var read = await first.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
                     if (read > 0)
                     {
                         return read;
@@ -43,7 +43,7 @@ internal sealed class PemConcatStream(Stream first, Stream second) : Stream
                 case 1:
                     if (_separatorRead < Separator.Length)
                     {
-                        int count = Math.Min(buffer.Length, Separator.Length - _separatorRead);
+                        var count = Math.Min(buffer.Length, Separator.Length - _separatorRead);
                         Separator.AsMemory(_separatorRead, count).CopyTo(buffer);
                         _separatorRead += count;
                         return count;

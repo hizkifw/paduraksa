@@ -20,7 +20,7 @@
 else if (_model is null || _document is null)
 {
     <div class="pdk-form-grid" aria-busy="true">
-        @for (int i = 0; i < 3; i++)
+        @for (var i = 0; i < 3; i++)
         {
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
                 <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" Height="28px" />
@@ -45,7 +45,7 @@ else
             <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
                 <strong>@(_errors.Count == 1 ? "One thing to fix" : $"{_errors.Count} things to fix"):</strong>
                 <ul class="pdk-error-list">
-                    @foreach ((string path, string message) in _errors)
+                    @foreach (var (path, message) in _errors)
                     {
                         <li><span class="pdk-error-where">@ChangeView.Locate("/settings" + path, null)</span> @message</li>
                     }
@@ -100,7 +100,7 @@ else
                                    Label="Default certificate" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!_mayWrite" ToStringFunc="CertificateName"
                                    Class="pdk-setting-control" Error="@(E("/defaultCertificateId") is not null)" ErrorText="@E("/defaultCertificateId")" data-field="default-certificate">
                             <MudSelectItem T="CertificateId?" Value="null">None</MudSelectItem>
-                            @foreach (CertificateSummary certificate in _certificates.Where(c => HostOverview.IsUsable(c) || c.Id == _model.DefaultCertificateId))
+                            @foreach (var certificate in _certificates.Where(c => HostOverview.IsUsable(c) || c.Id == _model.DefaultCertificateId))
                             {
                                 <MudSelectItem T="CertificateId?" Value="certificate.Id">@CertificateName(certificate.Id)</MudSelectItem>
                             }
@@ -118,9 +118,9 @@ else
                 </div>
             </div>
             <div class="pdk-choice-cards" role="radiogroup" aria-label="Trusted proxies" data-field="proxy-mode">
-                @foreach ((TrustedProxyMode mode, string title, string help, string icon) in ProxyModes)
+                @foreach (var (mode, title, help, icon) in ProxyModes)
                 {
-                    bool selected = _model.ProxyMode == mode;
+                    var selected = _model.ProxyMode == mode;
                     <button type="button" class="pdk-choice-card @(selected ? "pdk-selected" : null)" role="radio" aria-checked="@(selected ? "true" : "false")"
                             disabled="@(!_mayWrite)" @onclick="@(() => Set(() => _model.ProxyMode = mode, "/trustedProxies"))" data-mode="@mode.ToString().ToLowerInvariant()">
                         <MudIcon Icon="@icon" Size="Size.Small" Class="pdk-choice-icon" />
@@ -221,7 +221,7 @@ else
         _changedElsewhere = null;
         _attempted = false;
         _touched.Clear();
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -240,7 +240,7 @@ else
         Validate();
     }
 
-    private string? E(string path) => (_attempted || _touched.Contains(path)) && _errors.TryGetValue(path, out string? message) ? message : null;
+    private string? E(string path) => (_attempted || _touched.Contains(path)) && _errors.TryGetValue(path, out var message) ? message : null;
 
     private void Set(Action apply, string path)
     {
@@ -277,7 +277,7 @@ else
             return "None";
         }
 
-        CertificateSummary? certificate = _certificates?.FirstOrDefault(c => c.Id == value);
+        var certificate = _certificates?.FirstOrDefault(c => c.Id == value);
         return certificate is null ? value.ToString()
             : $"{(string.IsNullOrWhiteSpace(certificate.Label) ? string.Join(", ", certificate.Names.Take(2)) : certificate.Label)}{(HostOverview.IsUsable(certificate) ? string.Empty : " (not usable)")}";
     }
@@ -304,7 +304,7 @@ else
     {
         Dictionary<string, string> merged = new(_errors, StringComparer.Ordinal);
         // An object command's errors come relative to the object: here, the settings.
-        foreach ((string path, string message) in InlineValidation.Relative(errors, string.Empty))
+        foreach (var (path, message) in InlineValidation.Relative(errors, string.Empty))
         {
             merged[path] = message;
         }

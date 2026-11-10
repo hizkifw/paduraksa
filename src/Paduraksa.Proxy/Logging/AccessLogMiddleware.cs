@@ -5,8 +5,6 @@ using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
-using Paduraksa.Proxy.Snapshot;
-
 using Yarp.ReverseProxy.Model;
 
 namespace Paduraksa.Proxy.Logging;
@@ -53,7 +51,7 @@ public sealed class AccessLogMiddleware
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(next);
 
-        long started = Stopwatch.GetTimestamp();
+        var started = Stopwatch.GetTimestamp();
         try
         {
             await next(context);
@@ -76,20 +74,20 @@ public sealed class AccessLogMiddleware
     /// </summary>
     internal static void Record(HttpContext context, AccessLogRing ring, long started)
     {
-        GateRequestState? state = context.Features.Get<IGateFeature>()?.State;
+        var state = context.Features.Get<IGateFeature>()?.State;
         if (state is { Snapshot: { } snapshot } && !snapshot.AccessLogFor(state.Host))
         {
             // A known host's own setting, else the global default for an unknown host; without a snapshot, log.
             return;
         }
 
-        HttpRequest request = context.Request;
-        HttpResponse response = context.Response;
-        StringValues host = request.Headers.Host;
-        StringValues userAgent = request.Headers.UserAgent;
-        StringValues referer = request.Headers.Referer;
-        long upstreamTicks = state?.UpstreamTicks ?? AccessLogEntry.Unknown;
-        string? upstreamAddress = state?.UpstreamAddress;
+        var request = context.Request;
+        var response = context.Response;
+        var host = request.Headers.Host;
+        var userAgent = request.Headers.UserAgent;
+        var referer = request.Headers.Referer;
+        var upstreamTicks = state?.UpstreamTicks ?? AccessLogEntry.Unknown;
+        var upstreamAddress = state?.UpstreamAddress;
         if (state is { UpstreamStartedTimestamp: not 0 } && upstreamTicks < 0)
         {
             // A forward that got no response back (YARP's own 502, say): the attempt still has a duration, up to where it

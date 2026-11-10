@@ -78,7 +78,7 @@ public static class HostSettingsLayers
     public static HostSettings MergeAll(params ReadOnlySpan<HostSettings?> layers)
     {
         HostSettings merged = new();
-        foreach (HostSettings? layer in layers)
+        foreach (var layer in layers)
         {
             merged = Merge(merged, layer);
         }
@@ -194,9 +194,9 @@ public static class HostSettingsLayers
     // The concrete values: the built-in defaults, then the merged layer over them.
     private static EffectiveHostSettings Concrete(HostSettings settings)
     {
-        TlsSettings tls = settings.Tls ?? new TlsSettings();
-        HstsSettings hsts = settings.Hsts ?? new HstsSettings();
-        ServerHeaderSettings server = settings.ServerHeader ?? new ServerHeaderSettings();
+        var tls = settings.Tls ?? new TlsSettings();
+        var hsts = settings.Hsts ?? new HstsSettings();
+        var server = settings.ServerHeader ?? new ServerHeaderSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec

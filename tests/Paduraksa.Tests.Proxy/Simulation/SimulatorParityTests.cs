@@ -55,14 +55,14 @@ public sealed class SimulatorParityTests : IDisposable
     public async Task EveryHostAndRouteOutcomeMatches(UnknownHostBehaviour unknownHost)
     {
         using Fixture fixture = new(Model(new DefaultsSpec { UnknownHost = unknownHost, Certificate = TestIds.Certificate("shared") }), _pki);
-        int compared = 0;
-        foreach (string host in Hosts)
+        var compared = 0;
+        foreach (var host in Hosts)
         {
-            foreach ((bool https, ProbeHttpVersion version, SslProtocols tls) in Connections)
+            foreach (var (https, version, tls) in Connections)
             {
-                foreach (string path in Paths)
+                foreach (var path in Paths)
                 {
-                    foreach (IPAddress client in (IPAddress[])[Lan, Outsider])
+                    foreach (var client in (IPAddress[])[Lan, Outsider])
                     {
                         compared += await fixture.CompareAsync(new Wire(host, https, version, tls, path, client));
                     }
@@ -76,7 +76,7 @@ public sealed class SimulatorParityTests : IDisposable
             GateReason.Forwarded, GateReason.DefaultHost, GateReason.MisdirectedConnection, GateReason.HostPolicy, GateReason.HttpsRedirect,
             GateReason.FixedHost, GateReason.NoRoute, GateReason.RoutePolicy, GateReason.HandshakeRejected,
         ];
-        foreach (GateReason reason in expected)
+        foreach (var reason in expected)
         {
             Assert.Contains(reason, fixture.Reasons);
         }
@@ -87,7 +87,7 @@ public sealed class SimulatorParityTests : IDisposable
     {
         using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
 
-        foreach (string method in (string[])["GET", "HEAD", "POST", "DELETE"])
+        foreach (var method in (string[])["GET", "HEAD", "POST", "DELETE"])
         {
             Assert.Equal(1, await fixture.CompareAsync(new Wire("secure.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/p q", Lan) { Method = method, Query = "a=1&b=%20" }));
             Assert.Equal(1, await fixture.CompareAsync(new Wire("old.test", true, ProbeHttpVersion.Http2, SslProtocols.Tls13, "/deep/path", Lan) { Method = method, Query = "x=y" }));
@@ -95,7 +95,7 @@ public sealed class SimulatorParityTests : IDisposable
 
         // Two Host headers, none, or one that isn't a host: Kestrel answers 400 before the gate (real sockets pin that in
         // SimulatorSocketParityTests), so there is no gate answer to compare.
-        foreach (IReadOnlyList<string> hosts in (IReadOnlyList<string>[])[["app.test", "secure.test"], [], ["a@b"], ["app.test/x"]])
+        foreach (var hosts in (IReadOnlyList<string>[])[["app.test", "secure.test"], [], ["a@b"], ["app.test/x"]])
         {
             Assert.Equal(0, await fixture.CompareAsync(new Wire("app.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/", Lan) { HostHeaders = hosts }));
         }
@@ -107,9 +107,9 @@ public sealed class SimulatorParityTests : IDisposable
         using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
 
         // Negotiated for lax name (SNI), asking for the stricter hosts.
-        foreach (string host in (string[])["strict.test", "h1.test", "noh3.test", "plain.test", "app.test"])
+        foreach (var host in (string[])["strict.test", "h1.test", "noh3.test", "plain.test", "app.test"])
         {
-            foreach ((ProbeHttpVersion version, SslProtocols tls) in Coalesced)
+            foreach (var (version, tls) in Coalesced)
             {
                 await fixture.CompareAsync(new Wire(host, true, version, tls, "/", Lan) { ServerName = "lax.test" });
             }
@@ -148,17 +148,17 @@ public sealed class SimulatorParityTests : IDisposable
             [("X-Forwarded-Proto", "https"), ("X-Forwarded-For", "10.0.0.5")],
         ];
 
-        int compared = 0;
-        foreach ((string name, TrustedProxySpec spec) in modes)
+        var compared = 0;
+        foreach (var (name, spec) in modes)
         {
             using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared"), TrustedProxies = spec }), _pki);
-            foreach (IPAddress peer in (IPAddress[])[Loopback, Lan, CloudflareEdge, Outsider])
+            foreach (var peer in (IPAddress[])[Loopback, Lan, CloudflareEdge, Outsider])
             {
-                foreach ((string, string)[] headers in headerSets)
+                foreach (var headers in headerSets)
                 {
-                    foreach (string host in (string[])["locked.test", "secure.test", "app.test"])
+                    foreach (var host in (string[])["locked.test", "secure.test", "app.test"])
                     {
-                        foreach (bool proxyProtocol in (bool[])[false, true])
+                        foreach (var proxyProtocol in (bool[])[false, true])
                         {
                             Wire wire = new(host, false, ProbeHttpVersion.Http11, SslProtocols.None, "/", peer) { Headers = headers, ProxyProtocol = proxyProtocol };
                             compared += await fixture.CompareAsync(wire, $"mode {name}");
@@ -176,23 +176,23 @@ public sealed class SimulatorParityTests : IDisposable
     {
         using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
 
-        int answered = 0;
-        foreach (string host in (string[])["secure.test", "app.test", "unknown.test", "old.test", "strict.test", "locked.test"])
+        var answered = 0;
+        foreach (var host in (string[])["secure.test", "app.test", "unknown.test", "old.test", "strict.test", "locked.test"])
         {
-            foreach (bool https in (bool[])[false, true])
+            foreach (var https in (bool[])[false, true])
             {
-                foreach (string method in (string[])["GET", "HEAD", "POST"])
+                foreach (var method in (string[])["GET", "HEAD", "POST"])
                 {
                     // A published token is answered on plain HTTP before host lookup and policy; unknown, nested, or HTTPS falls through.
-                    foreach (string path in (string[])["/.well-known/acme-challenge/tok-en_1", "/.well-known/acme-challenge/token123", "/.well-known/acme-challenge/tok-en_1/x", "/.well-known/acme-challenge/"])
+                    foreach (var path in (string[])["/.well-known/acme-challenge/tok-en_1", "/.well-known/acme-challenge/token123", "/.well-known/acme-challenge/tok-en_1/x", "/.well-known/acme-challenge/"])
                     {
-                        foreach (IPAddress client in (IPAddress[])[Lan, Outsider])
+                        foreach (var client in (IPAddress[])[Lan, Outsider])
                         {
                             await fixture.CompareAsync(new Wire(host, https, ProbeHttpVersion.Http11, SslProtocols.Tls13, path, client) { Method = method });
                         }
                     }
 
-                    GateSimulation answer = GateSimulator.Run(fixture.Snapshot, new GateProbe { Https = https, Host = host, Method = method, Path = "/.well-known/acme-challenge/tok-en_1", ClientAddress = Outsider }, challenges: fixture.Challenges);
+                    var answer = GateSimulator.Run(fixture.Snapshot, new GateProbe { Https = https, Host = host, Method = method, Path = "/.well-known/acme-challenge/tok-en_1", ClientAddress = Outsider }, challenges: fixture.Challenges);
                     if (answer.Outcome.Reason == GateReason.AcmeChallenge)
                     {
                         answered++;
@@ -205,8 +205,8 @@ public sealed class SimulatorParityTests : IDisposable
 
         Assert.True(answered > 0, "no challenge was ever answered");
 
-        GateSimulation run = GateSimulator.Run(fixture.Snapshot, new GateProbe { Host = "secure.test", ClientAddress = Outsider, Path = "/.well-known/acme-challenge/token123" });
-        GateStep acme = Assert.Single(run.Steps, s => s.Kind == GateStepKind.AcmeChallenge);
+        var run = GateSimulator.Run(fixture.Snapshot, new GateProbe { Host = "secure.test", ClientAddress = Outsider, Path = "/.well-known/acme-challenge/token123" });
+        var acme = Assert.Single(run.Steps, s => s.Kind == GateStepKind.AcmeChallenge);
         Assert.Equal(GateStepVerdict.Passed, acme.Verdict);
         Assert.Contains("nothing answers it", acme.Summary, StringComparison.Ordinal);
     }
@@ -228,7 +228,7 @@ public sealed class SimulatorParityTests : IDisposable
     {
         using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
 
-        GateSimulation run = GateSimulator.Run(fixture.Snapshot, new GateProbe
+        var run = GateSimulator.Run(fixture.Snapshot, new GateProbe
         {
             Https = true,
             Host = "admin.test",
@@ -241,11 +241,11 @@ public sealed class SimulatorParityTests : IDisposable
         Assert.NotNull(run.Upstream);
         Assert.True(run.Upstream!.Admin);
         Assert.Equal(UpstreamId.Empty, run.Upstream.Id);
-        GateStep upstream = Assert.Single(run.Steps, step => step.Kind == GateStepKind.Upstream);
+        var upstream = Assert.Single(run.Steps, step => step.Kind == GateStepKind.Upstream);
         Assert.Equal(GateStepVerdict.Passed, upstream.Verdict);
         Assert.Contains("admin app", upstream.Summary, StringComparison.Ordinal);
         Assert.Contains(upstream.Facts, fact => fact is { Name: "target", Value: "admin" });
-        GateStep route = Assert.Single(run.Steps, step => step.Kind == GateStepKind.RouteMatch);
+        var route = Assert.Single(run.Steps, step => step.Kind == GateStepKind.RouteMatch);
         Assert.Contains("admin route", route.Summary, StringComparison.Ordinal);
     }
 
@@ -327,7 +327,7 @@ public sealed class SimulatorParityTests : IDisposable
         public Fixture(ProxyConfigModel model, TestPki pki)
         {
             Challenges.Publish("tok-en_1", "tok-en_1.thumbprint");
-            ServerCertificate shared = pki.Leaf("shared", "*.test", "*.app.test", "app.test");
+            var shared = pki.Leaf("shared", "*.test", "*.app.test", "app.test");
             Snapshot = Bound(model, options: new SnapshotCompilerOptions { Certificates = new Single(shared), PublicHttpsPort = 8443, AdminUpstream = true });
             _store.Publish(Snapshot);
             _gate = new GateMiddleware(_store, new TrustedProxyClientAddressSource(), Challenges);
@@ -368,12 +368,12 @@ public sealed class SimulatorParityTests : IDisposable
                 probe = probe with { HostHeaders = wire.HostHeaders };
             }
 
-            GateSimulation simulated = GateSimulator.Run(Snapshot, probe, challenges: Challenges);
+            var simulated = GateSimulator.Run(Snapshot, probe, challenges: Challenges);
             Reasons.Add(simulated.Outcome.Reason);
-            string label = $"{note} {(wire.Https ? "https" : "http")} {wire.Version} {wire.TlsVersion} {wire.Method} {wire.Host}{wire.Path} from {wire.Peer} via {string.Join(",", wire.Headers)}";
+            var label = $"{note} {(wire.Https ? "https" : "http")} {wire.Version} {wire.TlsVersion} {wire.Method} {wire.Host}{wire.Path} from {wire.Peer} via {string.Join(",", wire.Headers)}";
 
             // What the handshake would do, read off the real selector: a request behind a failed handshake never exists.
-            (bool reached, ProbeHttpVersion negotiated, SslProtocols tlsVersion) = Handshake(wire, probe);
+            var (reached, negotiated, tlsVersion) = Handshake(wire, probe);
             if (!reached)
             {
                 Assert.True(simulated.Outcome.Reason == GateReason.HandshakeRejected, $"{label}: the handshake fails, the simulation said {simulated.Outcome}");
@@ -384,8 +384,8 @@ public sealed class SimulatorParityTests : IDisposable
             Assert.True(simulated.Outcome.Reason != GateReason.HandshakeRejected, $"{label}: the handshake works, the simulation said {simulated.Outcome}");
 
             // Kestrel's own 400s come before the gate: a Host that isn't exactly one valid value on HTTP/1.1.
-            bool badHost = negotiated == ProbeHttpVersion.Http11 && wire.HostHeaders is { } sent
-                && (sent.Count != 1 || sent[0].IndexOfAny(['@', '/', '\\', ' ']) >= 0);
+            var badHost = negotiated == ProbeHttpVersion.Http11 && wire.HostHeaders is { } sent
+                                                                && (sent.Count != 1 || sent[0].IndexOfAny(['@', '/', '\\', ' ']) >= 0);
             Assert.True(
                 badHost == (simulated.Outcome.Reason == GateReason.RejectedByServer),
                 $"{label}: the server {(badHost ? "rejects" : "accepts")} the Host, the simulation said {simulated.Outcome}");
@@ -395,7 +395,7 @@ public sealed class SimulatorParityTests : IDisposable
                 return 0;
             }
 
-            (GateOutcomeAction action, int? status, string? location, string? hsts, string? server) = await RealAsync(wire, negotiated, tlsVersion);
+            var (action, status, location, hsts, server) = await RealAsync(wire, negotiated, tlsVersion);
             Assert.True(
                 action == simulated.Outcome.Action && status == simulated.Outcome.StatusCode && location == simulated.Outcome.Location,
                 $"{label}: the real gate gave {action} {status} {location}, the simulation {simulated.Outcome.Action} {simulated.Outcome.StatusCode} {simulated.Outcome.Location} ({simulated.Outcome.Reason})");
@@ -404,12 +404,12 @@ public sealed class SimulatorParityTests : IDisposable
 
             // The one response-headers step says what each header carries, so a "why" view can't disagree with the wire.
             // A dropped request has no answer, so no step at all.
-            GateStep? headers = simulated.Steps.FirstOrDefault(s => s.Kind == GateStepKind.ResponseHeaders);
-            string? simulatedHsts = headers is null ? null : ValueOf(headers, "Strict-Transport-Security");
+            var headers = simulated.Steps.FirstOrDefault(s => s.Kind == GateStepKind.ResponseHeaders);
+            var simulatedHsts = headers is null ? null : ValueOf(headers, "Strict-Transport-Security");
             Assert.True((hsts ?? string.Empty) == (simulatedHsts ?? string.Empty), $"{label}: the response carried HSTS '{hsts}', the trace said '{simulatedHsts}'");
 
             // The same step says what the gate sets for Server, which is all a gate answer can have (no upstream here).
-            string? simulatedServer = headers is null ? null : ValueOf(headers, "Server");
+            var simulatedServer = headers is null ? null : ValueOf(headers, "Server");
             Assert.True((server ?? string.Empty) == (simulatedServer ?? string.Empty), $"{label}: the response carried Server '{server}', the trace said '{simulatedServer}'");
             return 1;
         }
@@ -421,8 +421,8 @@ public sealed class SimulatorParityTests : IDisposable
                 return (true, probe.HttpVersion, SslProtocols.None);
             }
 
-            string sni = wire.ServerName ?? (wire.Host.Length == 0 || wire.Host[0] == '[' ? string.Empty : HostTable.HostName(wire.Host).ToString());
-            bool quic = wire.Version == ProbeHttpVersion.Http3;
+            var sni = wire.ServerName ?? (wire.Host.Length == 0 || wire.Host[0] == '[' ? string.Empty : HostTable.HostName(wire.Host).ToString());
+            var quic = wire.Version == ProbeHttpVersion.Http3;
             SslServerAuthenticationOptions options;
             try
             {
@@ -443,14 +443,14 @@ public sealed class SimulatorParityTests : IDisposable
                 return (false, wire.Version, SslProtocols.None);
             }
 
-            bool h2 = options.ApplicationProtocols!.Contains(SslApplicationProtocol.Http2);
+            var h2 = options.ApplicationProtocols!.Contains(SslApplicationProtocol.Http2);
             return (true, wire.Version == ProbeHttpVersion.Http2 && !h2 ? ProbeHttpVersion.Http11 : wire.Version, probe.TlsVersion);
         }
 
         private async Task<(GateOutcomeAction Action, int? Status, string? Location, string? Hsts, string? Server)> RealAsync(Wire wire, ProbeHttpVersion version, SslProtocols tls)
         {
-            string target = wire.Path + (wire.Query is null ? string.Empty : "?" + wire.Query);
-            DefaultHttpContext context = TestContexts.Create(
+            var target = wire.Path + (wire.Query is null ? string.Empty : "?" + wire.Query);
+            var context = TestContexts.Create(
                 wire.HostHeaders is not null || wire.Host.Length == 0 ? null : wire.Host,
                 wire.Path,
                 wire.Method,
@@ -463,19 +463,19 @@ public sealed class SimulatorParityTests : IDisposable
                 ProbeHttpVersion.Http2 => "HTTP/2",
                 _ => "HTTP/1.1",
             };
-            foreach ((string name, string value) in wire.Headers)
+            foreach (var (name, value) in wire.Headers)
             {
                 context.Request.Headers.Append(name, value);
             }
 
-            foreach (string host in wire.HostHeaders ?? [])
+            foreach (var host in wire.HostHeaders ?? [])
             {
                 context.Request.Headers.Append("Host", host);
             }
 
             if (wire.ProxyProtocol)
             {
-                IpKey peer = IpKey.FromIPAddress(wire.Peer);
+                var peer = IpKey.FromIPAddress(wire.Peer);
                 context.Features.Set<IClientInfoFeature>(new ClientInfo(peer, 40000, ConnectionAddressSource.ProxyProtocol, IpKey.FromIPAddress(IPAddress.Parse("192.0.2.77")), 40000));
             }
 
@@ -486,7 +486,7 @@ public sealed class SimulatorParityTests : IDisposable
 
             Lifetime lifetime = new();
             context.Features.Set<IHttpRequestLifetimeFeature>(lifetime);
-            bool forwarded = false;
+            var forwarded = false;
             await _gate.InvokeAsync(context, _ =>
             {
                 forwarded = true;
@@ -503,14 +503,14 @@ public sealed class SimulatorParityTests : IDisposable
                 return (GateOutcomeAction.Abort, null, null, HstsOf(context), ServerOf(context));
             }
 
-            string location = context.Response.Headers.Location.ToString();
+            var location = context.Response.Headers.Location.ToString();
             return (GateOutcomeAction.Respond, context.Response.StatusCode, context.Response.StatusCode / 100 == 3 && location.Length > 0 ? location : null, HstsOf(context), ServerOf(context));
         }
 
         /// <summary>The value the trace's response-headers step gives <paramref name="name"/>, or null when it isn't sent.</summary>
         private static string? ValueOf(GateStep step, string name)
         {
-            string value = step.Facts.FirstOrDefault(f => f.Name == name).Value;
+            var value = step.Facts.FirstOrDefault(f => f.Name == name).Value;
             return string.IsNullOrEmpty(value) || value.StartsWith("not sent", StringComparison.Ordinal) || value.StartsWith("removed", StringComparison.Ordinal)
                 ? null
                 : value;
@@ -518,12 +518,12 @@ public sealed class SimulatorParityTests : IDisposable
 
         /// <summary>The <c>Strict-Transport-Security</c> the real response carries, or null.</summary>
         private static string? HstsOf(HttpContext context) =>
-            context.Response.Headers.TryGetValue("Strict-Transport-Security", out Microsoft.Extensions.Primitives.StringValues value) && value.Count > 0
+            context.Response.Headers.TryGetValue("Strict-Transport-Security", out var value) && value.Count > 0
                 ? value.ToString()
                 : null;
 
         private static string? ServerOf(HttpContext context) =>
-            context.Response.Headers.TryGetValue("Server", out Microsoft.Extensions.Primitives.StringValues value) && value.Count > 0
+            context.Response.Headers.TryGetValue("Server", out var value) && value.Count > 0
                 ? value.ToString()
                 : null;
     }

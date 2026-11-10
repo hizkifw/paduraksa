@@ -1,6 +1,3 @@
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Server.Hosting;
@@ -18,7 +15,7 @@ internal sealed partial class VaultStartup(IVaultLifecycle vault, ILogger<VaultS
     {
         try
         {
-            VaultStatus status = await vault.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            var status = await vault.InitializeAsync(cancellationToken).ConfigureAwait(false);
             LogReady(logger, status.KekSource, status.KekBesideDatabase);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

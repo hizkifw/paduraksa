@@ -5,7 +5,6 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Admin.Auth;
-using Paduraksa.Core.Model;
 using Paduraksa.Data;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Tests.Integration.Hosting;
@@ -26,25 +25,25 @@ internal sealed class AdminResponse(HttpResponseMessage message, string body) : 
     public JsonElement Json => JsonDocument.Parse(body).RootElement;
 
     /// <summary>The raw <c>Set-Cookie</c> lines.</summary>
-    public IReadOnlyList<string> SetCookies => message.Headers.TryGetValues("Set-Cookie", out IEnumerable<string>? values) ? [.. values] : [];
+    public IReadOnlyList<string> SetCookies => message.Headers.TryGetValues("Set-Cookie", out var values) ? [.. values] : [];
 
     /// <summary>The value the session cookie was set to, or null (also null when it was cleared).</summary>
     public string? SessionCookie
     {
         get
         {
-            string? line = SetCookies.LastOrDefault(c => c.StartsWith(AdminSessionCookie.Name + "=", StringComparison.Ordinal));
+            var line = SetCookies.LastOrDefault(c => c.StartsWith(AdminSessionCookie.Name + "=", StringComparison.Ordinal));
             if (line is null)
             {
                 return null;
             }
 
-            string value = line[(AdminSessionCookie.Name.Length + 1)..].Split(';')[0];
+            var value = line[(AdminSessionCookie.Name.Length + 1)..].Split(';')[0];
             return value.Length == 0 ? null : value;
         }
     }
 
-    public string? Header(string name) => message.Headers.TryGetValues(name, out IEnumerable<string>? values) ? string.Join(",", values) : null;
+    public string? Header(string name) => message.Headers.TryGetValues(name, out var values) ? string.Join(",", values) : null;
 
     public void Dispose() => message.Dispose();
 }
@@ -79,12 +78,12 @@ internal sealed class AdminHarness : IAsyncDisposable
         {
             ["Paduraksa:Admin:PasswordIterations"] = "100000", // the validator's floor: sign-in tests do dozens of derivations
         };
-        foreach ((string key, string? value) in settings ?? new Dictionary<string, string?>())
+        foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
             config[key] = value;
         }
 
-        PaduraksaHost host = TestHost.Create(settings: config, configureServices: configureServices, logs: logs, configureShared: TestHost.NoAccessLogFile);
+        var host = TestHost.Create(settings: config, configureServices: configureServices, logs: logs, configureShared: TestHost.NoAccessLogFile);
         try
         {
             await host.StartAsync(Ct);
@@ -108,7 +107,7 @@ internal sealed class AdminHarness : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(host);
         // The hardening tests reach the admin by a LAN name or a made-up one over a loopback connection, so the client
         // must not insist the certificate covers that name (it is still pinned or chain-checked to the local CA).
-        HttpClient http = TestHost.CreateAdminClient(host, static handler =>
+        var http = TestHost.CreateAdminClient(host, static handler =>
         {
             handler.UseCookies = false;
             handler.AllowAutoRedirect = false;
@@ -164,14 +163,14 @@ internal sealed class AdminHarness : IAsyncDisposable
             request.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
         }
 
-        foreach ((string name, string value) in headers ?? new Dictionary<string, string>())
+        foreach (var (name, value) in headers ?? new Dictionary<string, string>())
         {
             request.Headers.Remove(name);
             request.Headers.TryAddWithoutValidation(name, value);
         }
 
-        HttpResponseMessage response = await _http.SendAsync(request, Ct);
-        string body = await response.Content.ReadAsStringAsync(Ct);
+        var response = await _http.SendAsync(request, Ct);
+        var body = await response.Content.ReadAsStringAsync(Ct);
         return new AdminResponse(response, body);
     }
 
@@ -187,8 +186,8 @@ internal sealed class AdminHarness : IAsyncDisposable
     /// <summary>Completes first-run setup through the API and returns the Owner's session cookie.</summary>
     public async Task<string> SetUpOwnerAsync()
     {
-        string token = await SetupTokenAsync();
-        using AdminResponse response = await PostAsync("/api/v1/setup", Body.Setup(token, OwnerName, Password));
+        var token = await SetupTokenAsync();
+        using var response = await PostAsync("/api/v1/setup", Body.Setup(token, OwnerName, Password));
         Assert.Equal(HttpStatusCode.Created, response.Status);
         return response.SessionCookie ?? throw new InvalidOperationException("Setup set no session cookie.");
     }
@@ -196,7 +195,7 @@ internal sealed class AdminHarness : IAsyncDisposable
     /// <summary>Signs in through the API (no second factor) and returns the cookie.</summary>
     public async Task<string> SignInAsync(string username, string password = Password)
     {
-        using AdminResponse response = await PostAsync("/api/v1/auth/login", Body.Login(username, password));
+        using var response = await PostAsync("/api/v1/auth/login", Body.Login(username, password));
         Assert.Equal(HttpStatusCode.OK, response.Status);
         Assert.False(response.Json.GetProperty("secondFactorRequired").GetBoolean());
         return response.SessionCookie!;
@@ -205,7 +204,7 @@ internal sealed class AdminHarness : IAsyncDisposable
     /// <summary>Creates a user as the Owner (through the API) with <paramref name="role"/>, and returns their ID.</summary>
     public async Task<string> CreateUserAsync(string ownerCookie, string username, string role)
     {
-        using AdminResponse response = await PostAsync("/api/v1/users", $$"""{"username":"{{username}}","displayName":null,"password":"{{Password}}","roles":["{{role}}"]}""", ownerCookie);
+        using var response = await PostAsync("/api/v1/users", $$"""{"username":"{{username}}","displayName":null,"password":"{{Password}}","roles":["{{role}}"]}""", ownerCookie);
         Assert.Equal(HttpStatusCode.Created, response.Status);
         return response.Json.GetProperty("id").GetString()!;
     }
@@ -213,7 +212,7 @@ internal sealed class AdminHarness : IAsyncDisposable
     /// <summary>Issues a token through the API as <paramref name="cookie"/>'s user and returns (id, secret).</summary>
     public async Task<(string Id, string Secret)> IssueTokenAsync(string cookie, params string[] scopes)
     {
-        using AdminResponse response = await PostAsync("/api/v1/tokens", $$"""{"name":"test","scopes":[{{string.Join(",", scopes.Select(s => $"\"{s}\""))}}],"expiresAt":null}""", cookie);
+        using var response = await PostAsync("/api/v1/tokens", $$"""{"name":"test","scopes":[{{string.Join(",", scopes.Select(s => $"\"{s}\""))}}],"expiresAt":null}""", cookie);
         Assert.Equal(HttpStatusCode.Created, response.Status);
         return (response.Json.GetProperty("summary").GetProperty("id").GetString()!, response.Json.GetProperty("token").GetString()!);
     }
@@ -221,8 +220,8 @@ internal sealed class AdminHarness : IAsyncDisposable
     /// <summary>The audit entries of one action, oldest first, read straight from the config database.</summary>
     public async Task<IReadOnlyList<AuditRecord>> AuditAsync(string action)
     {
-        IDbContextFactory<ConfigDbContext> contexts = Host.GetServices(HostRole.Admin).GetRequiredService<IDbContextFactory<ConfigDbContext>>();
-        await using ConfigDbContext context = await contexts.CreateDbContextAsync(Ct);
+        var contexts = Host.GetServices(HostRole.Admin).GetRequiredService<IDbContextFactory<ConfigDbContext>>();
+        await using var context = await contexts.CreateDbContextAsync(Ct);
         return await context.Database
             .SqlQueryRaw<AuditRecord>("""SELECT "Action", "Outcome", "Channel", "ClientIp", "Target", "Details" FROM "AuditEvents" WHERE "Action" = {0} ORDER BY "Timestamp", "rowid" """, action)
             .ToListAsync(Ct);

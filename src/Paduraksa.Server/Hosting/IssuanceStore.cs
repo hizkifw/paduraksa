@@ -1,16 +1,11 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Paduraksa.Acme;
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Core.Acme;
-using Paduraksa.Data;
 using Paduraksa.Server.Configuration;
 
 namespace Paduraksa.Server.Hosting;
@@ -54,7 +49,7 @@ internal static class IssuanceStore
         ArgumentNullException.ThrowIfNull(challenges);
         ArgumentNullException.ThrowIfNull(readiness);
 
-        PaduraksaAcmeOptions acme = options.Acme;
+        var acme = options.Acme;
         AcmeClientOptions clientOptions = new() { AllowInsecureHttp = options.Development.AcmeInsecureHttp };
         AcmeIssuanceOptions issuanceOptions = new()
         {
@@ -64,9 +59,9 @@ internal static class IssuanceStore
         };
 
         // Created before the container, so disposed after it: the clients are done with it by then.
-        SocketsHttpHandler transport = builder.Own(CreateTransport(acme.TrustedRootsFile));
+        var transport = builder.Own(CreateTransport(acme.TrustedRootsFile));
 
-        ServiceProvider container = builder.Own(new ServiceCollection()
+        var container = builder.Own(new ServiceCollection()
             .AddSingleton(loggerFactory)
             .AddSingleton(timeProvider)
             .AddSingleton(configStore.Contexts)
@@ -124,7 +119,7 @@ internal static class IssuanceStore
                 throw Refused(file, "holds no certificate.");
             }
 
-            foreach (X509Certificate2 root in roots)
+            foreach (var root in roots)
             {
                 if (!AcmeHttp.IsSelfSignedCa(root))
                 {
@@ -137,7 +132,7 @@ internal static class IssuanceStore
         }
         finally
         {
-            foreach (X509Certificate2 root in roots)
+            foreach (var root in roots)
             {
                 root.Dispose();
             }

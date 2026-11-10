@@ -13,9 +13,9 @@ public sealed class ConfigDiffTests
     [Fact]
     public void EquivalentDocumentsHaveNoChanges()
     {
-        for (int seed = 0; seed < 100; seed++)
+        for (var seed = 0; seed < 100; seed++)
         {
-            ConfigDocument document = Random(seed);
+            var document = Random(seed);
 
             Assert.Empty(ConfigDiff.Compare(document, document));
             Assert.Empty(ConfigDiff.Compare(document, Respelled(document, seed)));
@@ -25,8 +25,8 @@ public sealed class ConfigDiffTests
     [Fact]
     public void VersionsAloneAreNoChange()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument bumped = document with
+        var document = Valid();
+        var bumped = document with
         {
             Settings = document.Settings with { Version = 7 },
             Profiles = [.. document.Profiles.Select(p => p with { Version = p.Version + 1 })],
@@ -40,8 +40,8 @@ public sealed class ConfigDiffTests
     [Fact]
     public void ListsChangedSettingsFields()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Settings = document.Settings with
             {
@@ -50,7 +50,7 @@ public sealed class ConfigDiffTests
             },
         };
 
-        SettingsChange change = Assert.IsType<SettingsChange>(Assert.Single(ConfigDiff.Compare(document, changed)));
+        var change = Assert.IsType<SettingsChange>(Assert.Single(ConfigDiff.Compare(document, changed)));
 
         Assert.Equal(ConfigChangeKind.Modified, change.Kind);
         Assert.Equal("/settings", change.Path);
@@ -60,10 +60,10 @@ public sealed class ConfigDiffTests
     [Fact]
     public void ListsAddedRemovedAndModifiedObjectsInOrder()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         ProfileConfig media = new(Id<ProfileId>(2), "Media");
         UpstreamConfig other = new(Id<UpstreamId>(2), "other", Destinations: [new DestinationConfig(Id<DestinationId>(2), "http://other")]);
-        ConfigDocument changed = document with
+        var changed = document with
         {
             Profiles = [media],
             Upstreams = [.. document.Upstreams, other],
@@ -75,7 +75,7 @@ public sealed class ConfigDiffTests
             ],
         };
 
-        IReadOnlyList<ConfigChange> changes = ConfigDiff.Compare(document, changed);
+        var changes = ConfigDiff.Compare(document, changed);
 
         Assert.Equal(
             [
@@ -92,9 +92,9 @@ public sealed class ConfigDiffTests
     [Fact]
     public void ListsChildrenUnderTheirParent()
     {
-        ConfigDocument document = Valid();
-        DestinationId added = Id<DestinationId>(2);
-        ConfigDocument changed = document with
+        var document = Valid();
+        var added = Id<DestinationId>(2);
+        var changed = document with
         {
             Upstreams =
             [
@@ -113,7 +113,7 @@ public sealed class ConfigDiffTests
             ],
         };
 
-        IReadOnlyList<ConfigChange> changes = ConfigDiff.Compare(document, changed);
+        var changes = ConfigDiff.Compare(document, changed);
 
         // Canonical routes before: 0 = /api (order 0), 1 = / (order 10, now /app). The host's own change is its tags.
         Assert.Equal(
@@ -135,10 +135,10 @@ public sealed class ConfigDiffTests
     [Fact]
     public void AMovedRouteLeavesOneHostAndJoinsAnother()
     {
-        ConfigDocument document = Valid();
-        RouteConfig api = document.Hosts[0].Routes.Single(r => r.Id == ApiRoute);
+        var document = Valid();
+        var api = document.Hosts[0].Routes.Single(r => r.Id == ApiRoute);
         HostConfig respond = new(Id<HostId>(9), ["api.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(404));
-        HostConfig proxy = respond with { Kind = HostKind.Proxy, Respond = null, Routes = [api] };
+        var proxy = respond with { Kind = HostKind.Proxy, Respond = null, Routes = [api] };
         HostConfig[] moved =
         [
             .. document.Hosts.Select(h => h.Id == AppHost ? h with { Routes = [.. h.Routes.Where(r => r.Id != ApiRoute)] } : h),
@@ -198,7 +198,7 @@ public sealed class ConfigDiffTests
     [Fact]
     public void ReportsAnApiVersionChange()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
 
         Assert.Equal(
             [new DocumentChange(ConfigChangeKind.Modified, string.Empty, ["/apiVersion"])],
@@ -209,8 +209,8 @@ public sealed class ConfigDiffTests
     [Fact]
     public void ComparesInvalidDocumentsWithoutThrowing()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument invalid = document with
+        var document = Valid();
+        var invalid = document with
         {
             Settings = document.Settings with { UnknownHost = (UnknownHostBehaviour)9 },
             Profiles = [.. document.Profiles, .. document.Profiles, null!],
@@ -231,13 +231,13 @@ public sealed class ConfigDiffTests
     [Fact]
     public void ANestedObjectSetOnOneSideIsOneField()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Upstreams = [document.Upstreams[0] with { ActiveHealth = null, PassiveHealth = new PassiveHealthConfig() }],
         };
 
-        UpstreamChange change = Assert.IsType<UpstreamChange>(Assert.Single(ConfigDiff.Compare(document, changed)));
+        var change = Assert.IsType<UpstreamChange>(Assert.Single(ConfigDiff.Compare(document, changed)));
 
         Assert.Equal(["/upstreams/0/passiveHealth", "/upstreams/0/activeHealth"], change.Fields);
     }
@@ -252,7 +252,7 @@ public sealed class ConfigDiffTests
             new RouteChange(ConfigChangeKind.Removed, AppHost, RootRoute, "/hosts/0/routes/1", []),
         ];
 
-        string json = JsonSerializer.Serialize(changes, ConfigJsonContext.Default.IReadOnlyListConfigChange);
+        var json = JsonSerializer.Serialize(changes, ConfigJsonContext.Default.IReadOnlyListConfigChange);
         IReadOnlyList<ConfigChange> read = JsonSerializer.Deserialize(json, ConfigJsonContext.Default.IReadOnlyListConfigChange)!;
 
         Assert.StartsWith("""[{"object":"settings","kind":"modified","path":"/settings","fields":["/settings/unknownHost"]}""", json, StringComparison.Ordinal);

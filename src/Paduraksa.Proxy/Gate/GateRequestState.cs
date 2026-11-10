@@ -109,7 +109,7 @@ public sealed class GateRequestState : IGateFeature
         _requestIdFromClient = false;
         if (peerTrusted)
         {
-            StringValues candidate = request.Headers[RequestIds.HeaderName];
+            var candidate = request.Headers[RequestIds.HeaderName];
             if (candidate.Count == 1 && candidate[0] is { } value && RequestIds.IsValid(value))
             {
                 _requestId = value;
@@ -128,7 +128,7 @@ public sealed class GateRequestState : IGateFeature
     /// </summary>
     public string FormattedClientAddress()
     {
-        IpKey address = ClientAddress;
+        var address = ClientAddress;
         if (_formatted is null || address != _formattedAddress)
         {
             _formatted = address.ToString();

@@ -25,13 +25,13 @@ public sealed class AuthenticationStateTests
     public async Task TheRequestsSession_BecomesTheUser_WithItsPermissions()
     {
         FakeSessions sessions = new();
-        SessionIdentity session = sessions.Add(Role.Operator);
-        using DashboardAuthenticationStateProvider auth = Provider(sessions);
+        var session = sessions.Add(Role.Operator);
+        using var auth = Provider(sessions);
 
         auth.SetAuthenticationState(StateOf(session));
-        AuthenticationState state = await auth.GetAuthenticationStateAsync();
+        var state = await auth.GetAuthenticationStateAsync();
 
-        DashboardPrincipal user = Assert.IsType<DashboardPrincipal>(state.User);
+        var user = Assert.IsType<DashboardPrincipal>(state.User);
         Assert.True(user.Identity!.IsAuthenticated);
         Assert.Same(session, user.Session);
         Assert.True(user.Has(Permission.ConfigWrite));
@@ -42,7 +42,7 @@ public sealed class AuthenticationStateTests
     [Fact]
     public async Task AnAnonymousRequest_StaysAnonymous()
     {
-        using DashboardAuthenticationStateProvider auth = Provider(new FakeSessions());
+        using var auth = Provider(new FakeSessions());
 
         auth.SetAuthenticationState(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()))));
 
@@ -55,15 +55,15 @@ public sealed class AuthenticationStateTests
     public async Task ARevokedSession_MakesTheStateAnonymous_AndSaysSo()
     {
         FakeSessions sessions = new();
-        SessionIdentity session = sessions.Add(Role.Owner);
-        using DashboardAuthenticationStateProvider auth = Provider(sessions);
+        var session = sessions.Add(Role.Owner);
+        using var auth = Provider(sessions);
         auth.SetAuthenticationState(StateOf(session));
         await auth.GetAuthenticationStateAsync();
         List<Task<AuthenticationState>> announced = [];
         auth.AuthenticationStateChanged += announced.Add;
 
         sessions.Revoke(session);
-        DashboardPrincipal? user = await auth.RecheckAsync(countAsUse: true, Ct);
+        var user = await auth.RecheckAsync(countAsUse: true, Ct);
 
         Assert.Null(user);
         Assert.NotNull(auth.EndedAt);
@@ -75,18 +75,18 @@ public sealed class AuthenticationStateTests
     public async Task ChangedRoles_ChangeThePermissions_AnUnchangedSessionChangesNothing()
     {
         FakeSessions sessions = new();
-        SessionIdentity session = sessions.Add(Role.Viewer);
-        using DashboardAuthenticationStateProvider auth = Provider(sessions);
+        var session = sessions.Add(Role.Viewer);
+        using var auth = Provider(sessions);
         auth.SetAuthenticationState(StateOf(session));
         await auth.GetAuthenticationStateAsync();
-        int announced = 0;
+        var announced = 0;
         auth.AuthenticationStateChanged += _ => announced++;
 
         Assert.False((await auth.RecheckAsync(countAsUse: false, Ct))!.Has(Permission.ConfigWrite));
         Assert.Equal(0, announced);
 
         sessions.SetRoles(session, Role.Admin);
-        DashboardPrincipal promoted = (await auth.RecheckAsync(countAsUse: false, Ct))!;
+        var promoted = (await auth.RecheckAsync(countAsUse: false, Ct))!;
 
         Assert.True(promoted.Has(Permission.ConfigWrite));
         Assert.Equal(1, announced);
@@ -97,8 +97,8 @@ public sealed class AuthenticationStateTests
     public async Task TheBackgroundCheck_EndsARevokedSession_WithoutCountingAsUse()
     {
         FakeSessions sessions = new();
-        SessionIdentity session = sessions.Add(Role.Owner);
-        using DashboardAuthenticationStateProvider auth = Provider(sessions, recheck: TimeSpan.FromMilliseconds(50));
+        var session = sessions.Add(Role.Owner);
+        using var auth = Provider(sessions, recheck: TimeSpan.FromMilliseconds(50));
         auth.SetAuthenticationState(StateOf(session));
         await auth.GetAuthenticationStateAsync();
         TaskCompletionSource<AuthenticationState> ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -106,7 +106,7 @@ public sealed class AuthenticationStateTests
         // announces a signed-in state first. The ending is the anonymous one.
         auth.AuthenticationStateChanged += async state =>
         {
-            AuthenticationState announced = await state;
+            var announced = await state;
             if (announced.User.Identity?.IsAuthenticated != true)
             {
                 ended.TrySetResult(announced);
@@ -116,7 +116,7 @@ public sealed class AuthenticationStateTests
         auth.StartBackgroundRecheck();
         await WaitUntilAsync(() => !sessions.Checks.IsEmpty);
         sessions.Revoke(session);
-        AuthenticationState state = await ended.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
+        var state = await ended.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
 
         Assert.False(state.User.Identity?.IsAuthenticated);
         Assert.All(sessions.Checks, check => Assert.False(check.CountAsUse));
@@ -126,12 +126,12 @@ public sealed class AuthenticationStateTests
     public async Task AServiceCall_ReChecksTheSession_AndCountsAsUse()
     {
         FakeSessions sessions = new();
-        SessionIdentity session = sessions.Add(Role.Owner);
-        using DashboardAuthenticationStateProvider auth = Provider(sessions);
+        var session = sessions.Add(Role.Owner);
+        using var auth = Provider(sessions);
         auth.SetAuthenticationState(StateOf(session));
         DashboardCaller caller = new(auth);
 
-        Paduraksa.Application.Commands.CommandOrigin? origin = await caller.OriginAsync(Ct);
+        var origin = await caller.OriginAsync(Ct);
 
         Assert.NotNull(origin);
         Assert.Equal(Channel.Dashboard, origin.Channel);
@@ -147,14 +147,14 @@ public sealed class AuthenticationStateTests
     public async Task ACircuitWhoseSessionEnded_GetsItsGracePeriod_ThenIsTornDown()
     {
         FakeSessions sessions = new();
-        SessionIdentity session = sessions.Add(Role.Owner);
+        var session = sessions.Add(Role.Owner);
         ManualTime time = new();
         DashboardOptions options = new() { ActivityRecheckInterval = TimeSpan.FromSeconds(10), EndedCircuitGrace = TimeSpan.FromSeconds(10) };
-        using DashboardAuthenticationStateProvider auth = Provider(sessions, time: time, options: options);
+        using var auth = Provider(sessions, time: time, options: options);
         auth.SetAuthenticationState(StateOf(session));
         await auth.GetAuthenticationStateAsync();
-        int handled = 0;
-        Func<CircuitInboundActivityContext, Task> handler =
+        var handled = 0;
+        var handler =
             new SessionCircuitHandler(auth, options, time).CreateInboundActivityHandler(_ => { handled++; return Task.CompletedTask; });
 
         // Live, and checked recently: activity goes through without a check.
@@ -182,18 +182,18 @@ public sealed class AuthenticationStateTests
     public async Task ACheckThatFails_KeepsTheLastState_AndTheCircuit()
     {
         FakeSessions sessions = new();
-        SessionIdentity session = sessions.Add(Role.Operator);
+        var session = sessions.Add(Role.Operator);
         ManualTime time = new();
         DashboardOptions options = new() { ActivityRecheckInterval = TimeSpan.FromSeconds(10), EndedCircuitGrace = TimeSpan.FromSeconds(10) };
-        using DashboardAuthenticationStateProvider auth = Provider(sessions, time: time, options: options);
+        using var auth = Provider(sessions, time: time, options: options);
         auth.SetAuthenticationState(StateOf(session));
-        DashboardPrincipal before = Assert.IsType<DashboardPrincipal>((await auth.GetAuthenticationStateAsync()).User);
-        int announced = 0;
+        var before = Assert.IsType<DashboardPrincipal>((await auth.GetAuthenticationStateAsync()).User);
+        var announced = 0;
         auth.AuthenticationStateChanged += _ => announced++;
         sessions.Failing = true;
 
         // A service call's check: the user as last checked, not an exception that would end the circuit.
-        DashboardPrincipal? user = await new DashboardCaller(auth).CheckAsync(Ct);
+        var user = await new DashboardCaller(auth).CheckAsync(Ct);
 
         Assert.Same(before, user);
         Assert.Null(auth.EndedAt);
@@ -201,8 +201,8 @@ public sealed class AuthenticationStateTests
         Assert.Same(before, (await auth.GetAuthenticationStateAsync()).User);
 
         // The circuit's activity check: the activity goes through on the last state.
-        int handled = 0;
-        Func<CircuitInboundActivityContext, Task> handler =
+        var handled = 0;
+        var handler =
             new SessionCircuitHandler(auth, options, time).CreateInboundActivityHandler(_ => { handled++; return Task.CompletedTask; });
         time.Advance(TimeSpan.FromSeconds(11));
         await handler(null!);
@@ -229,7 +229,7 @@ public sealed class AuthenticationStateTests
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(10));
         while (!condition())
         {
@@ -249,7 +249,7 @@ public sealed class AuthenticationStateTests
 
         public SessionIdentity Add(params Role[] roles)
         {
-            SessionIdentity identity = TestUsers.Session(roles);
+            var identity = TestUsers.Session(roles);
             _sessions[identity.Session.SessionId] = identity.Session;
             return identity;
         }
@@ -272,7 +272,7 @@ public sealed class AuthenticationStateTests
 
         public ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(UserId user, CancellationToken cancellationToken)
         {
-            SessionPrincipal? principal = _sessions.Values.FirstOrDefault(s => s?.UserId == user);
+            var principal = _sessions.Values.FirstOrDefault(s => s?.UserId == user);
             return ValueTask.FromResult(principal is null ? RolePermissions.Of([]) : RolePermissions.Of(principal.Roles));
         }
     }

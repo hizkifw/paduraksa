@@ -1,9 +1,5 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
-
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Tls;
-using Paduraksa.Tests.Proxy.Testing;
 
 namespace Paduraksa.Tests.Proxy.Tls;
 

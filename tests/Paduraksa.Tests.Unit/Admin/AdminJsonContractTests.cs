@@ -17,16 +17,16 @@ public sealed class AdminJsonContractTests
     [Fact]
     public void TypedIdsRolesAndPermissionsKeepTheirNames()
     {
-        UserId id = UserId.New();
+        var id = UserId.New();
         UserSummary user = new(id, "alice", "Alice", [Role.Admin, Role.Owner], false, false, false, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
 
-        string json = JsonSerializer.Serialize(user, Http());
+        var json = JsonSerializer.Serialize(user, Http());
 
         Assert.Contains($"\"id\":\"{id}\"", json, StringComparison.Ordinal);
         Assert.Contains("\"roles\":[\"admin\",\"owner\"]", json, StringComparison.Ordinal);
         Assert.Equal(user.Id, JsonSerializer.Deserialize<UserSummary>(json, Http())!.Id);
 
-        IssueApiTokenRequest request = JsonSerializer.Deserialize<IssueApiTokenRequest>("""{"name":"t","scopes":["config:read","users:write"],"expiresAt":null}""", Http())!;
+        var request = JsonSerializer.Deserialize<IssueApiTokenRequest>("""{"name":"t","scopes":["config:read","users:write"],"expiresAt":null}""", Http())!;
         Assert.Equal([Permission.ConfigRead, Permission.UsersWrite], request.Scopes);
     }
 
@@ -43,8 +43,8 @@ public sealed class AdminJsonContractTests
     {
         JsonSerializerOptions options = new(JsonSerializerDefaults.Web);
         IdentityJsonContext.AddTo(options);
-        int converters = options.Converters.Count;
-        int resolvers = options.TypeInfoResolverChain.Count;
+        var converters = options.Converters.Count;
+        var resolvers = options.TypeInfoResolverChain.Count;
 
         IdentityJsonContext.AddTo(options);
 
@@ -57,7 +57,7 @@ public sealed class AdminJsonContractTests
     [Fact]
     public void AnOptionalMemberMayBeLeftOut()
     {
-        UpdateUserRequest request = JsonSerializer.Deserialize<UpdateUserRequest>("""{"disabled":true}""", Http())!;
+        var request = JsonSerializer.Deserialize<UpdateUserRequest>("""{"disabled":true}""", Http())!;
 
         Assert.True(request.Disabled);
         Assert.Null(request.DisplayName);

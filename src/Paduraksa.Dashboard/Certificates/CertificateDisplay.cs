@@ -36,7 +36,7 @@ public static class LocalCa
     {
         ArgumentNullException.ThrowIfNull(operations);
         ArgumentNullException.ThrowIfNull(request);
-        Contracts.Certificates.CertificateOperationResult root = await operations.EnsureLocalCaAsync(new LocalCaRequest(), origin).ConfigureAwait(false);
+        var root = await operations.EnsureLocalCaAsync(new LocalCaRequest(), origin).ConfigureAwait(false);
         if (root.Status is not (CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged))
         {
             return root;
@@ -106,21 +106,21 @@ public static class CertificateDisplay
     /// <summary>The countdown's tone: red when expired or within <see cref="UrgentDays"/>, amber within <see cref="WarningDays"/>, else green.</summary>
     public static string ExpiryTone(DateTimeOffset notAfter, DateTimeOffset now)
     {
-        TimeSpan left = notAfter - now;
+        var left = notAfter - now;
         return left <= TimeSpan.FromDays(UrgentDays) ? "error" : left <= TimeSpan.FromDays(WarningDays) ? "warning" : "success";
     }
 
     /// <summary>"Expired 3 days ago", "Expires today", "12 days left", "3 months left".</summary>
     public static string ExpiresIn(DateTimeOffset notAfter, DateTimeOffset now)
     {
-        TimeSpan left = notAfter - now;
+        var left = notAfter - now;
         if (left <= TimeSpan.Zero)
         {
-            int ago = (int)Math.Floor(-left.TotalDays);
+            var ago = (int)Math.Floor(-left.TotalDays);
             return ago == 0 ? "Expired today" : $"Expired {Plural(ago, "day", "days")} ago";
         }
 
-        int days = (int)Math.Floor(left.TotalDays);
+        var days = (int)Math.Floor(left.TotalDays);
         return days switch
         {
             0 => left.TotalHours >= 1 ? $"{Plural((int)left.TotalHours, "hour", "hours")} left" : "Expires within the hour",
@@ -133,7 +133,7 @@ public static class CertificateDisplay
     /// <summary>How much of the validity period has passed, 0 to 100.</summary>
     public static double LifetimeUsed(DateTimeOffset notBefore, DateTimeOffset notAfter, DateTimeOffset now)
     {
-        double total = (notAfter - notBefore).TotalSeconds;
+        var total = (notAfter - notBefore).TotalSeconds;
         return total <= 0 ? 100 : Math.Clamp((now - notBefore).TotalSeconds / total * 100, 0, 100);
     }
 
@@ -145,9 +145,9 @@ public static class CertificateDisplay
             return "-";
         }
 
-        foreach (string part in distinguishedName.Split(','))
+        foreach (var part in distinguishedName.Split(','))
         {
-            string trimmed = part.Trim();
+            var trimmed = part.Trim();
             if (trimmed.StartsWith("CN=", StringComparison.OrdinalIgnoreCase))
             {
                 return trimmed[3..];
@@ -160,9 +160,9 @@ public static class CertificateDisplay
     /// <summary>The organisation of a distinguished name (<c>O=Let's Encrypt</c>), or null.</summary>
     public static string? Organization(string distinguishedName)
     {
-        foreach (string part in (distinguishedName ?? string.Empty).Split(','))
+        foreach (var part in (distinguishedName ?? string.Empty).Split(','))
         {
-            string trimmed = part.Trim();
+            var trimmed = part.Trim();
             if (trimmed.StartsWith("O=", StringComparison.OrdinalIgnoreCase))
             {
                 return trimmed[2..];
@@ -181,7 +181,7 @@ public static class CertificateDisplay
         }
 
         StringBuilder builder = new(hex.Length * 3 / 2);
-        for (int i = 0; i < hex.Length; i += 2)
+        for (var i = 0; i < hex.Length; i += 2)
         {
             if (i > 0)
             {

@@ -65,7 +65,7 @@ public static class Base62
     /// <summary>Decodes exactly <see cref="Width128"/> chars into a <see cref="Guid"/> (big-endian byte order).</summary>
     public static bool TryDecodeGuid(ReadOnlySpan<char> source, out Guid value)
     {
-        bool ok = TryDecodeCore(source, out UInt128 raw);
+        var ok = TryDecodeCore(source, out UInt128 raw);
         value = ok ? FromUInt128(raw) : default;
         return ok;
     }
@@ -73,7 +73,7 @@ public static class Base62
     /// <summary>Decodes exactly <see cref="Width128"/> UTF-8 bytes into a <see cref="Guid"/> (big-endian byte order).</summary>
     public static bool TryDecodeGuid(ReadOnlySpan<byte> utf8Source, out Guid value)
     {
-        bool ok = TryDecodeCore(utf8Source, out UInt128 raw);
+        var ok = TryDecodeCore(utf8Source, out UInt128 raw);
         value = ok ? FromUInt128(raw) : default;
         return ok;
     }
@@ -103,8 +103,8 @@ public static class Base62
         }
 
         // 22 digits = 2 (high) + 10 (mid) + 10 (low).
-        (UInt128 upper, UInt128 low) = UInt128.DivRem(value, Pow10);
-        (UInt128 high, UInt128 mid) = UInt128.DivRem(upper, Pow10);
+        var (upper, low) = UInt128.DivRem(value, Pow10);
+        var (high, mid) = UInt128.DivRem(upper, Pow10);
         EncodeChunk((ulong)high, destination[..2]);
         EncodeChunk((ulong)mid, destination.Slice(2, ChunkDigits));
         EncodeChunk((ulong)low, destination.Slice(2 + ChunkDigits, ChunkDigits));
@@ -120,7 +120,7 @@ public static class Base62
         }
 
         // 11 digits = 1 (high) + 10 (low).
-        (ulong high, ulong low) = Math.DivRem(value, Pow10);
+        var (high, low) = Math.DivRem(value, Pow10);
         EncodeChunk(high, destination[..1]);
         EncodeChunk(low, destination.Slice(1, ChunkDigits));
         return true;
@@ -129,10 +129,10 @@ public static class Base62
     private static void EncodeChunk<TChar>(ulong value, Span<TChar> destination)
         where TChar : unmanaged, IBinaryInteger<TChar>
     {
-        ReadOnlySpan<byte> alphabet = AlphabetUtf8;
-        for (int i = destination.Length - 1; i >= 0; i--)
+        var alphabet = AlphabetUtf8;
+        for (var i = destination.Length - 1; i >= 0; i--)
         {
-            (value, ulong digit) = Math.DivRem(value, 62UL);
+            (value, var digit) = Math.DivRem(value, 62UL);
             destination[i] = TChar.CreateTruncating(alphabet[(int)digit]);
         }
     }
@@ -142,9 +142,9 @@ public static class Base62
     {
         value = default;
         if (source.Length != Width128
-            || !TryDecodeChunk(source[..2], out ulong high)
-            || !TryDecodeChunk(source.Slice(2, ChunkDigits), out ulong mid)
-            || !TryDecodeChunk(source.Slice(2 + ChunkDigits, ChunkDigits), out ulong low))
+            || !TryDecodeChunk(source[..2], out var high)
+            || !TryDecodeChunk(source.Slice(2, ChunkDigits), out var mid)
+            || !TryDecodeChunk(source.Slice(2 + ChunkDigits, ChunkDigits), out var low))
         {
             return false;
         }
@@ -154,8 +154,8 @@ public static class Base62
             return false;
         }
 
-        UInt128 result = high * Pow20;
-        UInt128 rest = ((UInt128)mid * Pow10) + low; // < 62^20, cannot overflow
+        var result = high * Pow20;
+        var rest = ((UInt128)mid * Pow10) + low; // < 62^20, cannot overflow
         if (rest > UInt128.MaxValue - result)
         {
             return false;
@@ -170,14 +170,14 @@ public static class Base62
     {
         value = default;
         if (source.Length != Width64
-            || !TryDecodeChunk(source[..1], out ulong high)
-            || !TryDecodeChunk(source.Slice(1, ChunkDigits), out ulong low)
+            || !TryDecodeChunk(source[..1], out var high)
+            || !TryDecodeChunk(source.Slice(1, ChunkDigits), out var low)
             || high > MaxHigh64)
         {
             return false;
         }
 
-        ulong result = high * Pow10;
+        var result = high * Pow10;
         if (low > ulong.MaxValue - result)
         {
             return false;
@@ -192,9 +192,9 @@ public static class Base62
         where TChar : unmanaged, IBinaryInteger<TChar>
     {
         ulong result = 0;
-        foreach (TChar c in source)
+        foreach (var c in source)
         {
-            int digit = DigitOf(uint.CreateTruncating(c));
+            var digit = DigitOf(uint.CreateTruncating(c));
             if (digit < 0)
             {
                 value = 0;

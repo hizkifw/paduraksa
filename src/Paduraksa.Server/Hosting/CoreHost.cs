@@ -1,6 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Proxy.Logging;
@@ -26,7 +23,7 @@ internal static class CoreHost
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        HostApplicationBuilder builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings
+        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings
         {
             ApplicationName = context.ApplicationName,
             EnvironmentName = context.EnvironmentName,

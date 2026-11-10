@@ -1,10 +1,6 @@
 using System.Collections.Concurrent;
-using System.Globalization;
 using System.IO.Compression;
 using System.Text;
-
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Core.Logging;
 
 namespace Paduraksa.Server.Logging;
@@ -142,7 +138,7 @@ internal sealed class RotatingLogFile : IDisposable
             return;
         }
 
-        string text = line.Length > MaxLineLength ? string.Concat(line[..MaxLineLength], "...") : line.ToString();
+        var text = line.Length > MaxLineLength ? string.Concat(line[..MaxLineLength], "...") : line.ToString();
         if (!_queue.TryAdd(text))
         {
             Interlocked.Increment(ref _dropped);
@@ -171,7 +167,7 @@ internal sealed class RotatingLogFile : IDisposable
         _ = _queue.TryAdd(FlushToken);
         // Short waits, re-checking the writer's lifetime: a Flush racing with Dispose returns at once instead of waiting out the whole
         // budget for a writer that has already gone (and never touches an event that Dispose may have disposed).
-        for (int waited = 0; waited < FlushWait.TotalMilliseconds; waited += 50)
+        for (var waited = 0; waited < FlushWait.TotalMilliseconds; waited += 50)
         {
             if (_flushDone.Wait(50) || Volatile.Read(ref _disposed) != 0)
             {
@@ -191,7 +187,7 @@ internal sealed class RotatingLogFile : IDisposable
         _compressions.CompleteAdding();
         // Let a paused writer (a test seam) finish before the join.
         _pause?.Set();
-        bool writerStopped = _writerThread.Join(FlushWait);
+        var writerStopped = _writerThread.Join(FlushWait);
         _compressionThread.Join(CompressionShutdownWait);
         if (writerStopped)
         {
@@ -202,7 +198,7 @@ internal sealed class RotatingLogFile : IDisposable
         // A Flush that is waiting (or about to wait) must return: this is the last write.
         _flushRequested.Reset();
         _flushDone.Set();
-        long dropped = Interlocked.Read(ref _dropped);
+        var dropped = Interlocked.Read(ref _dropped);
         if (dropped > 0)
         {
             LogFileLogs.DroppedLines(_report, LogFileNames.Live(_settings.Kind), dropped);
@@ -216,7 +212,7 @@ internal sealed class RotatingLogFile : IDisposable
     {
         while (true)
         {
-            if (_queue.TryTake(out string? item, FlushInterval))
+            if (_queue.TryTake(out var item, FlushInterval))
             {
                 WriteItem(item);
                 // Take whatever else is waiting before touching the disk again: a busy minute is one flush, not thousands.
@@ -255,7 +251,7 @@ internal sealed class RotatingLogFile : IDisposable
     /// <summary>Writes out everything that was queued before the request, flushes, then lets <see cref="Flush"/> return.</summary>
     private void CompleteFlush()
     {
-        while (_queue.TryTake(out string? pending))
+        while (_queue.TryTake(out var pending))
         {
             WriteItem(pending);
         }
@@ -307,7 +303,7 @@ internal sealed class RotatingLogFile : IDisposable
             "write to",
             () =>
             {
-                byte[] bytes = Utf8.GetBytes(line);
+                var bytes = Utf8.GetBytes(line);
                 EnsureStream(bytes.Length + 1);
                 if (_stream is null)
                 {
@@ -325,7 +321,7 @@ internal sealed class RotatingLogFile : IDisposable
     /// <summary>Rotates first when this line would pass the size limit or the UTC date has changed, then opens the live file if needed.</summary>
     private void EnsureStream(int lineBytes)
     {
-        DateTime today = _time.GetUtcNow().UtcDateTime.Date;
+        var today = _time.GetUtcNow().UtcDateTime.Date;
         if (_stream is not null && (_length + lineBytes > _settings.MaxFileSizeBytes || today != _openDate))
         {
             Rotate();
@@ -376,8 +372,8 @@ internal sealed class RotatingLogFile : IDisposable
             () =>
             {
                 EnsureDirectory();
-                DateTimeOffset now = _time.GetUtcNow();
-                if (!TryMoveAside(now, out string? rotated) || rotated is not { } file)
+                var now = _time.GetUtcNow();
+                if (!TryMoveAside(now, out var rotated) || rotated is not { } file)
                 {
                     // Keep appending to the old file: the next line reopens it, and the next interval tries again.
                     return;
@@ -393,10 +389,10 @@ internal sealed class RotatingLogFile : IDisposable
     private bool TryMoveAside(DateTimeOffset now, out string? rotated)
     {
         rotated = null;
-        for (int sequence = 1; sequence <= 999; sequence++)
+        for (var sequence = 1; sequence <= 999; sequence++)
         {
-            string candidate = LogFileNames.Rotated(_settings.Kind, now, sequence);
-            string path = Path.Combine(_settings.Directory, candidate);
+            var candidate = LogFileNames.Rotated(_settings.Kind, now, sequence);
+            var path = Path.Combine(_settings.Directory, candidate);
             if (File.Exists(path) || File.Exists(path + ".gz"))
             {
                 continue;
@@ -423,7 +419,7 @@ internal sealed class RotatingLogFile : IDisposable
     private void RunCompression()
     {
         Recover();
-        while (_compressions.TryTake(out string? path, Timeout.Infinite))
+        while (_compressions.TryTake(out var path, Timeout.Infinite))
         {
             Compress(path);
             Trim();
@@ -444,15 +440,15 @@ internal sealed class RotatingLogFile : IDisposable
                     return;
                 }
 
-                foreach (string temp in Directory.EnumerateFiles(_settings.Directory, "*.log.gz.tmp"))
+                foreach (var temp in Directory.EnumerateFiles(_settings.Directory, "*.log.gz.tmp"))
                 {
                     TryDelete(temp);
                 }
 
-                foreach (string name in Directory.EnumerateFiles(_settings.Directory))
+                foreach (var name in Directory.EnumerateFiles(_settings.Directory))
                 {
-                    string fileName = Path.GetFileName(name);
-                    if (!LogFileNames.TryParseRotated(fileName, out LogFileKind kind, out _, out bool compressed) || kind != _settings.Kind || compressed)
+                    var fileName = Path.GetFileName(name);
+                    if (!LogFileNames.TryParseRotated(fileName, out var kind, out _, out var compressed) || kind != _settings.Kind || compressed)
                     {
                         continue;
                     }
@@ -470,9 +466,9 @@ internal sealed class RotatingLogFile : IDisposable
     /// </summary>
     private void Compress(string path)
     {
-        string target = LogFileNames.Compressed(Path.GetFileName(path));
+        var target = LogFileNames.Compressed(Path.GetFileName(path));
         target = Path.Combine(_settings.Directory, target);
-        string temp = target + ".tmp";
+        var temp = target + ".tmp";
         try
         {
             if (!File.Exists(path))
@@ -536,10 +532,10 @@ internal sealed class RotatingLogFile : IDisposable
                 }
 
                 List<(string Path, long Size, DateTimeOffset At)> rotated = [];
-                foreach (string path in Directory.EnumerateFiles(_settings.Directory))
+                foreach (var path in Directory.EnumerateFiles(_settings.Directory))
                 {
-                    string name = Path.GetFileName(path);
-                    if (!LogFileNames.TryParseRotated(name, out LogFileKind kind, out DateTimeOffset at, out _) || kind != _settings.Kind)
+                    var name = Path.GetFileName(path);
+                    if (!LogFileNames.TryParseRotated(name, out var kind, out var at, out _) || kind != _settings.Kind)
                     {
                         continue;
                     }
@@ -558,10 +554,10 @@ internal sealed class RotatingLogFile : IDisposable
                 }
 
                 rotated.Sort(static (left, right) => left.At.CompareTo(right.At));
-                DateTimeOffset cutoff = _time.GetUtcNow() - _settings.MaxAge;
-                long total = rotated.Sum(static file => file.Size);
-                int remaining = rotated.Count;
-                foreach ((string path, long size, DateTimeOffset at) in rotated)
+                var cutoff = _time.GetUtcNow() - _settings.MaxAge;
+                var total = rotated.Sum(static file => file.Size);
+                var remaining = rotated.Count;
+                foreach (var (path, size, at) in rotated)
                 {
                     if (remaining <= _settings.RetainedFiles && total <= _settings.MaxTotalSizeBytes && at >= cutoff)
                     {
@@ -625,7 +621,7 @@ internal sealed class RotatingLogFile : IDisposable
         Interlocked.Increment(ref _failures);
         lock (_reportLock)
         {
-            DateTimeOffset now = _time.GetUtcNow();
+            var now = _time.GetUtcNow();
             if (now - _lastReport < ReportInterval)
             {
                 return;

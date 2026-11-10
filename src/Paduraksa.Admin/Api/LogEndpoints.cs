@@ -23,7 +23,7 @@ internal static class LogEndpoints
 
     public static void Map(RouteGroupBuilder api)
     {
-        RouteGroupBuilder logs = api.MapGroup("/logs").WithTags("Logs");
+        var logs = api.MapGroup("/logs").WithTags("Logs");
 
         logs.MapGet("/", List)
             .WithName("ListLogFiles").WithSummary("List the log files")
@@ -62,12 +62,12 @@ internal static class LogEndpoints
 
     private static IResult Tail(HttpContext http, string name, ILogFileStore store)
     {
-        if (!TryGetLines(http, out int lines, out IResult? problem))
+        if (!TryGetLines(http, out var lines, out var problem))
         {
             return problem!;
         }
 
-        string filter = http.Request.Query["filter"].ToString();
+        var filter = http.Request.Query["filter"].ToString();
         if (filter.Length > MaxFilterLength)
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, $"filter is at most {MaxFilterLength} characters.");
@@ -81,7 +81,7 @@ internal static class LogEndpoints
     /// <summary>Streams the file and disposes it when the answer is complete (the framework doesn't own a stream it didn't open).</summary>
     private static IResult Download(HttpContext http, string name, ILogFileStore store)
     {
-        if (store.OpenRead(name, out long length) is not { } stream)
+        if (store.OpenRead(name, out var length) is not { } stream)
         {
             return ApiProblems.Problem(StatusCodes.Status404NotFound, "There is no such log file.");
         }
@@ -92,7 +92,7 @@ internal static class LogEndpoints
             return Task.CompletedTask;
         });
 
-        string contentType = name.EndsWith(".gz", StringComparison.Ordinal) ? "application/gzip" : "text/plain; charset=utf-8";
+        var contentType = name.EndsWith(".gz", StringComparison.Ordinal) ? "application/gzip" : "text/plain; charset=utf-8";
         return Results.Stream(stream, contentType, fileDownloadName: name, enableRangeProcessing: false);
     }
 
@@ -101,7 +101,7 @@ internal static class LogEndpoints
     {
         problem = null;
         lines = LogFileStore.DefaultTailLines;
-        string text = http.Request.Query["lines"].ToString();
+        var text = http.Request.Query["lines"].ToString();
         if (text.Length == 0)
         {
             return true;

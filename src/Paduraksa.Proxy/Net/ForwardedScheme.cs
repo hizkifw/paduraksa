@@ -50,7 +50,7 @@ public static class ForwardedScheme
 
         if (client.CloudflareHeadersTrusted)
         {
-            if (TryParseVisitor(headers[CloudflareHeaders.Visitor], out bool visitorHttps))
+            if (TryParseVisitor(headers[CloudflareHeaders.Visitor], out var visitorHttps))
             {
                 return new RequestScheme(visitorHttps, SchemeSource.CfVisitor);
             }
@@ -72,7 +72,7 @@ public static class ForwardedScheme
             return false;
         }
 
-        ReadOnlySpan<char> value = values[0].AsSpan().Trim(" \t");
+        var value = values[0].AsSpan().Trim(" \t");
         if (value.SequenceEqual("{\"scheme\":\"https\"}"))
         {
             https = true;
@@ -84,10 +84,10 @@ public static class ForwardedScheme
 
     private static RequestScheme FromForwardedProto(IHeaderDictionary headers)
     {
-        StringValues values = headers[ForwardingHeaders.XForwardedProto];
+        var values = headers[ForwardingHeaders.XForwardedProto];
         if (values.Count == 1)
         {
-            ReadOnlySpan<char> value = values[0].AsSpan().Trim(" \t");
+            var value = values[0].AsSpan().Trim(" \t");
             if (value.Equals("https", StringComparison.OrdinalIgnoreCase))
             {
                 return new RequestScheme(true, SchemeSource.ForwardedProto);

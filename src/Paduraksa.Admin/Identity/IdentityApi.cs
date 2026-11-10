@@ -1,5 +1,3 @@
-using System.Net;
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -22,7 +20,7 @@ public static class IdentityApi
     public static IEndpointRouteBuilder MapPaduraksaIdentityApi(this IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        RouteGroupBuilder api = endpoints.MapGroup("/api/v1").WithTags("Identity");
+        var api = endpoints.MapGroup("/api/v1").WithTags("Identity");
         SignInEndpoints.Map(api);
         AccountEndpoints.Map(api);
         UserEndpoints.Map(api);
@@ -32,7 +30,7 @@ public static class IdentityApi
     /// <summary>Runs <paramref name="run"/>, which derives a password, in one of the limited derivation slots; when none frees up in time it is a 503 and nothing is derived.</summary>
     internal static async Task<IResult> WithPasswordCheckAsync(HttpContext http, AdminThrottle throttle, Func<Task<IResult>> run)
     {
-        using IDisposable? slot = await throttle.EnterPasswordCheckAsync(http.RequestAborted).ConfigureAwait(false);
+        using var slot = await throttle.EnterPasswordCheckAsync(http.RequestAborted).ConfigureAwait(false);
         return slot is null ? AdminProblems.Busy(http) : await run().ConfigureAwait(false);
     }
 

@@ -33,18 +33,18 @@ public sealed class ApiDtoRoundTripTests
     [MemberData(nameof(RootNames))]
     public void ADtoReadsBackWhatTheApiWrites(string name)
     {
-        Type root = Roots.Single(t => t.ToString() == name);
-        JsonSerializerOptions options = HttpOptions();
+        var root = Roots.Single(t => t.ToString() == name);
+        var options = HttpOptions();
 
         // Several variants each, so every kind of a polymorphic member is tried.
-        for (int variant = 0; variant < 4; variant++)
+        for (var variant = 0; variant < 4; variant++)
         {
-            foreach (bool full in new[] { false, true })
+            foreach (var full in new[] { false, true })
             {
-                object instance = new Filler(full, variant).Build(root, 0)!;
+                var instance = new Filler(full, variant).Build(root, 0)!;
 
-                string written = JsonSerializer.Serialize(instance, root, options);
-                object? read = JsonSerializer.Deserialize(written, root, options);
+                var written = JsonSerializer.Serialize(instance, root, options);
+                var read = JsonSerializer.Deserialize(written, root, options);
 
                 Assert.NotNull(read);
                 Assert.Equal(written, JsonSerializer.Serialize(read, root, options));
@@ -57,7 +57,7 @@ public sealed class ApiDtoRoundTripTests
     {
         HashSet<Type> seen = [];
         List<string> offenders = [];
-        foreach (Type root in Roots)
+        foreach (var root in Roots)
         {
             Walk(root, seen, offenders);
         }
@@ -79,7 +79,7 @@ public sealed class ApiDtoRoundTripTests
             return;
         }
 
-        foreach (JsonDerivedTypeAttribute derived in type.GetCustomAttributes<JsonDerivedTypeAttribute>())
+        foreach (var derived in type.GetCustomAttributes<JsonDerivedTypeAttribute>())
         {
             Walk(derived.DerivedType, seen, offenders);
         }
@@ -89,14 +89,14 @@ public sealed class ApiDtoRoundTripTests
             return;
         }
 
-        ConstructorInfo? constructor = type.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
+        var constructor = type.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
         if (constructor is null)
         {
             return;
         }
 
         NullabilityInfoContext nullability = new();
-        foreach (ParameterInfo parameter in constructor.GetParameters())
+        foreach (var parameter in constructor.GetParameters())
         {
             if (IsNullable(nullability, parameter) && !parameter.HasDefaultValue)
             {
@@ -118,7 +118,7 @@ public sealed class ApiDtoRoundTripTests
 
         public object? Build(Type type, int depth)
         {
-            Type? underlying = Nullable.GetUnderlyingType(type);
+            var underlying = Nullable.GetUnderlyingType(type);
             if (underlying is not null)
             {
                 type = underlying;
@@ -156,13 +156,13 @@ public sealed class ApiDtoRoundTripTests
 
             if (type == typeof(JsonElement))
             {
-                using JsonDocument document = JsonDocument.Parse("""{"a":1}""");
+                using var document = JsonDocument.Parse("""{"a":1}""");
                 return document.RootElement.Clone();
             }
 
             if (type.IsEnum)
             {
-                Array values = Enum.GetValues(type);
+                var values = Enum.GetValues(type);
                 return values.GetValue(variant % values.Length);
             }
 
@@ -173,8 +173,8 @@ public sealed class ApiDtoRoundTripTests
 
             if (type.IsGenericType && typeof(System.Collections.IEnumerable).IsAssignableFrom(type) && type.GetGenericArguments() is { Length: 1 } args)
             {
-                Type list = typeof(List<>).MakeGenericType(args[0]);
-                System.Collections.IList items = (System.Collections.IList)Activator.CreateInstance(list)!;
+                var list = typeof(List<>).MakeGenericType(args[0]);
+                var items = (System.Collections.IList)Activator.CreateInstance(list)!;
                 if (depth < 6)
                 {
                     items.Add(Build(args[0], depth + 1));
@@ -189,14 +189,14 @@ public sealed class ApiDtoRoundTripTests
                 return Build(derived[variant % derived.Length].DerivedType, depth + 1);
             }
 
-            ConstructorInfo constructor = type.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
+            var constructor = type.GetConstructors().OrderByDescending(c => c.GetParameters().Length).First();
             object?[] arguments = [.. constructor.GetParameters().Select(p => Argument(p, depth))];
             return constructor.Invoke(arguments);
         }
 
         private object? Argument(ParameterInfo parameter, int depth)
         {
-            bool nullable = IsNullable(_nullability, parameter);
+            var nullable = IsNullable(_nullability, parameter);
             if (nullable && (!full || depth > 5))
             {
                 return parameter.HasDefaultValue ? parameter.DefaultValue : null;

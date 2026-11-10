@@ -39,9 +39,9 @@ internal sealed class ConfigApplyListener : IConfigChangeListener
     private void Complete(IReadOnlyList<IProxyConfig> configs, Exception? error)
     {
         ArgumentNullException.ThrowIfNull(configs);
-        foreach (IProxyConfig config in configs)
+        foreach (var config in configs)
         {
-            if (_waiters.TryRemove(config.RevisionId, out TaskCompletionSource<Exception?>? waiter))
+            if (_waiters.TryRemove(config.RevisionId, out var waiter))
             {
                 waiter.TrySetResult(error);
             }

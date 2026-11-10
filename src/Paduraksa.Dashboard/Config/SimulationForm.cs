@@ -39,8 +39,8 @@ public sealed class SimulationForm
     /// <summary>The request for the simulator. Fields that would change nothing (TLS on plain HTTP, a peer on a direct request) are left out.</summary>
     public SimulationRequest ToRequest()
     {
-        bool viaProxy = Arrival != SimulationArrival.Direct;
-        SimulationTls? tls = IsHttps && (TlsVersion is not null || HttpVersion is not null || !string.IsNullOrWhiteSpace(ServerName))
+        var viaProxy = Arrival != SimulationArrival.Direct;
+        var tls = IsHttps && (TlsVersion is not null || HttpVersion is not null || !string.IsNullOrWhiteSpace(ServerName))
             ? new SimulationTls(string.IsNullOrWhiteSpace(ServerName) ? null : ServerName.Trim(), HttpVersion, TlsVersion)
             : null;
         return new SimulationRequest(
@@ -57,7 +57,7 @@ public sealed class SimulationForm
     public static (Tone Tone, string Icon, string Title) Describe(SimulationOutcome outcome, string? upstreamName)
     {
         ArgumentNullException.ThrowIfNull(outcome);
-        string status = outcome.StatusCode is { } code ? $" {code}" : string.Empty;
+        var status = outcome.StatusCode is { } code ? $" {code}" : string.Empty;
         return outcome.Kind switch
         {
             SimulationOutcomeKind.ForwardToUpstream => (Tone.Success, Icons.Material.Outlined.ArrowCircleRight, upstreamName is null ? "Forwarded to its upstream" : $"Forwarded to {upstreamName}"),
@@ -78,7 +78,7 @@ public sealed class SimulationForm
     public static string StepTitle(SimulationStep step)
     {
         ArgumentNullException.ThrowIfNull(step);
-        string policy = step.PolicyIndex is { } index ? $" {index + 1}" : string.Empty;
+        var policy = step.PolicyIndex is { } index ? $" {index + 1}" : string.Empty;
         return step.Kind switch
         {
             SimulationStepKind.Connection => "Connection",

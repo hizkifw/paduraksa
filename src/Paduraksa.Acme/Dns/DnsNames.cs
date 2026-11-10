@@ -15,13 +15,13 @@ internal static class DnsNames
     public static string Normalize(string recordName)
     {
         ArgumentNullException.ThrowIfNull(recordName);
-        string name = recordName.Trim().TrimEnd('.').ToLowerInvariant();
+        var name = recordName.Trim().TrimEnd('.').ToLowerInvariant();
         if (name.Length is 0 or > 253)
         {
             throw new ArgumentException("A record name is 1 to 253 characters.", nameof(recordName));
         }
 
-        foreach (string label in name.Split('.'))
+        foreach (var label in name.Split('.'))
         {
             if (label.Length is 0 or > 63 || !label.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
             {
@@ -35,8 +35,8 @@ internal static class DnsNames
     /// <summary>The names a zone for <paramref name="name"/> may have, longest first, down to two labels (<c>_acme-challenge.a.example.com</c> gives itself, <c>a.example.com</c>, <c>example.com</c>).</summary>
     public static IEnumerable<string> ZoneCandidates(string name)
     {
-        string[] labels = name.Split('.');
-        for (int i = 0; i <= labels.Length - 2; i++)
+        var labels = name.Split('.');
+        for (var i = 0; i <= labels.Length - 2; i++)
         {
             yield return string.Join('.', labels[i..]);
         }
@@ -65,14 +65,14 @@ internal static class DnsNames
     public static string UnquoteTxt(string content)
     {
         ArgumentNullException.ThrowIfNull(content);
-        string text = content.Trim();
+        var text = content.Trim();
         if (text.Length < 2 || text[0] != '"')
         {
             return text;
         }
 
         StringBuilder joined = new(text.Length);
-        int i = 0;
+        var i = 0;
         while (i < text.Length)
         {
             if (text[i] == ' ')
@@ -87,10 +87,10 @@ internal static class DnsNames
             }
 
             i++;
-            bool closed = false;
+            var closed = false;
             while (i < text.Length)
             {
-                char c = text[i++];
+                var c = text[i++];
                 if (c == '\\' && i < text.Length)
                 {
                     joined.Append(text[i++]);

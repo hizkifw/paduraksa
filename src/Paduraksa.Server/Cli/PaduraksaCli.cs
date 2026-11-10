@@ -24,7 +24,7 @@ internal static class PaduraksaCli
     {
         ArgumentNullException.ThrowIfNull(args);
 
-        RootCommand root = BuildRootCommand();
+        var root = BuildRootCommand();
         // The serve command handles SIGINT/SIGTERM itself (graceful, ordered shutdown), so System.CommandLine's
         // own termination handling (cancel + hard exit after a timeout) is turned off.
         InvocationConfiguration invocation = new() { ProcessTerminationTimeout = null };
@@ -68,7 +68,7 @@ internal static class PaduraksaCli
         catch (OptionsValidationException ex)
         {
             await error.WriteLineAsync("Invalid configuration:").ConfigureAwait(false);
-            foreach (string failure in ex.Failures)
+            foreach (var failure in ex.Failures)
             {
                 await error.WriteLineAsync("  " + failure).ConfigureAwait(false);
             }
@@ -89,7 +89,7 @@ internal static class PaduraksaCli
             return ExitCodes.StartupFailed;
         }
 
-        int exitCode = ExitCodes.Success;
+        var exitCode = ExitCodes.Success;
         try
         {
             await using (host.ConfigureAwait(false))
@@ -125,7 +125,7 @@ internal static class PaduraksaCli
         }
 
         List<string> messages = [];
-        for (Exception? current = exception; current is not null; current = current.InnerException)
+        for (var current = exception; current is not null; current = current.InnerException)
         {
             messages.Add(current.Message);
         }

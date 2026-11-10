@@ -124,7 +124,7 @@ public sealed partial class DashboardAuthenticationStateProvider : Authenticatio
                 return null;
             }
 
-            SessionPrincipal? session = await _sessions.CheckAsync(user.SessionId, countAsUse, cancellationToken).ConfigureAwait(false);
+            var session = await _sessions.CheckAsync(user.SessionId, countAsUse, cancellationToken).ConfigureAwait(false);
             _lastCheck = _time.GetUtcNow();
             if (session is null)
             {
@@ -132,7 +132,7 @@ public sealed partial class DashboardAuthenticationStateProvider : Authenticatio
                 return null;
             }
 
-            IReadOnlySet<Permission> permissions = await _sessions.GetPermissionsAsync(session.UserId, cancellationToken).ConfigureAwait(false);
+            var permissions = await _sessions.GetPermissionsAsync(session.UserId, cancellationToken).ConfigureAwait(false);
             if (Unchanged(user, session, permissions))
             {
                 return user;
@@ -152,14 +152,14 @@ public sealed partial class DashboardAuthenticationStateProvider : Authenticatio
 
     private async Task<AuthenticationState> AdoptAsync(Task<AuthenticationState> authenticationStateTask)
     {
-        AuthenticationState state = await authenticationStateTask.ConfigureAwait(false);
+        var state = await authenticationStateTask.ConfigureAwait(false);
         if (SessionIdentity.Of(state.User) is not { } identity)
         {
             _user = null;
             return Anonymous;
         }
 
-        IReadOnlySet<Permission> permissions = await _sessions.GetPermissionsAsync(identity.Session.UserId, _stopping.Token).ConfigureAwait(false);
+        var permissions = await _sessions.GetPermissionsAsync(identity.Session.UserId, _stopping.Token).ConfigureAwait(false);
         _user = new DashboardPrincipal(identity, permissions);
         _lastCheck = _time.GetUtcNow();
         return new AuthenticationState(_user);
@@ -196,7 +196,7 @@ public sealed partial class DashboardAuthenticationStateProvider : Authenticatio
 
     private static bool Unchanged(DashboardPrincipal user, SessionPrincipal session, IReadOnlySet<Permission> permissions)
     {
-        SessionPrincipal current = user.Session.Session;
+        var current = user.Session.Session;
         return current.UserId == session.UserId
             && string.Equals(current.Username, session.Username, StringComparison.Ordinal)
             && string.Equals(current.DisplayName, session.DisplayName, StringComparison.Ordinal)

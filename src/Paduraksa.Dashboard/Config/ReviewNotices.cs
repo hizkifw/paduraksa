@@ -18,16 +18,16 @@ public static class ReviewNotices
         ArgumentNullException.ThrowIfNull(changes);
         ArgumentNullException.ThrowIfNull(warnings);
         List<string> notices = [];
-        foreach (HostChange change in changes.OfType<HostChange>())
+        foreach (var change in changes.OfType<HostChange>())
         {
-            HostConfig? old = before.Hosts.FirstOrDefault(h => h.Id == change.HostId);
-            HostConfig? @new = after.Hosts.FirstOrDefault(h => h.Id == change.HostId);
+            var old = before.Hosts.FirstOrDefault(h => h.Id == change.HostId);
+            var @new = after.Hosts.FirstOrDefault(h => h.Id == change.HostId);
             if (old is null)
             {
                 continue;
             }
 
-            string title = ChangeView.HostTitle(old);
+            var title = ChangeView.HostTitle(old);
             if (@new is null)
             {
                 if (old.Enabled)
@@ -55,17 +55,17 @@ public static class ReviewNotices
             }
         }
 
-        foreach (UpstreamChange change in changes.OfType<UpstreamChange>().Where(c => c.Kind == ConfigChangeKind.Modified))
+        foreach (var change in changes.OfType<UpstreamChange>().Where(c => c.Kind == ConfigChangeKind.Modified))
         {
-            UpstreamConfig? @new = after.Upstreams.FirstOrDefault(u => u.Id == change.UpstreamId);
-            UpstreamConfig? old = before.Upstreams.FirstOrDefault(u => u.Id == change.UpstreamId);
+            var @new = after.Upstreams.FirstOrDefault(u => u.Id == change.UpstreamId);
+            var old = before.Upstreams.FirstOrDefault(u => u.Id == change.UpstreamId);
             if (old is not null && @new is not null && old.Destinations.Any(d => d.Enabled) && !@new.Destinations.Any(d => d.Enabled))
             {
                 notices.Add($"{@new.Name} will have no destination to send requests to.");
             }
         }
 
-        foreach (ConfigWarning warning in warnings)
+        foreach (var warning in warnings)
         {
             notices.Add($"{ChangeView.Locate(warning.Path, after)}: {Sentence(warning.Message)}");
         }
@@ -99,15 +99,15 @@ public static class ReviewNotices
     private static string? OtherHost(string message, ConfigDocument? document)
     {
         const string Marker = " the enabled host at /hosts/";
-        int at = message.LastIndexOf(Marker, StringComparison.Ordinal);
+        var at = message.LastIndexOf(Marker, StringComparison.Ordinal);
         if (document is null || at < 0)
         {
             return null;
         }
 
-        string rest = message[(at + Marker.Length)..];
-        int end = rest.IndexOf('/', StringComparison.Ordinal);
-        return int.TryParse(end < 0 ? rest : rest[..end], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int index)
+        var rest = message[(at + Marker.Length)..];
+        var end = rest.IndexOf('/', StringComparison.Ordinal);
+        return int.TryParse(end < 0 ? rest : rest[..end], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var index)
             && index < document.Hosts.Count
                 ? ChangeView.HostTitle(document.Hosts[index])
                 : null;
@@ -117,13 +117,13 @@ public static class ReviewNotices
     public static string Sentence(string message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        string trimmed = message.Trim();
+        var trimmed = message.Trim();
         if (trimmed.Length == 0)
         {
             return trimmed;
         }
 
-        string capital = char.ToUpperInvariant(trimmed[0]) + trimmed[1..];
+        var capital = char.ToUpperInvariant(trimmed[0]) + trimmed[1..];
         return capital.EndsWith('.') || capital.EndsWith('!') || capital.EndsWith('?') ? capital : capital + ".";
     }
 }

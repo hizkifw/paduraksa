@@ -1,7 +1,4 @@
 using System.Reflection;
-
-using AngleSharp.Dom;
-
 using Bunit;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -28,14 +25,14 @@ public sealed class SettingsPagesTests
     public async Task ANewToken_ShowsItsSecretOnce_InItsDrawer_AndForgetsItWhenTheDrawerCloses()
     {
         await using DashboardTestContext context = new();
-        (FakeDashboardIdentity identity, _, _, _) = IdentityPages.SignIn(context, Role.Operator);
+        var (identity, _, _, _) = IdentityPages.SignIn(context, Role.Operator);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
-        IRenderedComponent<ApiTokens> page = context.Render<ApiTokens>();
+        var dialogs = context.Render<DrawerHost>();
+        var page = context.Render<ApiTokens>();
         await page.WaitForStateAsync(() => page.Markup.Contains("No API tokens yet", StringComparison.Ordinal));
 
         // The drawer holds the page's click until it closes.
-        Task creating = page.Find("[data-action=add-token]").ClickAsync(new());
+        var creating = page.Find("[data-action=add-token]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-scope]").Count > 0);
         // Only what an Operator holds is offered, and never the token or session permissions.
         string[] offered = [.. dialogs.FindAll("[data-scope]").Select(e => e.GetAttribute("data-scope")!)];
@@ -54,21 +51,21 @@ public sealed class SettingsPagesTests
         Assert.Single(dialogs.FindAll("[data-secret=token]"));
         Assert.Contains(FakeDashboardIdentity.TokenSecret, dialogs.Find("[data-secret=token]").TextContent, StringComparison.Ordinal);
         Assert.Contains("you won't see it again", dialogs.Find("[data-notice=once]").TextContent, StringComparison.OrdinalIgnoreCase);
-        IssueApiTokenRequest request = Assert.Single(identity.Issued);
+        var request = Assert.Single(identity.Issued);
         Assert.Equal("backup script", request.Name);
         Assert.All(request.Scopes, scope => Assert.True(Paduraksa.Dashboard.Identity.IdentityText.IsRead(scope)));
         Assert.NotNull(request.ExpiresAt);
 
         // Leaving the page asks first, and saying so keeps the secret where it is.
-        Microsoft.AspNetCore.Components.NavigationManager navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
-        string here = navigation.Uri;
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        var here = navigation.Uri;
         await dialogs.InvokeAsync(() => navigation.NavigateTo(Paduraksa.Dashboard.DashboardRoutes.Hosts));
         Assert.Contains("You haven't copied the token yet", dialogs.Find("[data-drawer=discard]").TextContent, StringComparison.Ordinal);
         Assert.Equal(here, navigation.Uri);
         await dialogs.Find("[data-drawer=keep]").ClickAsync(new());
         Assert.Single(dialogs.FindAll("[data-secret=token]"));
 
-        Paduraksa.Dashboard.AccountArea.TokenDrawer drawer = dialogs.FindComponent<Paduraksa.Dashboard.AccountArea.TokenDrawer>().Instance;
+        var drawer = dialogs.FindComponent<Paduraksa.Dashboard.AccountArea.TokenDrawer>().Instance;
         await dialogs.Find("[data-action=done]").ClickAsync(new());
         await creating.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
 
@@ -83,14 +80,14 @@ public sealed class SettingsPagesTests
     public async Task EveryonesTokens_AreReadInOneCall_WithTheirOwnersNames()
     {
         await using DashboardTestContext context = new();
-        (FakeDashboardIdentity identity, _, _, DashboardPrincipalRef me) = SignInOwner(context);
-        UserSummary grace = FakeDashboardIdentity.User("grace", Role.Operator) with { DisplayName = "Grace Hopper" };
+        var (identity, _, _, me) = SignInOwner(context);
+        var grace = FakeDashboardIdentity.User("grace", Role.Operator) with { DisplayName = "Grace Hopper" };
         identity.Users.Add(grace);
         identity.Users.Add(FakeDashboardIdentity.User("linus", Role.Viewer));
         identity.Tokens.Add(Token(me.Id, "mine"));
         identity.Tokens.Add(Token(grace.Id, "graces"));
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<ApiTokens> page = context.Render<ApiTokens>();
+        var page = context.Render<ApiTokens>();
         await page.WaitForStateAsync(() => page.FindAll("[data-token=mine]").Count == 1);
 
         await page.InvokeAsync(() => page.FindComponent<MudToggleGroup<bool>>().Instance.ValueChanged.InvokeAsync(true));
@@ -104,11 +101,11 @@ public sealed class SettingsPagesTests
     public async Task EditingTheLastOwner_ShowsTheGuardsRefusal()
     {
         await using DashboardTestContext context = new();
-        (FakeDashboardIdentity identity, _, _, DashboardPrincipalRef me) = SignInOwner(context);
+        var (identity, _, _, me) = SignInOwner(context);
         identity.UpdateStatus = IdentityStatus.LastOwner;
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
-        IRenderedComponent<Users> page = context.Render<Users>();
+        var dialogs = context.Render<DrawerHost>();
+        var page = context.Render<Users>();
         await page.WaitForStateAsync(() => page.FindAll("[data-action=edit]").Count == 1);
 
         _ = page.Find("[data-action=edit]").ClickAsync(new());
@@ -119,7 +116,7 @@ public sealed class SettingsPagesTests
 
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("[data-refusal=last-owner]").Count == 1);
         Assert.Contains("at least one enabled Owner", dialogs.Find("[data-refusal=last-owner]").TextContent, StringComparison.Ordinal);
-        (UserId id, UpdateUserRequest sent) = Assert.Single(identity.Updates);
+        var (id, sent) = Assert.Single(identity.Updates);
         Assert.Equal(me.Id, id);
         Assert.Equal([Role.Admin], sent.Roles);
         Assert.Null(sent.DisplayName);
@@ -132,12 +129,12 @@ public sealed class SettingsPagesTests
         await using DashboardTestContext context = new();
         SignInOwner(context);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
-        IRenderedComponent<Users> page = context.Render<Users>();
+        var dialogs = context.Render<DrawerHost>();
+        var page = context.Render<Users>();
         await page.WaitForStateAsync(() => page.FindAll("[data-action=edit]").Count == 1);
-        Task editing = page.Find("[data-action=edit]").ClickAsync(new());
+        var editing = page.Find("[data-action=edit]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=display-name]").Count == 1);
-        string name = dialogs.Find("input[data-field=display-name]").GetAttribute("value")!;
+        var name = dialogs.Find("input[data-field=display-name]").GetAttribute("value")!;
 
         await dialogs.Find("input[data-field=display-name]").InputAsync(new() { Value = "Someone else" });
         await dialogs.Find("input[data-field=display-name]").InputAsync(new() { Value = name });
@@ -152,14 +149,14 @@ public sealed class SettingsPagesTests
     public async Task AddingAUser_ChecksTheFormFirst_AndSendsTheRoles()
     {
         await using DashboardTestContext context = new();
-        (FakeDashboardIdentity identity, _, _, _) = SignInOwner(context);
+        var (identity, _, _, _) = SignInOwner(context);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
-        IRenderedComponent<Users> page = context.Render<Users>();
+        var dialogs = context.Render<DrawerHost>();
+        var page = context.Render<Users>();
         await page.WaitForStateAsync(() => page.FindAll("[data-action=add-user]").Count == 1);
         Assert.Contains("Reads the config and certificates and runs the simulator", page.Find("[data-section=roles]").TextContent, StringComparison.Ordinal);
 
-        Task adding = page.Find("[data-action=add-user]").ClickAsync(new());
+        var adding = page.Find("[data-action=add-user]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=username]").Count == 1);
         await dialogs.Find("input[data-field=username]").InputAsync(new() { Value = "bo" });
         await dialogs.Find("input[data-field=password]").InputAsync(new() { Value = "short" });
@@ -172,7 +169,7 @@ public sealed class SettingsPagesTests
         await dialogs.Find("input[data-field=password]").InputAsync(new() { Value = "a long enough password" });
         await dialogs.Find("form[data-drawer=user]").SubmitAsync();
 
-        CreateUserRequest created = Assert.Single(identity.Created);
+        var created = Assert.Single(identity.Created);
         Assert.Equal("viewer", created.Username);
         Assert.Equal([Role.Viewer], created.Roles);
         await adding.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
@@ -189,7 +186,7 @@ public sealed class SettingsPagesTests
         await using DashboardTestContext context = new();
         IdentityPages.SignIn(context, role);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<Users> page = context.Render<Users>();
+        var page = context.Render<Users>();
 
         await page.WaitForStateAsync(() => page.FindAll("[data-user]").Count == 1 || page.Markup.Contains("can't see the users", StringComparison.Ordinal));
         Assert.Equal(listed, page.FindAll("[data-user]").Count == 1);
@@ -203,11 +200,11 @@ public sealed class SettingsPagesTests
     public async Task TheGlobalDefaults_AreEditableOnlyWithConfigWrite_AndGoThroughReview(Role role, bool writable)
     {
         await using DashboardTestContext context = new();
-        (_, _, FakeDashboardConfig config, _) = IdentityPages.SignIn(context, role);
+        var (_, _, config, _) = IdentityPages.SignIn(context, role);
         config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 4));
         context.Render<MudPopoverProvider>();
         context.Render<Paduraksa.Dashboard.Drawers.DrawerHost>();
-        IRenderedComponent<GlobalDefaults> page = context.Render<GlobalDefaults>();
+        var page = context.Render<GlobalDefaults>();
         await page.WaitForStateAsync(() => page.FindAll("[data-form=defaults]").Count == 1);
 
         Assert.Equal(writable, page.FindAll("[data-action=review]").Count == 1);
@@ -221,7 +218,7 @@ public sealed class SettingsPagesTests
         await page.Find("[data-action=review]").ClickAsync(new());
 
         await page.WaitForStateAsync(() => config.Executed.Count == 1);
-        UpdateSettingsCommand command = Assert.IsType<UpdateSettingsCommand>(config.Executed[0]);
+        var command = Assert.IsType<UpdateSettingsCommand>(config.Executed[0]);
         Assert.True(command.DryRun);
         Assert.Equal(4, command.Settings.Version);
         Assert.Equal(TrustedProxyMode.CloudflareProxy, command.Settings.TrustedProxies.Mode);
@@ -232,11 +229,11 @@ public sealed class SettingsPagesTests
     public async Task AProfileInUse_CannotBeDeleted_AndSaysWhichHosts()
     {
         await using DashboardTestContext context = new();
-        (_, _, FakeDashboardConfig config, _) = IdentityPages.SignIn(context, Role.Operator);
+        var (_, _, config, _) = IdentityPages.SignIn(context, Role.Operator);
         ProfileConfig lan = new(ProfileId.New(), "LAN only", 1, new HostSettings { ForceHttps = true });
         HostConfig host = new(HostId.New(), ["nas.home.test"], Version: 1, ProfileId: lan.Id, Kind: HostKind.Respond, Respond: new RespondConfig(200, "ok"));
         config.Document = new ConfigDocument(Profiles: [lan], Hosts: [host]);
-        IRenderedComponent<Profiles> page = context.Render<Profiles>();
+        var page = context.Render<Profiles>();
         await page.WaitForStateAsync(() => page.FindAll("[data-profile='LAN only']").Count == 1);
         Assert.Contains("Redirects to HTTPS", page.Find("[data-profile='LAN only']").TextContent, StringComparison.Ordinal);
         Assert.Contains("nas.home.test", page.Find("[data-profile='LAN only']").TextContent, StringComparison.Ordinal);
@@ -249,7 +246,7 @@ public sealed class SettingsPagesTests
 
     private static (FakeDashboardIdentity, Paduraksa.Dashboard.Audit.IDashboardAudit, FakeDashboardConfig, DashboardPrincipalRef) SignInOwner(DashboardTestContext context)
     {
-        (FakeDashboardIdentity identity, FakeDashboardAudit audit, FakeDashboardConfig config, Paduraksa.Dashboard.Auth.DashboardPrincipal user) = IdentityPages.SignIn(context, Role.Owner);
+        var (identity, audit, config, user) = IdentityPages.SignIn(context, Role.Owner);
         return (identity, audit, config, new DashboardPrincipalRef(user.Session.Session.UserId));
     }
 

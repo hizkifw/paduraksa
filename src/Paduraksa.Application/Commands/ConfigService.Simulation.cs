@@ -1,6 +1,4 @@
 using System.Text.Json;
-
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Certificates;
@@ -57,8 +55,8 @@ public sealed partial class ConfigService
                 return null;
             }
 
-            RevisionRef revision = Ref(stored.Info);
-            return CanonicalConfigJson.TryDeserialize(stored.Document.Span, out ConfigDocument? document, out ConfigError? error)
+            var revision = Ref(stored.Info);
+            return CanonicalConfigJson.TryDeserialize(stored.Document.Span, out var document, out var error)
                 ? new StoredDocument(revision, CanonicalConfigJson.Canonicalize(document), null)
                 : new StoredDocument(revision, null, error);
         }
@@ -72,7 +70,7 @@ public sealed partial class ConfigService
     {
         ArgumentNullException.ThrowIfNull(document);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        bool degraded = false;
+        var degraded = false;
         CertificateInventory inventory;
         try
         {
@@ -107,7 +105,7 @@ public sealed partial class ConfigService
         ArgumentNullException.ThrowIfNull(origin);
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        ConfigCommand dryRun = command with { DryRun = true };
+        var dryRun = command with { DryRun = true };
 
         // Status is read without the writer's lock: planning writes nothing, so a start that finishes while this runs only
         // means the draft is planned against the store as it becomes usable, and a store that turns unusable fails below.
@@ -122,7 +120,7 @@ public sealed partial class ConfigService
             return new DraftPlan(new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [malformed]), null);
         }
 
-        string? message = string.IsNullOrWhiteSpace(dryRun.Message) ? null : dryRun.Message.Trim();
+        var message = string.IsNullOrWhiteSpace(dryRun.Message) ? null : dryRun.Message.Trim();
         if (MessageProblem(message) is { } problem)
         {
             return new DraftPlan(new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [new ConfigError(string.Empty, MessageInvalidCode, problem)]), null);
@@ -131,7 +129,7 @@ public sealed partial class ConfigService
         // A dry run never commits, so the head can't move under it (that is a commit's retry): one attempt.
         try
         {
-            Execution? execution = await AttemptAsync(dryRun, origin, Describe(dryRun), message, cancellationToken, simulation: true).ConfigureAwait(false);
+            var execution = await AttemptAsync(dryRun, origin, Describe(dryRun), message, cancellationToken, simulation: true).ConfigureAwait(false);
             return new DraftPlan(execution!.Value.Result, execution.Value.Candidate);
         }
         catch (Exception ex) when (ex is RevisionIntegrityException or JsonException)
@@ -156,8 +154,8 @@ public sealed partial class ConfigService
     /// <summary>A draft that changes nothing, compiled as the head its attempt planned on.</summary>
     private async Task<Execution> UnchangedCandidateAsync(ConfigDbContext context, ConfigDocument current, StoredRevision? latest, CancellationToken cancellationToken)
     {
-        CertificateInventory inventory = await _simulationCertificates.LoadAsync(context, current, cancellationToken).ConfigureAwait(false);
-        ConfigCompilation compilation = _compiler.Compile(current, latest?.Info.Id ?? ConfigRevisionId.Empty, inventory);
+        var inventory = await _simulationCertificates.LoadAsync(context, current, cancellationToken).ConfigureAwait(false);
+        var compilation = _compiler.Compile(current, latest?.Info.Id ?? ConfigRevisionId.Empty, inventory);
         return compilation.Snapshot is { } snapshot
             ? new Execution(new ConfigCommandResult(ConfigCommandStatus.Unchanged, Warnings: compilation.Warnings), Candidate: snapshot)
             : new Execution(new ConfigCommandResult(

@@ -2,8 +2,6 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
-using Paduraksa.Tests.Unit.Config;
-
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 namespace Paduraksa.Tests.Unit.Commands;

@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -78,7 +77,7 @@ public sealed class AdminInternalListener : IDisposable
     public AdminInternalListener(string dataDirectory, bool enabled)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
-        byte[] secret = RandomNumberGenerator.GetBytes(SecretBytes);
+        var secret = RandomNumberGenerator.GetBytes(SecretBytes);
         _secretText = Convert.ToHexString(secret);
         _secretUtf8 = Encoding.UTF8.GetBytes(_secretText);
         Enabled = enabled;
@@ -93,8 +92,8 @@ public sealed class AdminInternalListener : IDisposable
             return;
         }
 
-        string runDirectory = Path.Combine(dataDirectory, "run");
-        string socketPath = Path.Combine(runDirectory, SocketFileName);
+        var runDirectory = Path.Combine(dataDirectory, "run");
+        var socketPath = Path.Combine(runDirectory, SocketFileName);
         try
         {
             PrepareRunDirectory(runDirectory);
@@ -108,7 +107,7 @@ public sealed class AdminInternalListener : IDisposable
             }
 
             DeleteStaleSocket(socketPath);
-            if (TryProbeUnixSocket(runDirectory, out Exception? probeError))
+            if (TryProbeUnixSocket(runDirectory, out var probeError))
             {
                 _socketPath = socketPath;
                 UsesUnixSocket = true;
@@ -159,7 +158,7 @@ public sealed class AdminInternalListener : IDisposable
             return false;
         }
 
-        byte[] provided = Encoding.UTF8.GetBytes(value);
+        var provided = Encoding.UTF8.GetBytes(value);
         return CryptographicOperations.FixedTimeEquals(provided, _secretUtf8);
     }
 
@@ -215,7 +214,7 @@ public sealed class AdminInternalListener : IDisposable
             }
         }
 
-        IPEndPoint endPoint = await WaitForLoopbackAsync(cancellationToken).ConfigureAwait(false);
+        var endPoint = await WaitForLoopbackAsync(cancellationToken).ConfigureAwait(false);
         Socket tcp = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         try
         {
@@ -237,7 +236,7 @@ public sealed class AdminInternalListener : IDisposable
             return;
         }
 
-        SafeFileHandle? pin = Interlocked.Exchange(ref _identityPin, null);
+        var pin = Interlocked.Exchange(ref _identityPin, null);
         try
         {
             if (!UsesUnixSocket || _socketPath is null || _boundIdentity is not { } bound)
@@ -340,7 +339,7 @@ public sealed class AdminInternalListener : IDisposable
     /// <summary>Probes Unix-socket support on a temporary sibling name, never on the real path.</summary>
     private static bool TryProbeUnixSocket(string runDirectory, out Exception? error)
     {
-        string probePath = Path.Combine(runDirectory, $".p{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}");
+        var probePath = Path.Combine(runDirectory, $".p{Convert.ToHexString(RandomNumberGenerator.GetBytes(4))}");
         try
         {
             using Socket probe = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
@@ -380,7 +379,7 @@ public sealed class AdminInternalListener : IDisposable
     {
         public static SocketIdentity Read(string path)
         {
-            if (OperatingSystem.IsLinux() && TryStatx(path, out Statx stat))
+            if (OperatingSystem.IsLinux() && TryStatx(path, out var stat))
             {
                 return new SocketIdentity(stat.Ino, stat.DevMajor, stat.DevMinor, default);
             }
@@ -390,7 +389,7 @@ public sealed class AdminInternalListener : IDisposable
 
         public bool Matches(string path)
         {
-            if (Inode != 0 && TryStatx(path, out Statx stat))
+            if (Inode != 0 && TryStatx(path, out var stat))
             {
                 return stat.Ino == Inode && stat.DevMajor == DeviceMajor && stat.DevMinor == DeviceMinor;
             }
@@ -427,7 +426,7 @@ public sealed class AdminInternalListener : IDisposable
 
         try
         {
-            int fd = Open(path, OpenPath | OpenNoFollow | OpenCloseOnExec);
+            var fd = Open(path, OpenPath | OpenNoFollow | OpenCloseOnExec);
             return fd >= 0 ? new SafeFileHandle((IntPtr)fd, ownsHandle: true) : null;
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
@@ -459,7 +458,7 @@ public sealed class AdminInternalListener : IDisposable
     {
         public static bool IsOwnedByCurrentUser(string path)
         {
-            if (!OperatingSystem.IsLinux() || !TryStatx(path, out Statx stat))
+            if (!OperatingSystem.IsLinux() || !TryStatx(path, out var stat))
             {
                 // The owner isn't exposed by the BCL and statx is Linux-only; on other Unixes the symlink check above still applies.
                 Unavailable = true;

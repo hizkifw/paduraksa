@@ -1,8 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Acme.Dns;
-using Paduraksa.Application.Audit;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Config;
@@ -32,8 +29,8 @@ public sealed partial class DnsProviderService
             return new DnsProviderResult(IssuanceChangeStatus.Denied);
         }
 
-        string trimmed = (label ?? string.Empty).Trim();
-        ConfigError? problem = !Enum.IsDefined(kind) ? new ConfigError("/kind", IssuanceErrorCodes.KindUndefined, $"unknown DNS provider kind {kind}")
+        var trimmed = (label ?? string.Empty).Trim();
+        var problem = !Enum.IsDefined(kind) ? new ConfigError("/kind", IssuanceErrorCodes.KindUndefined, $"unknown DNS provider kind {kind}")
             : trimmed.Length == 0 ? new ConfigError("/label", IssuanceErrorCodes.LabelRequired, "a DNS provider needs a label")
             : trimmed.Length > MaxLabelLength ? new ConfigError("/label", IssuanceErrorCodes.TextTooLong, $"the label is limited to {MaxLabelLength} characters")
             : CredentialProblem(credential);
@@ -42,8 +39,8 @@ public sealed partial class DnsProviderService
             return new DnsProviderResult(IssuanceChangeStatus.Invalid, Errors: [problem]);
         }
 
-        string apiHost = DnsProviderHosts.ApiHostOf(kind);
-        SecretId secret = await _secrets.PutAsync(SecretKind.DnsApiToken, credential, new SecretOptions($"DNS provider: {trimmed}", null, [apiHost]), cancellationToken).ConfigureAwait(false);
+        var apiHost = DnsProviderHosts.ApiHostOf(kind);
+        var secret = await _secrets.PutAsync(SecretKind.DnsApiToken, credential, new SecretOptions($"DNS provider: {trimmed}", null, [apiHost]), cancellationToken).ConfigureAwait(false);
         DnsProviderResult result;
         try
         {
@@ -83,7 +80,7 @@ public sealed partial class DnsProviderService
         return await _config.ApplyOperationalChangeAsync(
             async context =>
             {
-                DnsProviderRow? row = await context.DnsProviders.FirstOrDefaultAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false);
+                var row = await context.DnsProviders.FirstOrDefaultAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false);
                 if (row is null)
                 {
                     return (new DnsProviderResult(IssuanceChangeStatus.NotFound), null);
@@ -112,8 +109,8 @@ public sealed partial class DnsProviderService
     public async Task<DnsProviderResult> DeleteWithCredentialAsync(DnsProviderId id, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
-        SecretId? credential = (await FindRowAsync(id, cancellationToken).ConfigureAwait(false))?.CredentialSecretId;
-        DnsProviderResult result = await DeleteAsync(id, origin, cancellationToken).ConfigureAwait(false);
+        var credential = (await FindRowAsync(id, cancellationToken).ConfigureAwait(false))?.CredentialSecretId;
+        var result = await DeleteAsync(id, origin, cancellationToken).ConfigureAwait(false);
         if (result.Status == IssuanceChangeStatus.Committed && credential is { } secret)
         {
             await SecretCleanup.TryDeleteAsync(_secrets, secret, _logger, cancellationToken).ConfigureAwait(false);

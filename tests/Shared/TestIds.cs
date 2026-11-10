@@ -35,8 +35,8 @@ internal static class TestIds
     public static TId CaseTwin<TId>(TId id)
         where TId : struct, ITypedId<TId>
     {
-        char[] chars = id.ToString()!.ToCharArray();
-        int letter = Array.FindIndex(chars, TId.Prefix.Length + 1, char.IsAsciiLetter);
+        var chars = id.ToString()!.ToCharArray();
+        var letter = Array.FindIndex(chars, TId.Prefix.Length + 1, char.IsAsciiLetter);
         if (letter < 0)
         {
             throw new ArgumentException($"{id} has no letter to flip.", nameof(id));

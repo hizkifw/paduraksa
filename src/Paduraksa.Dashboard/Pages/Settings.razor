@@ -10,8 +10,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        DashboardPrincipal? user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
-        NavigationEntry? first = DashboardNavigation.VisibleTo(permission => user?.Has(permission) == true)
+        var user = AuthenticationState is null ? null : (await AuthenticationState).User.AsDashboardUser();
+        var first = DashboardNavigation.VisibleTo(permission => user?.Has(permission) == true)
             .FirstOrDefault(entry => entry.Group == DashboardNavigation.SettingsGroup);
         Navigation.NavigateTo(first?.Href ?? DashboardRoutes.Account, replace: true);
     }

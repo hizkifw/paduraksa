@@ -6,7 +6,6 @@ using System.Text.Json.Serialization.Metadata;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Contracts.Api;
@@ -45,7 +44,7 @@ public static class ApiEndpointConventions
     public static RouteHandlerBuilder ProducesApiProblems(this RouteHandlerBuilder builder, params int[] statuses)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        foreach (int status in statuses)
+        foreach (var status in statuses)
         {
             builder.Produces<ApiProblem>(status, ApiProblems.ContentType);
         }
@@ -70,7 +69,7 @@ internal static class ApiBody
 
         try
         {
-            T? value = await JsonSerializer.DeserializeAsync(http.Request.Body, typeInfo, http.RequestAborted).ConfigureAwait(false);
+            var value = await JsonSerializer.DeserializeAsync(http.Request.Body, typeInfo, http.RequestAborted).ConfigureAwait(false);
             return value is null
                 ? new(null, ApiProblems.Problem(StatusCodes.Status400BadRequest, "The request body is required."))
                 : new(value, null);
@@ -89,7 +88,7 @@ internal static class ApiBody
 
     /// <summary>True for <c>application/json</c> with no charset or UTF-8.</summary>
     public static bool IsJson(string? contentType) =>
-        MediaTypeHeaderValue.TryParse(contentType, out MediaTypeHeaderValue? parsed)
+        MediaTypeHeaderValue.TryParse(contentType, out var parsed)
         && string.Equals(parsed.MediaType, "application/json", StringComparison.OrdinalIgnoreCase)
         && (parsed.CharSet is null || string.Equals(parsed.CharSet.Trim('"'), "utf-8", StringComparison.OrdinalIgnoreCase));
 
@@ -124,7 +123,7 @@ internal static class Preconditions
     public static bool TryGetVersion(HttpContext http, out long version, out IResult? problem)
     {
         version = 0;
-        if (!TryGetTag(http, out string? tag, out problem))
+        if (!TryGetTag(http, out var tag, out problem))
         {
             return false;
         }
@@ -143,7 +142,7 @@ internal static class Preconditions
         where TId : struct, ITypedId<TId>
     {
         revision = default;
-        if (!TryGetTag(http, out string? tag, out problem))
+        if (!TryGetTag(http, out var tag, out problem))
         {
             return false;
         }
@@ -161,7 +160,7 @@ internal static class Preconditions
     public static bool TryGetTag(HttpContext http, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? tag, out IResult? problem)
     {
         ArgumentNullException.ThrowIfNull(http);
-        (IfMatchState state, string? parsed) = ParseIfMatch(http.Request.Headers.IfMatch);
+        var (state, parsed) = ParseIfMatch(http.Request.Headers.IfMatch);
         tag = parsed;
         problem = state switch
         {
@@ -186,7 +185,7 @@ internal static class Preconditions
             return (IfMatchState.Unsupported, null);
         }
 
-        string value = values[0]!.Trim();
+        var value = values[0]!.Trim();
         if (value.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
         {
             return (IfMatchState.Weak, null);
@@ -201,7 +200,7 @@ internal static class Preconditions
             return (IfMatchState.Unsupported, null);
         }
 
-        string tag = value[1..^1];
+        var tag = value[1..^1];
         return tag.Contains('"', StringComparison.Ordinal) || tag.Contains(',', StringComparison.Ordinal)
             ? (IfMatchState.Unsupported, null)
             : (IfMatchState.Tag, tag);
@@ -213,7 +212,7 @@ internal static class Preconditions
         ArgumentNullException.ThrowIfNull(http);
         dryRun = false;
         problem = null;
-        StringValues values = http.Request.Query["dryRun"];
+        var values = http.Request.Query["dryRun"];
         if (values.Count == 0)
         {
             return true;
@@ -237,7 +236,7 @@ internal static class Preconditions
         ArgumentNullException.ThrowIfNull(http);
         force = false;
         problem = null;
-        StringValues values = http.Request.Query["force"];
+        var values = http.Request.Query["force"];
         if (values.Count == 0)
         {
             return true;
@@ -287,7 +286,7 @@ internal static class Pagination
 
         try
         {
-            byte[] bytes = System.Buffers.Text.Base64Url.DecodeFromChars(cursor);
+            var bytes = System.Buffers.Text.Base64Url.DecodeFromChars(cursor);
             return TId.TryParse(Encoding.ASCII.GetString(bytes), null, out id);
         }
         catch (FormatException)
@@ -303,14 +302,14 @@ internal static class Pagination
         limit = DefaultLimit;
         cursor = null;
         problem = null;
-        StringValues limits = http.Request.Query["limit"];
+        var limits = http.Request.Query["limit"];
         if (limits.Count > 0 && !(limits.Count == 1 && int.TryParse(limits[0], NumberStyles.None, CultureInfo.InvariantCulture, out limit) && limit is >= 1 and <= MaxLimit))
         {
             problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, $"limit must be a whole number from 1 to {MaxLimit}.");
             return false;
         }
 
-        StringValues cursors = http.Request.Query["cursor"];
+        var cursors = http.Request.Query["cursor"];
         if (cursors.Count > 1)
         {
             problem = ApiProblems.Problem(StatusCodes.Status400BadRequest, "Give cursor once.");

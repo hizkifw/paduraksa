@@ -33,16 +33,16 @@ public static class CertificateUsage
             Add(uses, defaultId, new CertificateUse(CertificateUseKind.Default));
         }
 
-        foreach (HostConfig host in document.Hosts.Where(h => h.Enabled))
+        foreach (var host in document.Hosts.Where(h => h.Enabled))
         {
-            string display = host.Names.Count > 0 ? host.Names[0] : host.Id.ToString();
+            var display = host.Names.Count > 0 ? host.Names[0] : host.Id.ToString();
             if (host.Certificate is { Mode: CertificateBindingMode.Specific, CertificateId: { } specific })
             {
                 Add(uses, specific, new CertificateUse(CertificateUseKind.Specific, host.Id, display));
             }
             else if (host.Certificate.Mode == CertificateBindingMode.Auto)
             {
-                foreach (IGrouping<CertificateId, string> chosen in CertificateSelection.ServerNames(host.Names)
+                foreach (var chosen in CertificateSelection.ServerNames(host.Names)
                     .Select(name => (Name: name, Best: CertificateSelection.Best(valid, name)))
                     .Where(pick => pick.Best is not null)
                     .GroupBy(pick => pick.Best!.Id, pick => pick.Name))
@@ -57,7 +57,7 @@ public static class CertificateUsage
 
     private static void Add(Dictionary<CertificateId, List<CertificateUse>> uses, CertificateId id, CertificateUse use)
     {
-        if (!uses.TryGetValue(id, out List<CertificateUse>? list))
+        if (!uses.TryGetValue(id, out var list))
         {
             uses[id] = list = [];
         }

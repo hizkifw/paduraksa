@@ -42,7 +42,7 @@ public static class TypedIdCodec
     private static bool TryFormatCore<TChar>(UInt128 value, ReadOnlySpan<TChar> prefix, Span<TChar> destination, out int written)
         where TChar : unmanaged, IBinaryInteger<TChar>
     {
-        int length = prefix.Length + Base62.Width128;
+        var length = prefix.Length + Base62.Width128;
         if (destination.Length < length)
         {
             written = 0;
@@ -58,7 +58,7 @@ public static class TypedIdCodec
     private static bool TryFormatCore<TChar>(ulong value, ReadOnlySpan<TChar> prefix, Span<TChar> destination, out int written)
         where TChar : unmanaged, IBinaryInteger<TChar>
     {
-        int length = prefix.Length + Base62.Width64;
+        var length = prefix.Length + Base62.Width64;
         if (destination.Length < length)
         {
             written = 0;

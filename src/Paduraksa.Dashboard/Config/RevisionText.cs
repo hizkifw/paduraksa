@@ -18,7 +18,7 @@ public static class RevisionText
             return "No changes";
         }
 
-        IEnumerable<string> parts = changes
+        var parts = changes
             .GroupBy(change => (Noun(change), change.Kind))
             .OrderBy(group => Rank(group.First()))
             .ThenBy(group => group.Key.Kind)
@@ -34,7 +34,7 @@ public static class RevisionText
         return actor.Kind switch
         {
             ActorKind.User when actor.User == me => "You",
-            ActorKind.User when actor.User is { } user && users.TryGetValue(user, out string? name) => name,
+            ActorKind.User when actor.User is { } user && users.TryGetValue(user, out var name) => name,
             ActorKind.User => "Another user",
             ActorKind.Token => "An API token",
             ActorKind.Cli => "The CLI",
@@ -55,7 +55,7 @@ public static class RevisionText
     /// <summary>"just now", "5 min ago", "3 h ago", "yesterday", else the date.</summary>
     public static string Ago(DateTimeOffset at, DateTimeOffset now)
     {
-        TimeSpan age = now - at;
+        var age = now - at;
         if (age < TimeSpan.FromMinutes(1))
         {
             return "just now";

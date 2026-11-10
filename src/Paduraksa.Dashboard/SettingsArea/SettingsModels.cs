@@ -17,7 +17,7 @@ public static class HostSettingsEdit
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(change);
-        TlsSettings changed = change(settings.Tls ?? new TlsSettings());
+        var changed = change(settings.Tls ?? new TlsSettings());
         return settings with { Tls = changed.SetsNothing ? null : changed };
     }
 
@@ -26,7 +26,7 @@ public static class HostSettingsEdit
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(change);
-        HstsSettings changed = change(settings.Hsts ?? new HstsSettings());
+        var changed = change(settings.Hsts ?? new HstsSettings());
         return settings with { Hsts = changed.SetsNothing ? null : changed };
     }
 
@@ -35,7 +35,7 @@ public static class HostSettingsEdit
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(change);
-        ServerHeaderSettings changed = change(settings.ServerHeader ?? new ServerHeaderSettings());
+        var changed = change(settings.ServerHeader ?? new ServerHeaderSettings());
         return settings with { ServerHeader = changed.SetsNothing ? null : changed };
     }
 
@@ -47,10 +47,10 @@ public static class HostSettingsEdit
     public static int CountSet(HostSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        int count = 0;
-        foreach (System.Reflection.PropertyInfo property in typeof(HostSettings).GetProperties())
+        var count = 0;
+        foreach (var property in typeof(HostSettings).GetProperties())
         {
-            object? value = property.GetValue(settings);
+            var value = property.GetValue(settings);
             if (value is null)
             {
                 continue;
@@ -93,7 +93,7 @@ public static class SettingsSummary
     {
         ArgumentNullException.ThrowIfNull(settings);
         List<string> parts = [];
-        foreach (Func<HostSettings, string?> phrase in Phrases)
+        foreach (var phrase in Phrases)
         {
             if (phrase(settings) is { } part)
             {
@@ -315,8 +315,8 @@ public sealed class GlobalSettingsEditModel
     /// <summary>The settings as the form describes them, with the version it opened with.</summary>
     public GlobalSettings ToSettings()
     {
-        bool generic = ProxyMode == TrustedProxyMode.Generic;
-        bool cloudflare = ProxyMode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
+        var generic = ProxyMode == TrustedProxyMode.Generic;
+        var cloudflare = ProxyMode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
         return _original with
         {
             Defaults = Defaults,

@@ -42,47 +42,47 @@ public sealed class ApiOnlySetupEndToEndTests
     [Fact]
     public async Task AWholeFirstRunCanBeWalkedOverTheApiAndEndsWithAProxiedHttpsHost()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        (IHost echoHost, string upstreamAddress) = await HeaderEchoUpstreamHost.StartAsync(null, Ct);
-        using IHost upstreamHost = echoHost;
+        await using var h = await AdminHarness.StartAsync();
+        var (echoHost, upstreamAddress) = await HeaderEchoUpstreamHost.StartAsync(null, Ct);
+        using var upstreamHost = echoHost;
 
         // 1. The gate is shut: setup reports incomplete, a protected endpoint is refused, and the local CA root can be
         //    downloaded (anonymously, as the wizard needs) and is the root of the certificate the admin listener serves.
-        using (AdminResponse setup = await h.GetAsync("/api/v1/setup"))
+        using (var setup = await h.GetAsync("/api/v1/setup"))
         {
             Assert.Equal(HttpStatusCode.OK, setup.Status);
             Assert.False(setup.Json.GetProperty("complete").GetBoolean());
         }
 
-        using (AdminResponse refused = await h.GetAsync("/api/v1/hosts"))
+        using (var refused = await h.GetAsync("/api/v1/hosts"))
         {
             Assert.Equal(HttpStatusCode.ServiceUnavailable, refused.Status);
             Assert.Equal("setup.required", refused.Json.GetProperty("code").GetString());
         }
 
         string caFingerprint;
-        using (AdminResponse ca = await h.GetAsync("/api/v1/ca"))
+        using (var ca = await h.GetAsync("/api/v1/ca"))
         {
             Assert.Equal(HttpStatusCode.OK, ca.Status);
             caFingerprint = ca.Json.GetProperty("sha256Fingerprint").GetString()!;
         }
 
         X509Certificate2 root;
-        using (AdminResponse pem = await h.GetAsync("/api/v1/ca/root.pem"))
+        using (var pem = await h.GetAsync("/api/v1/ca/root.pem"))
         {
             Assert.Equal(HttpStatusCode.OK, pem.Status);
             root = X509CertificateLoader.LoadCertificate(CaRoot.PemToDer(pem.Body));
         }
 
         Assert.Equal(Fingerprint(root), caFingerprint);
-        (X509Certificate2 adminLeaf, bool adminChains) = await HandshakeAsync(h.Host, "127.0.0.1", root);
+        var (adminLeaf, adminChains) = await HandshakeAsync(h.Host, "127.0.0.1", root);
         Assert.True(adminChains, "the admin listener's certificate chains to the local CA root the API serves");
         Assert.Equal(root.Subject, adminLeaf.Issuer);
 
         // 2. The Owner: the token is the file a headless install reads, and the setup call signs the Owner in.
-        string setupToken = (await File.ReadAllTextAsync(Path.Combine(h.Host.Options.DataDirectory, SetupService.TokenFileName), Ct)).Trim();
+        var setupToken = (await File.ReadAllTextAsync(Path.Combine(h.Host.Options.DataDirectory, SetupService.TokenFileName), Ct)).Trim();
         string ownerCookie;
-        using (AdminResponse created = await h.PostAsync("/api/v1/setup", Body.Setup(setupToken, AdminHarness.OwnerName, AdminHarness.Password)))
+        using (var created = await h.PostAsync("/api/v1/setup", Body.Setup(setupToken, AdminHarness.OwnerName, AdminHarness.Password)))
         {
             Assert.Equal(HttpStatusCode.Created, created.Status);
             Assert.Equal("owner", created.Json.GetProperty("owner").GetProperty("username").GetString());
@@ -94,27 +94,27 @@ public sealed class ApiOnlySetupEndToEndTests
         // 3. A second factor, then a token that carries every permission the rest of the walk needs. The token is the only
         //    credential used from here on (a token may not manage tokens or sessions, so it is issued while the session lives).
         string provisioningUri;
-        using (AdminResponse begin = await h.PostAsync("/api/v1/me/totp/enrollment", Body.Password(AdminHarness.Password), ownerCookie))
+        using (var begin = await h.PostAsync("/api/v1/me/totp/enrollment", Body.Password(AdminHarness.Password), ownerCookie))
         {
             Assert.Equal(HttpStatusCode.OK, begin.Status);
             provisioningUri = begin.Json.GetProperty("provisioningUri").GetString()!;
             Assert.StartsWith("otpauth://totp/", provisioningUri, StringComparison.Ordinal);
         }
 
-        using (AdminResponse confirm = await h.PostAsync(
+        using (var confirm = await h.PostAsync(
             "/api/v1/me/totp/enrollment/confirm", $$"""{"code":"{{TotpOracle.CodeFor(provisioningUri)}}"}""", ownerCookie))
         {
             Assert.Equal(HttpStatusCode.OK, confirm.Status);
             Assert.Equal(10, confirm.Json.GetProperty("codes").GetArrayLength());
         }
 
-        using (AdminResponse logout = await h.PostAsync("/api/v1/auth/logout", cookie: ownerCookie))
+        using (var logout = await h.PostAsync("/api/v1/auth/logout", cookie: ownerCookie))
         {
             Assert.Equal(HttpStatusCode.NoContent, logout.Status);
         }
 
         string partialCookie;
-        using (AdminResponse password = await h.PostAsync("/api/v1/auth/login", Body.Login(AdminHarness.OwnerName, AdminHarness.Password)))
+        using (var password = await h.PostAsync("/api/v1/auth/login", Body.Login(AdminHarness.OwnerName, AdminHarness.Password)))
         {
             Assert.Equal(HttpStatusCode.OK, password.Status);
             Assert.True(password.Json.GetProperty("secondFactorRequired").GetBoolean());
@@ -122,7 +122,7 @@ public sealed class ApiOnlySetupEndToEndTests
         }
 
         string sessionCookie;
-        using (AdminResponse secondFactor = await h.PostAsync(
+        using (var secondFactor = await h.PostAsync(
             "/api/v1/auth/second-factor", $$"""{"code":"{{TotpOracle.CodeFor(provisioningUri, 1)}}","recoveryCode":null}""", partialCookie))
         {
             Assert.Equal(HttpStatusCode.OK, secondFactor.Status);
@@ -130,24 +130,24 @@ public sealed class ApiOnlySetupEndToEndTests
             sessionCookie = secondFactor.SessionCookie!;
         }
 
-        (string tokenId, string token) = await h.IssueTokenAsync(
+        var (tokenId, token) = await h.IssueTokenAsync(
             sessionCookie, "config:read", "config:write", "certificates:read", "certificates:write", "simulate", "audit:read");
         Assert.StartsWith("pdk_", token, StringComparison.Ordinal);
         Assert.False(string.IsNullOrEmpty(tokenId));
 
         // 4. A self-signed leaf for app.test (no CA needed) and an upstream on an ephemeral loopback port.
-        using (AdminResponse issued = await h.PostAsync(
+        using (var issued = await h.PostAsync(
             "/api/v1/certificates/self-signed",
             JsonSerializer.Serialize(new SelfSignedCertificateRequest([AppName], Label: "api-only"), AdminJsonContext.Default.SelfSignedCertificateRequest),
             bearer: token))
         {
             Assert.Equal(HttpStatusCode.Created, issued.Status);
-            CertificateSummary certificate = Read(issued, AdminJsonContext.Default.CertificateOperationResult).Certificate!;
+            var certificate = Read(issued, AdminJsonContext.Default.CertificateOperationResult).Certificate!;
             Assert.Equal(CertificateSource.SelfSigned, certificate.Source);
             Assert.Contains(AppName, certificate.Names);
 
-            UpstreamConfig upstream = ConfigTestSupport.Upstream("app", upstreamAddress);
-            using (AdminResponse upstreamCreated = await h.PostAsync(
+            var upstream = ConfigTestSupport.Upstream("app", upstreamAddress);
+            using (var upstreamCreated = await h.PostAsync(
                 "/api/v1/upstreams", JsonSerializer.Serialize(upstream, AdminJsonContext.Default.UpstreamConfig), bearer: token))
             {
                 Assert.Equal(HttpStatusCode.Created, upstreamCreated.Status);
@@ -156,42 +156,42 @@ public sealed class ApiOnlySetupEndToEndTests
 
             // 5. The host: dry run first (no host, no revision), then the real commit, then a versioned update that proves
             //    If-Match is the write's precondition.
-            HostConfig host = ConfigTestSupport.ProxyHost("app", AppName, "app") with
+            var host = ConfigTestSupport.ProxyHost("app", AppName, "app") with
             {
                 Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = certificate.Id },
             };
-            string hostJson = JsonSerializer.Serialize(host, AdminJsonContext.Default.HostConfig);
-            int revisionsBeforeDryRun = await RevisionCountAsync(h, token);
+            var hostJson = JsonSerializer.Serialize(host, AdminJsonContext.Default.HostConfig);
+            var revisionsBeforeDryRun = await RevisionCountAsync(h, token);
 
-            using (AdminResponse dryRun = await h.PostAsync("/api/v1/hosts?dryRun=true", hostJson, bearer: token))
+            using (var dryRun = await h.PostAsync("/api/v1/hosts?dryRun=true", hostJson, bearer: token))
             {
                 Assert.Equal(HttpStatusCode.OK, dryRun.Status);
-                ConfigCommandResult plan = Read(dryRun, AdminJsonContext.Default.ConfigCommandResult);
+                var plan = Read(dryRun, AdminJsonContext.Default.ConfigCommandResult);
                 Assert.Equal(ConfigCommandStatus.DryRun, plan.Status);
                 Assert.Contains(plan.Changes, change => change is HostChange { Kind: ConfigChangeKind.Added });
             }
 
-            using (AdminResponse hosts = await h.GetAsync("/api/v1/hosts", bearer: token))
+            using (var hosts = await h.GetAsync("/api/v1/hosts", bearer: token))
             {
                 Assert.Empty(Read(hosts, AdminJsonContext.Default.IReadOnlyListHostConfig));
             }
 
             Assert.Equal(revisionsBeforeDryRun, await RevisionCountAsync(h, token));
 
-            using (AdminResponse created = await h.PostAsync("/api/v1/hosts", hostJson, bearer: token))
+            using (var created = await h.PostAsync("/api/v1/hosts", hostJson, bearer: token))
             {
                 Assert.Equal(HttpStatusCode.Created, created.Status);
                 Assert.Equal($"/api/v1/hosts/{host.Id}", created.Headers.Location!.ToString());
                 Assert.Equal(ConfigCommandStatus.Committed, Read(created, AdminJsonContext.Default.ConfigCommandResult).Status);
             }
 
-            using (AdminResponse read = await h.GetAsync($"/api/v1/hosts/{host.Id}", bearer: token))
+            using (var read = await h.GetAsync($"/api/v1/hosts/{host.Id}", bearer: token))
             {
                 Assert.Equal(HttpStatusCode.OK, read.Status);
-                HostConfig stored = Read(read, AdminJsonContext.Default.HostConfig);
+                var stored = Read(read, AdminJsonContext.Default.HostConfig);
                 Assert.Equal(certificate.Id, stored.Certificate.CertificateId);
-                string version = read.Headers.ETag?.Tag ?? throw new InvalidOperationException("The host response carried no ETag.");
-                using AdminResponse updated = await h.SendAsync(
+                var version = read.Headers.ETag?.Tag ?? throw new InvalidOperationException("The host response carried no ETag.");
+                using var updated = await h.SendAsync(
                     HttpMethod.Put,
                     $"/api/v1/hosts/{host.Id}",
                     JsonSerializer.Serialize(stored with { Notes = "created through the API alone" }, AdminJsonContext.Default.HostConfig),
@@ -203,11 +203,11 @@ public sealed class ApiOnlySetupEndToEndTests
 
             // 6. The public listener: a TLS handshake for app.test (SNI from the Host header) gets this certificate, and
             //    the request reaches the upstream behind the route.
-            using HttpClient publicClient = CreatePublicClient(out StrongBox<string?> served);
+            using var publicClient = CreatePublicClient(out var served);
             using (HttpRequestMessage request = new(HttpMethod.Get, new Uri(TestHost.Endpoint(h.Host, HostRole.Public, "https"), "/hello")))
             {
                 request.Headers.Host = AppName;
-                using HttpResponseMessage response = await publicClient.SendAsync(request, Ct);
+                using var response = await publicClient.SendAsync(request, Ct);
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
                 Assert.Contains("target: /hello", await response.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
                 Assert.Equal(certificate.Sha256Fingerprint, served.Value);
@@ -215,28 +215,28 @@ public sealed class ApiOnlySetupEndToEndTests
 
             // 7. The simulator agrees with the live gate: the same HTTPS request is forwarded to this upstream.
             SimulateBody simulate = new(new SimulationRequest($"https://{AppName}/hello", "203.0.113.9"));
-            using (AdminResponse simulated = await h.PostAsync(
+            using (var simulated = await h.PostAsync(
                 "/api/v1/simulate", JsonSerializer.Serialize(simulate, AdminJsonContext.Default.SimulateBody), bearer: token))
             {
                 Assert.Equal(HttpStatusCode.OK, simulated.Status);
-                SimulationResult result = Read(simulated, AdminJsonContext.Default.SimulationResult);
+                var result = Read(simulated, AdminJsonContext.Default.SimulationResult);
                 Assert.Equal(SimulationStatus.Simulated, result.Status);
                 Assert.Equal(SimulationOutcomeKind.ForwardToUpstream, result.Outcome!.Kind);
                 Assert.Equal(TestIds.Upstream("app"), result.Upstream!.Id);
             }
 
             // 8. The three commits are revisions (newest first) and the audit chain over the whole walk is intact.
-            using (AdminResponse revisions = await h.GetAsync("/api/v1/revisions", bearer: token))
+            using (var revisions = await h.GetAsync("/api/v1/revisions", bearer: token))
             {
                 Assert.Equal(HttpStatusCode.OK, revisions.Status);
                 Page<RevisionSummary> page = Read(revisions, AdminJsonContext.Default.PageRevisionSummary);
                 Assert.Equal([3L, 2L, 1L], page.Items.Select(revision => revision.Seq));
             }
 
-            using (AdminResponse verify = await h.GetAsync("/api/v1/audit/verify", bearer: token))
+            using (var verify = await h.GetAsync("/api/v1/audit/verify", bearer: token))
             {
                 Assert.Equal(HttpStatusCode.OK, verify.Status);
-                AuditVerification verification = Read(verify, AdminJsonContext.Default.AuditVerification);
+                var verification = Read(verify, AdminJsonContext.Default.AuditVerification);
                 Assert.True(verification.Intact, verification.Break?.Description);
                 Assert.True(verification.VerifiedEvents > 0);
             }
@@ -249,7 +249,7 @@ public sealed class ApiOnlySetupEndToEndTests
 
     private static async Task<int> RevisionCountAsync(AdminHarness h, string bearer)
     {
-        using AdminResponse revisions = await h.GetAsync("/api/v1/revisions", bearer: bearer);
+        using var revisions = await h.GetAsync("/api/v1/revisions", bearer: bearer);
         Assert.Equal(HttpStatusCode.OK, revisions.Status);
         return Read(revisions, AdminJsonContext.Default.PageRevisionSummary).Items.Count;
     }
@@ -266,7 +266,7 @@ public sealed class ApiOnlySetupEndToEndTests
         using TcpClient tcp = new();
         await tcp.ConnectAsync(IPAddress.Loopback, TestHost.Endpoint(host, HostRole.Admin, "https").Port, Ct);
         X509Certificate2? presented = null;
-        bool chains = false;
+        var chains = false;
         await using SslStream ssl = new(
             tcp.GetStream(),
             leaveInnerStreamOpen: false,

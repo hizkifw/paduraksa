@@ -96,11 +96,11 @@ internal static class AdminOpenApi
 
     private static Task DescribeSchema(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
     {
-        Type type = context.JsonTypeInfo.Type;
-        Type underlying = Nullable.GetUnderlyingType(type) ?? type;
-        bool nullable = underlying != type || (schema.Type is { } existing && existing.HasFlag(JsonSchemaType.Null));
+        var type = context.JsonTypeInfo.Type;
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        var nullable = underlying != type || (schema.Type is { } existing && existing.HasFlag(JsonSchemaType.Null));
 
-        if (TypedIdSchemas.TryDescribe(underlying, out TypedIdSchema? id))
+        if (TypedIdSchemas.TryDescribe(underlying, out var id))
         {
             schema.Type = nullable ? JsonSchemaType.String | JsonSchemaType.Null : JsonSchemaType.String;
             schema.Pattern = id.Pattern;
@@ -124,10 +124,10 @@ internal static class AdminOpenApi
     private static async Task DescribeOperationAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)
     {
         await DescribeParametersAsync(operation, context, cancellationToken).ConfigureAwait(false);
-        IList<object> metadata = context.Description.ActionDescriptor.EndpointMetadata;
-        RequiredPermissionMetadata? permission = metadata.OfType<RequiredPermissionMetadata>().FirstOrDefault();
-        bool anonymous = metadata.OfType<AdminAnonymousMetadata>().Any();
-        bool authenticated = metadata.OfType<AdminAuthenticatedMetadata>().Any();
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        var permission = metadata.OfType<RequiredPermissionMetadata>().FirstOrDefault();
+        var anonymous = metadata.OfType<AdminAnonymousMetadata>().Any();
+        var authenticated = metadata.OfType<AdminAuthenticatedMetadata>().Any();
 
         // The identity endpoints are named by their operation, not summarised by hand.
         if (string.IsNullOrWhiteSpace(operation.Summary) && operation.OperationId is { Length: > 0 } operationId)
@@ -137,7 +137,7 @@ internal static class AdminOpenApi
 
         if (permission is not null)
         {
-            string name = permission.Permission.ToName();
+            var name = permission.Permission.ToName();
             Describe(operation, $"Requires the `{name}` permission.");
             operation.Extensions ??= new Dictionary<string, IOpenApiExtension>();
             operation.Extensions[PermissionExtension] = new JsonNodeExtension(JsonValue.Create(name)!);
@@ -187,7 +187,7 @@ internal static class AdminOpenApi
         }
 
         // A declared response keeps its schema; its description is replaced when this call has something more exact to say (the 500 of a change that may fail to publish).
-        if (operation.Responses.TryGetValue(status, out IOpenApiResponse? declared))
+        if (operation.Responses.TryGetValue(status, out var declared))
         {
             if (declared is OpenApiResponse concrete && status == "500")
             {
@@ -209,9 +209,9 @@ internal static class AdminOpenApi
     internal static string SentenceOf(string operationId)
     {
         StringBuilder sentence = new();
-        for (int i = 0; i < operationId.Length; i++)
+        for (var i = 0; i < operationId.Length; i++)
         {
-            char c = operationId[i];
+            var c = operationId[i];
             if (i > 0 && char.IsUpper(c))
             {
                 sentence.Append(' ');
@@ -234,7 +234,7 @@ internal static class AdminOpenApi
             return;
         }
 
-        for (int i = 0; i < parameters.Count; i++)
+        for (var i = 0; i < parameters.Count; i++)
         {
             if (parameters[i] is OpenApiParameter parameter
                 && context.Description.ParameterDescriptions.FirstOrDefault(p => string.Equals(p.Name, parameter.Name, StringComparison.Ordinal))?.Type is { } type
@@ -274,8 +274,8 @@ internal sealed class OpenApiDocumentCache(IServiceProvider services)
 
     private static async Task<byte[]> GenerateAsync(IServiceProvider services)
     {
-        IOpenApiDocumentProvider provider = services.GetRequiredKeyedService<IOpenApiDocumentProvider>(AdminOpenApi.DocumentName);
-        OpenApiDocument document = await provider.GetOpenApiDocumentAsync(CancellationToken.None).ConfigureAwait(false);
+        var provider = services.GetRequiredKeyedService<IOpenApiDocumentProvider>(AdminOpenApi.DocumentName);
+        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None).ConfigureAwait(false);
         using MemoryStream buffer = new();
         await document.SerializeAsJsonAsync(buffer, OpenApiSpecVersion.OpenApi3_1, CancellationToken.None).ConfigureAwait(false);
         return buffer.ToArray();

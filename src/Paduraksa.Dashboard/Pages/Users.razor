@@ -53,7 +53,7 @@ else
         {
             @if (!_failed)
             {
-                @for (int i = 0; i < 3; i++)
+                @for (var i = 0; i < 3; i++)
                 {
                     <div class="pdk-row-skeleton">
                         <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
@@ -78,7 +78,7 @@ else
                     }
                     <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
                 </div>
-                @foreach (UserSummary user in _users)
+                @foreach (var user in _users)
                 {
                     <div class="pdk-dt-row @(_mayWrite ? "pdk-dt-link" : null) @(user.Disabled ? "pdk-dt-off" : null)" role="row" @key="user.Id"
                          @onclick="@(_mayWrite ? () => OpenAsync(user) : () => Task.CompletedTask)">
@@ -97,7 +97,7 @@ else
                         </div>
                         <span role="cell" class="pdk-dt-cell" data-label="Roles">
                             <span class="pdk-dt-chips">
-                                @foreach (Role role in user.Roles)
+                                @foreach (var role in user.Roles)
                                 {
                                     <StatusChip Tone="@(role == Role.Owner ? Tone.Primary : Tone.Default)" Text="@IdentityText.Name(role)" Detail="@IdentityText.Describe(role)" />
                                 }
@@ -130,7 +130,7 @@ else
                         @if (_lastSeen is not null)
                         {
                             <span role="cell" class="pdk-dt-cell" data-label="Last seen">
-                                @if (_lastSeen.TryGetValue(user.Id, out DateTimeOffset seen))
+                                @if (_lastSeen.TryGetValue(user.Id, out var seen))
                                 {
                                     <span title="@RevisionText.Exact(seen)">@RevisionText.Ago(seen, _now)</span>
                                 }
@@ -156,7 +156,7 @@ else
     <MudPaper Class="pdk-card mt-4" Elevation="0" Outlined="true">
         <MudText Typo="Typo.subtitle2" HtmlTag="h3">What the roles can do</MudText>
         <ul class="pdk-role-list" data-section="roles">
-            @foreach (Role role in IdentityText.Roles)
+            @foreach (var role in IdentityText.Roles)
             {
                 <li>
                     <span class="pdk-badge pdk-tone-@(role == Role.Owner ? "primary" : "default")">@IdentityText.Name(role)</span>
@@ -201,7 +201,7 @@ else
 
     private async Task LoadAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -216,18 +216,18 @@ else
         _me = user.UserId;
         _mayWrite = user.Has(Permission.UsersWrite);
         _now = Time.GetUtcNow();
-        CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
+        var origin = user.Session.OriginFor(Channel.Dashboard);
         _failed = false;
         try
         {
-            UserListResult result = await Identity.ListUsersAsync(origin);
+            var result = await Identity.ListUsersAsync(origin);
             _users = result.Users;
             if (user.Has(Permission.SessionsAll))
             {
                 Dictionary<UserId, DateTimeOffset> seen = [];
-                foreach (UserSummary listed in result.Users)
+                foreach (var listed in result.Users)
                 {
-                    SessionListResult sessions = await Identity.ListSessionsAsync(origin, listed.Id, null);
+                    var sessions = await Identity.ListSessionsAsync(origin, listed.Id, null);
                     if (sessions.Sessions.Count > 0)
                     {
                         seen[listed.Id] = sessions.Sessions.Max(s => s.LastSeenAt);
@@ -251,7 +251,7 @@ else
     /// <summary>Adds a user, or changes one, in a drawer; the list follows the identity feed (and is read again for this circuit).</summary>
     private async Task OpenAsync(UserSummary? user)
     {
-        DrawerResult result = await Drawers.OpenAsync<UserDrawer>(UserDrawer.For(user, _me), DrawerWidth.Medium);
+        var result = await Drawers.OpenAsync<UserDrawer>(UserDrawer.For(user, _me), DrawerWidth.Medium);
         if (!result.Canceled)
         {
             _refusal = null;
@@ -261,7 +261,7 @@ else
 
     private async Task AskDeleteAsync(UserSummary user)
     {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
+        var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             $"Delete {user.DisplayName}?",
             $"{user.Username} can no longer sign in: their sessions end and their API tokens stop working at once. The audit log keeps what they did.",

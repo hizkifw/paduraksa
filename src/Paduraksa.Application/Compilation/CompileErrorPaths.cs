@@ -22,8 +22,8 @@ internal sealed class CompileErrorPaths
     public CompileErrorPaths(ConfigDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        IReadOnlyList<HostConfig> hosts = document.Hosts ?? [];
-        for (int i = 0; i < hosts.Count; i++)
+        var hosts = document.Hosts ?? [];
+        for (var i = 0; i < hosts.Count; i++)
         {
             if (hosts[i] is not { } host)
             {
@@ -31,8 +31,8 @@ internal sealed class CompileErrorPaths
             }
 
             _hosts[host.Id] = i;
-            IReadOnlyList<RouteConfig> routes = host.Routes ?? [];
-            for (int j = 0; j < routes.Count; j++)
+            var routes = host.Routes ?? [];
+            for (var j = 0; j < routes.Count; j++)
             {
                 if (routes[j] is { } route)
                 {
@@ -41,8 +41,8 @@ internal sealed class CompileErrorPaths
             }
         }
 
-        IReadOnlyList<UpstreamConfig> upstreams = document.Upstreams ?? [];
-        for (int k = 0; k < upstreams.Count; k++)
+        var upstreams = document.Upstreams ?? [];
+        for (var k = 0; k < upstreams.Count; k++)
         {
             if (upstreams[k] is not { } upstream)
             {
@@ -50,8 +50,8 @@ internal sealed class CompileErrorPaths
             }
 
             _upstreams[upstream.Id] = k;
-            IReadOnlyList<DestinationConfig> destinations = upstream.Destinations ?? [];
-            for (int m = 0; m < destinations.Count; m++)
+            var destinations = upstream.Destinations ?? [];
+            for (var m = 0; m < destinations.Count; m++)
             {
                 if (destinations[m] is { } destination)
                 {
@@ -66,17 +66,17 @@ internal sealed class CompileErrorPaths
         DefaultsErrorSource => "/settings",
         TrustedProxiesErrorSource => "/settings/trustedProxies",
         HostErrorSource host => Host(host.HostId),
-        RouteErrorSource route => _routes.TryGetValue((route.HostId, route.RouteId), out (int Host, int Route) at)
+        RouteErrorSource route => _routes.TryGetValue((route.HostId, route.RouteId), out var at)
             ? $"/hosts/{at.Host}/routes/{at.Route}"
             : Host(route.HostId),
         UpstreamErrorSource upstream => Upstream(upstream.UpstreamId),
-        DestinationErrorSource destination => _destinations.TryGetValue((destination.UpstreamId, destination.DestinationId), out (int Upstream, int Destination) at)
+        DestinationErrorSource destination => _destinations.TryGetValue((destination.UpstreamId, destination.DestinationId), out var at)
             ? $"/upstreams/{at.Upstream}/destinations/{at.Destination}"
             : Upstream(destination.UpstreamId),
         _ => string.Empty,
     };
 
-    private string Host(HostId id) => _hosts.TryGetValue(id, out int i) ? $"/hosts/{i}" : string.Empty;
+    private string Host(HostId id) => _hosts.TryGetValue(id, out var i) ? $"/hosts/{i}" : string.Empty;
 
-    private string Upstream(UpstreamId id) => _upstreams.TryGetValue(id, out int k) ? $"/upstreams/{k}" : string.Empty;
+    private string Upstream(UpstreamId id) => _upstreams.TryGetValue(id, out var k) ? $"/upstreams/{k}" : string.Empty;
 }

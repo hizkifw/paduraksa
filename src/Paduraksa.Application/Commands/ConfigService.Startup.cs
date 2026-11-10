@@ -12,7 +12,6 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Data;
-using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 
 namespace Paduraksa.Application.Commands;
@@ -67,7 +66,7 @@ public sealed partial class ConfigService
         await _writer.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            ConfigStoreStatus status = await StartExclusiveAsync(cancellationToken).ConfigureAwait(false);
+            var status = await StartExclusiveAsync(cancellationToken).ConfigureAwait(false);
             _startupTicket = _latestPublish;
             Volatile.Write(ref _status, status);
             return status;
@@ -80,8 +79,8 @@ public sealed partial class ConfigService
 
     private async Task<ConfigStoreStatus> StartExclusiveAsync(CancellationToken cancellationToken)
     {
-        DatabaseStart database = await LoadLatestAsync(cancellationToken).ConfigureAwait(false);
-        (LastKnownGoodEntry? lastGood, string? lastGoodProblem) = ReadLastKnownGood();
+        var database = await LoadLatestAsync(cancellationToken).ConfigureAwait(false);
+        var (lastGood, lastGoodProblem) = ReadLastKnownGood();
 
         if (database is { Problem: null, Latest: null } && lastGood is not null
             && await RestoreAsync(lastGood, cancellationToken).ConfigureAwait(false) is { } restored)
@@ -94,24 +93,24 @@ public sealed partial class ConfigService
             return await StartOnLastKnownGoodAsync(database.Problem, acceptsCommands: false, lastGood, lastGoodProblem, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
-        ConfigRevisionId revisionId = database.Latest?.Info.Id ?? ConfigRevisionId.Empty;
-        ConfigCompilation compilation = await CompileWithCurrentInventoryAsync(database.Document!, revisionId, cancellationToken).ConfigureAwait(false);
+        var revisionId = database.Latest?.Info.Id ?? ConfigRevisionId.Empty;
+        var compilation = await CompileWithCurrentInventoryAsync(database.Document!, revisionId, cancellationToken).ConfigureAwait(false);
         if (compilation.Snapshot is not { } snapshot)
         {
-            string label = database.Latest is null ? "the empty config" : $"revision #{database.Latest.Info.Seq} ({database.Latest.Info.Id})";
+            var label = database.Latest is null ? "the empty config" : $"revision #{database.Latest.Info.Seq} ({database.Latest.Info.Id})";
             return await StartOnLastKnownGoodAsync(
                 $"{label} doesn't compile: {Summarize(compilation.Errors)}", acceptsCommands: true, lastGood, lastGoodProblem, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
         ReportCertificateWarnings(compilation.Warnings);
 
-        RevisionRef? revision = database.Latest is null ? null : Ref(database.Latest.Info);
+        var revision = database.Latest is null ? null : Ref(database.Latest.Info);
         if (lastGood is not null && revision is not null && lastGood.Revision.Seq > revision.Seq)
         {
             LogLastKnownGoodAhead(lastGood.Revision.Seq, lastGood.Revision.Id, revision.Seq);
         }
 
-        LastKnownGoodEntry? entry = database.Latest is null
+        var entry = database.Latest is null
             ? null
             : new LastKnownGoodEntry(revision!, database.Latest.Document, database.Latest.Info.DocumentHash);
         _startupPublish = FollowStartupPublishAsync(StartPublish(snapshot, compilation), revisionId, entry, lastGood);
@@ -131,7 +130,7 @@ public sealed partial class ConfigService
             return (null, $"there is no {_lastKnownGood.Path}");
         }
 
-        if (_lastKnownGood.TryRead(out LastKnownGoodEntry? entry, out string? problem))
+        if (_lastKnownGood.TryRead(out var entry, out var problem))
         {
             return (entry, null);
         }
@@ -147,12 +146,12 @@ public sealed partial class ConfigService
     /// </summary>
     private async Task<ConfigStoreStatus?> RestoreAsync(LastKnownGoodEntry lastGood, CancellationToken cancellationToken)
     {
-        string source = $"last-known-good #{lastGood.Revision.Seq} ({lastGood.Revision.Id})";
+        var source = $"last-known-good #{lastGood.Revision.Seq} ({lastGood.Revision.Id})";
         ReplaceConfigCommand command = new(lastGood.Parsed!, BaseRevision: null) { Message = $"Restored from {source}" };
         string problem;
         try
         {
-            Execution execution = await ExecuteExclusiveAsync(command, CommandOrigin.System, cancellationToken).ConfigureAwait(false);
+            var execution = await ExecuteExclusiveAsync(command, CommandOrigin.System, cancellationToken).ConfigureAwait(false);
             if (execution.Publish is { } ticket)
             {
                 LogRestored(ticket.Revision.Seq, ticket.Revision.Id, source);
@@ -186,11 +185,11 @@ public sealed partial class ConfigService
     private async Task<ConfigStoreStatus> StartOnLastKnownGoodAsync(
         string problem, bool acceptsCommands, LastKnownGoodEntry? lastGood, string? lastGoodProblem, bool emptyIfUnusable = false, CancellationToken cancellationToken = default)
     {
-        string? unusable = lastGoodProblem ?? "there is no last-known-good file";
+        var unusable = lastGoodProblem ?? "there is no last-known-good file";
         if (lastGood is not null)
         {
             // The last-known-good document, against the inventory as it is now.
-            ConfigCompilation fallback = await CompileWithCurrentInventoryAsync(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id, cancellationToken).ConfigureAwait(false);
+            var fallback = await CompileWithCurrentInventoryAsync(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id, cancellationToken).ConfigureAwait(false);
             if (fallback.Snapshot is { } snapshot)
             {
                 if (acceptsCommands)
@@ -215,7 +214,7 @@ public sealed partial class ConfigService
         if (emptyIfUnusable
             && (await CompileWithCurrentInventoryAsync(InitialDocument, ConfigRevisionId.Empty, cancellationToken).ConfigureAwait(false)) is { Snapshot: { } empty } emptyCompilation)
         {
-            string emptyProblem = $"{problem}; the last-known-good config can't be used either ({unusable})";
+            var emptyProblem = $"{problem}; the last-known-good config can't be used either ({unusable})";
             LogDegradedOnEmpty(emptyProblem);
             _startupPublish = FollowStartupPublishAsync(StartPublish(empty, emptyCompilation), ConfigRevisionId.Empty, entry: null, fallback: null);
             return new ConfigStoreStatus(ConfigSource.Database, null, emptyProblem, AcceptsCommands: true);
@@ -230,7 +229,7 @@ public sealed partial class ConfigService
     {
         try
         {
-            ConfigDatabaseInitialized initialized = await ConfigDatabase.InitializeAsync(_contexts, Int64OrderedIdGenerator.Shared, cancellationToken)
+            var initialized = await ConfigDatabase.InitializeAsync(_contexts, Int64OrderedIdGenerator.Shared, cancellationToken)
                 .ConfigureAwait(false);
             if (initialized.AppliedMigrations.Count > 0)
             {
@@ -249,13 +248,13 @@ public sealed partial class ConfigService
             var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
             await using (context.ConfigureAwait(false))
             {
-                StoredRevision? latest = await ConfigRevisionStore.GetLatestAsync(context, cancellationToken).ConfigureAwait(false);
+                var latest = await ConfigRevisionStore.GetLatestAsync(context, cancellationToken).ConfigureAwait(false);
                 if (latest is null)
                 {
                     return new DatabaseStart(null, InitialDocument, null);
                 }
 
-                if (!CanonicalConfigJson.TryDeserialize(latest.Document.Span, out ConfigDocument? document, out ConfigError? error))
+                if (!CanonicalConfigJson.TryDeserialize(latest.Document.Span, out var document, out var error))
                 {
                     return new DatabaseStart(
                         null,
@@ -286,7 +285,7 @@ public sealed partial class ConfigService
     {
         try
         {
-            ConfigRevisionId? reflected = await ConfigProjection.TryReflectedRevisionAsync(context, cancellationToken).ConfigureAwait(false);
+            var reflected = await ConfigProjection.TryReflectedRevisionAsync(context, cancellationToken).ConfigureAwait(false);
             if (reflected == latest.Info.Id)
             {
                 return;
@@ -295,7 +294,7 @@ public sealed partial class ConfigService
             var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
             await using (transaction.ConfigureAwait(false))
             {
-                ConfigRevisionId? head = await context.ConfigRevisions
+                var head = await context.ConfigRevisions
                     .OrderByDescending(r => r.Seq)
                     .Select(r => (ConfigRevisionId?)r.Id)
                     .FirstOrDefaultAsync(cancellationToken)
@@ -326,8 +325,8 @@ public sealed partial class ConfigService
     /// </summary>
     private async Task FollowStartupPublishAsync(Task<PublishResult> publish, ConfigRevisionId revision, LastKnownGoodEntry? entry, LastKnownGoodEntry? fallback)
     {
-        PublishResult result = await publish.ConfigureAwait(false); // completed, never faulted
-        string label = revision.IsEmpty ? "(none)" : revision.ToString();
+        var result = await publish.ConfigureAwait(false); // completed, never faulted
+        var label = revision.IsEmpty ? "(none)" : revision.ToString();
         switch (result.Status)
         {
             case PublishStatus.Published:
@@ -369,7 +368,7 @@ public sealed partial class ConfigService
                 return;
             }
 
-            ConfigCompilation compilation = await CompileWithCurrentInventoryAsync(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id, CancellationToken.None).ConfigureAwait(false);
+            var compilation = await CompileWithCurrentInventoryAsync(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id, CancellationToken.None).ConfigureAwait(false);
             if (compilation.Snapshot is not { } snapshot)
             {
                 LogLastKnownGoodUnusableAfterFailure(lastGood.Revision.Seq, lastGood.Revision.Id, Summarize(compilation.Errors));
@@ -399,7 +398,7 @@ public sealed partial class ConfigService
             _lastKnownGood?.Offer(entry);
         }
 
-        ConfigStoreStatus status = Status;
+        var status = Status;
         if (ticket.FromDatabase && !ticket.Revision.Id.IsEmpty && status.IsDegraded && status.AcceptsCommands
             && ReferenceEquals(Interlocked.CompareExchange(ref _status, new ConfigStoreStatus(ConfigSource.Database, ticket.Revision), status), status))
         {
@@ -438,28 +437,28 @@ public sealed partial class ConfigService
 
             if (latest is not null)
             {
-                CertificateInventory inventory = await _certificates.LoadAsync(context, document, cancellationToken).ConfigureAwait(false);
-                ConfigCompilation compilation = _compiler.Compile(document, latest.Info.Id, inventory);
+                var inventory = await _certificates.LoadAsync(context, document, cancellationToken).ConfigureAwait(false);
+                var compilation = _compiler.Compile(document, latest.Info.Id, inventory);
                 if (compilation.Snapshot is null)
                 {
                     LogRepublishSkipped($"revision #{latest.Info.Seq} doesn't compile", Summarize(compilation.Errors));
                     return null;
                 }
 
-                RevisionRef revision = Ref(latest.Info);
+                var revision = Ref(latest.Info);
                 return new LiveCompile(compilation, revision, new LastKnownGoodEntry(revision, latest.Document, latest.Info.DocumentHash), FromDatabase: true);
             }
         }
 
-        (LastKnownGoodEntry? lastGood, string? problem) = ReadLastKnownGood();
+        var (lastGood, problem) = ReadLastKnownGood();
         if (lastGood is null)
         {
             LogRepublishSkipped("there is no revision and no usable last-known-good document", problem ?? "nothing to republish");
             return null;
         }
 
-        ConfigDocument lastGoodDocument = CanonicalConfigJson.Canonicalize(lastGood.Parsed!);
-        ConfigCompilation fallback = _compiler.Compile(
+        var lastGoodDocument = CanonicalConfigJson.Canonicalize(lastGood.Parsed!);
+        var fallback = _compiler.Compile(
             lastGoodDocument, lastGood.Revision.Id, await _certificates.LoadAsync(context, lastGoodDocument, cancellationToken).ConfigureAwait(false));
         if (fallback.Snapshot is null)
         {

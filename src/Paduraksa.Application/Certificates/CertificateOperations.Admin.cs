@@ -54,7 +54,7 @@ public sealed partial class CertificateOperations
         ArgumentNullException.ThrowIfNull(names);
         ArgumentNullException.ThrowIfNull(origin);
 
-        CertificateOperationResult root = await EnsureAdminRootAsync(origin, cancellationToken).ConfigureAwait(false);
+        var root = await EnsureAdminRootAsync(origin, cancellationToken).ConfigureAwait(false);
         if (root.Status is not (CertificateOperationStatus.Completed or CertificateOperationStatus.Unchanged) || root.Certificate is null)
         {
             return root;
@@ -67,14 +67,14 @@ public sealed partial class CertificateOperations
 
         // Composed by AdminCertificateNames, so there is always at least localhost, 127.0.0.1 and ::1; normalising again
         // keeps this robust for a caller that passes its own list.
-        List<string> wanted = CertificateNames.Normalize(names, out _);
+        var wanted = CertificateNames.Normalize(names, out _);
         if (wanted.Count == 0)
         {
             throw new ArgumentException("The admin certificate needs at least one usable name.", nameof(names));
         }
 
-        CertificateDetail? current = await _certificates.GetAsync(AdminCertificate.Id, cancellationToken).ConfigureAwait(false);
-        VaultCertificate? held = await HeldAdminLeafAsync(cancellationToken).ConfigureAwait(false);
+        var current = await _certificates.GetAsync(AdminCertificate.Id, cancellationToken).ConfigureAwait(false);
+        var held = await HeldAdminLeafAsync(cancellationToken).ConfigureAwait(false);
         if (current is null && held is not null && await AdoptVaultAdminLeafAsync(held, wanted, origin, cancellationToken).ConfigureAwait(false) is { } adopted)
         {
             return adopted;
@@ -85,7 +85,7 @@ public sealed partial class CertificateOperations
         // only happens when the vault's leaf carries exactly the wanted names; a leaf with other names is issued again.
         if (held is null || current is null || current.Summary.Status != CertificateStatus.Active)
         {
-            CertificateOperationResult created = await CreateWithNamesAsync(
+            var created = await CreateWithNamesAsync(
                 CertificateSource.LocalCa,
                 wanted,
                 AdminCertificate.Label,
@@ -100,7 +100,7 @@ public sealed partial class CertificateOperations
             // admin certificate): use what it wrote instead of reporting the collision.
             if (created.Status == CertificateOperationStatus.Invalid && created.Errors.Any(static error => error.Code == CertificateErrorCodes.Exists))
             {
-                CertificateDetail? raced = await _certificates.GetAsync(AdminCertificate.Id, cancellationToken).ConfigureAwait(false);
+                var raced = await _certificates.GetAsync(AdminCertificate.Id, cancellationToken).ConfigureAwait(false);
                 return raced is null ? created : new CertificateOperationResult(CertificateOperationStatus.Unchanged, raced.Summary);
             }
 
@@ -129,7 +129,7 @@ public sealed partial class CertificateOperations
     /// <summary>The admin leaf the vault holds (public facts, no key opened), or null when it holds none for that ID.</summary>
     private async Task<VaultCertificate?> HeldAdminLeafAsync(CancellationToken cancellationToken)
     {
-        VaultCertificate? held = await _catalog.DescribeAsync(AdminCertificate.Id, cancellationToken).ConfigureAwait(false);
+        var held = await _catalog.DescribeAsync(AdminCertificate.Id, cancellationToken).ConfigureAwait(false);
         return held is { IsLocalCaRoot: false } ? held : null;
     }
 
@@ -150,7 +150,7 @@ public sealed partial class CertificateOperations
     // download still offers an expired root). Rotating the root needs a plan for the leaves issued under the old one.
     private async Task<CertificateOperationResult> EnsureAdminRootAsync(CommandOrigin origin, CancellationToken cancellationToken)
     {
-        IReadOnlyList<CertificateSummary> roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot), cancellationToken).ConfigureAwait(false);
+        var roots = await _certificates.ListAsync(new CertificateQuery(Source: CertificateSource.LocalCaRoot), cancellationToken).ConfigureAwait(false);
         if (roots.FirstOrDefault(static root => root.Status == CertificateStatus.Active) is { } active)
         {
             if (await _catalog.DescribeAsync(active.Id, cancellationToken).ConfigureAwait(false) is { IsLocalCaRoot: true })
@@ -158,7 +158,7 @@ public sealed partial class CertificateOperations
                 return new CertificateOperationResult(CertificateOperationStatus.Unchanged, active);
             }
 
-            CertificateChangeResult retired = await _certificates.SetStatusAsync(
+            var retired = await _certificates.SetStatusAsync(
                 active.Id, CertificateStatus.Failed, "its key is missing from the vault, so a new local CA root replaces it", origin, cancellationToken).ConfigureAwait(false);
             if (retired.Status is not (CertificateChangeStatus.Committed or CertificateChangeStatus.Unchanged))
             {
@@ -168,7 +168,7 @@ public sealed partial class CertificateOperations
             LogRootKeyMissing(active.Id);
         }
 
-        VaultCertificate? held = (await _catalog.ListAsync(cancellationToken).ConfigureAwait(false)).FirstOrDefault(static certificate => certificate.IsLocalCaRoot);
+        var held = (await _catalog.ListAsync(cancellationToken).ConfigureAwait(false)).FirstOrDefault(static certificate => certificate.IsLocalCaRoot);
         if (held is not null)
         {
             return await AdoptRootAsync(held.Id, held.Info, origin, cancellationToken).ConfigureAwait(false);
@@ -180,7 +180,7 @@ public sealed partial class CertificateOperations
             // is idempotent for it), so a pending row wins over any other; only an inventory with no root row at all reaches the
             // vault's create.
             CertificateId? leftBehind = null;
-            foreach (CertificateSummary root in roots)
+            foreach (var root in roots)
             {
                 if (root.Status == CertificateStatus.Pending)
                 {
@@ -209,7 +209,7 @@ public sealed partial class CertificateOperations
 
     private async Task<CertificateOperationResult> AdoptRootAsync(CertificateId id, CertificateInfo info, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        CertificateChangeResult registered = await _certificates.RegisterQuietlyAsync(
+        var registered = await _certificates.RegisterQuietlyAsync(
             new CertificateRegistration(id, CertificateSource.LocalCaRoot, info, CertificateStatus.Active, CertificateRecovery.Label), origin, cancellationToken).ConfigureAwait(false);
         return registered.Status switch
         {
@@ -232,13 +232,13 @@ public sealed partial class CertificateOperations
             return null;
         }
 
-        List<string> covered = CertificateNames.Normalize(held.Info.SubjectAlternativeNames, out _);
+        var covered = CertificateNames.Normalize(held.Info.SubjectAlternativeNames, out _);
         if (!AdminCertificatePolicy.SameNames(covered, wanted))
         {
             return null;
         }
 
-        CertificateChangeResult registered = await _certificates.RegisterQuietlyAsync(
+        var registered = await _certificates.RegisterQuietlyAsync(
             new CertificateRegistration(AdminCertificate.Id, CertificateSource.LocalCa, held.Info, CertificateStatus.Active, AdminCertificate.Label), origin, cancellationToken).ConfigureAwait(false);
         return registered.Status switch
         {
@@ -255,7 +255,7 @@ public sealed partial class CertificateOperations
             return new CertificateOperationResult(CertificateOperationStatus.Unchanged, current);
         }
 
-        CertificateChangeResult repaired = await _certificates.UpdateDetailsAsync(AdminCertificate.Id, AdminCertificate.Label, current.Notes, origin, cancellationToken).ConfigureAwait(false);
+        var repaired = await _certificates.UpdateDetailsAsync(AdminCertificate.Id, AdminCertificate.Label, current.Notes, origin, cancellationToken).ConfigureAwait(false);
         return new CertificateOperationResult(CertificateOperationStatus.Unchanged, repaired.Certificate ?? current);
     }
 

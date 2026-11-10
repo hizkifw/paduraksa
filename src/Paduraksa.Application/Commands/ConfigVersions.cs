@@ -28,18 +28,18 @@ internal static class ConfigVersions
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(current);
-        TouchedObjects touched = TouchedObjects.From(changes);
+        var touched = TouchedObjects.From(changes);
 
-        Dictionary<ProfileId, long> profiles = Versions(current.Profiles, p => p.Id, p => p.Version);
-        Dictionary<UpstreamId, long> upstreams = Versions(current.Upstreams, u => u.Id, u => u.Version);
-        Dictionary<HostId, long> hosts = Versions(current.Hosts, h => h.Id, h => h.Version);
+        var profiles = Versions(current.Profiles, p => p.Id, p => p.Version);
+        var upstreams = Versions(current.Upstreams, u => u.Id, u => u.Version);
+        var hosts = Versions(current.Hosts, h => h.Id, h => h.Version);
 
         // Not in the current document and untouched only happens with duplicate IDs (invalid): a new version then.
         long VersionOf<TId>(Dictionary<TId, long> versions, TId id, bool isTouched)
             where TId : notnull =>
-            !isTouched && versions.TryGetValue(id, out long version) ? version : next;
+            !isTouched && versions.TryGetValue(id, out var version) ? version : next;
 
-        GlobalSettings settings = document.Settings ?? new();
+        var settings = document.Settings ?? new();
         return document with
         {
             Settings = settings with { Version = touched.Settings ? next : current.Settings.Version },
@@ -53,7 +53,7 @@ internal static class ConfigVersions
         where TId : notnull
     {
         Dictionary<TId, long> versions = [];
-        foreach (T item in items)
+        foreach (var item in items)
         {
             versions.TryAdd(idOf(item), versionOf(item));
         }

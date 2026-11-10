@@ -35,7 +35,7 @@ else if (_entries is null)
     {
         <div class="pdk-history" aria-busy="true">
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
-                @for (int i = 0; i < 5; i++)
+                @for (var i = 0; i < 5; i++)
                 {
                     <div class="pdk-row-skeleton">
                         <MudSkeleton SkeletonType="SkeletonType.Circle" Width="28px" Height="28px" />
@@ -68,10 +68,10 @@ else
     <div class="pdk-history">
         <MudPaper Class="pdk-card pdk-timeline-card" Elevation="0" Outlined="true">
             <ol class="pdk-timeline" aria-label="Revisions">
-                @foreach (RevisionTimelineEntry entry in _entries)
+                @foreach (var entry in _entries)
                 {
-                    RevisionSummary revision = entry.Revision;
-                    bool selected = revision.Id == _selected?.Revision.Id;
+                    var revision = entry.Revision;
+                    var selected = revision.Id == _selected?.Revision.Id;
                     <li @key="revision.Id" class="pdk-timeline-item @(selected ? "pdk-selected" : null)" data-seq="@revision.Seq">
                         <a href="@DashboardRoutes.Revision(revision.Id)" class="pdk-timeline-link" aria-current="@(selected ? "true" : null)">
                             <span class="pdk-seq">#@revision.Seq</span>
@@ -131,7 +131,7 @@ else
                     <MudSelect T="ConfigRevisionId?" Value="_compareWith" ValueChanged="CompareAsync" Label="Compare with" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
                                ToStringFunc="CompareLabel" Class="pdk-compare-select">
                         <MudSelectItem T="ConfigRevisionId?" Value="null">@(detail.Revision.ParentId is null ? "The empty config (before #1)" : "The revision before it")</MudSelectItem>
-                        @foreach (RevisionTimelineEntry other in _entries.Where(e => e.Revision.Id != detail.Revision.Id))
+                        @foreach (var other in _entries.Where(e => e.Revision.Id != detail.Revision.Id))
                         {
                             <MudSelectItem T="ConfigRevisionId?" Value="other.Revision.Id">#@other.Revision.Seq @(other.Revision.Message ?? RevisionText.Summary(other.Changes))</MudSelectItem>
                         }
@@ -207,7 +207,7 @@ else
             }
         }
 
-        ConfigRevisionId? wanted = ConfigRevisionId.TryParse(RevisionKey, out ConfigRevisionId parsed) ? parsed : _latest?.Id;
+        var wanted = ConfigRevisionId.TryParse(RevisionKey, out var parsed) ? parsed : _latest?.Id;
         if (wanted is { } id && id != _selected?.Revision.Id)
         {
             await SelectAsync(id);
@@ -219,7 +219,7 @@ else
     private async Task<bool> LoadAsync()
     {
         _failed = false;
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return false;
@@ -241,7 +241,7 @@ else
                 _users = (await Config.ListUsersAsync(user.Session.OriginFor(Channel.Dashboard))).ToDictionary(u => u.Id, u => string.IsNullOrWhiteSpace(u.DisplayName) ? u.Username : u.DisplayName);
             }
 
-            RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, null);
+            var page = await Config.ListRevisionsAsync(PageSize, null);
             _entries = [.. page?.Items ?? []];
             _next = page?.Next;
             _latest = _entries.Count > 0 ? _entries[0].Revision : null;
@@ -258,7 +258,7 @@ else
     /// <summary>A commit happened: put the new revisions on top, keeping what is loaded and selected.</summary>
     private async Task RefreshAsync()
     {
-        RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, null);
+        var page = await Config.ListRevisionsAsync(PageSize, null);
         if (page is null || _entries is null)
         {
             return;
@@ -266,7 +266,7 @@ else
 
         HashSet<ConfigRevisionId> known = [.. _entries.Select(e => e.Revision.Id)];
         _entries.InsertRange(0, page.Items.TakeWhile(e => !known.Contains(e.Revision.Id)));
-        bool followLatest = _selected is null || _selected.Revision.Id == _latest?.Id;
+        var followLatest = _selected is null || _selected.Revision.Id == _latest?.Id;
         _latest = _entries.Count > 0 ? _entries[0].Revision : null;
         if (followLatest && _latest is not null && RevisionKey is null)
         {
@@ -286,7 +286,7 @@ else
         {
             await Logger.TryAsync(Snackbar, "Couldn't load the older revisions.", async () =>
             {
-                RevisionTimelinePage? page = await Config.ListRevisionsAsync(PageSize, after);
+                var page = await Config.ListRevisionsAsync(PageSize, after);
                 _entries.AddRange(page?.Items ?? []);
                 _next = page?.Next;
             });
@@ -310,7 +310,7 @@ else
                 return;
             }
 
-            ConfigDocument before = _selected.Revision.ParentId is { } parent && await Config.GetRevisionAsync(parent) is { } parentDetail
+            var before = _selected.Revision.ParentId is { } parent && await Config.GetRevisionAsync(parent) is { } parentDetail
                 ? parentDetail.Document
                 : ConfigService.InitialDocument;
             _groups = ChangeView.Build(before, _selected.Document, _selected.Changes);
@@ -353,7 +353,7 @@ else
                 }
 
                 // Older on the left: the diff reads as "from, to" whichever was picked first.
-                (RevisionDetail from, RevisionDetail to) = compared.Revision.Seq < selected.Revision.Seq ? (compared, selected) : (selected, compared);
+                var (from, to) = compared.Revision.Seq < selected.Revision.Seq ? (compared, selected) : (selected, compared);
                 _groups = ChangeView.Build(from.Document, to.Document, ConfigDiff.Compare(from.Document, to.Document));
                 _diffCaption = $"From #{from.Revision.Seq} to #{to.Revision.Seq}.";
             });

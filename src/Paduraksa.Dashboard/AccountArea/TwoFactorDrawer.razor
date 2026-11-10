@@ -1,6 +1,5 @@
 @implements IDisposable
 @using Paduraksa.Application.Identity
-@using Paduraksa.Contracts.Identity
 @inject IDashboardIdentity Identity
 @inject DashboardCaller Caller
 @inject ISnackbar Snackbar
@@ -91,7 +90,7 @@
 
     private async Task ConfirmPasswordAsync()
     {
-        string password = _password ?? string.Empty;
+        var password = _password ?? string.Empty;
         _password = null;
         _error = null;
         if (password.Length == 0)
@@ -110,7 +109,7 @@
         {
             if (Step == TwoFactorStep.Regenerate)
             {
-                RecoveryCodesResult? result = await Identity.RegenerateRecoveryCodesAsync(origin, password);
+                var result = await Identity.RegenerateRecoveryCodesAsync(origin, password);
                 if (result is { Status: IdentityStatus.Succeeded, Codes: { } codes })
                 {
                     _codes = codes.Codes;
@@ -128,7 +127,7 @@
             }
             else
             {
-                IdentityResult? result = await Identity.DisableTotpAsync(origin, password);
+                var result = await Identity.DisableTotpAsync(origin, password);
                 if (result is { Succeeded: true })
                 {
                     Snackbar.Add("Two-step verification is off.", Severity.Info);

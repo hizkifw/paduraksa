@@ -3,11 +3,9 @@ using System.Net;
 using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
-
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
@@ -126,10 +124,12 @@ public sealed partial class ConfigService : IDisposable
         _lastKnownGood = lastKnownGood;
         _audit = new AuditLog(_timeProvider, loggerFactory.CreateLogger<AuditLog>());
         _logger = loggerFactory.CreateLogger<ConfigService>();
-        _certificates = new CertificateInventoryLoader(certificateSource, builtInCertificates, _timeProvider, loggerFactory.CreateLogger<CertificateInventoryLoader>());
+        _certificates = new CertificateInventoryLoader(certificateSource, builtInCertificates, _timeProvider,
+            loggerFactory.CreateLogger<CertificateInventoryLoader>());
         // Drafts and old revisions never load the vault's keys: what the vault describes decides what is usable, and the
         // inventory serves placeholder certificates.
-        _simulationCertificates = CertificateInventoryLoader.ForSimulation(certificateCatalog, builtInCertificates, _timeProvider, loggerFactory.CreateLogger<CertificateInventoryLoader>());
+        _simulationCertificates = CertificateInventoryLoader.ForSimulation(certificateCatalog, builtInCertificates,
+            _timeProvider, loggerFactory.CreateLogger<CertificateInventoryLoader>());
     }
 
     /// <summary>The config before the first commit: no objects, default settings, every version 0.</summary>
@@ -146,7 +146,7 @@ public sealed partial class ConfigService : IDisposable
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            (StoredRevision? latest, ConfigDocument document) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
+            var (latest, document) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
             return new CurrentConfig(document, latest is null ? null : Ref(latest.Info));
         }
     }
@@ -157,7 +157,8 @@ public sealed partial class ConfigService : IDisposable
     /// <paramref name="cancellationToken"/> stops a command until it is decided; once rejected or committed, it reports
     /// that.
     /// </summary>
-    public async Task<ConfigCommandResult> ExecuteAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken = default)
+    public async Task<ConfigCommandResult> ExecuteAsync(ConfigCommand command, CommandOrigin origin,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(origin);
@@ -177,7 +178,9 @@ public sealed partial class ConfigService : IDisposable
             _writer.Release();
         }
 
-        return execution.Publish is null ? execution.Result : await FinishPublishAsync(execution, origin).ConfigureAwait(false);
+        return execution.Publish is null
+            ? execution.Result
+            : await FinishPublishAsync(execution, origin).ConfigureAwait(false);
     }
 
     /// <summary>Stops new commands (they throw <see cref="ObjectDisposedException"/>); commands in flight finish.</summary>
@@ -191,18 +194,21 @@ public sealed partial class ConfigService : IDisposable
         }
     }
 
-    private async Task<Execution> ExecuteExclusiveAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken)
+    private async Task<Execution> ExecuteExclusiveAsync(ConfigCommand command, CommandOrigin origin,
+        CancellationToken cancellationToken)
     {
-        Audited audited = Describe(command);
+        var audited = Describe(command);
         if (!await _authorizer.IsAllowedAsync(command, origin, cancellationToken).ConfigureAwait(false))
         {
-            return await RejectAsync(command, origin, audited, new(ConfigCommandStatus.Denied), AuditOutcome.Denied).ConfigureAwait(false);
+            return await RejectAsync(command, origin, audited, new(ConfigCommandStatus.Denied), AuditOutcome.Denied)
+                .ConfigureAwait(false);
         }
 
-        string? message = string.IsNullOrWhiteSpace(command.Message) ? null : command.Message.Trim();
+        var message = string.IsNullOrWhiteSpace(command.Message) ? null : command.Message.Trim();
         if (MessageProblem(message) is { } problem)
         {
-            ConfigCommandResult invalid = new(ConfigCommandStatus.Invalid, Errors: [new ConfigError(string.Empty, MessageInvalidCode, problem)]);
+            ConfigCommandResult invalid = new(ConfigCommandStatus.Invalid,
+                Errors: [new ConfigError(string.Empty, MessageInvalidCode, problem)]);
             return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
         }
 
@@ -213,7 +219,8 @@ public sealed partial class ConfigService : IDisposable
 
         // Another process committed between the load and the commit: once more, on the new head.
         LogHeadMoved(audited.Action);
-        if (await AttemptAsync(command, origin, audited, message, cancellationToken).ConfigureAwait(false) is { } second)
+        if (await AttemptAsync(command, origin, audited, message, cancellationToken).ConfigureAwait(false) is
+            { } second)
         {
             return second;
         }
@@ -223,31 +230,41 @@ public sealed partial class ConfigService : IDisposable
 
     /// <summary>Load, plan, validate, compile and commit; null when the head moved before the commit (rolled back).</summary>
     private async Task<Execution?> AttemptAsync(
-        ConfigCommand command, CommandOrigin origin, Audited audited, string? message, CancellationToken cancellationToken, bool simulation = false)
+        ConfigCommand command, CommandOrigin origin, Audited audited, string? message,
+        CancellationToken cancellationToken, bool simulation = false)
     {
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            (StoredRevision? latest, ConfigDocument current) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
-            RevisionRef? head = latest is null ? null : Ref(latest.Info);
-            Plan plan = command switch
+            var (latest, current) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
+            var head = latest is null ? null : Ref(latest.Info);
+            var plan = command switch
             {
-                UpsertHostCommand c => Upsert(head, Required(c.Host), "hosts", current.Hosts, h => h.Id.ToString(), h => h.Version, l => current with { Hosts = l }),
-                DeleteHostCommand c => Delete(head, c.HostId.ToString(), c.Version, current.Hosts, h => h.Id.ToString(), h => h.Version, l => current with { Hosts = l }),
-                UpsertUpstreamCommand c => Upsert(head, Required(c.Upstream), "upstreams", current.Upstreams, u => u.Id.ToString(), u => u.Version, l => current with { Upstreams = l }),
-                DeleteUpstreamCommand c => Delete(head, c.UpstreamId.ToString(), c.Version, current.Upstreams, u => u.Id.ToString(), u => u.Version, l => current with { Upstreams = l }),
-                UpsertProfileCommand c => Upsert(head, Required(c.Profile), "profiles", current.Profiles, p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
-                DeleteProfileCommand c => Delete(head, c.ProfileId.ToString(), c.Version, current.Profiles, p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
+                UpsertHostCommand c => Upsert(head, Required(c.Host), "hosts", current.Hosts, h => h.Id.ToString(),
+                    h => h.Version, l => current with { Hosts = l }),
+                DeleteHostCommand c => Delete(head, c.HostId.ToString(), c.Version, current.Hosts, h => h.Id.ToString(),
+                    h => h.Version, l => current with { Hosts = l }),
+                UpsertUpstreamCommand c => Upsert(head, Required(c.Upstream), "upstreams", current.Upstreams,
+                    u => u.Id.ToString(), u => u.Version, l => current with { Upstreams = l }),
+                DeleteUpstreamCommand c => Delete(head, c.UpstreamId.ToString(), c.Version, current.Upstreams,
+                    u => u.Id.ToString(), u => u.Version, l => current with { Upstreams = l }),
+                UpsertProfileCommand c => Upsert(head, Required(c.Profile), "profiles", current.Profiles,
+                    p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
+                DeleteProfileCommand c => Delete(head, c.ProfileId.ToString(), c.Version, current.Profiles,
+                    p => p.Id.ToString(), p => p.Version, l => current with { Profiles = l }),
                 UpdateSettingsCommand c => UpdateSettings(current, head, Required(c.Settings)),
-                ReplaceConfigCommand c => await ReplaceAsync(context, current, head, Required(c.Document), c.BaseRevision, null, cancellationToken).ConfigureAwait(false),
-                RollbackConfigCommand c => await RollbackAsync(context, current, head, c, cancellationToken).ConfigureAwait(false),
+                ReplaceConfigCommand c => await ReplaceAsync(context, current, head, Required(c.Document),
+                    c.BaseRevision, null, cancellationToken).ConfigureAwait(false),
+                RollbackConfigCommand c => await RollbackAsync(context, current, head, c, cancellationToken)
+                    .ConfigureAwait(false),
                 _ => throw new ArgumentException($"Unknown command {command.GetType().Name}.", nameof(command)),
             };
 
-            IReadOnlyList<ConfigChange> changes = plan.Arranged is null ? [] : ConfigDiff.Compare(current, plan.Arranged);
+            var changes = plan.Arranged is null ? [] : ConfigDiff.Compare(current, plan.Arranged);
             if (plan.Early is { } early)
             {
-                return await RejectAsync(command, origin, audited, early with { Changes = changes }, plan.EarlyOutcome).ConfigureAwait(false);
+                return await RejectAsync(command, origin, audited, early with { Changes = changes }, plan.EarlyOutcome)
+                    .ConfigureAwait(false);
             }
 
             if (changes.Count == 0)
@@ -258,36 +275,39 @@ public sealed partial class ConfigService : IDisposable
                     : new Execution(new ConfigCommandResult(ConfigCommandStatus.Unchanged));
             }
 
-            long next = (latest?.Info.Seq ?? 0) + 1;
+            var next = (latest?.Info.Seq ?? 0) + 1;
             long? version = plan.Own is null ? null : next;
-            ConfigDocument stamped = ConfigVersions.Stamp(plan.Arranged!, current, changes, next);
-            ConfigDocument candidate = CanonicalConfigJson.Canonicalize(stamped);
-            IReadOnlyList<ConfigError> errors = ConfigValidator.Validate(stamped);
+            var stamped = ConfigVersions.Stamp(plan.Arranged!, current, changes, next);
+            var candidate = CanonicalConfigJson.Canonicalize(stamped);
+            var errors = ConfigValidator.Validate(stamped);
             if (errors.Count > 0)
             {
-                ConfigCommandResult invalid = Invalid(plan, stamped, candidate, errors, changes);
+                var invalid = Invalid(plan, stamped, candidate, errors, changes);
                 return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
             }
 
-            ConfigRevisionId revisionId = command.DryRun ? ConfigRevisionId.Empty : _revisions.NextId();
-            CertificateInventory inventory = await (simulation ? _simulationCertificates : _certificates).LoadAsync(context, candidate, cancellationToken).ConfigureAwait(false);
-            ConfigCompilation compilation = _compiler.Compile(candidate, revisionId, inventory);
+            var revisionId = command.DryRun ? ConfigRevisionId.Empty : _revisions.NextId();
+            var inventory = await (simulation ? _simulationCertificates : _certificates)
+                .LoadAsync(context, candidate, cancellationToken).ConfigureAwait(false);
+            var compilation = _compiler.Compile(candidate, revisionId, inventory);
             if (compilation.Snapshot is not { } snapshot)
             {
-                IReadOnlyList<ConfigError> compileErrors = compilation.Errors.Count > 0
+                var compileErrors = compilation.Errors.Count > 0
                     ? compilation.Errors
                     : [new ConfigError(string.Empty, ConfigErrorCodes.CompileFailed, "the config didn't compile")];
-                ConfigCommandResult invalid = Invalid(plan, candidate, candidate, compileErrors, changes);
+                var invalid = Invalid(plan, candidate, candidate, compileErrors, changes);
                 return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
             }
 
             // An ordinary command may not introduce a binding to a certificate that can't be used; it may leave one that
             // went bad. A rollback and the system's restore after a lost database put back a config that already was
             // accepted once: like startup, they degrade with warnings (the inventory may be gone with the database).
-            bool restoring = command is RollbackConfigCommand || (command is ReplaceConfigCommand && origin.Actor.Kind == ActorKind.System);
-            if (!restoring && IntroducedUnusableBindings(current, candidate, compilation.Warnings) is { Count: > 0 } unusable)
+            var restoring = command is RollbackConfigCommand ||
+                            (command is ReplaceConfigCommand && origin.Actor.Kind == ActorKind.System);
+            if (!restoring && IntroducedUnusableBindings(current, candidate, compilation.Warnings) is
+                    { Count: > 0 } unusable)
             {
-                ConfigCommandResult invalid = Invalid(plan, candidate, candidate, unusable, changes);
+                var invalid = Invalid(plan, candidate, candidate, unusable, changes);
                 return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
             }
 
@@ -296,20 +316,26 @@ public sealed partial class ConfigService : IDisposable
             // `force` is the explicit override. A draft simulator run never commits, so it is not guarded.
             if (!simulation && origin.ViaAdminProxy && !command.Force && origin.AdminRequest is { } requestFacts)
             {
-                RuntimeSnapshot before = await CurrentGuardSnapshotAsync(current, inventory, cancellationToken).ConfigureAwait(false);
-                if (AdminAccessLost(current, candidate, before, snapshot, requestFacts, compilation.Warnings) is { } lockout)
+                var before = await CurrentGuardSnapshotAsync(current, inventory, cancellationToken)
+                    .ConfigureAwait(false);
+                if (AdminAccessLost(current, candidate, before, snapshot, requestFacts, compilation.Warnings) is
+                    { } lockout)
                 {
                     ConfigCommandResult refused = new(ConfigCommandStatus.Invalid, Changes: changes, Errors: [lockout]);
-                    return await RejectAsync(command, origin, audited, refused, AuditOutcome.Invalid).ConfigureAwait(false);
+                    return await RejectAsync(command, origin, audited, refused, AuditOutcome.Invalid)
+                        .ConfigureAwait(false);
                 }
             }
 
             if (command.DryRun)
             {
-                return new Execution(new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: changes, Version: version, Warnings: compilation.Warnings), Candidate: snapshot);
+                return new Execution(
+                    new ConfigCommandResult(ConfigCommandStatus.DryRun, Changes: changes, Version: version,
+                        Warnings: compilation.Warnings), Candidate: snapshot);
             }
 
-            return await CommitAsync(context, origin, audited, latest, candidate, changes, revisionId, compilation, message ?? plan.DefaultMessage, version, cancellationToken)
+            return await CommitAsync(context, origin, audited, latest, candidate, changes, revisionId, compilation,
+                    message ?? plan.DefaultMessage, version, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -328,14 +354,14 @@ public sealed partial class ConfigService : IDisposable
         long? version,
         CancellationToken cancellationToken)
     {
-        byte[] document = CanonicalConfigJson.Serialize(candidate);
-        string summary = JsonSerializer.Serialize(changes, ConfigJsonContext.Default.IReadOnlyListConfigChange);
+        var document = CanonicalConfigJson.Serialize(candidate);
+        var summary = JsonSerializer.Serialize(changes, ConfigJsonContext.Default.IReadOnlyListConfigChange);
         RevisionInfo info;
         var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         await using (transaction.ConfigureAwait(false))
         {
             // The transaction holds the database's write lock (BEGIN IMMEDIATE), so the head can't move after this.
-            ConfigRevisionId? actualHead = await context.ConfigRevisions
+            var actualHead = await context.ConfigRevisions
                 .OrderByDescending(r => r.Seq)
                 .Select(r => (ConfigRevisionId?)r.Id)
                 .FirstOrDefaultAsync(cancellationToken)
@@ -346,10 +372,13 @@ public sealed partial class ConfigService : IDisposable
                 return null;
             }
 
-            info = await _revisions.AppendAsync(context, new NewRevision(document, summary, origin.Actor, origin.Channel, message) { Id = revisionId }, cancellationToken)
+            info = await _revisions.AppendAsync(context,
+                    new NewRevision(document, summary, origin.Actor, origin.Channel, message) { Id = revisionId },
+                    cancellationToken)
                 .ConfigureAwait(false);
-            await ConfigProjection.WriteAsync(context, candidate, changes, info.Id, latest?.Info.Id, cancellationToken).ConfigureAwait(false);
-            AuditEntry entry = Entry(origin, audited, AuditOutcome.Success) with
+            await ConfigProjection.WriteAsync(context, candidate, changes, info.Id, latest?.Info.Id, cancellationToken)
+                .ConfigureAwait(false);
+            var entry = Entry(origin, audited, AuditOutcome.Success) with
             {
                 RevisionId = info.Id,
                 Details = Json(w =>
@@ -362,12 +391,15 @@ public sealed partial class ConfigService : IDisposable
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        RevisionRef revision = Ref(info);
+        var revision = Ref(info);
         LogCommitted(revision.Seq, info.Id, audited.Action, origin.Actor, origin.Channel, changes.Count);
-        PublishTicket ticket = new(revision, StartPublish(compilation.Snapshot!, compilation), new LastKnownGoodEntry(revision, document, info.DocumentHash));
+        PublishTicket ticket = new(revision, StartPublish(compilation.Snapshot!, compilation),
+            new LastKnownGoodEntry(revision, document, info.DocumentHash));
         _latestPublish = ticket;
         Changes.Publish(new ConfigCommitted(revision, changes));
-        return new Execution(new ConfigCommandResult(ConfigCommandStatus.Committed, revision, changes, Version: version, Warnings: compilation.Warnings), ticket);
+        return new Execution(
+            new ConfigCommandResult(ConfigCommandStatus.Committed, revision, changes, Version: version,
+                Warnings: compilation.Warnings), ticket);
     }
 
     /// <summary>
@@ -378,13 +410,13 @@ public sealed partial class ConfigService : IDisposable
     private async Task<RuntimeSnapshot> CurrentGuardSnapshotAsync(
         ConfigDocument current, CertificateInventory inventory, CancellationToken cancellationToken)
     {
-        RuntimeSnapshot live = _publisher.Store.Current;
+        var live = _publisher.Store.Current;
         if (live.HostsByIndex.Any(static host => host.Routes.Any(static route => route.Admin)))
         {
             return live;
         }
 
-        ConfigCompilation compilation = _compiler.Compile(current, ConfigRevisionId.Empty, inventory);
+        var compilation = _compiler.Compile(current, ConfigRevisionId.Empty, inventory);
         return compilation.Snapshot ?? RuntimeSnapshot.Bootstrap;
     }
 
@@ -401,22 +433,24 @@ public sealed partial class ConfigService : IDisposable
         AdminRequestFacts request,
         IReadOnlyList<ConfigWarning> warnings)
     {
-        HostConfig? admin = current.Hosts.FirstOrDefault(static h => h is { Kind: HostKind.Admin, Enabled: true });
+        var admin = current.Hosts.FirstOrDefault(static h => h is { Kind: HostKind.Admin, Enabled: true });
         if (admin is null || !ForwardsToAdmin(before, request))
         {
             return null;
         }
 
-        string path = AdminHostPath(current, candidate, admin);
+        var path = AdminHostPath(current, candidate, admin);
         if (!SameTrustedProxies(current.Settings.TrustedProxies, candidate.Settings.TrustedProxies))
         {
-            return Lockout("/settings/trustedProxies", "changing the trusted proxies while the command arrives through the proxy");
+            return Lockout("/settings/trustedProxies",
+                "changing the trusted proxies while the command arrives through the proxy");
         }
 
-        HostConfig? adminAfter = candidate.Hosts.FirstOrDefault(static h => h.Kind == HostKind.Admin);
+        var adminAfter = candidate.Hosts.FirstOrDefault(static h => h.Kind == HostKind.Admin);
         if (adminAfter is not null
             && CommandErrors.PathOf(candidate, "hosts", adminAfter.Id.ToString()) is { } afterPath
-            && warnings.Any(w => w.Code == ConfigWarningCodes.CertificateSpecificNoCoverage && IsAtOrBelow(w.Path, afterPath)))
+            && warnings.Any(w =>
+                w.Code == ConfigWarningCodes.CertificateSpecificNoCoverage && IsAtOrBelow(w.Path, afterPath)))
         {
             return Lockout(path, "the admin host's certificate doesn't cover its names");
         }
@@ -426,11 +460,12 @@ public sealed partial class ConfigService : IDisposable
             return null;
         }
 
-        GateSimulation simulation = GateSimulator.Run(after, ProbeOf(request));
-        string why = simulation.Outcome.Action switch
+        var simulation = GateSimulator.Run(after, ProbeOf(request));
+        var why = simulation.Outcome.Action switch
         {
             GateOutcomeAction.Forward => "the host would forward somewhere other than the admin app",
-            GateOutcomeAction.Respond => $"the host would answer {simulation.Outcome.StatusCode} instead of forwarding to the admin app",
+            GateOutcomeAction.Respond =>
+                $"the host would answer {simulation.Outcome.StatusCode} instead of forwarding to the admin app",
             _ => "the request would be rejected before reaching the admin app",
         };
         return Lockout(path, why);
@@ -438,7 +473,7 @@ public sealed partial class ConfigService : IDisposable
 
     private static bool ForwardsToAdmin(RuntimeSnapshot snapshot, AdminRequestFacts request)
     {
-        GateSimulation simulation = GateSimulator.Run(snapshot, ProbeOf(request));
+        var simulation = GateSimulator.Run(snapshot, ProbeOf(request));
         return simulation.Outcome.Action == GateOutcomeAction.Forward && simulation.Upstream is { Admin: true };
     }
 
@@ -457,13 +492,13 @@ public sealed partial class ConfigService : IDisposable
         path,
         ConfigErrorCodes.HostAdminLockout,
         $"The request that sent this command would no longer reach the admin app: {why}. "
-            + "Repeat it with force=true if that is what you mean, or make it on the admin port.");
+        + "Repeat it with force=true if that is what you mean, or make it on the admin port.");
 
     /// <summary>The admin host's pointer in the candidate when it exists, otherwise where it was in the current document.</summary>
     private static string AdminHostPath(ConfigDocument current, ConfigDocument candidate, HostConfig admin) =>
         CommandErrors.PathOf(candidate, "hosts", admin.Id.ToString())
-            ?? CommandErrors.PathOf(current, "hosts", admin.Id.ToString())
-            ?? "/hosts";
+        ?? CommandErrors.PathOf(current, "hosts", admin.Id.ToString())
+        ?? "/hosts";
 
     private static bool SameTrustedProxies(TrustedProxySettings left, TrustedProxySettings right) =>
         left.Mode == right.Mode
@@ -474,7 +509,8 @@ public sealed partial class ConfigService : IDisposable
         && (left.Proxies ?? []).SequenceEqual(right.Proxies ?? [], StringComparer.Ordinal);
 
     private static bool IsAtOrBelow(string path, string prefix) =>
-        path.StartsWith(prefix, StringComparison.Ordinal) && (path.Length == prefix.Length || path[prefix.Length] == '/');
+        path.StartsWith(prefix, StringComparison.Ordinal) &&
+        (path.Length == prefix.Length || path[prefix.Length] == '/');
 
     /// <summary>
     /// The errors for certificate bindings that <paramref name="candidate"/> introduces and that can't be used:
@@ -482,25 +518,28 @@ public sealed partial class ConfigService : IDisposable
     /// missing, expired, pending, failed or without a key. A binding the current config already has is left alone, so a
     /// certificate that expired since doesn't block unrelated changes (it stays a warning).
     /// </summary>
-    private static List<ConfigError> IntroducedUnusableBindings(ConfigDocument current, ConfigDocument candidate, IReadOnlyList<ConfigWarning> warnings)
+    private static List<ConfigError> IntroducedUnusableBindings(ConfigDocument current, ConfigDocument candidate,
+        IReadOnlyList<ConfigWarning> warnings)
     {
         List<ConfigError> errors = [];
-        foreach (ConfigWarning warning in warnings)
+        foreach (var warning in warnings)
         {
             if (warning.Code == ConfigWarningCodes.CertificateDefaultUnusable)
             {
                 if (candidate.Settings.DefaultCertificateId != current.Settings.DefaultCertificateId)
                 {
-                    errors.Add(new ConfigError(warning.Path, ConfigErrorCodes.SettingsDefaultCertificateUnusable, warning.Message));
+                    errors.Add(new ConfigError(warning.Path, ConfigErrorCodes.SettingsDefaultCertificateUnusable,
+                        warning.Message));
                 }
             }
             else if (warning.Code == ConfigWarningCodes.CertificateSpecificUnusable
-                && CommandErrors.HostIndexOf(warning.Path) is { } index && index < candidate.Hosts.Count)
+                     && CommandErrors.HostIndexOf(warning.Path) is { } index && index < candidate.Hosts.Count)
             {
-                HostConfig host = candidate.Hosts[index];
+                var host = candidate.Hosts[index];
                 if (current.Hosts.FirstOrDefault(h => h.Id == host.Id)?.Certificate != host.Certificate)
                 {
-                    errors.Add(new ConfigError(warning.Path, ConfigErrorCodes.HostCertificateUnusable, warning.Message));
+                    errors.Add(new ConfigError(warning.Path, ConfigErrorCodes.HostCertificateUnusable,
+                        warning.Message));
                 }
             }
         }
@@ -509,15 +548,17 @@ public sealed partial class ConfigService : IDisposable
     }
 
     /// <summary>The head moved twice: a conflict naming the real head and the object's current version.</summary>
-    private async Task<Execution> RejectHeadMovedAsync(ConfigCommand command, CommandOrigin origin, Audited audited, CancellationToken cancellationToken)
+    private async Task<Execution> RejectHeadMovedAsync(ConfigCommand command, CommandOrigin origin, Audited audited,
+        CancellationToken cancellationToken)
     {
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            (StoredRevision? latest, ConfigDocument current) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
+            var (latest, current) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
             ConfigCommandResult conflict = new(
                 ConfigCommandStatus.Conflict,
-                Conflict: new ConfigConflict([], latest is null ? null : Ref(latest.Info), CurrentVersionOf(command, current)));
+                Conflict: new ConfigConflict([], latest is null ? null : Ref(latest.Info),
+                    CurrentVersionOf(command, current)));
             return await RejectAsync(command, origin, audited, conflict, AuditOutcome.Conflict).ConfigureAwait(false);
         }
     }
@@ -547,7 +588,9 @@ public sealed partial class ConfigService : IDisposable
             return Task.FromResult(new PublishResult(
                 PublishStatus.Failed,
                 0,
-                ["The candidate snapshot was refused by the publisher, so nothing went live. The details are in the server log under this response's trace ID."]));
+                [
+                    "The candidate snapshot was refused by the publisher, so nothing went live. The details are in the server log under this response's trace ID."
+                ]));
         }
 
         _ = publishing.ContinueWith(
@@ -595,12 +638,17 @@ public sealed partial class ConfigService : IDisposable
             _warnings = compilation.Warnings;
             _validityTimer?.Dispose();
             _validityTimer = null;
-            if (compilation.ValidityChangesAt is { } at)
+
+            if (compilation.ValidityChangesAt is not { } at)
             {
-                TimeSpan due = at - _timeProvider.GetUtcNow();
-                due = due < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) : due > MaxTimerDelay ? MaxTimerDelay : due;
-                _validityTimer = _timeProvider.CreateTimer(static state => ((ConfigService)state!).OnValidityChanged(), this, due, Timeout.InfiniteTimeSpan);
+                return;
             }
+
+            var due = at - _timeProvider.GetUtcNow();
+            due = due < TimeSpan.FromSeconds(1) ? TimeSpan.FromSeconds(1) :
+                due > MaxTimerDelay ? MaxTimerDelay : due;
+            _validityTimer = _timeProvider.CreateTimer(static state => ((ConfigService)state!).OnValidityChanged(),
+                this, due, Timeout.InfiniteTimeSpan);
         }
     }
 
@@ -608,25 +656,29 @@ public sealed partial class ConfigService : IDisposable
 
     private async Task<ConfigCommandResult> FinishPublishAsync(Execution execution, CommandOrigin origin)
     {
-        long started = _timeProvider.GetTimestamp();
+        var started = _timeProvider.GetTimestamp();
+
         TimeSpan Remaining()
         {
-            TimeSpan left = _options.PublishWait - _timeProvider.GetElapsedTime(started);
+            var left = _options.PublishWait - _timeProvider.GetElapsedTime(started);
             return left > TimeSpan.Zero ? left : TimeSpan.Zero;
         }
 
-        PublishTicket own = execution.Publish!;
-        ConfigCommandResult committed = execution.Result;
+        var own = execution.Publish!;
+        var committed = execution.Result;
         if (await WaitAsync(own.Task, Remaining()).ConfigureAwait(false) is not { } result)
         {
             LogPublishPending(own.Revision.Seq, own.Revision.Id, _options.PublishWait);
             _ = AuditLatePublishAsync(own, origin);
-            return committed with { Publish = new PublishOutcome(PublishOutcomeStatus.Pending, 0, [], own.Revision.Id) };
+            return committed with
+            {
+                Publish = new PublishOutcome(PublishOutcomeStatus.Pending, 0, [], own.Revision.Id)
+            };
         }
 
         if (result.Status != PublishStatus.Superseded)
         {
-            PublishOutcome outcome = Map(result, own.Revision.Id);
+            var outcome = Map(result, own.Revision.Id);
             if (outcome.Succeeded)
             {
                 WentLive(own);
@@ -638,13 +690,16 @@ public sealed partial class ConfigService : IDisposable
         }
 
         // Superseded: a newer commit's publish carries this change, so its outcome is this one's. Its owner audits it.
-        PublishTicket followed = own;
+        var followed = own;
         while (true)
         {
             // The newer ticket is set under the writer lock right after it is queued, so read it under the lock.
             if (!await _writer.WaitAsync(Remaining()).ConfigureAwait(false))
             {
-                return committed with { Publish = new PublishOutcome(PublishOutcomeStatus.Pending, 0, [], followed.Revision.Id) };
+                return committed with
+                {
+                    Publish = new PublishOutcome(PublishOutcomeStatus.Pending, 0, [], followed.Revision.Id)
+                };
             }
 
             PublishTicket? newer;
@@ -658,9 +713,13 @@ public sealed partial class ConfigService : IDisposable
             }
 
             if (newer is null || ReferenceEquals(newer, followed)
-                || await WaitAsync(newer.Task, Remaining()).ConfigureAwait(false) is not { } latest)
+                              || await WaitAsync(newer.Task, Remaining()).ConfigureAwait(false) is not { } latest)
             {
-                return committed with { Publish = new PublishOutcome(PublishOutcomeStatus.Pending, 0, [], (newer ?? followed).Revision.Id) };
+                return committed with
+                {
+                    Publish = new PublishOutcome(PublishOutcomeStatus.Pending, 0, [],
+                        (newer ?? followed).Revision.Id)
+                };
             }
 
             if (latest.Status == PublishStatus.Superseded)
@@ -669,7 +728,7 @@ public sealed partial class ConfigService : IDisposable
                 continue;
             }
 
-            PublishOutcome outcome = Map(latest, newer.Revision.Id);
+            var outcome = Map(latest, newer.Revision.Id);
             if (outcome.Succeeded)
             {
                 WentLive(newer); // before this returns; its own command does it too
@@ -699,7 +758,7 @@ public sealed partial class ConfigService : IDisposable
     /// on failure, logs and audits it.</summary>
     private async Task AuditLatePublishAsync(PublishTicket ticket, CommandOrigin origin)
     {
-        PublishResult result = await ticket.Task.ConfigureAwait(false); // the publisher completes its tasks, never faults them
+        var result = await ticket.Task.ConfigureAwait(false); // the publisher completes its tasks, never faults them
         if (result.Status == PublishStatus.Published)
         {
             WentLive(ticket);
@@ -726,7 +785,7 @@ public sealed partial class ConfigService : IDisposable
             {
                 w.WriteString("status", DocumentNames.Of(outcome.Status));
                 w.WriteStartArray("errors");
-                foreach (string error in outcome.Errors.Take(MaxAuditedCodes))
+                foreach (var error in outcome.Errors.Take(MaxAuditedCodes))
                 {
                     w.WriteStringValue(error.Length > MaxAuditedErrorLength ? error[..MaxAuditedErrorLength] : error);
                 }
@@ -738,35 +797,42 @@ public sealed partial class ConfigService : IDisposable
     }
 
     /// <summary>Audits a rejected command (not dry runs) and returns its result, whether or not the audit write works.</summary>
-    private async Task<Execution> RejectAsync(ConfigCommand command, CommandOrigin origin, Audited audited, ConfigCommandResult result, AuditOutcome outcome)
+    private async Task<Execution> RejectAsync(ConfigCommand command, CommandOrigin origin, Audited audited,
+        ConfigCommandResult result, AuditOutcome outcome)
     {
-        if (!command.DryRun)
+        if (command.DryRun)
         {
-            AuditEntry entry = Entry(origin, audited, outcome) with
-            {
-                Details = Json(w =>
-                {
-                    w.WriteString("status", DocumentNames.Of(result.Status));
-                    string[] codes = [.. result.Errors.Concat(result.RelatedErrors).Select(e => e.Code).Distinct(StringComparer.Ordinal).Take(MaxAuditedCodes)];
-                    if (codes.Length > 0)
-                    {
-                        w.WriteStartArray("errors");
-                        foreach (string code in codes)
-                        {
-                            w.WriteStringValue(code);
-                        }
-
-                        w.WriteEndArray();
-                    }
-
-                    if (result.Conflict?.CurrentVersion is { } currentVersion)
-                    {
-                        w.WriteNumber("currentVersion", currentVersion);
-                    }
-                }),
-            };
-            await TryAppendAuditAsync(entry).ConfigureAwait(false);
+            return new Execution(result);
         }
+
+        var entry = Entry(origin, audited, outcome) with
+        {
+            Details = Json(w =>
+            {
+                w.WriteString("status", DocumentNames.Of(result.Status));
+                string[] codes =
+                [
+                    .. result.Errors.Concat(result.RelatedErrors).Select(e => e.Code)
+                        .Distinct(StringComparer.Ordinal).Take(MaxAuditedCodes)
+                ];
+                if (codes.Length > 0)
+                {
+                    w.WriteStartArray("errors");
+                    foreach (var code in codes)
+                    {
+                        w.WriteStringValue(code);
+                    }
+
+                    w.WriteEndArray();
+                }
+
+                if (result.Conflict?.CurrentVersion is { } currentVersion)
+                {
+                    w.WriteNumber("currentVersion", currentVersion);
+                }
+            }),
+        };
+        await TryAppendAuditAsync(entry).ConfigureAwait(false);
 
         return new Execution(result);
     }
@@ -783,7 +849,8 @@ public sealed partial class ConfigService : IDisposable
             var context = await _contexts.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
             await using (context.ConfigureAwait(false))
             {
-                var transaction = await context.Database.BeginTransactionAsync(CancellationToken.None).ConfigureAwait(false);
+                var transaction = await context.Database.BeginTransactionAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
                 await using (transaction.ConfigureAwait(false))
                 {
                     await _audit.AppendAsync(context, entry, CancellationToken.None).ConfigureAwait(false);
@@ -808,11 +875,11 @@ public sealed partial class ConfigService : IDisposable
         Func<IReadOnlyList<T>, ConfigDocument> withList)
         where T : class
     {
-        string id = idOf(sent);
-        T? existing = items.FirstOrDefault(item => idOf(item) == id);
+        var id = idOf(sent);
+        var existing = items.FirstOrDefault(item => idOf(item) == id);
         // The sent object goes last, so that a clash with another object (a name, an ID) is reported on it.
-        ConfigDocument arranged = withList([.. items.Where(item => idOf(item) != id), sent]);
-        long version = versionOf(sent);
+        var arranged = withList([.. items.Where(item => idOf(item) != id), sent]);
+        var version = versionOf(sent);
         if (existing is null)
         {
             return version == 0
@@ -835,13 +902,13 @@ public sealed partial class ConfigService : IDisposable
         Func<IReadOnlyList<T>, ConfigDocument> withList)
         where T : class
     {
-        T? existing = items.FirstOrDefault(item => idOf(item) == id);
+        var existing = items.FirstOrDefault(item => idOf(item) == id);
         if (existing is null)
         {
             return Plan.Stop(new(ConfigCommandStatus.NotFound), AuditOutcome.Conflict);
         }
 
-        ConfigDocument arranged = withList([.. items.Where(item => idOf(item) != id)]);
+        var arranged = withList([.. items.Where(item => idOf(item) != id)]);
         return versionOf(existing) == version
             ? new Plan(arranged)
             : Plan.Stop(Conflict(head, versionOf(existing)), AuditOutcome.Conflict, arranged);
@@ -849,7 +916,7 @@ public sealed partial class ConfigService : IDisposable
 
     private static Plan UpdateSettings(ConfigDocument current, RevisionRef? head, GlobalSettings sent)
     {
-        ConfigDocument arranged = current with { Settings = sent };
+        var arranged = current with { Settings = sent };
         return current.Settings.Version == sent.Version
             ? new Plan(arranged, Own: new ObjectKey(SettingsList, string.Empty))
             : Plan.Stop(Conflict(head, current.Settings.Version), AuditOutcome.Conflict, arranged);
@@ -864,7 +931,7 @@ public sealed partial class ConfigService : IDisposable
         string? defaultMessage,
         CancellationToken cancellationToken)
     {
-        ConfigRevisionId? based = baseRevision is { IsEmpty: true } ? null : baseRevision;
+        var based = baseRevision is { IsEmpty: true } ? null : baseRevision;
         if (based == head?.Id)
         {
             return new Plan(document, IsObjectCommand: false, DefaultMessage: defaultMessage);
@@ -873,7 +940,7 @@ public sealed partial class ConfigService : IDisposable
         IReadOnlyList<ConfigChange> sinceBase = [];
         if (based is { } id
             && await ConfigRevisionStore.GetAsync(context, id, cancellationToken).ConfigureAwait(false) is { } stored
-            && CanonicalConfigJson.TryDeserialize(stored.Document.Span, out ConfigDocument? baseDocument, out _))
+            && CanonicalConfigJson.TryDeserialize(stored.Document.Span, out var baseDocument, out _))
         {
             sinceBase = ConfigDiff.Compare(baseDocument, current);
         }
@@ -883,20 +950,26 @@ public sealed partial class ConfigService : IDisposable
     }
 
     private static async Task<Plan> RollbackAsync(
-        ConfigDbContext context, ConfigDocument current, RevisionRef? head, RollbackConfigCommand command, CancellationToken cancellationToken)
+        ConfigDbContext context, ConfigDocument current, RevisionRef? head, RollbackConfigCommand command,
+        CancellationToken cancellationToken)
     {
-        if (await ConfigRevisionStore.GetAsync(context, command.Target, cancellationToken).ConfigureAwait(false) is not { } target)
+        if (await ConfigRevisionStore.GetAsync(context, command.Target, cancellationToken).ConfigureAwait(false) is not
+            { } target)
         {
             return Plan.Stop(new(ConfigCommandStatus.NotFound), AuditOutcome.Invalid) with { IsObjectCommand = false };
         }
 
         // A document this build no longer reads (it can't be newer: downgrades are unsupported) is invalid, not broken.
-        if (!CanonicalConfigJson.TryDeserialize(target.Document.Span, out ConfigDocument? document, out ConfigError? error))
+        if (!CanonicalConfigJson.TryDeserialize(target.Document.Span, out var document, out var error))
         {
-            return Plan.Stop(new(ConfigCommandStatus.Invalid, Errors: [error]), AuditOutcome.Invalid) with { IsObjectCommand = false };
+            return Plan.Stop(new(ConfigCommandStatus.Invalid, Errors: [error]), AuditOutcome.Invalid) with
+            {
+                IsObjectCommand = false
+            };
         }
 
-        return await ReplaceAsync(context, current, head, document, command.BaseRevision, $"Rollback to {target.Info.Label}", cancellationToken)
+        return await ReplaceAsync(context, current, head, document, command.BaseRevision,
+                $"Rollback to {target.Info.Label}", cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -908,27 +981,32 @@ public sealed partial class ConfigService : IDisposable
     /// them: the sent object's, relative to it; the rest, as related errors pointing into <paramref name="canonical"/>.
     /// </summary>
     private static ConfigCommandResult Invalid(
-        Plan plan, ConfigDocument validated, ConfigDocument canonical, IReadOnlyList<ConfigError> errors, IReadOnlyList<ConfigChange> changes)
+        Plan plan, ConfigDocument validated, ConfigDocument canonical, IReadOnlyList<ConfigError> errors,
+        IReadOnlyList<ConfigChange> changes)
     {
         if (!plan.IsObjectCommand)
         {
             return new ConfigCommandResult(ConfigCommandStatus.Invalid, Changes: changes, Errors: errors);
         }
 
-        string? ownPath = plan.Own switch
+        var ownPath = plan.Own switch
         {
             null => null,
             { List: SettingsList } => "/settings",
             { } own => CommandErrors.PathOf(validated, own.List, own.Id),
         };
-        CommandErrors.IndexMap? toCanonical = ReferenceEquals(validated, canonical) ? null : CommandErrors.IndexMap.Between(validated, canonical);
-        (List<ConfigError> mine, List<ConfigError> related) = CommandErrors.Split(errors, ownPath, toCanonical);
-        return new ConfigCommandResult(ConfigCommandStatus.Invalid, Changes: changes, Errors: mine, RelatedErrors: related);
+        var toCanonical = ReferenceEquals(validated, canonical)
+            ? null
+            : CommandErrors.IndexMap.Between(validated, canonical);
+        var (mine, related) = CommandErrors.Split(errors, ownPath, toCanonical);
+        return new ConfigCommandResult(ConfigCommandStatus.Invalid, Changes: changes, Errors: mine,
+            RelatedErrors: related);
     }
 
-    private static async Task<(StoredRevision? Latest, ConfigDocument Document)> LoadAsync(ConfigDbContext context, CancellationToken cancellationToken)
+    private static async Task<(StoredRevision? Latest, ConfigDocument Document)> LoadAsync(ConfigDbContext context,
+        CancellationToken cancellationToken)
     {
-        StoredRevision? latest = await ConfigRevisionStore.GetLatestAsync(context, cancellationToken).ConfigureAwait(false);
+        var latest = await ConfigRevisionStore.GetLatestAsync(context, cancellationToken).ConfigureAwait(false);
         return latest is null
             ? (null, InitialDocument)
             : (latest, CanonicalConfigJson.Canonicalize(CanonicalConfigJson.Deserialize(latest.Document.Span)));
@@ -942,9 +1020,11 @@ public sealed partial class ConfigService : IDisposable
         {
             UpsertHostCommand c => new($"config.host.{Verb(Required(c.Host).Version)}", c.Host.Id.ToString()),
             DeleteHostCommand c => new("config.host.delete", c.HostId.ToString()),
-            UpsertUpstreamCommand c => new($"config.upstream.{Verb(Required(c.Upstream).Version)}", c.Upstream.Id.ToString()),
+            UpsertUpstreamCommand c => new($"config.upstream.{Verb(Required(c.Upstream).Version)}",
+                c.Upstream.Id.ToString()),
             DeleteUpstreamCommand c => new("config.upstream.delete", c.UpstreamId.ToString()),
-            UpsertProfileCommand c => new($"config.profile.{Verb(Required(c.Profile).Version)}", c.Profile.Id.ToString()),
+            UpsertProfileCommand c => new($"config.profile.{Verb(Required(c.Profile).Version)}",
+                c.Profile.Id.ToString()),
             DeleteProfileCommand c => new("config.profile.delete", c.ProfileId.ToString()),
             UpdateSettingsCommand => new("config.settings.update", null),
             ReplaceConfigCommand => new("config.replace", null),
@@ -1032,28 +1112,43 @@ public sealed partial class ConfigService : IDisposable
         return Encoding.UTF8.GetString(buffer.ToArray());
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Committed config revision #{Seq} ({Revision}): {Action} by {Actor} via {Channel}, {Changes} change(s).")]
-    private partial void LogCommitted(long seq, ConfigRevisionId revision, string action, Actor actor, Channel channel, int changes);
+    [LoggerMessage(Level = LogLevel.Information,
+        Message =
+            "Committed config revision #{Seq} ({Revision}): {Action} by {Actor} via {Channel}, {Changes} change(s).")]
+    private partial void LogCommitted(long seq, ConfigRevisionId revision, string action, Actor actor, Channel channel,
+        int changes);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Config revision #{Seq} ({Revision}) is committed but publishing it failed ({Status}): {Errors}. The previous snapshot stays live; the change goes live with the next successful publish or start.")]
-    private partial void LogPublishFailed(long seq, ConfigRevisionId revision, PublishOutcomeStatus status, string errors);
+    [LoggerMessage(Level = LogLevel.Error,
+        Message =
+            "Config revision #{Seq} ({Revision}) is committed but publishing it failed ({Status}): {Errors}. The previous snapshot stays live; the change goes live with the next successful publish or start.")]
+    private partial void LogPublishFailed(long seq, ConfigRevisionId revision, PublishOutcomeStatus status,
+        string errors);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "The publisher refused the candidate snapshot (an ArgumentException, so a compiler bug); nothing went live.")]
+    [LoggerMessage(Level = LogLevel.Error,
+        Message =
+            "The publisher refused the candidate snapshot (an ArgumentException, so a compiler bug); nothing went live.")]
     private partial void LogPublishRefused(Exception exception);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't write the audit event {Action} ({Outcome}, target {Target}); the outcome stands.")]
+    [LoggerMessage(Level = LogLevel.Error,
+        Message = "Couldn't write the audit event {Action} ({Outcome}, target {Target}); the outcome stands.")]
     private partial void LogAuditFailed(Exception exception, string action, AuditOutcome outcome, string? target);
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Another writer committed while {Action} was being prepared; preparing it again on the new head.")]
+    [LoggerMessage(Level = LogLevel.Information,
+        Message = "Another writer committed while {Action} was being prepared; preparing it again on the new head.")]
     private partial void LogHeadMoved(string action);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Config revision #{Seq} ({Revision}) is committed but not live after {Wait}; it is still queued for publishing.")]
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message =
+            "Config revision #{Seq} ({Revision}) is committed but not live after {Wait}; it is still queued for publishing.")]
     private partial void LogPublishPending(long seq, ConfigRevisionId revision, TimeSpan wait);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Publishing the config snapshot was cancelled; the previous snapshot stays live.")]
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message = "Publishing the config snapshot was cancelled; the previous snapshot stays live.")]
     private partial void LogPublishCancelled();
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Publishing the config snapshot threw instead of returning a result; the previous snapshot stays live.")]
+    [LoggerMessage(Level = LogLevel.Warning,
+        Message =
+            "Publishing the config snapshot threw instead of returning a result; the previous snapshot stays live.")]
     private partial void LogPublishFaulted(Exception exception);
 
     /// <summary>What a rejected command is audited as: its action name and target.</summary>
@@ -1066,7 +1161,11 @@ public sealed partial class ConfigService : IDisposable
     /// What a command does to the current document: the document <see cref="Arranged"/> for validation, or an
     /// <see cref="Early"/> result (a conflict still carries the arrangement, for its change list).
     /// </summary>
-    private sealed record Plan(ConfigDocument? Arranged, bool IsObjectCommand = true, ObjectKey? Own = null, string? DefaultMessage = null)
+    private sealed record Plan(
+        ConfigDocument? Arranged,
+        bool IsObjectCommand = true,
+        ObjectKey? Own = null,
+        string? DefaultMessage = null)
     {
         public ConfigCommandResult? Early { get; init; }
 
@@ -1082,10 +1181,17 @@ public sealed partial class ConfigService : IDisposable
     /// <param name="LastKnownGood">The entry to record once it is live; null for the empty config.</param>
     /// <param name="FromDatabase">The config is the database's latest revision. False for a republish of the
     /// last-known-good document (the database can't be used): going live doesn't end a degraded start.</param>
-    private sealed record PublishTicket(RevisionRef Revision, Task<PublishResult> Task, LastKnownGoodEntry? LastKnownGood, bool FromDatabase = true);
+    private sealed record PublishTicket(
+        RevisionRef Revision,
+        Task<PublishResult> Task,
+        LastKnownGoodEntry? LastKnownGood,
+        bool FromDatabase = true);
 
     /// <param name="Result">The command's result.</param>
     /// <param name="Publish">The queued publish of a committed command.</param>
     /// <param name="Candidate">A dry run's compiled snapshot (never published); the request simulator runs on it.</param>
-    private readonly record struct Execution(ConfigCommandResult Result, PublishTicket? Publish = null, RuntimeSnapshot? Candidate = null);
+    private readonly record struct Execution(
+        ConfigCommandResult Result,
+        PublishTicket? Publish = null,
+        RuntimeSnapshot? Candidate = null);
 }

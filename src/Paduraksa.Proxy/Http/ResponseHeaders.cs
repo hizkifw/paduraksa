@@ -155,15 +155,15 @@ internal static class ResponseHeaders
         Span<HeaderOutcome> outcomes,
         bool applyRequestId)
     {
-        for (int i = 0; i < operations.Length; i++)
+        for (var i = 0; i < operations.Length; i++)
         {
-            ref readonly ResponseHeaderOperation operation = ref operations[i];
+            ref readonly var operation = ref operations[i];
             if (operation.Stage != stage)
             {
                 continue;
             }
 
-            HeaderOutcome outcome = IsRequestId(operation) && !applyRequestId
+            var outcome = IsRequestId(operation) && !applyRequestId
                 ? HeaderOutcome.Deferred
                 : Apply(context, in operation, state);
             if (i < outcomes.Length)
@@ -181,9 +181,9 @@ internal static class ResponseHeaders
     /// </summary>
     public static void DescribeDeferred(ReadOnlySpan<ResponseHeaderOperation> operations, ResponseHeaderStage stage, Span<HeaderOutcome> outcomes)
     {
-        for (int i = 0; i < operations.Length; i++)
+        for (var i = 0; i < operations.Length; i++)
         {
-            ref readonly ResponseHeaderOperation operation = ref operations[i];
+            ref readonly var operation = ref operations[i];
             if (operation.Stage != stage || i >= outcomes.Length)
             {
                 continue;
@@ -210,7 +210,7 @@ internal static class ResponseHeaders
                 return HeaderOutcome.LeftToUpstream;
         }
 
-        if (!Holds(context, in operation, state, out HeaderOutcome refused))
+        if (!Holds(context, in operation, state, out var refused))
         {
             return refused;
         }
@@ -233,7 +233,7 @@ internal static class ResponseHeaders
     {
         ArgumentNullException.ThrowIfNull(context);
         refused = HeaderOutcome.None;
-        ResponseHeaderConditions conditions = operation.Conditions;
+        var conditions = operation.Conditions;
         if (conditions == ResponseHeaderConditions.None)
         {
             return true;
@@ -259,7 +259,7 @@ internal static class ResponseHeaders
 
         if ((conditions & ResponseHeaderConditions.NotExemptName) != 0)
         {
-            StringValues hostHeader = context.Request.Headers.Host;
+            var hostHeader = context.Request.Headers.Host;
             if (hostHeader.Count != 1 || HstsHeader.IsExemptName(Snapshot.HostTable.HostName(hostHeader[0])))
             {
                 refused = HeaderOutcome.ExemptName;

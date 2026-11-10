@@ -49,7 +49,7 @@ internal sealed class AdminApiHarness : IAsyncDisposable
     /// <summary>Starts a host. <paramref name="adminServices"/> may replace services of the admin app (a test that needs a failing dependency).</summary>
     public static async Task<AdminApiHarness> StartAsync(CancellationToken ct, LogCapture? logs = null, Action<IServiceCollection>? adminServices = null)
     {
-        PaduraksaHost host = TestHost.Create(
+        var host = TestHost.Create(
             logs: logs,
             configureShared: TestHost.NoAccessLogFile,
             configureServices: (role, services) =>
@@ -62,7 +62,7 @@ internal sealed class AdminApiHarness : IAsyncDisposable
         await host.StartAsync(ct);
         // The admin listener serves the process's local-CA certificate, so the harness trusts that root. It sends
         // cookies by hand (the CSRF tests set them explicitly), so the handler must not keep a jar of its own.
-        HttpClient client = TestHost.CreateAdminClient(host, static handler => handler.UseCookies = false);
+        var client = TestHost.CreateAdminClient(host, static handler => handler.UseCookies = false);
         AdminApiHarness harness = new(host, client, TestHost.Endpoint(host, HostRole.Admin, "https"));
         await harness.CreateUsersAsync(ct);
         return harness;
@@ -71,13 +71,13 @@ internal sealed class AdminApiHarness : IAsyncDisposable
     private async Task CreateUsersAsync(CancellationToken ct)
     {
         ClientContext client = new(Channel.Api, IPAddress.Loopback, "test");
-        string token = (await File.ReadAllTextAsync(Path.Combine(Host.Options.DataDirectory, SetupService.TokenFileName), ct)).Trim();
-        UserSummary owner = (await Host.Shared.Setup.CompleteSetupAsync(token, "root", Password, null, client, ct)).Owner!;
+        var token = (await File.ReadAllTextAsync(Path.Combine(Host.Options.DataDirectory, SetupService.TokenFileName), ct)).Trim();
+        var owner = (await Host.Shared.Setup.CompleteSetupAsync(token, "root", Password, null, client, ct)).Owner!;
         await IssueTokenAsync("owner", owner.Id, RolePermissions.All, ct);
-        foreach (Role role in Roles)
+        foreach (var role in Roles)
         {
-            string name = role.ToName();
-            UserSummary user = (await Host.Shared.Users.CreateAsync(CommandOrigin.Cli, new CreateUserRequest(name, null, Password, [role]), ct)).User!;
+            var name = role.ToName();
+            var user = (await Host.Shared.Users.CreateAsync(CommandOrigin.Cli, new CreateUserRequest(name, null, Password, [role]), ct)).User!;
             await IssueTokenAsync(name, user.Id, RolePermissions.Of(role), ct);
         }
     }
@@ -85,7 +85,7 @@ internal sealed class AdminApiHarness : IAsyncDisposable
     private async Task IssueTokenAsync(string name, UserId user, IEnumerable<Permission> scopes, CancellationToken ct)
     {
         _users[name] = user;
-        ApiTokenResult issued = await Host.Shared.ApiTokens.IssueAsync(
+        var issued = await Host.Shared.ApiTokens.IssueAsync(
             new CommandOrigin(Actor.ForUser(user), Channel.Api, IPAddress.Loopback),
             new IssueApiTokenRequest($"test {name}", [.. scopes]),
             ct);
@@ -105,9 +105,9 @@ internal sealed class AdminApiHarness : IAsyncDisposable
         using HttpRequestMessage login = new(HttpMethod.Post, new Uri(BaseAddress, "/api/v1/auth/login"));
         login.Headers.Add("Sec-Fetch-Site", "same-origin");
         login.Content = JsonBody($$"""{"username":"{{(role == "owner" ? "root" : role)}}","password":"{{Password}}"}""");
-        using HttpResponseMessage response = await Client.SendAsync(login, TestContext.Current.CancellationToken);
+        using var response = await Client.SendAsync(login, TestContext.Current.CancellationToken);
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        string setCookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(SessionCookieName + "=", StringComparison.Ordinal));
+        var setCookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(SessionCookieName + "=", StringComparison.Ordinal));
         return setCookie[..setCookie.IndexOf(';', StringComparison.Ordinal)];
     }
 
@@ -125,7 +125,7 @@ internal sealed class AdminApiHarness : IAsyncDisposable
 
     public async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, string? caller = "owner", string? ifMatch = null, HttpContent? content = null)
     {
-        using HttpRequestMessage request = Request(method, path, caller);
+        using var request = Request(method, path, caller);
         if (ifMatch is not null)
         {
             request.Headers.TryAddWithoutValidation("If-Match", ifMatch);
@@ -166,14 +166,14 @@ internal sealed class AdminApiHarness : IAsyncDisposable
     public static async Task<ApiProblem> ProblemAsync(HttpResponseMessage response, CancellationToken ct)
     {
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
-        string text = await response.Content.ReadAsStringAsync(ct);
+        var text = await response.Content.ReadAsStringAsync(ct);
         return JsonSerializer.Deserialize(text, AdminJsonContext.Default.ApiProblem) ?? throw new InvalidOperationException("Not a problem: " + text);
     }
 
     public static async Task<T> ReadAsync<T>(HttpResponseMessage response, JsonTypeInfo<T> typeInfo, CancellationToken ct)
         where T : class
     {
-        string text = await response.Content.ReadAsStringAsync(ct);
+        var text = await response.Content.ReadAsStringAsync(ct);
         Assert.True(response.IsSuccessStatusCode, $"{(int)response.StatusCode}: {text}");
         return JsonSerializer.Deserialize(text, typeInfo) ?? throw new InvalidOperationException("Empty body.");
     }

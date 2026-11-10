@@ -14,7 +14,7 @@ internal static class DnsMessages
     public static byte[] Name(string name)
     {
         List<byte> bytes = [];
-        foreach (string label in name.Trim('.').Split('.', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var label in name.Trim('.').Split('.', StringSplitOptions.RemoveEmptyEntries))
         {
             bytes.Add((byte)label.Length);
             bytes.AddRange(Encoding.ASCII.GetBytes(label));
@@ -36,7 +36,7 @@ internal static class DnsMessages
     public static byte[] Response(ushort id, string name, int type, IEnumerable<byte[]> answers, bool authoritative = true, bool truncated = false, int rcode = 0, int? declaredAnswerCount = null)
     {
         List<byte[]> records = [.. answers];
-        int flags = 0x8000 | (authoritative ? 0x0400 : 0) | (truncated ? 0x0200 : 0) | rcode;
+        var flags = 0x8000 | (authoritative ? 0x0400 : 0) | (truncated ? 0x0200 : 0) | rcode;
         return
         [
             .. UInt16(id), .. UInt16(flags), .. UInt16(1), .. UInt16(declaredAnswerCount ?? records.Count), .. UInt16(0), .. UInt16(0),
@@ -69,7 +69,7 @@ internal sealed class FakeDnsServer : IDisposable
         address ??= IPAddress.Loopback;
 
         // The same port for UDP and TCP: take a free UDP port, then the TCP port with that number (another test may hold it; try again).
-        for (int attempt = 0; ; attempt++)
+        for (var attempt = 0; ; attempt++)
         {
             Socket udp = new(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             Socket tcp = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -105,13 +105,13 @@ internal sealed class FakeDnsServer : IDisposable
     /// </summary>
     public static List<FakeDnsServer>? TryCreateGroup(int count)
     {
-        for (int attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; attempt < 20; attempt++)
         {
             List<FakeDnsServer> group = [];
             try
             {
                 group.Add(new FakeDnsServer(IPAddress.Parse("127.0.0.2")));
-                for (int i = 1; i < count; i++)
+                for (var i = 1; i < count; i++)
                 {
                     group.Add(new FakeDnsServer(IPAddress.Parse($"127.0.0.{i + 2}"), group[0].EndPoint.Port));
                 }
@@ -203,9 +203,9 @@ internal sealed class FakeDnsServer : IDisposable
             return null;
         }
 
-        ushort id = BinaryPrimitives.ReadUInt16BigEndian(message);
-        bool rd = (message[2] & 1) != 0;
-        int position = 12;
+        var id = BinaryPrimitives.ReadUInt16BigEndian(message);
+        var rd = (message[2] & 1) != 0;
+        var position = 12;
         List<string> labels = [];
         while (message[position] != 0)
         {
@@ -214,7 +214,7 @@ internal sealed class FakeDnsServer : IDisposable
             position += length;
         }
 
-        ushort type = BinaryPrimitives.ReadUInt16BigEndian(message.AsSpan(position + 1));
+        var type = BinaryPrimitives.ReadUInt16BigEndian(message.AsSpan(position + 1));
         return new FakeQuery(id, string.Join('.', labels), type, rd, tcp, BinaryPrimitives.ReadUInt16BigEndian(message.AsSpan(10)) > 0);
     }
 
@@ -230,16 +230,16 @@ internal sealed class FakeDnsServer : IDisposable
 
     private async Task UdpLoopAsync(CancellationToken cancellationToken)
     {
-        byte[] buffer = new byte[2048];
+        var buffer = new byte[2048];
         EndPoint any = new IPEndPoint(IPAddress.Any, 0);
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                SocketReceiveFromResult received = await _udp.ReceiveFromAsync(buffer, SocketFlags.None, any, cancellationToken);
+                var received = await _udp.ReceiveFromAsync(buffer, SocketFlags.None, any, cancellationToken);
                 if (Parse(buffer[..received.ReceivedBytes], tcp: false) is { } query)
                 {
-                    foreach (byte[] datagram in Answer(query))
+                    foreach (var datagram in Answer(query))
                     {
                         _ = await _udp.SendToAsync(datagram, SocketFlags.None, received.RemoteEndPoint, cancellationToken);
                     }
@@ -258,7 +258,7 @@ internal sealed class FakeDnsServer : IDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                Socket client = await _tcp.AcceptAsync(cancellationToken);
+                var client = await _tcp.AcceptAsync(cancellationToken);
                 _ = Task.Run(() => ServeAsync(client, cancellationToken), cancellationToken);
             }
         }
@@ -274,10 +274,10 @@ internal sealed class FakeDnsServer : IDisposable
         {
             try
             {
-                byte[] prefix = new byte[2];
+                var prefix = new byte[2];
                 while (await ReadAsync(client, prefix, cancellationToken))
                 {
-                    byte[] message = new byte[BinaryPrimitives.ReadUInt16BigEndian(prefix)];
+                    var message = new byte[BinaryPrimitives.ReadUInt16BigEndian(prefix)];
                     if (!await ReadAsync(client, message, cancellationToken))
                     {
                         return;
@@ -285,7 +285,7 @@ internal sealed class FakeDnsServer : IDisposable
 
                     if (Parse(message, tcp: true) is { } query)
                     {
-                        foreach (byte[] answer in Answer(query))
+                        foreach (var answer in Answer(query))
                         {
                             _ = await client.SendAsync((byte[])[.. DnsMessages.UInt16(answer.Length), .. answer], SocketFlags.None, cancellationToken);
                         }
@@ -301,10 +301,10 @@ internal sealed class FakeDnsServer : IDisposable
 
     private static async Task<bool> ReadAsync(Socket socket, byte[] buffer, CancellationToken cancellationToken)
     {
-        int offset = 0;
+        var offset = 0;
         while (offset < buffer.Length)
         {
-            int read = await socket.ReceiveAsync(buffer.AsMemory(offset), SocketFlags.None, cancellationToken);
+            var read = await socket.ReceiveAsync(buffer.AsMemory(offset), SocketFlags.None, cancellationToken);
             if (read == 0)
             {
                 return false;

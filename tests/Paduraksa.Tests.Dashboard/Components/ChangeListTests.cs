@@ -17,11 +17,11 @@ public sealed class ChangeListTests
     [Fact]
     public async Task ARevisionsDiff_GroupsByObject_WithOldAndNewValues()
     {
-        HostId id = HostId.New();
-        RouteId root = RouteId.New();
-        RouteId api = RouteId.New();
+        var id = HostId.New();
+        var root = RouteId.New();
+        var api = RouteId.New();
         HostConfig before = new(id, ["app.example.com"], Routes: [new RouteConfig(root, App.Id), new RouteConfig(api, App.Id, Path: "/api")]);
-        HostConfig after = before with
+        var after = before with
         {
             Names = ["app.example.com", "www.example.com"],
             Settings = new HostSettings { ForceHttps = true },
@@ -30,15 +30,15 @@ public sealed class ChangeListTests
         ConfigDocument older = new(Upstreams: [App, Api], Hosts: [before]);
         ConfigDocument newer = new(Upstreams: [App, Api], Hosts: [after]);
 
-        IReadOnlyList<ChangeGroup> groups = ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer));
+        var groups = ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer));
         await using DashboardTestContext context = new();
-        IRenderedComponent<ChangeList> list = context.Render<ChangeList>(parameters => parameters.Add(c => c.Groups, groups));
+        var list = context.Render<ChangeList>(parameters => parameters.Add(c => c.Groups, groups));
 
-        ChangeGroup group = Assert.Single(groups);
+        var group = Assert.Single(groups);
         Assert.Equal(("app.example.com +1", ConfigChangeKind.Modified), (group.Head.Title, group.Head.Kind));
         Assert.Contains(group.Head.Fields, f => f.Label == "Hostnames" && f.Before == "app.example.com" && f.After == "app.example.com, www.example.com");
         Assert.Contains(group.Head.Fields, f => f.Label == "HTTPS redirect" && f.Before is null && f.After == "on");
-        ObjectChange route = Assert.Single(group.Children);
+        var route = Assert.Single(group.Children);
         Assert.Equal(("Route /api", ChangedObject.Route), (route.Title, route.What));
         Assert.Equal(new FieldChange("/upstreamId", "Upstream", "app", "api"), Assert.Single(route.Fields));
 
@@ -56,12 +56,12 @@ public sealed class ChangeListTests
         ConfigDocument older = new(Upstreams: [App]);
         ConfigDocument newer = new(Upstreams: [App], Hosts: [host]);
 
-        ChangeGroup group = Assert.Single(ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer)));
+        var group = Assert.Single(ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer)));
 
         Assert.Equal(ConfigChangeKind.Added, group.Head.Kind);
         Assert.All(group.Head.Fields, f => Assert.Null(f.Before));
         Assert.Contains(group.Head.Fields, f => f.Label == "Hostnames" && f.After == "new.example.com");
-        ObjectChange route = Assert.Single(group.Children);
+        var route = Assert.Single(group.Children);
         Assert.Equal(ConfigChangeKind.Added, route.Kind);
         Assert.Contains(route.Fields, f => f.Label == "Upstream" && f.After == "app");
     }
@@ -71,7 +71,7 @@ public sealed class ChangeListTests
     {
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<ChangeList> list = context.Render<ChangeList>(parameters => parameters
+        var list = context.Render<ChangeList>(parameters => parameters
             .Add(c => c.Groups, [])
             .Add(c => c.EmptyTitle, "No differences"));
 

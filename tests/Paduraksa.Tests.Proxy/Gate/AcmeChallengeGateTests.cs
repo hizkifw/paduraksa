@@ -5,11 +5,8 @@ using Microsoft.AspNetCore.Http;
 using Paduraksa.Core.Acme;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
-using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
-using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
 namespace Paduraksa.Tests.Proxy.Gate;
@@ -48,10 +45,10 @@ public sealed class AcmeChallengeGateTests : IDisposable
     [InlineData(null)]
     public async Task APublishedTokenIsAnsweredBeforeHostRoutingAndPolicies(string? host)
     {
-        DefaultHttpContext context = TestContexts.Create(host, "/.well-known/acme-challenge/" + Token);
+        var context = TestContexts.Create(host, "/.well-known/acme-challenge/" + Token);
         context.Response.Body = new MemoryStream();
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
         await GateMiddleware.CompleteAsync(context, decision, static _ => throw new InvalidOperationException("must not forward"));
 
         Assert.Equal(GateAction.Respond, decision.Action);
@@ -64,10 +61,10 @@ public sealed class AcmeChallengeGateTests : IDisposable
     [Fact]
     public async Task HeadIsAnsweredWithTheLengthButWithoutABody()
     {
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token, method: "HEAD");
+        var context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token, method: "HEAD");
         context.Response.Body = new MemoryStream();
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
         await GateMiddleware.CompleteAsync(context, decision, static _ => throw new InvalidOperationException("must not forward"));
 
         Assert.Equal(GateAction.Respond, decision.Action);
@@ -89,9 +86,9 @@ public sealed class AcmeChallengeGateTests : IDisposable
     public void AnythingButAnExactPublishedTokenFallsThrough(string path)
     {
         // On this host a fall-through meets its IP allow list (403), not a challenge answer.
-        DefaultHttpContext context = TestContexts.Create("secure.test", path);
+        var context = TestContexts.Create("secure.test", path);
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         Assert.Equal(GateAction.Respond, decision.Action);
         Assert.NotEqual(200, decision.Response!.StatusCode);
@@ -100,7 +97,7 @@ public sealed class AcmeChallengeGateTests : IDisposable
     [Fact]
     public void OnlyGetAndHeadAreAnswered()
     {
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token, method: "POST");
+        var context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token, method: "POST");
 
         Assert.NotEqual(200, _gate.Decide(context).Response!.StatusCode);
     }
@@ -108,9 +105,9 @@ public sealed class AcmeChallengeGateTests : IDisposable
     [Fact]
     public void HttpsRequestsAreNotAnswered()
     {
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token, scheme: "https");
+        var context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token, scheme: "https");
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         // The host's own pipeline (421 or its allow list), not a challenge answer.
         Assert.Equal(GateAction.Respond, decision.Action);
@@ -121,7 +118,7 @@ public sealed class AcmeChallengeGateTests : IDisposable
     public void ARemovedTokenIsNoLongerAnswered()
     {
         Assert.True(_challenges.Remove(Token));
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token);
+        var context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token);
 
         Assert.NotEqual(200, _gate.Decide(context).Response!.StatusCode);
         Assert.False(_challenges.Remove(Token));
@@ -131,7 +128,7 @@ public sealed class AcmeChallengeGateTests : IDisposable
     public void ATokenTwoIssuancesPublishedIsAnsweredUntilBothRemovedIt()
     {
         _challenges.Publish(Token, KeyAuthorization);
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token);
+        var context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token);
 
         Assert.True(_challenges.Remove(Token));
         Assert.Equal(200, _gate.Decide(context).Response!.StatusCode);
@@ -146,7 +143,7 @@ public sealed class AcmeChallengeGateTests : IDisposable
     public void WithoutAStoreNothingIsAnswered()
     {
         GateMiddleware gate = new(_store, new TrustedProxyClientAddressSource());
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token);
+        var context = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token);
 
         Assert.NotEqual(200, gate.Decide(context).Response!.StatusCode);
     }
@@ -154,8 +151,8 @@ public sealed class AcmeChallengeGateTests : IDisposable
     [Fact]
     public void AnAnswerAndAMissDoNotAllocate()
     {
-        DefaultHttpContext hit = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token);
-        DefaultHttpContext miss = TestContexts.Create("secure.test", "/.well-known/acme-challenge/not-published-token-value");
+        var hit = TestContexts.Create("secure.test", "/.well-known/acme-challenge/" + Token);
+        var miss = TestContexts.Create("secure.test", "/.well-known/acme-challenge/not-published-token-value");
         AllocAssert.Zero((_gate, hit), static s => _ = s._gate.Decide(s.hit), "HTTP-01 answer");
         AllocAssert.Zero((_gate, miss), static s => _ = s._gate.Decide(s.miss), "HTTP-01 miss falling through to the redirect");
     }
@@ -175,7 +172,7 @@ public sealed class AcmeChallengeGateTests : IDisposable
     public void TheStoreIsBoundedButAllowsReplacingAToken()
     {
         AcmeChallengeStore store = new();
-        for (int i = 0; i < IAcmeChallengeStore.MaxEntries; i++)
+        for (var i = 0; i < IAcmeChallengeStore.MaxEntries; i++)
         {
             store.Publish($"t{i}", "ka");
         }
@@ -183,7 +180,7 @@ public sealed class AcmeChallengeGateTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => store.Publish("overflow", "ka"));
         store.Publish("t0", "replaced");
         Assert.Equal(IAcmeChallengeStore.MaxEntries, store.Count);
-        Assert.True(store.TryGet("t0", out PrecomputedResponse? response));
+        Assert.True(store.TryGet("t0", out var response));
         Assert.Equal("replaced", Encoding.ASCII.GetString(response.Body));
     }
 }

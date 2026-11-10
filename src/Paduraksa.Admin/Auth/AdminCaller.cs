@@ -42,7 +42,7 @@ public sealed record AdminCaller(CommandOrigin Origin, SessionId? Session = null
             return ValueTask.FromResult(caller);
         }
 
-        Endpoint? endpoint = context.GetEndpoint();
+        var endpoint = context.GetEndpoint();
         if (endpoint?.Metadata.GetMetadata<AdminAuthenticatedMetadata>() is null
             && endpoint?.Metadata.GetMetadata<RequiredPermissionMetadata>() is null)
         {
@@ -93,13 +93,13 @@ public static class AdminCallerExtensions
         ArgumentNullException.ThrowIfNull(builder);
         builder.AddEndpointFilter(async (invocation, next) =>
         {
-            HttpContext http = invocation.HttpContext;
+            var http = invocation.HttpContext;
             if (http.GetCaller() is not { } caller)
             {
                 return AdminProblems.Unauthorized(http, "Sign in, or send a bearer token.", ApiCodes.Auth.Required);
             }
 
-            IPermissionEvaluator permissions = http.RequestServices.GetRequiredService<IPermissionEvaluator>();
+            var permissions = http.RequestServices.GetRequiredService<IPermissionEvaluator>();
             if (!await permissions.IsAllowedAsync(caller.Origin, permission, http.RequestAborted).ConfigureAwait(false))
             {
                 return AdminProblems.Forbidden("Permission required", $"This needs the '{permission.ToName()}' permission.", ApiCodes.Auth.PermissionRequired);

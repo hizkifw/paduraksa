@@ -66,14 +66,14 @@ public sealed partial class TrustedProxyClientAddressSource : IClientAddressSour
             peerSource = ClientIpSource.Socket;
         }
 
-        IHeaderDictionary headers = context.Request.Headers;
-        ClientIpResolution resolution = ClientIpResolver.Resolve(peer, peerSource, headers, snapshot.TrustedProxies);
+        var headers = context.Request.Headers;
+        var resolution = ClientIpResolver.Resolve(peer, peerSource, headers, snapshot.TrustedProxies);
         if (resolution.IsFallback)
         {
             counters?.CountFallback(resolution.Outcome);
         }
 
-        RequestScheme scheme = ForwardedScheme.Resolve(in resolution, headers, snapshot.TrustedProxies);
+        var scheme = ForwardedScheme.Resolve(in resolution, headers, snapshot.TrustedProxies);
         if (scheme is { Source: SchemeSource.CfVisitor, IsHttps: false } && !context.Request.IsHttps
             && counters?.CountCloudflarePlainHttp() == 1 && logger is not null)
         {

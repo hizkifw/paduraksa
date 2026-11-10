@@ -25,16 +25,16 @@ public sealed class PaduraksaForwarderHttpClientFactoryTests
     {
         PaduraksaForwarderHttpClientFactory factory = new(NullLogger<ForwarderHttpClientFactory>.Instance, admin: null);
         HttpClientConfig config = new() { MaxConnectionsPerServer = 8 };
-        using HttpMessageInvoker first = factory.CreateClient(new ForwarderHttpClientContext { ClusterId = "c", NewConfig = config });
+        using var first = factory.CreateClient(new ForwarderHttpClientContext { ClusterId = "c", NewConfig = config });
 
-        HttpMessageInvoker same = factory.CreateClient(new ForwarderHttpClientContext
+        var same = factory.CreateClient(new ForwarderHttpClientContext
         {
             ClusterId = "c",
             OldClient = first,
             OldConfig = config,
             NewConfig = config with { },
         });
-        using HttpMessageInvoker changed = factory.CreateClient(new ForwarderHttpClientContext
+        using var changed = factory.CreateClient(new ForwarderHttpClientContext
         {
             ClusterId = "c",
             OldClient = first,

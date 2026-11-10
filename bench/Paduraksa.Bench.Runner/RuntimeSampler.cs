@@ -26,8 +26,8 @@ internal static class RuntimeSampler
 
     public static async Task RunAsync(TextWriter output, CancellationToken cancellationToken)
     {
-        long[] lastIndex = new long[Kinds.Length];
-        for (int k = 0; k < Kinds.Length; k++)
+        var lastIndex = new long[Kinds.Length];
+        for (var k = 0; k < Kinds.Length; k++)
         {
             lastIndex[k] = GC.GetGCMemoryInfo(Kinds[k]).Index;
         }
@@ -37,17 +37,17 @@ internal static class RuntimeSampler
         {
             while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
             {
-                TimeSpan maxPause = TimeSpan.Zero;
-                for (int k = 0; k < Kinds.Length; k++)
+                var maxPause = TimeSpan.Zero;
+                for (var k = 0; k < Kinds.Length; k++)
                 {
-                    GCMemoryInfo info = GC.GetGCMemoryInfo(Kinds[k]);
+                    var info = GC.GetGCMemoryInfo(Kinds[k]);
                     if (info.Index == lastIndex[k])
                     {
                         continue;
                     }
 
                     lastIndex[k] = info.Index;
-                    foreach (TimeSpan pause in info.PauseDurations)
+                    foreach (var pause in info.PauseDurations)
                     {
                         if (pause > maxPause)
                         {
@@ -56,7 +56,7 @@ internal static class RuntimeSampler
                     }
                 }
 
-                string line = string.Create(
+                var line = string.Create(
                     CultureInfo.InvariantCulture,
                     $"METRICS ts={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()} gen0={GC.CollectionCount(0)} gen1={GC.CollectionCount(1)} gen2={GC.CollectionCount(2)} pause_ms={GC.GetTotalPauseDuration().TotalMilliseconds:F3} max_pause_ms={maxPause.TotalMilliseconds:F3} alloc={GC.GetTotalAllocatedBytes(precise: true)} tp_queue={ThreadPool.PendingWorkItemCount} tp_threads={ThreadPool.ThreadCount}");
                 await output.WriteLineAsync(line).ConfigureAwait(false);

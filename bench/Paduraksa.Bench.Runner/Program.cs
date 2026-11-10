@@ -35,14 +35,14 @@ using Paduraksa.Core.Model;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Server.Placeholders;
 
-Dictionary<string, string> options = ParseArgs(args);
-if (!options.TryGetValue("upstream", out string? upstream) || !Uri.TryCreate(upstream, UriKind.Absolute, out _))
+var options = ParseArgs(args);
+if (!options.TryGetValue("upstream", out var upstream) || !Uri.TryCreate(upstream, UriKind.Absolute, out _))
 {
     await Console.Error.WriteLineAsync("usage: Paduraksa.Bench.Runner --upstream http://host:port [--http 18081] [--https 18443] [--admin 18943] [--cloudflare-tunnel true]");
     return 2;
 }
 
-UpstreamId upstreamId = UpstreamId.New();
+var upstreamId = UpstreamId.New();
 CertificateBinding placeholderCertificate = new() { Mode = CertificateBindingMode.Specific, CertificateId = PlaceholderCertificates.Id };
 ConfigDocument document = new(
     Settings: new GlobalSettings(
@@ -57,7 +57,7 @@ ConfigDocument document = new(
             HostId.New(), ["respond.test"], Kind: HostKind.Respond, Certificate: placeholderCertificate, Respond: new RespondConfig(200, "ok\n")),
     ]);
 
-string dataDirectory = Path.Combine(Path.GetTempPath(), "paduraksa-bench-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+var dataDirectory = Path.Combine(Path.GetTempPath(), "paduraksa-bench-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
 Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
 {
     ["Paduraksa:DataDirectory"] = dataDirectory,
@@ -73,7 +73,7 @@ Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
 
 try
 {
-    await using PaduraksaHost host = PaduraksaHost.Create(new PaduraksaHostOptions
+    await using var host = PaduraksaHost.Create(new PaduraksaHostOptions
     {
         EnvironmentName = "Production",
         ContentRootPath = AppContext.BaseDirectory,
@@ -87,14 +87,14 @@ try
         stop.TrySetResult();
     }
 
-    using PosixSignalRegistration sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnSignal);
-    using PosixSignalRegistration sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnSignal);
+    using var sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnSignal);
+    using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnSignal);
 
     await host.StartAsync();
-    ConfigCommandResult configured = await host.Shared.Config.ExecuteAsync(new ReplaceConfigCommand(document, BaseRevision: null), CommandOrigin.Cli);
+    var configured = await host.Shared.Config.ExecuteAsync(new ReplaceConfigCommand(document, BaseRevision: null), CommandOrigin.Cli);
     if (configured.Publish is not { Succeeded: true })
     {
-        IEnumerable<string> errors = configured.Errors.Select(e => $"{e.Path}: {e.Message}").Concat(configured.Publish?.Errors ?? []);
+        var errors = configured.Errors.Select(e => $"{e.Path}: {e.Message}").Concat(configured.Publish?.Errors ?? []);
         await Console.Error.WriteLineAsync($"The config isn't live ({configured.Status}): {string.Join("; ", errors)}");
         return 1;
     }
@@ -107,7 +107,7 @@ try
         $"DOTNET_GCHeapCount={Environment.GetEnvironmentVariable("DOTNET_GCHeapCount") ?? "(default)"}");
 
     using CancellationTokenSource sampling = new();
-    Task sampler = RuntimeSampler.RunAsync(Console.Out, sampling.Token);
+    var sampler = RuntimeSampler.RunAsync(Console.Out, sampling.Token);
     await Task.WhenAny(stop.Task, host.ShutdownRequested);
     await sampling.CancelAsync();
     await sampler;
@@ -122,12 +122,12 @@ finally
     }
 }
 
-string Get(string key, string fallback) => options.TryGetValue(key, out string? value) ? value : fallback;
+string Get(string key, string fallback) => options.TryGetValue(key, out var value) ? value : fallback;
 
 static Dictionary<string, string> ParseArgs(string[] args)
 {
     Dictionary<string, string> parsed = new(StringComparer.OrdinalIgnoreCase);
-    for (int i = 0; i + 1 < args.Length; i += 2)
+    for (var i = 0; i + 1 < args.Length; i += 2)
     {
         if (!args[i].StartsWith("--", StringComparison.Ordinal))
         {

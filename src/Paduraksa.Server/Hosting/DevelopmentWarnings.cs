@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Server.Configuration;
 
 namespace Paduraksa.Server.Hosting;

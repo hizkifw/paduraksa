@@ -76,7 +76,7 @@ else
     private static IEnumerable<DrawerLevel> Ancestors(DrawerLevel level)
     {
         Stack<DrawerLevel> below = new();
-        for (DrawerLevel? parent = level.Parent; parent is not null; parent = parent.Parent)
+        for (var parent = level.Parent; parent is not null; parent = parent.Parent)
         {
             below.Push(parent);
         }
@@ -102,7 +102,7 @@ else
                         <MudIcon Icon="@Icons.Material.Rounded.ChevronLeft" Size="Size.Small" />
                     </button>
                     <ol>
-                        @foreach (DrawerLevel below in Ancestors(Level))
+                        @foreach (var below in Ancestors(Level))
                         {
                             <li class="@(ReferenceEquals(below, parent) ? "pdk-drawer-trail-parent" : null)">@below.Title</li>
                         }

@@ -17,7 +17,7 @@ public sealed class FailedCreateTests
 
         // The admin app is built last: core and public are built (and disposed again), then the shared services,
         // whose disposal throws an AggregateException that used to replace the original failure.
-        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() => TestHost.Create(
+        var thrown = Assert.Throws<InvalidOperationException>(() => TestHost.Create(
             configureShared: static shared => shared.Add(new ThrowsOnDispose()),
             configureServices: (role, _) =>
             {
@@ -39,7 +39,7 @@ public sealed class FailedCreateTests
         LogCapture logs = new();
         IConfiguration configuration = new ConfigurationBuilder().Build();
 
-        InvalidOperationException thrown = Assert.Throws<InvalidOperationException>(() => SharedServices.Create(
+        var thrown = Assert.Throws<InvalidOperationException>(() => SharedServices.Create(
             configuration,
             new PaduraksaOptions(),
             builder =>
@@ -55,10 +55,10 @@ public sealed class FailedCreateTests
 
     private static void AssertCleanupFailureLogged(LogCapture logs, Type category)
     {
-        LogEntry entry = Assert.Single(logs.Entries, static e => e.Message.StartsWith("Cleanup after a failure failed too", StringComparison.Ordinal));
+        var entry = Assert.Single(logs.Entries, static e => e.Message.StartsWith("Cleanup after a failure failed too", StringComparison.Ordinal));
         Assert.Equal(LogLevel.Error, entry.Level);
         Assert.Equal(category.FullName, entry.Category);
-        AggregateException cleanupError = Assert.IsType<AggregateException>(entry.Exception);
+        var cleanupError = Assert.IsType<AggregateException>(entry.Exception);
         Assert.Equal("dispose failed", Assert.Single(cleanupError.InnerExceptions).Message);
     }
 

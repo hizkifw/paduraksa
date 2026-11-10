@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Core.Model;

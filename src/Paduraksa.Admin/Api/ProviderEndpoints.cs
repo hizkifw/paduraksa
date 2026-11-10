@@ -24,7 +24,7 @@ internal static class ProviderEndpoints
 {
     public static void Map(RouteGroupBuilder api)
     {
-        RouteGroupBuilder accounts = api.MapGroup("/acme-accounts").WithTags("ACME accounts");
+        var accounts = api.MapGroup("/acme-accounts").WithTags("ACME accounts");
         accounts.MapGet("/", ListAccountsAsync).WithName("ListAcmeAccounts").WithSummary("List ACME accounts")
             .Produces<IReadOnlyList<AcmeAccountSummary>>().RequirePermission(Permission.ProvidersRead);
         accounts.MapGet("/{id:AcmeAccountId}", GetAccountAsync).WithName("GetAcmeAccount").WithSummary("Get an ACME account")
@@ -37,7 +37,7 @@ internal static class ProviderEndpoints
             .WithDescription("Final (RFC 8555): deactivates the account at the CA and deletes its key. Refused (422) while certificates are ordered with it.")
             .Produces<AcmeAccountSummary>().ProducesApiProblems(404, 422, 502).RequirePermission(Permission.ProvidersWrite);
 
-        RouteGroupBuilder providers = api.MapGroup("/dns-providers").WithTags("DNS providers");
+        var providers = api.MapGroup("/dns-providers").WithTags("DNS providers");
         providers.MapGet("/", ListProvidersAsync).WithName("ListDnsProviders").WithSummary("List DNS providers")
             .Produces<IReadOnlyList<DnsProviderSummary>>().RequirePermission(Permission.ProvidersRead);
         providers.MapGet("/{id:DnsProviderId}", GetProviderAsync).WithName("GetDnsProvider").WithSummary("Get a DNS provider")
@@ -68,21 +68,21 @@ internal static class ProviderEndpoints
 
     private static async Task<IResult> CreateAccountAsync(HttpContext http, AdminCaller caller, AcmeAccountService accounts, CancellationToken ct)
     {
-        BodyResult<CreateAcmeAccountBody> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CreateAcmeAccountBody).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CreateAcmeAccountBody).ConfigureAwait(false);
         if (!body.Ok)
         {
             return body.Problem!;
         }
 
-        CreateAcmeAccountBody request = body.Value!;
+        var request = body.Value!;
         byte[] key = [];
-        int keyLength = 0;
+        var keyLength = 0;
         try
         {
             if (request.EabHmacKey is { } encoded)
             {
                 // The wire form only: whether the request may be made, and what the binding needs, is the service's to say before it stores anything.
-                string unpadded = encoded.TrimEnd('=');
+                var unpadded = encoded.TrimEnd('=');
                 key = new byte[Base64Url.GetMaxDecodedLength(unpadded.Length)];
                 if (unpadded.Length == 0 || !Base64Url.IsValid(unpadded) || !Base64Url.TryDecodeFromChars(unpadded, key, out keyLength))
                 {
@@ -110,7 +110,7 @@ internal static class ProviderEndpoints
 
     private static IResult AccountAnswer(AcmeAccountResult result, MutationKind kind)
     {
-        int status = ApiStatusMapping.Of(result.Status, kind);
+        var status = ApiStatusMapping.Of(result.Status, kind);
         if (ApiStatusMapping.IsSuccess(status) && result.Account is null)
         {
             return ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The account change reported success without the account.");
@@ -138,13 +138,13 @@ internal static class ProviderEndpoints
 
     private static async Task<IResult> CreateProviderAsync(HttpContext http, AdminCaller caller, DnsProviderService providers, CancellationToken ct)
     {
-        BodyResult<CreateDnsProviderBody> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CreateDnsProviderBody).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.CreateDnsProviderBody).ConfigureAwait(false);
         if (!body.Ok)
         {
             return body.Problem!;
         }
 
-        byte[] credential = Encoding.UTF8.GetBytes(body.Value!.Credential);
+        var credential = Encoding.UTF8.GetBytes(body.Value!.Credential);
         try
         {
             return ProviderAnswer(await providers.CreateWithCredentialAsync(body.Value.Kind, body.Value.Label, credential, caller.Origin, ct).ConfigureAwait(false), MutationKind.Create);
@@ -157,13 +157,13 @@ internal static class ProviderEndpoints
 
     private static async Task<IResult> RotateProviderAsync(HttpContext http, AdminCaller caller, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
     {
-        BodyResult<RotateDnsCredentialBody> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.RotateDnsCredentialBody).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.RotateDnsCredentialBody).ConfigureAwait(false);
         if (!body.Ok)
         {
             return body.Problem!;
         }
 
-        byte[] credential = Encoding.UTF8.GetBytes(body.Value!.Credential);
+        var credential = Encoding.UTF8.GetBytes(body.Value!.Credential);
         try
         {
             return ProviderAnswer(await providers.RotateCredentialAsync(id, credential, caller.Origin, ct).ConfigureAwait(false), MutationKind.Change);
@@ -176,13 +176,13 @@ internal static class ProviderEndpoints
 
     private static async Task<IResult> DeleteProviderAsync(HttpContext http, AdminCaller caller, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
     {
-        DnsProviderResult result = await providers.DeleteWithCredentialAsync(id, caller.Origin, ct).ConfigureAwait(false);
+        var result = await providers.DeleteWithCredentialAsync(id, caller.Origin, ct).ConfigureAwait(false);
         return result.Status == IssuanceChangeStatus.Committed ? Results.NoContent() : ProviderAnswer(result, MutationKind.Change);
     }
 
     private static async Task<IResult> TestProviderAsync(HttpContext http, AdminCaller caller, DnsProviderId id, DnsProviderService providers, CancellationToken ct)
     {
-        DnsProviderTestResult result = await providers.TestAsync(id, caller.Origin, ct).ConfigureAwait(false);
+        var result = await providers.TestAsync(id, caller.Origin, ct).ConfigureAwait(false);
         return result switch
         {
             { Denied: true } => ApiProblems.Problem(StatusCodes.Status403Forbidden, "You may not test DNS provider credentials.", code: ApiCodes.Auth.PermissionRequired),
@@ -193,7 +193,7 @@ internal static class ProviderEndpoints
 
     private static IResult ProviderAnswer(DnsProviderResult result, MutationKind kind)
     {
-        int status = ApiStatusMapping.Of(result.Status, kind);
+        var status = ApiStatusMapping.Of(result.Status, kind);
         if (ApiStatusMapping.IsSuccess(status) && result.Provider is null)
         {
             return ApiProblems.Problem(StatusCodes.Status500InternalServerError, "The provider change reported success without the provider.");

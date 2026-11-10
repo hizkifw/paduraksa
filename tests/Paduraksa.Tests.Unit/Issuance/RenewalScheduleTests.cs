@@ -17,9 +17,9 @@ public sealed class RenewalScheduleTests
     [InlineData(1d, 33d)]
     public void WithoutAriARenewalStartsAThirdOfTheLifetimeBeforeExpiryMovedEarlierByJitter(double random, double daysBeforeExpiry)
     {
-        DateTimeOffset notAfter = NotBefore.AddDays(90);
+        var notAfter = NotBefore.AddDays(90);
 
-        DateTimeOffset at = RenewalSchedule.NextRenewalAt(NotBefore, notAfter, null, random, Options);
+        var at = RenewalSchedule.NextRenewalAt(NotBefore, notAfter, null, random, Options);
 
         Assert.Equal(notAfter - TimeSpan.FromDays(daysBeforeExpiry), at);
     }
@@ -27,7 +27,7 @@ public sealed class RenewalScheduleTests
     [Fact]
     public void AShortLivedCertificateRenewsAThirdOfItsLifeBeforeExpiry()
     {
-        DateTimeOffset notAfter = NotBefore.AddDays(6);
+        var notAfter = NotBefore.AddDays(6);
 
         Assert.Equal(notAfter - TimeSpan.FromDays(2), RenewalSchedule.NextRenewalAt(NotBefore, notAfter, null, 0d, Options));
         // At most a tenth of that third earlier: 4.8 hours of 2 days.
@@ -40,10 +40,10 @@ public sealed class RenewalScheduleTests
     [InlineData(1d, 24)]
     public void WithAriTheRenewalIsAPointInTheWindow(double random, double hoursIn)
     {
-        DateTimeOffset start = NotBefore.AddDays(40);
-        AcmeRenewalInfo info = Window(start, start.AddDays(1));
+        var start = NotBefore.AddDays(40);
+        var info = Window(start, start.AddDays(1));
 
-        DateTimeOffset at = RenewalSchedule.NextRenewalAt(NotBefore, NotBefore.AddDays(90), info, random, Options);
+        var at = RenewalSchedule.NextRenewalAt(NotBefore, NotBefore.AddDays(90), info, random, Options);
 
         Assert.Equal(start.AddHours(hoursIn), at);
     }
@@ -51,20 +51,20 @@ public sealed class RenewalScheduleTests
     [Fact]
     public void AnAriWindowLateInTheLifetimeIsCutAtTheLifetimeRuleAndAWindowInThePastIsDueNow()
     {
-        DateTimeOffset notAfter = NotBefore.AddDays(90);
+        var notAfter = NotBefore.AddDays(90);
 
         // After expiry, or just before it: never later than a third of the lifetime before expiry, so a CA's window can't cause an outage.
         Assert.Equal(notAfter.AddDays(-30), RenewalSchedule.NextRenewalAt(NotBefore, notAfter, Window(notAfter.AddDays(1), notAfter.AddDays(2)), 0.5, Options));
         Assert.Equal(notAfter.AddDays(-30), RenewalSchedule.NextRenewalAt(NotBefore, notAfter, Window(notAfter.AddDays(-2), notAfter.AddDays(-1)), 0.5, Options));
         Assert.Equal(notAfter.AddDays(-40), RenewalSchedule.NextRenewalAt(NotBefore, notAfter, Window(notAfter.AddDays(-41), notAfter.AddDays(-39)), 0.5, Options));
-        DateTimeOffset past = RenewalSchedule.NextRenewalAt(NotBefore, notAfter, Window(Now.AddDays(-3), Now.AddDays(-2)), 0.5, Options);
+        var past = RenewalSchedule.NextRenewalAt(NotBefore, notAfter, Window(Now.AddDays(-3), Now.AddDays(-2)), 0.5, Options);
         Assert.True(past < Now);
     }
 
     [Fact]
     public void APickInsideTheNewWindowIsKeptAndAnythingElseIsPickedAgain()
     {
-        AcmeRenewalInfo info = Window(Now, Now.AddDays(2));
+        var info = Window(Now, Now.AddDays(2));
 
         Assert.True(RenewalSchedule.KeepsPick(Now.AddDays(1), info));
         Assert.True(RenewalSchedule.KeepsPick(Now, info));
@@ -110,7 +110,7 @@ public sealed class RenewalScheduleTests
     [InlineData(1d, 1.2d)]
     public void TheBackoffIsJitteredByTwentyPercent(double random, double factor)
     {
-        TimeSpan wait = RenewalSchedule.Backoff(AcmeFailureKind.Transient, 2, null, random, Options);
+        var wait = RenewalSchedule.Backoff(AcmeFailureKind.Transient, 2, null, random, Options);
 
         Assert.Equal(TimeSpan.FromMinutes(10 * factor).Ticks, wait.Ticks, tolerance: 1);
     }
@@ -122,7 +122,7 @@ public sealed class RenewalScheduleTests
     public void AtTheCapTheJitterIsSymmetricAroundAndBoundedByIt(double random, double hours)
     {
         // Once doubling would pass the cap, the wait is centred a sixth under it (cap / 1.2) and never goes above it.
-        TimeSpan wait = RenewalSchedule.Backoff(AcmeFailureKind.Transient, 30, null, random, Options);
+        var wait = RenewalSchedule.Backoff(AcmeFailureKind.Transient, 30, null, random, Options);
 
         Assert.Equal(TimeSpan.FromHours(hours).Ticks, wait.Ticks, tolerance: 1);
         Assert.True(wait <= Options.TransientBackoffCap);

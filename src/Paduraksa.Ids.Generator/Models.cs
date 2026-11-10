@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
@@ -58,8 +56,8 @@ internal readonly struct EquatableArray<T>(T[]? items) : IEquatable<EquatableArr
 
     public override int GetHashCode()
     {
-        int hash = 17;
-        foreach (T item in _items ?? [])
+        var hash = 17;
+        foreach (var item in _items ?? [])
         {
             hash = unchecked((hash * 31) + (item?.GetHashCode() ?? 0));
         }

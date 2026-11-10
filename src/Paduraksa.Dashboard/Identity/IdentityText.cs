@@ -100,7 +100,7 @@ public static class IdentityText
             return "Unknown browser";
         }
 
-        string browser = userAgent switch
+        var browser = userAgent switch
         {
             _ when userAgent.Contains("Edg/", StringComparison.Ordinal) => "Edge",
             _ when userAgent.Contains("OPR/", StringComparison.Ordinal) => "Opera",
@@ -110,7 +110,7 @@ public static class IdentityText
             _ when userAgent.StartsWith("curl/", StringComparison.Ordinal) => "curl",
             _ => string.Empty,
         };
-        string system = userAgent switch
+        var system = userAgent switch
         {
             _ when userAgent.Contains("Android", StringComparison.Ordinal) => "Android",
             _ when userAgent.Contains("iPhone", StringComparison.Ordinal) || userAgent.Contains("iPad", StringComparison.Ordinal) => "iOS",
@@ -169,7 +169,7 @@ public static class IdentityText
             return "Never";
         }
 
-        TimeSpan left = at - now;
+        var left = at - now;
         return left <= TimeSpan.Zero ? $"Ended {Config.RevisionText.Ago(at, now)}"
             : left < TimeSpan.FromHours(1) ? "Within the hour"
             : left < TimeSpan.FromDays(1) ? $"In {(int)left.TotalHours} h"

@@ -12,7 +12,6 @@ using System.Text;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 
 using Paduraksa.Proxy.Net;
@@ -31,24 +30,24 @@ internal sealed class TestCertificates : IDisposable
     /// <summary>A certificate whose subject CN is <paramref name="commonName"/>, valid for <paramref name="dnsNames"/>.</summary>
     public ServerCertificate Create(string commonName, params string[] dnsNames)
     {
-        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         CertificateRequest request = new($"CN={commonName}", key, HashAlgorithmName.SHA256);
         SubjectAlternativeNameBuilder san = new();
-        foreach (string dns in dnsNames)
+        foreach (var dns in dnsNames)
         {
             san.AddDnsName(dns);
         }
 
         request.CertificateExtensions.Add(san.Build());
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], critical: false));
-        X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
         _owned.Add(certificate);
         return ServerCertificate.Create(certificate, intermediates: null);
     }
 
     public void Dispose()
     {
-        foreach (X509Certificate2 certificate in _owned)
+        foreach (var certificate in _owned)
         {
             certificate.Dispose();
         }
@@ -97,28 +96,28 @@ internal static class EdgeClient
     /// <summary>The subject CN served for <paramref name="serverName"/> (null = no SNI) on a fresh connection.</summary>
     public static async Task<string?> ServedSubjectAsync(PaduraksaHost host, string? serverName)
     {
-        using HttpClient client = Create(out StrongBox<string?> subject);
+        using var client = Create(out var subject);
         using HttpRequestMessage request = new(HttpMethod.Get, TestHost.Endpoint(host, HostRole.Public, "https"));
         if (serverName is not null)
         {
             request.Headers.Host = serverName;
         }
 
-        using HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         return subject.Value;
     }
 
     /// <summary>Sends <paramref name="bytes"/> on a raw TCP connection to the public HTTP listener and reads until it closes.</summary>
     public static async Task<string> RawHttpAsync(PaduraksaHost host, byte[] bytes)
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         using TcpClient tcp = new();
         if (!await TryConnectAsync(tcp, TestHost.Endpoint(host, HostRole.Public, "http").Port, ct))
         {
             return string.Empty;
         }
 
-        NetworkStream stream = tcp.GetStream();
+        var stream = tcp.GetStream();
         using StreamReader reader = new(stream, Encoding.ASCII);
         try
         {
@@ -139,14 +138,14 @@ internal static class EdgeClient
     /// </summary>
     public static async Task<string> RawHttpsAsync(PaduraksaHost host, byte[] prefix, string serverName, string pathAndQuery = "/")
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        var ct = TestContext.Current.CancellationToken;
         using TcpClient tcp = new();
         if (!await TryConnectAsync(tcp, TestHost.Endpoint(host, HostRole.Public, "https").Port, ct))
         {
             return string.Empty;
         }
 
-        NetworkStream stream = tcp.GetStream();
+        var stream = tcp.GetStream();
         try
         {
             // As above: the prefix write can meet a reset from a listener that refuses the peer.
@@ -217,7 +216,7 @@ internal sealed class EdgeUpstream : IAsyncDisposable
 
     public static async Task<EdgeUpstream> StartAsync()
     {
-        (IHost host, string address) = await HeaderEchoUpstreamHost.StartAsync(
+        var (host, address) = await HeaderEchoUpstreamHost.StartAsync(
             static response =>
             {
                 response.Headers.AltSvc = UpstreamAltSvc;
@@ -281,8 +280,8 @@ internal static class QuicSupport
     /// <summary>A port free for both TCP and UDP on dual-mode <c>[::]</c> (or <c>0.0.0.0</c>), as the public listener binds.</summary>
     public static int FreeTcpAndUdpPort()
     {
-        IPAddress bind = Socket.OSSupportsIPv6 ? IPAddress.IPv6Any : IPAddress.Any;
-        for (int attempt = 0; attempt < 50; attempt++)
+        var bind = Socket.OSSupportsIPv6 ? IPAddress.IPv6Any : IPAddress.Any;
+        for (var attempt = 0; attempt < 50; attempt++)
         {
             using Socket tcp = new(bind.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             using Socket udp = new(bind.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
@@ -293,7 +292,7 @@ internal static class QuicSupport
             }
 
             tcp.Bind(new IPEndPoint(bind, 0));
-            int port = ((IPEndPoint)tcp.LocalEndPoint!).Port;
+            var port = ((IPEndPoint)tcp.LocalEndPoint!).Port;
             try
             {
                 udp.Bind(new IPEndPoint(bind, port));

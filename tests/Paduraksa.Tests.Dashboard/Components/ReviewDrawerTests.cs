@@ -27,7 +27,7 @@ public sealed class ReviewDrawerTests
     public async Task TheDryRun_IsShownAsADiff_WithWarnings_BeforeAnythingCommits()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
+        var config = Arrange(context);
         config.Results = command => command.DryRun
             ? new ConfigCommandResult(
                 ConfigCommandStatus.DryRun,
@@ -35,15 +35,15 @@ public sealed class ReviewDrawerTests
                 Warnings: [new ConfigWarning("/hosts/0", "certificate.auto.noCoverage", "no valid certificate covers www.example.com")])
             : throw new InvalidOperationException("Only the dry run should run.");
 
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
+        var drawer = Render(context, new UpsertHostCommand(Edited));
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
-        ConfigCommand ran = Assert.Single(config.Executed);
+        var ran = Assert.Single(config.Executed);
         Assert.True(ran.DryRun);
         Assert.Contains("app.example.com", drawer.Find(".pdk-diff-title").TextContent, StringComparison.Ordinal);
         Assert.Equal("Changed", drawer.Find(".pdk-diff-head .pdk-badge").TextContent);
         Assert.Contains("www.example.com", drawer.Find(".pdk-diff-new").TextContent, StringComparison.Ordinal);
-        string notices = drawer.Find(".pdk-notices").TextContent;
+        var notices = drawer.Find(".pdk-notices").TextContent;
         Assert.Contains("stop answering while the host is switched off", notices, StringComparison.Ordinal);
         Assert.Contains("No valid certificate covers www.example.com", notices, StringComparison.Ordinal);
     }
@@ -52,15 +52,15 @@ public sealed class ReviewDrawerTests
     public async Task Apply_CommitsWithTheOpenedVersion_OffersUndo_AndClearsTheDraft()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
+        var config = Arrange(context);
         ConfigCommandResult? applied = null;
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited), onApplied: result => applied = result);
+        var drawer = Render(context, new UpsertHostCommand(Edited), onApplied: result => applied = result);
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
         Assert.NotNull(context.Services.GetRequiredService<ReviewedDraft>().Command);
 
         await drawer.Find("[data-review=apply]").ClickAsync(new());
 
-        UpsertHostCommand committed = Assert.IsType<UpsertHostCommand>(config.Executed[^1]);
+        var committed = Assert.IsType<UpsertHostCommand>(config.Executed[^1]);
         Assert.False(committed.DryRun);
         Assert.Equal(2, committed.Host.Version);
         Assert.Equal(ConfigCommandStatus.Committed, applied?.Status);
@@ -72,16 +72,16 @@ public sealed class ReviewDrawerTests
     public async Task Errors_AreListedByPlace_AndHandedToTheForm()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
+        var config = Arrange(context);
         config.Results = _ => new ConfigCommandResult(
             ConfigCommandStatus.Invalid,
             Errors: [new ConfigError("/names/1", "host.name.duplicate", "'www.example.com' is already served by another host")]);
         IReadOnlyList<ConfigError>? handed = null;
 
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited), onInvalid: errors => handed = errors);
+        var drawer = Render(context, new UpsertHostCommand(Edited), onInvalid: errors => handed = errors);
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=invalid]").Count == 1);
-        string text = drawer.Find("[data-review=invalid]").TextContent;
+        var text = drawer.Find("[data-review=invalid]").TextContent;
         Assert.Equal("Hostname 2", drawer.Find("[data-review=invalid] .pdk-error-where").TextContent);
         Assert.Contains("'www.example.com' is already served by another host.", text, StringComparison.Ordinal);
         Assert.Equal("/names/1", Assert.Single(handed!).Path);
@@ -92,16 +92,16 @@ public sealed class ReviewDrawerTests
     public async Task AStaleVersion_IsAFriendlyConflict_WithReload()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
+        var config = Arrange(context);
         config.Results = _ => new ConfigCommandResult(
             ConfigCommandStatus.Conflict,
             Conflict: new ConfigConflict([], new RevisionRef(ConfigRevisionId.New(), 9), CurrentVersion: 9));
-        bool reloaded = false;
+        var reloaded = false;
 
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited), onReload: () => reloaded = true);
+        var drawer = Render(context, new UpsertHostCommand(Edited), onReload: () => reloaded = true);
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=conflict]").Count == 1);
-        string text = drawer.Find("[data-review=conflict]").TextContent;
+        var text = drawer.Find("[data-review=conflict]").TextContent;
         Assert.Contains("This changed since you opened it.", text, StringComparison.Ordinal);
         Assert.Contains("#9", text, StringComparison.Ordinal);
         await drawer.FindAll("button").Single(b => b.TextContent.Contains("Reload", StringComparison.Ordinal)).ClickAsync(new());
@@ -112,11 +112,11 @@ public sealed class ReviewDrawerTests
     public async Task AConflictAtApply_IsShownTheSameWay()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
+        var config = Arrange(context);
         config.Results = command => command.DryRun
             ? new ConfigCommandResult(ConfigCommandStatus.DryRun)
             : new ConfigCommandResult(ConfigCommandStatus.Conflict, Conflict: new ConfigConflict([], CurrentVersion: 3));
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
+        var drawer = Render(context, new UpsertHostCommand(Edited));
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
 
         await drawer.Find("[data-review=apply]").ClickAsync(new());
@@ -128,7 +128,7 @@ public sealed class ReviewDrawerTests
     public async Task ACommitThatCouldNotGoLive_SaysSo()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
+        var config = Arrange(context);
         RevisionRef stored = new(ConfigRevisionId.New(), 5);
         config.Results = command => command.DryRun
             ? new ConfigCommandResult(ConfigCommandStatus.DryRun)
@@ -136,12 +136,12 @@ public sealed class ReviewDrawerTests
                 ConfigCommandStatus.PublishFailed,
                 stored,
                 Publish: new PublishOutcome(PublishOutcomeStatus.Rejected, 0, ["YARP rejected the cluster"], stored.Id));
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
+        var drawer = Render(context, new UpsertHostCommand(Edited));
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
 
         await drawer.Find("[data-review=apply]").ClickAsync(new());
 
-        string text = drawer.Find("[data-review=publish-failed]").TextContent;
+        var text = drawer.Find("[data-review=publish-failed]").TextContent;
         Assert.Contains("Saved as #5, but it isn't live.", text, StringComparison.Ordinal);
         Assert.Contains("YARP rejected the cluster", text, StringComparison.Ordinal);
     }
@@ -150,8 +150,8 @@ public sealed class ReviewDrawerTests
     public async Task ASessionThatEndedBeforeApply_LeavesTheDrawerWithItsExits()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
+        var config = Arrange(context);
+        var drawer = Render(context, new UpsertHostCommand(Edited));
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=apply]").Count == 1);
 
         context.Services.GetRequiredService<TestSessions>().Ended = true;
@@ -169,10 +169,10 @@ public sealed class ReviewDrawerTests
     public async Task ASessionThatEndedBeforeTheReview_SaysSo_InsteadOfLoadingForever()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
+        var config = Arrange(context);
         context.Services.GetRequiredService<TestSessions>().Ended = true;
 
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
+        var drawer = Render(context, new UpsertHostCommand(Edited));
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=signed-out]").Count == 1);
         Assert.Empty(config.Executed);
@@ -185,10 +185,10 @@ public sealed class ReviewDrawerTests
     public async Task ARefusalForTheRole_NamesTheRolesThatMayChangeTheConfig()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = Arrange(context);
+        var config = Arrange(context);
         config.Results = _ => new ConfigCommandResult(ConfigCommandStatus.Denied);
 
-        IRenderedComponent<DrawerHost> drawer = Render(context, new UpsertHostCommand(Edited));
+        var drawer = Render(context, new UpsertHostCommand(Edited));
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-review=denied]").Count == 1);
         Assert.Equal(Paduraksa.Dashboard.Identity.IdentityText.CantChangeConfig, drawer.Find("[data-review=denied]").TextContent.Trim());
@@ -197,7 +197,7 @@ public sealed class ReviewDrawerTests
 
     private static FakeDashboardConfig Arrange(DashboardTestContext context)
     {
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        var config = ConfigPages.SignIn(context, Role.Operator);
         config.Document = new ConfigDocument(Upstreams: [App], Hosts: [Stored]);
         return config;
     }
@@ -210,7 +210,7 @@ public sealed class ReviewDrawerTests
         Action<IReadOnlyList<ConfigError>>? onInvalid = null,
         Action? onReload = null)
     {
-        IRenderedComponent<DrawerHost> host = context.Render<DrawerHost>();
+        var host = context.Render<DrawerHost>();
         context.Render<ReviewDrawer>(parameters => parameters
             .Add(d => d.Open, true)
             .Add(d => d.Title, "Edit app.example.com")

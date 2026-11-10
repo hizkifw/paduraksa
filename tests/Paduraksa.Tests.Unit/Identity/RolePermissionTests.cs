@@ -3,7 +3,6 @@ using System.Text.Json;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Tests.Unit.Identity;
 
@@ -184,7 +183,7 @@ public sealed class RolePermissionTests
         // It used to be a raw string; the enum pins the three words and serializes them by name like every other wire enum.
         Assert.Equal(["session", "token", "unspecified"], Enum.GetValues<AuthKind>().Select(kind => kind.ToString().ToLowerInvariant()).Order(StringComparer.Ordinal));
 
-        JsonSerializerOptions options = IdentityJsonContext.Default.Options;
+        var options = IdentityJsonContext.Default.Options;
         Assert.Equal("\"session\"", JsonSerializer.Serialize(AuthKind.Session, options));
         Assert.Equal("\"token\"", JsonSerializer.Serialize(AuthKind.Token, options));
         Assert.Equal("\"unspecified\"", JsonSerializer.Serialize(AuthKind.Unspecified, options));

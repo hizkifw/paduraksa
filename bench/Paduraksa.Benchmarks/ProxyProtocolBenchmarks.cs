@@ -30,15 +30,15 @@ public class ProxyProtocolBenchmarks
     public void Setup()
     {
         _v2Ipv6TlvSplit = Split(_v2Ipv6Tlv, at: 20);
-        foreach (byte[] input in new[] { _v1Tcp4, _v1Tcp6, _v2Ipv4, _v2Ipv6Tlv })
+        foreach (var input in new[] { _v1Tcp4, _v1Tcp6, _v2Ipv4, _v2Ipv6Tlv })
         {
-            if (ProxyProtocolParser.TryParse(input, out ProxyProtocolHeader header, out int _) != ProxyProtocolParseStatus.Success || !header.HasAddresses)
+            if (ProxyProtocolParser.TryParse(input, out var header, out var _) != ProxyProtocolParseStatus.Success || !header.HasAddresses)
             {
                 throw new InvalidOperationException("A benchmark input doesn't parse.");
             }
         }
 
-        if (ProxyProtocolParser.TryParse(in _v2Ipv6TlvSplit, out _, out long _) != ProxyProtocolParseStatus.Success)
+        if (ProxyProtocolParser.TryParse(in _v2Ipv6TlvSplit, out _, out var _) != ProxyProtocolParseStatus.Success)
         {
             throw new InvalidOperationException("The split input doesn't parse.");
         }
@@ -59,13 +59,13 @@ public class ProxyProtocolBenchmarks
     [Benchmark]
     public IpKey V2IPv6WithTlvsSplit()
     {
-        _ = ProxyProtocolParser.TryParse(in _v2Ipv6TlvSplit, out ProxyProtocolHeader header, out long _);
+        _ = ProxyProtocolParser.TryParse(in _v2Ipv6TlvSplit, out var header, out var _);
         return header.SourceAddress;
     }
 
     private static IpKey Parse(byte[] input)
     {
-        _ = ProxyProtocolParser.TryParse(input, out ProxyProtocolHeader header, out int _);
+        _ = ProxyProtocolParser.TryParse(input, out var header, out var _);
         return header.SourceAddress;
     }
 
@@ -74,17 +74,17 @@ public class ProxyProtocolBenchmarks
     /// <summary>A v2 PROXY command over TCP (INET or INET6 by the address family) with zero-filled TLV bytes.</summary>
     private static byte[] V2(string source, string destination, int tlvBytes)
     {
-        IPAddress src = IPAddress.Parse(source);
-        IPAddress dst = IPAddress.Parse(destination);
-        bool v6 = src.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
-        int addressLength = v6 ? 36 : 12;
-        byte[] header = new byte[16 + addressLength + tlvBytes];
+        var src = IPAddress.Parse(source);
+        var dst = IPAddress.Parse(destination);
+        var v6 = src.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
+        var addressLength = v6 ? 36 : 12;
+        var header = new byte[16 + addressLength + tlvBytes];
         Signature.CopyTo(header, 0);
         header[12] = 0x21; // version 2, PROXY
         header[13] = (byte)(v6 ? 0x21 : 0x11); // INET6/INET, STREAM
         BinaryPrimitives.WriteUInt16BigEndian(header.AsSpan(14), (ushort)(addressLength + tlvBytes));
-        int offset = 16;
-        src.TryWriteBytes(header.AsSpan(offset), out int written);
+        var offset = 16;
+        src.TryWriteBytes(header.AsSpan(offset), out var written);
         offset += written;
         dst.TryWriteBytes(header.AsSpan(offset), out written);
         offset += written;
@@ -103,7 +103,7 @@ public class ProxyProtocolBenchmarks
     private static ReadOnlySequence<byte> Split(byte[] data, int at)
     {
         Segment first = new(data.AsMemory(0, at));
-        Segment last = first.Append(data.AsMemory(at));
+        var last = first.Append(data.AsMemory(at));
         return new ReadOnlySequence<byte>(first, 0, last, last.Memory.Length);
     }
 

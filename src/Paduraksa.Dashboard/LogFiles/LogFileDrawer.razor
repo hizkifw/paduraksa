@@ -89,12 +89,12 @@
 
     private async Task LoadAsync()
     {
-        int load = ++_loads;
+        var load = ++_loads;
         _loading = true;
         _failed = false;
         try
         {
-            LogFileTail? tail = await Task.Run(() => Store.ReadTail(File.Name, _count, _filter));
+            var tail = await Task.Run(() => Store.ReadTail(File.Name, _count, _filter));
             if (load != _loads)
             {
                 // A later keystroke's read is the one to show.

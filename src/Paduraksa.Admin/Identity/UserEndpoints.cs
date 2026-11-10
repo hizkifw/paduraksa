@@ -14,7 +14,7 @@ internal static class UserEndpoints
 {
     public static void Map(IEndpointRouteBuilder api)
     {
-        RouteGroupBuilder users = api.MapGroup("users");
+        var users = api.MapGroup("users");
         users.MapGet(string.Empty, ListAsync).RequirePermission(Permission.UsersRead).WithName("ListUsers");
         users.MapPost(string.Empty, CreateAsync).RequirePermission(Permission.UsersWrite).WithName("CreateUser");
 
@@ -26,19 +26,19 @@ internal static class UserEndpoints
 
     private static async Task<IResult> ListAsync(AdminCaller caller, HttpContext http, UserService users)
     {
-        UserListResult result = await users.ListAsync(caller.Origin, http.RequestAborted).ConfigureAwait(false);
+        var result = await users.ListAsync(caller.Origin, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user") ?? Results.Ok(result.Users);
     }
 
     private static async Task<IResult> GetAsync(UserId id, AdminCaller caller, HttpContext http, UserService users)
     {
-        UserResult result = await users.GetAsync(caller.Origin, id, http.RequestAborted).ConfigureAwait(false);
+        var result = await users.GetAsync(caller.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.Ok(result.User);
     }
 
     private static async Task<IResult> CreateAsync(CreateUserRequest request, AdminCaller caller, HttpContext http, UserService users)
     {
-        UserResult result = await users.CreateAsync(caller.Origin, request, http.RequestAborted).ConfigureAwait(false);
+        var result = await users.CreateAsync(caller.Origin, request, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.Created($"/api/v1/users/{result.User!.Id}", result.User);
     }
 
@@ -50,13 +50,13 @@ internal static class UserEndpoints
             return AdminProblems.Invalid("Nothing to change: give a displayName, roles or disabled.");
         }
 
-        UserResult result = await users.UpdateAsync(caller.Origin, id, request, http.RequestAborted).ConfigureAwait(false);
+        var result = await users.UpdateAsync(caller.Origin, id, request, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.Ok(result.User);
     }
 
     private static async Task<IResult> DeleteAsync(UserId id, AdminCaller caller, HttpContext http, UserService users)
     {
-        IdentityResult result = await users.DeleteAsync(caller.Origin, id, http.RequestAborted).ConfigureAwait(false);
+        var result = await users.DeleteAsync(caller.Origin, id, http.RequestAborted).ConfigureAwait(false);
         return AdminProblems.OfFailure(result.Status, "user", result.Problem) ?? Results.NoContent();
     }
 }

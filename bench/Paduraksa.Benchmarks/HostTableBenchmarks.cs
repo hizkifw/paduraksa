@@ -20,7 +20,7 @@ public class HostTableBenchmarks
     public void Setup()
     {
         _table = BenchConfig.Snapshot.Hosts;
-        bool shouldHit = Host != "nope.example.org";
+        var shouldHit = Host != "nope.example.org";
         if ((_table.Find(Host) is not null) != shouldHit)
         {
             throw new InvalidOperationException($"'{Host}' should {(shouldHit ? "" : "not ")}be found.");

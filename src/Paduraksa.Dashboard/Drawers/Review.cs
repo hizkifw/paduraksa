@@ -48,7 +48,7 @@ public static class DrawerReview
     {
         ArgumentNullException.ThrowIfNull(stack);
         ArgumentNullException.ThrowIfNull(request);
-        DrawerResult result = await Open(stack, request).Result.ConfigureAwait(true);
+        var result = await Open(stack, request).Result.ConfigureAwait(true);
         return result.As<ReviewOutcome>() ?? ReviewOutcome.Closed;
     }
 

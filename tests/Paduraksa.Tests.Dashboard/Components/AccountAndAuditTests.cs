@@ -22,10 +22,10 @@ public sealed class AccountAndAuditTests
     public async Task TheTotpEnrolment_GoesFromPasswordToCodeToRecoveryCodes_AndDropsEachSecret()
     {
         await using DashboardTestContext context = new();
-        (FakeDashboardIdentity identity, _, _, _) = IdentityPages.SignIn(context, Role.Viewer);
+        var (identity, _, _, _) = IdentityPages.SignIn(context, Role.Viewer);
         context.Render<MudPopoverProvider>();
-        bool enabled = false;
-        IRenderedComponent<TwoStepEnrollment> step = context.Render<TwoStepEnrollment>(parameters => parameters
+        var enabled = false;
+        var step = context.Render<TwoStepEnrollment>(parameters => parameters
             .Add(p => p.Enabled, EventCallback.Factory.Create(this, () => enabled = true)));
 
         Assert.Equal("password", Phase(step));
@@ -67,12 +67,12 @@ public sealed class AccountAndAuditTests
     public async Task NewRecoveryCodes_AreShownOnce()
     {
         await using DashboardTestContext context = new();
-        (FakeDashboardIdentity identity, _, _, _) = IdentityPages.SignIn(context, Role.Viewer);
+        var (identity, _, _, _) = IdentityPages.SignIn(context, Role.Viewer);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> dialogs = context.Render<DrawerHost>();
-        IRenderedComponent<TwoFactorCard> card = context.Render<TwoFactorCard>(parameters => parameters.Add(p => p.Enabled, true));
+        var dialogs = context.Render<DrawerHost>();
+        var card = context.Render<TwoFactorCard>(parameters => parameters.Add(p => p.Enabled, true));
 
-        Task opening = card.Find("[data-action=regenerate]").ClickAsync(new());
+        var opening = card.Find("[data-action=regenerate]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll("input[data-field=confirm-password]").Count == 1);
         await dialogs.Find("input[data-field=confirm-password]").ChangeAsync(new() { Value = FakeDashboardIdentity.Password });
         await dialogs.Find("[data-action=confirm-password]").ClickAsync(new());
@@ -96,7 +96,7 @@ public sealed class AccountAndAuditTests
     [Fact]
     public void TheRecoveryCodesFile_NamesTheAccountAndHasOneCodePerLine()
     {
-        string text = RecoveryCodesView.FileText(["aaaa-bbbb", "cccc-dddd"], "ada");
+        var text = RecoveryCodesView.FileText(["aaaa-bbbb", "cccc-dddd"], "ada");
 
         Assert.StartsWith("Paduraksa recovery codes for ada\n", text, StringComparison.Ordinal);
         Assert.EndsWith("\naaaa-bbbb\ncccc-dddd\n", text, StringComparison.Ordinal);
@@ -106,14 +106,14 @@ public sealed class AccountAndAuditTests
     public async Task MyAccount_ListsTheSessions_AndEndsAnotherOne()
     {
         await using DashboardTestContext context = new();
-        (FakeDashboardIdentity identity, _, _, Paduraksa.Dashboard.Auth.DashboardPrincipal user) = IdentityPages.SignIn(context, Role.Viewer);
-        SessionId other = SessionId.New();
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var (identity, _, _, user) = IdentityPages.SignIn(context, Role.Viewer);
+        var other = SessionId.New();
+        var now = DateTimeOffset.UtcNow;
         identity.Sessions.Add(new SessionSummary(user.Session.Session.SessionId, "192.168.1.20", "Mozilla/5.0 (X11; Linux x86_64) Firefox/140.0", now, now, now.AddHours(8), true, false));
         identity.Sessions.Add(new SessionSummary(other, "10.0.0.7", "Mozilla/5.0 (iPhone) Safari/605.1", now.AddDays(-1), now.AddHours(-2), now.AddHours(4), true, false));
-        IRenderedComponent<MudDialogProvider> dialogs = context.Render<MudDialogProvider>();
+        var dialogs = context.Render<MudDialogProvider>();
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<MyAccount> page = context.Render<MyAccount>();
+        var page = context.Render<MyAccount>();
         await page.WaitForStateAsync(() => page.FindAll("[data-session]").Count == 2);
 
         Assert.Contains("This session", page.Find("[data-current=true]").TextContent, StringComparison.Ordinal);
@@ -125,7 +125,7 @@ public sealed class AccountAndAuditTests
         Assert.Equal("off", page.Find("[data-card=two-factor]").GetAttribute("data-state"));
 
         // The click waits for the dialog's answer, so it isn't awaited here.
-        Task asking = page.Find("[data-current=false] [data-action=revoke-session]").ClickAsync(new());
+        var asking = page.Find("[data-current=false] [data-action=revoke-session]").ClickAsync(new());
         await dialogs.WaitForStateAsync(() => dialogs.FindAll(".pdk-confirm").Count == 1);
         await dialogs.Find(".pdk-confirm").ClickAsync(new());
         await asking;
@@ -138,9 +138,9 @@ public sealed class AccountAndAuditTests
     public async Task ChangingThePassword_SaysTheOtherSessionsEnded_AndEmptiesTheFields()
     {
         await using DashboardTestContext context = new();
-        (FakeDashboardIdentity identity, _, _, _) = IdentityPages.SignIn(context, Role.Viewer);
+        var (identity, _, _, _) = IdentityPages.SignIn(context, Role.Viewer);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<PasswordCard> card = context.Render<PasswordCard>();
+        var card = context.Render<PasswordCard>();
 
         await card.Find("input[data-field=current-password]").InputAsync(new() { Value = FakeDashboardIdentity.Password });
         await card.Find("input[data-field=new-password]").InputAsync(new() { Value = "short" });
@@ -160,13 +160,13 @@ public sealed class AccountAndAuditTests
     public async Task TheAuditPage_FiltersByOutcome_AndShowsTheChain()
     {
         await using DashboardTestContext context = new();
-        (_, FakeDashboardAudit audit, _, _) = IdentityPages.SignIn(context, Role.Auditor);
+        var (_, audit, _, _) = IdentityPages.SignIn(context, Role.Auditor);
         audit.Events.Add(Event(1, "auth.login", AuditOutcome.Success, details: """{"method":"password"}"""));
         audit.Events.Add(Event(2, "config.host.delete", AuditOutcome.Denied, target: HostId.New().ToString()));
         audit.Verification = new AuditVerification(true, 2, audit.Events[1].Id, new string('a', 64));
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
-        IRenderedComponent<Audit> page = context.Render<Audit>();
+        var drawers = context.Render<DrawerHost>();
+        var page = context.Render<Audit>();
 
         await page.WaitForStateAsync(() => page.FindAll("[data-event]").Count == 2 && page.Find("[data-section=chain]").GetAttribute("data-chain") == "intact");
         Assert.Contains("Chain intact: 2 events verify", page.Find("[data-section=chain]").TextContent, StringComparison.Ordinal);
@@ -202,12 +202,12 @@ public sealed class AccountAndAuditTests
     public async Task TheAuditPage_SurvivesAStoreThatFails_AndTriesAgain()
     {
         await using DashboardTestContext context = new();
-        (_, FakeDashboardAudit audit, _, _) = IdentityPages.SignIn(context, Role.Auditor);
+        var (_, audit, _, _) = IdentityPages.SignIn(context, Role.Auditor);
         audit.Events.Add(Event(1, "auth.login", AuditOutcome.Success));
         audit.Failing = true;
         context.Render<MudPopoverProvider>();
         context.Render<MudSnackbarProvider>();
-        IRenderedComponent<Audit> page = context.Render<Audit>();
+        var page = context.Render<Audit>();
 
         await page.WaitForStateAsync(() => page.FindAll("[data-alert=load-failed]").Count == 1);
         Assert.Contains("The events couldn't be read.", page.Find("[data-alert=load-failed]").TextContent, StringComparison.Ordinal);
@@ -231,7 +231,7 @@ public sealed class AccountAndAuditTests
         await using DashboardTestContext context = new();
         IdentityPages.SignIn(context, role);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<Audit> page = context.Render<Audit>();
+        var page = context.Render<Audit>();
 
         await page.WaitForStateAsync(() => page.FindAll("[data-section=events]").Count == 1 || page.Markup.Contains("can't read the audit log", StringComparison.Ordinal));
         Assert.Equal(shown, page.FindAll("[data-section=chain]").Count == 1);
@@ -241,14 +241,14 @@ public sealed class AccountAndAuditTests
     [Fact]
     public void AnExportLine_IsTheEventAsTheApiNamesIt()
     {
-        AuditEventSummary e = Event(1, "token.issue", AuditOutcome.Success, details: """{"name":"ci"}""");
+        var e = Event(1, "token.issue", AuditOutcome.Success, details: """{"name":"ci"}""");
         System.Buffers.ArrayBufferWriter<byte> output = new();
 
         Paduraksa.Dashboard.Audit.AuditText.WriteLine(output, e);
 
-        string line = System.Text.Encoding.UTF8.GetString(output.WrittenSpan);
+        var line = System.Text.Encoding.UTF8.GetString(output.WrittenSpan);
         Assert.EndsWith("\n", line, StringComparison.Ordinal);
-        using JsonDocument json = JsonDocument.Parse(line);
+        using var json = JsonDocument.Parse(line);
         Assert.Equal("token.issue", json.RootElement.GetProperty("action").GetString());
         Assert.Equal("success", json.RootElement.GetProperty("outcome").GetString());
         Assert.Equal("dashboard", json.RootElement.GetProperty("channel").GetString());
@@ -259,7 +259,7 @@ public sealed class AccountAndAuditTests
     private static void SetOutcome(IRenderedComponent<Audit> page, AuditOutcome outcome)
     {
         // The outcome select is a MudSelect (a popover); set it as its ValueChanged would.
-        IRenderedComponent<MudSelect<AuditOutcome?>> select = page.FindComponent<MudSelect<AuditOutcome?>>();
+        var select = page.FindComponent<MudSelect<AuditOutcome?>>();
         _ = select.Instance.ValueChanged.InvokeAsync(outcome);
     }
 

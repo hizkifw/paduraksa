@@ -15,7 +15,7 @@
                 <MudText Typo="Typo.subtitle1">@_user.DisplayName</MudText>
                 <MudText Typo="Typo.caption" Class="pdk-muted pdk-mono">@_user.Username</MudText>
                 <div class="pdk-user-roles">
-                    @foreach (Role role in _user.Session.Session.Roles)
+                    @foreach (var role in _user.Session.Session.Roles)
                     {
                         <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">@role.ToName()</MudChip>
                     }
@@ -50,7 +50,7 @@
     /// <summary>Up to two initials of a name ("Ada Lovelace" is "AL", "owner" is "O").</summary>
     internal static string Initials(string name)
     {
-        string[] words = name.Split([' ', '.', '_', '-', '@'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var words = name.Split([' ', '.', '_', '-', '@'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return words.Length switch
         {
             0 => "?",

@@ -15,7 +15,7 @@ public sealed class SetupChecklistTests
         SetupProgress fresh = new(false, [], [], [], 0, null);
         Assert.Equal([SetupTask.TwoStep, SetupTask.AcmeAccount, SetupTask.Certificate, SetupTask.FirstHost], SetupChecklist.Visible(fresh));
 
-        SetupProgress withAccount = fresh with { TwoStep = true, Accounts = [Account()] };
+        var withAccount = fresh with { TwoStep = true, Accounts = [Account()] };
         Assert.Equal([SetupTask.DnsProvider, SetupTask.Certificate, SetupTask.FirstHost], SetupChecklist.Visible(withAccount));
 
         // What the user can't read isn't listed.

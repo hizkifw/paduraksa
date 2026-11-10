@@ -61,7 +61,7 @@ public sealed class SessionIdentity : ClaimsIdentity
         yield return new Claim(ClaimTypes.NameIdentifier, session.UserId.ToString());
         yield return new Claim(ClaimTypes.Name, session.Username);
         yield return new Claim(SessionClaim, session.SessionId.ToString());
-        foreach (Role role in session.Roles)
+        foreach (var role in session.Roles)
         {
             yield return new Claim(ClaimTypes.Role, role.ToName());
         }

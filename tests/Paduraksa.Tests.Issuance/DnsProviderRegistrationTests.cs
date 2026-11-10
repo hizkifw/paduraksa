@@ -24,24 +24,24 @@ public sealed class DnsProviderRegistrationTests
     public void ProvidersAndTheAuthoritativeCheckAreRegisteredAndAnythingPresentIsKept()
     {
         FakeCloudflare cloudflare = new();
-        ServiceCollection services = Services(new FakeSecretHandlers(cloudflare.Handle));
+        var services = Services(new FakeSecretHandlers(cloudflare.Handle));
 
-        using ServiceProvider provider = services.AddPaduraksaDnsProviders().BuildServiceProvider();
+        using var provider = services.AddPaduraksaDnsProviders().BuildServiceProvider();
 
         Assert.IsType<DnsProviderFactory>(provider.GetRequiredService<IDnsProviderFactory>());
         Assert.IsType<AuthoritativeDnsPropagationCheck>(provider.GetRequiredService<IDnsPropagationCheck>());
 
         FakePropagationCheck mine = new();
-        ServiceCollection custom = Services(new FakeSecretHandlers(cloudflare.Handle));
+        var custom = Services(new FakeSecretHandlers(cloudflare.Handle));
         custom.AddSingleton<IDnsPropagationCheck>(mine);
-        using ServiceProvider kept = custom.AddPaduraksaDnsProviders().BuildServiceProvider();
+        using var kept = custom.AddPaduraksaDnsProviders().BuildServiceProvider();
         Assert.Same(mine, kept.GetRequiredService<IDnsPropagationCheck>());
     }
 
     [Fact]
     public void TheCheckCanBeLeftOutToKeepTheFixedDelay()
     {
-        using ServiceProvider provider = Services(new FakeSecretHandlers(new FakeCloudflare().Handle)).AddPaduraksaDnsProviders(new DnsPropagationSettings { Enabled = false }).BuildServiceProvider();
+        using var provider = Services(new FakeSecretHandlers(new FakeCloudflare().Handle)).AddPaduraksaDnsProviders(new DnsPropagationSettings { Enabled = false }).BuildServiceProvider();
 
         Assert.Null(provider.GetService<IDnsPropagationCheck>());
         Assert.NotNull(provider.GetService<IDnsProviderFactory>());
@@ -50,8 +50,8 @@ public sealed class DnsProviderRegistrationTests
     [Fact]
     public void BothKindsAreBuiltAndAnUnknownKindIsRefused()
     {
-        using ServiceProvider provider = Services(new FakeSecretHandlers(new FakeCloudflare().Handle)).AddPaduraksaDnsProviders().BuildServiceProvider();
-        IDnsProviderFactory factory = provider.GetRequiredService<IDnsProviderFactory>();
+        using var provider = Services(new FakeSecretHandlers(new FakeCloudflare().Handle)).AddPaduraksaDnsProviders().BuildServiceProvider();
+        var factory = provider.GetRequiredService<IDnsProviderFactory>();
 
         Assert.NotNull(factory.Create(DnsProviderKind.Cloudflare, SecretId.New()));
         Assert.NotNull(factory.Create(DnsProviderKind.DeSec, SecretId.New()));
@@ -65,7 +65,7 @@ public sealed class DnsProviderRegistrationTests
         FakeCloudflare cloudflare = new();
         cloudflare.AddZone("example.com");
         FakeSecretHandlers handlers = new(cloudflare.Handle);
-        using ServiceProvider provider = Services(handlers).AddPaduraksaDnsProviders().BuildServiceProvider();
+        using var provider = Services(handlers).AddPaduraksaDnsProviders().BuildServiceProvider();
         DnsProviderService service = new(h.Config.Db.Factory, h.Config.Service, h.Secrets, provider.GetRequiredService<IDnsProviderFactory>(), h.Time, NullLogger<DnsProviderService>.Instance);
         var row = await h.CreateDnsProviderAsync();
 
@@ -87,7 +87,7 @@ public sealed class DnsProviderRegistrationTests
     [Fact]
     public void TheSettingsBecomeTheChecksOptionsAndBadOnesAreRefused()
     {
-        DnsPropagationOptions options = new DnsPropagationSettings
+        var options = new DnsPropagationSettings
         {
             Timeout = TimeSpan.FromMinutes(2),
             Resolvers = ["10.0.0.2", "10.0.0.3:5353", "[2001:db8::1]:53"],
@@ -103,11 +103,11 @@ public sealed class DnsProviderRegistrationTests
     [Fact]
     public void TheSettingsReachTheRegisteredCheck()
     {
-        using ServiceProvider provider = Services(new FakeSecretHandlers(new FakeCloudflare().Handle))
+        using var provider = Services(new FakeSecretHandlers(new FakeCloudflare().Handle))
             .AddPaduraksaDnsProviders(new DnsPropagationSettings { Timeout = TimeSpan.FromSeconds(9), Resolvers = ["10.1.1.1"] })
             .BuildServiceProvider();
 
-        DnsPropagationOptions options = provider.GetRequiredService<DnsPropagationOptions>();
+        var options = provider.GetRequiredService<DnsPropagationOptions>();
 
         Assert.Equal(TimeSpan.FromSeconds(9), options.Timeout);
         Assert.Equal("10.1.1.1:53", Assert.Single(options.Resolvers).ToString());

@@ -18,9 +18,9 @@ internal static class ResponseWriter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(response);
 
-        HttpResponse http = context.Response;
+        var http = context.Response;
         http.StatusCode = response.StatusCode;
-        IHeaderDictionary headers = http.Headers;
+        var headers = http.Headers;
         if (response.ContentType.Count > 0)
         {
             headers.ContentType = response.ContentType;
@@ -56,7 +56,7 @@ internal static class ResponseWriter
             return Task.CompletedTask;
         }
 
-        ValueTask<FlushResult> write = context.Response.BodyWriter.WriteAsync(response.Body, context.RequestAborted);
+        var write = context.Response.BodyWriter.WriteAsync(response.Body, context.RequestAborted);
         return write.IsCompletedSuccessfully ? Task.CompletedTask : AwaitAsync(write);
 
         static async Task AwaitAsync(ValueTask<FlushResult> pending) => await pending.ConfigureAwait(false);
@@ -74,7 +74,7 @@ internal static class ResponseWriter
         ReadOnlySpan<char> host = default;
         if (target.IncludeRequestHost)
         {
-            StringValues hostHeader = context.Request.Headers.Host;
+            var hostHeader = context.Request.Headers.Host;
             host = hostHeader.Count == 1 ? HostTable.HostName(hostHeader[0]) : default;
         }
 
@@ -86,7 +86,7 @@ internal static class ResponseWriter
             // Use the request target exactly as the client sent it (path and query, original encoding). An
             // absolute-form or asterisk-form target has no usable path there, so fall back to the decoded path,
             // escaped again, plus the query string.
-            string? raw = context.Features.Get<IHttpRequestFeature>()?.RawTarget;
+            var raw = context.Features.Get<IHttpRequestFeature>()?.RawTarget;
             if (raw is { Length: > 0 } && raw[0] == '/')
             {
                 pathAndQuery = raw;

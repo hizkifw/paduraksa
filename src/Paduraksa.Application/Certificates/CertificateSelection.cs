@@ -39,10 +39,10 @@ internal static class CertificateSelection
     /// <summary>How well <paramref name="certificateNames"/> cover <paramref name="hostName"/> (both normalised).</summary>
     public static NameMatch Match(IReadOnlyList<string> certificateNames, string hostName)
     {
-        NameMatch best = NameMatch.None;
-        bool hostIsWildcard = hostName.StartsWith("*.", StringComparison.Ordinal);
-        int firstDot = hostName.IndexOf('.', StringComparison.Ordinal);
-        foreach (string name in certificateNames)
+        var best = NameMatch.None;
+        var hostIsWildcard = hostName.StartsWith("*.", StringComparison.Ordinal);
+        var firstDot = hostName.IndexOf('.', StringComparison.Ordinal);
+        foreach (var name in certificateNames)
         {
             if (string.Equals(name, hostName, StringComparison.Ordinal))
             {
@@ -63,10 +63,10 @@ internal static class CertificateSelection
     public static InventoryCertificate? Best(IEnumerable<InventoryCertificate> candidates, string hostName)
     {
         InventoryCertificate? best = null;
-        NameMatch bestMatch = NameMatch.None;
-        foreach (InventoryCertificate candidate in candidates)
+        var bestMatch = NameMatch.None;
+        foreach (var candidate in candidates)
         {
-            NameMatch match = Match(candidate.Names, hostName);
+            var match = Match(candidate.Names, hostName);
             if (match != NameMatch.None && (best is null || IsBetter(candidate, match, best, bestMatch)))
             {
                 best = candidate;
@@ -82,9 +82,9 @@ internal static class CertificateSelection
     public static IReadOnlyList<string> ServerNames(IReadOnlyList<string> hostNames)
     {
         List<string> names = new(hostNames.Count);
-        foreach (string name in hostNames)
+        foreach (var name in hostNames)
         {
-            if (HostNames.TryNormalize(name, out string normalized, out HostNameKind kind, out _)
+            if (HostNames.TryNormalize(name, out var normalized, out var kind, out _)
                 && kind != HostNameKind.IPv6Literal
                 && !(kind == HostNameKind.Exact && IPAddress.TryParse(normalized, out _))
                 && !names.Contains(normalized))
@@ -113,14 +113,14 @@ internal static class CertificateSelection
             ids.Add(fallback);
         }
 
-        foreach (HostConfig host in document.Hosts)
+        foreach (var host in document.Hosts)
         {
             if (!host.Enabled)
             {
                 continue;
             }
 
-            CertificateBinding binding = host.Certificate;
+            var binding = host.Certificate;
             if (binding.Mode == CertificateBindingMode.Specific && binding.CertificateId is { } specific)
             {
                 if (valid.Any(c => c.Id == specific))
@@ -130,7 +130,7 @@ internal static class CertificateSelection
             }
             else if (binding.Mode == CertificateBindingMode.Auto)
             {
-                foreach (string name in ServerNames(host.Names))
+                foreach (var name in ServerNames(host.Names))
                 {
                     if (Best(valid, name) is { } best)
                     {
@@ -150,13 +150,13 @@ internal static class CertificateSelection
             return match > bestMatch;
         }
 
-        int byNotAfter = candidate.NotAfter.CompareTo(best.NotAfter);
+        var byNotAfter = candidate.NotAfter.CompareTo(best.NotAfter);
         if (byNotAfter != 0)
         {
             return byNotAfter > 0;
         }
 
-        int byNotBefore = candidate.NotBefore.CompareTo(best.NotBefore);
+        var byNotBefore = candidate.NotBefore.CompareTo(best.NotBefore);
         return byNotBefore != 0 ? byNotBefore > 0 : candidate.Id.CompareTo(best.Id) < 0;
     }
 }

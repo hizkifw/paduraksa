@@ -53,7 +53,7 @@ public static class RequestIds
     public static string Format(long counter)
     {
         Span<char> buffer = stackalloc char[GeneratedLength];
-        int length = Format(counter, buffer);
+        var length = Format(counter, buffer);
         return new string(buffer[..length]);
     }
 
@@ -67,9 +67,9 @@ public static class RequestIds
 
         Prefix.AsSpan().CopyTo(destination);
         destination[PrefixLength] = '-';
-        Span<char> counterText = destination.Slice(PrefixLength + 1, CounterLength);
-        ulong remaining = (ulong)counter;
-        for (int i = CounterLength - 1; i >= 0; i--)
+        var counterText = destination.Slice(PrefixLength + 1, CounterLength);
+        var remaining = (ulong)counter;
+        for (var i = CounterLength - 1; i >= 0; i--)
         {
             counterText[i] = Alphabet[(int)(remaining & 0x1F)];
             remaining >>= 5;
@@ -84,12 +84,12 @@ public static class RequestIds
         RandomNumberGenerator.Fill(bytes);
         Span<char> text = stackalloc char[PrefixLength];
         ulong value = 0;
-        for (int i = 0; i < bytes.Length; i++)
+        for (var i = 0; i < bytes.Length; i++)
         {
             value = (value << 8) | bytes[i];
         }
 
-        for (int i = PrefixLength - 1; i >= 0; i--)
+        for (var i = PrefixLength - 1; i >= 0; i--)
         {
             text[i] = Alphabet[(int)(value & 0x1F)];
             value >>= 5;

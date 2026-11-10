@@ -44,7 +44,7 @@
 
             <FormSection Title="Roles" Description="Several roles allow what any of them allows." Name="roles">
                 <div class="pdk-role-picker">
-                    @foreach (Role role in IdentityText.Roles)
+                    @foreach (var role in IdentityText.Roles)
                     {
                         <label class="pdk-role-option @(_roles.Contains(role) ? "pdk-selected" : null)" data-role="@role.ToName()">
                             <MudCheckBox T="bool" Value="_roles.Contains(role)" ValueChanged="@(value => ToggleRole(role, value))" Color="Color.Primary" Dense="true" />
@@ -120,7 +120,7 @@
     /// <summary>Why a username isn't one the service takes, or null (the same rule: 3 to 64 of ASCII letters, digits and . _ - @ +).</summary>
     internal static string? UsernameProblem(string? username)
     {
-        string name = username?.Trim() ?? string.Empty;
+        var name = username?.Trim() ?? string.Empty;
         if (name.Length is < 3 or > 64)
         {
             return "3 to 64 characters.";
@@ -230,13 +230,13 @@
             UserResult result;
             if (User is not { } user)
             {
-                string password = _password;
+                var password = _password;
                 _password = string.Empty;
                 result = await Identity.CreateUserAsync(origin, new CreateUserRequest(_username.Trim(), NullIfEmpty(_displayName), password, roles));
             }
             else
             {
-                string? displayName = NullIfEmpty(_displayName);
+                var displayName = NullIfEmpty(_displayName);
                 UpdateUserRequest request = new(
                     displayName is not null && displayName != user.DisplayName ? displayName : null,
                     roles.Order().SequenceEqual(user.Roles.Order()) ? null : roles,

@@ -19,7 +19,7 @@ internal static class SignInEndpoints
         api.MapGet("setup", GetSetupStatusAsync).AllowAnonymousAdmin().WithName("GetSetupStatus");
         api.MapPost("setup", CompleteSetupAsync).AllowAnonymousAdmin().WithName("CompleteSetup");
 
-        RouteGroupBuilder auth = api.MapGroup("auth");
+        var auth = api.MapGroup("auth");
         auth.MapPost("login", LoginAsync).AllowAnonymousAdmin().WithName("Login");
         auth.MapPost("second-factor", SecondFactorAsync).AllowAnonymousAdmin().WithName("CompleteSecondFactor");
         auth.MapPost("logout", LogoutAsync).AllowAnonymousAdmin().WithName("Logout");
@@ -31,13 +31,13 @@ internal static class SignInEndpoints
 
     private static async Task<IResult> CompleteSetupAsync(SetupRequest request, HttpContext http, SetupService setup, LoginService login, AdminThrottle throttle)
     {
-        SignInAttempt<SetupResult> attempt = await SignInFlow.SetupAsync(http, setup, login, throttle, request, Channel.Api).ConfigureAwait(false);
+        var attempt = await SignInFlow.SetupAsync(http, setup, login, throttle, request, Channel.Api).ConfigureAwait(false);
         if (HeldBack(http, attempt.HeldBack, attempt.RetryAfter) is { } heldBack)
         {
             return heldBack;
         }
 
-        SetupResult result = attempt.Result!;
+        var result = attempt.Result!;
         return result switch
         {
             { Outcome: SetupOutcome.Succeeded, Owner: { } owner } => Results.Created("/api/v1/auth/me", new SetupCompleted(owner, attempt.Session)),
@@ -52,19 +52,19 @@ internal static class SignInEndpoints
 
     private static async Task<IResult> LoginAsync(LoginRequest request, HttpContext http, LoginService login, AdminThrottle throttle)
     {
-        SignInAttempt<LoginResult> attempt = await SignInFlow.LoginAsync(http, login, throttle, request.Username, request.Password, Channel.Api).ConfigureAwait(false);
+        var attempt = await SignInFlow.LoginAsync(http, login, throttle, request.Username, request.Password, Channel.Api).ConfigureAwait(false);
         return HeldBack(http, attempt.HeldBack, attempt.RetryAfter) ?? Outcome(http, attempt);
     }
 
     private static async Task<IResult> SecondFactorAsync(SecondFactorRequest request, HttpContext http, LoginService login, AdminThrottle throttle)
     {
-        SignInAttempt<LoginResult> attempt = await SignInFlow.SecondFactorAsync(http, login, throttle, request.Code, request.RecoveryCode, Channel.Api).ConfigureAwait(false);
+        var attempt = await SignInFlow.SecondFactorAsync(http, login, throttle, request.Code, request.RecoveryCode, Channel.Api).ConfigureAwait(false);
         return HeldBack(http, attempt.HeldBack, attempt.RetryAfter) ?? Outcome(http, attempt);
     }
 
     private static async Task<IResult> LogoutAsync(HttpContext http, SessionService sessions)
     {
-        (bool present, _, string? cookie) = AdminSessionCookie.Read(http.Request);
+        var (present, _, cookie) = AdminSessionCookie.Read(http.Request);
         if (present)
         {
             await sessions.LogoutAsync(cookie, http.GetClientContext(), http.RequestAborted).ConfigureAwait(false);
@@ -82,14 +82,14 @@ internal static class SignInEndpoints
         }
 
         // A caller reads its own user whatever its token's scopes are: the service lets a user read themselves, so a token asks as its owner.
-        CommandOrigin self = caller.Origin with { Actor = Actor.ForUser(userId) };
-        UserResult user = await users.GetAsync(self, userId, http.RequestAborted).ConfigureAwait(false);
+        var self = caller.Origin with { Actor = Actor.ForUser(userId) };
+        var user = await users.GetAsync(self, userId, http.RequestAborted).ConfigureAwait(false);
         if (user.User is null)
         {
             return AdminProblems.Unauthorized(http, "The user no longer exists.", ApiCodes.Auth.InvalidSession);
         }
 
-        IReadOnlySet<Permission> granted = await permissions.GetPermissionsAsync(caller.Origin.Actor, http.RequestAborted).ConfigureAwait(false);
+        var granted = await permissions.GetPermissionsAsync(caller.Origin.Actor, http.RequestAborted).ConfigureAwait(false);
         return Results.Ok(new CurrentCaller(
             user.User,
             [.. granted.Order()],

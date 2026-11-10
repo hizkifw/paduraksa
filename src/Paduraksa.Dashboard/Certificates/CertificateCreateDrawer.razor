@@ -21,7 +21,7 @@
         else if (_method is null)
         {
             <div class="pdk-method-grid" role="list" aria-label="Where the certificate comes from" data-section="methods">
-                @foreach ((AddCertificateKind kind, string icon, string title, string hint) in Methods)
+                @foreach (var (kind, icon, title, hint) in Methods)
                 {
                     <button type="button" class="pdk-method" role="listitem" @onclick="() => Choose(kind)" data-method="@kind.ToString().ToLowerInvariant()">
                         <span class="pdk-method-icon pdk-tone-primary"><MudIcon Icon="@icon" Size="Size.Small" /></span>
@@ -155,7 +155,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -219,7 +219,7 @@
 
     private async Task<AcmeAccountSummary?> NewAccountAsync()
     {
-        DrawerResult result = await Drawers.OpenAsync<AcmeAccountDrawer>(width: DrawerWidth.Narrow);
+        var result = await Drawers.OpenAsync<AcmeAccountDrawer>(width: DrawerWidth.Narrow);
         await LoadAsync();
         StateHasChanged();
         return result.As<AcmeAccountSummary>();
@@ -227,7 +227,7 @@
 
     private async Task<DnsProviderSummary?> NewProviderAsync()
     {
-        DrawerResult result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(null), DrawerWidth.Narrow);
+        var result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(null), DrawerWidth.Narrow);
         await LoadAsync();
         StateHasChanged();
         return result.As<DnsProviderSummary>();
@@ -235,7 +235,7 @@
 
     private async Task StartRequestAsync(CertificateIssueRequest request)
     {
-        CommandOrigin? origin = await Caller.OriginAsync();
+        var origin = await Caller.OriginAsync();
         if (origin is null)
         {
             return;
@@ -252,7 +252,7 @@
         _finished = null;
         _start = async progress =>
         {
-            CommandOrigin? origin = await Caller.OriginAsync();
+            var origin = await Caller.OriginAsync();
             return origin is null
                 ? new IssuanceResult(IssuanceOutcome.Forbidden, id)
                 : await Issuance.RenewAsync(id, origin, progress, Lifetime.ApplicationStopping);
@@ -307,13 +307,13 @@
 
     private async Task<CertificateOperationResult?> UploadAsync(CertificateUpload upload)
     {
-        CommandOrigin? origin = await Caller.OriginAsync();
+        var origin = await Caller.OriginAsync();
         return origin is null ? null : await Operations.UploadAsync(upload.Data, upload.Password, upload.Label, null, origin);
     }
 
     private async Task<CertificateOperationResult?> IssueAsync(LocalCertificateRequest request)
     {
-        CommandOrigin? origin = await Caller.OriginAsync();
+        var origin = await Caller.OriginAsync();
         if (origin is null)
         {
             return null;

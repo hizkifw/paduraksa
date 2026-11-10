@@ -66,7 +66,7 @@ public class GateBenchmarks
         _forwardCloudflare = BenchConfig.Context("app.test", "/assets/app.3f9a1c.js");
         _forwardCloudflare.Request.Headers[CloudflareHeaders.ConnectingIp] = "2001:db8:85a3::8a2e:370:7334";
         _forwardCloudflare.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"https\"}";
-        GateDecision cloudflare = _cloudflareGate.Decide(_forwardCloudflare);
+        var cloudflare = _cloudflareGate.Decide(_forwardCloudflare);
         if (cloudflare.Action != GateAction.Forward
             || _forwardCloudflare.Features.Get<IGateFeature>()!.State.ClientAddress != IpKey.Parse("2001:db8:85a3::8a2e:370:7334")
             || !_forwardCloudflare.Features.Get<IGateFeature>()!.State.IsHttps)
@@ -121,7 +121,7 @@ public class GateBenchmarks
 
     private void Expect(DefaultHttpContext context, GateAction action, int status = 0)
     {
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
         if (decision.Action != action || (status != 0 && decision.Response?.StatusCode != status))
         {
             throw new InvalidOperationException(

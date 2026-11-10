@@ -29,9 +29,9 @@ public class MixedInputBenchmarks
     {
         Random random = new(42);
         _table = BenchConfig.Snapshot.Hosts;
-        for (int i = 0; i < Inputs; i++)
+        for (var i = 0; i < Inputs; i++)
         {
-            int host = random.Next(BenchConfig.ExactHosts);
+            var host = random.Next(BenchConfig.ExactHosts);
             _hosts[i] = (i % 10) switch
             {
                 6 => $"H{host}.TEST",
@@ -49,7 +49,7 @@ public class MixedInputBenchmarks
             };
         }
 
-        foreach (string address in _addresses)
+        foreach (var address in _addresses)
         {
             if (!IpParser.TryParse(address, out _) || !IPAddress.TryParse(address, out _))
             {
@@ -61,8 +61,8 @@ public class MixedInputBenchmarks
     [Benchmark(OperationsPerInvoke = Inputs)]
     public int HostTableFind()
     {
-        int found = 0;
-        foreach (string host in _hosts)
+        var found = 0;
+        foreach (var host in _hosts)
         {
             if (_table.Find(host) is not null)
             {
@@ -77,9 +77,9 @@ public class MixedInputBenchmarks
     public UInt128 IpParserChars()
     {
         UInt128 sum = 0;
-        foreach (string address in _addresses)
+        foreach (var address in _addresses)
         {
-            _ = IpParser.TryParse(address, out IpKey key);
+            _ = IpParser.TryParse(address, out var key);
             sum ^= key.Value;
         }
 
@@ -89,10 +89,10 @@ public class MixedInputBenchmarks
     [Benchmark(OperationsPerInvoke = Inputs)]
     public int BclIpAddressChars()
     {
-        int hash = 0;
-        foreach (string address in _addresses)
+        var hash = 0;
+        foreach (var address in _addresses)
         {
-            _ = IPAddress.TryParse(address.AsSpan(), out IPAddress? parsed);
+            _ = IPAddress.TryParse(address.AsSpan(), out var parsed);
             hash ^= parsed!.GetHashCode();
         }
 

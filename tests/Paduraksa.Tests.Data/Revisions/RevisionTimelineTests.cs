@@ -25,17 +25,17 @@ public sealed class RevisionTimelineTests
         await h.RunAsync(new UpsertHostCommand(ProxyHost(host, "app.example.com", upstream, route) with { Version = 2, Enabled = false }));
         RevisionQueryService revisions = new(h.Db.Factory);
 
-        RevisionTimelinePage first = (await revisions.ListWithChangesAsync(2, null, Ct))!;
-        RevisionTimelinePage second = (await revisions.ListWithChangesAsync(2, first.Next, Ct))!;
+        var first = (await revisions.ListWithChangesAsync(2, null, Ct))!;
+        var second = (await revisions.ListWithChangesAsync(2, first.Next, Ct))!;
 
         Assert.Equal([3L, 2L], first.Items.Select(entry => entry.Revision.Seq));
-        HostChange disabled = Assert.IsType<HostChange>(Assert.Single(first.Items[0].Changes));
+        var disabled = Assert.IsType<HostChange>(Assert.Single(first.Items[0].Changes));
         Assert.Equal(ConfigChangeKind.Modified, disabled.Kind);
         Assert.Equal(host, disabled.HostId);
         Assert.Equal("First host", first.Items[1].Revision.Message);
         Assert.Contains(first.Items[1].Changes, change => change is HostChange { Kind: ConfigChangeKind.Added });
         Assert.Equal(first.Items[1].Revision.Id, first.Next);
-        UpstreamChange added = Assert.IsType<UpstreamChange>(Assert.Single(Assert.Single(second.Items).Changes));
+        var added = Assert.IsType<UpstreamChange>(Assert.Single(Assert.Single(second.Items).Changes));
         Assert.Equal(upstream, added.UpstreamId);
         Assert.Null(second.Next);
         Assert.Null(await revisions.ListWithChangesAsync(2, ConfigRevisionId.New(), Ct));

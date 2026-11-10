@@ -36,7 +36,7 @@
     {
         @if (!_failed)
         {
-            @for (int i = 0; i < 2; i++)
+            @for (var i = 0; i < 2; i++)
             {
                 <div class="pdk-row-skeleton">
                     <MudSkeleton SkeletonType="SkeletonType.Circle" Width="30px" Height="30px" />
@@ -49,7 +49,7 @@
     else
     {
         <ul class="pdk-list" data-section="sessions">
-            @foreach (SessionSummary session in _sessions)
+            @foreach (var session in _sessions)
             {
                 <li @key="session.Id" class="pdk-list-row pdk-session-row" data-session="@session.Id" data-current="@(session.Current ? "true" : "false")">
                     <span class="pdk-list-icon pdk-tone-@(session.Current ? "success" : "default")">
@@ -104,7 +104,7 @@
 
     private async Task LoadAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -114,7 +114,7 @@
         _failed = false;
         try
         {
-            SessionListResult result = await Identity.ListSessionsAsync(user.Session.OriginFor(Channel.Dashboard), user.UserId, user.SessionId);
+            var result = await Identity.ListSessionsAsync(user.Session.OriginFor(Channel.Dashboard), user.UserId, user.SessionId);
             _sessions = [.. result.Sessions.Where(s => s.SecondFactorCompleted).OrderByDescending(s => s.Current).ThenByDescending(s => s.LastSeenAt)];
         }
         catch (Exception ex) when (StoreFailures.Survivable(ex))
@@ -129,7 +129,7 @@
 
     private async Task RevokeAsync(SessionSummary session)
     {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
+        var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             "End this session?",
             $"{IdentityText.Browser(session.UserAgent)} at {session.ClientIp ?? "an unknown address"} is signed out; its open pages go to the sign-in page.",
@@ -142,7 +142,7 @@
 
         await Logger.TryAsync(Snackbar, "Couldn't end the session.", async () =>
         {
-            IdentityResult result = await Identity.RevokeSessionAsync(origin, session.Id);
+            var result = await Identity.RevokeSessionAsync(origin, session.Id);
             Snackbar.Add(result.Succeeded ? "Session ended." : $"Couldn't end it. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
         });
         await LoadAsync();
@@ -150,7 +150,7 @@
 
     private async Task RevokeOthersAsync()
     {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
+        var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             "Sign out everywhere else?",
             "Every other session of yours ends now. This one stays signed in.",
@@ -161,10 +161,10 @@
             return;
         }
 
-        CommandOrigin origin = user.Session.OriginFor(Channel.Dashboard);
+        var origin = user.Session.OriginFor(Channel.Dashboard);
         await Logger.TryAsync(Snackbar, "Couldn't sign out the other sessions.", async () =>
         {
-            IdentityResult result = await Identity.RevokeOtherSessionsAsync(origin, user.SessionId);
+            var result = await Identity.RevokeOtherSessionsAsync(origin, user.SessionId);
             Snackbar.Add(result.Succeeded ? "Signed out everywhere else." : $"That didn't work. {IdentityText.Refusal(result.Status, result.Problem)}", result.Succeeded ? Severity.Success : Severity.Error);
         });
         await LoadAsync();

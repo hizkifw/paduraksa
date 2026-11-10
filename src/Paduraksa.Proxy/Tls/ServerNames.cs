@@ -22,7 +22,7 @@ internal static class ServerNames
     {
         ArgumentNullException.ThrowIfNull(name);
 
-        if (!DnsNames.TryParse(name, out DnsName parsed, out string? problem))
+        if (!DnsNames.TryParse(name, out var parsed, out var problem))
         {
             Reject(name, problem);
         }

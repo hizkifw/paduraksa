@@ -118,16 +118,16 @@ internal static class SourceEmitter
 
     public static string Emit(TypedIdModel model)
     {
-        bool isGuid = model.Kind != IdKindValue.Int64Ordered;
-        int width = isGuid ? 22 : 11;
-        string factory = model.Kind switch
+        var isGuid = model.Kind != IdKindValue.Int64Ordered;
+        var width = isGuid ? 22 : 11;
+        var factory = model.Kind switch
         {
             IdKindValue.UuidV4 => "global::Paduraksa.Core.Ids.UuidV4Generator.Next()",
             IdKindValue.Int64Ordered => "global::Paduraksa.Core.Ids.Int64OrderedIdGenerator.Shared.Next()",
             _ => "global::Paduraksa.Core.Ids.UuidV7Generator.Shared.Next()",
         };
-        string fullType = model.Namespace is null ? $"global::{model.Name}" : $"global::{model.Namespace}.{model.Name}";
-        string constructorGuard = isGuid ? string.Empty : "global::System.ArgumentOutOfRangeException.ThrowIfNegative(value);";
+        var fullType = model.Namespace is null ? $"global::{model.Name}" : $"global::{model.Namespace}.{model.Name}";
+        var constructorGuard = isGuid ? string.Empty : "global::System.ArgumentOutOfRangeException.ThrowIfNegative(value);";
 
         return new StringBuilder(Template)
             .Replace("$NAMESPACE_OPEN$", model.Namespace is null ? string.Empty : $"namespace {model.Namespace}\n{{")

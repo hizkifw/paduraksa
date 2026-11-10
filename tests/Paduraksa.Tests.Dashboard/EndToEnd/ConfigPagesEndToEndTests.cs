@@ -23,20 +23,20 @@ public sealed class ConfigPagesEndToEndTests
     [Fact]
     public async Task CreateAHostWithANewUpstream_SimulateIt_EditAndUndo_AndSeeTheHistory()
     {
-        (IPlaywright playwright, IBrowser browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using IPlaywright ownedPlaywright = playwright;
-        await using IBrowser ownedBrowser = browser;
-        await using DashboardHost host = await DashboardHost.StartAsync(Ct);
-        await using IBrowserContext context = await browser.NewContextAsync(new BrowserNewContextOptions
+        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
+        using var ownedPlaywright = playwright;
+        await using var ownedBrowser = browser;
+        await using var host = await DashboardHost.StartAsync(Ct);
+        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = host.Admin.ToString(),
             IgnoreHTTPSErrors = true,
             ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
             ColorScheme = ColorScheme.Dark,
         });
-        IPage page = await context.NewPageAsync();
+        var page = await context.NewPageAsync();
         // The 404 the test asks for on purpose is logged by the browser; anything else in red is a problem.
-        List<string> problems = PlaywrightBrowser.CollectProblems(page, "status of 404");
+        var problems = PlaywrightBrowser.CollectProblems(page, "status of 404");
 
         await SetUpAsync(page, host);
 
@@ -49,7 +49,7 @@ public sealed class ConfigPagesEndToEndTests
 
         // A new host, in its drawer (with an address of its own).
         await page.Locator("[data-action=add-host]").ClickAsync();
-        ILocator hostDrawer = page.Locator(".pdk-sheet [data-drawer=host]");
+        var hostDrawer = page.Locator(".pdk-sheet [data-drawer=host]");
         await Expect(hostDrawer).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await Expect(page).ToHaveURLAsync(new Regex("/hosts/new$"));
         await ExpectDrawerTitleAsync(page, "New host");
@@ -72,15 +72,15 @@ public sealed class ConfigPagesEndToEndTests
 
         // A check's result goes on its own line under the address, as wide as it, not squeezed into a column beside it.
         await page.Locator(".pdk-sheet[data-top] [data-action=check-0]").ClickAsync();
-        ILocator probeLine = page.Locator(".pdk-sheet[data-top] .pdk-probe-line");
+        var probeLine = page.Locator(".pdk-sheet[data-top] .pdk-probe-line");
         await Expect(probeLine).ToBeVisibleAsync(new() { Timeout = 15_000 });
-        LocatorBoundingBoxResult address = (await page.Locator(".pdk-sheet[data-top] .pdk-destination-row .mud-input-control").First.BoundingBoxAsync())!;
-        LocatorBoundingBoxResult probe = (await probeLine.BoundingBoxAsync())!;
+        var address = (await page.Locator(".pdk-sheet[data-top] .pdk-destination-row .mud-input-control").First.BoundingBoxAsync())!;
+        var probe = (await probeLine.BoundingBoxAsync())!;
         Assert.True(probe.Y >= address.Y + address.Height - 1, $"The check's result ({probe.Y}) should start below the address ({address.Y + address.Height}).");
         Assert.True(Math.Abs(probe.X - address.X) <= 4, $"The check's result ({probe.X}) should line up with the address ({address.X}).");
 
         // The load-balancing and health switches stack in one column: one left edge, each on a line of its own.
-        ILocator switches = page.Locator(".pdk-sheet[data-top] [data-section=health] .mud-switch");
+        var switches = page.Locator(".pdk-sheet[data-top] [data-section=health] .mud-switch");
         await Expect(switches).ToHaveCountAsync(3);
         IReadOnlyList<LocatorBoundingBoxResult> boxes = [.. await Task.WhenAll((await switches.AllAsync()).Select(async s => (await s.BoundingBoxAsync())!))];
         Assert.All(boxes, box => Assert.True(Math.Abs(box.X - boxes[0].X) <= 1, $"A switch at x={box.X} should line up with the first at x={boxes[0].X}."));
@@ -105,7 +105,7 @@ public sealed class ConfigPagesEndToEndTests
         // One review for both, one revision.
         await ReviewAndApplyAsync(page, "review-host-and-upstream");
         await Expect(page).ToHaveURLAsync(new Regex("/hosts$"));
-        ILocator row = page.Locator(".pdk-hosts-table [data-host='app.home.test']");
+        var row = page.Locator(".pdk-hosts-table [data-host='app.home.test']");
         await Expect(row).ToContainTextAsync("app");
         await Expect(row).ToContainTextAsync("http://127.0.0.1:18080");
         await Expect(page.Locator(".mud-snackbar", new() { HasText = "Live as #1" })).ToBeVisibleAsync();
@@ -196,14 +196,14 @@ public sealed class ConfigPagesEndToEndTests
         await page.GotoAsync("/hosts/not-a-host-id");
         await ExpectDrawerTitleAsync(page, "Host not found");
         await PlaywrightBrowser.ScreenshotAsync(page, "drawer-not-found", fullPage: false);
-        IResponse? missing = await page.GotoAsync("/no-such-page");
+        var missing = await page.GotoAsync("/no-such-page");
         Assert.Equal(404, missing?.Status);
         await ExpectHeadingAsync(page, "Page not found");
         await PlaywrightBrowser.ScreenshotAsync(page, "not-found");
 
         // Phone width: the lists read as cards, a drawer takes the whole width, and nothing scrolls sideways.
         await page.SetViewportSizeAsync(390, 844);
-        foreach ((string path, string shot) in new[] { ("/hosts", "hosts-phone"), ("/upstreams", "upstreams-phone") })
+        foreach (var (path, shot) in new[] { ("/hosts", "hosts-phone"), ("/upstreams", "upstreams-phone") })
         {
             await page.GotoAsync(path);
             await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync();
@@ -279,8 +279,8 @@ public sealed class ConfigPagesEndToEndTests
     /// <summary>Types into a form field of the top drawer (or the page) by its <c>data-field</c> name (MudBlazor puts the attribute on the input).</summary>
     private static async Task FillAsync(IPage page, string field, string value)
     {
-        ILocator scope = await page.Locator(".pdk-sheet[data-top]").CountAsync() > 0 ? page.Locator(".pdk-sheet[data-top]") : page.Locator("body");
-        ILocator input = scope.Locator($"input[data-field='{field}'], textarea[data-field='{field}'], [data-field='{field}'] input").First;
+        var scope = await page.Locator(".pdk-sheet[data-top]").CountAsync() > 0 ? page.Locator(".pdk-sheet[data-top]") : page.Locator("body");
+        var input = scope.Locator($"input[data-field='{field}'], textarea[data-field='{field}'], [data-field='{field}'] input").First;
         await input.FillAsync(value);
         await input.BlurAsync();
     }
@@ -296,7 +296,7 @@ public sealed class ConfigPagesEndToEndTests
     private static async Task ReviewAndApplyAsync(IPage page, string screenshot)
     {
         await page.Locator(".pdk-sheet[data-top] [data-action=review]").ClickAsync();
-        ILocator apply = page.Locator(".pdk-sheet[data-top] [data-review=apply]");
+        var apply = page.Locator(".pdk-sheet[data-top] [data-review=apply]");
         await Expect(apply).ToBeEnabledAsync(new() { Timeout = 15_000 });
         await Expect(page.Locator(".pdk-diff-group").First).ToBeVisibleAsync();
         await ExpectInsideWindowAsync(page, apply);
@@ -309,9 +309,9 @@ public sealed class ConfigPagesEndToEndTests
     private static async Task ExpectInsideWindowAsync(IPage page, ILocator element)
     {
         await PlaywrightBrowser.SettleAsync(page);
-        LocatorBoundingBoxResult? box = await element.BoundingBoxAsync();
+        var box = await element.BoundingBoxAsync();
         Assert.NotNull(box);
-        int width = page.ViewportSize!.Width;
+        var width = page.ViewportSize!.Width;
         Assert.True(box.X >= 0 && box.X + box.Width <= width, $"The element spans {box.X} to {box.X + box.Width} in a {width} px window.");
     }
 

@@ -25,7 +25,7 @@
         <RefPicker T="AcmeAccountId?" Value="_account" ValueChanged="value => _account = value" Label="ACME account" Disabled="Busy" ToStringFunc="AccountName"
                    NewValue="NewAccountValue" NewLabel="New ACME account..." OnNew="@(NewAccount is null ? default : EventCallback.Factory.Create(this, AddAccountAsync))"
                    Error="_accountError is not null" ErrorText="@_accountError" Class="pdk-acme-account">
-            @foreach (AcmeAccountSummary account in _active)
+            @foreach (var account in _active)
             {
                 <MudSelectItem T="AcmeAccountId?" Value="account.Id">@ProviderDisplay.AccountName(account)</MudSelectItem>
             }
@@ -68,7 +68,7 @@
             <RefPicker T="DnsProviderId?" Value="_provider" ValueChanged="value => _provider = value" Label="DNS provider" Disabled="Busy" ToStringFunc="ProviderName"
                        NewValue="NewProviderValue" NewLabel="New DNS provider..." OnNew="@(NewProvider is null ? default : EventCallback.Factory.Create(this, AddProviderAsync))"
                        Error="_providerError is not null" ErrorText="@_providerError" Class="pdk-acme-provider">
-                @foreach (DnsProviderSummary provider in Providers)
+                @foreach (var provider in Providers)
                 {
                     <MudSelectItem T="DnsProviderId?" Value="provider.Id">@provider.Label (@ProviderDisplay.KindLabel(provider.Kind))</MudSelectItem>
                 }
@@ -80,7 +80,7 @@
         <MudTextField T="string" @bind-Value="_label" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="CertificateService.MaxLabelLength"
                       HelperText="Optional" Disabled="Busy" />
         <MudSelect T="KeySpec" @bind-Value="_keySpec" Label="Key" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="Busy" Dense="true">
-            @foreach ((KeySpec spec, string label) in NameList.KeySpecs)
+            @foreach (var (spec, label) in NameList.KeySpecs)
             {
                 <MudSelectItem T="KeySpec" Value="spec">@label</MudSelectItem>
             }
@@ -179,7 +179,7 @@
     protected override void OnParametersSet()
     {
         _active = [.. Accounts.Where(a => a.Status == AcmeAccountStatus.Active)];
-        IReadOnlyList<AcmeAccountSummary> active = _active;
+        var active = _active;
         if (_account is null || active.All(a => a.Id != _account))
         {
             _account = active.Count > 0 ? active[0].Id : null;
@@ -205,7 +205,7 @@
 
     private async Task SubmitAsync()
     {
-        IReadOnlyList<string> names = NameList.Parse(_names);
+        var names = NameList.Parse(_names);
         CheckNames();
         _accountError = _account is null ? "Choose the account to order with." : null;
         _providerError = _challenge == AcmeChallengeType.Dns01 && _provider is null ? "DNS-01 needs a DNS provider." : null;

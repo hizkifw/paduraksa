@@ -81,8 +81,8 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
     public async ValueTask<DnsCredentialCheck> ValidateCredentialsAsync(CancellationToken cancellationToken)
     {
         // One bounded read that needs the token to be good and to read domains; listing them all would page above 500.
-        using DnsApiClient api = Open();
-        DnsApiResponse response = await api.SendAsync(HttpMethod.Get, Url("domains/?owns_qname=paduraksa-credential-check.invalid"), null, cancellationToken).ConfigureAwait(false);
+        using var api = Open();
+        var response = await api.SendAsync(HttpMethod.Get, Url("domains/?owns_qname=paduraksa-credential-check.invalid"), null, cancellationToken).ConfigureAwait(false);
         return response.IsSuccess
             ? new DnsCredentialCheck(true)
             : new DnsCredentialCheck(false, $"deSEC did not accept the token (HTTP {(int)response.Status}{(ErrorText(response) is { Length: > 0 } text ? ": " + text : string.Empty)}).");
@@ -100,8 +100,8 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
     {
         try
         {
-            using JsonDocument document = JsonDocument.Parse(response.Body);
-            JsonElement root = document.RootElement;
+            using var document = JsonDocument.Parse(response.Body);
+            var root = document.RootElement;
             if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
             {
                 root = root[0];
@@ -112,14 +112,14 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
                 return string.Empty;
             }
 
-            if (root.TryGetProperty("detail", out JsonElement detail) && detail.ValueKind == JsonValueKind.String)
+            if (root.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
             {
                 return DnsApiClient.Clean(detail.GetString());
             }
 
-            foreach (JsonProperty field in root.EnumerateObject())
+            foreach (var field in root.EnumerateObject())
             {
-                JsonElement message = field.Value.ValueKind == JsonValueKind.Array && field.Value.GetArrayLength() > 0 ? field.Value[0] : field.Value;
+                var message = field.Value.ValueKind == JsonValueKind.Array && field.Value.GetArrayLength() > 0 ? field.Value[0] : field.Value;
                 if (message.ValueKind == JsonValueKind.String)
                 {
                     return DnsApiClient.Clean($"{field.Name}: {message.GetString()}");
@@ -138,9 +138,9 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
     private static List<string> Merge(IEnumerable<string>? existing, IEnumerable<Change> changes)
     {
         List<string> records = [.. existing ?? []];
-        foreach (Change change in changes)
+        foreach (var change in changes)
         {
-            int index = records.FindIndex(r => DnsNames.UnquoteTxt(r) == change.Value);
+            var index = records.FindIndex(r => DnsNames.UnquoteTxt(r) == change.Value);
             if (change.Add && index < 0)
             {
                 records.Add(DnsNames.QuoteTxt(change.Value));
@@ -169,19 +169,19 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
             return;
         }
 
-        using DnsApiClient api = Open();
+        using var api = Open();
 
         // Which RRset each change lands in (one lookup per name).
         Dictionary<string, (string Domain, string Subname, int MinimumTtl)> located = [];
-        foreach (string name in changes.Select(c => c.Name).Distinct(StringComparer.Ordinal))
+        foreach (var name in changes.Select(c => c.Name).Distinct(StringComparer.Ordinal))
         {
             located[name] = await FindDomainAsync(api, name, cancellationToken).ConfigureAwait(false);
         }
 
         List<Target> targets = [];
-        foreach (IGrouping<(string Domain, string Subname), Change> group in changes.GroupBy(c => (located[c.Name].Domain, located[c.Name].Subname)))
+        foreach (var group in changes.GroupBy(c => (located[c.Name].Domain, located[c.Name].Subname)))
         {
-            int minimumTtl = located[group.First().Name].MinimumTtl;
+            var minimumTtl = located[group.First().Name].MinimumTtl;
             if (group.Any(c => c.Add) && await ExistsAsync(api, group.Key.Domain, group.Key.Subname, "CNAME", cancellationToken).ConfigureAwait(false))
             {
                 throw new DnsProviderException(
@@ -189,17 +189,17 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
                     isTransient: false);
             }
 
-            DesecRrset? existing = await GetRrsetAsync(api, group.Key.Domain, group.Key.Subname, cancellationToken).ConfigureAwait(false);
+            var existing = await GetRrsetAsync(api, group.Key.Domain, group.Key.Subname, cancellationToken).ConfigureAwait(false);
             targets.Add(new Target(group.Key.Domain, group.Key.Subname, minimumTtl, [.. group], existing));
         }
 
-        foreach (IGrouping<string, Target> domain in targets.GroupBy(t => t.Domain, StringComparer.Ordinal))
+        foreach (var domain in targets.GroupBy(t => t.Domain, StringComparer.Ordinal))
         {
             List<DesecRrsetWrite> creates = [];
             List<DesecRrsetWrite> updates = [];
-            foreach (Target target in domain)
+            foreach (var target in domain)
             {
-                List<string> records = Merge(target.Existing?.Records, target.Changes);
+                var records = Merge(target.Existing?.Records, target.Changes);
                 if (target.Existing is null)
                 {
                     if (records.Count > 0)
@@ -215,7 +215,7 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
 
             if (creates.Count > 0)
             {
-                DnsApiResponse response = await api.SendAsync(
+                var response = await api.SendAsync(
                     HttpMethod.Post, RrsetsUrl(domain.Key), DnsApiClient.Json(creates, DesecJsonContext.Default.ListDesecRrsetWrite), cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccess)
                 {
@@ -225,10 +225,10 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
                     }
 
                     // Another writer may have created a set since it was read: merge into what is there now, once.
-                    DnsProviderException refusal = api.Failure("create the TXT RRsets", response, ErrorText(response));
-                    foreach (Target target in domain.Where(t => t.Existing is null))
+                    var refusal = api.Failure("create the TXT RRsets", response, ErrorText(response));
+                    foreach (var target in domain.Where(t => t.Existing is null))
                     {
-                        DesecRrset now = await GetRrsetAsync(api, target.Domain, target.Subname, cancellationToken).ConfigureAwait(false) ?? throw refusal;
+                        var now = await GetRrsetAsync(api, target.Domain, target.Subname, cancellationToken).ConfigureAwait(false) ?? throw refusal;
                         updates.Add(Write(target with { Existing = now }, Merge(now.Records, target.Changes)));
                     }
                 }
@@ -236,7 +236,7 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
 
             if (updates.Count > 0)
             {
-                DnsApiResponse response = await api.SendAsync(
+                var response = await api.SendAsync(
                     HttpMethod.Patch, RrsetsUrl(domain.Key), DnsApiClient.Json(updates, DesecJsonContext.Default.ListDesecRrsetWrite), cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccess)
                 {
@@ -259,14 +259,14 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
 
     private static async Task<(string Domain, string Subname, int MinimumTtl)> FindDomainAsync(DnsApiClient api, string name, CancellationToken cancellationToken)
     {
-        DnsApiResponse response = await api.SendAsync(HttpMethod.Get, Url($"domains/?owns_qname={Uri.EscapeDataString(name)}"), null, cancellationToken).ConfigureAwait(false);
+        var response = await api.SendAsync(HttpMethod.Get, Url($"domains/?owns_qname={Uri.EscapeDataString(name)}"), null, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccess)
         {
             throw api.Failure("look up the domain", response, ErrorText(response));
         }
 
         List<DesecDomain> domains = response.Read(DesecJsonContext.Default.ListDesecDomain, "deSEC");
-        DesecDomain? owner = domains
+        var owner = domains
             .Where(d => d.Name is { Length: > 0 } && (string.Equals(name, d.Name, StringComparison.OrdinalIgnoreCase) || name.EndsWith("." + d.Name, StringComparison.OrdinalIgnoreCase)))
             .OrderByDescending(d => d.Name!.Length)
             .FirstOrDefault();
@@ -275,15 +275,15 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
             throw new DnsProviderException($"deSEC has no domain for {name} in this account.", isTransient: false);
         }
 
-        string domain = owner.Name!.ToLowerInvariant();
-        string subname = name.Length == domain.Length ? string.Empty : name[..^(domain.Length + 1)];
+        var domain = owner.Name!.ToLowerInvariant();
+        var subname = name.Length == domain.Length ? string.Empty : name[..^(domain.Length + 1)];
         return (domain, subname, owner.MinimumTtl ?? DefaultMinimumTtl);
     }
 
     /// <summary>The TXT RRset at the subname, or null when there is none (404).</summary>
     private static async Task<DesecRrset?> GetRrsetAsync(DnsApiClient api, string domain, string subname, CancellationToken cancellationToken)
     {
-        DnsApiResponse response = await api.SendAsync(HttpMethod.Get, RrsetUrl(domain, subname, "TXT"), null, cancellationToken).ConfigureAwait(false);
+        var response = await api.SendAsync(HttpMethod.Get, RrsetUrl(domain, subname, "TXT"), null, cancellationToken).ConfigureAwait(false);
         if (response.Status == HttpStatusCode.NotFound)
         {
             return null;
@@ -296,7 +296,7 @@ internal sealed partial class DesecDnsProvider : IDnsProvider
 
     private static async Task<bool> ExistsAsync(DnsApiClient api, string domain, string subname, string type, CancellationToken cancellationToken)
     {
-        DnsApiResponse response = await api.SendAsync(HttpMethod.Get, RrsetUrl(domain, subname, type), null, cancellationToken).ConfigureAwait(false);
+        var response = await api.SendAsync(HttpMethod.Get, RrsetUrl(domain, subname, type), null, cancellationToken).ConfigureAwait(false);
         return response.IsSuccess
             ? true
             : response.Status == HttpStatusCode.NotFound

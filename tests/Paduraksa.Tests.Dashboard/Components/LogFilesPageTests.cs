@@ -6,7 +6,6 @@ using MudBlazor;
 
 using Paduraksa.Application.Logging;
 using Paduraksa.Contracts.Logging;
-using Paduraksa.Core.Logging;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.LogFiles;
@@ -20,11 +19,11 @@ public sealed class LogFilesPageTests
     public async Task ThePageGroupsTheFilesByLogAndOffersEachOneForReadingAndDownload()
     {
         await using DashboardTestContext context = new();
-        FakeLogFiles store = SignIn(context, Role.Owner);
+        var store = SignIn(context, Role.Owner);
         store.Files.Add(new LogFileSummary("error.log", "error", 2048, DateTimeOffset.UtcNow.AddSeconds(-30), false));
         store.Files.Add(new LogFileSummary("error-20261109T120000Z.log.gz", "error", 1024, DateTimeOffset.UtcNow.AddDays(-1), true));
         store.Files.Add(new LogFileSummary("access.log", "access", 4096, DateTimeOffset.UtcNow, false));
-        IRenderedComponent<LogFiles> page = context.Render<LogFiles>();
+        var page = context.Render<LogFiles>();
 
         Assert.Equal(["error.log", "error-20261109T120000Z.log.gz", "access.log"], page.FindAll("[data-file]").Select(row => row.GetAttribute("data-file")));
         Assert.Single(page.FindAll("[data-log=error]"));
@@ -41,7 +40,7 @@ public sealed class LogFilesPageTests
     {
         await using DashboardTestContext context = new();
         SignIn(context, Role.Owner);
-        IRenderedComponent<LogFiles> page = context.Render<LogFiles>();
+        var page = context.Render<LogFiles>();
 
         Assert.Contains("No log files yet", page.Markup, StringComparison.Ordinal);
         Assert.Contains(FakeLogFiles.LogDirectory, page.Markup, StringComparison.Ordinal);
@@ -52,15 +51,15 @@ public sealed class LogFilesPageTests
     public async Task AFileOpensInADrawerWithItsLastLinesAndItsFilterReachesTheStore()
     {
         await using DashboardTestContext context = new();
-        FakeLogFiles store = SignIn(context, Role.Owner);
+        var store = SignIn(context, Role.Owner);
         store.Files.Add(new LogFileSummary("error.log", "error", 128, DateTimeOffset.UtcNow, false));
         store.Lines["error.log"] = ["warn: one", "error: boom", "warn: two"];
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
-        IRenderedComponent<LogFiles> page = context.Render<LogFiles>();
+        var drawers = context.Render<DrawerHost>();
+        var page = context.Render<LogFiles>();
 
         await page.Find("[data-file='error.log']").ClickAsync(new());
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-section=tail]").Count == 1);
-        IRenderedComponent<LogFileDrawer> drawer = drawers.FindComponent<LogFileDrawer>();
+        var drawer = drawers.FindComponent<LogFileDrawer>();
 
         Assert.Equal("error.log", drawer.Find(".pdk-drawer-title").TextContent.Trim());
         Assert.Contains("warn: one", drawer.Find("[data-section=tail]").TextContent, StringComparison.Ordinal);
@@ -76,11 +75,11 @@ public sealed class LogFilesPageTests
     public async Task TheFileNameLinkOpensOneDrawerNotTwo()
     {
         await using DashboardTestContext context = new();
-        FakeLogFiles store = SignIn(context, Role.Owner);
+        var store = SignIn(context, Role.Owner);
         store.Files.Add(new LogFileSummary("error.log", "error", 64, DateTimeOffset.UtcNow, false));
         store.Lines["error.log"] = ["warn: one"];
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
-        IRenderedComponent<LogFiles> page = context.Render<LogFiles>();
+        var drawers = context.Render<DrawerHost>();
+        var page = context.Render<LogFiles>();
 
         // The row opens the drawer too; the link must stop its click there instead of opening a second level on top.
         await page.Find("[data-file='error.log'] .pdk-row-link").ClickAsync(new());
@@ -94,12 +93,12 @@ public sealed class LogFilesPageTests
     public async Task AFullTailSaysThatItIsOnlyTheEndAndPointsAtTheDownload()
     {
         await using DashboardTestContext context = new();
-        FakeLogFiles store = SignIn(context, Role.Owner);
+        var store = SignIn(context, Role.Owner);
         store.Files.Add(new LogFileSummary("error.log", "error", 10_000_000, DateTimeOffset.UtcNow, false));
         store.Lines["error.log"] = ["warn: the last line"];
         store.Truncated = true;
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
-        IRenderedComponent<LogFiles> page = context.Render<LogFiles>();
+        var drawers = context.Render<DrawerHost>();
+        var page = context.Render<LogFiles>();
 
         await page.Find("[data-file='error.log']").ClickAsync(new());
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-section=tail-truncated]").Count == 1);
@@ -111,9 +110,9 @@ public sealed class LogFilesPageTests
     public async Task ARoleWithoutThePermissionIsToldWhyAndNothingIsRead()
     {
         await using DashboardTestContext context = new();
-        FakeLogFiles store = SignIn(context, Role.Viewer);
+        var store = SignIn(context, Role.Viewer);
         store.Files.Add(new LogFileSummary("error.log", "error", 12, DateTimeOffset.UtcNow, false));
-        IRenderedComponent<LogFiles> page = context.Render<LogFiles>();
+        var page = context.Render<LogFiles>();
 
         Assert.Contains("Your role can't read the logs", page.Markup, StringComparison.Ordinal);
         Assert.Empty(page.FindAll("[data-file]"));
@@ -124,9 +123,9 @@ public sealed class LogFilesPageTests
     public async Task AnUnreadableDirectoryIsReportedWithAWayToTryAgain()
     {
         await using DashboardTestContext context = new();
-        FakeLogFiles store = SignIn(context, Role.Owner);
+        var store = SignIn(context, Role.Owner);
         store.Failing = true;
-        IRenderedComponent<LogFiles> page = context.Render<LogFiles>();
+        var page = context.Render<LogFiles>();
 
         Assert.Contains("couldn't be read", page.Markup, StringComparison.Ordinal);
 
@@ -180,13 +179,13 @@ public sealed class LogFilesPageTests
         public LogFileTail? ReadTail(string name, int maxLines, string? filter = null)
         {
             Reads.Add((name, maxLines, filter));
-            if (!Lines.TryGetValue(name, out List<string>? lines))
+            if (!Lines.TryGetValue(name, out var lines))
             {
                 return null;
             }
 
             List<string> matching = [.. lines.Where(line => filter is null || line.Contains(filter, StringComparison.OrdinalIgnoreCase))];
-            LogFileSummary file = Files.First(summary => summary.Name == name);
+            var file = Files.First(summary => summary.Name == name);
             return new LogFileTail(name, file.Log, [.. matching.TakeLast(maxLines)], Truncated || matching.Count > maxLines, file.Size);
         }
 

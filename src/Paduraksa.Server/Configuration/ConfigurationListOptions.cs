@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 namespace Paduraksa.Server.Configuration;
 
 /// <summary>
@@ -33,16 +31,16 @@ internal static class ConfigurationListOptions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(options);
 
-        foreach ((string path, Func<PaduraksaOptions, IList<string>> get) in Lists)
+        foreach (var (path, get) in Lists)
         {
-            string key = $"{PaduraksaOptions.SectionName}:{path}";
-            IConfigurationSection section = configuration.GetSection(key);
+            var key = $"{PaduraksaOptions.SectionName}:{path}";
+            var section = configuration.GetSection(key);
             List<IConfigurationSection> children = [.. section.GetChildren()];
-            string? scalar = section.Value;
+            var scalar = section.Value;
 
             // A section with children reports an empty Value, not null: only a non-empty scalar is the scalar form. An
             // explicit empty scalar with no children still clears the list (AdminAllowedSources= means "no restriction").
-            bool scalarForm = !string.IsNullOrEmpty(scalar) || (scalar is not null && children.Count == 0);
+            var scalarForm = !string.IsNullOrEmpty(scalar) || (scalar is not null && children.Count == 0);
             if (!scalarForm)
             {
                 continue;
@@ -54,9 +52,9 @@ internal static class ConfigurationListOptions
                     $"{key} is set both as a scalar and with indexed keys; the scalar value is used and the indexed entries are ignored.");
             }
 
-            IList<string> target = get(options);
+            var target = get(options);
             target.Clear();
-            foreach (string entry in Split(scalar!))
+            foreach (var entry in Split(scalar!))
             {
                 target.Add(entry);
             }

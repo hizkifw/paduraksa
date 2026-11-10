@@ -1,6 +1,4 @@
 using System.Text.Json.Serialization;
-
-using Paduraksa.Core.Json;
 using Paduraksa.Core.Model;
 
 namespace Paduraksa.Contracts.Config;

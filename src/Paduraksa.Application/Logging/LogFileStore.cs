@@ -94,9 +94,9 @@ public sealed class LogFileStore : ILogFileStore
             return files;
         }
 
-        foreach (string path in paths)
+        foreach (var path in paths)
         {
-            string name = System.IO.Path.GetFileName(path);
+            var name = System.IO.Path.GetFileName(path);
             if (!LogFileNames.IsLogFile(name) || IsLinked(path))
             {
                 continue;
@@ -119,22 +119,22 @@ public sealed class LogFileStore : ILogFileStore
 
     public LogFileTail? ReadTail(string name, int maxLines, string? filter = null)
     {
-        if (!TryResolve(name, out string path, out FileInfo? info))
+        if (!TryResolve(name, out var path, out var info))
         {
             return null;
         }
 
-        int wanted = Math.Clamp(maxLines <= 0 ? DefaultTailLines : maxLines, 1, MaxTailLines);
-        string? needle = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
+        var wanted = Math.Clamp(maxLines <= 0 ? DefaultTailLines : maxLines, 1, MaxTailLines);
+        var needle = string.IsNullOrWhiteSpace(filter) ? null : filter.Trim();
         try
         {
-            using FileStream? stream = TryOpen(path);
+            using var stream = TryOpen(path);
             if (stream is null)
             {
                 return null;
             }
 
-            (List<string> lines, bool truncated) = IsCompressed(name)
+            var (lines, truncated) = IsCompressed(name)
                 ? ReadCompressedTail(stream, wanted, needle)
                 : ReadPlainTail(stream, wanted, needle);
             return new LogFileTail(name, LogOf(name), lines, truncated, info.Length);
@@ -149,7 +149,7 @@ public sealed class LogFileStore : ILogFileStore
     public Stream? OpenRead(string name, out long length)
     {
         length = 0;
-        if (!TryResolve(name, out string path, out _))
+        if (!TryResolve(name, out var path, out _))
         {
             return null;
         }
@@ -157,7 +157,7 @@ public sealed class LogFileStore : ILogFileStore
         try
         {
             // The path is checked again now that the handle is open: a link could have been put in place since the first look.
-            FileStream? stream = TryOpen(path);
+            var stream = TryOpen(path);
             if (stream is null)
             {
                 return null;
@@ -183,7 +183,7 @@ public sealed class LogFileStore : ILogFileStore
         }
 
         path = System.IO.Path.Combine(_directory, name);
-        string full = System.IO.Path.GetFullPath(path);
+        var full = System.IO.Path.GetFullPath(path);
         if (!string.Equals(System.IO.Path.GetDirectoryName(full), _directory, StringComparison.Ordinal) || IsLinked(full))
         {
             return false;
@@ -250,8 +250,8 @@ public sealed class LogFileStore : ILogFileStore
     /// <summary>The last lines of a plain file: its last <see cref="TailWindowBytes"/> bytes, never the whole file.</summary>
     private static (List<string> Lines, bool Truncated) ReadPlainTail(FileStream stream, int wanted, string? needle)
     {
-        long start = Math.Max(0, stream.Length - TailWindowBytes);
-        bool truncated = start > 0;
+        var start = Math.Max(0, stream.Length - TailWindowBytes);
+        var truncated = start > 0;
         stream.Position = start;
         using StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: ReadBufferSize, leaveOpen: true);
         if (truncated)
@@ -260,7 +260,7 @@ public sealed class LogFileStore : ILogFileStore
             SkipPartialLine(reader);
         }
 
-        (List<string> lines, bool more) = KeepTail(reader, wanted, needle);
+        var (lines, more) = KeepTail(reader, wanted, needle);
         return (lines, truncated || more);
     }
 
@@ -275,10 +275,10 @@ public sealed class LogFileStore : ILogFileStore
     /// <summary>Reads to the end of the current line without keeping it (the start of a tail window, which is the middle of a line).</summary>
     private static void SkipPartialLine(TextReader reader)
     {
-        char[] buffer = new char[ReadBufferSize];
+        var buffer = new char[ReadBufferSize];
         while (true)
         {
-            int read = reader.Read(buffer, 0, buffer.Length);
+            var read = reader.Read(buffer, 0, buffer.Length);
             if (read == 0 || Array.IndexOf(buffer, '\n', 0, read) >= 0)
             {
                 return;
@@ -295,23 +295,23 @@ public sealed class LogFileStore : ILogFileStore
     private static (List<string> Lines, bool Truncated) KeepTail(TextReader reader, int wanted, string? needle)
     {
         Queue<string> kept = new(wanted);
-        bool truncated = false;
+        var truncated = false;
         long budget = MaxReadCharacters;
-        char[] buffer = new char[ReadBufferSize];
+        var buffer = new char[ReadBufferSize];
         StringBuilder line = new(MaxLineLength);
-        bool cut = false;
-        bool started = false;
+        var cut = false;
+        var started = false;
         while (budget > 0)
         {
-            int read = reader.Read(buffer, 0, (int)Math.Min(buffer.Length, budget));
+            var read = reader.Read(buffer, 0, (int)Math.Min(buffer.Length, budget));
             if (read == 0)
             {
                 break;
             }
 
             budget -= read;
-            int start = 0;
-            for (int i = 0; i < read; i++)
+            var start = 0;
+            for (var i = 0; i < read; i++)
             {
                 if (buffer[i] != '\n')
                 {
@@ -342,7 +342,7 @@ public sealed class LogFileStore : ILogFileStore
     /// <summary>Appends one chunk of a line, holding at most <see cref="MaxLineLength"/> characters and remembering that more followed.</summary>
     private static void Append(StringBuilder line, char[] buffer, int start, int end, ref bool cut, ref bool started)
     {
-        for (int i = start; i < end; i++)
+        for (var i = start; i < end; i++)
         {
             started = true;
             if (line.Length < MaxLineLength)
@@ -369,7 +369,7 @@ public sealed class LogFileStore : ILogFileStore
             line.Length--;
         }
 
-        string text = cut ? string.Concat(line.ToString(), "...") : line.ToString();
+        var text = cut ? string.Concat(line.ToString(), "...") : line.ToString();
         if (needle is not null && !text.Contains(needle, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -386,8 +386,8 @@ public sealed class LogFileStore : ILogFileStore
 
     private static string LogOf(string name)
     {
-        LogFileKind? kind = LogFileNames.KindOfLive(name);
-        if (kind is null && LogFileNames.TryParseRotated(name, out LogFileKind rotated, out _, out _))
+        var kind = LogFileNames.KindOfLive(name);
+        if (kind is null && LogFileNames.TryParseRotated(name, out var rotated, out _, out _))
         {
             kind = rotated;
         }
@@ -404,34 +404,34 @@ public sealed class LogFileStore : ILogFileStore
     /// </summary>
     private static int Compare(LogFileSummary left, LogFileSummary right)
     {
-        int byLog = string.CompareOrdinal(left.Log, right.Log);
+        var byLog = string.CompareOrdinal(left.Log, right.Log);
         if (byLog != 0)
         {
             return byLog;
         }
 
-        bool leftLive = LogFileNames.KindOfLive(left.Name) is not null;
-        bool rightLive = LogFileNames.KindOfLive(right.Name) is not null;
+        var leftLive = LogFileNames.KindOfLive(left.Name) is not null;
+        var rightLive = LogFileNames.KindOfLive(right.Name) is not null;
         if (leftLive != rightLive)
         {
             return leftLive ? -1 : 1;
         }
 
-        (DateTimeOffset At, int Sequence) leftKey = SortKey(left);
-        (DateTimeOffset At, int Sequence) rightKey = SortKey(right);
-        int byTime = rightKey.At.CompareTo(leftKey.At);
+        var leftKey = SortKey(left);
+        var rightKey = SortKey(right);
+        var byTime = rightKey.At.CompareTo(leftKey.At);
         if (byTime != 0)
         {
             return byTime;
         }
 
-        int bySequence = rightKey.Sequence.CompareTo(leftKey.Sequence);
+        var bySequence = rightKey.Sequence.CompareTo(leftKey.Sequence);
         return bySequence != 0 ? bySequence : string.CompareOrdinal(left.Name, right.Name);
     }
 
     /// <summary>A rotated file's own timestamp and rotation sequence, else its write time.</summary>
     private static (DateTimeOffset At, int Sequence) SortKey(LogFileSummary file) =>
-        LogFileNames.TryParseRotated(file.Name, out _, out DateTimeOffset rotatedAt, out int sequence, out _)
+        LogFileNames.TryParseRotated(file.Name, out _, out var rotatedAt, out var sequence, out _)
             ? (rotatedAt, sequence)
             : (file.LastModified, 0);
 }

@@ -12,7 +12,7 @@ public sealed class SimulationViewTests
     [Fact]
     public async Task AForwardedRequest_ShowsTheOutcome_TheDestinations_AndEveryStep()
     {
-        UpstreamId upstream = UpstreamId.New();
+        var upstream = UpstreamId.New();
         SimulationResult result = new(
             SimulationStatus.Simulated,
             new SimulationSource(SimulationTargetKind.Live),
@@ -25,7 +25,7 @@ public sealed class SimulationViewTests
             new SimulationUpstream(upstream, [new SimulationDestination(DestinationId.New(), "http://app:8080", SimulationHealth.Healthy)]));
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<SimulationView> view = context.Render<SimulationView>(parameters => parameters
+        var view = context.Render<SimulationView>(parameters => parameters
             .Add(v => v.Result, result)
             .Add(v => v.UpstreamName, "app"));
 
@@ -51,7 +51,7 @@ public sealed class SimulationViewTests
             [new SimulationStep(SimulationStepKind.HostPolicy, SimulationStepVerdict.Stopped, "denied", [], PolicyIndex: 0)]);
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<SimulationView> view = context.Render<SimulationView>(parameters => parameters.Add(v => v.Result, result));
+        var view = context.Render<SimulationView>(parameters => parameters.Add(v => v.Result, result));
 
         Assert.Equal("Answered 403 by the gate", view.Find(".pdk-outcome-title").TextContent);
         Assert.Equal("403", view.Find(".pdk-outcome-status").TextContent);
@@ -68,7 +68,7 @@ public sealed class SimulationViewTests
             Errors: [new ConfigError("/url", "simulation.request.url", "the URL must be absolute http or https")]);
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<SimulationView> view = context.Render<SimulationView>(parameters => parameters.Add(v => v.Result, result));
+        var view = context.Render<SimulationView>(parameters => parameters.Add(v => v.Result, result));
 
         Assert.Empty(view.FindAll(".pdk-trace"));
         Assert.Contains("The URL must be absolute http or https.", view.Find(".pdk-sim-problem").TextContent, StringComparison.Ordinal);

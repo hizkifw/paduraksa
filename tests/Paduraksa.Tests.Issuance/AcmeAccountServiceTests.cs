@@ -113,7 +113,7 @@ public sealed class AcmeAccountServiceTests
     public async Task CreateWithEabStoresNothingForARequestThatCannotWork()
     {
         await using var h = await IssuanceHarness.CreateAsync();
-        AcmeAccountService accounts = WithSecrets(h, new AnyEabKeys(new FakeMacKey(new byte[32])));
+        var accounts = WithSecrets(h, new AnyEabKeys(new FakeMacKey(new byte[32])));
         byte[] key = [1, 2, 3, 4];
 
         (CreateAcmeAccountRequest Request, byte[] Key, string Code)[] cases =
@@ -123,7 +123,7 @@ public sealed class AcmeAccountServiceTests
             (Request(), key, IssuanceErrorCodes.EabIncomplete),
             (Request() with { EabKid = "kid" }, new byte[AcmeAccountService.MaxEabKeyLength + 1], IssuanceErrorCodes.TextTooLong),
         ];
-        foreach ((CreateAcmeAccountRequest request, byte[] bytes, string code) in cases)
+        foreach (var (request, bytes, code) in cases)
         {
             var result = await accounts.CreateWithEabAsync(request, bytes, Admin, Ct);
 
@@ -143,7 +143,7 @@ public sealed class AcmeAccountServiceTests
 
         var accepted = await WithSecrets(h, new AnyEabKeys(new FakeMacKey(server.EabSecret))).CreateWithEabAsync(Request() with { EabKid = "kid-1" }, new byte[] { 9, 9, 9 }, Admin, Ct);
         Assert.Equal(IssuanceChangeStatus.Committed, accepted.Status);
-        SecretMetadata stored = (await h.Secrets.DescribeAsync((await h.EabSecretOfAsync(accepted.Account!.Id))!.Value, Ct))!;
+        var stored = (await h.Secrets.DescribeAsync((await h.EabSecretOfAsync(accepted.Account!.Id))!.Value, Ct))!;
         Assert.Equal(SecretKind.EabHmacKey, stored.Kind);
         Assert.Equal(MacAlgorithm.HmacSha256, stored.MacAlgorithm);
 

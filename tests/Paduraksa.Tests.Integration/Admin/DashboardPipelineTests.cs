@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using Paduraksa.Admin.Web;
@@ -23,65 +22,65 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
     [Fact]
     public async Task DuringSetup_ABrowserIsSentToTheSetupPage_WhichIsOpenWithItsFiles()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
+        await using var h = await AdminHarness.StartAsync();
 
-        foreach (string path in new[] { "/", "/hosts", DashboardRoutes.SignIn })
+        foreach (var path in new[] { "/", "/hosts", DashboardRoutes.SignIn })
         {
-            using AdminResponse navigation = await GetPageAsync(h, path);
+            using var navigation = await GetPageAsync(h, path);
             Assert.Equal(HttpStatusCode.Found, navigation.Status);
             Assert.Equal(DashboardRoutes.Setup, navigation.Headers.Location?.OriginalString);
         }
 
         // A script (no text/html) still gets the problem it always did.
-        using (AdminResponse script = await h.GetAsync("/"))
+        using (var script = await h.GetAsync("/"))
         {
             Assert.Equal(HttpStatusCode.ServiceUnavailable, script.Status);
             Assert.Equal("setup.required", script.Json.GetProperty("code").GetString());
         }
 
-        using (AdminResponse setup = await GetPageAsync(h, DashboardRoutes.Setup))
+        using (var setup = await GetPageAsync(h, DashboardRoutes.Setup))
         {
             Assert.Equal(HttpStatusCode.OK, setup.Status);
             Assert.Equal(DashboardSecurity.ContentSecurityPolicy, setup.Header("Content-Security-Policy"));
             Assert.Contains($"action=\"{DashboardRoutes.Actions.Setup}\"", setup.Body, StringComparison.Ordinal);
         }
 
-        foreach (string asset in new[] { "/_framework/blazor.web.js", "/_content/MudBlazor/MudBlazor.min.css", "/_content/Paduraksa.Dashboard/app.css" })
+        foreach (var asset in new[] { "/_framework/blazor.web.js", "/_content/MudBlazor/MudBlazor.min.css", "/_content/Paduraksa.Dashboard/app.css" })
         {
-            using AdminResponse file = await h.GetAsync(asset);
+            using var file = await h.GetAsync(asset);
             Assert.Equal(HttpStatusCode.OK, file.Status);
         }
 
         // No circuit before an Owner exists.
-        using AdminResponse negotiate = await h.SendAsync(HttpMethod.Post, "/_blazor/negotiate?negotiateVersion=1", json: "", contentType: "text/plain");
+        using var negotiate = await h.SendAsync(HttpMethod.Post, "/_blazor/negotiate?negotiateVersion=1", json: "", contentType: "text/plain");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, negotiate.Status);
     }
 
     [Fact]
     public async Task TheSetupForm_CreatesTheOwner_SignsThemIn_AndIsAuditedAsTheDashboard()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        Antiforgery form = await AntiforgeryAsync(h, DashboardRoutes.Setup);
-        string token = await h.SetupTokenAsync();
+        await using var h = await AdminHarness.StartAsync();
+        var form = await AntiforgeryAsync(h, DashboardRoutes.Setup);
+        var token = await h.SetupTokenAsync();
 
-        using (AdminResponse wrong = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup("not-the-token", AdminHarness.Password, AdminHarness.Password)))
+        using (var wrong = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup("not-the-token", AdminHarness.Password, AdminHarness.Password)))
         {
             AssertSeeOther(wrong, "/setup?error=setup.invalidToken");
             Assert.Null(wrong.SessionCookie);
         }
 
-        using (AdminResponse mismatch = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup(token, AdminHarness.Password, "something else entirely")))
+        using (var mismatch = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup(token, AdminHarness.Password, "something else entirely")))
         {
             AssertSeeOther(mismatch, "/setup?error=setup.passwordMismatch");
         }
 
-        using (AdminResponse weak = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup(token, "short", "short")))
+        using (var weak = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup(token, "short", "short")))
         {
             AssertSeeOther(weak, "/setup?error=identity.refused");
         }
 
         string cookie;
-        using (AdminResponse created = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup(token, AdminHarness.Password, AdminHarness.Password)))
+        using (var created = await PostFormAsync(h, DashboardRoutes.Actions.Setup, form, Setup(token, AdminHarness.Password, AdminHarness.Password)))
         {
             // The Owner lands on the overview: there is no wizard after setup.
             AssertSeeOther(created, DashboardRoutes.Home);
@@ -90,25 +89,25 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
         }
 
         // The same session the API takes.
-        using (AdminResponse me = await h.GetAsync("/api/v1/auth/me", cookie))
+        using (var me = await h.GetAsync("/api/v1/auth/me", cookie))
         {
             Assert.Equal(HttpStatusCode.OK, me.Status);
         }
 
-        using (AdminResponse home = await GetPageAsync(h, "/", cookie))
+        using (var home = await GetPageAsync(h, "/", cookie))
         {
             Assert.Equal(HttpStatusCode.OK, home.Status);
             Assert.Contains(">Overview</h1>", home.Body, StringComparison.Ordinal);
         }
 
         // Done once: the setup page now points at the sign-in page.
-        using (AdminResponse again = await GetPageAsync(h, DashboardRoutes.Setup))
+        using (var again = await GetPageAsync(h, DashboardRoutes.Setup))
         {
             Assert.Equal(HttpStatusCode.Found, again.Status);
             Assert.EndsWith(DashboardRoutes.SignIn, again.Headers.Location?.OriginalString, StringComparison.Ordinal);
         }
 
-        IReadOnlyList<AuditRecord> audit = await h.AuditAsync("setup.complete");
+        var audit = await h.AuditAsync("setup.complete");
         Assert.Equal(["denied", "success"], audit.Select(a => a.Outcome));
         Assert.All(audit, a =>
         {
@@ -121,41 +120,41 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
     [Fact]
     public async Task ThePagesNeedASession_AndSendEveryoneElseToSignIn_WithTheWayBack()
     {
-        AdminHarness h = shared.Harness;
-        string owner = shared.OwnerCookie;
+        var h = shared.Harness;
+        var owner = shared.OwnerCookie;
 
-        using (AdminResponse home = await GetPageAsync(h, "/"))
+        using (var home = await GetPageAsync(h, "/"))
         {
             Assert.Equal(HttpStatusCode.Found, home.Status);
             Assert.Equal("/signin", home.Headers.Location?.OriginalString);
         }
 
-        using (AdminResponse hosts = await GetPageAsync(h, "/hosts?tag=media"))
+        using (var hosts = await GetPageAsync(h, "/hosts?tag=media"))
         {
             Assert.Equal(HttpStatusCode.Found, hosts.Status);
             Assert.Equal("/signin?returnUrl=%2Fhosts%3Ftag%3Dmedia", hosts.Headers.Location?.OriginalString);
         }
 
         // A cookie that names no session is no session (and the sign-in page still opens for it).
-        using (AdminResponse stale = await GetPageAsync(h, "/", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
+        using (var stale = await GetPageAsync(h, "/", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
         {
             Assert.Equal(HttpStatusCode.Found, stale.Status);
         }
 
-        using (AdminResponse signIn = await GetPageAsync(h, DashboardRoutes.SignIn, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
+        using (var signIn = await GetPageAsync(h, DashboardRoutes.SignIn, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
         {
             Assert.Equal(HttpStatusCode.OK, signIn.Status);
         }
 
-        using (AdminResponse page = await GetPageAsync(h, "/hosts", owner))
+        using (var page = await GetPageAsync(h, "/hosts", owner))
         {
             Assert.Equal(HttpStatusCode.OK, page.Status);
             Assert.Contains("<title>Hosts · Paduraksa</title>", page.Body, StringComparison.Ordinal);
         }
 
         // A bearer token is an API credential, never a dashboard one.
-        (_, string token) = await h.IssueTokenAsync(owner, "config:read");
-        using (AdminResponse bearer = await h.SendAsync(HttpMethod.Get, "/", bearer: token, headers: new Dictionary<string, string> { ["Accept"] = Html }))
+        var (_, token) = await h.IssueTokenAsync(owner, "config:read");
+        using (var bearer = await h.SendAsync(HttpMethod.Get, "/", bearer: token, headers: new Dictionary<string, string> { ["Accept"] = Html }))
         {
             Assert.Equal(HttpStatusCode.Found, bearer.Status);
         }
@@ -164,17 +163,17 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
     [Fact]
     public async Task SignInThroughTheForm_SetsTheSessionCookie_GoesBackOnlyToThisSite_AndIsAudited()
     {
-        AdminHarness h = shared.Harness;
-        Antiforgery form = await AntiforgeryAsync(h, DashboardRoutes.SignIn);
+        var h = shared.Harness;
+        var form = await AntiforgeryAsync(h, DashboardRoutes.SignIn);
 
-        using (AdminResponse wrong = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn("not the password", "/certificates")))
+        using (var wrong = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn("not the password", "/certificates")))
         {
             AssertSeeOther(wrong, "/signin?error=auth.invalidCredentials&returnUrl=%2Fcertificates");
             Assert.Null(wrong.SessionCookie);
         }
 
         string cookie;
-        using (AdminResponse right = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn(AdminHarness.Password, "/certificates")))
+        using (var right = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn(AdminHarness.Password, "/certificates")))
         {
             AssertSeeOther(right, "/certificates");
             cookie = right.SessionCookie ?? throw new InvalidOperationException("No session cookie.");
@@ -184,18 +183,18 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
                 && line.Contains("samesite=strict", StringComparison.OrdinalIgnoreCase));
         }
 
-        using (AdminResponse me = await h.GetAsync("/api/v1/auth/me", cookie))
+        using (var me = await h.GetAsync("/api/v1/auth/me", cookie))
         {
             Assert.Equal(HttpStatusCode.OK, me.Status);
         }
 
-        foreach (string foreign in new[] { "//evil.example/", "https://evil.example/", "/\\evil.example" })
+        foreach (var foreign in new[] { "//evil.example/", "https://evil.example/", "/\\evil.example" })
         {
-            using AdminResponse elsewhere = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn(AdminHarness.Password, foreign));
+            using var elsewhere = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn(AdminHarness.Password, foreign));
             AssertSeeOther(elsewhere, "/");
         }
 
-        IReadOnlyList<AuditRecord> logins = await h.AuditAsync("auth.login");
+        var logins = await h.AuditAsync("auth.login");
         Assert.Contains(logins, a => a.Outcome == "denied" && a.Channel == "dashboard");
         Assert.Contains(logins, a => a.Outcome == "success" && a.Channel == "dashboard");
         Assert.All(logins, a => Assert.DoesNotContain(AdminHarness.Password, a.Details ?? "", StringComparison.Ordinal));
@@ -204,75 +203,75 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
     [Fact]
     public async Task SignInWithASecondFactor_TakesTheCodeOnTheSecondPage()
     {
-        await using AdminHarness h = await AdminHarness.StartAsync();
-        string owner = await h.SetUpOwnerAsync();
+        await using var h = await AdminHarness.StartAsync();
+        var owner = await h.SetUpOwnerAsync();
         string uri;
-        using (AdminResponse begin = await h.PostAsync("/api/v1/me/totp/enrollment", Body.Password(AdminHarness.Password), owner))
+        using (var begin = await h.PostAsync("/api/v1/me/totp/enrollment", Body.Password(AdminHarness.Password), owner))
         {
             uri = begin.Json.GetProperty("provisioningUri").GetString()!;
         }
 
-        using (AdminResponse confirm = await h.PostAsync("/api/v1/me/totp/enrollment/confirm", $$"""{"code":"{{TotpOracle.CodeFor(uri)}}"}""", owner))
+        using (var confirm = await h.PostAsync("/api/v1/me/totp/enrollment/confirm", $$"""{"code":"{{TotpOracle.CodeFor(uri)}}"}""", owner))
         {
             Assert.Equal(HttpStatusCode.OK, confirm.Status);
         }
 
-        Antiforgery form = await AntiforgeryAsync(h, DashboardRoutes.SignIn);
+        var form = await AntiforgeryAsync(h, DashboardRoutes.SignIn);
         string partial;
-        using (AdminResponse password = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn(AdminHarness.Password, "/audit")))
+        using (var password = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn(AdminHarness.Password, "/audit")))
         {
             AssertSeeOther(password, "/signin/verify?returnUrl=%2Faudit");
             partial = password.SessionCookie!;
         }
 
         // The partial session opens no page.
-        using (AdminResponse home = await GetPageAsync(h, "/", partial))
+        using (var home = await GetPageAsync(h, "/", partial))
         {
             Assert.Equal(HttpStatusCode.Found, home.Status);
         }
 
         Dictionary<string, string> wrongCode = new() { [AdminWebForm.Code] = "000000", [AdminWebForm.ReturnUrl] = "/audit" };
-        using (AdminResponse wrong = await PostFormAsync(h, DashboardRoutes.Actions.SecondFactor, form, wrongCode, partial))
+        using (var wrong = await PostFormAsync(h, DashboardRoutes.Actions.SecondFactor, form, wrongCode, partial))
         {
             AssertSeeOther(wrong, "/signin/verify?error=auth.invalidCode&returnUrl=%2Faudit");
         }
 
         // An authenticator shows the code with a space in the middle; that's accepted.
-        string code = TotpOracle.CodeFor(uri, 1);
+        var code = TotpOracle.CodeFor(uri, 1);
         Dictionary<string, string> rightCode = new() { [AdminWebForm.Code] = $"{code[..3]} {code[3..]}", [AdminWebForm.ReturnUrl] = "/audit" };
-        using (AdminResponse right = await PostFormAsync(h, DashboardRoutes.Actions.SecondFactor, form, rightCode, partial))
+        using (var right = await PostFormAsync(h, DashboardRoutes.Actions.SecondFactor, form, rightCode, partial))
         {
             AssertSeeOther(right, "/audit");
-            string full = right.SessionCookie!;
+            var full = right.SessionCookie!;
             Assert.NotEqual(partial, full);
-            using AdminResponse me = await h.GetAsync("/api/v1/auth/me", full);
+            using var me = await h.GetAsync("/api/v1/auth/me", full);
             Assert.Equal(HttpStatusCode.OK, me.Status);
         }
 
         // Without a partial session the step starts over.
-        using AdminResponse gone = await PostFormAsync(h, DashboardRoutes.Actions.SecondFactor, form, rightCode);
+        using var gone = await PostFormAsync(h, DashboardRoutes.Actions.SecondFactor, form, rightCode);
         AssertSeeOther(gone, "/signin?error=auth.sessionExpired&returnUrl=%2Faudit");
     }
 
     [Fact]
     public async Task TheForms_NeedTheirAntiforgeryToken_AndTheSameOrigin()
     {
-        AdminHarness h = shared.Harness;
-        string owner = shared.OwnerCookie;
-        Antiforgery form = await AntiforgeryAsync(h, DashboardRoutes.SignIn);
+        var h = shared.Harness;
+        var owner = shared.OwnerCookie;
+        var form = await AntiforgeryAsync(h, DashboardRoutes.SignIn);
 
-        using (AdminResponse noToken = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form with { Token = "" }, SignIn(AdminHarness.Password, null)))
+        using (var noToken = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form with { Token = "" }, SignIn(AdminHarness.Password, null)))
         {
             AssertSeeOther(noToken, "/signin?error=csrf.refused");
             Assert.Null(noToken.SessionCookie);
         }
 
-        using (AdminResponse noCookie = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form with { Cookie = "" }, SignIn(AdminHarness.Password, null)))
+        using (var noCookie = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form with { Cookie = "" }, SignIn(AdminHarness.Password, null)))
         {
             AssertSeeOther(noCookie, "/signin?error=csrf.refused");
         }
 
-        using (AdminResponse crossSite = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn(AdminHarness.Password, null), fetchSite: "cross-site"))
+        using (var crossSite = await PostFormAsync(h, DashboardRoutes.Actions.SignIn, form, SignIn(AdminHarness.Password, null), fetchSite: "cross-site"))
         {
             Assert.Equal(HttpStatusCode.Forbidden, crossSite.Status);
             Assert.Equal("csrf.refused", crossSite.Json.GetProperty("code").GetString());
@@ -280,39 +279,39 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
         }
 
         // Signing out with a token rendered for nobody (a stale or forged page) ends nothing.
-        using (AdminResponse signOut = await PostFormAsync(h, DashboardRoutes.Actions.SignOut, form, new Dictionary<string, string>(), owner))
+        using (var signOut = await PostFormAsync(h, DashboardRoutes.Actions.SignOut, form, new Dictionary<string, string>(), owner))
         {
             AssertSeeOther(signOut, "/");
         }
 
-        using AdminResponse me = await h.GetAsync("/api/v1/auth/me", owner);
+        using var me = await h.GetAsync("/api/v1/auth/me", owner);
         Assert.Equal(HttpStatusCode.OK, me.Status);
     }
 
     [Fact]
     public async Task TheCircuitHub_TakesOnlySignedInSameOriginCallers()
     {
-        AdminHarness h = shared.Harness;
-        string owner = shared.OwnerCookie;
+        var h = shared.Harness;
+        var owner = shared.OwnerCookie;
         const string Negotiate = "/_blazor/negotiate?negotiateVersion=1";
 
-        using (AdminResponse anonymous = await h.SendAsync(HttpMethod.Post, Negotiate, json: "", contentType: "text/plain"))
+        using (var anonymous = await h.SendAsync(HttpMethod.Post, Negotiate, json: "", contentType: "text/plain"))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, anonymous.Status);
         }
 
-        using (AdminResponse socket = await h.GetAsync("/_blazor?id=x"))
+        using (var socket = await h.GetAsync("/_blazor?id=x"))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, socket.Status);
         }
 
-        using (AdminResponse crossSite = await h.SendAsync(
+        using (var crossSite = await h.SendAsync(
             HttpMethod.Post, Negotiate, json: "", cookie: owner, contentType: "text/plain", headers: new Dictionary<string, string> { ["Sec-Fetch-Site"] = "cross-site" }))
         {
             Assert.Equal(HttpStatusCode.Forbidden, crossSite.Status);
         }
 
-        using AdminResponse signedIn = await h.SendAsync(HttpMethod.Post, Negotiate, json: "", cookie: owner, contentType: "text/plain");
+        using var signedIn = await h.SendAsync(HttpMethod.Post, Negotiate, json: "", cookie: owner, contentType: "text/plain");
         Assert.Equal(HttpStatusCode.OK, signedIn.Status);
         Assert.False(string.IsNullOrEmpty(signedIn.Json.GetProperty("connectionToken").GetString()));
         Assert.Equal("no-store", signedIn.Header("Cache-Control"));
@@ -321,9 +320,9 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
     [Fact]
     public async Task Pages_GetTheDashboardsPolicy_AndTheApiAndFilesKeepTheStrictOne()
     {
-        AdminHarness h = shared.Harness;
+        var h = shared.Harness;
 
-        using (AdminResponse page = await GetPageAsync(h, DashboardRoutes.SignIn))
+        using (var page = await GetPageAsync(h, DashboardRoutes.SignIn))
         {
             Assert.Equal(DashboardSecurity.ContentSecurityPolicy, page.Header("Content-Security-Policy"));
             Assert.Equal("no-store", page.Header("Cache-Control"));
@@ -335,12 +334,12 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
                 && line.Contains("samesite=strict", StringComparison.OrdinalIgnoreCase) && line.Contains("secure", StringComparison.OrdinalIgnoreCase));
         }
 
-        using (AdminResponse api = await h.GetAsync("/api/v1/setup"))
+        using (var api = await h.GetAsync("/api/v1/setup"))
         {
             Assert.Equal("default-src 'none'; frame-ancestors 'none'", api.Header("Content-Security-Policy"));
         }
 
-        using AdminResponse css = await h.GetAsync("/_content/Paduraksa.Dashboard/app.css");
+        using var css = await h.GetAsync("/_content/Paduraksa.Dashboard/app.css");
         Assert.Equal("default-src 'none'; frame-ancestors 'none'", css.Header("Content-Security-Policy"));
         Assert.NotEqual("no-store", css.Header("Cache-Control"));
     }
@@ -348,19 +347,19 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
     [Fact]
     public async Task StaticFiles_CostNoSessionLookup_WhileTheHubAndThePagesStillDo()
     {
-        AdminHarness h = shared.Harness;
-        string owner = shared.OwnerCookie;
-        long before = h.Host.Shared.Sessions.ValidationCount;
+        var h = shared.Harness;
+        var owner = shared.OwnerCookie;
+        var before = h.Host.Shared.Sessions.ValidationCount;
 
         // A page load pulls dozens of these, each with the browser's cookie on it.
-        foreach (string asset in new[] { "/_framework/blazor.web.js", "/_content/MudBlazor/MudBlazor.min.css", "/_content/Paduraksa.Dashboard/app.css" })
+        foreach (var asset in new[] { "/_framework/blazor.web.js", "/_content/MudBlazor/MudBlazor.min.css", "/_content/Paduraksa.Dashboard/app.css" })
         {
-            using AdminResponse file = await h.GetAsync(asset, owner);
+            using var file = await h.GetAsync(asset, owner);
             Assert.Equal(HttpStatusCode.OK, file.Status);
         }
 
         // Not even a cookie that names no session is looked up for one.
-        using (AdminResponse stale = await h.GetAsync("/_content/Paduraksa.Dashboard/app.css", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
+        using (var stale = await h.GetAsync("/_content/Paduraksa.Dashboard/app.css", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
         {
             Assert.Equal(HttpStatusCode.OK, stale.Status);
         }
@@ -368,27 +367,27 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
         Assert.Equal(0L, h.Host.Shared.Sessions.ValidationCount - before);
 
         // Pages and the circuit hub are not static files: they still check the session, and still refuse or redirect without one.
-        using (AdminResponse signedOut = await GetPageAsync(h, "/"))
+        using (var signedOut = await GetPageAsync(h, "/"))
         {
             Assert.Equal(HttpStatusCode.Found, signedOut.Status);
             Assert.Equal(DashboardRoutes.SignIn, signedOut.Headers.Location?.OriginalString);
         }
 
-        using (AdminResponse anonymousHub = await h.GetAsync("/_blazor?id=x"))
+        using (var anonymousHub = await h.GetAsync("/_blazor?id=x"))
         {
             Assert.Equal(HttpStatusCode.Unauthorized, anonymousHub.Status);
         }
 
         Assert.Equal(0L, h.Host.Shared.Sessions.ValidationCount - before);
 
-        using (AdminResponse page = await GetPageAsync(h, "/", owner))
+        using (var page = await GetPageAsync(h, "/", owner))
         {
             Assert.Equal(HttpStatusCode.OK, page.Status);
         }
 
         Assert.Equal(1L, h.Host.Shared.Sessions.ValidationCount - before);
 
-        using (AdminResponse hub = await h.SendAsync(HttpMethod.Post, "/_blazor/negotiate?negotiateVersion=1", json: "", cookie: owner, contentType: "text/plain"))
+        using (var hub = await h.SendAsync(HttpMethod.Post, "/_blazor/negotiate?negotiateVersion=1", json: "", cookie: owner, contentType: "text/plain"))
         {
             Assert.Equal(HttpStatusCode.OK, hub.Status);
         }
@@ -404,10 +403,10 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
 
     private static async Task<Antiforgery> AntiforgeryAsync(AdminHarness h, string path)
     {
-        using AdminResponse page = await GetPageAsync(h, path);
+        using var page = await GetPageAsync(h, path);
         Assert.Equal(HttpStatusCode.OK, page.Status);
-        string token = TokenField().Match(page.Body).Groups[1].Value;
-        string cookie = page.SetCookies.Select(line => line.Split(';', 2)[0]).Single(pair => pair.StartsWith("__Host-paduraksa-antiforgery=", StringComparison.Ordinal));
+        var token = TokenField().Match(page.Body).Groups[1].Value;
+        var cookie = page.SetCookies.Select(line => line.Split(';', 2)[0]).Single(pair => pair.StartsWith("__Host-paduraksa-antiforgery=", StringComparison.Ordinal));
         Assert.NotEmpty(token);
         return new Antiforgery(WebUtility.HtmlDecode(token), cookie);
     }
@@ -422,7 +421,7 @@ public sealed partial class DashboardPipelineTests(SharedOwnerSession shared) : 
             all["__RequestVerificationToken"] = antiforgery.Token;
         }
 
-        string body = string.Join('&', all.Select(pair => $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"));
+        var body = string.Join('&', all.Select(pair => $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"));
         List<string> cookies = [];
         if (antiforgery.Cookie.Length > 0)
         {

@@ -105,7 +105,7 @@ internal static class IssuanceMapping
         }
 
         StringBuilder line = new(Math.Min(text.Length, max));
-        foreach (char c in text)
+        foreach (var c in text)
         {
             if (line.Length >= max)
             {

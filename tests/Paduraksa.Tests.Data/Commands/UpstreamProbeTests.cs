@@ -17,12 +17,12 @@ public sealed class UpstreamProbeTests
     [Fact]
     public async Task AListeningPortIsReachable()
     {
-        await using ConfigServiceHarness h = await ConfigServiceHarness.CreateAsync();
+        await using var h = await ConfigServiceHarness.CreateAsync();
         using TcpListener listener = new(IPAddress.Loopback, 0);
         listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        UpstreamProbeResult result = await new UpstreamProbe(h.Service).CheckAsync($"http://127.0.0.1:{port}/app", ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service).CheckAsync($"http://127.0.0.1:{port}/app", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamProbeOutcome.Reachable, result.Outcome);
         Assert.True(result.Reachable);
@@ -31,7 +31,7 @@ public sealed class UpstreamProbeTests
     [Fact]
     public async Task AClosedPortIsUnreachable()
     {
-        await using ConfigServiceHarness h = await ConfigServiceHarness.CreateAsync();
+        await using var h = await ConfigServiceHarness.CreateAsync();
         int port;
         using (TcpListener listener = new(IPAddress.Loopback, 0))
         {
@@ -39,7 +39,7 @@ public sealed class UpstreamProbeTests
             port = ((IPEndPoint)listener.LocalEndpoint).Port;
         }
 
-        UpstreamProbeResult result = await new UpstreamProbe(h.Service).CheckAsync($"http://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service).CheckAsync($"http://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal((UpstreamProbeOutcome.Unreachable, null), (result.Outcome, result.Message));
     }
@@ -51,9 +51,9 @@ public sealed class UpstreamProbeTests
     [InlineData("http://user:secret@192.168.1.20")]
     public async Task AnythingButAnHttpUrlIsNotTried(string address)
     {
-        await using ConfigServiceHarness h = await ConfigServiceHarness.CreateAsync();
+        await using var h = await ConfigServiceHarness.CreateAsync();
 
-        UpstreamProbeResult result = await new UpstreamProbe(h.Service).CheckAsync(address, ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service).CheckAsync(address, ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamProbeOutcome.Invalid, result.Outcome);
         Assert.NotNull(result.Message);
@@ -62,9 +62,9 @@ public sealed class UpstreamProbeTests
     [Fact]
     public async Task ACallerWhoMayNotAddHostsIsRefusedAndAudited()
     {
-        await using ConfigServiceHarness h = await ConfigServiceHarness.CreateAsync();
+        await using var h = await ConfigServiceHarness.CreateAsync();
 
-        UpstreamProbeResult result = await new UpstreamProbe(h.Service, new Nobody()).CheckAsync("http://127.0.0.1:1", ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service, new Nobody()).CheckAsync("http://127.0.0.1:1", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamProbeOutcome.Denied, result.Outcome);
         Assert.Equal(1L, await h.Db.ScalarAsync("SELECT count(*) FROM AuditEvents WHERE Action = 'upstream.probe' AND Outcome = 'denied'"));

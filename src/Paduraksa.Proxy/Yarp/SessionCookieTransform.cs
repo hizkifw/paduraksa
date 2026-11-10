@@ -5,8 +5,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Gate;
-using Paduraksa.Proxy.Snapshot;
-
 using Yarp.ReverseProxy.Transforms;
 
 namespace Paduraksa.Proxy.Yarp;
@@ -41,14 +39,14 @@ internal static class SessionCookieTransform
             return ValueTask.CompletedTask;
         }
 
-        StringValues cookies = context.HttpContext.Request.Headers.Cookie;
+        var cookies = context.HttpContext.Request.Headers.Cookie;
         if (!ContainsName(cookies))
         {
             return ValueTask.CompletedTask;
         }
 
         context.ProxyRequest.Headers.Remove("Cookie");
-        string rebuilt = Without(cookies);
+        var rebuilt = Without(cookies);
         if (rebuilt.Length > 0)
         {
             context.ProxyRequest.Headers.TryAddWithoutValidation("Cookie", rebuilt);
@@ -82,13 +80,13 @@ internal static class SessionCookieTransform
 
     private static void RemoveFrom(IHeaderDictionary headers)
     {
-        if (!headers.TryGetValue(SetCookie, out StringValues values))
+        if (!headers.TryGetValue(SetCookie, out var values))
         {
             return;
         }
 
-        bool removed = false;
-        foreach (string? value in values)
+        var removed = false;
+        foreach (var value in values)
         {
             if (value is not null && IsSessionCookie(value.AsSpan().TrimStart()))
             {
@@ -103,7 +101,7 @@ internal static class SessionCookieTransform
         }
 
         List<string>? kept = null;
-        foreach (string? value in values)
+        foreach (var value in values)
         {
             if (value is not null && IsSessionCookie(value.AsSpan().TrimStart()))
             {
@@ -118,9 +116,9 @@ internal static class SessionCookieTransform
 
     private static void RemoveFrom(HttpResponseHeaders headers)
     {
-        bool found = false;
-        bool removed = false;
-        foreach (KeyValuePair<string, HeaderStringValues> header in headers.NonValidated)
+        var found = false;
+        var removed = false;
+        foreach (var header in headers.NonValidated)
         {
             if (!string.Equals(header.Key, SetCookie, StringComparison.OrdinalIgnoreCase))
             {
@@ -128,7 +126,7 @@ internal static class SessionCookieTransform
             }
 
             found = true;
-            foreach (string value in header.Value)
+            foreach (var value in header.Value)
             {
                 if (IsSessionCookie(value.AsSpan().TrimStart()))
                 {
@@ -146,14 +144,14 @@ internal static class SessionCookieTransform
         }
 
         List<string>? kept = null;
-        foreach (KeyValuePair<string, HeaderStringValues> header in headers.NonValidated)
+        foreach (var header in headers.NonValidated)
         {
             if (!string.Equals(header.Key, SetCookie, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            foreach (string value in header.Value)
+            foreach (var value in header.Value)
             {
                 if (!IsSessionCookie(value.AsSpan().TrimStart()))
                 {
@@ -175,7 +173,7 @@ internal static class SessionCookieTransform
 
     private static bool ContainsName(StringValues cookies)
     {
-        foreach (string? value in cookies)
+        foreach (var value in cookies)
         {
             if (value is not null && value.Contains(CookieName, StringComparison.Ordinal))
             {
@@ -190,16 +188,16 @@ internal static class SessionCookieTransform
     internal static string Without(StringValues cookies)
     {
         StringBuilder kept = new();
-        foreach (string? value in cookies)
+        foreach (var value in cookies)
         {
             if (value is null)
             {
                 continue;
             }
 
-            foreach (Range part in value.AsSpan().Split(';'))
+            foreach (var part in value.AsSpan().Split(';'))
             {
-                ReadOnlySpan<char> pair = value.AsSpan(part).Trim();
+                var pair = value.AsSpan(part).Trim();
                 if (pair.IsEmpty || IsSessionCookie(pair))
                 {
                     continue;
@@ -220,8 +218,8 @@ internal static class SessionCookieTransform
     /// <summary>Whether a <c>name=value</c> pair (a cookie or one <c>Set-Cookie</c> line) sets the session cookie.</summary>
     private static bool IsSessionCookie(ReadOnlySpan<char> pair)
     {
-        int eq = pair.IndexOf('=');
-        ReadOnlySpan<char> name = eq < 0 ? pair : pair[..eq];
+        var eq = pair.IndexOf('=');
+        var name = eq < 0 ? pair : pair[..eq];
         return name.Trim().SequenceEqual(CookieName);
     }
 }

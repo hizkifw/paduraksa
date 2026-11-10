@@ -17,7 +17,7 @@ public sealed class TypedIdRouteConstraint<TId> : IRouteConstraint
     {
         ArgumentNullException.ThrowIfNull(routeKey);
         ArgumentNullException.ThrowIfNull(values);
-        return values.TryGetValue(routeKey, out object? value)
+        return values.TryGetValue(routeKey, out var value)
             && value is string text
             && TypedIdRouting.TryParse(text, out TId _);
     }

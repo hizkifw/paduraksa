@@ -1,6 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Application.Audit;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
@@ -59,7 +56,7 @@ public sealed partial class ConfigService
                 await using (transaction.ConfigureAwait(false))
                 {
                     // The transaction holds the write lock, so the latest revision can't move while the change looks at it.
-                    (_, ConfigDocument document) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
+                    var (_, document) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
                     outcome = await change(new CertificateChangeScope(context, document)).ConfigureAwait(false);
                     if (outcome.Audit is { } audit)
                     {
@@ -93,7 +90,7 @@ public sealed partial class ConfigService
             return result;
         }
 
-        ConfigCommandResult finished = await FinishPublishAsync(new Execution(new ConfigCommandResult(ConfigCommandStatus.Committed), ticket), origin).ConfigureAwait(false);
+        var finished = await FinishPublishAsync(new Execution(new ConfigCommandResult(ConfigCommandStatus.Committed), ticket), origin).ConfigureAwait(false);
         return result with { Publish = finished.Publish };
     }
 }

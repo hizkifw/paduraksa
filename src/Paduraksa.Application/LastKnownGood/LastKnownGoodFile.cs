@@ -152,8 +152,8 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
 
             // One handle, and never more than the limit read: the file's size can change between a check and a read.
             using FileStream stream = new(Path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            byte[] buffer = new byte[(int)Math.Min(stream.Length, MaxFileLength) + 1];
-            int length = 0;
+            var buffer = new byte[(int)Math.Min(stream.Length, MaxFileLength) + 1];
+            var length = 0;
             int read;
             while (length < buffer.Length && (read = stream.Read(buffer, length, buffer.Length - length)) > 0)
             {
@@ -211,31 +211,31 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
         entry = null;
         try
         {
-            using JsonDocument json = JsonDocument.Parse(bytes);
-            JsonElement root = json.RootElement;
+            using var json = JsonDocument.Parse(bytes);
+            var root = json.RootElement;
             if (root.ValueKind != JsonValueKind.Object)
             {
                 return "it isn't a JSON object";
             }
 
-            if (!root.TryGetProperty("format", out JsonElement format) || format.ValueKind != JsonValueKind.String || format.GetString() != Format)
+            if (!root.TryGetProperty("format", out var format) || format.ValueKind != JsonValueKind.String || format.GetString() != Format)
             {
                 return $"its format isn't '{Format}'";
             }
 
-            if (!root.TryGetProperty("revision", out JsonElement revision) || revision.ValueKind != JsonValueKind.String
-                || !ConfigRevisionId.TryParse(revision.GetString(), out ConfigRevisionId revisionId) || revisionId.IsEmpty)
+            if (!root.TryGetProperty("revision", out var revision) || revision.ValueKind != JsonValueKind.String
+                                                                   || !ConfigRevisionId.TryParse(revision.GetString(), out var revisionId) || revisionId.IsEmpty)
             {
                 return "its revision isn't a revision ID";
             }
 
-            if (!root.TryGetProperty("seq", out JsonElement seq) || seq.ValueKind != JsonValueKind.Number || !seq.TryGetInt64(out long seqValue) || seqValue < 1)
+            if (!root.TryGetProperty("seq", out var seq) || seq.ValueKind != JsonValueKind.Number || !seq.TryGetInt64(out var seqValue) || seqValue < 1)
             {
                 return "its seq isn't a positive number";
             }
 
-            if (!root.TryGetProperty("sha256", out JsonElement sha256) || sha256.ValueKind != JsonValueKind.String
-                || sha256.GetString() is not { Length: SHA256.HashSizeInBytes * 2 } hex)
+            if (!root.TryGetProperty("sha256", out var sha256) || sha256.ValueKind != JsonValueKind.String
+                                                               || sha256.GetString() is not { Length: SHA256.HashSizeInBytes * 2 } hex)
             {
                 return "its sha256 isn't a SHA-256 in hex";
             }
@@ -250,18 +250,18 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
                 return "its sha256 isn't a SHA-256 in hex";
             }
 
-            if (!root.TryGetProperty("document", out JsonElement document) || document.ValueKind != JsonValueKind.Object)
+            if (!root.TryGetProperty("document", out var document) || document.ValueKind != JsonValueKind.Object)
             {
                 return "it has no document";
             }
 
-            byte[] documentBytes = JsonMarshal.GetRawUtf8Value(document).ToArray();
+            var documentBytes = JsonMarshal.GetRawUtf8Value(document).ToArray();
             if (!SHA256.HashData(documentBytes).AsSpan().SequenceEqual(expected))
             {
                 return "its document doesn't match its sha256";
             }
 
-            if (!CanonicalConfigJson.TryDeserialize(documentBytes, out ConfigDocument? parsed, out ConfigError? error))
+            if (!CanonicalConfigJson.TryDeserialize(documentBytes, out var parsed, out var error))
             {
                 return $"its document can't be read ({error.Code} at '{error.Path}': {error.Message})";
             }
@@ -285,7 +285,7 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
 
     private void WriteLoop()
     {
-        bool done = false;
+        var done = false;
         try
         {
             while (true)
@@ -333,20 +333,20 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
 
     private void Write(LastKnownGoodEntry entry)
     {
-        byte[] bytes = Render(entry);
-        string directory = System.IO.Path.GetDirectoryName(Path)!;
+        var bytes = Render(entry);
+        var directory = System.IO.Path.GetDirectoryName(Path)!;
         Directory.CreateDirectory(directory);
 
         // Temp files a crash left behind go first. File.Delete removes a symbolic link itself, not its target, and
         // throws for a directory (the write then fails and is logged).
-        foreach (string stale in Directory.EnumerateFileSystemEntries(directory, TempPattern))
+        foreach (var stale in Directory.EnumerateFileSystemEntries(directory, TempPattern))
         {
             File.Delete(stale);
         }
 
         // A new name every time, and CreateNew (O_EXCL) never opens anything that exists: the bytes only ever go into a
         // new regular file of our own.
-        string temp = System.IO.Path.Combine(directory, $"{System.IO.Path.GetFileName(Path)}.{System.IO.Path.GetRandomFileName()}.tmp");
+        var temp = System.IO.Path.Combine(directory, $"{System.IO.Path.GetFileName(Path)}.{System.IO.Path.GetRandomFileName()}.tmp");
         FileStreamOptions create = new() { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None };
         if (!OperatingSystem.IsWindows())
         {

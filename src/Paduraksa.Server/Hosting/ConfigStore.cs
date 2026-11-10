@@ -1,7 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
@@ -59,13 +56,13 @@ internal static class ConfigStore
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
-        IConfigCompiler compiler = builder.Add<IConfigCompiler>(new ConfigCompiler(listeners.CompilerOptions));
+        var compiler = builder.Add<IConfigCompiler>(new ConfigCompiler(listeners.CompilerOptions));
 
         // The public app attaches YARP's live health when it starts (PublicApp); until then every destination is unknown.
-        DeferredUpstreamHealth health = builder.Add(new DeferredUpstreamHealth());
+        var health = builder.Add(new DeferredUpstreamHealth());
 
         // The vault's certificates first; the placeholder (a source and a built-in inventory entry) only when it is enabled.
-        IServiceCollection services = new ServiceCollection()
+        var services = new ServiceCollection()
             .AddPaduraksaDbContextFactory<ConfigDbContext>(Path.Combine(dataDirectory, ConfigDatabase.FileName))
             .AddSingleton(compiler)
             .AddSingleton(publisher)
@@ -89,11 +86,11 @@ internal static class ConfigStore
             services.AddSingleton<IBuiltInCertificates>(placeholder);
         }
 
-        ServiceProvider container = builder.Own(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
-        IDbContextFactory<ConfigDbContext> contexts = builder.AddOwnedElsewhere(container.GetRequiredService<IDbContextFactory<ConfigDbContext>>());
-        ConfigService config = builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
-        CertificateService certificates = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
-        CertificateOperations operations = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
+        var container = builder.Own(services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
+        var contexts = builder.AddOwnedElsewhere(container.GetRequiredService<IDbContextFactory<ConfigDbContext>>());
+        var config = builder.AddOwnedElsewhere(container.GetRequiredService<ConfigService>());
+        var certificates = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateService>());
+        var operations = builder.AddOwnedElsewhere(container.GetRequiredService<CertificateOperations>());
         builder.AddOwnedElsewhere(container.GetRequiredService<RequestSimulator>());
         builder.AddOwnedElsewhere(container.GetRequiredService<RevisionQueryService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<AuditQueryService>());
@@ -103,7 +100,7 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<TwoFactorService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<LoginService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<ApiTokenService>());
-        SetupService setup = builder.AddOwnedElsewhere(container.GetRequiredService<SetupService>());
+        var setup = builder.AddOwnedElsewhere(container.GetRequiredService<SetupService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<IPermissionEvaluator>());
         if (placeholderEnabled)
         {

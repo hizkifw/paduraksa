@@ -123,7 +123,7 @@ public sealed class HostEditModel
     /// <summary>The host as the form describes it: what the command sends. Only the kind's own part is included.</summary>
     public HostConfig ToConfig()
     {
-        HostSettings settings = Settings;
+        var settings = Settings;
         if (Kind == HostKind.Admin)
         {
             // The admin host is always HTTPS: the form doesn't offer the redirect, and keeps what was stored.

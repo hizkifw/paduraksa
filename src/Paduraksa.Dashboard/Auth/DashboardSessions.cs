@@ -20,7 +20,7 @@ internal sealed class DashboardSessions(SessionService sessions, IPermissionEval
 {
     public async Task<SessionPrincipal?> CheckAsync(SessionId session, bool countAsUse, CancellationToken cancellationToken)
     {
-        SessionValidation validation = await sessions.CheckAsync(session, countAsUse, cancellationToken).ConfigureAwait(false);
+        var validation = await sessions.CheckAsync(session, countAsUse, cancellationToken).ConfigureAwait(false);
         return validation is { Status: SessionStatus.Valid, Principal: { } principal } ? principal : null;
     }
 

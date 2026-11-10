@@ -1,5 +1,3 @@
-using System.Net.Http.Headers;
-
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Core.Model;
@@ -20,7 +18,7 @@ public sealed class SessionCookieAllocationTests
     [Fact]
     public void TheAdminRouteEarlyReturnAllocatesNothing()
     {
-        DefaultHttpContext context = AdminContext();
+        var context = AdminContext();
         RequestTransformContext transform = new()
         {
             HttpContext = context,
@@ -35,7 +33,7 @@ public sealed class SessionCookieAllocationTests
     [Fact]
     public void TheAdminRouteResponseEarlyReturnAllocatesNothing()
     {
-        DefaultHttpContext context = AdminContext();
+        var context = AdminContext();
         ResponseTransformContext transform = new()
         {
             HttpContext = context,

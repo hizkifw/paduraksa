@@ -15,12 +15,12 @@ public sealed class OpenApiDocumentCacheTests
     public async Task AFailedGenerationIsTriedAgainOnTheNextRequest()
     {
         FlakyProvider provider = new(failures: 1);
-        using ServiceProvider services = Services(provider);
+        using var services = Services(provider);
         OpenApiDocumentCache cache = new(services);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => cache.GetAsync(Ct));
 
-        string document = System.Text.Encoding.UTF8.GetString(await cache.GetAsync(Ct));
+        var document = System.Text.Encoding.UTF8.GetString(await cache.GetAsync(Ct));
         Assert.Contains("\"openapi\"", document, StringComparison.Ordinal);
         Assert.Equal(2, provider.Calls);
 
@@ -33,10 +33,10 @@ public sealed class OpenApiDocumentCacheTests
     public async Task ConcurrentFirstRequestsGenerateTheDocumentOnce()
     {
         FlakyProvider provider = new(failures: 0);
-        using ServiceProvider services = Services(provider);
+        using var services = Services(provider);
         OpenApiDocumentCache cache = new(services);
 
-        byte[][] documents = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => cache.GetAsync(Ct)));
+        var documents = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => cache.GetAsync(Ct)));
 
         Assert.Equal(1, provider.Calls);
         Assert.All(documents, document => Assert.Equal(documents[0], document));

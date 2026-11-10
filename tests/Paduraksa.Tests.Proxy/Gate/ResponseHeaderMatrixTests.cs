@@ -219,7 +219,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     public async Task EveryAnswerCarriesExactlyTheSetTheHostCompiled(
         string host, string path, string scheme, string protocol, string expected)
     {
-        DefaultHttpContext context = TestContexts.Create(host, path, scheme: scheme);
+        var context = TestContexts.Create(host, path, scheme: scheme);
         context.Request.Protocol = protocol;
 
         await _gate.InvokeAsync(context, static _ => Task.CompletedTask);
@@ -232,9 +232,9 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     {
         // strict.test wants TLS 1.3, and this connection negotiated less: the 421 is answered before the headers that
         // follow the TLS check, so a browser is never pinned on the strength of a misdirected request.
-        DefaultHttpContext context = TestContexts.Create("strict.test", "/", scheme: "https");
+        var context = TestContexts.Create("strict.test", "/", scheme: "https");
 
-        GateDecision decision = _gate.Decide(context);
+        var decision = _gate.Decide(context);
 
         Assert.Equal((GateAction.Respond, 421), (decision.Action, decision.Response!.StatusCode));
         AssertSet("Server=strict/1.0|Strict-Transport-Security|Alt-Svc|X-Request-Id", context);
@@ -244,7 +244,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     public async Task AForceHttpsHostsRedirectCarriesOnlyWhatMayGoOnPlainHttp()
     {
         // The redirect is a gate answer, so the Server header and the request ID are on it; HSTS and Alt-Svc need HTTPS.
-        DefaultHttpContext context = TestContexts.Create("secure.test", "/deep/path?q=1", scheme: "http");
+        var context = TestContexts.Create("secure.test", "/deep/path?q=1", scheme: "http");
 
         await _gate.InvokeAsync(context, static _ => Task.CompletedTask);
 
@@ -259,7 +259,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     public void HstsFollowsTheTrustedScheme(string? visitor, string? expected)
     {
         // The connection is plain HTTP; the trusted proxy says what the client used.
-        DefaultHttpContext context = TestContexts.Create("app.test", "/", remote: IPAddress.Loopback);
+        var context = TestContexts.Create("app.test", "/", remote: IPAddress.Loopback);
         if (visitor is not null)
         {
             context.Request.Headers[CloudflareHeaders.Visitor] = visitor;
@@ -273,7 +273,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     [Fact]
     public async Task AnUntrustedPeerCantClaimHttpsForHsts()
     {
-        DefaultHttpContext context = TestContexts.Create("app.test", "/", remote: IPAddress.Parse("198.51.100.1"));
+        var context = TestContexts.Create("app.test", "/", remote: IPAddress.Parse("198.51.100.1"));
         context.Request.Headers[CloudflareHeaders.Visitor] = "{\"scheme\":\"https\"}";
 
         await _gate.InvokeAsync(context, static _ => Task.CompletedTask);
@@ -285,7 +285,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     public async Task ARefusalCarriesTheHeadersToo()
     {
         // A policy's 403 is the host's answer as much as a forwarded response.
-        ProxyConfigModel model = Model() with
+        var model = Model() with
         {
             Hosts =
             [
@@ -297,7 +297,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
         using SnapshotStore store = new();
         store.Publish(Bound(model, options: Options()));
         GateMiddleware gate = new(store, new TrustedProxyClientAddressSource());
-        DefaultHttpContext context = TestContexts.Create("app.test", "/", scheme: "https", remote: IPAddress.Parse("198.51.100.1"));
+        var context = TestContexts.Create("app.test", "/", scheme: "https", remote: IPAddress.Parse("198.51.100.1"));
 
         await gate.InvokeAsync(context, static _ => Task.CompletedTask);
 
@@ -329,7 +329,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     public void WithoutAnHttp3ListenerNobodyAdvertisesIt()
     {
         // The transport itself is missing, so the value is empty for every host: no Alt-Svc anywhere.
-        RuntimeSnapshot snapshot = Compile(Model(), Options() with { AdvertiseHttp3 = false });
+        var snapshot = Compile(Model(), Options() with { AdvertiseHttp3 = false });
 
         Assert.Equal(
             Sorted("Server=Paduraksa|Strict-Transport-Security=max-age=31536000|Alt-Svc|X-Request-Id=*"),
@@ -357,7 +357,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     [InlineData("removed.test", "Server|Strict-Transport-Security=max-age=1|Alt-Svc=h3=\":8443\"; ma=86400|X-Request-Id=*")]
     public async Task TheResponseTransformMakesEachModeHoldAfterYarpsCopy(string hostName, string expected)
     {
-        DefaultHttpContext context = TestContexts.Create(hostName, "/", scheme: "https");
+        var context = TestContexts.Create(hostName, "/", scheme: "https");
         // What YARP copies: the upstream's own next to ours, or on its own when the host leaves it there.
         context.Response.Headers[ServerHeader.HeaderName] = KindOf(hostName, ServerHeader.HeaderName) == ResponseHeaderKind.LeaveToUpstream
             ? new StringValues("upstream/1.0")
@@ -374,14 +374,14 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     public async Task TheResponseTransformSettlesAFailedForwardAndHeadersNotCopied()
     {
         // A connection failure has no proxy response at all: the gate's own headers are what the client gets.
-        DefaultHttpContext failed = TestContexts.Create("full.test", "/", scheme: "https");
+        var failed = TestContexts.Create("full.test", "/", scheme: "https");
         failed.Response.Headers[ServerHeader.HeaderName] = "edge/1.0";
         await ResponseHeadersTransform.ApplyResponseAsync(Transform(failed, "full.test", headersCopied: true, proxy: null));
         Assert.Equal("edge/1.0", Header(failed, ServerHeader.HeaderName));
 
         // With copying off the transform owns the proxy response: a removed header comes off it, and ours is not added a
         // second time next to the value the gate already set.
-        DefaultHttpContext removed = TestContexts.Create("removed.test", "/", scheme: "https");
+        var removed = TestContexts.Create("removed.test", "/", scheme: "https");
         removed.Response.Headers[ServerHeader.HeaderName] = "upstream/1.0";
         using HttpResponseMessage proxy = new();
         proxy.Headers.TryAddWithoutValidation(ServerHeader.HeaderName, "upstream/1.0");
@@ -389,7 +389,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
         Assert.Null(Header(removed, ServerHeader.HeaderName));
         Assert.False(proxy.Headers.Contains(ServerHeader.HeaderName));
 
-        DefaultHttpContext ours = TestContexts.Create("app.test", "/", scheme: "https");
+        var ours = TestContexts.Create("app.test", "/", scheme: "https");
         ours.Response.Headers[ServerHeader.HeaderName] = "Paduraksa";
         using HttpResponseMessage upstream = new();
         upstream.Headers.TryAddWithoutValidation(ServerHeader.HeaderName, "upstream/1.0");
@@ -415,7 +415,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
             ],
         };
 
-        foreach (HostSettingsParts invalid in (HostSettingsParts[])
+        foreach (var invalid in (HostSettingsParts[])
         [
             new() { Hsts = new HostHstsSpec { Enabled = true, MaxAgeSeconds = 63_072_001 } },
             new() { Hsts = new HostHstsSpec { Enabled = true, MaxAgeSeconds = -1 } },
@@ -430,13 +430,13 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
             new() { Server = new HostServerHeaderSpec { Mode = (ServerHeaderMode)9 } },
         ])
         {
-            CompileResult result = SnapshotCompiler.Compile(ModelWith(invalid));
+            var result = SnapshotCompiler.Compile(ModelWith(invalid));
             Assert.False(result.Succeeded);
             Assert.NotEmpty(result.Errors);
         }
 
         // A year of max-age with both flags, 128 characters of value, and a value no mode uses: all fine.
-        foreach (HostSettingsParts valid in (HostSettingsParts[])
+        foreach (var valid in (HostSettingsParts[])
         [
             new() { Hsts = new HostHstsSpec { Enabled = true, Preload = true, IncludeSubDomains = true } },
             new() { Hsts = new HostHstsSpec { Enabled = true, MaxAgeSeconds = 0 } },
@@ -478,10 +478,10 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
             ("bare.test", "https"),
             ("removed.test", "https"),
         ];
-        foreach ((string host, string scheme) in cases)
+        foreach (var (host, scheme) in cases)
         {
-            DefaultHttpContext context = TestContexts.Create(host, "/", scheme: scheme, remote: IPAddress.Loopback);
-            GateMiddleware gate = _gate;
+            var context = TestContexts.Create(host, "/", scheme: scheme, remote: IPAddress.Loopback);
+            var gate = _gate;
             AllocAssert.Zero((gate, context), static s => _ = s.gate.Decide(s.context), $"gate with response headers for {host} over {scheme}");
         }
     }
@@ -489,19 +489,19 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     [Fact]
     public void TheResponseTransformAllocatesNothing()
     {
-        foreach (string hostName in new[] { "full.test", "bare.test", "removed.test" })
+        foreach (var hostName in new[] { "full.test", "bare.test", "removed.test" })
         {
-            DefaultHttpContext context = TestContexts.Create(hostName, "/", scheme: "https");
+            var context = TestContexts.Create(hostName, "/", scheme: "https");
             context.Response.Headers[ServerHeader.HeaderName] = KindOf(hostName, ServerHeader.HeaderName) == ResponseHeaderKind.LeaveToUpstream
                 ? new StringValues("upstream/1.0")
                 : UpstreamAndOurs;
-            ResponseTransformContext transform = Transform(context, hostName, headersCopied: true);
+            var transform = Transform(context, hostName, headersCopied: true);
 
             AllocAssert.Zero(
                 transform,
                 static t =>
                 {
-                    ValueTask task = ResponseHeadersTransform.ApplyResponseAsync(t);
+                    var task = ResponseHeadersTransform.ApplyResponseAsync(t);
                     if (!task.IsCompletedSuccessfully)
                     {
                         throw new InvalidOperationException("the response transform should complete synchronously");
@@ -526,13 +526,13 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
     /// <summary>The response's headers as a row writes them, in the compiled list's order.</summary>
     private static string SetOf(DefaultHttpContext context)
     {
-        GateRequestState? state = context.Features.Get<IGateFeature>()?.State;
-        ResponseHeaderOperation[] headers = state?.Host?.ResponseHeaders ?? state?.Snapshot?.DefaultResponseHeaders ?? [];
-        string? id = context.Response.Headers.ContainsKey(RequestIds.HeaderName) ? state?.RequestIdText() : null;
+        var state = context.Features.Get<IGateFeature>()?.State;
+        var headers = state?.Host?.ResponseHeaders ?? state?.Snapshot?.DefaultResponseHeaders ?? [];
+        var id = context.Response.Headers.ContainsKey(RequestIds.HeaderName) ? state?.RequestIdText() : null;
         List<string> parts = [];
-        foreach (ResponseHeaderOperation operation in headers)
+        foreach (var operation in headers)
         {
-            string? value = Header(context, operation.Name);
+            var value = Header(context, operation.Name);
             parts.Add(value is null ? operation.Name : $"{operation.Name}={(value == id ? Own : value)}");
         }
 
@@ -550,7 +550,7 @@ public sealed class ResponseHeaderMatrixTests : IDisposable
 
     /// <summary>A header's value on the response, or null when it isn't there.</summary>
     private static string? Header(HttpContext context, string name) =>
-        context.Response.Headers.TryGetValue(name, out StringValues value) && value.Count > 0 ? value.ToString() : null;
+        context.Response.Headers.TryGetValue(name, out var value) && value.Count > 0 ? value.ToString() : null;
 
     /// <summary>What the host's compiled operation for one header does.</summary>
     private ResponseHeaderKind KindOf(string hostName, string name) =>

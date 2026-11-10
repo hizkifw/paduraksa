@@ -52,7 +52,7 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
     {
         lock (_gate)
         {
-            StagedKeyId key = StagedKeyId.New();
+            var key = StagedKeyId.New();
             _staged[id] = (key, names);
             Csrs.Add((id, spec, names));
             byte[] der = [0x30, 0x03, 0x02, 0x01, (byte)Csrs.Count];
@@ -76,10 +76,10 @@ internal sealed class FakeCertificateIssuance(TimeProvider time) : ICertificateI
             }
 
             _staged.Remove(id);
-            string chain = Encoding.ASCII.GetString(pemChain.Span);
+            var chain = Encoding.ASCII.GetString(pemChain.Span);
             Attached.Add((id, chain));
-            DateTimeOffset now = time.GetUtcNow();
-            string serial = (_serial++).ToString("X4", System.Globalization.CultureInfo.InvariantCulture);
+            var now = time.GetUtcNow();
+            var serial = (_serial++).ToString("X4", System.Globalization.CultureInfo.InvariantCulture);
             CertificateInfo info = new(
                 $"CN={entry.Names[0]}",
                 entry.Names,

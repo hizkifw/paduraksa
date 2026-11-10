@@ -7,7 +7,7 @@
 @if (_errors.Count > 0)
 {
     <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert mt-3">
-        @foreach (string error in _errors)
+        @foreach (var error in _errors)
         {
             <div>@error</div>
         }

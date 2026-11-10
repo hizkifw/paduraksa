@@ -76,8 +76,8 @@ public static class LogFileNames
             throw new ArgumentOutOfRangeException(nameof(sequence), sequence, "A rotation's sequence starts at 1.");
         }
 
-        string timestamp = rotateAt.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture);
-        string suffix = sequence == 1 ? string.Empty : "-" + sequence.ToString(CultureInfo.InvariantCulture);
+        var timestamp = rotateAt.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture);
+        var suffix = sequence == 1 ? string.Empty : "-" + sequence.ToString(CultureInfo.InvariantCulture);
         return $"{Stem(kind)}-{timestamp}{suffix}.log";
     }
 
@@ -122,7 +122,7 @@ public static class LogFileNames
         }
 
         rest = rest[..^4];
-        int dash = rest.IndexOf('-');
+        var dash = rest.IndexOf('-');
         if (dash <= 0)
         {
             return false;
@@ -133,11 +133,11 @@ public static class LogFileNames
             return false;
         }
 
-        ReadOnlySpan<char> stamp = rest[(dash + 1)..];
-        int sequenceDash = stamp.IndexOf('-');
+        var stamp = rest[(dash + 1)..];
+        var sequenceDash = stamp.IndexOf('-');
         if (sequenceDash >= 0)
         {
-            ReadOnlySpan<char> suffix = stamp[(sequenceDash + 1)..];
+            var suffix = stamp[(sequenceDash + 1)..];
             if (suffix.IsEmpty || suffix.Length > 9 || suffix[0] == '0'
                 || !int.TryParse(suffix, NumberStyles.None, CultureInfo.InvariantCulture, out sequence) || sequence < 2)
             {
@@ -152,7 +152,7 @@ public static class LogFileNames
                 TimestampFormat,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                out DateTime parsed))
+                out var parsed))
         {
             return false;
         }
@@ -163,7 +163,7 @@ public static class LogFileNames
 
     private static bool TryStem(ReadOnlySpan<char> stem, out LogFileKind kind)
     {
-        foreach (LogFileKind candidate in Enum.GetValues<LogFileKind>())
+        foreach (var candidate in Enum.GetValues<LogFileKind>())
         {
             if (Stem(candidate).AsSpan().SequenceEqual(stem))
             {

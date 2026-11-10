@@ -58,10 +58,10 @@ internal sealed partial class CloudflareDnsProvider : IDnsProvider
 
     public async ValueTask CreateTxtAsync(string recordName, string value, CancellationToken cancellationToken)
     {
-        string name = DnsNames.Normalize(recordName);
+        var name = DnsNames.Normalize(recordName);
         DnsNames.RequireTxtValue(value);
-        using DnsApiClient api = Open();
-        string zone = await FindZoneAsync(api, name, cancellationToken).ConfigureAwait(false);
+        using var api = Open();
+        var zone = await FindZoneAsync(api, name, cancellationToken).ConfigureAwait(false);
         if ((await ListAsync(api, zone, "CNAME", name, cancellationToken).ConfigureAwait(false)).FirstOrDefault() is { } alias)
         {
             // Cloudflare would refuse a TXT beside a CNAME, and the CA follows the CNAME: the challenge belongs in the target's zone.
@@ -75,17 +75,17 @@ internal sealed partial class CloudflareDnsProvider : IDnsProvider
             return;
         }
 
-        byte[] body = DnsApiClient.Json(
+        var body = DnsApiClient.Json(
             new CloudflareRecordWrite { Type = "TXT", Name = name, Content = value, Ttl = Math.Max(60, _options.RecordTtlSeconds) },
             CloudflareJsonContext.Default.CloudflareRecordWrite);
-        DnsApiResponse response = await api.SendAsync(HttpMethod.Post, Url($"zones/{zone}/dns_records"), body, cancellationToken).ConfigureAwait(false);
+        var response = await api.SendAsync(HttpMethod.Post, Url($"zones/{zone}/dns_records"), body, cancellationToken).ConfigureAwait(false);
         if (response.IsSuccess)
         {
             LogCreated(name);
             return;
         }
 
-        CloudflareEnvelope<object>? error = TryEnvelope(response);
+        var error = TryEnvelope(response);
         if (error?.HasError(IdenticalRecordExists) == true)
         {
             return;
@@ -96,14 +96,14 @@ internal sealed partial class CloudflareDnsProvider : IDnsProvider
 
     public async ValueTask DeleteTxtAsync(string recordName, string value, CancellationToken cancellationToken)
     {
-        string name = DnsNames.Normalize(recordName);
+        var name = DnsNames.Normalize(recordName);
         DnsNames.RequireTxtValue(value);
-        using DnsApiClient api = Open();
-        string zone = await FindZoneAsync(api, name, cancellationToken).ConfigureAwait(false);
+        using var api = Open();
+        var zone = await FindZoneAsync(api, name, cancellationToken).ConfigureAwait(false);
         List<CloudflareRecord> matching = [.. (await ListAsync(api, zone, "TXT", name, cancellationToken).ConfigureAwait(false)).Where(r => Holds(r, value))];
-        foreach (CloudflareRecord record in matching)
+        foreach (var record in matching)
         {
-            DnsApiResponse response = await api.SendAsync(HttpMethod.Delete, Url($"zones/{zone}/dns_records/{Uri.EscapeDataString(record.Id!)}"), null, cancellationToken).ConfigureAwait(false);
+            var response = await api.SendAsync(HttpMethod.Delete, Url($"zones/{zone}/dns_records/{Uri.EscapeDataString(record.Id!)}"), null, cancellationToken).ConfigureAwait(false);
             if (response.IsSuccess)
             {
                 LogDeleted(name);
@@ -121,11 +121,11 @@ internal sealed partial class CloudflareDnsProvider : IDnsProvider
 
     public async ValueTask<DnsCredentialCheck> ValidateCredentialsAsync(CancellationToken cancellationToken)
     {
-        using DnsApiClient api = Open();
+        using var api = Open();
 
         // A user token verifies here; an account-owned token answers an error, and the zone read below decides.
         string? verifyProblem = null;
-        DnsApiResponse verify = await api.SendAsync(HttpMethod.Get, Url("user/tokens/verify"), null, cancellationToken).ConfigureAwait(false);
+        var verify = await api.SendAsync(HttpMethod.Get, Url("user/tokens/verify"), null, cancellationToken).ConfigureAwait(false);
         if (verify.IsSuccess && verify.Read(CloudflareJsonContext.Default.CloudflareEnvelopeCloudflareTokenStatus, "Cloudflare") is { Success: true } verified)
         {
             if (!string.Equals(verified.Result?.Status, "active", StringComparison.OrdinalIgnoreCase))
@@ -138,11 +138,11 @@ internal sealed partial class CloudflareDnsProvider : IDnsProvider
             verifyProblem = TryEnvelope(verify)?.FirstError ?? $"HTTP {(int)verify.Status}";
         }
 
-        DnsApiResponse zones = await api.SendAsync(HttpMethod.Get, Url("zones?per_page=5"), null, cancellationToken).ConfigureAwait(false);
+        var zones = await api.SendAsync(HttpMethod.Get, Url("zones?per_page=5"), null, cancellationToken).ConfigureAwait(false);
         CloudflareEnvelope<List<CloudflareZone>>? listed = zones.IsSuccess ? zones.Read(CloudflareJsonContext.Default.CloudflareEnvelopeListCloudflareZone, "Cloudflare") : null;
         if (listed is not { Success: true })
         {
-            string reason = TryEnvelope(zones)?.FirstError ?? verifyProblem ?? $"HTTP {(int)zones.Status}";
+            var reason = TryEnvelope(zones)?.FirstError ?? verifyProblem ?? $"HTTP {(int)zones.Status}";
             return new DnsCredentialCheck(false, $"Cloudflare did not accept the token for reading zones: {reason}.");
         }
 
@@ -166,14 +166,14 @@ internal sealed partial class CloudflareDnsProvider : IDnsProvider
 
     private async Task<string> FindZoneAsync(DnsApiClient api, string name, CancellationToken cancellationToken)
     {
-        foreach (string candidate in DnsNames.ZoneCandidates(name))
+        foreach (var candidate in DnsNames.ZoneCandidates(name))
         {
-            if (_zones.TryGetValue(candidate, out string? known))
+            if (_zones.TryGetValue(candidate, out var known))
             {
                 return known;
             }
 
-            DnsApiResponse response = await api.SendAsync(HttpMethod.Get, Url($"zones?name={Uri.EscapeDataString(candidate)}&per_page=5"), null, cancellationToken).ConfigureAwait(false);
+            var response = await api.SendAsync(HttpMethod.Get, Url($"zones?name={Uri.EscapeDataString(candidate)}&per_page=5"), null, cancellationToken).ConfigureAwait(false);
             CloudflareEnvelope<List<CloudflareZone>>? listed = response.IsSuccess ? response.Read(CloudflareJsonContext.Default.CloudflareEnvelopeListCloudflareZone, "Cloudflare") : null;
             if (listed is not { Success: true })
             {
@@ -193,10 +193,10 @@ internal sealed partial class CloudflareDnsProvider : IDnsProvider
     private static async Task<List<CloudflareRecord>> ListAsync(DnsApiClient api, string zone, string type, string name, CancellationToken cancellationToken)
     {
         List<CloudflareRecord> all = [];
-        for (int page = 1; page <= MaxPages; page++)
+        for (var page = 1; page <= MaxPages; page++)
         {
-            string query = string.Create(CultureInfo.InvariantCulture, $"zones/{zone}/dns_records?type={type}&name={Uri.EscapeDataString(name)}&per_page={PageSize}&page={page}");
-            DnsApiResponse response = await api.SendAsync(HttpMethod.Get, Url(query), null, cancellationToken).ConfigureAwait(false);
+            var query = string.Create(CultureInfo.InvariantCulture, $"zones/{zone}/dns_records?type={type}&name={Uri.EscapeDataString(name)}&per_page={PageSize}&page={page}");
+            var response = await api.SendAsync(HttpMethod.Get, Url(query), null, cancellationToken).ConfigureAwait(false);
             CloudflareEnvelope<List<CloudflareRecord>>? listed = response.IsSuccess ? response.Read(CloudflareJsonContext.Default.CloudflareEnvelopeListCloudflareRecord, "Cloudflare") : null;
             if (listed is not { Success: true })
             {

@@ -48,7 +48,7 @@ internal static class ConfigProjection
         await context.Database.ExecuteSqlRawAsync("PRAGMA defer_foreign_keys = ON", cancellationToken).ConfigureAwait(false);
         if (parent is not null && await TryReflectedRevisionAsync(context, cancellationToken).ConfigureAwait(false) == parent)
         {
-            TouchedObjects touched = TouchedObjects.From(changes);
+            var touched = TouchedObjects.From(changes);
             await DeleteAsync(context, touched, cancellationToken).ConfigureAwait(false);
             Add(context, document, touched.Profiles.Contains, touched.Upstreams.Contains, touched.Hosts.Contains);
         }
@@ -180,18 +180,18 @@ internal static class ConfigProjection
         Func<UpstreamId, bool> upstreams,
         Func<HostId, bool> hosts)
     {
-        foreach (ProfileConfig profile in document.Profiles.Where(p => profiles(p.Id)))
+        foreach (var profile in document.Profiles.Where(p => profiles(p.Id)))
         {
             context.Profiles.Add(Profile(profile));
         }
 
-        foreach (UpstreamConfig upstream in document.Upstreams.Where(u => upstreams(u.Id)))
+        foreach (var upstream in document.Upstreams.Where(u => upstreams(u.Id)))
         {
             context.Upstreams.Add(Upstream(upstream));
             context.Destinations.AddRange(Destinations(upstream));
         }
 
-        foreach (HostConfig host in document.Hosts.Where(h => hosts(h.Id)))
+        foreach (var host in document.Hosts.Where(h => hosts(h.Id)))
         {
             context.Hosts.Add(Host(host));
             context.HostNames.AddRange(Names(host));

@@ -142,8 +142,8 @@ internal sealed class FakeSecretStore : ISecretStore
     public ValueTask<SecretId> PutAsync(SecretKind kind, ReadOnlyMemory<byte> value, SecretOptions options, CancellationToken cancellationToken)
     {
         Puts++;
-        SecretId id = SecretId.New();
-        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var id = SecretId.New();
+        var now = DateTimeOffset.UtcNow;
         _secrets[id] = new SecretMetadata(id, kind, options.Label, options.MacAlgorithm, options.AllowedHosts ?? [], now, now, 1);
         return ValueTask.FromResult(id);
     }
@@ -168,13 +168,13 @@ internal sealed class HookHandler(HttpMessageHandler inner) : DelegatingHandler(
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        string path = request.RequestUri!.AbsolutePath.TrimStart('/');
+        var path = request.RequestUri!.AbsolutePath.TrimStart('/');
         if (Before is { } before)
         {
             await before(path, request);
         }
 
-        HttpResponseMessage response = await base.SendAsync(request, cancellationToken);
+        var response = await base.SendAsync(request, cancellationToken);
         if (After is { } after)
         {
             await after(path, response);

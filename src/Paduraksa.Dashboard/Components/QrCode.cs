@@ -48,8 +48,8 @@ internal sealed class QrCode
     public static QrCode Encode(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        byte[] data = Encoding.UTF8.GetBytes(text);
-        int version = 1;
+        var data = Encoding.UTF8.GetBytes(text);
+        var version = 1;
         for (; ; version++)
         {
             if (version > 40)
@@ -77,16 +77,16 @@ internal sealed class QrCode
     public string ToSvgPath(int border = 4)
     {
         StringBuilder path = new();
-        for (int y = 0; y < Size; y++)
+        for (var y = 0; y < Size; y++)
         {
-            for (int x = 0; x < Size; x++)
+            for (var x = 0; x < Size; x++)
             {
                 if (!_modules[y, x])
                 {
                     continue;
                 }
 
-                int start = x;
+                var start = x;
                 while (x + 1 < Size && _modules[y, x + 1])
                 {
                     x++;
@@ -103,10 +103,10 @@ internal sealed class QrCode
 
     private static int RawDataModules(int version)
     {
-        int result = ((16 * version) + 128) * version + 64;
+        var result = ((16 * version) + 128) * version + 64;
         if (version >= 2)
         {
-            int alignments = (version / 7) + 2;
+            var alignments = (version / 7) + 2;
             result -= ((25 * alignments) - 10) * alignments - 55;
             if (version >= 7)
             {
@@ -126,7 +126,7 @@ internal sealed class QrCode
         List<bool> bits = [];
         void Append(int value, int length)
         {
-            for (int i = length - 1; i >= 0; i--)
+            for (var i = length - 1; i >= 0; i--)
             {
                 bits.Add(((value >> i) & 1) != 0);
             }
@@ -134,21 +134,21 @@ internal sealed class QrCode
 
         Append(0b0100, 4);
         Append(data.Length, version < 10 ? 8 : 16);
-        foreach (byte b in data)
+        foreach (var b in data)
         {
             Append(b, 8);
         }
 
-        int capacity = DataCodewords(version) * 8;
+        var capacity = DataCodewords(version) * 8;
         Append(0, Math.Min(4, capacity - bits.Count));
         Append(0, (8 - (bits.Count % 8)) % 8);
-        for (int pad = 0xEC; bits.Count < capacity; pad ^= 0xEC ^ 0x11)
+        for (var pad = 0xEC; bits.Count < capacity; pad ^= 0xEC ^ 0x11)
         {
             Append(pad, 8);
         }
 
-        byte[] codewords = new byte[bits.Count / 8];
-        for (int i = 0; i < bits.Count; i++)
+        var codewords = new byte[bits.Count / 8];
+        for (var i = 0; i < bits.Count; i++)
         {
             if (bits[i])
             {
@@ -162,29 +162,29 @@ internal sealed class QrCode
     /// <summary>Splits the data into blocks, adds each block's Reed-Solomon codewords and interleaves them.</summary>
     private byte[] AddErrorCorrection(byte[] data)
     {
-        int blockCount = ErrorCorrectionBlocks[Version];
-        int eccLength = EccCodewordsPerBlock[Version];
-        int rawCodewords = RawDataModules(Version) / 8;
-        int shortBlocks = blockCount - (rawCodewords % blockCount);
-        int shortBlockLength = rawCodewords / blockCount;
-        byte[] divisor = ReedSolomonDivisor(eccLength);
+        var blockCount = ErrorCorrectionBlocks[Version];
+        var eccLength = EccCodewordsPerBlock[Version];
+        var rawCodewords = RawDataModules(Version) / 8;
+        var shortBlocks = blockCount - (rawCodewords % blockCount);
+        var shortBlockLength = rawCodewords / blockCount;
+        var divisor = ReedSolomonDivisor(eccLength);
 
         List<byte[]> blocks = [];
         for (int i = 0, k = 0; i < blockCount; i++)
         {
-            int dataLength = shortBlockLength - eccLength + (i < shortBlocks ? 0 : 1);
-            byte[] block = new byte[shortBlockLength + 1];
+            var dataLength = shortBlockLength - eccLength + (i < shortBlocks ? 0 : 1);
+            var block = new byte[shortBlockLength + 1];
             Array.Copy(data, k, block, 0, dataLength);
             k += dataLength;
-            byte[] ecc = ReedSolomonRemainder(data.AsSpan(k - dataLength, dataLength), divisor);
+            var ecc = ReedSolomonRemainder(data.AsSpan(k - dataLength, dataLength), divisor);
             Array.Copy(ecc, 0, block, shortBlockLength + 1 - eccLength, eccLength);
             blocks.Add(block);
         }
 
         List<byte> result = new(rawCodewords);
-        for (int i = 0; i < shortBlockLength + 1; i++)
+        for (var i = 0; i < shortBlockLength + 1; i++)
         {
-            for (int j = 0; j < blocks.Count; j++)
+            for (var j = 0; j < blocks.Count; j++)
             {
                 // A short block has no codeword at the last data position.
                 if (i != shortBlockLength - eccLength || j >= shortBlocks)
@@ -199,12 +199,12 @@ internal sealed class QrCode
 
     private static byte[] ReedSolomonDivisor(int degree)
     {
-        byte[] result = new byte[degree];
+        var result = new byte[degree];
         result[degree - 1] = 1;
-        int root = 1;
-        for (int i = 0; i < degree; i++)
+        var root = 1;
+        for (var i = 0; i < degree; i++)
         {
-            for (int j = 0; j < result.Length; j++)
+            for (var j = 0; j < result.Length; j++)
             {
                 result[j] = Multiply(result[j], root);
                 if (j + 1 < result.Length)
@@ -221,13 +221,13 @@ internal sealed class QrCode
 
     private static byte[] ReedSolomonRemainder(ReadOnlySpan<byte> data, byte[] divisor)
     {
-        byte[] result = new byte[divisor.Length];
-        foreach (byte b in data)
+        var result = new byte[divisor.Length];
+        foreach (var b in data)
         {
-            int factor = b ^ result[0];
+            var factor = b ^ result[0];
             Array.Copy(result, 1, result, 0, result.Length - 1);
             result[^1] = 0;
-            for (int i = 0; i < result.Length; i++)
+            for (var i = 0; i < result.Length; i++)
             {
                 result[i] ^= Multiply(divisor[i], factor);
             }
@@ -239,8 +239,8 @@ internal sealed class QrCode
     /// <summary>Multiplication in GF(2⁸) modulo x⁸ + x⁴ + x³ + x² + 1.</summary>
     private static byte Multiply(int x, int y)
     {
-        int z = 0;
-        for (int i = 7; i >= 0; i--)
+        var z = 0;
+        for (var i = 7; i >= 0; i--)
         {
             z = (z << 1) ^ ((z >> 7) * 0x11D);
             z ^= ((y >> i) & 1) * x;
@@ -251,7 +251,7 @@ internal sealed class QrCode
 
     private void DrawFunctionPatterns()
     {
-        for (int i = 0; i < Size; i++)
+        for (var i = 0; i < Size; i++)
         {
             SetFunction(6, i, i % 2 == 0);
             SetFunction(i, 6, i % 2 == 0);
@@ -261,12 +261,12 @@ internal sealed class QrCode
         DrawFinder(Size - 4, 3);
         DrawFinder(3, Size - 4);
 
-        int[] positions = AlignmentPositions();
-        for (int i = 0; i < positions.Length; i++)
+        var positions = AlignmentPositions();
+        for (var i = 0; i < positions.Length; i++)
         {
-            for (int j = 0; j < positions.Length; j++)
+            for (var j = 0; j < positions.Length; j++)
             {
-                bool finderCorner = (i == 0 && j == 0) || (i == 0 && j == positions.Length - 1) || (i == positions.Length - 1 && j == 0);
+                var finderCorner = (i == 0 && j == 0) || (i == 0 && j == positions.Length - 1) || (i == positions.Length - 1 && j == 0);
                 if (!finderCorner)
                 {
                     DrawAlignment(positions[i], positions[j]);
@@ -280,13 +280,13 @@ internal sealed class QrCode
 
     private void DrawFinder(int cx, int cy)
     {
-        for (int dy = -4; dy <= 4; dy++)
+        for (var dy = -4; dy <= 4; dy++)
         {
-            for (int dx = -4; dx <= 4; dx++)
+            for (var dx = -4; dx <= 4; dx++)
             {
-                int distance = Math.Max(Math.Abs(dx), Math.Abs(dy));
-                int x = cx + dx;
-                int y = cy + dy;
+                var distance = Math.Max(Math.Abs(dx), Math.Abs(dy));
+                var x = cx + dx;
+                var y = cy + dy;
                 if (x >= 0 && x < Size && y >= 0 && y < Size)
                 {
                     SetFunction(x, y, distance != 2 && distance != 4);
@@ -297,9 +297,9 @@ internal sealed class QrCode
 
     private void DrawAlignment(int cx, int cy)
     {
-        for (int dy = -2; dy <= 2; dy++)
+        for (var dy = -2; dy <= 2; dy++)
         {
-            for (int dx = -2; dx <= 2; dx++)
+            for (var dx = -2; dx <= 2; dx++)
             {
                 SetFunction(cx + dx, cy + dy, Math.Max(Math.Abs(dx), Math.Abs(dy)) != 1);
             }
@@ -313,9 +313,9 @@ internal sealed class QrCode
             return [];
         }
 
-        int count = (Version / 7) + 2;
-        int step = ((Version * 8) + (count * 3) + 5) / ((count * 4) - 4) * 2;
-        int[] result = new int[count];
+        var count = (Version / 7) + 2;
+        var step = ((Version * 8) + (count * 3) + 5) / ((count * 4) - 4) * 2;
+        var result = new int[count];
         result[0] = 6;
         for (int i = count - 1, position = Size - 7; i >= 1; i--, position -= step)
         {
@@ -327,15 +327,15 @@ internal sealed class QrCode
 
     private void DrawFormatBits(int mask)
     {
-        int data = (EccFormatBits << 3) | mask;
-        int remainder = data;
-        for (int i = 0; i < 10; i++)
+        var data = (EccFormatBits << 3) | mask;
+        var remainder = data;
+        for (var i = 0; i < 10; i++)
         {
             remainder = (remainder << 1) ^ ((remainder >> 9) * 0x537);
         }
 
-        int bits = ((data << 10) | remainder) ^ 0x5412;
-        for (int i = 0; i <= 5; i++)
+        var bits = ((data << 10) | remainder) ^ 0x5412;
+        for (var i = 0; i <= 5; i++)
         {
             SetFunction(8, i, Bit(bits, i));
         }
@@ -343,17 +343,17 @@ internal sealed class QrCode
         SetFunction(8, 7, Bit(bits, 6));
         SetFunction(8, 8, Bit(bits, 7));
         SetFunction(7, 8, Bit(bits, 8));
-        for (int i = 9; i < 15; i++)
+        for (var i = 9; i < 15; i++)
         {
             SetFunction(14 - i, 8, Bit(bits, i));
         }
 
-        for (int i = 0; i < 8; i++)
+        for (var i = 0; i < 8; i++)
         {
             SetFunction(Size - 1 - i, 8, Bit(bits, i));
         }
 
-        for (int i = 8; i < 15; i++)
+        for (var i = 8; i < 15; i++)
         {
             SetFunction(8, Size - 15 + i, Bit(bits, i));
         }
@@ -368,18 +368,18 @@ internal sealed class QrCode
             return;
         }
 
-        int remainder = Version;
-        for (int i = 0; i < 12; i++)
+        var remainder = Version;
+        for (var i = 0; i < 12; i++)
         {
             remainder = (remainder << 1) ^ ((remainder >> 11) * 0x1F25);
         }
 
-        int bits = (Version << 12) | remainder;
-        for (int i = 0; i < 18; i++)
+        var bits = (Version << 12) | remainder;
+        for (var i = 0; i < 18; i++)
         {
-            bool bit = Bit(bits, i);
-            int a = Size - 11 + (i % 3);
-            int b = i / 3;
+            var bit = Bit(bits, i);
+            var a = Size - 11 + (i % 3);
+            var b = i / 3;
             SetFunction(a, b, bit);
             SetFunction(b, a, bit);
         }
@@ -387,21 +387,21 @@ internal sealed class QrCode
 
     private void DrawCodewords(byte[] data)
     {
-        int i = 0;
-        for (int right = Size - 1; right >= 1; right -= 2)
+        var i = 0;
+        for (var right = Size - 1; right >= 1; right -= 2)
         {
             if (right == 6)
             {
                 right = 5;
             }
 
-            for (int vertical = 0; vertical < Size; vertical++)
+            for (var vertical = 0; vertical < Size; vertical++)
             {
-                for (int j = 0; j < 2; j++)
+                for (var j = 0; j < 2; j++)
                 {
-                    int x = right - j;
-                    bool upward = ((right + 1) & 2) == 0;
-                    int y = upward ? Size - 1 - vertical : vertical;
+                    var x = right - j;
+                    var upward = ((right + 1) & 2) == 0;
+                    var y = upward ? Size - 1 - vertical : vertical;
                     if (!_isFunction[y, x] && i < data.Length * 8)
                     {
                         _modules[y, x] = Bit(data[i >> 3], 7 - (i & 7));
@@ -414,13 +414,13 @@ internal sealed class QrCode
 
     private void ChooseMask()
     {
-        int best = 0;
-        int bestPenalty = int.MaxValue;
-        for (int mask = 0; mask < 8; mask++)
+        var best = 0;
+        var bestPenalty = int.MaxValue;
+        for (var mask = 0; mask < 8; mask++)
         {
             ApplyMask(mask);
             DrawFormatBits(mask);
-            int penalty = Penalty();
+            var penalty = Penalty();
             if (penalty < bestPenalty)
             {
                 best = mask;
@@ -437,11 +437,11 @@ internal sealed class QrCode
 
     private void ApplyMask(int mask)
     {
-        for (int y = 0; y < Size; y++)
+        for (var y = 0; y < Size; y++)
         {
-            for (int x = 0; x < Size; x++)
+            for (var x = 0; x < Size; x++)
             {
-                bool invert = mask switch
+                var invert = mask switch
                 {
                     0 => (x + y) % 2 == 0,
                     1 => y % 2 == 0,
@@ -463,21 +463,21 @@ internal sealed class QrCode
     /// <summary>The standard's four penalty rules: long runs, 2x2 blocks, finder-like patterns and an unbalanced dark share.</summary>
     private int Penalty()
     {
-        int penalty = 0;
-        for (int line = 0; line < Size; line++)
+        var penalty = 0;
+        for (var line = 0; line < Size; line++)
         {
             penalty += LinePenalty(i => _modules[line, i]) + LinePenalty(i => _modules[i, line]);
         }
 
-        int dark = 0;
-        for (int y = 0; y < Size; y++)
+        var dark = 0;
+        for (var y = 0; y < Size; y++)
         {
-            for (int x = 0; x < Size; x++)
+            for (var x = 0; x < Size; x++)
             {
                 dark += _modules[y, x] ? 1 : 0;
                 if (x + 1 < Size && y + 1 < Size)
                 {
-                    bool colour = _modules[y, x];
+                    var colour = _modules[y, x];
                     if (colour == _modules[y, x + 1] && colour == _modules[y + 1, x] && colour == _modules[y + 1, x + 1])
                     {
                         penalty += 3;
@@ -486,8 +486,8 @@ internal sealed class QrCode
             }
         }
 
-        int total = Size * Size;
-        int k = ((Math.Abs((dark * 20) - (total * 10)) + total - 1) / total) - 1;
+        var total = Size * Size;
+        var k = ((Math.Abs((dark * 20) - (total * 10)) + total - 1) / total) - 1;
         return penalty + (k * 10);
     }
 
@@ -495,9 +495,9 @@ internal sealed class QrCode
 
     private int LinePenalty(Func<int, bool> at)
     {
-        int penalty = 0;
-        int run = 1;
-        for (int i = 1; i <= Size; i++)
+        var penalty = 0;
+        var run = 1;
+        for (var i = 1; i <= Size; i++)
         {
             if (i < Size && at(i) == at(i - 1))
             {
@@ -514,10 +514,10 @@ internal sealed class QrCode
         }
 
         // 1:1:3:1:1 with four light modules on one side (outside the symbol counts as light).
-        for (int i = -4; i + 7 <= Size + 4; i++)
+        for (var i = -4; i + 7 <= Size + 4; i++)
         {
-            bool matches = true;
-            for (int j = 0; j < 7 && matches; j++)
+            var matches = true;
+            for (var j = 0; j < 7 && matches; j++)
             {
                 matches = Module(at, i + j) == FinderLike[j];
             }
@@ -527,9 +527,9 @@ internal sealed class QrCode
                 continue;
             }
 
-            bool lightBefore = true;
-            bool lightAfter = true;
-            for (int j = 1; j <= 4; j++)
+            var lightBefore = true;
+            var lightAfter = true;
+            for (var j = 1; j <= 4; j++)
             {
                 lightBefore &= !Module(at, i - j);
                 lightAfter &= !Module(at, i + 6 + j);

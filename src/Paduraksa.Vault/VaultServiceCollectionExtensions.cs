@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Core.Vault;
-using Paduraksa.Storage.Sqlite;
 using Paduraksa.Vault.Certificates;
 using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.DataProtection;

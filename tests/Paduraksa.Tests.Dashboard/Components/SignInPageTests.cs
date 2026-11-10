@@ -24,14 +24,14 @@ public sealed class SignInPageTests
     public void SignIn_IsAPlainFormPostingTheCredentialsWithAnAntiforgeryToken()
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<SignIn> page = Render<SignIn>(context, DashboardRoutes.SignIn);
+        var page = Render<SignIn>(context, DashboardRoutes.SignIn);
 
-        IElement form = page.Find("form");
+        var form = page.Find("form");
         Assert.Equal("post", form.GetAttribute("method"));
         Assert.Equal(DashboardRoutes.Actions.SignIn, form.GetAttribute("action"));
         Assert.Equal(DashboardTestContext.AntiforgeryValue, page.Find("input[name=__RequestVerificationToken]").GetAttribute("value"));
         Assert.Equal("username", page.Find($"input[name={DashboardForm.Username}]").GetAttribute("autocomplete"));
-        IElement password = page.Find($"input[name={DashboardForm.Password}]");
+        var password = page.Find($"input[name={DashboardForm.Password}]");
         Assert.Equal("password", password.GetAttribute("type"));
         Assert.Equal("current-password", password.GetAttribute("autocomplete"));
         Assert.Null(password.GetAttribute("value"));
@@ -47,9 +47,9 @@ public sealed class SignInPageTests
     public void SignIn_ShowsTheMessageOfAKnownCode_AndOnlyAGenericOneOtherwise(string code, string message)
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<SignIn> page = Render<SignIn>(context, $"{DashboardRoutes.SignIn}?error={Uri.EscapeDataString(code)}");
+        var page = Render<SignIn>(context, $"{DashboardRoutes.SignIn}?error={Uri.EscapeDataString(code)}");
 
-        IElement alert = page.Find(".pdk-callout-error");
+        var alert = page.Find(".pdk-callout-error");
         Assert.Equal("alert", alert.GetAttribute("role"));
         Assert.Equal(message, alert.TextContent);
         Assert.DoesNotContain("<script>", page.Markup, StringComparison.Ordinal);
@@ -61,7 +61,7 @@ public sealed class SignInPageTests
     public void SignIn_ShowsANotice(string notice, string message)
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<SignIn> page = Render<SignIn>(context, $"{DashboardRoutes.SignIn}?notice={notice}");
+        var page = Render<SignIn>(context, $"{DashboardRoutes.SignIn}?notice={notice}");
 
         Assert.Equal(message, page.Find(".pdk-callout-info").TextContent);
     }
@@ -77,9 +77,9 @@ public sealed class SignInPageTests
     public void SignIn_CarriesALocalReturnAddress_AndDropsAnyOther(string returnUrl, string? carried)
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<SignIn> page = Render<SignIn>(context, $"{DashboardRoutes.SignIn}?returnUrl={Uri.EscapeDataString(returnUrl)}");
+        var page = Render<SignIn>(context, $"{DashboardRoutes.SignIn}?returnUrl={Uri.EscapeDataString(returnUrl)}");
 
-        IReadOnlyList<IElement> hidden = page.FindAll($"input[name={DashboardForm.ReturnUrl}]");
+        var hidden = page.FindAll($"input[name={DashboardForm.ReturnUrl}]");
         Assert.Equal(carried, hidden.SingleOrDefault()?.GetAttribute("value"));
     }
 
@@ -87,7 +87,7 @@ public sealed class SignInPageTests
     public void SignIn_SendsASignedInBrowserOnToItsReturnAddress()
     {
         using DashboardTestContext context = new();
-        NavigationManager navigation = context.Services.GetRequiredService<NavigationManager>();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo($"{DashboardRoutes.SignIn}?returnUrl=%2Fcertificates");
 
         context.Render<SignIn>(parameters => parameters.AddCascadingValue(DashboardTestContext.StateOf(TestUsers.User(Role.Viewer))));
@@ -99,10 +99,10 @@ public sealed class SignInPageTests
     public void Verify_AsksForTheAuthenticatorCode_OrARecoveryCode()
     {
         using DashboardTestContext context = new();
-        IRenderedComponent<SignInVerify> code = Render<SignInVerify>(context, $"{DashboardRoutes.SignInVerify}?returnUrl=%2Faudit");
+        var code = Render<SignInVerify>(context, $"{DashboardRoutes.SignInVerify}?returnUrl=%2Faudit");
 
         Assert.Equal(DashboardRoutes.Actions.SecondFactor, code.Find("form").GetAttribute("action"));
-        IElement input = code.Find($"input[name={DashboardForm.Code}]");
+        var input = code.Find($"input[name={DashboardForm.Code}]");
         Assert.Equal("numeric", input.GetAttribute("inputmode"));
         Assert.Equal("one-time-code", input.GetAttribute("autocomplete"));
         Assert.Empty(code.FindAll($"input[name={DashboardForm.RecoveryCode}]"));
@@ -110,7 +110,7 @@ public sealed class SignInPageTests
         Assert.Equal("/signin/verify?recovery=1&returnUrl=%2Faudit", code.Find("a[href*='recovery=1']").GetAttribute("href"));
 
         using DashboardTestContext recoveryContext = new();
-        IRenderedComponent<SignInVerify> recovery = Render<SignInVerify>(recoveryContext, $"{DashboardRoutes.SignInVerify}?recovery=1");
+        var recovery = Render<SignInVerify>(recoveryContext, $"{DashboardRoutes.SignInVerify}?recovery=1");
         Assert.Single(recovery.FindAll($"input[name={DashboardForm.RecoveryCode}]"));
         Assert.Empty(recovery.FindAll($"input[name={DashboardForm.Code}]"));
     }
@@ -118,7 +118,7 @@ public sealed class SignInPageTests
     [Fact]
     public void EveryErrorTheFormEndpointsRedirectWith_HasItsOwnMessage()
     {
-        foreach (string code in AdminWebForm.ErrorCodes)
+        foreach (var code in AdminWebForm.ErrorCodes)
         {
             Assert.Contains(code, SignInMessages.KnownErrors);
         }
@@ -127,12 +127,12 @@ public sealed class SignInPageTests
     [Fact]
     public void TheFormFieldsAndParameters_AreNamedAsTheFormEndpointsReadThem()
     {
-        Dictionary<string, object?> admin = Constants(typeof(AdminWebForm));
-        Dictionary<string, object?> dashboard = Constants(typeof(DashboardForm));
+        var admin = Constants(typeof(AdminWebForm));
+        var dashboard = Constants(typeof(DashboardForm));
 
-        foreach ((string name, object? value) in admin.Where(pair => pair.Key != nameof(AdminWebForm.PasswordMismatch)))
+        foreach (var (name, value) in admin.Where(pair => pair.Key != nameof(AdminWebForm.PasswordMismatch)))
         {
-            Assert.True(dashboard.TryGetValue(name, out object? ours), $"DashboardForm has no {name}.");
+            Assert.True(dashboard.TryGetValue(name, out var ours), $"DashboardForm has no {name}.");
             Assert.Equal(value, ours);
         }
     }

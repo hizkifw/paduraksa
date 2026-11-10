@@ -24,14 +24,14 @@ public sealed class AdminCertificateTests
     [Fact]
     public void AnAddedNameForcesAReissue()
     {
-        CertificateSummary current = Summary(["admin.lan"], Start, TimeSpan.FromDays(90));
+        var current = Summary(["admin.lan"], Start, TimeSpan.FromDays(90));
         Assert.True(AdminCertificatePolicy.ShouldReissue(current, ["admin.lan", "extra.lan"], Start));
     }
 
     [Fact]
     public void ARemovedNameForcesAReissue()
     {
-        CertificateSummary current = Summary(["admin.lan", "extra.lan"], Start, TimeSpan.FromDays(90));
+        var current = Summary(["admin.lan", "extra.lan"], Start, TimeSpan.FromDays(90));
         Assert.True(AdminCertificatePolicy.ShouldReissue(current, ["admin.lan"], Start));
     }
 
@@ -47,7 +47,7 @@ public sealed class AdminCertificateTests
     public void AThirdOfTheLifetimeLeftIsTheRenewalPoint()
     {
         // 90 days of life: the last third starts at day 60.
-        CertificateSummary current = Summary(["admin.lan"], Start, TimeSpan.FromDays(90));
+        var current = Summary(["admin.lan"], Start, TimeSpan.FromDays(90));
         Assert.False(AdminCertificatePolicy.ShouldReissue(current, ["admin.lan"], Start.AddDays(59)));
         Assert.True(AdminCertificatePolicy.ShouldReissue(current, ["admin.lan"], Start.AddDays(60)));
         Assert.True(AdminCertificatePolicy.ShouldReissue(current, ["admin.lan"], Start.AddDays(61)));
@@ -64,7 +64,7 @@ public sealed class AdminCertificateTests
     [Fact]
     public void TheDesiredNamesAreTheConfiguredOnesPlusEveryLocalWayIn()
     {
-        IReadOnlyList<string> names = AdminCertificateNames.Compose(["Admin.Lan"], "box.lan", "192.0.2.7");
+        var names = AdminCertificateNames.Compose(["Admin.Lan"], "box.lan", "192.0.2.7");
 
         Assert.Equal(["admin.lan", "localhost", "127.0.0.1", "::1", "box.lan", "192.0.2.7"], names);
     }
@@ -72,7 +72,7 @@ public sealed class AdminCertificateTests
     [Fact]
     public void AWildcardBindAndUnusableEntriesAreLeftOut()
     {
-        IReadOnlyList<string> names = AdminCertificateNames.Compose(["not a name!", "admin.lan", "admin.lan"], "box.lan", "0.0.0.0");
+        var names = AdminCertificateNames.Compose(["not a name!", "admin.lan", "admin.lan"], "box.lan", "0.0.0.0");
 
         Assert.Equal(["admin.lan", "localhost", "127.0.0.1", "::1", "box.lan"], names);
     }
@@ -87,7 +87,7 @@ public sealed class AdminCertificateTests
     public void AZoneIdOnTheBindAddressIsDropped()
     {
         // A scope id belongs to the interface, not to a certificate; the address itself is still covered.
-        IReadOnlyList<string> names = AdminCertificateNames.Compose([], null, "fe80::1%eth0");
+        var names = AdminCertificateNames.Compose([], null, "fe80::1%eth0");
 
         Assert.Contains("fe80::1", names);
         Assert.DoesNotContain(names, name => name.Contains('%'));
@@ -101,7 +101,7 @@ public sealed class AdminCertificateTests
         Assert.Equal(CertificateLimits.MaxNames, AdminCertificateNames.MaxNames);
         Assert.Equal(AdminCertificateNames.MaxNames, AdminCertificateNames.MaxConfiguredNames + AdminCertificateNames.AutomaticNames);
 
-        IReadOnlyList<string> full = AdminCertificateNames.Compose(
+        var full = AdminCertificateNames.Compose(
             [.. Enumerable.Range(0, AdminCertificateNames.MaxConfiguredNames).Select(i => $"admin{i}.lan")],
             "box.lan",
             "192.0.2.7");

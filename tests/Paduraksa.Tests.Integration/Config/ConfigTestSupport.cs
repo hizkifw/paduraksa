@@ -2,8 +2,6 @@ using System.Net;
 
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
-
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -25,7 +23,7 @@ internal static class ConfigTestSupport
     /// <summary>Runs <paramref name="command"/> and asserts it committed and went live; returns the revision.</summary>
     public static async Task<RevisionRef> CommitAsync(PaduraksaHost host, ConfigCommand command, CancellationToken ct)
     {
-        ConfigCommandResult result = await host.Shared.Config.ExecuteAsync(command, Origin, ct);
+        var result = await host.Shared.Config.ExecuteAsync(command, Origin, ct);
         Assert.True(
             result.Status == ConfigCommandStatus.Committed && result.Publish is { Succeeded: true },
             $"{result.Status}: {string.Join("; ", result.Errors.Concat(result.RelatedErrors).Select(e => $"{e.Path} {e.Code} {e.Message}"))}"
@@ -39,10 +37,10 @@ internal static class ConfigTestSupport
     /// </summary>
     public static async Task<RevisionRef> SeedAsync(string dataDirectory, ConfigDocument document, CancellationToken ct)
     {
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: dataDirectory);
+        await using var host = TestHost.Create(dataDirectory: dataDirectory);
         await host.StartAsync(ct);
-        CurrentConfig current = await host.Shared.Config.GetCurrentAsync(ct);
-        RevisionRef revision = await CommitAsync(host, new ReplaceConfigCommand(document, current.Revision?.Id), ct);
+        var current = await host.Shared.Config.GetCurrentAsync(ct);
+        var revision = await CommitAsync(host, new ReplaceConfigCommand(document, current.Revision?.Id), ct);
         await host.StopAsync(ct);
         return revision;
     }
@@ -67,15 +65,15 @@ internal static class ConfigTestSupport
     /// <summary>The body of a plain-HTTP GET for <paramref name="hostHeader"/>, with its status.</summary>
     public static async Task<(HttpStatusCode Status, string Body)> GetAsync(HttpClient client, PaduraksaHost host, string hostHeader, string path, CancellationToken ct)
     {
-        using HttpRequestMessage request = Request(host, "http", hostHeader, path);
-        using HttpResponseMessage response = await client.SendAsync(request, ct);
+        using var request = Request(host, "http", hostHeader, path);
+        using var response = await client.SendAsync(request, ct);
         return (response.StatusCode, await response.Content.ReadAsStringAsync(ct));
     }
 
     /// <summary><c>/readyz</c> on the admin listener: status and body.</summary>
     public static async Task<(HttpStatusCode Status, string Body)> ReadyzAsync(HttpClient client, PaduraksaHost host, CancellationToken ct)
     {
-        using HttpResponseMessage response = await client.GetAsync(new Uri(TestHost.Endpoint(host, HostRole.Admin, "https"), "/readyz"), ct);
+        using var response = await client.GetAsync(new Uri(TestHost.Endpoint(host, HostRole.Admin, "https"), "/readyz"), ct);
         return (response.StatusCode, await response.Content.ReadAsStringAsync(ct));
     }
 
@@ -97,7 +95,7 @@ internal static class ConfigTestSupport
         await using (SqliteConnection connection = new(PaduraksaSqlite.ConnectionString(DatabasePath(dataDirectory))))
         {
             await connection.OpenAsync(ct);
-            await using SqliteCommand command = connection.CreateCommand();
+            await using var command = connection.CreateCommand();
             command.CommandText = sql;
             await command.ExecuteNonQueryAsync(ct);
         }
@@ -110,7 +108,7 @@ internal static class ConfigTestSupport
     {
         await using SqliteConnection connection = new(PaduraksaSqlite.ConnectionString(DatabasePath(dataDirectory)));
         await connection.OpenAsync(ct);
-        await using SqliteCommand command = connection.CreateCommand();
+        await using var command = connection.CreateCommand();
         command.CommandText = sql;
         return await command.ExecuteScalarAsync(ct);
     }

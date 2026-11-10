@@ -22,14 +22,14 @@ internal sealed class AdminSecurityHeadersMiddleware(RequestDelegate next, Admin
     {
         context.Response.OnStarting(static state =>
         {
-            (HttpContext http, AdminPipelineHooks hookList) = ((HttpContext, AdminPipelineHooks))state;
-            IHeaderDictionary headers = http.Response.Headers;
+            var (http, hookList) = ((HttpContext, AdminPipelineHooks))state;
+            var headers = http.Response.Headers;
             headers.XContentTypeOptions = "nosniff";
             headers["Referrer-Policy"] = "no-referrer";
             headers.XFrameOptions = "DENY";
-            PathString path = http.Request.Path;
-            bool api = path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase);
-            bool page = !api && IsHtml(http.Response.ContentType);
+            var path = http.Request.Path;
+            var api = path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase);
+            var page = !api && IsHtml(http.Response.ContentType);
             if (!headers.ContainsKey("Content-Security-Policy") && !IsCspExempt(path, hookList))
             {
                 headers.ContentSecurityPolicy = page && hookList.HtmlContentSecurityPolicy is { } dashboard ? dashboard : ApiContentSecurityPolicy;
@@ -92,7 +92,7 @@ internal sealed class AdminRequestLimitMiddleware(RequestDelegate next, AdminSec
 {
     public Task InvokeAsync(HttpContext context)
     {
-        long limit = context.GetEndpoint()?.Metadata.GetMetadata<AdminBodyLimitMetadata>()?.Bytes ?? options.MaxRequestBodyBytes;
+        var limit = context.GetEndpoint()?.Metadata.GetMetadata<AdminBodyLimitMetadata>()?.Bytes ?? options.MaxRequestBodyBytes;
         if (context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } feature)
         {
             feature.MaxRequestBodySize = limit;

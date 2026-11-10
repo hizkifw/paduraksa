@@ -3,8 +3,6 @@ using System.Text;
 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-
-using Paduraksa.Application.Audit;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;

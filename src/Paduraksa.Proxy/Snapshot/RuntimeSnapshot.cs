@@ -1,11 +1,7 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
-
 using Paduraksa.Core.Model;
-using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
-using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
@@ -128,7 +124,7 @@ public sealed class RuntimeSnapshot
             throw new ArgumentException($"Expected {RouteIdBySlot.Length} endpoints (one per slot), got {endpoints.Length}.", nameof(endpoints));
         }
 
-        foreach (Endpoint endpoint in endpoints)
+        foreach (var endpoint in endpoints)
         {
             ArgumentNullException.ThrowIfNull(endpoint, nameof(endpoints));
         }

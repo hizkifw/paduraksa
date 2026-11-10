@@ -77,9 +77,9 @@ public static class ConfigValidator
 
             CheckSettings(document.Settings ?? new(), "/settings");
 
-            IReadOnlyList<ProfileConfig> profiles = document.Profiles ?? [];
+            var profiles = document.Profiles ?? [];
             Dictionary<string, string> profileNames = new(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0; i < profiles.Count; i++)
+            for (var i = 0; i < profiles.Count; i++)
             {
                 if (NotNull(profiles[i], $"/profiles/{i}"))
                 {
@@ -87,7 +87,7 @@ public static class ConfigValidator
                 }
             }
 
-            IReadOnlyList<HostConfig> hosts = document.Hosts ?? [];
+            var hosts = document.Hosts ?? [];
             HashSet<UpstreamId> routedTo =
             [
                 .. hosts.Where(h => h is { Enabled: true, Kind: HostKind.Proxy })
@@ -95,9 +95,9 @@ public static class ConfigValidator
                     .Where(r => r is not null)
                     .Select(r => r.UpstreamId),
             ];
-            IReadOnlyList<UpstreamConfig> upstreams = document.Upstreams ?? [];
+            var upstreams = document.Upstreams ?? [];
             Dictionary<string, string> upstreamNames = new(StringComparer.OrdinalIgnoreCase);
-            for (int i = 0; i < upstreams.Count; i++)
+            for (var i = 0; i < upstreams.Count; i++)
             {
                 if (NotNull(upstreams[i], $"/upstreams/{i}"))
                 {
@@ -107,14 +107,14 @@ public static class ConfigValidator
 
             // A duplicate profile ID is reported above; the first one is the layer.
             Dictionary<ProfileId, HostSettings?> profileSettings = [];
-            foreach (ProfileConfig profile in profiles.Where(p => p is not null))
+            foreach (var profile in profiles.Where(p => p is not null))
             {
                 profileSettings.TryAdd(profile.Id, profile.Settings);
             }
 
             HashSet<UpstreamId> upstreamIds = [.. upstreams.Where(u => u is not null).Select(u => u.Id)];
-            HostSettings? defaults = document.Settings?.Defaults;
-            for (int i = 0; i < hosts.Count; i++)
+            var defaults = document.Settings?.Defaults;
+            for (var i = 0; i < hosts.Count; i++)
             {
                 if (NotNull(hosts[i], $"/hosts/{i}"))
                 {
@@ -147,7 +147,7 @@ public static class ConfigValidator
                 return;
             }
 
-            IReadOnlyList<string> proxies = trusted.Proxies ?? [];
+            var proxies = trusted.Proxies ?? [];
             switch (trusted.Mode)
             {
                 case TrustedProxyMode.Off when proxies.Count > 0:
@@ -163,11 +163,11 @@ public static class ConfigValidator
 
             CheckAddresses(proxies, $"{path}/proxies");
 
-            bool generic = trusted.Mode == TrustedProxyMode.Generic;
-            bool cloudflare = trusted.Mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
+            var generic = trusted.Mode == TrustedProxyMode.Generic;
+            var cloudflare = trusted.Mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
             if (trusted.Header is { } header)
             {
-                string name = header.Trim();
+                var name = header.Trim();
                 if (!generic)
                 {
                     Add($"{path}/header", TrustedProxiesOptionUnexpected, "a header is only configurable in generic mode (Cloudflare modes read CF-Connecting-IP)");
@@ -209,7 +209,7 @@ public static class ConfigValidator
             CheckVersion(upstream.Version, path);
             CheckLabel(upstream.Name, $"{path}/name", "upstream", names);
 
-            IReadOnlyList<DestinationConfig> destinations = upstream.Destinations ?? [];
+            var destinations = upstream.Destinations ?? [];
             if (destinations.Count == 0)
             {
                 Add($"{path}/destinations", UpstreamDestinationsRequired, "an upstream needs at least one destination");
@@ -219,10 +219,10 @@ public static class ConfigValidator
                 Add($"{path}/destinations", UpstreamDestinationsNoneEnabled, "an enabled host routes to this upstream, so it needs an enabled destination");
             }
 
-            for (int i = 0; i < destinations.Count; i++)
+            for (var i = 0; i < destinations.Count; i++)
             {
-                string destinationPath = $"{path}/destinations/{i}";
-                DestinationConfig destination = destinations[i];
+                var destinationPath = $"{path}/destinations/{i}";
+                var destination = destinations[i];
                 if (!NotNull(destination, destinationPath))
                 {
                     continue;
@@ -253,8 +253,8 @@ public static class ConfigValidator
 
             if (upstream.ActiveHealth is { } active)
             {
-                string activePath = $"{path}/activeHealth";
-                string probe = active.Path ?? string.Empty;
+                var activePath = $"{path}/activeHealth";
+                var probe = active.Path ?? string.Empty;
                 if (probe is not ['/', ..] || probe.Contains('?', StringComparison.Ordinal) || probe.Contains('#', StringComparison.Ordinal))
                 {
                     Add($"{activePath}/path", UpstreamActiveHealthPathInvalid, $"the probe path must start with '/' and have no query or fragment, got '{probe}'");
@@ -284,7 +284,7 @@ public static class ConfigValidator
             CheckId(host.Id, path);
             CheckVersion(host.Version, path);
             CheckHostNames(host, path);
-            bool kindDefined = CheckEnum(host.Kind, $"{path}/kind");
+            var kindDefined = CheckEnum(host.Kind, $"{path}/kind");
 
             HostSettings? profile = null;
             if (host.ProfileId is { IsEmpty: true })
@@ -296,15 +296,15 @@ public static class ConfigValidator
                 Add($"{path}/profileId", HostProfileUnknown, $"profile '{profileId}' doesn't exist");
             }
 
-            CertificateBinding certificate = host.Certificate ?? new();
+            var certificate = host.Certificate ?? new();
             // One resolution per host: every rule that judges a value after layering reads it.
-            EffectiveHostSettings resolved = HostSettingsLayers.Resolve(defaults, profile, host.Settings);
+            var resolved = HostSettingsLayers.Resolve(defaults, profile, host.Settings);
             if (CheckEnum(certificate.Mode, $"{path}/certificate/mode"))
             {
                 // Judged after layering: the host, else its profile, else the global defaults.
                 if (certificate.Mode == CertificateBindingMode.None && host.Kind != HostKind.Admin && resolved.ForceHttps)
                 {
-                    string from = HostSettingsLayers.InheritedSuffix(
+                    var from = HostSettingsLayers.InheritedSuffix(
                         HostSettingsLayers.LayerOf(defaults, profile, host.Settings, static s => s.ForceHttps));
                     Add($"{path}/certificate/mode", HostCertificateNoneWithForceHttps, $"a host without HTTPS (certificate mode none) can't force HTTPS{from}; set its forceHttps to false");
                 }
@@ -332,9 +332,9 @@ public static class ConfigValidator
                 CheckAdminHost(host, certificate, path);
             }
 
-            IReadOnlyList<RouteConfig> routes = host.Routes ?? [];
+            var routes = host.Routes ?? [];
             Dictionary<(RouteMatchKind, string), string> matches = new(RouteMatchComparer.Instance);
-            for (int i = 0; i < routes.Count; i++)
+            for (var i = 0; i < routes.Count; i++)
             {
                 if (NotNull(routes[i], $"{path}/routes/{i}"))
                 {
@@ -342,8 +342,8 @@ public static class ConfigValidator
                 }
             }
 
-            IReadOnlyList<string> tags = host.Tags ?? [];
-            for (int i = 0; i < tags.Count; i++)
+            var tags = host.Tags ?? [];
+            for (var i = 0; i < tags.Count; i++)
             {
                 if (!ConfigNormalization.IsValidTag(ConfigNormalization.NormalizeTag(tags[i])))
                 {
@@ -356,17 +356,17 @@ public static class ConfigValidator
 
         private void CheckHostNames(HostConfig host, string path)
         {
-            IReadOnlyList<string> names = host.Names ?? [];
+            var names = host.Names ?? [];
             if (names.Count == 0)
             {
                 Add($"{path}/names", HostNamesRequired, "a host needs at least one hostname");
             }
 
             Dictionary<string, string> own = new(StringComparer.Ordinal);
-            for (int i = 0; i < names.Count; i++)
+            for (var i = 0; i < names.Count; i++)
             {
-                string namePath = $"{path}/names/{i}";
-                if (!ConfigNormalization.TryNormalizeHostName(names[i], out string? normalized, out string? error))
+                var namePath = $"{path}/names/{i}";
+                if (!ConfigNormalization.TryNormalizeHostName(names[i], out var normalized, out var error))
                 {
                     Add(namePath, HostNameInvalid, error);
                 }
@@ -383,7 +383,7 @@ public static class ConfigValidator
 
         private void CheckKindParts(HostConfig host, string path)
         {
-            bool hasRoutes = host.Routes is { Count: > 0 };
+            var hasRoutes = host.Routes is { Count: > 0 };
             switch (host.Kind)
             {
                 case HostKind.Proxy:
@@ -475,7 +475,7 @@ public static class ConfigValidator
         {
             // The target becomes the Location header: printable ASCII only (punycode host, percent-encoded path), so
             // nothing can break the header (CR/LF) or put raw non-ASCII on the wire.
-            string target = (redirect.Target ?? string.Empty).Trim();
+            var target = (redirect.Target ?? string.Empty).Trim();
             if (target.AsSpan().ContainsAnyExceptInRange('\x21', '\x7E'))
             {
                 Add($"{path}/target", RedirectTargetInvalid, "the redirect target must be printable ASCII without spaces (use punycode and percent-encoding)");
@@ -509,7 +509,7 @@ public static class ConfigValidator
             }
 
             // A header value: visible ASCII, spaces and tabs.
-            string contentType = respond.ContentType ?? string.Empty;
+            var contentType = respond.ContentType ?? string.Empty;
             if (string.IsNullOrWhiteSpace(contentType) || contentType.Length > MaxContentTypeLength
                 || contentType.Any(c => c is not ((>= '\x21' and <= '\x7E') or ' ' or '\t')))
             {
@@ -522,7 +522,7 @@ public static class ConfigValidator
             CheckId(route.Id, path);
             CheckEnum(route.Match, $"{path}/match");
 
-            string routePath = route.Path ?? string.Empty;
+            var routePath = route.Path ?? string.Empty;
             if (routePath is not ['/', ..] || routePath.Contains('?', StringComparison.Ordinal) || routePath.Contains('#', StringComparison.Ordinal))
             {
                 Add($"{path}/path", RoutePathInvalid, $"the path must start with '/' and have no query or fragment, got '{routePath}'");
@@ -620,7 +620,7 @@ public static class ConfigValidator
             }
 
             // Where the preload came from, when it isn't this host's own: that is the layer to go and change.
-            string inherited = HostSettingsLayers.InheritedSuffix(
+            var inherited = HostSettingsLayers.InheritedSuffix(
                 HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Hsts?.Preload));
 
             if (!resolved.IncludeSubDomains)
@@ -655,15 +655,15 @@ public static class ConfigValidator
 
             if (string.IsNullOrEmpty(resolved.Value))
             {
-                string missingFrom = HostSettingsLayers.InheritedSuffix(
+                var missingFrom = HostSettingsLayers.InheritedSuffix(
                     HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.ServerHeader?.Mode));
                 Add($"{path}/value", ServerHeaderValueRequired, $"the custom Server header needs a value{missingFrom}");
                 return;
             }
 
             // A value set by a layer whose mode isn't custom is otherwise ignored, so its shape is judged where it is used.
-            SettingsLayer valueLayer = HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.ServerHeader?.Value);
-            bool checkedAtItsLayer = valueLayer switch
+            var valueLayer = HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.ServerHeader?.Value);
+            var checkedAtItsLayer = valueLayer switch
             {
                 SettingsLayer.Host => host!.ServerHeader!.Mode == ServerHeaderMode.Custom,
                 SettingsLayer.Profile => profile!.ServerHeader!.Mode == ServerHeaderMode.Custom,
@@ -686,7 +686,7 @@ public static class ConfigValidator
                 return;
             }
 
-            IReadOnlyList<string> addresses = allowList.Addresses ?? [];
+            var addresses = allowList.Addresses ?? [];
             CheckAddresses(addresses, $"{path}/addresses");
             if (allowList.DropDenied && addresses.Count == 0)
             {
@@ -696,9 +696,9 @@ public static class ConfigValidator
 
         private void CheckAddresses(IReadOnlyList<string> addresses, string path)
         {
-            for (int i = 0; i < addresses.Count; i++)
+            for (var i = 0; i < addresses.Count; i++)
             {
-                if (!IpNetwork.TryParse((addresses[i] ?? string.Empty).Trim(), out _, out string? error))
+                if (!IpNetwork.TryParse((addresses[i] ?? string.Empty).Trim(), out _, out var error))
                 {
                     Add($"{path}/{i}", AddressInvalid, $"'{addresses[i]}' isn't an IP address or CIDR ({error})");
                 }
@@ -708,7 +708,7 @@ public static class ConfigValidator
         // Absolute http(s) URL without credentials (the document holds no secrets); null when invalid.
         private Uri? CheckHttpUrl(string? value, string path, string invalidCode, string credentialsCode, string what)
         {
-            if (!Uri.TryCreate(value?.Trim(), UriKind.Absolute, out Uri? uri)
+            if (!Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var uri)
                 || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
                 || uri.Host.Length == 0)
             {
@@ -727,7 +727,7 @@ public static class ConfigValidator
 
         private void CheckLabel(string? name, string path, string what, Dictionary<string, string> names)
         {
-            string normalized = ConfigNormalization.NormalizeName(name);
+            var normalized = ConfigNormalization.NormalizeName(name);
             if (normalized.Length == 0)
             {
                 Add(path, NameRequired, $"a {what} needs a name");
@@ -757,7 +757,7 @@ public static class ConfigValidator
         private void CheckId<TId>(TId id, string path)
             where TId : struct, ITypedId<TId>
         {
-            string text = id.ToString()!;
+            var text = id.ToString()!;
             if (id.IsEmpty)
             {
                 Add($"{path}/id", IdEmpty, "the ID can't be empty");

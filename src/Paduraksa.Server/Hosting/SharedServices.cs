@@ -1,7 +1,4 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
@@ -215,7 +212,7 @@ internal sealed class SharedServices : IAsyncDisposable
         {
             // Created first => disposed last.
             loggerFactory = builder.Own(CreateLoggerFactory(configuration, options.Logs, configureLogging));
-            TimeProvider timeProvider = builder.Add(TimeProvider.System);
+            var timeProvider = builder.Add(TimeProvider.System);
             // The validated options are the instance consumers get. IOptions/IOptionsMonitor/IOptionsSnapshot and
             // IOptionsFactory are pinned to it too; left alone they'd build their own unvalidated copies from
             // configuration (or unbound defaults).
@@ -229,21 +226,21 @@ internal sealed class SharedServices : IAsyncDisposable
             // The log files, early among the shared services so they are disposed late: everything the hosts' shutdown logs
             // still reaches the error log before its writer is flushed. The writer itself is what the access log's drain will use, and
             // the store is the read side the dashboard and the API share.
-            ILogger logFileReports = loggerFactory.CreateLogger("Paduraksa.Server.Logging");
-            ServerLogFiles logFiles = builder.Add(new ServerLogFiles(options.Logs, options.DataDirectory, timeProvider, logFileReports));
+            var logFileReports = loggerFactory.CreateLogger("Paduraksa.Server.Logging");
+            var logFiles = builder.Add(new ServerLogFiles(options.Logs, options.DataDirectory, timeProvider, logFileReports));
             loggerFactory.AddProvider(logFiles.ErrorProvider);
             builder.Add<ILogFileStore>(new LogFileStore(logFiles.Directory));
 
-            HealthState health = builder.Add(new HealthState());
+            var health = builder.Add(new HealthState());
             builder.Add(new CertificateRecoveryCompletion());
-            SnapshotStore snapshots = builder.Add(new SnapshotStore());
+            var snapshots = builder.Add(new SnapshotStore());
             RoleLoggerFactory coreLoggers = new(loggerFactory, HostRole.Core);
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
-            LastKnownGoodFile lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
-            SnapshotPublisher publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider));
-            PlaceholderServerCertificate placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
-            PlaceholderCertificates certificates = builder.Add(new PlaceholderCertificates(placeholder));
+            var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
+            var publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider));
+            var placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
+            var certificates = builder.Add(new PlaceholderCertificates(placeholder));
             AdminInternalListener adminInternal;
             try
             {
@@ -251,12 +248,12 @@ internal sealed class SharedServices : IAsyncDisposable
             }
             catch (AdminInternalStartupException ex)
             {
-                ILogger adminLog = coreLoggers.CreateLogger("Paduraksa.Admin.Internal");
+                var adminLog = coreLoggers.CreateLogger("Paduraksa.Admin.Internal");
                 AdminInternalLogs.StartupFailed(adminLog, ex);
                 throw;
             }
 
-            PublicListenerSetup listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled));
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 
@@ -269,14 +266,14 @@ internal sealed class SharedServices : IAsyncDisposable
 
             // The HTTP-01 answers: the issuance orchestrator publishes through the interface, the public gate and the
             // request simulator read the class.
-            AcmeChallengeStore challenges = builder.Add(new AcmeChallengeStore());
+            var challenges = builder.Add(new AcmeChallengeStore());
             builder.Add<IAcmeChallengeStore>(challenges);
 
             // The vault before the config store, so it is disposed after it (the store loads certificates through it).
-            VaultCapabilities vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
+            var vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
             // The vault's own catalog is a shared instance too: the CA download endpoints read the root from it (public facts).
             builder.AddOwnedElsewhere(vault.Catalog);
-            ConfigStoreServices configStore = ConfigStore.AddTo(
+            var configStore = ConfigStore.AddTo(
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
 
             // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
@@ -288,7 +285,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // The admin listener's certificate: issued by the local CA, served through the vault and kept
             // current by a background service of the core host (registered in CoreHost). The CA root it publishes feeds the
             // download endpoints.
-            CaRootSource caRoot = builder.Add(new CaRootSource());
+            var caRoot = builder.Add(new CaRootSource());
             builder.Add(new AdminCertificateService(
                 certificates, vault.ServerCertificates, vault.Catalog, caRoot, configStore.Operations, configStore.Config, configStore.Setup, options, timeProvider, coreLoggers));
             // TODO: MetricsRegistry.
@@ -316,7 +313,7 @@ internal sealed class SharedServices : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(services);
         ObjectDisposedException.ThrowIf(IsDisposed, this);
 
-        foreach ((Type serviceType, object instance) in _registrations)
+        foreach (var (serviceType, instance) in _registrations)
         {
             services.RemoveAll(serviceType);
             services.AddSingleton(serviceType, instance);
@@ -352,7 +349,7 @@ internal sealed class SharedServices : IAsyncDisposable
             });
             // The error log's own minimum level: a rule for this provider wins over the configuration's rules, which are
             // about the console. So `Logging:LogLevel:Default=Error` quiets the console without emptying error.log.
-            LogLevel minimum = logs.ErrorLevel;
+            var minimum = logs.ErrorLevel;
             logging.AddFilter<ErrorLogProvider>((_, level) => level >= minimum);
             configureLogging?.Invoke(logging);
         });
@@ -360,7 +357,7 @@ internal sealed class SharedServices : IAsyncDisposable
     private static async ValueTask DisposeAllAsync(IReadOnlyList<object> owned)
     {
         List<Exception>? errors = null;
-        for (int i = owned.Count - 1; i >= 0; i--)
+        for (var i = owned.Count - 1; i >= 0; i--)
         {
             try
             {
@@ -442,14 +439,14 @@ internal sealed class SharedServices : IAsyncDisposable
                 throw new InvalidOperationException("Shared services are frozen once the hosts are built.");
             }
 
-            int index = Registrations.FindIndex(r => r.Key == typeof(TService));
+            var index = Registrations.FindIndex(r => r.Key == typeof(TService));
             if (index < 0)
             {
                 throw new InvalidOperationException($"No shared {typeof(TService)} is registered to replace.");
             }
 
-            bool wasOwned = Owned.Exists(o => ReferenceEquals(o, Registrations[index].Value));
-            object? previous = Registrations[index].Value;
+            var wasOwned = Owned.Exists(o => ReferenceEquals(o, Registrations[index].Value));
+            var previous = Registrations[index].Value;
             Registrations[index] = new(typeof(TService), instance);
             if (wasOwned)
             {

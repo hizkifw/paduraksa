@@ -2,8 +2,6 @@ using System.Net.Http.Headers;
 
 using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Gate;
-using Paduraksa.Proxy.Snapshot;
-
 using Yarp.ReverseProxy.Transforms;
 
 namespace Paduraksa.Proxy.Yarp;
@@ -22,10 +20,10 @@ internal sealed class AdminInternalSecretTransform(AdminInternalListener? listen
     public ValueTask ApplyAsync(RequestTransformContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        HttpRequestHeaders upstream = context.ProxyRequest.Headers;
+        var upstream = context.ProxyRequest.Headers;
         upstream.Remove(AdminInternalListener.HeaderName);
 
-        GateRequestState? state = context.HttpContext.Features.Get<IGateFeature>()?.State;
+        var state = context.HttpContext.Features.Get<IGateFeature>()?.State;
         if (listener is not null && state?.Route is { Admin: true })
         {
             upstream.TryAddWithoutValidation(AdminInternalListener.HeaderName, listener.Secret);

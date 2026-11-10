@@ -34,12 +34,12 @@ public sealed class AdminThrottleTests
     public void AClientGetsItsPermitsThenTheTimeLeftInTheWindow()
     {
         ManualTime time = new();
-        using AdminThrottle throttle = Create(time, perIp: 2);
+        using var throttle = Create(time, perIp: 2);
 
         Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, ClientA, "a"));
         time.Advance(TimeSpan.FromSeconds(20));
         Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, ClientA, "b"));
-        TimeSpan? wait = throttle.TryEnter(AdminThrottleScope.Login, ClientA, "c");
+        var wait = throttle.TryEnter(AdminThrottleScope.Login, ClientA, "c");
 
         Assert.Equal(TimeSpan.FromSeconds(40), wait);
         Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, ClientB, "d"));
@@ -52,9 +52,9 @@ public sealed class AdminThrottleTests
     public void OnlyFailuresCountAgainstASubject_AndTheNameIsNormalised()
     {
         ManualTime time = new();
-        using AdminThrottle throttle = Create(time, perUser: 2);
+        using var throttle = Create(time, perUser: 2);
 
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, ClientA, "Alice")); // attempts alone never use the budget
         }
@@ -72,7 +72,7 @@ public sealed class AdminThrottleTests
     public void ScopesHaveBudgetsOfTheirOwn()
     {
         ManualTime time = new();
-        using AdminThrottle throttle = Create(time, perIp: 1, perUser: 1);
+        using var throttle = Create(time, perIp: 1, perUser: 1);
 
         Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, ClientA, "alice"));
         Assert.NotNull(throttle.TryEnter(AdminThrottleScope.Login, ClientA, "alice"));
@@ -89,7 +89,7 @@ public sealed class AdminThrottleTests
         Assert.Equal("unknown", AdminThrottle.ClientKey(null));
 
         ManualTime time = new();
-        using AdminThrottle throttle = Create(time, perIp: 1);
+        using var throttle = Create(time, perIp: 1);
         Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, IPAddress.Parse("2001:db8:1:2::1"), null));
         Assert.NotNull(throttle.TryEnter(AdminThrottleScope.Login, IPAddress.Parse("2001:db8:1:2::2"), null));
     }
@@ -98,9 +98,9 @@ public sealed class AdminThrottleTests
     public void TrackedKeysAreBounded_PastTheCapNewKeysShareOneBucket_UntilWindowsExpire()
     {
         ManualTime time = new();
-        using AdminThrottle throttle = Create(time, perIp: 1, maxTracked: 3);
+        using var throttle = Create(time, perIp: 1, maxTracked: 3);
 
-        for (int i = 1; i <= 3; i++)
+        for (var i = 1; i <= 3; i++)
         {
             Assert.Null(throttle.TryEnter(AdminThrottleScope.Login, IPAddress.Parse("192.0.2." + i), null));
         }
@@ -117,18 +117,18 @@ public sealed class AdminThrottleTests
     [Fact]
     public async Task PasswordChecksAreLimitedInNumber_ExcessWaitsThenIsRefused()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        using AdminThrottle throttle = Create(new ManualTime(), concurrent: 2);
+        var ct = TestContext.Current.CancellationToken;
+        using var throttle = Create(new ManualTime(), concurrent: 2);
 
-        IDisposable? first = await throttle.EnterPasswordCheckAsync(ct);
-        IDisposable? second = await throttle.EnterPasswordCheckAsync(ct);
+        var first = await throttle.EnterPasswordCheckAsync(ct);
+        var second = await throttle.EnterPasswordCheckAsync(ct);
         Assert.NotNull(first);
         Assert.NotNull(second);
         Assert.Null(await throttle.EnterPasswordCheckAsync(ct));
 
         first.Dispose();
         first.Dispose(); // giving a slot back twice must not make a third
-        IDisposable? third = await throttle.EnterPasswordCheckAsync(ct);
+        var third = await throttle.EnterPasswordCheckAsync(ct);
         Assert.NotNull(third);
         Assert.Null(await throttle.EnterPasswordCheckAsync(ct));
 

@@ -27,7 +27,7 @@ public sealed partial class IdentityChangeFeed(ILogger<IdentityChangeFeed> logge
     /// <summary>Announces a change. Watchers run in the background; one that fails doesn't stop the others.</summary>
     public void Publish()
     {
-        foreach (Func<Task> watcher in _watchers)
+        foreach (var watcher in _watchers)
         {
             _ = RunAsync(watcher);
         }

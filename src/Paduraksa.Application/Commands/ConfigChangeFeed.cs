@@ -26,7 +26,7 @@ public sealed class ConfigChangeFeed
     /// <summary>A new subscription, starting with the next commit. Dispose it to unsubscribe.</summary>
     public ConfigChangeSubscription Subscribe()
     {
-        Channel<ConfigCommitted> channel = Channel.CreateBounded<ConfigCommitted>(
+        var channel = Channel.CreateBounded<ConfigCommitted>(
             new BoundedChannelOptions(Capacity) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true });
         lock (_lock)
         {
@@ -45,7 +45,7 @@ public sealed class ConfigChangeFeed
             subscribers = _subscribers;
         }
 
-        foreach (Channel<ConfigCommitted> channel in subscribers)
+        foreach (var channel in subscribers)
         {
             channel.Writer.TryWrite(committed);
         }

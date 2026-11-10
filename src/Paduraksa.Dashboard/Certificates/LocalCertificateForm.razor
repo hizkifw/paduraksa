@@ -14,7 +14,7 @@
                          HelperText="@($"Default {DefaultDays}; at most {MaxDays}")" Disabled="_busy" />
     </div>
     <MudSelect T="KeySpec" @bind-Value="_keySpec" Label="Key" Variant="Variant.Outlined" Margin="Margin.Dense" Disabled="_busy" Dense="true">
-        @foreach ((KeySpec spec, string label) in NameList.KeySpecs)
+        @foreach (var (spec, label) in NameList.KeySpecs)
         {
             <MudSelectItem T="KeySpec" Value="spec">@label</MudSelectItem>
         }
@@ -23,7 +23,7 @@
     @if (_errors.Count > 0)
     {
         <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" Class="pdk-form-alert">
-            @foreach (string error in _errors)
+            @foreach (var error in _errors)
             {
                 <div>@error</div>
             }
@@ -98,7 +98,7 @@
         }
 
         _errors = [];
-        IReadOnlyList<string> names = NameList.Parse(_names);
+        var names = NameList.Parse(_names);
         _namesError = NameList.Problem(names);
         if (_namesError is not null)
         {
@@ -109,7 +109,7 @@
         try
         {
             TimeSpan? validity = _days == DefaultDays ? null : TimeSpan.FromDays(Math.Clamp(_days, 1, MaxDays));
-            CertificateOperationResult? result = await Submit(new LocalCertificateRequest(names, _keySpec, validity, string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));
+            var result = await Submit(new LocalCertificateRequest(names, _keySpec, validity, string.IsNullOrWhiteSpace(_label) ? null : _label.Trim()));
             if (result is { Status: CertificateOperationStatus.Completed, Certificate: { } certificate })
             {
                 await Issued.InvokeAsync(certificate);

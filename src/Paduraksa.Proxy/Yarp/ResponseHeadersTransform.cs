@@ -31,8 +31,8 @@ internal static class ResponseHeadersTransform
             return ValueTask.CompletedTask;
         }
 
-        IHeaderDictionary responseHeaders = context.HttpContext.Response.Headers;
-        foreach (ResponseHeaderOperation operation in host.ResponseHeaders)
+        var responseHeaders = context.HttpContext.Response.Headers;
+        foreach (var operation in host.ResponseHeaders)
         {
             if (operation.Kind is ResponseHeaderKind.LeaveToUpstream or ResponseHeaderKind.NotSent
                 || !ResponseHeaders.Holds(context.HttpContext, in operation, state, out _))
@@ -72,7 +72,7 @@ internal static class ResponseHeadersTransform
         }
 
         // The upstream's own goes, so a copy can't put it next to ours.
-        System.Net.Http.Headers.HttpResponseHeaders headers = proxyResponse.Headers;
+        var headers = proxyResponse.Headers;
         headers.Remove(operation.Name);
         if (responseHeaders.ContainsKey(operation.Name))
         {

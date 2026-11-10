@@ -29,12 +29,12 @@ internal sealed class DnsClient(TimeSpan queryTimeout)
     public async Task<DnsResponse> QueryAsync(IPEndPoint server, string name, DnsRecordType type, bool recursionDesired, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(server);
-        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(queryTimeout);
         try
         {
-            DnsResponse response = await QueryUdpAsync(server, name, type, recursionDesired, edns: true, deadline.Token).ConfigureAwait(false);
-            bool edns = true;
+            var response = await QueryUdpAsync(server, name, type, recursionDesired, edns: true, deadline.Token).ConfigureAwait(false);
+            var edns = true;
             if (response.ResponseCode == FormatError)
             {
                 // A server that does not know EDNS0 answers FORMERR to the OPT record: ask again without it.
@@ -73,15 +73,15 @@ internal sealed class DnsClient(TimeSpan queryTimeout)
 
     private static async Task<DnsResponse> QueryUdpAsync(IPEndPoint server, string name, DnsRecordType type, bool recursionDesired, bool edns, CancellationToken cancellationToken)
     {
-        ushort id = NewId();
-        byte[] query = DnsWire.BuildQuery(id, name, type, recursionDesired, edns);
+        var id = NewId();
+        var query = DnsWire.BuildQuery(id, name, type, recursionDesired, edns);
         using Socket socket = new(server.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
         await socket.ConnectAsync(server, cancellationToken).ConfigureAwait(false);
         _ = await socket.SendAsync(query, SocketFlags.None, cancellationToken).ConfigureAwait(false);
-        byte[] buffer = new byte[4096];
+        var buffer = new byte[4096];
         while (true)
         {
-            int length = await socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
+            var length = await socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
             DnsResponse response;
             try
             {
@@ -101,20 +101,20 @@ internal sealed class DnsClient(TimeSpan queryTimeout)
 
     private static async Task<DnsResponse> QueryTcpAsync(IPEndPoint server, string name, DnsRecordType type, bool recursionDesired, bool edns, CancellationToken cancellationToken)
     {
-        ushort id = NewId();
-        byte[] query = DnsWire.BuildQuery(id, name, type, recursionDesired, edns);
+        var id = NewId();
+        var query = DnsWire.BuildQuery(id, name, type, recursionDesired, edns);
         using Socket socket = new(server.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
         await socket.ConnectAsync(server, cancellationToken).ConfigureAwait(false);
-        byte[] framed = new byte[query.Length + 2];
+        var framed = new byte[query.Length + 2];
         BinaryPrimitives.WriteUInt16BigEndian(framed, (ushort)query.Length);
         query.CopyTo(framed, 2);
         _ = await socket.SendAsync(framed, SocketFlags.None, cancellationToken).ConfigureAwait(false);
 
-        byte[] prefix = new byte[2];
+        var prefix = new byte[2];
         await ReadExactlyAsync(socket, prefix, cancellationToken).ConfigureAwait(false);
-        byte[] message = new byte[BinaryPrimitives.ReadUInt16BigEndian(prefix)];
+        var message = new byte[BinaryPrimitives.ReadUInt16BigEndian(prefix)];
         await ReadExactlyAsync(socket, message, cancellationToken).ConfigureAwait(false);
-        DnsResponse response = DnsWire.ParseResponse(message);
+        var response = DnsWire.ParseResponse(message);
         return Answers(response, id, name, type)
             ? response
             : throw new DnsQueryException($"{server} answered over TCP with a message that is not the answer to the question.");
@@ -124,7 +124,7 @@ internal sealed class DnsClient(TimeSpan queryTimeout)
     {
         while (!buffer.IsEmpty)
         {
-            int read = await socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
+            var read = await socket.ReceiveAsync(buffer, SocketFlags.None, cancellationToken).ConfigureAwait(false);
             if (read == 0)
             {
                 throw new EndOfStreamException();

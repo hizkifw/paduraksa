@@ -61,10 +61,10 @@ public static class DashboardNavigation
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(entries);
         NavigationEntry? best = null;
-        int length = -1;
-        foreach (NavigationEntry entry in entries)
+        var length = -1;
+        foreach (var entry in entries)
         {
-            foreach (string address in entry.Also.Prepend(entry.Href))
+            foreach (var address in entry.Also.Prepend(entry.Href))
             {
                 if (Matches(path, address) && address.Length > length)
                 {

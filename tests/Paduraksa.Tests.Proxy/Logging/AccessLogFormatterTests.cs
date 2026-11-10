@@ -9,9 +9,9 @@ public sealed class AccessLogFormatterTests
     [Fact]
     public void AFullLineHasTheDocumentedFieldsInOrder()
     {
-        AccessLogEntry entry = Complete();
+        var entry = Complete();
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.Equal(
             "2026-01-31T12:34:56.789Z 198.51.100.7 \"app.example:8443\" \"GET /a/b?x=1&token=REDACTED HTTP/2\" 200 512 1.234 0.987 "
@@ -26,7 +26,7 @@ public sealed class AccessLogFormatterTests
     {
         AccessLogEntry entry = new() { TimestampUtcTicks = new DateTime(2026, 1, 31, 0, 0, 0, DateTimeKind.Utc).Ticks, StatusCode = 403, TotalTicks = 0 };
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.Equal("2026-01-31T00:00:00.000Z - - \"- - -\" 403 - 0.000 - - - - - -", line);
     }
@@ -35,7 +35,7 @@ public sealed class AccessLogFormatterTests
     public void AnAbortedRequestWritesNoStatus()
     {
         // The gate dropped the request: nothing was sent, so the status is '-', not the 200 an unsent response reports.
-        AccessLogEntry entry = Target("/drop") with { StatusCode = AccessLogEntry.NoResponse };
+        var entry = Target("/drop") with { StatusCode = AccessLogEntry.NoResponse };
 
         Assert.Equal("0001-01-01T00:00:00.000Z - - \"GET /drop HTTP/1.1\" - - 0.000 - - - - - -", Format(entry));
     }
@@ -50,7 +50,7 @@ public sealed class AccessLogFormatterTests
             UpstreamTicks = TimeSpan.FromSeconds(2.5).Ticks,
         };
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.StartsWith("2026-02-03T04:05:06.007Z ", line, StringComparison.Ordinal);
         // No status and no byte count, then the durations: 1.235 ms (rounded from microseconds) and 2500.000 ms.
@@ -68,9 +68,9 @@ public sealed class AccessLogFormatterTests
     [InlineData("café ☕", "café ☕")]
     public void HostileAndUnusualCharactersCannotBreakTheLine(string input, string expected)
     {
-        AccessLogEntry entry = Target("/x") with { UserAgent = input, RequestId = "r" };
+        var entry = Target("/x") with { UserAgent = input, RequestId = "r" };
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.Contains($"\"{expected}\"", line, StringComparison.Ordinal);
         Assert.Single(line.Split('\n'));
@@ -79,13 +79,13 @@ public sealed class AccessLogFormatterTests
     [Fact]
     public void ACraftedUserAgentCannotForgeALine()
     {
-        AccessLogEntry entry = Target("/login") with
+        var entry = Target("/login") with
         {
             StatusCode = 200,
             UserAgent = "evil\" 200 0 0.000 - - - - -\r\n2026-01-31T00:00:00.000Z 1.2.3.4 \"x\" \"GET /admin\" 200 0",
         };
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.Single(line.Split('\n'));
         Assert.DoesNotContain("\r", line, StringComparison.Ordinal);
@@ -104,9 +104,9 @@ public sealed class AccessLogFormatterTests
     [InlineData("password")]
     public void TheDefaultSensitiveNamesAreRedactedWhateverTheirCase(string name)
     {
-        AccessLogEntry entry = Target("/a", $"?{name}=s3cret");
+        var entry = Target("/a", $"?{name}=s3cret");
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.Contains($"{name}=REDACTED", line, StringComparison.Ordinal);
         Assert.DoesNotContain("s3cret", line, StringComparison.Ordinal);
@@ -115,9 +115,9 @@ public sealed class AccessLogFormatterTests
     [Fact]
     public void OnlyTheNamedParametersAreRedacted()
     {
-        AccessLogEntry entry = Target("/search", "?q=proxy&token=abc&page=2&access_token=def");
+        var entry = Target("/search", "?q=proxy&token=abc&page=2&access_token=def");
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.Contains("?q=proxy&token=REDACTED&page=2&access_token=REDACTED", line, StringComparison.Ordinal);
         Assert.DoesNotContain("abc", line, StringComparison.Ordinal);
@@ -137,7 +137,7 @@ public sealed class AccessLogFormatterTests
     [InlineData("?%74oken=1", "?%74oken=1")] // names are compared as written, not percent-decoded
     public void OddQueriesAreHandledAsWritten(string query, string expected)
     {
-        AccessLogEntry entry = Target("/a", query);
+        var entry = Target("/a", query);
 
         Assert.Contains($"\"GET /a{expected} HTTP/1.1\"", Format(entry), StringComparison.Ordinal);
     }
@@ -145,7 +145,7 @@ public sealed class AccessLogFormatterTests
     [Fact]
     public void TheQueryStringCanBeLeftOutEntirely()
     {
-        AccessLogEntry entry = Target("/a", "?q=1&token=abc");
+        var entry = Target("/a", "?q=1&token=abc");
 
         Assert.DoesNotContain("token", Format(entry, Defaults with { LogQueryString = false }), StringComparison.Ordinal);
         Assert.Contains("\"GET /a HTTP/1.1\"", Format(entry, Defaults with { LogQueryString = false }), StringComparison.Ordinal);
@@ -154,10 +154,10 @@ public sealed class AccessLogFormatterTests
     [Fact]
     public void AConfiguredListReplacesTheBuiltInOne()
     {
-        AccessLogFormatOptions options = Defaults with { SensitiveQueryKeys = ["pin"] };
-        AccessLogEntry entry = Target("/a", "?pin=1234&token=abc");
+        var options = Defaults with { SensitiveQueryKeys = ["pin"] };
+        var entry = Target("/a", "?pin=1234&token=abc");
 
-        string line = Format(entry, options);
+        var line = Format(entry, options);
 
         Assert.Contains("?pin=REDACTED&token=abc", line, StringComparison.Ordinal);
     }
@@ -165,13 +165,13 @@ public sealed class AccessLogFormatterTests
     [Fact]
     public void LongValuesAreCutAtTheirCapAndMarked()
     {
-        AccessLogEntry entry = Target("/" + new string('a', AccessLogFormatter.MaxPathLength * 2)) with
+        var entry = Target("/" + new string('a', AccessLogFormatter.MaxPathLength * 2)) with
         {
             UserAgent = new string('b', AccessLogFormatter.MaxHeaderValueLength * 2),
             Query = "?q=" + new string('c', AccessLogFormatter.MaxQueryLength * 2),
         };
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.True(line.Length <= AccessLogFormatter.MaxLineLength, $"the line is {line.Length} characters");
         Assert.Contains(AccessLogFormatter.TruncationMarker, line, StringComparison.Ordinal);
@@ -183,9 +183,9 @@ public sealed class AccessLogFormatterTests
     [Fact]
     public void AVeryLongPathIsMarkedAsCut()
     {
-        AccessLogEntry entry = Target("/" + new string('a', AccessLogFormatter.MaxPathLength * 2));
+        var entry = Target("/" + new string('a', AccessLogFormatter.MaxPathLength * 2));
 
-        string line = Format(entry);
+        var line = Format(entry);
 
         Assert.Contains(AccessLogFormatter.TruncationMarker, line, StringComparison.Ordinal);
         Assert.DoesNotContain(new string('a', AccessLogFormatter.MaxPathLength + 1), line, StringComparison.Ordinal);
@@ -195,7 +195,7 @@ public sealed class AccessLogFormatterTests
     public void AWorstCaseEntryStillFitsTheLineBuffer()
     {
         // Every field at its cap, and as many characters that escape to four as possible.
-        string worst = string.Concat(Enumerable.Repeat("\x01\"\\", 2_000));
+        var worst = string.Concat(Enumerable.Repeat("\x01\"\\", 2_000));
         AccessLogEntry entry = new()
         {
             ClientAddress = worst,
@@ -214,8 +214,8 @@ public sealed class AccessLogFormatterTests
             UpstreamTicks = TimeSpan.MaxValue.Ticks,
         };
 
-        char[] buffer = new char[AccessLogFormatter.MaxLineLength];
-        int length = AccessLogFormatter.Format(entry, Defaults, buffer);
+        var buffer = new char[AccessLogFormatter.MaxLineLength];
+        var length = AccessLogFormatter.Format(entry, Defaults, buffer);
 
         Assert.InRange(length, 1, AccessLogFormatter.MaxLineLength);
         Assert.Equal(length, Format(entry).Length);
@@ -230,7 +230,7 @@ public sealed class AccessLogFormatterTests
     [Fact]
     public void ANonAsciiPathStaysReadable()
     {
-        AccessLogEntry entry = Target("/café/日本語", "?q=☕");
+        var entry = Target("/café/日本語", "?q=☕");
 
         Assert.Contains("GET /café/日本語?q=☕ HTTP/1.1", Format(entry), StringComparison.Ordinal);
     }
@@ -265,8 +265,8 @@ public sealed class AccessLogFormatterTests
 
     private static string Format(AccessLogEntry entry, AccessLogFormatOptions? options = null)
     {
-        char[] buffer = new char[AccessLogFormatter.MaxLineLength];
-        int length = AccessLogFormatter.Format(entry, options ?? Defaults, buffer);
+        var buffer = new char[AccessLogFormatter.MaxLineLength];
+        var length = AccessLogFormatter.Format(entry, options ?? Defaults, buffer);
         Assert.True(length > 0);
         return new string(buffer, 0, length);
     }

@@ -21,15 +21,15 @@ internal static class DockerCli
     public static async Task<(int ExitCode, string Output)> RunAsync(TimeSpan timeout, params string[] arguments)
     {
         ProcessStartInfo start = new("docker") { RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (string argument in arguments)
+        foreach (var argument in arguments)
         {
             start.ArgumentList.Add(argument);
         }
 
-        using Process process = Process.Start(start) ?? throw new InvalidOperationException("docker did not start.");
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("docker did not start.");
         using CancellationTokenSource limit = new(timeout);
-        Task<string> output = process.StandardOutput.ReadToEndAsync(limit.Token);
-        Task<string> error = process.StandardError.ReadToEndAsync(limit.Token);
+        var output = process.StandardOutput.ReadToEndAsync(limit.Token);
+        var error = process.StandardError.ReadToEndAsync(limit.Token);
         await process.WaitForExitAsync(limit.Token);
         return (process.ExitCode, process.ExitCode == 0 ? await output + await error : (await error) + await output);
     }

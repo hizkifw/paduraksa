@@ -22,7 +22,7 @@ internal static class RevisionEndpoints
 {
     public static void Map(RouteGroupBuilder api)
     {
-        RouteGroupBuilder revisions = api.MapGroup("/revisions").WithTags("Revisions");
+        var revisions = api.MapGroup("/revisions").WithTags("Revisions");
         revisions.MapGet("/", ListAsync).WithName("ListRevisions").WithSummary("List revisions")
             .WithDescription("Newest first. Pass the nextCursor of a page as cursor for the next one; limit is 1 to 200 (default 50).")
             .Produces<Page<RevisionSummary>>().ProducesApiProblems(400).RequirePermission(Permission.ConfigRead);
@@ -38,7 +38,7 @@ internal static class RevisionEndpoints
 
     private static async Task<IResult> ListAsync(HttpContext http, RevisionQueryService revisions, CancellationToken ct)
     {
-        if (!Pagination.TryGetPage(http, out int limit, out string? cursor, out IResult? problem))
+        if (!Pagination.TryGetPage(http, out var limit, out var cursor, out var problem))
         {
             return problem!;
         }
@@ -54,7 +54,7 @@ internal static class RevisionEndpoints
             after = id;
         }
 
-        RevisionPage? page = await revisions.ListAsync(limit, after, ct).ConfigureAwait(false);
+        var page = await revisions.ListAsync(limit, after, ct).ConfigureAwait(false);
         return page is null
             ? BadCursor()
             : EndpointSupport.Json(new Page<RevisionSummary>(page.Items, page.Next is { } next ? Pagination.Encode(next) : null), AdminJsonContext.Default.PageRevisionSummary);
@@ -67,7 +67,7 @@ internal static class RevisionEndpoints
 
     private static async Task<IResult> DiffAsync(HttpContext http, RevisionQueryService revisions, CancellationToken ct)
     {
-        if (!TryGetRevision(http, "from", out ConfigRevisionId from) || !TryGetRevision(http, "to", out ConfigRevisionId to))
+        if (!TryGetRevision(http, "from", out var from) || !TryGetRevision(http, "to", out var to))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "Give 'from' and 'to' as revision IDs.");
         }
@@ -79,15 +79,15 @@ internal static class RevisionEndpoints
 
     private static async Task<IResult> RollbackAsync(HttpContext http, AdminCaller caller, ConfigRevisionId id, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
-            || !Preconditions.TryGetForce(http, out bool force, out problem)
+        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
+            || !Preconditions.TryGetForce(http, out var force, out problem)
             || !Preconditions.TryGetRevision(http, out ConfigRevisionId latest, out problem))
         {
             return problem!;
         }
 
         ConfigCommand command = new RollbackConfigCommand(id, latest) { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
-        ConfigCommandResult result = await config.ExecuteAsync(command, caller.Origin, ct).ConfigureAwait(false);
+        var result = await config.ExecuteAsync(command, caller.Origin, ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, MutationKind.Change);
     }
 

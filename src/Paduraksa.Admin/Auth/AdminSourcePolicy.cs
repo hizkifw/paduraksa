@@ -18,7 +18,7 @@ public sealed class AdminSourcePolicy
     public AdminSourcePolicy(IEnumerable<string> sources)
     {
         ArgumentNullException.ThrowIfNull(sources);
-        _networks = [.. sources.Select(s => TryParseBlock(s, out IPNetwork network) ? network : throw new FormatException($"'{s}' is not an IP address or CIDR block."))];
+        _networks = [.. sources.Select(s => TryParseBlock(s, out var network) ? network : throw new FormatException($"'{s}' is not an IP address or CIDR block."))];
     }
 
     public bool IsRestricted => _networks.Length > 0;
@@ -35,13 +35,13 @@ public sealed class AdminSourcePolicy
             return false;
         }
 
-        string trimmed = text.Trim();
+        var trimmed = text.Trim();
         if (trimmed.Contains('/', StringComparison.Ordinal))
         {
             return IPNetwork.TryParse(trimmed, out network) && !network.BaseAddress.IsIPv4MappedToIPv6;
         }
 
-        if (!IPAddress.TryParse(trimmed, out IPAddress? address))
+        if (!IPAddress.TryParse(trimmed, out var address))
         {
             return false;
         }
@@ -65,7 +65,7 @@ public sealed class AdminSourcePolicy
         }
 
         remote = Normalize(remote);
-        foreach (IPNetwork network in _networks)
+        foreach (var network in _networks)
         {
             if (network.Contains(remote))
             {

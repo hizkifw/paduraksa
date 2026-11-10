@@ -1,7 +1,6 @@
 @attribute [Route(DashboardRoutes.Upstreams)]
 @attribute [Route(DashboardRoutes.Upstreams + "/{Key}")]
 @implements IDisposable
-@using Paduraksa.Dashboard.Editors
 @using Microsoft.Extensions.Logging
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
@@ -47,7 +46,7 @@ else
 
         @if (_document is null)
         {
-            @for (int i = 0; i < 3; i++)
+            @for (var i = 0; i < 3; i++)
             {
                 <div class="pdk-row-skeleton">
                     <MudSkeleton SkeletonType="SkeletonType.Circle" Width="10px" Height="10px" />
@@ -81,10 +80,10 @@ else
                     <span role="columnheader">Destinations</span>
                     <span role="columnheader">Used by</span>
                 </div>
-                @foreach (UpstreamConfig upstream in Filtered)
+                @foreach (var upstream in Filtered)
                 {
-                    IReadOnlyList<(HostConfig Host, RouteConfig Route)> uses = HostOverview.UsesOf(_document, upstream.Id);
-                    bool serving = upstream.Destinations.Any(d => d.Enabled);
+                    var uses = HostOverview.UsesOf(_document, upstream.Id);
+                    var serving = upstream.Destinations.Any(d => d.Enabled);
                     <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(upstream)" data-upstream="@upstream.Name" @key="upstream.Id">
                         <div role="cell" class="pdk-dt-main">
                             <span class="pdk-status-dot pdk-tone-@(serving ? "success" : "warning")" title="@(serving ? "Has destinations in rotation" : "No destination is switched on")" aria-hidden="true"></span>
@@ -95,7 +94,7 @@ else
                         </div>
                         <div role="cell" class="pdk-dt-cell" data-label="Destinations">
                             <ul class="pdk-dest-list">
-                                @foreach (DestinationConfig destination in upstream.Destinations.Take(3))
+                                @foreach (var destination in upstream.Destinations.Take(3))
                                 {
                                     <li class="@(destination.Enabled ? null : "pdk-disabled")">
                                         <span class="pdk-dest-detail pdk-mono">@destination.Address</span>
@@ -119,7 +118,7 @@ else
                             else
                             {
                                 <span class="pdk-dt-chips">
-                                    @foreach (IGrouping<HostId, (HostConfig Host, RouteConfig Route)> host in uses.GroupBy(u => u.Host.Id))
+                                    @foreach (var host in uses.GroupBy(u => u.Host.Id))
                                     {
                                         <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host.Key)">@ChangeView.HostTitle(host.First().Host)@(host.Count() > 1 || host.First().Route.Path != "/" ? $" {string.Join(", ", host.Select(u => u.Route.Path))}" : string.Empty)</a>
                                     }
@@ -184,7 +183,7 @@ else
     private async Task LoadAsync()
     {
         _failed = false;
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -216,7 +215,7 @@ else
             return Drawers.Push<UpstreamDrawer>(width: DrawerWidth.Medium);
         }
 
-        return UpstreamId.TryParse(key, out UpstreamId id)
+        return UpstreamId.TryParse(key, out var id)
             ? Drawers.Push<UpstreamDrawer>(new Dictionary<string, object?> { [nameof(UpstreamDrawer.Id)] = id }, DrawerWidth.Medium)
             : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Upstream not found", "There is no such upstream", "Back to the upstreams"), DrawerWidth.Narrow);
     }
@@ -230,7 +229,7 @@ else
             return true;
         }
 
-        string term = _search.Trim();
+        var term = _search.Trim();
         return upstream.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
             || upstream.Destinations.Any(d => d.Address.Contains(term, StringComparison.OrdinalIgnoreCase))
             || (_document is not null && HostOverview.UsesOf(_document, upstream.Id).Any(u => u.Host.Names.Any(n => n.Contains(term, StringComparison.OrdinalIgnoreCase))));

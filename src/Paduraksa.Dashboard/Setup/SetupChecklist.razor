@@ -24,9 +24,9 @@
         </div>
         <MudProgressLinear Value="Percent(progress, open.Count)" Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mb-3" />
         <ul class="pdk-list">
-            @foreach (SetupTask task in open)
+            @foreach (var task in open)
             {
-                SetupTaskInfo info = SetupTasks.Info(task);
+                var info = SetupTasks.Info(task);
                 <li class="pdk-list-row pdk-checklist-item" data-step="@info.Slug">
                     <span class="pdk-list-icon pdk-tone-default"><MudIcon Icon="@info.Icon" Size="Size.Small" /></span>
                     <span class="pdk-list-main">
@@ -69,7 +69,7 @@
             return;
         }
 
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is not null)
         {
             _progress = await SetupProgress.LoadAsync(user, Users, AcmeAccounts, DnsProviders, CertificateInventory, Config);
@@ -99,7 +99,7 @@
 
     private static double Percent(SetupProgress progress, int open)
     {
-        int total = SetupTasks.All.Count(t => progress.IsDone(t.Task) is not null);
+        var total = SetupTasks.All.Count(t => progress.IsDone(t.Task) is not null);
         return total == 0 ? 100 : 100.0 * (total - open) / total;
     }
 

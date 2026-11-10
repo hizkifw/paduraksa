@@ -19,7 +19,7 @@ public sealed class CaJsonContractTests
     {
         CaRootCertificate root = new("ab12", "CN=Paduraksa Local CA (1a2b3c4d)", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(3650));
 
-        string json = JsonSerializer.Serialize(root, Http());
+        var json = JsonSerializer.Serialize(root, Http());
 
         Assert.Contains("\"sha256Fingerprint\":\"ab12\"", json, StringComparison.Ordinal);
         Assert.Contains("\"subject\":\"CN=Paduraksa Local CA (1a2b3c4d)\"", json, StringComparison.Ordinal);
@@ -39,7 +39,7 @@ public sealed class CaJsonContractTests
         // The endpoints answer through the host's HTTP options, so the DTO must be part of the API's source-generated contract.
         CaRootCertificate root = new("ab12", "CN=x", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
 
-        string throughContract = JsonSerializer.Serialize(root, AdminJsonContext.Default.CaRootCertificate);
+        var throughContract = JsonSerializer.Serialize(root, AdminJsonContext.Default.CaRootCertificate);
 
         Assert.Equal(throughContract, JsonSerializer.Serialize(root, Http()));
     }
@@ -49,8 +49,8 @@ public sealed class CaJsonContractTests
     {
         JsonSerializerOptions options = new(JsonSerializerDefaults.Web);
         AdminJsonContext.AddTo(options);
-        int converters = options.Converters.Count;
-        int resolvers = options.TypeInfoResolverChain.Count;
+        var converters = options.Converters.Count;
+        var resolvers = options.TypeInfoResolverChain.Count;
 
         AdminJsonContext.AddTo(options);
 

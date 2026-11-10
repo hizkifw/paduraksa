@@ -31,9 +31,9 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void AForwardedRequestTracesEveryStepInOrder()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
 
-        GateSimulation run = GateSimulator.Run(snapshot, new GateProbe
+        var run = GateSimulator.Run(snapshot, new GateProbe
         {
             Https = true,
             Host = "x.app.test",
@@ -53,24 +53,24 @@ public sealed class GateSimulatorTraceTests : IDisposable
             run.Steps.Select(s => s.Kind));
         Assert.DoesNotContain(run.Steps, s => s.Verdict == GateStepVerdict.Stopped);
 
-        GateStep host = Step(run, GateStepKind.HostMatch);
+        var host = Step(run, GateStepKind.HostMatch);
         Assert.Equal(TestIds.Host("app"), host.Host);
         Assert.Contains("wildcard", host.Summary, StringComparison.Ordinal);
         Assert.Equal("wildcard", Fact(host, "match"));
 
         // The matching view of the path, not the path as sent.
-        GateStep route = Step(run, GateStepKind.RouteMatch);
+        var route = Step(run, GateStepKind.RouteMatch);
         Assert.Equal("/API/../api//items;x", Fact(Step(run, GateStepKind.Request), "path"));
         Assert.Equal("/api//items;x", Fact(route, "path")); // after Kestrel's dot-segment removal
         Assert.Equal("/api/items", Fact(route, "matchedPath"));
         Assert.Equal(TestIds.Route("app-api"), route.Route);
 
-        GateStep policy = Step(run, GateStepKind.HostPolicy);
+        var policy = Step(run, GateStepKind.HostPolicy);
         Assert.Equal(0, policy.PolicyIndex);
         Assert.Contains("allow list", policy.Summary, StringComparison.Ordinal);
 
         // The upstream: its destinations as configured, never a chosen one.
-        GateUpstream upstream = run.Upstream!;
+        var upstream = run.Upstream!;
         Assert.Equal(TestIds.Upstream("api"), upstream.Id);
         Assert.Equal(new[] { TestIds.Destination("api-d0"), TestIds.Destination("api-d1") }.Order(), upstream.Destinations.Select(d => d.Id).Order());
     }
@@ -78,7 +78,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void ExactAndIpv6HostMatchesAreNamed()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec());
+        var snapshot = Snapshot(new DefaultsSpec());
 
         Assert.Equal("exact", Fact(Step(Run(snapshot, "app.test"), GateStepKind.HostMatch), "match"));
         Assert.Equal("exact", Fact(Step(Run(snapshot, "APP.test:8080"), GateStepKind.HostMatch), "match"));
@@ -91,14 +91,14 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [InlineData(UnknownHostBehaviour.Close, GateOutcomeAction.Abort, null)]
     public void AnUnknownHostIsAnsweredByTheDefaultBehaviour(UnknownHostBehaviour mode, GateOutcomeAction action, int? status)
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { UnknownHost = mode });
+        var snapshot = Snapshot(new DefaultsSpec { UnknownHost = mode });
 
-        GateSimulation run = Run(snapshot, "nobody.test");
+        var run = Run(snapshot, "nobody.test");
 
         Assert.Equal(action, run.Outcome.Action);
         Assert.Equal(GateReason.DefaultHost, run.Outcome.Reason);
         Assert.Equal(status, run.Outcome.StatusCode);
-        GateStep step = Assert.Single(run.Steps, s => s.Verdict == GateStepVerdict.Stopped);
+        var step = Assert.Single(run.Steps, s => s.Verdict == GateStepVerdict.Stopped);
         Assert.Equal(GateStepKind.HostMatch, step.Kind);
         Assert.Contains("nobody.test", step.Summary, StringComparison.Ordinal);
         Assert.Equal(mode == UnknownHostBehaviour.Close ? "close" : $"respond {status}", Fact(step, "defaultHost"));
@@ -111,10 +111,10 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [InlineData("plain.test", ProbeHttpVersion.Http2, SslProtocols.Tls13, "isn't served over HTTPS")]
     public void ACoalescedConnectionIsMisdirectedForTheReasonTheTraceGives(string host, ProbeHttpVersion version, SslProtocols tls, string reason)
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
 
         // The handshake names another host (lax.test), so the connection is negotiated for that one's settings.
-        GateSimulation run = GateSimulator.Run(snapshot, new GateProbe
+        var run = GateSimulator.Run(snapshot, new GateProbe
         {
             Https = true,
             Host = host,
@@ -126,7 +126,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
 
         Assert.Equal(GateReason.MisdirectedConnection, run.Outcome.Reason);
         Assert.Equal(421, run.Outcome.StatusCode);
-        GateStep step = Step(run, GateStepKind.TlsPolicy);
+        var step = Step(run, GateStepKind.TlsPolicy);
         Assert.Equal(GateStepVerdict.Stopped, step.Verdict);
         Assert.Contains(reason, step.Summary, StringComparison.Ordinal);
         Assert.Equal(TestIds.Host(host.Split('.')[0]), step.Host);
@@ -135,7 +135,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void APlainHttpRequestSkipsTheTlsCheck()
     {
-        GateSimulation run = Run(Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), "strict.test");
+        var run = Run(Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), "strict.test");
 
         Assert.Equal(GateStepVerdict.Skipped, Step(run, GateStepKind.TlsPolicy).Verdict);
         Assert.DoesNotContain(run.Steps, s => s.Kind == GateStepKind.TlsHandshake);
@@ -144,13 +144,13 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void TheHandshakeIsRejectedWhenNoCertificateTakesTheName()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec());
+        var snapshot = Snapshot(new DefaultsSpec());
 
-        GateSimulation run = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.test", ClientAddress = Lan });
+        var run = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.test", ClientAddress = Lan });
 
         Assert.Equal(GateReason.HandshakeRejected, run.Outcome.Reason);
         Assert.Equal(GateOutcomeAction.Abort, run.Outcome.Action);
-        GateStep only = Assert.Single(run.Steps);
+        var only = Assert.Single(run.Steps);
         Assert.Equal(GateStepKind.TlsHandshake, only.Kind);
         Assert.Contains("no certificate", only.Summary, StringComparison.Ordinal);
     }
@@ -158,19 +158,19 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void TheHandshakeSettlesTheVersionAndAlpnTheRequestSees()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
 
         // h1.test offers no h2: the client's HTTP/2 becomes HTTP/1.1 (so no 421 for h1.test itself).
-        GateSimulation downgraded = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "h1.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
+        var downgraded = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "h1.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
         Assert.Equal(GateReason.Forwarded, downgraded.Outcome.Reason);
         Assert.Equal("http/1.1", Fact(Step(downgraded, GateStepKind.TlsHandshake), "alpn"));
 
         // strict.test needs 1.3: a TLS 1.2-only client never completes the handshake.
-        GateSimulation tooOld = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "strict.test", ClientAddress = Lan, TlsVersion = SslProtocols.Tls12 });
+        var tooOld = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "strict.test", ClientAddress = Lan, TlsVersion = SslProtocols.Tls12 });
         Assert.Equal(GateReason.HandshakeRejected, tooOld.Outcome.Reason);
 
         // noh3.test refuses QUIC handshakes.
-        GateSimulation quic = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "noh3.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http3 });
+        var quic = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "noh3.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http3 });
         Assert.Equal(GateReason.HandshakeRejected, quic.Outcome.Reason);
         Assert.Contains("HTTP/3 is disabled", Step(quic, GateStepKind.TlsHandshake).Summary, StringComparison.Ordinal);
     }
@@ -178,9 +178,9 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void PoliciesAreTracedInOrderHostFirst()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec());
+        var snapshot = Snapshot(new DefaultsSpec());
 
-        GateSimulation allowed = GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", Path = "/blocked", ClientAddress = Lan });
+        var allowed = GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", Path = "/blocked", ClientAddress = Lan });
         Assert.Equal(GateReason.RoutePolicy, allowed.Outcome.Reason);
         Assert.Equal(451, allowed.Outcome.StatusCode);
         Assert.Equal("legal\n", allowed.Outcome.Body);
@@ -191,13 +191,13 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.DoesNotContain(allowed.Steps, s => s.Kind == GateStepKind.Upstream);
 
         // The host's list stops an outsider before any route is matched.
-        GateSimulation blocked = GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", Path = "/blocked", ClientAddress = Outsider });
+        var blocked = GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", Path = "/blocked", ClientAddress = Outsider });
         Assert.Equal(GateReason.HostPolicy, blocked.Outcome.Reason);
         Assert.Equal(403, blocked.Outcome.StatusCode);
         Assert.DoesNotContain(blocked.Steps, s => s.Kind == GateStepKind.RouteMatch);
         Assert.Contains("198.51.100.1", Step(blocked, GateStepKind.HostPolicy).Summary, StringComparison.Ordinal);
 
-        GateSimulation dropped = GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", Path = "/drop", ClientAddress = Lan });
+        var dropped = GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", Path = "/drop", ClientAddress = Lan });
         Assert.Equal(GateOutcomeAction.Abort, dropped.Outcome.Action);
         Assert.Equal(GateReason.RoutePolicy, dropped.Outcome.Reason);
     }
@@ -205,22 +205,22 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void TheHttpsRedirectNamesItsLocationAndIsSkippedWhenTheSchemeIsTrusted()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec
+        var snapshot = Snapshot(new DefaultsSpec
         {
             Certificate = TestIds.Certificate("shared"),
             TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = ["127.0.0.1"] },
         });
 
-        GateSimulation redirected = GateSimulator.Run(snapshot, new GateProbe { Host = "secure.test", Path = "/a+b", Query = "q=1", ClientAddress = Outsider, Arrival = ProbeArrival.Direct });
+        var redirected = GateSimulator.Run(snapshot, new GateProbe { Host = "secure.test", Path = "/a+b", Query = "q=1", ClientAddress = Outsider, Arrival = ProbeArrival.Direct });
         Assert.Equal(GateReason.HttpsRedirect, redirected.Outcome.Reason);
         Assert.Equal(301, redirected.Outcome.StatusCode);
         Assert.Equal("https://secure.test:8443/a+b?q=1", redirected.Outcome.Location);
 
-        GateSimulation post = GateSimulator.Run(snapshot, new GateProbe { Host = "secure.test", Method = "POST", ClientAddress = Outsider });
+        var post = GateSimulator.Run(snapshot, new GateProbe { Host = "secure.test", Method = "POST", ClientAddress = Outsider });
         Assert.Equal(308, post.Outcome.StatusCode);
 
         // cloudflared terminated TLS: the visitor's scheme is https, so no redirect, and the trace says whose word it is.
-        GateSimulation terminated = GateSimulator.Run(snapshot, new GateProbe
+        var terminated = GateSimulator.Run(snapshot, new GateProbe
         {
             Host = "secure.test",
             ClientAddress = Outsider,
@@ -235,15 +235,15 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void RedirectAndRespondHostsAnswerWithTheirFixedResponse()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec());
+        var snapshot = Snapshot(new DefaultsSpec());
 
-        GateSimulation redirect = GateSimulator.Run(snapshot, new GateProbe { Host = "old.test", Path = "/x/y", Query = "z=1", ClientAddress = Lan });
+        var redirect = GateSimulator.Run(snapshot, new GateProbe { Host = "old.test", Path = "/x/y", Query = "z=1", ClientAddress = Lan });
         Assert.Equal(GateReason.FixedHost, redirect.Outcome.Reason);
         Assert.Equal(308, redirect.Outcome.StatusCode);
         Assert.Equal("https://new.test/x/y?z=1", redirect.Outcome.Location);
         Assert.Equal(GateStepKind.FixedResponse, redirect.Steps[^1].Kind);
 
-        GateSimulation respond = GateSimulator.Run(snapshot, new GateProbe { Host = "soon.test", ClientAddress = Lan });
+        var respond = GateSimulator.Run(snapshot, new GateProbe { Host = "soon.test", ClientAddress = Lan });
         Assert.Equal(503, respond.Outcome.StatusCode);
         Assert.Equal("soon", respond.Outcome.Body);
         Assert.Null(respond.Outcome.Location);
@@ -252,11 +252,11 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void NoRouteIsA404WithTheMatchedPathInTheTrace()
     {
-        GateSimulation run = GateSimulator.Run(Snapshot(new DefaultsSpec()), new GateProbe { Host = "narrow.test", Path = "/other//x/", ClientAddress = Lan });
+        var run = GateSimulator.Run(Snapshot(new DefaultsSpec()), new GateProbe { Host = "narrow.test", Path = "/other//x/", ClientAddress = Lan });
 
         Assert.Equal(GateReason.NoRoute, run.Outcome.Reason);
         Assert.Equal(404, run.Outcome.StatusCode);
-        GateStep step = Step(run, GateStepKind.RouteMatch);
+        var step = Step(run, GateStepKind.RouteMatch);
         Assert.Equal(GateStepVerdict.Stopped, step.Verdict);
         Assert.Equal("/other/x/", Fact(step, "matchedPath"));
         Assert.Null(step.Route);
@@ -265,10 +265,10 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void ClientResolutionNamesTheTrustedPeerAndHeader()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
+        var snapshot = Snapshot(new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
 
         // Behind the trusted proxy: the right-most untrusted entry of the header it sent.
-        GateStep trusted = Step(
+        var trusted = Step(
             GateSimulator.Run(snapshot, new GateProbe
             {
                 Host = "narrow.test",
@@ -284,7 +284,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.StartsWith("10.0.0.0 (socket)", Fact(trusted, "peer"), StringComparison.Ordinal);
 
         // The arrival adds the header it would send, and defaults the peer to a trusted address.
-        GateStep synthesized = Step(
+        var synthesized = Step(
             GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Outsider, Arrival = ProbeArrival.TrustedProxy }),
             GateStepKind.ClientAddress);
         Assert.Equal("198.51.100.1", Fact(synthesized, "client"));
@@ -292,7 +292,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.StartsWith("10.0.0.0 (socket)", Fact(synthesized, "peer"), StringComparison.Ordinal);
 
         // A peer that isn't trusted: the header is ignored and the trace says why.
-        GateStep untrusted = Step(
+        var untrusted = Step(
             GateSimulator.Run(snapshot, new GateProbe
             {
                 Host = "narrow.test",
@@ -308,9 +308,9 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void CloudflareAndProxyProtocolArrivalsAreTraced()
     {
-        RuntimeSnapshot cloudflare = Snapshot(new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } });
+        var cloudflare = Snapshot(new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } });
 
-        GateStep edge = Step(
+        var edge = Step(
             GateSimulator.Run(cloudflare, new GateProbe { Host = "narrow.test", ClientAddress = Outsider, Arrival = ProbeArrival.CloudflareProxy }),
             GateStepKind.ClientAddress);
         Assert.Equal("cfConnectingIp", Fact(edge, "clientSource"));
@@ -319,8 +319,8 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal("198.51.100.1", Fact(edge, "client"));
 
         // The trusted proxy reached us through a PROXY protocol load balancer: the peer is the header's source.
-        RuntimeSnapshot generic = Snapshot(new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
-        GateStep viaLoadBalancer = Step(
+        var generic = Snapshot(new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
+        var viaLoadBalancer = Step(
             GateSimulator.Run(generic, new GateProbe
             {
                 Host = "narrow.test",
@@ -338,18 +338,18 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void ASimulationHasNoSideEffects()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
+        var snapshot = Snapshot(new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
 
         // A trusted proxy's unusable header is a fallback the real source counts (and a plain-HTTP Cloudflare visitor it logs).
-        GateSimulation run = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Outsider, Arrival = ProbeArrival.TrustedProxy, Headers = [new ProbeHeader("X-Forwarded-For", "bogus")] });
+        var run = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Outsider, Arrival = ProbeArrival.TrustedProxy, Headers = [new ProbeHeader("X-Forwarded-For", "bogus")] });
         Assert.Equal("headerInvalid", Fact(Step(run, GateStepKind.ClientAddress), "outcome"));
 
         // The simulator's resolution is the same code with no counters: the real source counts it, the simulation doesn't.
-        DefaultHttpContext context = TestContexts.Create("narrow.test", remote: Lan);
+        var context = TestContexts.Create("narrow.test", remote: Lan);
         context.Request.Headers["X-Forwarded-For"] = "bogus";
         TrustedProxyClientAddressSource real = new();
-        ClientIpResolution counted = real.Resolve(context, snapshot);
-        ClientIpResolution simulated = TrustedProxyClientAddressSource.ResolveCore(context, snapshot, counters: null, logger: null);
+        var counted = real.Resolve(context, snapshot);
+        var simulated = TrustedProxyClientAddressSource.ResolveCore(context, snapshot, counters: null, logger: null);
         Assert.Equal(1, real.Counters.HeaderInvalid);
         Assert.Equal(counted, simulated);
         Assert.Equal(1, real.Counters.HeaderInvalid);
@@ -359,10 +359,10 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void AnUnboundSnapshotStillSaysWhereARouteForwards()
     {
-        ProxyConfigModel model = Model(new DefaultsSpec());
-        RuntimeSnapshot unbound = Compile(model);
+        var model = Model(new DefaultsSpec());
+        var unbound = Compile(model);
 
-        GateSimulation run = GateSimulator.Run(unbound, new GateProbe { Host = "narrow.test", Path = "/api", ClientAddress = Lan });
+        var run = GateSimulator.Run(unbound, new GateProbe { Host = "narrow.test", Path = "/api", ClientAddress = Lan });
 
         Assert.Equal(GateReason.Forwarded, run.Outcome.Reason);
         Assert.Equal(TestIds.Upstream("api"), run.Upstream!.Id);
@@ -372,30 +372,30 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void AnAnsweredChallengeIsTracedAndAnUnknownTokenFallsThrough()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec());
+        var snapshot = Snapshot(new DefaultsSpec());
         AcmeChallengeStore challenges = new();
         challenges.Publish("tok-en_1", "tok-en_1.thumbprint");
 
         // Plain HTTP, any host (even an unknown one), before every policy: answered with the key authorization.
-        GateSimulation answered = GateSimulator.Run(
+        var answered = GateSimulator.Run(
             snapshot, new GateProbe { Host = "nobody.test", Path = AcmeChallengeStore.PathPrefix + "tok-en_1", ClientAddress = Outsider }, challenges: challenges);
         Assert.Equal(GateReason.AcmeChallenge, answered.Outcome.Reason);
         Assert.Equal(200, answered.Outcome.StatusCode);
         Assert.Equal("tok-en_1.thumbprint", answered.Outcome.Body);
-        GateStep step = Step(answered, GateStepKind.AcmeChallenge);
+        var step = Step(answered, GateStepKind.AcmeChallenge);
         Assert.Equal(GateStepVerdict.Stopped, step.Verdict);
         Assert.Equal("tok-en_1", Fact(step, "token"));
         Assert.DoesNotContain(answered.Steps, s => s.Kind == GateStepKind.HostMatch);
         Assert.Equal("Paduraksa", Fact(Step(answered, GateStepKind.ResponseHeaders), "Server"));
 
         // An unknown token, HTTPS, or another method: handled like any request.
-        foreach (GateProbe probe in (GateProbe[])
+        foreach (var probe in (GateProbe[])
         [
             new GateProbe { Host = "app.test", Path = AcmeChallengeStore.PathPrefix + "other", ClientAddress = Lan },
             new GateProbe { Host = "app.test", Path = AcmeChallengeStore.PathPrefix + "tok-en_1", ClientAddress = Lan, Method = "POST" },
         ])
         {
-            GateSimulation fallthrough = GateSimulator.Run(snapshot, probe, challenges: challenges);
+            var fallthrough = GateSimulator.Run(snapshot, probe, challenges: challenges);
             Assert.NotEqual(GateReason.AcmeChallenge, fallthrough.Outcome.Reason);
             Assert.Equal(GateStepVerdict.Passed, Step(fallthrough, GateStepKind.AcmeChallenge).Verdict);
         }
@@ -407,12 +407,12 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void TheAcmeStepSaysWhyAChallengePathWasNotAnswered()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
         AcmeChallengeStore challenges = new();
         challenges.Publish("tok", "tok.key");
 
         // HTTPS: an HTTP-01 answer is only served over plain HTTP.
-        GateStep secure = Step(
+        var secure = Step(
             GateSimulator.Run(
                 snapshot,
                 new GateProbe { Https = true, Host = "app.test", Path = AcmeChallengeStore.PathPrefix + "tok", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 },
@@ -423,7 +423,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal("tok", Fact(secure, "token"));
 
         // Another method: only GET and HEAD are answered.
-        GateStep posted = Step(
+        var posted = Step(
             GateSimulator.Run(
                 snapshot,
                 new GateProbe { Host = "app.test", Path = AcmeChallengeStore.PathPrefix + "tok", Method = "POST", ClientAddress = Lan },
@@ -433,7 +433,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Contains("POST", Fact(posted, "reason"), StringComparison.Ordinal);
 
         // A token nothing published.
-        GateStep unknown = Step(
+        var unknown = Step(
             GateSimulator.Run(
                 snapshot,
                 new GateProbe { Host = "app.test", Path = AcmeChallengeStore.PathPrefix + "other", ClientAddress = Lan },
@@ -443,7 +443,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Contains("no challenge is waiting", Fact(unknown, "reason"), StringComparison.Ordinal);
 
         // Not a challenge path at all: skipped, and it doesn't claim to be one.
-        GateStep other = Step(
+        var other = Step(
             GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", Path = "/index.html", ClientAddress = Lan }, challenges: challenges),
             GateStepKind.AcmeChallenge);
         Assert.Equal(GateStepVerdict.Skipped, other.Verdict);
@@ -455,9 +455,9 @@ public sealed class GateSimulatorTraceTests : IDisposable
     public void TheHandshakeNamesTheCertificateThatWouldBeServed()
     {
         ServerCertificate certificate = new(_pki.Leaf("named", "*.test").Context) { Id = TestIds.Certificate("named") };
-        RuntimeSnapshot snapshot = Bound(Model(new DefaultsSpec { Certificate = TestIds.Certificate("named") }), options: new SnapshotCompilerOptions { Certificates = new Single(certificate) });
+        var snapshot = Bound(Model(new DefaultsSpec { Certificate = TestIds.Certificate("named") }), options: new SnapshotCompilerOptions { Certificates = new Single(certificate) });
 
-        GateStep handshake = Step(
+        var handshake = Step(
             GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }),
             GateStepKind.TlsHandshake);
 
@@ -468,11 +468,11 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void Http1NeedsExactlyOneValidHostOrTheServerAnswers400()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec());
+        var snapshot = Snapshot(new DefaultsSpec());
 
-        foreach (string[] hosts in (string[][])[[], ["app.test", "app.test"], ["a@b"], ["app.test/x"], ["app test"]])
+        foreach (var hosts in (string[][])[[], ["app.test", "app.test"], ["a@b"], ["app.test/x"], ["app test"]])
         {
-            GateSimulation run = GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", HostHeaders = hosts, ClientAddress = Lan });
+            var run = GateSimulator.Run(snapshot, new GateProbe { Host = "app.test", HostHeaders = hosts, ClientAddress = Lan });
 
             Assert.Equal(GateReason.RejectedByServer, run.Outcome.Reason);
             Assert.Equal(400, run.Outcome.StatusCode);
@@ -487,12 +487,12 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void Http2UsesTheAuthorityAndIgnoresHostHeaders()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
 
         // Two Host headers, one that isn't a host, none: on HTTP/2 the authority is the host, so none of it matters.
-        foreach (string[] hosts in (string[][])[[], ["a", "b"], ["a@b"]])
+        foreach (var hosts in (string[][])[[], ["a", "b"], ["a@b"]])
         {
-            GateSimulation run = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "narrow.test", HostHeaders = hosts, Path = "/api", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
+            var run = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "narrow.test", HostHeaders = hosts, Path = "/api", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
 
             Assert.Equal(GateReason.Forwarded, run.Outcome.Reason);
             Assert.Equal(TestIds.Host("narrow"), Step(run, GateStepKind.HostMatch).Host);
@@ -505,23 +505,23 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void ThePathIsDecodedAndNormalisedLikeKestrelBeforeTheGateSeesIt()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec());
+        var snapshot = Snapshot(new DefaultsSpec());
         AcmeChallengeStore challenges = new();
         challenges.Publish("tok", "tok.key");
 
         // A dot-segment path reaches the token the real server would give the gate.
-        GateSimulation answered = GateSimulator.Run(
+        var answered = GateSimulator.Run(
             snapshot, new GateProbe { Host = "nobody.test", Path = "/x/../.well-known/./acme-challenge/tok", ClientAddress = Outsider }, challenges);
         Assert.Equal(GateReason.AcmeChallenge, answered.Outcome.Reason);
         Assert.Equal("/.well-known/acme-challenge/tok", Fact(Step(answered, GateStepKind.Request), "decodedPath"));
         Assert.Equal("tok", Fact(Step(answered, GateStepKind.AcmeChallenge), "token"));
 
         // Escapes first, then dot segments: %2E%2E is "..".
-        GateSimulation escaped = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", Path = "/blocked/%2E%2E/api/x", ClientAddress = Lan });
+        var escaped = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", Path = "/blocked/%2E%2E/api/x", ClientAddress = Lan });
         Assert.Equal("/api/x", Fact(Step(escaped, GateStepKind.RouteMatch), "matchedPath"));
 
         // Bytes that aren't UTF-8 stay as written (the real server answers such a request normally: see the socket tests).
-        GateSimulation invalid = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", Path = "/api/%C3", ClientAddress = Lan });
+        var invalid = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", Path = "/api/%C3", ClientAddress = Lan });
         Assert.Equal(GateReason.Forwarded, invalid.Outcome.Reason);
         Assert.Equal("/api/%C3", Fact(Step(invalid, GateStepKind.Request), "decodedPath"));
         Assert.Equal("/%FF", GateSimulator.DecodePath("/%FF"));
@@ -544,13 +544,13 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void TheListenerRejectsAConnectionItsProxyProtocolRulesRefuse()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec());
+        var snapshot = Snapshot(new DefaultsSpec());
         ProxyProtocolOptions trusted = new(CidrSet.Parse(["192.0.2.0/24"]));
         ListenerFacts none = new(null, null, Http3: true);
         ListenerFacts required = new(trusted, trusted, Http3: true);
 
         // No PROXY protocol on the listener: a header is read as a broken request.
-        GateSimulation unexpected = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan, ProxyProtocol = true }, listeners: none);
+        var unexpected = GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan, ProxyProtocol = true }, listeners: none);
         Assert.Equal(GateReason.ConnectionRejected, unexpected.Outcome.Reason);
         Assert.Equal(GateOutcomeAction.Abort, unexpected.Outcome.Action);
         Assert.Single(unexpected.Steps);
@@ -558,11 +558,11 @@ public sealed class GateSimulatorTraceTests : IDisposable
 
         // Required, and none sent; sent from an untrusted socket; sent from a trusted one.
         Assert.Equal(GateReason.ConnectionRejected, GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan }, listeners: required).Outcome.Reason);
-        GateSimulation untrusted = GateSimulator.Run(
+        var untrusted = GateSimulator.Run(
             snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan, ProxyProtocol = true, TransportAddress = IPAddress.Parse("198.51.100.9") }, listeners: required);
         Assert.Equal(GateReason.ConnectionRejected, untrusted.Outcome.Reason);
         Assert.Contains("198.51.100.9", untrusted.Steps[0].Summary, StringComparison.Ordinal);
-        GateSimulation fine = GateSimulator.Run(
+        var fine = GateSimulator.Run(
             snapshot, new GateProbe { Host = "narrow.test", Path = "/api", ClientAddress = Lan, ProxyProtocol = true, TransportAddress = IPAddress.Parse("192.0.2.7") }, listeners: required);
         Assert.Equal(GateReason.Forwarded, fine.Outcome.Reason);
         Assert.Equal(GateStepKind.Connection, fine.Steps[0].Kind);
@@ -582,8 +582,8 @@ public sealed class GateSimulatorTraceTests : IDisposable
     public void TheAdmissionIsTheConnectionMiddlewaresOwnDecision()
     {
         ProxyProtocolOptions options = new(CidrSet.Parse(["192.0.2.0/24"]));
-        IpKey trusted = IpKey.Parse("192.0.2.1");
-        IpKey other = IpKey.Parse("198.51.100.1");
+        var trusted = IpKey.Parse("192.0.2.1");
+        var other = IpKey.Parse("198.51.100.1");
 
         Assert.Equal(ConnectionAdmission.Accepted, ProxyProtocolAdmission.Check(null, other, headerSent: false));
         Assert.Equal(ConnectionAdmission.HeaderUnexpected, ProxyProtocolAdmission.Check(null, other, headerSent: true));
@@ -597,7 +597,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
     public void PoliciesAreToldTheyAreSimulatedAndProductionNever()
     {
         SpyPolicy spy = new();
-        RuntimeSnapshot compiled = Bound(Model(new DefaultsSpec()));
+        var compiled = Bound(Model(new DefaultsSpec()));
         CompiledRoute route = new() { Id = TestIds.Route("spy-root"), MatchKind = RouteMatchKind.Prefix, Path = "/", Slot = 0, Policies = [spy] };
         CompiledHost host = new() { Index = 0, Id = TestIds.Host("spy"), Kind = HostKind.Proxy, Routes = [route], Policies = [spy] };
         HostTable.Builder table = new();
@@ -614,7 +614,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
             Default = compiled.Default,
         };
 
-        GateSimulation simulated = GateSimulator.Run(snapshot, new GateProbe { Host = "spy.test", ClientAddress = Lan });
+        var simulated = GateSimulator.Run(snapshot, new GateProbe { Host = "spy.test", ClientAddress = Lan });
         Assert.Equal(GateReason.Forwarded, simulated.Outcome.Reason);
         Assert.Equal([true, true], spy.Seen);
 
@@ -630,38 +630,38 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void TheOneStepListsEveryHeaderSentAndWhyAnyIsNot()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
 
         // HSTS on, HSTS off, the three Server modes, and the request ID: one step says each header's value or reason.
-        GateStep sent = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "narrow.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
+        var sent = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "narrow.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
         Assert.Equal(GateStepVerdict.Passed, sent.Verdict);
         Assert.Equal(TestIds.Host("narrow"), sent.Host);
         Assert.Equal("max-age=31536000", Fact(sent, HstsHeader.HeaderName));
 
-        GateStep plain = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
+        var plain = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "narrow.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
         Assert.Contains("isn't HTTPS", Fact(plain, HstsHeader.HeaderName), StringComparison.Ordinal);
 
-        GateStep off = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
+        var off = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
         Assert.Contains("HSTS off", Fact(off, HstsHeader.HeaderName), StringComparison.Ordinal);
 
         Assert.Equal("Paduraksa", Fact(off, ServerHeader.HeaderName));
         Assert.Equal("edge/1.0", Fact(Step(GateSimulator.Run(snapshot, new GateProbe { Host = "custom.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders), ServerHeader.HeaderName));
 
-        GateStep upstream = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "upstream.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
+        var upstream = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "upstream.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
         Assert.Contains("passes through", Fact(upstream, ServerHeader.HeaderName), StringComparison.Ordinal);
 
-        GateStep removed = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "bare.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
+        var removed = Step(GateSimulator.Run(snapshot, new GateProbe { Host = "bare.test", ClientAddress = Lan }), GateStepKind.ResponseHeaders);
         Assert.Contains("removed", Fact(removed, ServerHeader.HeaderName), StringComparison.OrdinalIgnoreCase);
 
         // The response ID waits for the response to be written, which the step says rather than inventing a value.
         Assert.Contains("when the response is written", Fact(removed, RequestIds.HeaderName), StringComparison.Ordinal);
 
         // A loopback name is never pinned, and the step says why.
-        GateStep loopback = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.localhost", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
+        var loopback = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "app.localhost", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
         Assert.Contains("loopback", Fact(loopback, HstsHeader.HeaderName), StringComparison.Ordinal);
 
         // A host that keeps the ID to itself: a removal, not a deferred send.
-        GateStep quiet = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "quiet.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
+        var quiet = Step(GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "quiet.test", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 }), GateStepKind.ResponseHeaders);
         Assert.Contains("removed", Fact(quiet, RequestIds.HeaderName), StringComparison.Ordinal);
         Assert.Contains("doesn't send the ID to the client", Fact(quiet, RequestIds.HeaderName), StringComparison.Ordinal);
     }
@@ -669,10 +669,10 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void TheRequestIdIsInEveryAnswerTheGateGives()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
 
         // A 421 carries the request ID and the Server header, and nothing that waits for the TLS check.
-        GateSimulation misdirected = GateSimulator.Run(snapshot, new GateProbe
+        var misdirected = GateSimulator.Run(snapshot, new GateProbe
         {
             Https = true,
             Host = "strict.test",
@@ -682,20 +682,20 @@ public sealed class GateSimulatorTraceTests : IDisposable
             TlsVersion = SslProtocols.Tls12,
         });
         Assert.Equal(421, misdirected.Outcome.StatusCode);
-        GateStep step = Step(misdirected, GateStepKind.ResponseHeaders);
+        var step = Step(misdirected, GateStepKind.ResponseHeaders);
         Assert.Equal("Paduraksa", Fact(step, ServerHeader.HeaderName));
         Assert.Contains("when the response is written", Fact(step, RequestIds.HeaderName), StringComparison.Ordinal);
 
         // An unknown host follows the global defaults, and its answer carries the ID too.
-        GateSimulation unknown = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "nobody.test", ClientAddress = Lan });
-        GateStep fallback = Step(unknown, GateStepKind.ResponseHeaders);
+        var unknown = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "nobody.test", ClientAddress = Lan });
+        var fallback = Step(unknown, GateStepKind.ResponseHeaders);
         Assert.Null(fallback.Host);
         Assert.Contains("when the response is written", Fact(fallback, RequestIds.HeaderName), StringComparison.Ordinal);
 
         // An ACME answer does the same.
         AcmeChallengeStore challenges = new();
         challenges.Publish("tok-en_1", "tok-en_1.thumbprint");
-        GateSimulation acme = GateSimulator.Run(
+        var acme = GateSimulator.Run(
             snapshot, new GateProbe { Host = "nobody.test", Path = AcmeChallengeStore.PathPrefix + "tok-en_1", ClientAddress = Lan }, challenges: challenges);
         Assert.Equal(GateReason.AcmeChallenge, acme.Outcome.Reason);
         Assert.Contains("when the response is written", Fact(Step(acme, GateStepKind.ResponseHeaders), RequestIds.HeaderName), StringComparison.Ordinal);
@@ -704,12 +704,12 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void FactsUseWireNamesNotInternalOnes()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared"), TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared"), TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["10.0.0.0/8"] } });
 
-        GateSimulation run = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "x.app.test", Path = "/api", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
+        var run = GateSimulator.Run(snapshot, new GateProbe { Https = true, Host = "x.app.test", Path = "/api", ClientAddress = Lan, HttpVersion = ProbeHttpVersion.Http2 });
 
         string[] values = [.. run.Steps.SelectMany(s => s.Facts).Select(f => f.Value), .. run.Steps.Select(s => s.Summary)];
-        foreach (string leaked in (string[])["HostMatchKind", "ClientIpOutcome", "SslProtocols", "Tls12, Tls13", "Tls13", "Tls12", "Prefix", "Wildcard", "Generic", "Http2And", "Paduraksa."])
+        foreach (var leaked in (string[])["HostMatchKind", "ClientIpOutcome", "SslProtocols", "Tls12, Tls13", "Tls13", "Tls12", "Prefix", "Wildcard", "Generic", "Http2And", "Paduraksa."])
         {
             Assert.DoesNotContain(values, v => v.Contains(leaked, StringComparison.Ordinal));
         }
@@ -752,10 +752,10 @@ public sealed class GateSimulatorTraceTests : IDisposable
     [Fact]
     public void TheNoOpTracerKeepsTheGateAllocationFree()
     {
-        RuntimeSnapshot snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
+        var snapshot = Snapshot(new DefaultsSpec { Certificate = TestIds.Certificate("shared") });
         IClientAddressSource addresses = new TrustedProxyClientAddressSource();
-        DefaultHttpContext forward = TestContexts.Create("app.test", "/api/x", remote: Lan);
-        DefaultHttpContext redirect = TestContexts.Create("secure.test", "/", remote: Outsider);
+        var forward = TestContexts.Create("app.test", "/api/x", remote: Lan);
+        var redirect = TestContexts.Create("secure.test", "/", remote: Outsider);
 
         AllocAssert.Zero((snapshot, addresses, forward), static s => _ = GateMiddleware.Decide(s.forward, s.snapshot, s.addresses, null, default(NoGateTracer)), "forwarding with the no-op tracer");
         AllocAssert.Zero((snapshot, addresses, redirect), static s => _ = GateMiddleware.Decide(s.redirect, s.snapshot, s.addresses, null, default(NoGateTracer)), "redirecting with the no-op tracer");

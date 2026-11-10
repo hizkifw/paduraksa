@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Paduraksa.Core.Model;
-using Paduraksa.Data;
 using Paduraksa.Data.Audit;
 using Paduraksa.Data.Revisions;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;

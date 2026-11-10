@@ -19,7 +19,7 @@ internal abstract class WireEnumConverter<TEnum>(Func<TEnum, string> toName) : J
 
     public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType == JsonTokenType.String && reader.GetString() is { } name && _byName.TryGetValue(name, out TEnum value))
+        if (reader.TokenType == JsonTokenType.String && reader.GetString() is { } name && _byName.TryGetValue(name, out var value))
         {
             return value;
         }

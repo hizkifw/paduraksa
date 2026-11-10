@@ -27,7 +27,7 @@ internal static class ConfigEndpoints
             .Produces<CurrentConfig>()
             .RequirePermission(Permission.ConfigRead);
 
-        RouteGroupBuilder hosts = api.MapGroup("/hosts").WithTags("Hosts");
+        var hosts = api.MapGroup("/hosts").WithTags("Hosts");
         hosts.MapGet("/", ListHostsAsync).WithName("ListHosts").WithSummary("List hosts")
             .Produces<IReadOnlyList<HostConfig>>().RequirePermission(Permission.ConfigRead);
         hosts.MapGet("/{id:HostId}", GetHostAsync).WithName("GetHost").WithSummary("Get a host")
@@ -54,7 +54,7 @@ internal static class ConfigEndpoints
         hosts.MapDelete("/{hostId:HostId}/routes/{routeId:RouteId}", DeleteRouteAsync).WithName("DeleteRoute").WithSummary("Delete a route of a host")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
-        RouteGroupBuilder upstreams = api.MapGroup("/upstreams").WithTags("Upstreams");
+        var upstreams = api.MapGroup("/upstreams").WithTags("Upstreams");
         upstreams.MapGet("/", ListUpstreamsAsync).WithName("ListUpstreams").WithSummary("List upstreams")
             .Produces<IReadOnlyList<UpstreamConfig>>().RequirePermission(Permission.ConfigRead);
         upstreams.MapGet("/{id:UpstreamId}", GetUpstreamAsync).WithName("GetUpstream").WithSummary("Get an upstream")
@@ -69,7 +69,7 @@ internal static class ConfigEndpoints
             .WithDescription("Refused (422, relatedErrors) while a route still uses it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
-        RouteGroupBuilder profiles = api.MapGroup("/profiles").WithTags("Profiles");
+        var profiles = api.MapGroup("/profiles").WithTags("Profiles");
         profiles.MapGet("/", ListProfilesAsync).WithName("ListProfiles").WithSummary("List profiles")
             .Produces<IReadOnlyList<ProfileConfig>>().RequirePermission(Permission.ConfigRead);
         profiles.MapGet("/{id:ProfileId}", GetProfileAsync).WithName("GetProfile").WithSummary("Get a profile")
@@ -95,21 +95,21 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> GetConfigAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {
-        CurrentConfig current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
         TagWithRevision(http, current);
         return EndpointSupport.Json(current, AdminJsonContext.Default.CurrentConfig);
     }
 
     private static async Task<IResult> ListHostsAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {
-        CurrentConfig current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
         TagWithRevision(http, current);
         return EndpointSupport.Json(current.Document.Hosts, AdminJsonContext.Default.IReadOnlyListHostConfig);
     }
 
     private static async Task<IResult> GetHostAsync(HttpContext http, HostId id, ConfigService config, CancellationToken ct)
     {
-        HostConfig? host = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Hosts.FirstOrDefault(h => h.Id == id);
+        var host = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Hosts.FirstOrDefault(h => h.Id == id);
         if (host is null)
         {
             return NoSuchObject("host");
@@ -134,7 +134,7 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> ListRoutesAsync(HttpContext http, HostId hostId, ConfigService config, CancellationToken ct)
     {
-        CurrentConfig current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
         if (current.Document.Hosts.FirstOrDefault(h => h.Id == hostId) is not { } host)
         {
             return NoSuchObject("host");
@@ -146,7 +146,7 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> GetRouteAsync(HttpContext http, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
-        CurrentConfig current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
         if (current.Document.Hosts.FirstOrDefault(h => h.Id == hostId) is not { } host)
         {
             return NoSuchObject("host");
@@ -163,14 +163,14 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> PutRouteAsync(HttpContext http, AdminCaller caller, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
-            || !Preconditions.TryGetForce(http, out bool force, out problem)
-            || !Preconditions.TryGetVersion(http, out long version, out problem))
+        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
+            || !Preconditions.TryGetForce(http, out var force, out problem)
+            || !Preconditions.TryGetVersion(http, out var version, out problem))
         {
             return problem!;
         }
 
-        BodyResult<RouteConfig> body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.RouteConfig).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, AdminJsonContext.Default.RouteConfig).ConfigureAwait(false);
         if (!body.Ok)
         {
             return body.Problem!;
@@ -187,7 +187,7 @@ internal static class ConfigEndpoints
         }
 
         List<RouteConfig> routes = [.. host.Routes];
-        int at = routes.FindIndex(r => r.Id == routeId);
+        var at = routes.FindIndex(r => r.Id == routeId);
         if (at >= 0)
         {
             routes[at] = body.Value;
@@ -208,9 +208,9 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> DeleteRouteAsync(HttpContext http, AdminCaller caller, HostId hostId, RouteId routeId, ConfigService config, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
-            || !Preconditions.TryGetForce(http, out bool force, out problem)
-            || !Preconditions.TryGetVersion(http, out long version, out problem))
+        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
+            || !Preconditions.TryGetForce(http, out var force, out problem)
+            || !Preconditions.TryGetVersion(http, out var version, out problem))
         {
             return problem!;
         }
@@ -231,14 +231,14 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> ListUpstreamsAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {
-        CurrentConfig current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
         TagWithRevision(http, current);
         return EndpointSupport.Json(current.Document.Upstreams, AdminJsonContext.Default.IReadOnlyListUpstreamConfig);
     }
 
     private static async Task<IResult> GetUpstreamAsync(HttpContext http, UpstreamId id, ConfigService config, CancellationToken ct)
     {
-        UpstreamConfig? upstream = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Upstreams.FirstOrDefault(u => u.Id == id);
+        var upstream = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Upstreams.FirstOrDefault(u => u.Id == id);
         if (upstream is null)
         {
             return NoSuchObject("upstream");
@@ -263,14 +263,14 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> ListProfilesAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {
-        CurrentConfig current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
         TagWithRevision(http, current);
         return EndpointSupport.Json(current.Document.Profiles, AdminJsonContext.Default.IReadOnlyListProfileConfig);
     }
 
     private static async Task<IResult> GetProfileAsync(HttpContext http, ProfileId id, ConfigService config, CancellationToken ct)
     {
-        ProfileConfig? profile = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Profiles.FirstOrDefault(p => p.Id == id);
+        var profile = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Profiles.FirstOrDefault(p => p.Id == id);
         if (profile is null)
         {
             return NoSuchObject("profile");
@@ -295,7 +295,7 @@ internal static class ConfigEndpoints
 
     private static async Task<IResult> GetSettingsAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {
-        GlobalSettings settings = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Settings;
+        var settings = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.Settings;
         http.Response.Headers.ETag = Preconditions.VersionTag(settings.Version);
         return EndpointSupport.Json(settings, AdminJsonContext.Default.GlobalSettings);
     }
@@ -322,8 +322,8 @@ internal static class ConfigEndpoints
         CancellationToken ct)
         where T : class
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
-            || !Preconditions.TryGetForce(http, out bool force, out problem))
+        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
+            || !Preconditions.TryGetForce(http, out var force, out problem))
         {
             return problem!;
         }
@@ -334,34 +334,34 @@ internal static class ConfigEndpoints
             return problem!;
         }
 
-        BodyResult<T> body = await ApiBody.ReadJsonAsync(http, typeInfo).ConfigureAwait(false);
+        var body = await ApiBody.ReadJsonAsync(http, typeInfo).ConfigureAwait(false);
         if (!body.Ok)
         {
             return body.Problem!;
         }
 
-        string? message = EndpointSupport.MessageOf(http);
-        (T value, IResult? rejected) = prepare(body.Value!, version, message);
+        var message = EndpointSupport.MessageOf(http);
+        var (value, rejected) = prepare(body.Value!, version, message);
         if (rejected is not null)
         {
             return rejected;
         }
 
-        ConfigCommandResult result = await config.ExecuteAsync(command(value, dryRun, message) with { Force = force }, caller.Origin, ct).ConfigureAwait(false);
+        var result = await config.ExecuteAsync(command(value, dryRun, message) with { Force = force }, caller.Origin, ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, kind, location?.Invoke(value));
     }
 
     private static async Task<IResult> DeleteAsync(HttpContext http, AdminCaller caller, ConfigService config, Func<long, ConfigCommand> command, CancellationToken ct)
     {
-        if (!Preconditions.TryGetDryRun(http, out bool dryRun, out IResult? problem)
-            || !Preconditions.TryGetForce(http, out bool force, out problem)
-            || !Preconditions.TryGetVersion(http, out long version, out problem))
+        if (!Preconditions.TryGetDryRun(http, out var dryRun, out var problem)
+            || !Preconditions.TryGetForce(http, out var force, out problem)
+            || !Preconditions.TryGetVersion(http, out var version, out problem))
         {
             return problem!;
         }
 
-        ConfigCommand delete = command(version) with { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
-        ConfigCommandResult result = await config.ExecuteAsync(delete, caller.Origin, ct).ConfigureAwait(false);
+        var delete = command(version) with { DryRun = dryRun, Message = EndpointSupport.MessageOf(http), Force = force };
+        var result = await config.ExecuteAsync(delete, caller.Origin, ct).ConfigureAwait(false);
         return ConfigCommandResponses.ToResult(http, result, MutationKind.Change, noContent: true);
     }
 

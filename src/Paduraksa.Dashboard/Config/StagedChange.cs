@@ -49,7 +49,7 @@ public static class StagedChange
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(upstreams);
         ArgumentNullException.ThrowIfNull(profiles);
-        bool exists = head.Hosts.Any(h => h.Id == host.Id);
+        var exists = head.Hosts.Any(h => h.Id == host.Id);
         return head with
         {
             Upstreams = [.. head.Upstreams.Where(u => upstreams.All(s => s.Id != u.Id)), .. upstreams],

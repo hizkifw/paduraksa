@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 using Paduraksa.Admin.Auth;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;

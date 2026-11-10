@@ -30,7 +30,7 @@ public sealed class ThemeTests
         ThemeState theme = new();
         theme.Initialize(ThemePreference.System, systemPrefersLight: false);
         theme.Initialize(ThemePreference.Light, systemPrefersLight: true);
-        int changes = 0;
+        var changes = 0;
         theme.Changed += () => changes++;
 
         theme.SetSystemPreference(prefersLight: false);
@@ -55,10 +55,10 @@ public sealed class ThemeTests
     {
         await using DashboardTestContext context = new();
         context.JSInterop.SetupVoid("paduraksa.setTheme", _ => true);
-        ThemeState theme = context.Services.GetRequiredService<ThemeState>();
+        var theme = context.Services.GetRequiredService<ThemeState>();
         theme.Initialize(ThemePreference.System, systemPrefersLight: false);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<ThemeToggle> toggle = context.Render<ThemeToggle>();
+        var toggle = context.Render<ThemeToggle>();
 
         Assert.Equal("Switch to the light theme", toggle.Find("button").GetAttribute("aria-label"));
         toggle.Find("button").Click();

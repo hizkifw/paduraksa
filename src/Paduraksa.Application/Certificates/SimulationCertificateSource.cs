@@ -29,10 +29,10 @@ internal sealed class SimulationCertificateSource : IServerCertificateSource
 
     private static SslStreamCertificateContext Create(CertificateId id)
     {
-        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         CertificateRequest request = new($"CN=paduraksa simulation placeholder {id}", key, HashAlgorithmName.SHA256);
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        X509Certificate2 leaf = request.CreateSelfSigned(now.AddDays(-1), now.AddYears(10));
+        var now = DateTimeOffset.UtcNow;
+        var leaf = request.CreateSelfSigned(now.AddDays(-1), now.AddYears(10));
         return SslStreamCertificateContext.Create(leaf, null, offline: true);
     }
 }

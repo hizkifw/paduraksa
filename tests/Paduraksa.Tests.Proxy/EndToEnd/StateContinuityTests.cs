@@ -6,7 +6,6 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Proxy.Config;
-using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
@@ -75,40 +74,40 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
     [Fact]
     public async Task YarpDestinationHealthSurvivesPublishesUnderLoad()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(Model(0));
-        IProxyStateLookup yarp = server.Services.GetRequiredService<IProxyStateLookup>();
-        using HttpClient client = ProxyTestServer.CreateClient(maxConnections: 8);
+        var ct = TestContext.Current.CancellationToken;
+        await using var server = await ProxyTestServer.StartAsync(Model(0));
+        var yarp = server.Services.GetRequiredService<IProxyStateLookup>();
+        using var client = ProxyTestServer.CreateClient(maxConnections: 8);
 
         // Set up the verdicts: probes mark probed-d1 unhealthy; failed requests mark flaky-d1 unhealthy.
         await WaitUntilAsync(() => Health(yarp, "stable", "stable-d0").Active == DestinationHealth.Healthy
             && Health(yarp, "stable", "stable-d1").Active == DestinationHealth.Healthy
             && Health(yarp, "probed", "probed-d0").Active == DestinationHealth.Healthy
             && Health(yarp, "probed", "probed-d1").Active == DestinationHealth.Unhealthy, "active probes settle", ct);
-        for (int i = 0; i < 200 && Health(yarp, "flaky", "flaky-d1").Passive != DestinationHealth.Unhealthy; i++)
+        for (var i = 0; i < 200 && Health(yarp, "flaky", "flaky-d1").Passive != DestinationHealth.Unhealthy; i++)
         {
-            using HttpResponseMessage warmup = await client.SendAsync(server.Request("flaky.test", "/warmup"), ct);
+            using var warmup = await client.SendAsync(server.Request("flaky.test", "/warmup"), ct);
         }
 
         Assert.Equal(DestinationHealth.Unhealthy, Health(yarp, "flaky", "flaky-d1").Passive);
-        foreach ((string cluster, string destination, Expected expected) in Tracked)
+        foreach (var (cluster, destination, expected) in Tracked)
         {
             Assert.True(Holds(Health(yarp, cluster, destination), expected), $"{destination} before the load: {Describe(Health(yarp, cluster, destination))}");
         }
 
         // Load + publishes + a health monitor, all for LoadDuration.
-        using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         ConcurrentQueue<string> failures = new();
         ConcurrentQueue<string> flaps = new();
         long requests = 0;
-        int published = 0;
-        long generationBefore = server.Store.Current.Generation;
+        var published = 0;
+        var generationBefore = server.Store.Current.Generation;
 
-        Task[] load = new Task[8];
+        var load = new Task[8];
         string[] hosts = ["stable.test", "probed.test", "flaky.test"];
-        for (int w = 0; w < load.Length; w++)
+        for (var w = 0; w < load.Length; w++)
         {
-            string host = hosts[w % hosts.Length];
+            var host = hosts[w % hosts.Length];
             load[w] = Task.Run(
                 async () =>
                 {
@@ -116,7 +115,7 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
                     {
                         try
                         {
-                            using HttpResponseMessage response = await client.SendAsync(server.Request(host, "/load"), ct);
+                            using var response = await client.SendAsync(server.Request(host, "/load"), ct);
                             await response.Content.LoadIntoBufferAsync(ct);
                             if (response.StatusCode != HttpStatusCode.OK)
                             {
@@ -134,14 +133,14 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
                 ct);
         }
 
-        Task publisher = Task.Run(
+        var publisher = Task.Run(
             async () =>
             {
-                int variant = 0;
+                var variant = 0;
                 while (!stop.IsCancellationRequested)
                 {
-                    Stopwatch started = Stopwatch.StartNew();
-                    PublishResult result = await server.PublishAsync(Model(++variant));
+                    var started = Stopwatch.StartNew();
+                    var result = await server.PublishAsync(Model(++variant));
                     if (!result.Succeeded)
                     {
                         failures.Enqueue($"publish {variant}: {result.Status} {string.Join("; ", result.Errors)}");
@@ -151,7 +150,7 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
                         published++;
                     }
 
-                    TimeSpan rest = PublishEvery - started.Elapsed;
+                    var rest = PublishEvery - started.Elapsed;
                     if (rest > TimeSpan.Zero && !stop.IsCancellationRequested)
                     {
                         await Task.Delay(rest, CancellationToken.None);
@@ -160,14 +159,14 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
             },
             ct);
 
-        Task monitor = Task.Run(
+        var monitor = Task.Run(
             async () =>
             {
                 while (!stop.IsCancellationRequested)
                 {
-                    foreach ((string cluster, string destination, Expected expected) in Tracked)
+                    foreach (var (cluster, destination, expected) in Tracked)
                     {
-                        DestinationHealthState health = Health(yarp, cluster, destination);
+                        var health = Health(yarp, cluster, destination);
                         if (!Holds(health, expected))
                         {
                             flaps.Enqueue($"{destination} (generation {server.Store.Current.Generation}): {Describe(health)}, expected {expected}");
@@ -192,8 +191,8 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
 
     private static DestinationHealthState Health(IProxyStateLookup yarp, string cluster, string destination)
     {
-        Assert.True(yarp.TryGetCluster(TestIds.Upstream(cluster).ToString(), out ClusterState? state), $"cluster {cluster} is gone");
-        Assert.True(state.Destinations.TryGetValue(TestIds.Destination(destination).ToString(), out DestinationState? found), $"destination {destination} is gone");
+        Assert.True(yarp.TryGetCluster(TestIds.Upstream(cluster).ToString(), out var state), $"cluster {cluster} is gone");
+        Assert.True(state.Destinations.TryGetValue(TestIds.Destination(destination).ToString(), out var found), $"destination {destination} is gone");
         return found.Health;
     }
 
@@ -209,7 +208,7 @@ public sealed class StateContinuityTests(TestUpstream upstream) : IClassFixture<
 
     private static async Task WaitUntilAsync(Func<bool> condition, string what, CancellationToken ct)
     {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(15);
+        var deadline = DateTime.UtcNow.AddSeconds(15);
         while (!condition())
         {
             Assert.True(DateTime.UtcNow < deadline, $"timed out waiting until {what}");

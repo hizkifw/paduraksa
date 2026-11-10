@@ -86,12 +86,12 @@ public sealed partial class AcmeAccountService
         }
 
         Uri directory = new(request.DirectoryUrl, UriKind.Absolute);
-        AcmeAccountId id = AcmeAccountId.New();
+        var id = AcmeAccountId.New();
         _ = await _signer.CreateAccountKeyAsync(id, request.Algorithm, cancellationToken).ConfigureAwait(false);
         try
         {
-            AcmeClient client = _clients.GetClient(directory);
-            AcmeAccount registered = await client.RegisterAccountAsync(
+            var client = _clients.GetClient(directory);
+            var registered = await client.RegisterAccountAsync(
                 id,
                 new AcmeNewAccountRequest(
                     [.. request.Contacts],
@@ -99,7 +99,7 @@ public sealed partial class AcmeAccountService
                     request.EabKid is { } kid && request.EabSecretId is { } secret ? new AcmeExternalAccountBinding(kid, secret) : null),
                 cancellationToken).ConfigureAwait(false);
 
-            DateTimeOffset now = _time.GetUtcNow();
+            var now = _time.GetUtcNow();
             AcmeAccountRow row = new()
             {
                 Id = id,
@@ -115,12 +115,12 @@ public sealed partial class AcmeAccountService
                 CreatedAt = now,
                 UpdatedAt = now,
             };
-            AcmeAccountResult result = await _config.ApplyOperationalChangeAsync(
+            var result = await _config.ApplyOperationalChangeAsync(
                 async context =>
                 {
                     context.AcmeAccounts.Add(row);
                     await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-                    AuditEntry audit = IssuanceMapping.Entry(origin, "acme.account.create", id, AuditOutcome.Success) with
+                    var audit = IssuanceMapping.Entry(origin, "acme.account.create", id, AuditOutcome.Success) with
                     {
                         Details = IssuanceMapping.Json(w =>
                         {
@@ -147,7 +147,7 @@ public sealed partial class AcmeAccountService
         catch (Exception ex) when (ex is AcmeException or InvalidOperationException or HttpRequestException)
         {
             await DeleteKeyAsync(id).ConfigureAwait(false);
-            string message = IssuanceMapping.Sanitize(ex.Message);
+            var message = IssuanceMapping.Sanitize(ex.Message);
             LogCreateFailed(directory, ex.GetType().Name);
             return new AcmeAccountResult(IssuanceChangeStatus.Failed, Message: message);
         }
@@ -179,11 +179,11 @@ public sealed partial class AcmeAccountService
             return new AcmeAccountResult(IssuanceChangeStatus.Denied);
         }
 
-        bool hasKey = !eabHmacKey.IsEmpty;
+        var hasKey = !eabHmacKey.IsEmpty;
         request = request with { EabSecretId = null };
-        ConfigError? problem = ValidateFields(request, hasKey)
-            ?? (eabHmacKey.Length > MaxEabKeyLength ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.TextTooLong, $"the binding key is limited to {MaxEabKeyLength} bytes") : null)
-            ?? (hasKey && _secrets is null ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.EabSecretMissing, "this server has no vault to keep a binding key in") : null);
+        var problem = ValidateFields(request, hasKey)
+                      ?? (eabHmacKey.Length > MaxEabKeyLength ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.TextTooLong, $"the binding key is limited to {MaxEabKeyLength} bytes") : null)
+                      ?? (hasKey && _secrets is null ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.EabSecretMissing, "this server has no vault to keep a binding key in") : null);
         if (problem is not null)
         {
             return new AcmeAccountResult(IssuanceChangeStatus.Invalid, Errors: [problem]);
@@ -194,14 +194,14 @@ public sealed partial class AcmeAccountService
             return await CreateAsync(request, origin, cancellationToken).ConfigureAwait(false);
         }
 
-        SecretId secret = await _secrets!.PutAsync(
+        var secret = await _secrets!.PutAsync(
             SecretKind.EabHmacKey,
             eabHmacKey,
             new SecretOptions(string.IsNullOrWhiteSpace(request.Label) ? "EAB key" : $"EAB key: {request.Label.Trim()}", MacAlgorithm.HmacSha256, null),
             cancellationToken).ConfigureAwait(false);
         try
         {
-            AcmeAccountResult result = await CreateAsync(request with { EabSecretId = secret }, origin, cancellationToken).ConfigureAwait(false);
+            var result = await CreateAsync(request with { EabSecretId = secret }, origin, cancellationToken).ConfigureAwait(false);
             if (result.Status != IssuanceChangeStatus.Committed)
             {
                 await SecretCleanup.TryDeleteAsync(_secrets!, secret, _logger, cancellationToken).ConfigureAwait(false);
@@ -268,10 +268,10 @@ public sealed partial class AcmeAccountService
             return new AcmeAccountResult(IssuanceChangeStatus.Failed, Message: IssuanceMapping.Sanitize(ex.Message));
         }
 
-        AcmeAccountResult result = await _config.ApplyOperationalChangeAsync(
+        var result = await _config.ApplyOperationalChangeAsync(
             async context =>
             {
-                AcmeAccountRow? tracked = await context.AcmeAccounts.FirstOrDefaultAsync(a => a.Id == id, cancellationToken).ConfigureAwait(false);
+                var tracked = await context.AcmeAccounts.FirstOrDefaultAsync(a => a.Id == id, cancellationToken).ConfigureAwait(false);
                 if (tracked is null)
                 {
                     return (new AcmeAccountResult(IssuanceChangeStatus.NotFound), null);
@@ -301,7 +301,7 @@ public sealed partial class AcmeAccountService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            List<AcmeAccountRow> rows = await context.AcmeAccounts.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
+            var rows = await context.AcmeAccounts.AsNoTracking().ToListAsync(cancellationToken).ConfigureAwait(false);
             return [.. rows.OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id).Select(IssuanceMapping.ToSummary)];
         }
     }
@@ -312,7 +312,7 @@ public sealed partial class AcmeAccountService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            AcmeAccountRow? row = await context.AcmeAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken).ConfigureAwait(false);
+            var row = await context.AcmeAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, cancellationToken).ConfigureAwait(false);
             return row is null ? null : IssuanceMapping.ToSummary(row);
         }
     }
@@ -338,7 +338,7 @@ public sealed partial class AcmeAccountService
             return new ConfigError("/contacts", ConfigErrorCodes.ValueNull, "the contacts are missing (use an empty list for none)");
         }
 
-        if (!Uri.TryCreate(request.DirectoryUrl, UriKind.Absolute, out Uri? directory) || directory.Scheme != Uri.UriSchemeHttps || directory.Host.Length == 0)
+        if (!Uri.TryCreate(request.DirectoryUrl, UriKind.Absolute, out var directory) || directory.Scheme != Uri.UriSchemeHttps || directory.Host.Length == 0)
         {
             return new ConfigError("/directoryUrl", IssuanceErrorCodes.DirectoryInvalid, "the directory URL must be an absolute https URL");
         }

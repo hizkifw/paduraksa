@@ -21,7 +21,7 @@ public sealed class ConfigCompilerTests : IDisposable
     [Fact]
     public void AValidDocumentCompilesToALabelledCandidate()
     {
-        ConfigCompilation compilation = _certificates.Compile(Valid(), Revision);
+        var compilation = _certificates.Compile(Valid(), Revision);
 
         Assert.True(compilation.Succeeded);
         Assert.Empty(compilation.Errors);
@@ -36,10 +36,10 @@ public sealed class ConfigCompilerTests : IDisposable
         ConfigDocument document = new(Hosts: [new HostConfig(AppHost, ["admin.example.com"], Kind: HostKind.Admin)]);
         ConfigCompiler compiler = new(new SnapshotCompilerOptions { AdminUpstream = false });
 
-        ConfigCompilation compilation = compiler.Compile(document, Revision, _certificates.InventoryFor(document));
+        var compilation = compiler.Compile(document, Revision, _certificates.InventoryFor(document));
 
         Assert.True(compilation.Succeeded);
-        ConfigWarning warning = Assert.Single(compilation.Warnings, w => w.Code == ConfigWarningCodes.AdminInternalDisabled);
+        var warning = Assert.Single(compilation.Warnings, w => w.Code == ConfigWarningCodes.AdminInternalDisabled);
         Assert.Equal("/hosts/0", warning.Path);
         Assert.Equal(-1, Assert.Single(compilation.Snapshot!.HostsByIndex[0].Routes).Slot);
     }
@@ -49,7 +49,7 @@ public sealed class ConfigCompilerTests : IDisposable
     {
         // Not in canonical order: hosts and upstreams by descending ID, routes by descending order, a disabled
         // destination first. The compiler reads the canonical form; the paths index what was given.
-        UpstreamId spare = Id<UpstreamId>(2);
+        var spare = Id<UpstreamId>(2);
         ConfigDocument document = new(
             Settings: new GlobalSettings(DefaultCertificateId: Id<CertificateId>(1)),
             Upstreams:
@@ -70,7 +70,7 @@ public sealed class ConfigCompilerTests : IDisposable
                 new HostConfig(AppHost, ["a.example.com"], Routes: [new RouteConfig(Id<RouteId>(3), spare)]),
             ]);
 
-        ConfigCompilation compilation = _certificates.Compile(document, Revision);
+        var compilation = _certificates.Compile(document, Revision);
 
         Assert.False(compilation.Succeeded);
         Assert.Null(compilation.Snapshot);
@@ -83,14 +83,14 @@ public sealed class ConfigCompilerTests : IDisposable
     [Fact]
     public void ADuplicateIdPointsAtTheLaterObject()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         HostConfig twin = new(AppHost, ["twin.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200));
 
-        ConfigError error = Assert.Single(_certificates.Compile(document with { Hosts = [.. document.Hosts, twin] }, Revision).Errors);
+        var error = Assert.Single(_certificates.Compile(document with { Hosts = [.. document.Hosts, twin] }, Revision).Errors);
         Assert.Equal(("/hosts/3", "duplicate host ID"), (error.Path, error.Message));
 
         // Two more copies: two duplicate errors, both at the last copy, reported once.
-        ConfigDocument triple = document with { Hosts = [.. document.Hosts, twin, twin with { Names = ["twin2.example.com"] }] };
+        var triple = document with { Hosts = [.. document.Hosts, twin, twin with { Names = ["twin2.example.com"] }] };
         error = Assert.Single(_certificates.Compile(triple, Revision).Errors);
         Assert.Equal(("/hosts/4", "duplicate host ID"), (error.Path, error.Message));
     }
@@ -99,15 +99,15 @@ public sealed class ConfigCompilerTests : IDisposable
     public void AnInheritedValueIsReportedWhereItIsUsed()
     {
         // The bad address comes from the global defaults: each host whose chain carries it reports it.
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Settings = document.Settings with { Defaults = new HostSettings { IpAllowList = new IpAllowListSettings(["10.0.0.1/8"]) } },
             Profiles = [],
             Hosts = [.. document.Hosts.Where(h => h.Id != RespondHost).Select(h => h with { ProfileId = null })],
         };
 
-        IReadOnlyList<ConfigError> errors = _certificates.Compile(changed, Revision).Errors;
+        var errors = _certificates.Compile(changed, Revision).Errors;
 
         Assert.Equal(["/hosts/0", "/hosts/1"], errors.Select(e => e.Path));
         Assert.All(errors, e => Assert.Contains("'10.0.0.1/8' isn't an IP address or CIDR", e.Message, StringComparison.Ordinal));
@@ -116,8 +116,8 @@ public sealed class ConfigCompilerTests : IDisposable
     [Fact]
     public void ValuesTheModelCantCarryFailWithAPath()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Upstreams = [document.Upstreams[0] with { LoadBalancing = (LoadBalancingPolicy)9 }],
             Hosts =
@@ -128,7 +128,7 @@ public sealed class ConfigCompilerTests : IDisposable
             ],
         };
 
-        ConfigCompilation compilation = _certificates.Compile(changed, Revision);
+        var compilation = _certificates.Compile(changed, Revision);
 
         Assert.False(compilation.Succeeded);
         Assert.Equal(
@@ -139,8 +139,8 @@ public sealed class ConfigCompilerTests : IDisposable
     [Fact]
     public void ANullRespondBodyIsTheEmptyBody()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with { Hosts = [.. document.Hosts.Select(h => h.Id == RespondHost ? h with { Respond = h.Respond! with { Body = null! } } : h)] };
+        var document = Valid();
+        var changed = document with { Hosts = [.. document.Hosts.Select(h => h.Id == RespondHost ? h with { Respond = h.Respond! with { Body = null! } } : h)] };
 
         Assert.Empty(ConfigValidator.Validate(changed));
         Assert.Empty(_certificates.Compile(changed, Revision).Errors);
@@ -158,13 +158,13 @@ public sealed class ConfigCompilerTests : IDisposable
     public void ForcingHttpsOnAHostWithoutHttpsFailsAtTheHost()
     {
         // The validator reports it too; the compiler is the backstop, and judges the setting after layering.
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Hosts = [.. document.Hosts.Select(h => h.Id == RespondHost ? h with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } } : h)],
         };
 
-        ConfigError error = Assert.Single(_certificates.Compile(changed, Revision).Errors);
+        var error = Assert.Single(_certificates.Compile(changed, Revision).Errors);
         Assert.Equal(("/hosts/2", CompileFailed), (error.Path, error.Code));
         Assert.Contains("can't force HTTPS", error.Message, StringComparison.Ordinal);
     }
@@ -176,18 +176,18 @@ public sealed class ConfigCompilerTests : IDisposable
     [Fact]
     public void EveryDocumentThatValidatesCompiles()
     {
-        foreach ((string name, ConfigDocument document) in Samples())
+        foreach (var (name, document) in Samples())
         {
             Assert.True(ConfigValidator.Validate(document).Count == 0, $"{name} should be valid");
             AssertCompiles(name, document);
         }
 
-        int valid = 0;
-        int total = 0;
-        for (int seed = 0; seed < 400; seed++)
+        var valid = 0;
+        var total = 0;
+        for (var seed = 0; seed < 400; seed++)
         {
-            ConfigDocument random = Random(seed);
-            foreach ((string name, ConfigDocument document) in (ReadOnlySpan<(string, ConfigDocument)>)[($"random {seed}", random), ($"respelled {seed}", Respelled(random, seed))])
+            var random = Random(seed);
+            foreach (var (name, document) in (ReadOnlySpan<(string, ConfigDocument)>)[($"random {seed}", random), ($"respelled {seed}", Respelled(random, seed))])
             {
                 total++;
                 if (ConfigValidator.Validate(document).Count == 0)
@@ -204,7 +204,7 @@ public sealed class ConfigCompilerTests : IDisposable
 
     private void AssertCompiles(string name, ConfigDocument document)
     {
-        ConfigCompilation compilation = _certificates.Compile(document, Revision);
+        var compilation = _certificates.Compile(document, Revision);
         Assert.True(compilation.Succeeded, $"{name}: {string.Join("; ", compilation.Errors.Select(e => $"{e.Path}: {e.Message}"))}");
     }
 
@@ -213,7 +213,7 @@ public sealed class ConfigCompilerTests : IDisposable
         yield return ("valid", Valid());
         yield return ("empty", new ConfigDocument());
         yield return ("edges", Edges());
-        foreach (TrustedProxySettings trusted in (TrustedProxySettings[])
+        foreach (var trusted in (TrustedProxySettings[])
             [
                 new(TrustedProxyMode.CloudflareProxy, UseTrueClientIp: true, ForwardedForFallback: true),
                 new(TrustedProxyMode.CloudflareTunnel, ["127.0.0.1", "::1"]),
@@ -229,7 +229,7 @@ public sealed class ConfigCompilerTests : IDisposable
     // disabled host routes to with every destination disabled.
     private static ConfigDocument Edges()
     {
-        UpstreamId parked = Id<UpstreamId>(2);
+        var parked = Id<UpstreamId>(2);
         return new ConfigDocument(
             Settings: new GlobalSettings(Defaults: new HostSettings { IpAllowList = new IpAllowListSettings([" ::FFFF:10.0.0.0/104 ", "2001:DB8::/32"], DropDenied: true) }),
             Upstreams:

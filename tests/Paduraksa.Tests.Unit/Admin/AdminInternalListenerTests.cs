@@ -45,7 +45,7 @@ public sealed class AdminInternalListenerTests : IDisposable
 
         Assert.True(listener.Enabled);
         Assert.True(listener.UsesUnixSocket);
-        string socket = listener.SocketPath!;
+        var socket = listener.SocketPath!;
         Assert.Equal(Path.Combine(_root, "run", AdminInternalListener.SocketFileName), socket);
         if (!OperatingSystem.IsWindows())
         {
@@ -67,7 +67,7 @@ public sealed class AdminInternalListenerTests : IDisposable
             Assert.Skip("Unix-domain sockets are not used on Windows.");
         }
 
-        string deep = Path.Combine(_root, new string('d', 120));
+        var deep = Path.Combine(_root, new string('d', 120));
         using AdminInternalListener listener = new(deep, enabled: true);
 
         Assert.True(listener.Enabled);
@@ -87,9 +87,9 @@ public sealed class AdminInternalListenerTests : IDisposable
             Assert.Skip("Unix-domain sockets are not used on Windows.");
         }
 
-        string run = Path.Combine(_root, "run");
+        var run = Path.Combine(_root, "run");
         Directory.CreateDirectory(run);
-        string socketPath = Path.Combine(run, AdminInternalListener.SocketFileName);
+        var socketPath = Path.Combine(run, AdminInternalListener.SocketFileName);
         using (Socket stale = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified))
         {
             stale.Bind(new UnixDomainSocketEndPoint(socketPath));
@@ -111,7 +111,7 @@ public sealed class AdminInternalListenerTests : IDisposable
         }
 
         using AdminInternalListener listener = new(_root, enabled: true);
-        string socketPath = listener.SocketPath!;
+        var socketPath = listener.SocketPath!;
         File.WriteAllText(socketPath, "this process");
         listener.RecordBoundSocket();
 
@@ -135,7 +135,7 @@ public sealed class AdminInternalListenerTests : IDisposable
         }
 
         using AdminInternalListener listener = new(_root, enabled: true);
-        string socketPath = listener.SocketPath!;
+        var socketPath = listener.SocketPath!;
         File.WriteAllText(socketPath, "this process");
         listener.RecordBoundSocket();
 
@@ -152,14 +152,14 @@ public sealed class AdminInternalListenerTests : IDisposable
             Assert.Skip("Unix-domain sockets are not used on Windows.");
         }
 
-        string run = Path.Combine(_root, "run");
+        var run = Path.Combine(_root, "run");
         Directory.CreateDirectory(run);
-        string socketPath = Path.Combine(run, AdminInternalListener.SocketFileName);
+        var socketPath = Path.Combine(run, AdminInternalListener.SocketFileName);
         using Socket live = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         live.Bind(new UnixDomainSocketEndPoint(socketPath));
         live.Listen(1);
 
-        AdminInternalStartupException ex = Assert.Throws<AdminInternalStartupException>(() => new AdminInternalListener(_root, enabled: true));
+        var ex = Assert.Throws<AdminInternalStartupException>(() => new AdminInternalListener(_root, enabled: true));
         Assert.Contains("already served", ex.Message, StringComparison.Ordinal);
         Assert.True(File.Exists(socketPath));
     }
@@ -172,12 +172,12 @@ public sealed class AdminInternalListenerTests : IDisposable
             Assert.Skip("Unix permissions and symlinks differ on Windows.");
         }
 
-        string target = Path.Combine(_root, "elsewhere");
+        var target = Path.Combine(_root, "elsewhere");
         Directory.CreateDirectory(target);
-        string run = Path.Combine(_root, "run");
+        var run = Path.Combine(_root, "run");
         Directory.CreateSymbolicLink(run, target);
 
-        AdminInternalStartupException ex = Assert.Throws<AdminInternalStartupException>(() => new AdminInternalListener(_root, enabled: true));
+        var ex = Assert.Throws<AdminInternalStartupException>(() => new AdminInternalListener(_root, enabled: true));
         Assert.Contains("symlink", ex.Message, StringComparison.Ordinal);
     }
 }

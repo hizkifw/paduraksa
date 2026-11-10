@@ -120,8 +120,8 @@ public sealed partial class CertificateService
     {
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(origin);
-        CertificateRecoveryStep step = CertificateRecoveryStep.Failed;
-        string target = registration.Id.ToString();
+        var step = CertificateRecoveryStep.Failed;
+        var target = registration.Id.ToString();
         _ = await _config.ApplyCertificateChangeAsync(
             origin,
             async scope =>
@@ -138,7 +138,7 @@ public sealed partial class CertificateService
                     return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged), null, false);
                 }
 
-                CertificateChangeOutcome outcome = await RegisterCoreAsync(scope, registration, origin, cancellationToken).ConfigureAwait(false);
+                var outcome = await RegisterCoreAsync(scope, registration, origin, cancellationToken).ConfigureAwait(false);
                 step = outcome.Result.Status is CertificateChangeStatus.Committed or CertificateChangeStatus.Unchanged ? CertificateRecoveryStep.Registered : CertificateRecoveryStep.Failed;
                 return outcome with { Republish = republish && outcome.Republish };
             },
@@ -216,7 +216,7 @@ public sealed partial class CertificateService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            IQueryable<CertificateRow> rows = context.Certificates.AsNoTracking();
+            var rows = context.Certificates.AsNoTracking();
             if (query?.Source is { } source)
             {
                 rows = rows.Where(c => c.Source == source);
@@ -238,9 +238,9 @@ public sealed partial class CertificateService
                 rows = rows.Where(c => context.CertificateNames.Any(n => n.CertificateId == c.Id && candidates.Contains(n.Name)));
             }
 
-            List<CertificateRow> found = await rows.ToListAsync(cancellationToken).ConfigureAwait(false);
-            ILookup<CertificateId, string> names = await NamesOfAsync(context, found.Select(c => c.Id), cancellationToken).ConfigureAwait(false);
-            DateTimeOffset now = _timeProvider.GetUtcNow();
+            var found = await rows.ToListAsync(cancellationToken).ConfigureAwait(false);
+            var names = await NamesOfAsync(context, found.Select(c => c.Id), cancellationToken).ConfigureAwait(false);
+            var now = _timeProvider.GetUtcNow();
             return [.. found.OrderByDescending(c => c.CreatedAt).ThenBy(c => c.Id).Select(c => ToSummary(c, [.. names[c.Id]], now))];
         }
     }
@@ -251,13 +251,13 @@ public sealed partial class CertificateService
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            CertificateRow? row = await context.Certificates.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
+            var row = await context.Certificates.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
             if (row is null)
             {
                 return null;
             }
 
-            ILookup<CertificateId, string> names = await NamesOfAsync(context, [id], cancellationToken).ConfigureAwait(false);
+            var names = await NamesOfAsync(context, [id], cancellationToken).ConfigureAwait(false);
             return new CertificateDetail(
                 ToSummary(row, [.. names[id]], _timeProvider.GetUtcNow()),
                 JsonSerializer.Deserialize<string[]>(row.ChainIssuers) ?? [],
@@ -268,10 +268,10 @@ public sealed partial class CertificateService
     private async Task<CertificateChangeOutcome> RegisterCoreAsync(
         CertificateChangeScope scope, CertificateRegistration registration, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        ConfigDbContext context = scope.Context;
-        CertificateInfo info = registration.Info;
+        var context = scope.Context;
+        var info = registration.Info;
         // A refusal is audited as what was attempted: an add for a new ID, an update for one that exists.
-        string action = !registration.Id.IsEmpty && await context.Certificates.AnyAsync(c => c.Id == registration.Id, cancellationToken).ConfigureAwait(false)
+        var action = !registration.Id.IsEmpty && await context.Certificates.AnyAsync(c => c.Id == registration.Id, cancellationToken).ConfigureAwait(false)
             ? "certificate.update"
             : "certificate.add";
         if (Validate(registration) is { } problem)
@@ -284,7 +284,7 @@ public sealed partial class CertificateService
             return Rejected(origin, action, registration.Id, BuiltInError());
         }
 
-        List<string> names = CertificateNames.Normalize(info.SubjectAlternativeNames, out List<string> rejected);
+        var names = CertificateNames.Normalize(info.SubjectAlternativeNames, out var rejected);
         if (rejected.Count > 0)
         {
             LogNamesDropped(registration.Id, rejected.Count);
@@ -295,11 +295,11 @@ public sealed partial class CertificateService
             return Rejected(origin, action, registration.Id, new ConfigError(string.Empty, CertificateErrorCodes.NamesRequired, "the certificate covers no usable name (a DNS name, a wildcard or an IP address)"));
         }
 
-        DateTimeOffset now = _timeProvider.GetUtcNow();
-        CertificateRow? row = await context.Certificates.FirstOrDefaultAsync(c => c.Id == registration.Id, cancellationToken).ConfigureAwait(false);
-        List<string> oldNames = row is null ? [] : await context.CertificateNames.Where(n => n.CertificateId == registration.Id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
-        bool isNew = row is null;
-        ServingFacts before = row is null ? default : ServingFacts.Of(row, oldNames);
+        var now = _timeProvider.GetUtcNow();
+        var row = await context.Certificates.FirstOrDefaultAsync(c => c.Id == registration.Id, cancellationToken).ConfigureAwait(false);
+        var oldNames = row is null ? [] : await context.CertificateNames.Where(n => n.CertificateId == registration.Id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var isNew = row is null;
+        var before = row is null ? default : ServingFacts.Of(row, oldNames);
         if (origin.ViaAdminProxy
             && !isNew
             && await AdminCoverageRefusalAsync(context, scope.Document, registration.Id, oldNames, names, cancellationToken).ConfigureAwait(false) is { } adminRefusal)
@@ -324,7 +324,7 @@ public sealed partial class CertificateService
         row.Label = registration.Label ?? row.Label;
         row.Notes = registration.Notes ?? row.Notes;
 
-        ServingFacts after = ServingFacts.Of(row, names);
+        var after = ServingFacts.Of(row, names);
         if (!isNew && context.Entry(row).State == EntityState.Unchanged && after == before)
         {
             return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged, ToSummary(row, names, now)), null, false);
@@ -339,7 +339,7 @@ public sealed partial class CertificateService
         await ReplaceNamesAsync(context, row.Id, oldNames, names, cancellationToken).ConfigureAwait(false);
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        AuditEntry audit = Entry(origin, isNew ? "certificate.add" : "certificate.update", row.Id, AuditOutcome.Success) with
+        var audit = Entry(origin, isNew ? "certificate.add" : "certificate.update", row.Id, AuditOutcome.Success) with
         {
             Details = Json(w =>
             {
@@ -360,11 +360,11 @@ public sealed partial class CertificateService
     private async Task<CertificateChangeOutcome> RegisterPendingCoreAsync(
         CertificateChangeScope scope, CertificateId id, CertificateSource source, IReadOnlyList<string> requested, string? label, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        ConfigDbContext context = scope.Context;
-        ConfigError? problem = id.IsEmpty ? new ConfigError(string.Empty, ConfigErrorCodes.IdEmpty, "the certificate ID can't be empty")
+        var context = scope.Context;
+        var problem = id.IsEmpty ? new ConfigError(string.Empty, ConfigErrorCodes.IdEmpty, "the certificate ID can't be empty")
             : !Enum.IsDefined(source) ? new ConfigError("/source", ConfigErrorCodes.EnumUndefined, $"unknown certificate source {source}")
             : LengthProblem("/label", "label", label, MaxLabelLength) ?? (IsBuiltIn(id) ? BuiltInError() : null);
-        List<string> names = CertificateNames.Normalize(requested, out List<string> rejected);
+        var names = CertificateNames.Normalize(requested, out var rejected);
         problem ??= rejected.Count > 0 ? new ConfigError("/names", CertificateErrorCodes.NameInvalid, $"'{rejected[0]}' is not a DNS name, a wildcard or an IP address")
             : names.Count == 0 && source != CertificateSource.LocalCaRoot ? new ConfigError("/names", CertificateErrorCodes.NamesRequired, "a certificate needs at least one name")
             : await context.Certificates.AnyAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false)
@@ -375,7 +375,7 @@ public sealed partial class CertificateService
             return Rejected(origin, "certificate.add", id, problem);
         }
 
-        DateTimeOffset now = _timeProvider.GetUtcNow();
+        var now = _timeProvider.GetUtcNow();
         CertificateRow row = new()
         {
             Id = id,
@@ -390,7 +390,7 @@ public sealed partial class CertificateService
         context.Certificates.Add(row);
         await ReplaceNamesAsync(context, id, [], names, cancellationToken).ConfigureAwait(false);
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        AuditEntry audit = Entry(origin, "certificate.add", id, AuditOutcome.Success) with
+        var audit = Entry(origin, "certificate.add", id, AuditOutcome.Success) with
         {
             Details = Json(w =>
             {
@@ -406,7 +406,7 @@ public sealed partial class CertificateService
     private async Task<CertificateChangeOutcome> SetStatusCoreAsync(
         CertificateChangeScope scope, CertificateId id, CertificateStatus status, string? message, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        ConfigDbContext context = scope.Context;
+        var context = scope.Context;
         if (!Enum.IsDefined(status))
         {
             return Rejected(origin, "certificate.update", id, new ConfigError("/status", ConfigErrorCodes.EnumUndefined, $"unknown certificate status {status}"));
@@ -417,7 +417,7 @@ public sealed partial class CertificateService
             return Rejected(origin, "certificate.update", id, tooLong);
         }
 
-        CertificateRow? row = await context.Certificates.FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
+        var row = await context.Certificates.FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
         if (row is null)
         {
             return NotFound(origin, "certificate.update", id);
@@ -428,20 +428,20 @@ public sealed partial class CertificateService
             return Rejected(origin, "certificate.update", id, new ConfigError("/status", CertificateErrorCodes.NoChain, "a certificate without a chain can't be active; register it with the issued chain"));
         }
 
-        string? statusMessage = status == CertificateStatus.Failed ? message : null;
-        List<string> names = await context.CertificateNames.Where(n => n.CertificateId == id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
-        DateTimeOffset now = _timeProvider.GetUtcNow();
+        var statusMessage = status == CertificateStatus.Failed ? message : null;
+        var names = await context.CertificateNames.Where(n => n.CertificateId == id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var now = _timeProvider.GetUtcNow();
         if (row.Status == status && row.StatusMessage == statusMessage)
         {
             return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged, ToSummary(row, names, now)), null, false);
         }
 
-        ServingFacts before = ServingFacts.Of(row, names);
+        var before = ServingFacts.Of(row, names);
         row.Status = status;
         row.StatusMessage = statusMessage;
         row.UpdatedAt = now;
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        AuditEntry audit = Entry(origin, "certificate.update", id, AuditOutcome.Success) with
+        var audit = Entry(origin, "certificate.update", id, AuditOutcome.Success) with
         {
             Details = Json(w => w.WriteString("status", status.ToName())),
         };
@@ -454,7 +454,7 @@ public sealed partial class CertificateService
     private async Task<CertificateChangeOutcome> UpdateDetailsCoreAsync(
         CertificateChangeScope scope, CertificateId id, string? label, string? notes, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        ConfigDbContext context = scope.Context;
+        var context = scope.Context;
         label = string.IsNullOrWhiteSpace(label) ? null : label.Trim();
         notes = string.IsNullOrWhiteSpace(notes) ? null : notes;
         if ((LengthProblem("/label", "label", label, MaxLabelLength) ?? LengthProblem("/notes", "notes", notes, MaxNotesLength)) is { } tooLong)
@@ -462,14 +462,14 @@ public sealed partial class CertificateService
             return Rejected(origin, "certificate.update", id, tooLong);
         }
 
-        CertificateRow? row = await context.Certificates.FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
+        var row = await context.Certificates.FirstOrDefaultAsync(c => c.Id == id, cancellationToken).ConfigureAwait(false);
         if (row is null)
         {
             return NotFound(origin, "certificate.update", id);
         }
 
-        List<string> names = await context.CertificateNames.Where(n => n.CertificateId == id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
-        DateTimeOffset now = _timeProvider.GetUtcNow();
+        var names = await context.CertificateNames.Where(n => n.CertificateId == id).Select(n => n.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var now = _timeProvider.GetUtcNow();
         if (row.Label == label && row.Notes == notes)
         {
             return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Unchanged, ToSummary(row, names, now)), null, false);
@@ -479,7 +479,7 @@ public sealed partial class CertificateService
         row.Notes = notes;
         row.UpdatedAt = now;
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        AuditEntry audit = Entry(origin, "certificate.update", id, AuditOutcome.Success) with
+        var audit = Entry(origin, "certificate.update", id, AuditOutcome.Success) with
         {
             Details = Json(w => w.WriteString("fields", "label,notes")),
         };
@@ -517,18 +517,18 @@ public sealed partial class CertificateService
             return null;
         }
 
-        DateTimeOffset now = _timeProvider.GetUtcNow();
-        List<CertificateId> others = await context.Certificates.AsNoTracking()
+        var now = _timeProvider.GetUtcNow();
+        var others = await context.Certificates.AsNoTracking()
             .Where(c => c.Id != id && c.Status == CertificateStatus.Active && c.NotBefore <= now && c.NotAfter > now)
             .Select(c => c.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
-        ILookup<CertificateId, string> otherNames = (await context.CertificateNames.AsNoTracking()
+        var otherNames = (await context.CertificateNames.AsNoTracking()
                 .Where(n => others.Contains(n.CertificateId))
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false))
             .ToLookup(n => n.CertificateId, n => n.Name);
-        foreach (string name in losing)
+        foreach (var name in losing)
         {
             if (otherNames.Any(group => CertificateSelection.Match([.. group], name) != NameMatch.None))
             {
@@ -546,7 +546,7 @@ public sealed partial class CertificateService
 
     private async Task<CertificateChangeOutcome> DeleteCoreAsync(CertificateChangeScope scope, CertificateId id, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        ConfigDbContext context = scope.Context;
+        var context = scope.Context;
         if (id == AdminCertificate.Id)
         {
             // The admin listener's certificate is the process's own: refused, and audited like the in-use
@@ -570,7 +570,7 @@ public sealed partial class CertificateService
             return Rejected(origin, "certificate.delete", id, adminRefusal);
         }
 
-        List<ConfigError> users = BindingsTo(scope.Document, id);
+        var users = BindingsTo(scope.Document, id);
         if (users.Count > 0)
         {
             return new CertificateChangeOutcome(
@@ -602,9 +602,9 @@ public sealed partial class CertificateService
     private static List<ConfigError> BindingsTo(ConfigDocument document, CertificateId id)
     {
         List<ConfigError> users = [];
-        for (int i = 0; i < document.Hosts.Count; i++)
+        for (var i = 0; i < document.Hosts.Count; i++)
         {
-            HostConfig host = document.Hosts[i];
+            var host = document.Hosts[i];
             if (host.Certificate is { Mode: CertificateBindingMode.Specific } binding && binding.CertificateId == id)
             {
                 users.Add(new ConfigError(
@@ -630,7 +630,7 @@ public sealed partial class CertificateService
 
     private static ConfigError? Validate(CertificateRegistration registration)
     {
-        CertificateInfo info = registration.Info;
+        var info = registration.Info;
         return registration.Id.IsEmpty ? new ConfigError("/id", ConfigErrorCodes.IdEmpty, "the certificate ID can't be empty")
             : !Enum.IsDefined(registration.Source) ? new ConfigError("/source", ConfigErrorCodes.EnumUndefined, $"unknown certificate source {registration.Source}")
             : !Enum.IsDefined(registration.Status) ? new ConfigError("/status", ConfigErrorCodes.EnumUndefined, $"unknown certificate status {registration.Status}")
@@ -651,12 +651,12 @@ public sealed partial class CertificateService
     private static async Task ReplaceNamesAsync(
         ConfigDbContext context, CertificateId id, List<string> oldNames, List<string> names, CancellationToken cancellationToken)
     {
-        foreach (string removed in oldNames.Except(names, StringComparer.OrdinalIgnoreCase))
+        foreach (var removed in oldNames.Except(names, StringComparer.OrdinalIgnoreCase))
         {
             await context.CertificateNames.Where(n => n.CertificateId == id && n.Name == removed).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        foreach (string added in names.Except(oldNames, StringComparer.OrdinalIgnoreCase))
+        foreach (var added in names.Except(oldNames, StringComparer.OrdinalIgnoreCase))
         {
             context.CertificateNames.Add(new CertificateNameRow { CertificateId = id, Name = added });
         }

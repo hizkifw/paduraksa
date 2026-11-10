@@ -1,6 +1,4 @@
 using System.Net;
-
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Certificates;

@@ -1,8 +1,6 @@
 @attribute [Route(DashboardRoutes.Home)]
 @using System.Globalization
 @using Paduraksa.Contracts.Certificates
-@using Paduraksa.Contracts.Commands
-@using Paduraksa.Contracts.Revisions
 @using Paduraksa.Application.Commands
 @using Microsoft.Extensions.Logging
 @inject DashboardCaller Caller
@@ -42,7 +40,7 @@
         }
         else if (Status.IsDegraded || Snapshot.Attention.Count > 0)
         {
-            int count = Snapshot.Attention.Count + (Status.IsDegraded ? 1 : 0);
+            var count = Snapshot.Attention.Count + (Status.IsDegraded ? 1 : 0);
             <div class="pdk-card-head">
                 <div>
                     <MudText Typo="Typo.h6" HtmlTag="h2">@(count == 1 ? "One thing needs you" : $"{count} things need you")</MudText>
@@ -60,7 +58,7 @@
                         </span>
                     </li>
                 }
-                @foreach (AttentionItem item in Snapshot.Attention)
+                @foreach (var item in Snapshot.Attention)
                 {
                     <li class="pdk-attention-item" data-tone="@item.Tone.Css()">
                         <span class="pdk-list-icon pdk-tone-@item.Tone.Css()">
@@ -148,7 +146,7 @@
             else
             {
                 <ul class="pdk-home-lines">
-                    @foreach (HostLine line in Snapshot.Lines)
+                    @foreach (var line in Snapshot.Lines)
                     {
                         <li>
                             <a href="@line.Href" class="pdk-home-line">
@@ -184,7 +182,7 @@
             else
             {
                 <ul class="pdk-home-lines">
-                    @foreach (RecentChange change in Snapshot.Recent)
+                    @foreach (var change in Snapshot.Recent)
                     {
                         <li>
                             <a href="@change.Href" class="pdk-home-line">
@@ -238,7 +236,7 @@
     private async Task LoadAsync(bool force)
     {
         _failed = false;
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -254,11 +252,11 @@
 
         try
         {
-            DateTimeOffset now = Time.GetUtcNow();
-            CurrentConfig? current = _mayReadConfig ? await Config.GetCurrentAsync() : null;
-            IReadOnlyList<CertificateSummary>? certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
-            IReadOnlyList<HostRow>? rows = current is null ? null : HostOverview.Rows(current.Document, certificates, Config.LiveWarnings, now);
-            IReadOnlyList<ExpiringCertificate>? expiring = certificates is null ? null : HomeSnapshot.ExpiringOf(certificates, current?.Document, now);
+            var now = Time.GetUtcNow();
+            var current = _mayReadConfig ? await Config.GetCurrentAsync() : null;
+            var certificates = _mayReadCertificates ? await Config.ListCertificatesAsync() : null;
+            var rows = current is null ? null : HostOverview.Rows(current.Document, certificates, Config.LiveWarnings, now);
+            var expiring = certificates is null ? null : HomeSnapshot.ExpiringOf(certificates, current?.Document, now);
             IReadOnlyList<RecentChange>? recent = null;
             if (current is not null && await Config.ListRevisionsAsync(RecentChanges, null) is { } page)
             {

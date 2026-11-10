@@ -22,7 +22,7 @@ public sealed class TypedIdTests
     [Fact]
     public void RoundTripAllKinds()
     {
-        for (int i = 0; i < 200; i++)
+        for (var i = 0; i < 200; i++)
         {
             AssertRoundTrip(HostId.New());
             AssertRoundTrip(ChallengeId.New());
@@ -50,7 +50,7 @@ public sealed class TypedIdTests
     [Fact]
     public void ValueRoundTripsThroughFromValue()
     {
-        HostId id = HostId.New();
+        var id = HostId.New();
         Assert.Equal(id, HostId.FromValue(id.Value));
         Assert.Equal(id, new HostId(id.Value));
         Assert.Equal(7, (int)((Base62.ToUInt128(id.Value) >> 76) & 0xF)); // UUID version nibble
@@ -72,7 +72,7 @@ public sealed class TypedIdTests
     [InlineData("")]
     public void ParseRejectsInvalidHostIds(string input)
     {
-        Assert.False(HostId.TryParse(input, out HostId result));
+        Assert.False(HostId.TryParse(input, out var result));
         Assert.True(result.IsEmpty);
         Assert.False(HostId.TryParse(Encoding.UTF8.GetBytes(input), out _));
         Assert.Throws<FormatException>(() => HostId.Parse(input));
@@ -105,8 +105,8 @@ public sealed class TypedIdTests
     [Fact]
     public void FormatFailsWhenDestinationTooSmall()
     {
-        HostId id = HostId.New();
-        Assert.False(id.TryFormat(new char[26], out int written));
+        var id = HostId.New();
+        Assert.False(id.TryFormat(new char[26], out var written));
         Assert.Equal(0, written);
         Assert.False(id.TryFormat(new byte[26], out written));
         Assert.True(id.TryFormat(new char[40], out written));
@@ -116,7 +116,7 @@ public sealed class TypedIdTests
     [Fact]
     public void FormattingIgnoresFormatAndProvider()
     {
-        HostId id = HostId.New();
+        var id = HostId.New();
         Assert.Equal(id.ToString(), id.ToString("N", NumberFormatInfo.InvariantInfo));
         Assert.Equal(id.ToString(), $"{id}");
         Assert.Equal(id, HostId.Parse(id.ToString(), CultureInfo.InvariantCulture));
@@ -126,7 +126,7 @@ public sealed class TypedIdTests
     public void UuidV7CreatedInSequenceSortAsStrings()
     {
         HostId[] ids = [.. Enumerable.Range(0, 20_000).Select(_ => HostId.New())];
-        for (int i = 1; i < ids.Length; i++)
+        for (var i = 1; i < ids.Length; i++)
         {
             Assert.True(string.CompareOrdinal(ids[i - 1].ToString(), ids[i].ToString()) < 0);
             Assert.True(ids[i - 1] < ids[i]);
@@ -137,7 +137,7 @@ public sealed class TypedIdTests
     public void Int64OrderedCreatedInSequenceSortAsStrings()
     {
         AuditEventId[] ids = [.. Enumerable.Range(0, 20_000).Select(_ => AuditEventId.New())];
-        for (int i = 1; i < ids.Length; i++)
+        for (var i = 1; i < ids.Length; i++)
         {
             Assert.True(string.CompareOrdinal(ids[i - 1].ToString(), ids[i].ToString()) < 0);
             Assert.True(ids[i - 1].Value < ids[i].Value);
@@ -154,9 +154,9 @@ public sealed class TypedIdTests
         AuditEventId[] longs = [.. Enumerable.Range(0, 2000).Select(_ => AuditEventId.FromValue(random.NextInt64(0, long.MaxValue)))];
         Assert.Equal(longs.Select(g => g.ToString()).Order(StringComparer.Ordinal), longs.Order().Select(g => g.ToString()));
 
-        HostId a = HostId.New();
-        HostId b = HostId.New();
-        HostId aCopy = HostId.FromValue(a.Value);
+        var a = HostId.New();
+        var b = HostId.New();
+        var aCopy = HostId.FromValue(a.Value);
         Assert.True(a < b && a <= b && b > a && b >= a && a <= aCopy && a >= aCopy && a != b);
     }
 
@@ -164,13 +164,13 @@ public sealed class TypedIdTests
     public void JsonRoundTrip()
     {
         var dto = new Dto(HostId.New(), AuditEventId.New(), new Dictionary<ChallengeId, int> { [ChallengeId.New()] = 1 });
-        string json = JsonSerializer.Serialize(dto);
+        var json = JsonSerializer.Serialize(dto);
 
         Assert.Contains($"\"{dto.Host}\"", json, StringComparison.Ordinal);
         Assert.Contains($"\"{dto.Audit}\"", json, StringComparison.Ordinal);
         Assert.Contains($"\"{dto.Map.Keys.Single()}\":1", json, StringComparison.Ordinal);
 
-        Dto? back = JsonSerializer.Deserialize<Dto>(json);
+        var back = JsonSerializer.Deserialize<Dto>(json);
         Assert.NotNull(back);
         Assert.Equal(dto.Host, back.Host);
         Assert.Equal(dto.Audit, back.Audit);
@@ -180,8 +180,8 @@ public sealed class TypedIdTests
     [Fact]
     public void JsonReadsEscapedStrings()
     {
-        HostId id = HostId.New();
-        string escaped = "\"\\u0068" + id.ToString()[1..] + "\"";
+        var id = HostId.New();
+        var escaped = "\"\\u0068" + id.ToString()[1..] + "\"";
         Assert.Equal(id, JsonSerializer.Deserialize<HostId>(escaped));
     }
 
@@ -198,10 +198,10 @@ public sealed class TypedIdTests
     [Fact]
     public void TypeConverterConvertsToAndFromString()
     {
-        TypeConverter converter = TypeDescriptor.GetConverter(typeof(HostId));
+        var converter = TypeDescriptor.GetConverter(typeof(HostId));
         Assert.IsType<TypedIdTypeConverter<HostId>>(converter);
 
-        HostId id = HostId.New();
+        var id = HostId.New();
         Assert.True(converter.CanConvertFrom(typeof(string)));
         Assert.True(converter.CanConvertTo(typeof(string)));
         Assert.Equal(id, converter.ConvertFromInvariantString(id.ToString()));
@@ -210,8 +210,8 @@ public sealed class TypedIdTests
         Assert.False(converter.IsValid("host_nope"));
         Assert.Throws<FormatException>(() => converter.ConvertFromInvariantString("host_nope"));
 
-        TypeConverter audit = TypeDescriptor.GetConverter(typeof(AuditEventId));
-        AuditEventId auditId = AuditEventId.New();
+        var audit = TypeDescriptor.GetConverter(typeof(AuditEventId));
+        var auditId = AuditEventId.New();
         Assert.Equal(auditId, audit.ConvertFromInvariantString(auditId.ToString()));
     }
 
@@ -221,20 +221,20 @@ public sealed class TypedIdTests
     private static void AssertRoundTrip<T>(T id)
         where T : struct, ITypedId<T>
     {
-        string s = id.ToString()!;
+        var s = id.ToString()!;
         Assert.Equal(T.FormattedLength, s.Length);
         Assert.StartsWith(T.Prefix + "_", s, StringComparison.Ordinal);
         Assert.Equal(id, T.Parse(s.AsSpan()));
         Assert.Equal(id, T.Parse(s, null));
-        Assert.True(T.TryParse(s.AsSpan(), out T parsed));
+        Assert.True(T.TryParse(s.AsSpan(), out var parsed));
         Assert.Equal(id, parsed);
 
         Span<char> chars = stackalloc char[64];
-        Assert.True(id.TryFormat(chars, out int charsWritten, default, null));
+        Assert.True(id.TryFormat(chars, out var charsWritten, default, null));
         Assert.Equal(s, chars[..charsWritten].ToString());
 
         Span<byte> utf8 = stackalloc byte[64];
-        Assert.True(id.TryFormat(utf8, out int bytesWritten, default, null));
+        Assert.True(id.TryFormat(utf8, out var bytesWritten, default, null));
         Assert.Equal(s, Encoding.UTF8.GetString(utf8[..bytesWritten]));
         Assert.True(T.TryParse(utf8[..bytesWritten], out parsed));
         Assert.Equal(id, parsed);
@@ -244,8 +244,8 @@ public sealed class TypedIdTests
     [Fact]
     public void Int64RejectsValuesAboveLongMaxValue()
     {
-        string max = "aud_" + Base62.Encode((ulong)long.MaxValue);
-        Assert.True(AuditEventId.TryParse(max, out AuditEventId parsed));
+        var max = "aud_" + Base62.Encode((ulong)long.MaxValue);
+        Assert.True(AuditEventId.TryParse(max, out var parsed));
         Assert.Equal(long.MaxValue, parsed.Value);
 
         Assert.False(AuditEventId.TryParse("aud_" + Base62.Encode((ulong)long.MaxValue + 1), out _));
@@ -274,12 +274,12 @@ public sealed class TypedIdTests
     public void JsonRoundTripWithSourceGeneratedContext()
     {
         var dto = new TypedIdJsonDto(HostId.New(), AuditEventId.New(), new Dictionary<ChallengeId, int> { [ChallengeId.New()] = 1 });
-        string json = JsonSerializer.Serialize(dto, TypedIdJsonContext.Default.TypedIdJsonDto);
+        var json = JsonSerializer.Serialize(dto, TypedIdJsonContext.Default.TypedIdJsonDto);
 
         Assert.Contains($"\"{dto.Host}\"", json, StringComparison.Ordinal);
         Assert.Contains($"\"{dto.Map.Keys.Single()}\":1", json, StringComparison.Ordinal);
 
-        TypedIdJsonDto? back = JsonSerializer.Deserialize(json, TypedIdJsonContext.Default.TypedIdJsonDto);
+        var back = JsonSerializer.Deserialize(json, TypedIdJsonContext.Default.TypedIdJsonDto);
         Assert.NotNull(back);
         Assert.Equal(dto.Host, back.Host);
         Assert.Equal(dto.Audit, back.Audit);
@@ -291,11 +291,11 @@ public sealed class TypedIdTests
     {
         var random = new Random(12345);
         string[] seeds = [HostId.New().ToString(), ChallengeId.New().ToString(), AuditEventId.New().ToString()];
-        string noise = Base62.Alphabet + "_-:/ \0\u00e9\u0130zZ09";
+        var noise = Base62.Alphabet + "_-:/ \0\u00e9\u0130zZ09";
 
-        for (int i = 0; i < 20_000; i++)
+        for (var i = 0; i < 20_000; i++)
         {
-            string input = (i % 3) switch
+            var input = (i % 3) switch
             {
                 // Mutate a valid ID: replace, insert or delete one char.
                 0 => Mutate(seeds[random.Next(seeds.Length)], random, noise),
@@ -308,9 +308,9 @@ public sealed class TypedIdTests
             FuzzOne<ChallengeId>(input);
             FuzzOne<AuditEventId>(input);
 
-            byte[] bytes = new byte[random.Next(0, 35)];
+            var bytes = new byte[random.Next(0, 35)];
             random.NextBytes(bytes);
-            if (HostId.TryParse(bytes, out HostId fromBytes))
+            if (HostId.TryParse(bytes, out var fromBytes))
             {
                 Assert.Equal(bytes, Encoding.UTF8.GetBytes(fromBytes.ToString()));
             }
@@ -320,12 +320,12 @@ public sealed class TypedIdTests
     private static void FuzzOne<T>(string input)
         where T : struct, ITypedId<T>
     {
-        if (T.TryParse(input.AsSpan(), out T id))
+        if (T.TryParse(input.AsSpan(), out var id))
         {
             Assert.Equal(input, id.ToString()); // canonical: exactly one string per value
         }
 
-        if (T.TryParse(Encoding.UTF8.GetBytes(input), out T utf8Id))
+        if (T.TryParse(Encoding.UTF8.GetBytes(input), out var utf8Id))
         {
             Assert.Equal(input, utf8Id.ToString());
         }
@@ -333,8 +333,8 @@ public sealed class TypedIdTests
 
     private static string Mutate(string s, Random random, string alphabet)
     {
-        int at = random.Next(s.Length);
-        char c = alphabet[random.Next(alphabet.Length)];
+        var at = random.Next(s.Length);
+        var c = alphabet[random.Next(alphabet.Length)];
         return random.Next(3) switch
         {
             0 => string.Concat(s.AsSpan(0, at), new string(c, 1), s.AsSpan(at + 1)),
@@ -346,7 +346,7 @@ public sealed class TypedIdTests
     private static string RandomString(Random random, string alphabet, int length) =>
         string.Create(length, (random, alphabet), static (span, state) =>
         {
-            for (int i = 0; i < span.Length; i++)
+            for (var i = 0; i < span.Length; i++)
             {
                 span[i] = state.alphabet[state.random.Next(state.alphabet.Length)];
             }

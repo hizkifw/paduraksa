@@ -124,7 +124,7 @@ public sealed class AdminThrottle : IDisposable
             return null;
         }
 
-        string normalized = subject.Trim().ToUpperInvariant();
+        var normalized = subject.Trim().ToUpperInvariant();
         return Prefix(scope) + (normalized.Length > MaxSubjectLength ? normalized[..MaxSubjectLength] : normalized);
     }
 
@@ -155,9 +155,9 @@ public sealed class AdminThrottle : IDisposable
         {
             lock (_gate)
             {
-                DateTimeOffset now = time.GetUtcNow();
-                string slot = Resolve(key, now);
-                (DateTimeOffset start, int count) = Current(slot, now);
+                var now = time.GetUtcNow();
+                var slot = Resolve(key, now);
+                var (start, count) = Current(slot, now);
                 if (count >= limit)
                 {
                     return start + window - now;
@@ -176,15 +176,15 @@ public sealed class AdminThrottle : IDisposable
         {
             lock (_gate)
             {
-                DateTimeOffset now = time.GetUtcNow();
-                string slot = Resolve(key, now);
-                (DateTimeOffset start, int count) = Current(slot, now);
+                var now = time.GetUtcNow();
+                var slot = Resolve(key, now);
+                var (start, count) = Current(slot, now);
                 _windows[slot] = (start, count < int.MaxValue ? count + 1 : count);
             }
         }
 
         private (DateTimeOffset Start, int Count) Current(string slot, DateTimeOffset now) =>
-            _windows.TryGetValue(slot, out (DateTimeOffset Start, int Count) entry) && now - entry.Start < window ? entry : (now, 0);
+            _windows.TryGetValue(slot, out var entry) && now - entry.Start < window ? entry : (now, 0);
 
         /// <summary>The key itself, or the shared overflow bucket when the table is full of live windows.</summary>
         private string Resolve(string key, DateTimeOffset now)
@@ -198,7 +198,7 @@ public sealed class AdminThrottle : IDisposable
             if (now - _lastSweep >= TimeSpan.FromSeconds(1))
             {
                 _lastSweep = now;
-                foreach (string expired in _windows.Where(w => now - w.Value.Start >= window).Select(w => w.Key).ToList())
+                foreach (var expired in _windows.Where(w => now - w.Value.Start >= window).Select(w => w.Key).ToList())
                 {
                     _windows.Remove(expired);
                 }

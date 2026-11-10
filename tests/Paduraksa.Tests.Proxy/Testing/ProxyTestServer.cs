@@ -40,8 +40,8 @@ internal sealed class ProxyTestServer : IAsyncDisposable
         Http2 = protocols == HttpProtocols.Http2;
         Publisher = publisher;
         GateStats = stats;
-        IServerAddressesFeature addresses = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!;
-        string address = Assert.Single(addresses.Addresses);
+        var addresses = host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!;
+        var address = Assert.Single(addresses.Addresses);
         BaseAddress = new Uri(address);
     }
 
@@ -75,13 +75,13 @@ internal sealed class ProxyTestServer : IAsyncDisposable
     public static async Task<ProxyTestServer> StartAsync(ProxyConfigModel? initial = null, ProxyTestServerOptions? options = null)
     {
         options ??= ProxyTestServerOptions.Default;
-        SnapshotCompilerOptions? compilerOptions = options.CompilerOptions;
-        HttpProtocols protocols = options.Protocols;
-        SnapshotPublisher publisher = options.Publisher ?? new SnapshotPublisher(new SnapshotStore(), options: options.PublisherOptions);
-        Task<PublishResult>? initialPublish = initial is null ? null : publisher.PublishAsync(TestSnapshots.Compile(initial, compilerOptions));
-        GateStats? stats = options.MeasureGate ? new GateStats() : null;
+        var compilerOptions = options.CompilerOptions;
+        var protocols = options.Protocols;
+        var publisher = options.Publisher ?? new SnapshotPublisher(new SnapshotStore(), options: options.PublisherOptions);
+        var initialPublish = initial is null ? null : publisher.PublishAsync(TestSnapshots.Compile(initial, compilerOptions));
+        var stats = options.MeasureGate ? new GateStats() : null;
 
-        IHost host = new HostBuilder()
+        var host = new HostBuilder()
             .ConfigureWebHost(web => web
                 .UseKestrel(kestrel =>
                 {
@@ -109,7 +109,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                 {
                     // The public pipeline, in its order: the access log wraps everything, the gate decides.
                     app.Use(app.ApplicationServices.GetRequiredService<AccessLogMiddleware>().InvokeAsync);
-                    GateMiddleware gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
+                    var gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
                     if (!options.WithoutGate)
                     {
                         if (stats is null)
@@ -122,9 +122,9 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                             {
                                 // Only the gate uses this dictionary: empty means a new connection (H1) or a new
                                 // stream (H2), where the gate creates its pooled state once. Those are counted apart.
-                                bool fresh = context.Features.Get<IPersistentStateFeature>()?.State.Count == 0;
-                                long before = GC.GetAllocatedBytesForCurrentThread();
-                                GateDecision decision = gate.Decide(context);
+                                var fresh = context.Features.Get<IPersistentStateFeature>()?.State.Count == 0;
+                                var before = GC.GetAllocatedBytesForCurrentThread();
+                                var decision = gate.Decide(context);
                                 stats.Record(GC.GetAllocatedBytesForCurrentThread() - before, fresh);
                                 return GateMiddleware.CompleteAsync(context, decision, next);
                             });
@@ -143,7 +143,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
         await host.StartAsync(TestContext.Current.CancellationToken);
         if (initialPublish is not null)
         {
-            PublishResult result = await initialPublish;
+            var result = await initialPublish;
             Assert.True(result.Succeeded, string.Join("; ", result.Errors));
         }
 
@@ -307,14 +307,14 @@ public sealed class TestUpstream : IAsyncLifetime
                         return Task.CompletedTask;
                     }
 
-                    string raw = context.Features.Get<IHttpRequestFeature>()!.RawTarget;
-                    int query = raw.IndexOf('?', StringComparison.Ordinal);
+                    var raw = context.Features.Get<IHttpRequestFeature>()!.RawTarget;
+                    var query = raw.IndexOf('?', StringComparison.Ordinal);
                     context.Response.Headers["x-query"] = query < 0 ? string.Empty : raw[query..];
                     return context.Response.WriteAsync(query < 0 ? raw : raw[..query]);
                 })))
             .Build();
         await _host.StartAsync();
-        string address = Assert.Single(_host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
+        var address = Assert.Single(_host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
         Port = new Uri(address).Port;
     }
 

@@ -27,11 +27,11 @@ public sealed class Base62Tests
     public void CodecDigitTableMatchesAlphabet()
     {
         // The codec encodes from a private UTF-8 copy of the alphabet; encoding each digit 0..61 reads it back out.
-        byte[] utf8Digits = new byte[62];
-        char[] charDigits = new char[62];
+        var utf8Digits = new byte[62];
+        var charDigits = new char[62];
         Span<byte> utf8 = stackalloc byte[Base62.Width64];
         Span<char> chars = stackalloc char[Base62.Width64];
-        for (int digit = 0; digit < 62; digit++)
+        for (var digit = 0; digit < 62; digit++)
         {
             Assert.True(Base62.TryEncode((ulong)digit, utf8));
             Assert.True(Base62.TryEncode((ulong)digit, chars));
@@ -58,12 +58,12 @@ public sealed class Base62Tests
     public void RoundTrip128EdgesAndRandom()
     {
         Span<byte> utf8 = stackalloc byte[Base62.Width128];
-        foreach (UInt128 value in Edge128.Concat(Random128(2000)))
+        foreach (var value in Edge128.Concat(Random128(2000)))
         {
-            string encoded = Base62.Encode(value);
+            var encoded = Base62.Encode(value);
             Assert.Equal(Base62.Width128, encoded.Length);
             Assert.Equal(ReferenceEncode(value, 22), encoded);
-            Assert.True(Base62.TryDecodeUInt128(encoded, out UInt128 decoded));
+            Assert.True(Base62.TryDecodeUInt128(encoded, out var decoded));
             Assert.Equal(value, decoded);
 
             Assert.True(Base62.TryEncode(value, utf8));
@@ -77,12 +77,12 @@ public sealed class Base62Tests
     public void RoundTrip64EdgesAndRandom()
     {
         Span<byte> utf8 = stackalloc byte[Base62.Width64];
-        foreach (ulong value in Edge64.Concat(Random64(2000)))
+        foreach (var value in Edge64.Concat(Random64(2000)))
         {
-            string encoded = Base62.Encode(value);
+            var encoded = Base62.Encode(value);
             Assert.Equal(Base62.Width64, encoded.Length);
             Assert.Equal(ReferenceEncode(value, 11), encoded);
-            Assert.True(Base62.TryDecodeUInt64(encoded, out ulong decoded));
+            Assert.True(Base62.TryDecodeUInt64(encoded, out var decoded));
             Assert.Equal(value, decoded);
 
             Assert.True(Base62.TryEncode(value, utf8));
@@ -116,7 +116,7 @@ public sealed class Base62Tests
         Assert.Equal(expected, Base62.ToUInt128(guid));
         Assert.Equal(guid, Base62.FromUInt128(expected));
         Assert.Equal(Base62.Encode(expected), Base62.Encode(guid));
-        Assert.True(Base62.TryDecodeGuid(Base62.Encode(guid), out Guid decoded));
+        Assert.True(Base62.TryDecodeGuid(Base62.Encode(guid), out var decoded));
         Assert.Equal(guid, decoded);
     }
 
@@ -162,14 +162,14 @@ public sealed class Base62Tests
     [InlineData('İ')] // 'İ' (low byte 0x30 == '0')
     public void DecodeRejectsInvalidCharacters(char bad)
     {
-        foreach (int position in new[] { 0, 5, 21 })
+        foreach (var position in new[] { 0, 5, 21 })
         {
-            char[] chars = new string('1', 22).ToCharArray();
+            var chars = new string('1', 22).ToCharArray();
             chars[position] = bad;
             Assert.False(Base62.TryDecodeUInt128(chars, out _));
         }
 
-        char[] chars64 = new string('1', 11).ToCharArray();
+        var chars64 = new string('1', 11).ToCharArray();
         chars64[10] = bad;
         Assert.False(Base62.TryDecodeUInt64(chars64, out _));
     }
@@ -177,7 +177,7 @@ public sealed class Base62Tests
     [Fact]
     public void DecodeRejectsNonAsciiUtf8Bytes()
     {
-        byte[] bytes = Encoding.ASCII.GetBytes(new string('1', 22));
+        var bytes = Encoding.ASCII.GetBytes(new string('1', 22));
         bytes[3] = 0xB0; // 0x30 | 0x80
         Assert.False(Base62.TryDecodeUInt128(bytes, out _));
     }
@@ -192,7 +192,7 @@ public sealed class Base62Tests
     private static IEnumerable<UInt128> Random128(int count)
     {
         var random = new Random(42);
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             // Vary magnitude so short and long encodings are both covered.
             UInt128 value = new((ulong)random.NextInt64() ^ ((ulong)random.Next() << 33), (ulong)random.NextInt64());
@@ -203,7 +203,7 @@ public sealed class Base62Tests
     private static IEnumerable<ulong> Random64(int count)
     {
         var random = new Random(7);
-        for (int i = 0; i < count; i++)
+        for (var i = 0; i < count; i++)
         {
             yield return ((ulong)random.NextInt64() << 1 | (uint)random.Next(2)) >> random.Next(64);
         }

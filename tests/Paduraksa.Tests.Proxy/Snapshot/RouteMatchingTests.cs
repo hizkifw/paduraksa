@@ -36,9 +36,9 @@ public sealed class RouteMatchingTests
     [Fact]
     public void FirstMatchingRouteWinsInOrder()
     {
-        CompiledRoute api = Route(RouteMatchKind.Prefix, "/api");
-        CompiledRoute exact = Route(RouteMatchKind.Exact, "/api/health");
-        CompiledRoute root = Route(RouteMatchKind.Prefix, "/");
+        var api = Route(RouteMatchKind.Prefix, "/api");
+        var exact = Route(RouteMatchKind.Exact, "/api/health");
+        var root = Route(RouteMatchKind.Prefix, "/");
         CompiledHost host = new()
         {
             Index = 0,

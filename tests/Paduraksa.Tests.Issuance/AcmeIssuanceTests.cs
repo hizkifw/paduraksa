@@ -7,7 +7,6 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
-using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;

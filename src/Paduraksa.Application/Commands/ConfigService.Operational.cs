@@ -1,5 +1,3 @@
-using Microsoft.EntityFrameworkCore;
-
 using Paduraksa.Application.Audit;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Data;
@@ -61,7 +59,7 @@ public sealed partial class ConfigService
                 var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
                 await using (transaction.ConfigureAwait(false))
                 {
-                    (T result, AuditEntry? audit) = await change(context).ConfigureAwait(false);
+                    var (result, audit) = await change(context).ConfigureAwait(false);
                     if (audit is not null)
                     {
                         await _audit.AppendAsync(context, audit, cancellationToken).ConfigureAwait(false);

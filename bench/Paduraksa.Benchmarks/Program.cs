@@ -15,20 +15,20 @@ if (GCSettings.IsServerGC)
     return 1;
 }
 
-bool inProcess = args.Any(static a => a.Equals("--inProcess", StringComparison.OrdinalIgnoreCase) || a == "-i");
-string[] arguments = inProcess ? args : [.. args, "--inProcess"];
+var inProcess = args.Any(static a => a.Equals("--inProcess", StringComparison.OrdinalIgnoreCase) || a == "-i");
+var arguments = inProcess ? args : [.. args, "--inProcess"];
 IConfig config = DefaultConfig.Instance.AddDiagnoser(MemoryDiagnoser.Default);
 Summary[] summaries = [.. BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(arguments, config)];
 
 // --list, --help, --info and --version run nothing, legitimately.
-bool runsNothing = args.Any(static a => a is "--list" or "--help" or "-h" or "--info" or "--version");
+var runsNothing = args.Any(static a => a is "--list" or "--help" or "-h" or "--info" or "--version");
 if (summaries.Length == 0 && !runsNothing)
 {
     await Console.Error.WriteLineAsync("No benchmark ran: does the filter match anything? (--list flat shows them all)");
     return 2;
 }
 
-int failed = summaries.Sum(static s => s.HasCriticalValidationErrors ? 1 : s.Reports.Count(static r => !r.Success));
+var failed = summaries.Sum(static s => s.HasCriticalValidationErrors ? 1 : s.Reports.Count(static r => !r.Success));
 if (failed > 0)
 {
     await Console.Error.WriteLineAsync($"{failed} benchmark(s) or validation(s) failed.");

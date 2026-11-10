@@ -40,7 +40,7 @@ public static class AdminCertificateNames
         }
 
         if (adminBind is not null
-            && IPAddress.TryParse(adminBind, out IPAddress? bind)
+            && IPAddress.TryParse(adminBind, out var bind)
             && !bind.Equals(IPAddress.Any)
             && !bind.Equals(IPAddress.IPv6Any))
         {
@@ -62,14 +62,14 @@ public static class AdminCertificateNames
     {
         ArgumentNullException.ThrowIfNull(names);
         List<string> urls = [];
-        foreach (string name in names)
+        foreach (var name in names)
         {
             if (name.StartsWith("*.", StringComparison.Ordinal))
             {
                 continue;
             }
 
-            string host = name.Contains(':', StringComparison.Ordinal) ? $"[{name}]" : name;
+            var host = name.Contains(':', StringComparison.Ordinal) ? $"[{name}]" : name;
             urls.Add($"https://{host}:{port}/");
         }
 

@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 namespace Paduraksa.Server.Hosting;
 
@@ -33,9 +31,9 @@ internal static class EphemeralDataProtection
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        for (int i = services.Count - 1; i >= 0; i--)
+        for (var i = services.Count - 1; i >= 0; i--)
         {
-            ServiceDescriptor descriptor = services[i];
+            var descriptor = services[i];
             if (descriptor.ServiceType == typeof(IHostedService)
                 && string.Equals(descriptor.ImplementationType?.FullName, HostedServiceTypeName, StringComparison.Ordinal))
             {

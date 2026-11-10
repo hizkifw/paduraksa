@@ -26,24 +26,24 @@ public sealed class TypedIdGeneratorTests
     [Fact]
     public void ValidDeclarationsGenerateCompilingCode()
     {
-        GeneratorResult result = Run("""
-            using Paduraksa.Core.Ids;
+        var result = Run("""
+                         using Paduraksa.Core.Ids;
 
-            namespace Sample
-            {
-                [TypedId("host")] public readonly partial record struct HostId;
-                [TypedId("chl", IdKind.UuidV4)] public readonly partial record struct ChallengeId;
-                [TypedId("aud", IdKind.Int64Ordered)] internal readonly partial record struct AuditEventId;
+                         namespace Sample
+                         {
+                             [TypedId("host")] public readonly partial record struct HostId;
+                             [TypedId("chl", IdKind.UuidV4)] public readonly partial record struct ChallengeId;
+                             [TypedId("aud", IdKind.Int64Ordered)] internal readonly partial record struct AuditEventId;
 
-                public static class Use
-                {
-                    public static string Roundtrip() => HostId.Parse(HostId.New().ToString()).ToString()
-                        + ChallengeId.New() + AuditEventId.New().Value;
-                }
-            }
+                             public static class Use
+                             {
+                                 public static string Roundtrip() => HostId.Parse(HostId.New().ToString()).ToString()
+                                     + ChallengeId.New() + AuditEventId.New().Value;
+                             }
+                         }
 
-            [TypedId("glob")] public readonly partial record struct GlobalId;
-            """);
+                         [TypedId("glob")] public readonly partial record struct GlobalId;
+                         """);
 
         Assert.Empty(result.GeneratorDiagnostics);
         Assert.Empty(result.CompilationErrors);
@@ -55,9 +55,9 @@ public sealed class TypedIdGeneratorTests
     [Fact]
     public void NotPartialReportsPDKID001()
     {
-        GeneratorResult result = Run("""
-            [Paduraksa.Core.Ids.TypedId("host")] public readonly record struct HostId;
-            """);
+        var result = Run("""
+                         [Paduraksa.Core.Ids.TypedId("host")] public readonly record struct HostId;
+                         """);
 
         Assert.Equal(["PDKID001"], result.GeneratorDiagnosticIds);
         Assert.Empty(result.GeneratedSources);
@@ -71,11 +71,11 @@ public sealed class TypedIdGeneratorTests
     [InlineData("public partial class Outer { [Paduraksa.Core.Ids.TypedId(\"host\")] public readonly partial record struct HostId; }")] // nested
     public void NotReadonlyRecordStructReportsPDKID002(string declaration)
     {
-        string source = declaration.StartsWith("public partial class", StringComparison.Ordinal)
+        var source = declaration.StartsWith("public partial class", StringComparison.Ordinal)
             ? declaration
             : $"[Paduraksa.Core.Ids.TypedId(\"host\")] {declaration}";
 
-        GeneratorResult result = Run(source);
+        var result = Run(source);
 
         Assert.Equal(["PDKID002"], result.GeneratorDiagnosticIds);
         Assert.Empty(result.GeneratedSources);
@@ -92,9 +92,9 @@ public sealed class TypedIdGeneratorTests
     [InlineData("hóst")]
     public void InvalidPrefixReportsPDKID003(string prefix)
     {
-        GeneratorResult result = Run($$"""
-            [Paduraksa.Core.Ids.TypedId("{{prefix}}")] public readonly partial record struct HostId;
-            """);
+        var result = Run($$"""
+                           [Paduraksa.Core.Ids.TypedId("{{prefix}}")] public readonly partial record struct HostId;
+                           """);
 
         Assert.Equal(["PDKID003"], result.GeneratorDiagnosticIds);
         Assert.Empty(result.GeneratedSources);
@@ -107,9 +107,9 @@ public sealed class TypedIdGeneratorTests
     [InlineData("usr2fa")]
     public void ValidPrefixesAreAccepted(string prefix)
     {
-        GeneratorResult result = Run($$"""
-            [Paduraksa.Core.Ids.TypedId("{{prefix}}")] public readonly partial record struct SomeId;
-            """);
+        var result = Run($$"""
+                           [Paduraksa.Core.Ids.TypedId("{{prefix}}")] public readonly partial record struct SomeId;
+                           """);
 
         Assert.Empty(result.GeneratorDiagnostics);
         Assert.Empty(result.CompilationErrors);
@@ -118,9 +118,9 @@ public sealed class TypedIdGeneratorTests
     [Fact]
     public void NullPrefixReportsPDKID003()
     {
-        GeneratorResult result = Run("""
-            [Paduraksa.Core.Ids.TypedId(null!)] public readonly partial record struct HostId;
-            """);
+        var result = Run("""
+                         [Paduraksa.Core.Ids.TypedId(null!)] public readonly partial record struct HostId;
+                         """);
 
         Assert.Equal(["PDKID003"], result.GeneratorDiagnosticIds);
     }
@@ -128,9 +128,9 @@ public sealed class TypedIdGeneratorTests
     [Fact]
     public void UnknownKindReportsPDKID005()
     {
-        GeneratorResult result = Run("""
-            [Paduraksa.Core.Ids.TypedId("host", (Paduraksa.Core.Ids.IdKind)42)] public readonly partial record struct HostId;
-            """);
+        var result = Run("""
+                         [Paduraksa.Core.Ids.TypedId("host", (Paduraksa.Core.Ids.IdKind)42)] public readonly partial record struct HostId;
+                         """);
 
         Assert.Equal(["PDKID005"], result.GeneratorDiagnosticIds);
     }
@@ -138,12 +138,12 @@ public sealed class TypedIdGeneratorTests
     [Fact]
     public void DuplicatePrefixReportsPDKID004OnEachDeclaration()
     {
-        GeneratorResult result = Run("""
-            using Paduraksa.Core.Ids;
-            namespace A { [TypedId("host")] public readonly partial record struct HostId; }
-            namespace B { [TypedId("host", IdKind.UuidV4)] public readonly partial record struct OtherHostId; }
-            namespace C { [TypedId("usr")] public readonly partial record struct UserId; }
-            """);
+        var result = Run("""
+                         using Paduraksa.Core.Ids;
+                         namespace A { [TypedId("host")] public readonly partial record struct HostId; }
+                         namespace B { [TypedId("host", IdKind.UuidV4)] public readonly partial record struct OtherHostId; }
+                         namespace C { [TypedId("usr")] public readonly partial record struct UserId; }
+                         """);
 
         Assert.Equal(["PDKID004", "PDKID004"], result.GeneratorDiagnosticIds);
         Assert.Contains(result.GeneratorDiagnostics, d => d.GetMessage(System.Globalization.CultureInfo.InvariantCulture).Contains("B.OtherHostId", StringComparison.Ordinal));
@@ -153,31 +153,31 @@ public sealed class TypedIdGeneratorTests
     [Fact]
     public void DiagnosticsPointAtTheDeclaration()
     {
-        GeneratorResult result = Run("""
-            [Paduraksa.Core.Ids.TypedId("host")]
-            public readonly record struct HostId;
-            """);
+        var result = Run("""
+                         [Paduraksa.Core.Ids.TypedId("host")]
+                         public readonly record struct HostId;
+                         """);
 
-        Diagnostic diagnostic = Assert.Single(result.GeneratorDiagnostics);
+        var diagnostic = Assert.Single(result.GeneratorDiagnostics);
         Assert.Equal(1, diagnostic.Location.GetLineSpan().StartLinePosition.Line);
     }
 
     [Fact]
     public void GeneratorIsCachedAcrossUnrelatedEdits()
     {
-        CSharpCompilation compilation = CreateCompilation("""
-            [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
-            """);
+        var compilation = CreateCompilation("""
+                                            [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
+                                            """);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new TypedIdGenerator().AsSourceGenerator()],
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
-        CSharpCompilation edited = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText("public static class Unrelated { }", cancellationToken: TestContext.Current.CancellationToken));
+        var edited = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText("public static class Unrelated { }", cancellationToken: TestContext.Current.CancellationToken));
         driver = driver.RunGenerators(edited, TestContext.Current.CancellationToken);
 
-        GeneratorRunResult run = Assert.Single(driver.GetRunResult().Results);
-        IEnumerable<IncrementalStepRunReason> reasons = run.TrackedOutputSteps
+        var run = Assert.Single(driver.GetRunResult().Results);
+        var reasons = run.TrackedOutputSteps
             .SelectMany(step => step.Value)
             .SelectMany(step => step.Outputs)
             .Select(output => output.Reason);
@@ -187,21 +187,21 @@ public sealed class TypedIdGeneratorTests
     [Fact]
     public void EmissionModelIsCachedWhenDeclarationMovesWithinFile()
     {
-        CSharpCompilation compilation = CreateCompilation("""
-            [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
-            """);
+        var compilation = CreateCompilation("""
+                                            [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
+                                            """);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             [new TypedIdGenerator().AsSourceGenerator()],
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
         driver = driver.RunGenerators(compilation, TestContext.Current.CancellationToken);
 
         // Insert lines above the declaration: its location changes, its emitted code must not be regenerated.
-        SyntaxTree original = compilation.SyntaxTrees.Single();
-        SyntaxTree moved = original.WithChangedText(original.GetText(TestContext.Current.CancellationToken).Replace(0, 0, "// moved\n// down\n"));
+        var original = compilation.SyntaxTrees.Single();
+        var moved = original.WithChangedText(original.GetText(TestContext.Current.CancellationToken).Replace(0, 0, "// moved\n// down\n"));
         driver = driver.RunGenerators(compilation.ReplaceSyntaxTree(original, moved), TestContext.Current.CancellationToken);
 
-        GeneratorRunResult run = Assert.Single(driver.GetRunResult().Results);
-        IncrementalGeneratorRunStep step = Assert.Single(run.TrackedSteps[TypedIdGenerator.ModelsTrackingName]);
+        var run = Assert.Single(driver.GetRunResult().Results);
+        var step = Assert.Single(run.TrackedSteps[TypedIdGenerator.ModelsTrackingName]);
         Assert.All(step.Outputs, output => Assert.True(output.Reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged));
         Assert.Single(run.GeneratedSources);
     }
@@ -209,19 +209,19 @@ public sealed class TypedIdGeneratorTests
     [Fact]
     public void KeywordIdentifiersAreEscaped()
     {
-        GeneratorResult result = Run("""
-            namespace Bar.@event
-            {
-                [Paduraksa.Core.Ids.TypedId("ev")] public readonly partial record struct @class;
+        var result = Run("""
+                         namespace Bar.@event
+                         {
+                             [Paduraksa.Core.Ids.TypedId("ev")] public readonly partial record struct @class;
 
-                public static class Use
-                {
-                    public static string Roundtrip() => @class.Parse(@class.New().ToString()).ToString();
-                }
-            }
+                             public static class Use
+                             {
+                                 public static string Roundtrip() => @class.Parse(@class.New().ToString()).ToString();
+                             }
+                         }
 
-            [Paduraksa.Core.Ids.TypedId("st", Paduraksa.Core.Ids.IdKind.Int64Ordered)] public readonly partial record struct @struct;
-            """);
+                         [Paduraksa.Core.Ids.TypedId("st", Paduraksa.Core.Ids.IdKind.Int64Ordered)] public readonly partial record struct @struct;
+                         """);
 
         Assert.Empty(result.GeneratorDiagnostics);
         Assert.Empty(result.CompilationErrors);
@@ -236,7 +236,7 @@ public sealed class TypedIdGeneratorTests
             namespace Sample { [Paduraksa.Core.Ids.TypedId("$PREFIX$")] file readonly partial record struct HostId; }
             """;
 
-        GeneratorResult result = Run(
+        var result = Run(
             ("A.cs", Declaration.Replace("$PREFIX$", "hosta", StringComparison.Ordinal)),
             ("B.cs", Declaration.Replace("$PREFIX$", "hostb", StringComparison.Ordinal)));
 
@@ -253,11 +253,11 @@ public sealed class TypedIdGeneratorTests
             [Paduraksa.Core.Ids.TypedId("host")] public readonly partial record struct HostId;
             """;
 
-        string first = GenerateSingleSource(Source);
-        Match match = Regex.Match(first, @"GeneratedCode\(""Paduraksa\.Ids\.Generator"", ""(?<version>[^""]*)""\)");
+        var first = GenerateSingleSource(Source);
+        var match = Regex.Match(first, @"GeneratedCode\(""Paduraksa\.Ids\.Generator"", ""(?<version>[^""]*)""\)");
 
         Assert.True(match.Success);
-        string version = match.Groups["version"].Value;
+        var version = match.Groups["version"].Value;
         Assert.Matches(@"^\d+\.\d+\.\d+\.\d+$", version);
         Assert.NotEqual("0.0.0.0", version);
         Assert.Equal(typeof(TypedIdGenerator).Assembly.GetName().Version?.ToString(), version);
@@ -284,7 +284,7 @@ public sealed class TypedIdGeneratorTests
 
     private static string GenerateSingleSource(string source)
     {
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(new TypedIdGenerator())
+        var driver = CSharpGeneratorDriver.Create(new TypedIdGenerator())
             .RunGenerators(CreateCompilation(source), TestContext.Current.CancellationToken);
         return Assert.Single(driver.GetRunResult().Results.SelectMany(r => r.GeneratedSources)).SourceText.ToString();
     }
@@ -293,10 +293,10 @@ public sealed class TypedIdGeneratorTests
 
     private static GeneratorResult Run(params (string Path, string Source)[] files)
     {
-        CSharpCompilation compilation = CreateCompilation(files);
+        var compilation = CreateCompilation(files);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new TypedIdGenerator());
         driver = driver.RunGeneratorsAndUpdateCompilation(
-            compilation, out RoslynCompilation output, out ImmutableArray<Diagnostic> diagnostics, TestContext.Current.CancellationToken);
+            compilation, out var output, out var diagnostics, TestContext.Current.CancellationToken);
 
         return new GeneratorResult(
             diagnostics,

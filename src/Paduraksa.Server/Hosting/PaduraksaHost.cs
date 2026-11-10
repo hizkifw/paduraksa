@@ -1,13 +1,7 @@
 using System.Net;
 using System.Runtime.InteropServices;
-
-using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -78,11 +72,11 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     public static PaduraksaHost Create(PaduraksaHostOptions? hostOptions = null)
     {
         hostOptions ??= new PaduraksaHostOptions();
-        string environmentName = hostOptions.EnvironmentName
-            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
-            ?? Environments.Production;
-        string contentRootPath = Path.GetFullPath(hostOptions.ContentRootPath ?? AppContext.BaseDirectory);
+        var environmentName = hostOptions.EnvironmentName
+                              ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                              ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+                              ?? Environments.Production;
+        var contentRootPath = Path.GetFullPath(hostOptions.ContentRootPath ?? AppContext.BaseDirectory);
 
         ConfigurationManager configuration = new();
         SharedServices? shared = null;
@@ -91,12 +85,12 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         {
             AddConfigurationSources(configuration, hostOptions, environmentName, contentRootPath);
 
-            PaduraksaOptions options = BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
+            var options = BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
             shared = SharedServices.Create(configuration, options, hostOptions.ConfigureShared, hostOptions.ConfigureLogging);
 
             // Configuration shapes that would otherwise be silently ignored (a list child that is not an array index).
-            ILogger startupLogger = new RoleLoggerFactory(shared.LoggerFactory, HostRole.Core).CreateLogger(typeof(PaduraksaHost).FullName!);
-            foreach (string warning in options.ListBindingWarnings)
+            var startupLogger = new RoleLoggerFactory(shared.LoggerFactory, HostRole.Core).CreateLogger(typeof(PaduraksaHost).FullName!);
+            foreach (var warning in options.ListBindingWarnings)
             {
                 LogConfigurationWarning(startupLogger, warning);
             }
@@ -110,9 +104,9 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
                 shared,
                 hostOptions.ConfigureServices);
 
-            IHost core = Track(built, CoreHost.Build(context));
-            IHost publicApp = Track(built, PublicApp.Build(context));
-            WebApplication adminApp = Track(built, AdminApp.Build(context));
+            var core = Track(built, CoreHost.Build(context));
+            var publicApp = Track(built, PublicApp.Build(context));
+            var adminApp = Track(built, AdminApp.Build(context));
             return new PaduraksaHost(configuration, shared, core, publicApp, adminApp);
         }
         catch
@@ -122,7 +116,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             ILogger logger = shared is null
                 ? NullLogger.Instance
                 : new RoleLoggerFactory(shared.LoggerFactory, HostRole.Core).CreateLogger<PaduraksaHost>();
-            for (int i = built.Count - 1; i >= 0; i--)
+            for (var i = built.Count - 1; i >= 0; i--)
             {
                 FailureCleanup.Run(built[i].Dispose, logger, "disposing a host");
             }
@@ -156,7 +150,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
         try
         {
-            using CancellationTokenRegistration cancellation = cancellationToken.Register(static self => ((PaduraksaHost)self!).RequestShutdown(), this);
+            using var cancellation = cancellationToken.Register(static self => ((PaduraksaHost)self!).RequestShutdown(), this);
             await StartHostsAsync().ConfigureAwait(false);
         }
         finally
@@ -183,7 +177,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     {
         if (State == HostState.Starting)
         {
-            using CancellationTokenRegistration drain = cancellationToken.Register(static cts => ((CancellationTokenSource)cts!).Cancel(), _abortedStartDrain);
+            using var drain = cancellationToken.Register(static cts => ((CancellationTokenSource)cts!).Cancel(), _abortedStartDrain);
             RequestShutdown();
             await _startFinished.Task.ConfigureAwait(false);
         }
@@ -208,10 +202,10 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     /// </summary>
     public async Task<int> RunAsync(CancellationToken cancellationToken = default)
     {
-        using PosixSignalRegistration sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnSignal);
-        using PosixSignalRegistration sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnSignal);
-        using PosixSignalRegistration sigquit = PosixSignalRegistration.Create(PosixSignal.SIGQUIT, OnSignal);
-        using CancellationTokenRegistration cancellation = cancellationToken.Register(static self => ((PaduraksaHost)self!).RequestShutdown(), this);
+        using var sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnSignal);
+        using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnSignal);
+        using var sigquit = PosixSignalRegistration.Create(PosixSignal.SIGQUIT, OnSignal);
+        using var cancellation = cancellationToken.Register(static self => ((PaduraksaHost)self!).RequestShutdown(), this);
 
         try
         {
@@ -221,7 +215,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         {
             // Start was aborted by a shutdown request. A signal (or caller cancellation) is a clean exit;
             // a host stopping itself during startup is a startup failure.
-            ShutdownRequest aborted = await _shutdown.Task.ConfigureAwait(false);
+            var aborted = await _shutdown.Task.ConfigureAwait(false);
             return aborted.Reason == ShutdownReason.HostStopped ? ExitCodes.StartupFailed
                 : _stopFaulted ? ExitCodes.Failure
                 : ExitCodes.Success;
@@ -233,8 +227,8 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             return ExitCodes.StartupFailed;
         }
 
-        ShutdownRequest request = await _shutdown.Task.ConfigureAwait(false);
-        string initiator = request.Role?.ToLogName() ?? "process";
+        var request = await _shutdown.Task.ConfigureAwait(false);
+        var initiator = request.Role?.ToLogName() ?? "process";
         LogShuttingDown(_logger, request.Reason, initiator);
         await StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -245,7 +239,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     /// <remarks>The admin app's internal listener is process-local plumbing, not a client endpoint, so it is left out.</remarks>
     public IReadOnlyList<string> GetListenAddresses(HostRole role)
     {
-        IHost? app = role switch
+        var app = role switch
         {
             HostRole.Public => Public,
             HostRole.Admin => Admin,
@@ -271,10 +265,10 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
         }
 
         return listener.LoopbackEndPoint is { } bound
-            && Uri.TryCreate(address, UriKind.Absolute, out Uri? uri)
+            && Uri.TryCreate(address, UriKind.Absolute, out var uri)
             && uri.Scheme == Uri.UriSchemeHttp
             && uri.Port == bound.Port
-            && IPAddress.TryParse(uri.Host, out IPAddress? parsed)
+            && IPAddress.TryParse(uri.Host, out var parsed)
             && IPAddress.IsLoopback(parsed!);
     }
 
@@ -320,11 +314,11 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     internal static PaduraksaOptions LoadOptions(PaduraksaHostOptions? hostOptions = null)
     {
         hostOptions ??= new PaduraksaHostOptions();
-        string environmentName = hostOptions.EnvironmentName
-            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
-            ?? Environments.Production;
-        string contentRootPath = Path.GetFullPath(hostOptions.ContentRootPath ?? AppContext.BaseDirectory);
+        var environmentName = hostOptions.EnvironmentName
+                              ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                              ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
+                              ?? Environments.Production;
+        var contentRootPath = Path.GetFullPath(hostOptions.ContentRootPath ?? AppContext.BaseDirectory);
         using ConfigurationManager configuration = new();
         AddConfigurationSources(configuration, hostOptions, environmentName, contentRootPath);
         return BindAndValidate(configuration, hostOptions.AllowEphemeralPorts, contentRootPath);
@@ -366,7 +360,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             options.Acme.TrustedRootsFile = Path.GetFullPath(trustedRoots, contentRootPath);
         }
 
-        ValidateOptionsResult result = new PaduraksaOptionsValidator(allowEphemeralPorts).Validate(Microsoft.Extensions.Options.Options.DefaultName, options);
+        var result = new PaduraksaOptionsValidator(allowEphemeralPorts).Validate(Microsoft.Extensions.Options.Options.DefaultName, options);
         if (result.Failed)
         {
             throw new OptionsValidationException(PaduraksaOptions.SectionName, typeof(PaduraksaOptions), result.Failures);
@@ -443,7 +437,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
             // Any shutdown request cancels the start: StopAsync, RequestShutdown, a signal, the caller's token, or a
             // host stopping itself.
-            using CancellationTokenSource startCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken.Token);
+            using var startCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken.Token);
             await Core.StartAsync(startCts.Token).ConfigureAwait(false);
             await Task.WhenAll(
                 StartWebAppAsync(Public, startCts),
@@ -464,7 +458,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             {
                 // A host stopped itself mid-start (e.g. a BackgroundService crashed). That host already logged the
                 // real error; the cancellation is only how the remaining starts were aborted.
-                string stoppedApp = stoppedRole.ToLogName();
+                var stoppedApp = stoppedRole.ToLogName();
                 LogHostStoppedDuringStartup(_logger, stoppedApp);
             }
             else if (abortedBy is { } request)
@@ -479,7 +473,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             await FailureCleanup.RunAsync(() => StopHostsAsync(_abortedStartDrain.Token), _logger, "stopping the hosts").ConfigureAwait(false);
 
             // A requested stop ends cleanly; a host stopping on its own mid-start is a failed startup.
-            HostState final = abortedBy is { Reason: not ShutdownReason.HostStopped } ? HostState.Stopped : HostState.Faulted;
+            var final = abortedBy is { Reason: not ShutdownReason.HostStopped } ? HostState.Stopped : HostState.Faulted;
             Volatile.Write(ref _state, (int)final);
             throw;
         }
@@ -494,7 +488,7 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
 
         // One budget for the whole stop, not one per host: the public drain may use most of it. Once it's spent,
         // admin and core still stop, just without waiting (Kestrel aborts the remaining connections).
-        using CancellationTokenSource budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         budget.CancelAfter(Options.ShutdownTimeout);
 
         // The renewal scheduler first: a certificate it is working on (an HTTP-01 validation needs the public listener to answer) gets a
@@ -564,11 +558,11 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
     {
         // A host stopping on its own (e.g. a BackgroundService failing with StopHost) takes the whole process down;
         // during an orchestrated stop this is a no-op because a request has already been recorded.
-        IHostApplicationLifetime lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
+        var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
         lifetime.ApplicationStopping.Register(
             static state =>
             {
-                (PaduraksaHost self, HostRole stoppedRole) = ((PaduraksaHost, HostRole))state!;
+                var (self, stoppedRole) = ((PaduraksaHost, HostRole))state!;
                 self.RequestShutdownCore(new ShutdownRequest(ShutdownReason.HostStopped, stoppedRole));
             },
             (this, role));

@@ -57,7 +57,7 @@ public static class CertificateMessages
             return string.Empty;
         }
 
-        string trimmed = text.Trim();
+        var trimmed = text.Trim();
         trimmed = char.ToUpperInvariant(trimmed[0]) + trimmed[1..];
         return trimmed.EndsWith('.') || trimmed.EndsWith('?') || trimmed.EndsWith('!') ? trimmed : trimmed + ".";
     }

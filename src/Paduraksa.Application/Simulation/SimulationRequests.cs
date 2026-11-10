@@ -47,14 +47,14 @@ internal static class SimulationRequests
     {
         errors = [];
         probe = null;
-        if (!TrySplitUrl(request.Url, out bool https, out string host, out string path, out string? query, out string? problem, out string? code))
+        if (!TrySplitUrl(request.Url, out var https, out var host, out var path, out var query, out var problem, out var code))
         {
             errors.Add(new ConfigError("/url", code!, problem!));
         }
 
-        IPAddress? client = Address(request.ClientIp, "/clientIp", SimulationErrorCodes.ClientIpInvalid, errors);
-        IPAddress? peer = request.PeerIp is null ? null : Address(request.PeerIp, "/peerIp", SimulationErrorCodes.PeerIpInvalid, errors);
-        IPAddress? transport = request.TransportIp is null ? null : Address(request.TransportIp, "/transportIp", SimulationErrorCodes.TransportIpInvalid, errors);
+        var client = Address(request.ClientIp, "/clientIp", SimulationErrorCodes.ClientIpInvalid, errors);
+        var peer = request.PeerIp is null ? null : Address(request.PeerIp, "/peerIp", SimulationErrorCodes.PeerIpInvalid, errors);
+        var transport = request.TransportIp is null ? null : Address(request.TransportIp, "/transportIp", SimulationErrorCodes.TransportIpInvalid, errors);
 
         // Said in full rather than ignored: a field that changes nothing would make the answer look like it counted.
         if (request.TransportIp is not null && !request.ProxyProtocol)
@@ -67,7 +67,7 @@ internal static class SimulationRequests
             errors.Add(new ConfigError("/peerIp", SimulationErrorCodes.Conflicting, "A direct request's peer is the client: drop peerIp, or say the request comes through a proxy or with PROXY protocol."));
         }
 
-        string method = string.IsNullOrWhiteSpace(request.Method) ? "GET" : request.Method.Trim();
+        var method = string.IsNullOrWhiteSpace(request.Method) ? "GET" : request.Method.Trim();
         if (method.Length > MaxMethodLength || !IsToken(method))
         {
             errors.Add(new ConfigError("/method", SimulationErrorCodes.MethodInvalid, $"'{method}' is not an HTTP method (a token of at most {MaxMethodLength} characters)."));
@@ -88,9 +88,9 @@ internal static class SimulationRequests
             errors.Add(new ConfigError("/headers", SimulationErrorCodes.TooLarge, $"At most {MaxHeaderCount} headers: Kestrel answers 431."));
         }
 
-        for (int i = 0; i < request.Headers.Count; i++)
+        for (var i = 0; i < request.Headers.Count; i++)
         {
-            SimulationHeader header = request.Headers[i];
+            var header = request.Headers[i];
             if (string.IsNullOrEmpty(header.Name) || !IsToken(header.Name))
             {
                 errors.Add(new ConfigError($"/headers/{i}/name", SimulationErrorCodes.HeaderInvalid, $"'{header.Name}' is not a header name."));
@@ -120,8 +120,8 @@ internal static class SimulationRequests
             errors.Add(new ConfigError("/headers", SimulationErrorCodes.TooLarge, $"The headers together can't exceed {MaxHeadersBytes} bytes: Kestrel answers 431."));
         }
 
-        ProbeHttpVersion version = https ? ProbeHttpVersion.Http2 : ProbeHttpVersion.Http11;
-        SslProtocols tls = SslProtocols.Tls13;
+        var version = https ? ProbeHttpVersion.Http2 : ProbeHttpVersion.Http11;
+        var tls = SslProtocols.Tls13;
         if (request.Tls is { } context)
         {
             if (!https && (context.ServerName is not null || context.HttpVersion is not null || context.TlsVersion is not null))
@@ -198,7 +198,7 @@ internal static class SimulationRequests
             return false;
         }
 
-        string text = url.Trim();
+        var text = url.Trim();
         if (Encoding.UTF8.GetByteCount(text) > MaxRequestLineBytes)
         {
             problem = $"The URL can't exceed {MaxRequestLineBytes} bytes: Kestrel answers 431.";
@@ -206,8 +206,8 @@ internal static class SimulationRequests
             return false;
         }
 
-        int schemeEnd = text.IndexOf("://", StringComparison.Ordinal);
-        string scheme = schemeEnd < 0 ? string.Empty : text[..schemeEnd];
+        var schemeEnd = text.IndexOf("://", StringComparison.Ordinal);
+        var scheme = schemeEnd < 0 ? string.Empty : text[..schemeEnd];
         if (!scheme.Equals("http", StringComparison.OrdinalIgnoreCase) && !scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
         {
             problem = "The URL must be absolute, with the scheme http or https (https://app.example.com/path).";
@@ -215,29 +215,29 @@ internal static class SimulationRequests
         }
 
         https = scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
-        int fragment = text.IndexOf('#', StringComparison.Ordinal);
+        var fragment = text.IndexOf('#', StringComparison.Ordinal);
         if (fragment >= 0)
         {
             text = text[..fragment];
         }
 
-        string rest = text[(schemeEnd + 3)..];
-        int authorityEnd = rest.AsSpan().IndexOfAny('/', '?');
-        string authority = authorityEnd < 0 ? rest : rest[..authorityEnd];
-        string target = authorityEnd < 0 ? string.Empty : rest[authorityEnd..];
+        var rest = text[(schemeEnd + 3)..];
+        var authorityEnd = rest.AsSpan().IndexOfAny('/', '?');
+        var authority = authorityEnd < 0 ? rest : rest[..authorityEnd];
+        var target = authorityEnd < 0 ? string.Empty : rest[authorityEnd..];
         if (authority.Contains('@', StringComparison.Ordinal) || authority.Contains('\\', StringComparison.Ordinal)
-            || !Uri.TryCreate($"{(https ? "https" : "http")}://{authority}", UriKind.Absolute, out Uri? parsed)
+            || !Uri.TryCreate($"{(https ? "https" : "http")}://{authority}", UriKind.Absolute, out var parsed)
             || parsed.Host.Length == 0)
         {
             problem = "The URL has no valid host (user info and backslashes aren't allowed).";
             return false;
         }
 
-        string name = parsed.HostNameType == UriHostNameType.IPv6 ? "[" + parsed.Host.Trim('[', ']') + "]" : parsed.IdnHost;
+        var name = parsed.HostNameType == UriHostNameType.IPv6 ? "[" + parsed.Host.Trim('[', ']') + "]" : parsed.IdnHost;
         host = parsed.IsDefaultPort ? name : $"{name}:{parsed.Port.ToString(CultureInfo.InvariantCulture)}";
 
-        int queryStart = target.IndexOf('?', StringComparison.Ordinal);
-        string rawPath = queryStart < 0 ? target : target[..queryStart];
+        var queryStart = target.IndexOf('?', StringComparison.Ordinal);
+        var rawPath = queryStart < 0 ? target : target[..queryStart];
         query = queryStart < 0 || queryStart == target.Length - 1 ? null : target[(queryStart + 1)..];
         path = rawPath.Length == 0 ? "/" : rawPath;
         if (path.IndexOfAny([' ', '\r', '\n', '\0']) >= 0 || HasControl(path))
@@ -257,7 +257,7 @@ internal static class SimulationRequests
 
     private static bool HasControl(string text)
     {
-        foreach (char c in text)
+        foreach (var c in text)
         {
             if (char.IsControl(c))
             {
@@ -271,7 +271,7 @@ internal static class SimulationRequests
     private static IPAddress? Address(string? text, string path, string code, List<ConfigError> errors)
     {
         // No zone ids (fe80::1%eth0): the gate's addresses carry none.
-        if (text is not null && !text.Contains('%', StringComparison.Ordinal) && IPAddress.TryParse(text.Trim(), out IPAddress? address))
+        if (text is not null && !text.Contains('%', StringComparison.Ordinal) && IPAddress.TryParse(text.Trim(), out var address))
         {
             return address;
         }
@@ -282,7 +282,7 @@ internal static class SimulationRequests
 
     private static bool IsToken(string text)
     {
-        foreach (char c in text)
+        foreach (var c in text)
         {
             if (!char.IsAsciiLetterOrDigit(c) && "!#$%&'*+-.^_`|~".IndexOf(c, StringComparison.Ordinal) < 0)
             {

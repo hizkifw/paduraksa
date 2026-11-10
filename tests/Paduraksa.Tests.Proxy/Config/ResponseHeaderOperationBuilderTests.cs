@@ -10,7 +10,7 @@ public sealed class ResponseHeaderOperationBuilderTests
     {
         List<CompileError> errors = [];
         ResponseHeaderOperationBuilder builder = new(CompileErrorSource.Defaults, errors);
-        for (int i = 0; i < ResponseHeaders.MaxResponseHeaderOperations; i++)
+        for (var i = 0; i < ResponseHeaders.MaxResponseHeaderOperations; i++)
         {
             builder.Add(Operation($"X-{i}"));
         }

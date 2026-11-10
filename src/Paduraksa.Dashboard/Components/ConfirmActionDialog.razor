@@ -53,8 +53,8 @@
             { d => d.Destructive, destructive },
             { d => d.Icon, icon ?? (destructive ? Icons.Material.Outlined.DeleteOutline : Icons.Material.Outlined.HelpOutline) },
         };
-        IDialogReference reference = await dialogs.ShowAsync<ConfirmActionDialog>(title, parameters, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = false });
-        DialogResult? result = await reference.Result;
+        var reference = await dialogs.ShowAsync<ConfirmActionDialog>(title, parameters, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true, CloseButton = false });
+        var result = await reference.Result;
         return result is { Canceled: false };
     }
 

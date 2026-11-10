@@ -1,8 +1,6 @@
 using System.Collections;
 using System.Collections.Concurrent;
 
-using Microsoft.Extensions.Logging;
-
 namespace Paduraksa.Server.Hosting;
 
 /// <summary>
@@ -57,7 +55,7 @@ internal sealed class RoleLoggerFactory : ILoggerFactory
                 return;
             }
 
-            using IDisposable? _ = inner.BeginScope(scope);
+            using var _ = inner.BeginScope(scope);
             inner.Log(logLevel, eventId, state, exception, formatter);
         }
     }

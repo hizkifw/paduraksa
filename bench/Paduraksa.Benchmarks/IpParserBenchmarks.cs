@@ -1,8 +1,6 @@
 using System.Net;
 using System.Text;
-
 using BenchmarkDotNet.Attributes;
-
 using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Benchmarks;
@@ -33,14 +31,14 @@ public class IpParserBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    public IPAddress? BclChars() => IPAddress.TryParse(_text.AsSpan(), out IPAddress? address) ? address : null;
+    public IPAddress? BclChars() => IPAddress.TryParse(_text.AsSpan(), out var address) ? address : null;
 
     [Benchmark]
-    public IPAddress? BclUtf8() => IPAddress.TryParse(_utf8.AsSpan(), out IPAddress? address) ? address : null;
+    public IPAddress? BclUtf8() => IPAddress.TryParse(_utf8.AsSpan(), out var address) ? address : null;
 
     [Benchmark]
-    public IpKey PaduraksaChars() => IpParser.TryParse(_text.AsSpan(), out IpKey address) ? address : default;
+    public IpKey PaduraksaChars() => IpParser.TryParse(_text.AsSpan(), out var address) ? address : default;
 
     [Benchmark]
-    public IpKey PaduraksaUtf8() => IpParser.TryParse(_utf8.AsSpan(), out IpKey address) ? address : default;
+    public IpKey PaduraksaUtf8() => IpParser.TryParse(_utf8.AsSpan(), out var address) ? address : default;
 }

@@ -472,7 +472,7 @@ public sealed class CertificateOperationsTests
         var pending = await certificates.RegisterPendingAsync(AdminCertificate.Id, CertificateSource.LocalCa, ["localhost"], AdminCertificate.Label, ConfigServiceHarness.Admin, Ct);
         Assert.Equal(CertificateChangeStatus.Committed, pending.Status);
 
-        CertificateOperationResult completed = await operations.EnsureAdminCertificateAsync(["localhost"], ConfigServiceHarness.Admin, Ct);
+        var completed = await operations.EnsureAdminCertificateAsync(["localhost"], ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(CertificateOperationStatus.Completed, completed.Status);
         Assert.Equal(AdminCertificate.Id, completed.Certificate!.Id);
@@ -492,7 +492,7 @@ public sealed class CertificateOperationsTests
         // A database loss would have the recovery register the row under its own label, keeping the notes.
         Assert.Equal(CertificateChangeStatus.Committed, (await certificates.UpdateDetailsAsync(AdminCertificate.Id, CertificateRecovery.Label, "kept", ConfigServiceHarness.Admin, Ct)).Status);
 
-        CertificateOperationResult repaired = await operations.EnsureAdminCertificateAsync(["localhost"], ConfigServiceHarness.Admin, Ct);
+        var repaired = await operations.EnsureAdminCertificateAsync(["localhost"], ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(CertificateOperationStatus.Unchanged, repaired.Status);
         Assert.Equal((AdminCertificate.Label, "kept"), (repaired.Certificate!.Label, repaired.Certificate.Notes));
@@ -533,7 +533,7 @@ public sealed class CertificateOperationsTests
 
         // The state the admin certificate service exists to prevent; the API maps this Invalid to a 422 carrying the
         // code, so it is asserted here, where it can still arise.
-        CertificateOperationResult refused = await operations.IssueFromLocalCaAsync(new LocalCaLeafRequest(["leaf.test"]), ConfigServiceHarness.Admin, Ct);
+        var refused = await operations.IssueFromLocalCaAsync(new LocalCaLeafRequest(["leaf.test"]), ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(CertificateOperationStatus.Invalid, refused.Status);
         Assert.Equal(CertificateErrorCodes.LocalCaMissing, Assert.Single(refused.Errors).Code);
@@ -568,7 +568,7 @@ public sealed class CertificateOperationsTests
             ValueTask.FromResult<IReadOnlyList<VaultCertificate>>([.. Catalog.Select(pair => new VaultCertificate(pair.Key, RootIds.Contains(pair.Key), pair.Value))]);
 
         public ValueTask<VaultCertificate?> DescribeAsync(CertificateId id, CancellationToken cancellationToken) =>
-            ValueTask.FromResult(Catalog.TryGetValue(id, out CertificateInfo? info) ? new VaultCertificate(id, RootIds.Contains(id), info) : null);
+            ValueTask.FromResult(Catalog.TryGetValue(id, out var info) ? new VaultCertificate(id, RootIds.Contains(id), info) : null);
 
         public List<string> Calls { get; } = [];
 
@@ -644,7 +644,7 @@ public sealed class CertificateOperationsTests
             }
 
             Keys.Add(id);
-            CertificateInfo info = InfoFor(ImportNames);
+            var info = InfoFor(ImportNames);
             Catalog[id] = info;
             return ValueTask.FromResult(info);
         }
@@ -675,7 +675,7 @@ public sealed class CertificateOperationsTests
                 throw StoreThenFail;
             }
 
-            CertificateInfo info = InfoFor(names, validity, spec);
+            var info = InfoFor(names, validity, spec);
             Catalog[id] = info;
             if (kind == "LocalCaRoot")
             {

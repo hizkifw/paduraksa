@@ -31,9 +31,9 @@ public static class ConfigDiff
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(after);
-        ConfigDocument old = CanonicalConfigJson.Canonicalize(before);
-        ConfigDocument @new = CanonicalConfigJson.Canonicalize(after);
-        ConfigJsonContext json = Json;
+        var old = CanonicalConfigJson.Canonicalize(before);
+        var @new = CanonicalConfigJson.Canonicalize(after);
+        var json = Json;
         List<ConfigChange> changes = [];
 
         if (old.ApiVersion != @new.ApiVersion)
@@ -41,7 +41,7 @@ public static class ConfigDiff
             changes.Add(new DocumentChange(ConfigChangeKind.Modified, string.Empty, ["/apiVersion"]));
         }
 
-        List<string> settings = Fields(old.Settings, @new.Settings, "/settings", json.GlobalSettings);
+        var settings = Fields(old.Settings, @new.Settings, "/settings", json.GlobalSettings);
         if (settings.Count > 0)
         {
             changes.Add(new SettingsChange(ConfigChangeKind.Modified, "/settings", settings));
@@ -118,12 +118,12 @@ public static class ConfigDiff
         where TId : struct, IComparable<TId>
     {
         oldPath ??= newPath;
-        Dictionary<TId, int> oldIndex = Index(before, id);
-        Dictionary<TId, int> newIndex = Index(after, id);
-        foreach (TId key in oldIndex.Keys.Union(newIndex.Keys).Order())
+        var oldIndex = Index(before, id);
+        var newIndex = Index(after, id);
+        foreach (var key in oldIndex.Keys.Union(newIndex.Keys).Order())
         {
-            bool inOld = oldIndex.TryGetValue(key, out int o);
-            bool inNew = newIndex.TryGetValue(key, out int n);
+            var inOld = oldIndex.TryGetValue(key, out var o);
+            var inNew = newIndex.TryGetValue(key, out var n);
             if (!inOld)
             {
                 changes.Add(change(ConfigChangeKind.Added, key, $"{newPath}/{n}", []));
@@ -134,8 +134,8 @@ public static class ConfigDiff
             }
             else
             {
-                bool reordered = childOrderChanged?.Invoke(before[o], after[n]) ?? false;
-                List<string> fields = Fields(before[o], after[n], $"{newPath}/{n}", typeInfo, skip, reordered);
+                var reordered = childOrderChanged?.Invoke(before[o], after[n]) ?? false;
+                var fields = Fields(before[o], after[n], $"{newPath}/{n}", typeInfo, skip, reordered);
                 if (fields.Count > 0)
                 {
                     changes.Add(change(ConfigChangeKind.Modified, key, $"{newPath}/{n}", fields));
@@ -150,7 +150,7 @@ public static class ConfigDiff
         where TId : struct
     {
         Dictionary<TId, int> index = [];
-        for (int i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Count; i++)
         {
             index.TryAdd(id(items[i]), i);
         }
@@ -195,9 +195,9 @@ public static class ConfigDiff
         }
 
         // Same contract, nulls written: both sides have the same properties in the same order.
-        foreach (JsonProperty property in before.EnumerateObject())
+        foreach (var property in before.EnumerateObject())
         {
-            string name = property.Name;
+            var name = property.Name;
             if (topLevel && name == skip)
             {
                 if (reordered)

@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
-
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 using Paduraksa.Core.Model;
@@ -35,7 +33,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     {
         // The gate stamps the generation it read; the upstream echoes which cluster served the request. Each
         // generation routes flip.test to a known cluster, so a mismatch means a request mixed two snapshots.
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(
+        await using var server = await ProxyTestServer.StartAsync(
             FlipTo("ua", "g-a"),
             new()
             {
@@ -50,9 +48,9 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
                 },
             });
         ConcurrentDictionary<long, string> clusterByGeneration = new() { [server.Store.Current.Generation] = "/a/" };
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        using HttpClient client = ProxyTestServer.CreateClient(maxConnections: 32);
-        using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var ct = TestContext.Current.CancellationToken;
+        using var client = ProxyTestServer.CreateClient(maxConnections: 32);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         ConcurrentBag<string> failures = [];
         ConcurrentBag<(long Generation, string Body)> seen = [];
         long requests = 0;
@@ -63,15 +61,15 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
             {
                 try
                 {
-                    using HttpResponseMessage response = await client.SendAsync(server.Request("flip.test", "/x"), CancellationToken.None);
-                    string body = await response.Content.ReadAsStringAsync(CancellationToken.None);
+                    using var response = await client.SendAsync(server.Request("flip.test", "/x"), CancellationToken.None);
+                    var body = await response.Content.ReadAsStringAsync(CancellationToken.None);
                     if (response.StatusCode != HttpStatusCode.OK)
                     {
                         failures.Add($"{(int)response.StatusCode}: {body}");
                         continue;
                     }
 
-                    long generation = long.Parse(response.Headers.GetValues("x-gate-generation").Single(), CultureInfo.InvariantCulture);
+                    var generation = long.Parse(response.Headers.GetValues("x-gate-generation").Single(), CultureInfo.InvariantCulture);
                     seen.Add((generation, body));
                     Interlocked.Increment(ref requests);
                 }
@@ -83,12 +81,12 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         }
 
         Task[] load = [.. Enumerable.Range(0, 16).Select(_ => Task.Run(LoadAsync, CancellationToken.None))];
-        int publishes = 0;
-        DateTime until = DateTime.UtcNow.AddSeconds(2.5);
+        var publishes = 0;
+        var until = DateTime.UtcNow.AddSeconds(2.5);
         while (DateTime.UtcNow < until)
         {
-            bool toB = publishes % 2 == 0;
-            PublishResult result = await server.PublishAsync(FlipTo(toB ? "ub" : "ua", "g" + publishes));
+            var toB = publishes % 2 == 0;
+            var result = await server.PublishAsync(FlipTo(toB ? "ub" : "ua", "g" + publishes));
             Assert.True(result.Succeeded, string.Join("; ", result.Errors));
             clusterByGeneration[result.Generation] = toB ? "/b/" : "/a/";
             publishes++;
@@ -109,14 +107,14 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     [Fact]
     public async Task YarpValidationFailureKeepsTheOldSnapshotLive()
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ua", "good"));
-        RuntimeSnapshot before = server.Store.Current;
-        ProxyConfigModel invalid = FlipTo("ub", "bad") with
+        await using var server = await ProxyTestServer.StartAsync(FlipTo("ua", "good"));
+        var before = server.Store.Current;
+        var invalid = FlipTo("ub", "bad") with
         {
             Upstreams = [Upstream("ua", upstream.Address("a")), Upstream("ub", upstream.Address("b")) with { LoadBalancing = "NoSuchPolicy" }],
         };
 
-        PublishResult result = await server.PublishAsync(invalid);
+        var result = await server.PublishAsync(invalid);
 
         Assert.Equal(PublishStatus.Invalid, result.Status);
         Assert.Contains(result.Errors, e => e.Contains($"cluster '{TestIds.Upstream("ub")}'", StringComparison.Ordinal) && e.Contains("NoSuchPolicy", StringComparison.Ordinal));
@@ -133,9 +131,9 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     public async Task RouteAndClusterIdsThatDifferOnlyInCaseAreInvalid()
     {
         // The compiler rejects such IDs; a hand-built candidate still has to be stopped before YARP sees it.
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ua", "good"));
-        RuntimeSnapshot before = server.Store.Current;
-        RuntimeSnapshot compiled = TestSnapshots.Compile(FlipTo("ua", "twins"));
+        await using var server = await ProxyTestServer.StartAsync(FlipTo("ua", "good"));
+        var before = server.Store.Current;
+        var compiled = TestSnapshots.Compile(FlipTo("ua", "twins"));
         RouteConfig[] routes = [.. compiled.Yarp.Routes];
         ClusterConfig[] clusters = [.. compiled.Yarp.Clusters];
         routes[1] = routes[1] with { RouteId = TestIds.CaseTwin(RouteId.Parse(routes[0].RouteId)).ToString() };
@@ -152,7 +150,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
             Default = compiled.Default,
         };
 
-        PublishResult result = await server.Publisher.PublishAsync(twins, TestContext.Current.CancellationToken);
+        var result = await server.Publisher.PublishAsync(twins, TestContext.Current.CancellationToken);
 
         Assert.Equal(PublishStatus.Invalid, result.Status);
         Assert.Contains(result.Errors, e => e.Contains("duplicate route ID", StringComparison.Ordinal));
@@ -164,23 +162,23 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     public async Task ARejectedApplyKeepsTheOldSnapshotAndRestoresYarp()
     {
         ThrowingFilter filter = new("boom");
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(
+        await using var server = await ProxyTestServer.StartAsync(
             FlipTo("ua", "good"),
             new() { Services = s => s.AddSingleton<IProxyConfigFilter>(filter) });
-        RuntimeSnapshot before = server.Store.Current;
-        ProxyConfigModel exploding = FlipTo("ub", "bad") with
+        var before = server.Store.Current;
+        var exploding = FlipTo("ub", "bad") with
         {
             Hosts = [ProxyHost("flip", "flip.test", Route("flip-root", "ub")), ProxyHost("boom", "boom.test", Route("boom", "ua"))],
         };
 
-        PublishResult result = await server.PublishAsync(exploding);
+        var result = await server.PublishAsync(exploding);
 
         Assert.Equal(PublishStatus.Rejected, result.Status);
         Assert.Same(before, server.Store.Current);
         Assert.Equal("/a/x", await GetAsync(server, "flip.test"));
         Assert.True(before.Yarp.ContentEquals(server.Publisher.ConfigProvider.CurrentContent));
 
-        PublishResult next = await server.PublishAsync(FlipTo("ub", "after"));
+        var next = await server.PublishAsync(FlipTo("ub", "after"));
         Assert.True(next.Succeeded, string.Join("; ", next.Errors));
         Assert.Equal("/b/x", await GetAsync(server, "flip.test"));
     }
@@ -189,16 +187,16 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     public async Task ATimedOutApplyKeepsTheOldSnapshot()
     {
         ThrowingFilter filter = new("never") { Block = new TaskCompletionSource() };
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(
+        await using var server = await ProxyTestServer.StartAsync(
             FlipTo("ua", "good"),
             new()
             {
                 Services = s => s.AddSingleton<IProxyConfigFilter>(filter),
                 PublisherOptions = new SnapshotPublisherOptions { ApplyTimeout = TimeSpan.FromMilliseconds(200) },
             });
-        RuntimeSnapshot before = server.Store.Current;
+        var before = server.Store.Current;
 
-        PublishResult result = await server.PublishAsync(FlipTo("ub", "slow") with
+        var result = await server.PublishAsync(FlipTo("ub", "slow") with
         {
             Hosts = [ProxyHost("flip", "flip.test", Route("flip-root", "ub")), ProxyHost("never", "never.test", Route("never", "ua"))],
         });
@@ -213,18 +211,18 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     public async Task DisposingStopsTheWriterAndFailsPendingPublishes()
     {
         ThrowingFilter filter = new("never") { Block = new TaskCompletionSource() };
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(
+        await using var server = await ProxyTestServer.StartAsync(
             FlipTo("ua", "good"),
             new() { Services = s => s.AddSingleton<IProxyConfigFilter>(filter) });
-        RuntimeSnapshot before = server.Store.Current;
-        Task<PublishResult> stuck = server.PublishAsync(FlipTo("ub", "stuck") with
+        var before = server.Store.Current;
+        var stuck = server.PublishAsync(FlipTo("ub", "stuck") with
         {
             Hosts = [ProxyHost("flip", "flip.test", Route("flip-root", "ub")), ProxyHost("never", "never.test", Route("never", "ua"))],
         });
 
         await server.Publisher.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
-        PublishResult result = await stuck;
+        var result = await stuck;
         Assert.Equal(PublishStatus.Failed, result.Status);
         Assert.Contains("stopped", result.Errors[0], StringComparison.Ordinal);
         Assert.Same(before, server.Store.Current);
@@ -236,7 +234,7 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     public async Task PublishesBeforeYarpStartsAreAppliedByItsInitialLoad()
     {
         // ProxyTestServer publishes the initial config before the host starts; it must already be live.
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ub", "early"));
+        await using var server = await ProxyTestServer.StartAsync(FlipTo("ub", "early"));
 
         Assert.True(server.Publisher.IsAttached);
         Assert.Equal(TestIds.Revision("early"), server.Store.Current.Revision);
@@ -250,20 +248,20 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         using SnapshotStore store = new();
         SnapshotPublisher publisher = new(store);
 
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        Task<PublishResult> empty = publisher.PublishAsync(TestSnapshots.Compile(ProxyConfigModel.Empty), ct);
+        var ct = TestContext.Current.CancellationToken;
+        var empty = publisher.PublishAsync(TestSnapshots.Compile(ProxyConfigModel.Empty), ct);
         Assert.True(empty.IsCompletedSuccessfully);
         Assert.Equal(1, (await empty).Generation);
         Assert.Equal(["YARP isn't running yet, so the YARP config can't be validated."], await publisher.ValidateAsync(TestSnapshots.Compile(ProxyConfigModel.Empty)));
 
-        Task<PublishResult> invalid = publisher.PublishAsync(TestSnapshots.Compile(FlipTo("ua", "bad-early") with
+        var invalid = publisher.PublishAsync(TestSnapshots.Compile(FlipTo("ua", "bad-early") with
         {
             Upstreams = [Upstream("ua", upstream.Address("a")) with { LoadBalancing = "Nope" }, Upstream("ub", upstream.Address("b"))],
         }), ct);
         Assert.False(invalid.IsCompleted);
 
         // Attaching validates the queued candidate; an invalid one is refused and YARP starts on the live config.
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(options: new() { Publisher = publisher });
+        await using var server = await ProxyTestServer.StartAsync(options: new() { Publisher = publisher });
         Assert.Equal(PublishStatus.Invalid, (await invalid).Status);
         Assert.Equal(1, store.Current.Generation);
 
@@ -274,37 +272,37 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     [Fact]
     public async Task PolicyOnlyEditsReuseYarpsEndpoints()
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ua", "one"));
-        RuntimeSnapshot before = server.Store.Current;
-        ProxyConfigModel policyOnly = FlipTo("ua", "two") with
+        await using var server = await ProxyTestServer.StartAsync(FlipTo("ua", "one"));
+        var before = server.Store.Current;
+        var policyOnly = FlipTo("ua", "two") with
         {
             Hosts = [ProxyHost("flip", "flip.test", Route("flip-root", "ua") with { Policies = [new DenyPolicySpec(403, "no\n")] }), ProxyHost("steady", "steady.test", Route("steady-root", "ua"))],
         };
 
-        PublishResult result = await server.PublishAsync(policyOnly);
+        var result = await server.PublishAsync(policyOnly);
 
         Assert.True(result.Succeeded);
-        RuntimeSnapshot after = server.Store.Current;
+        var after = server.Store.Current;
         Assert.Equal(before.Generation + 1, after.Generation);
         Assert.Equal(before.YarpEndpoints, after.YarpEndpoints);
-        using HttpClient client = ProxyTestServer.CreateClient();
-        using HttpResponseMessage denied = await client.SendAsync(server.Request("flip.test"), TestContext.Current.CancellationToken);
+        using var client = ProxyTestServer.CreateClient();
+        using var denied = await client.SendAsync(server.Request("flip.test"), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
     }
 
     [Fact]
     public async Task ABurstOfPublishesCoalescesToTheLatest()
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ua", "start"));
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using var server = await ProxyTestServer.StartAsync(FlipTo("ua", "start"));
+        var ct = TestContext.Current.CancellationToken;
 
         List<Task<PublishResult>> burst = [];
-        for (int i = 0; i < 20; i++)
+        for (var i = 0; i < 20; i++)
         {
             burst.Add(server.Publisher.PublishAsync(TestSnapshots.Compile(FlipTo(i % 2 == 0 ? "ub" : "ua", "burst" + i)), ct));
         }
 
-        PublishResult[] results = await Task.WhenAll(burst);
+        var results = await Task.WhenAll(burst);
 
         Assert.True(results[^1].Succeeded);
         Assert.All(results, r => Assert.True(r.Status is PublishStatus.Published or PublishStatus.Superseded, r.Status.ToString()));
@@ -317,15 +315,15 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
     [Fact]
     public async Task ClientsAreReusedUnlessTheClientConfigChanges()
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(FlipTo("ua", "one"));
-        IProxyStateLookup state = server.Services.GetRequiredService<IProxyStateLookup>();
-        HttpMessageInvoker Client(string cluster) => state.TryGetCluster(TestIds.Upstream(cluster).ToString(), out ClusterState? c) ? c.Model.HttpClient : throw new InvalidOperationException(cluster);
-        HttpMessageInvoker original = Client("ua");
+        await using var server = await ProxyTestServer.StartAsync(FlipTo("ua", "one"));
+        var state = server.Services.GetRequiredService<IProxyStateLookup>();
+        HttpMessageInvoker Client(string cluster) => state.TryGetCluster(TestIds.Upstream(cluster).ToString(), out var c) ? c.Model.HttpClient : throw new InvalidOperationException(cluster);
+        var original = Client("ua");
 
         Assert.True((await server.PublishAsync(FlipTo("ub", "two"))).Succeeded);
         Assert.Same(original, Client("ua"));
 
-        ProxyConfigModel moreConnections = FlipTo("ub", "three") with
+        var moreConnections = FlipTo("ub", "three") with
         {
             Upstreams = [Upstream("ua", upstream.Address("a")) with { MaxConnectionsPerServer = 7 }, Upstream("ub", upstream.Address("b"))],
         };
@@ -354,13 +352,13 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
             ],
             Hosts = [ProxyHost("lb", "lb.test", Route("lb", "lb")), ProxyHost("aff", "aff.test", Route("aff", "aff")), ProxyHost("ph", "ph.test", Route("ph", "ph"))],
         };
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(model);
-        using HttpClient client = ProxyTestServer.CreateClient();
-        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using var server = await ProxyTestServer.StartAsync(model);
+        using var client = ProxyTestServer.CreateClient();
+        var ct = TestContext.Current.CancellationToken;
 
         // Load balancing: round robin reaches both destinations.
         HashSet<string> balanced = [];
-        for (int i = 0; i < 6; i++)
+        for (var i = 0; i < 6; i++)
         {
             balanced.Add(await GetAsync(server, "lb.test"));
         }
@@ -368,28 +366,28 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
         Assert.Equal(["/a/x", "/b/x"], balanced.Order(StringComparer.Ordinal));
 
         // Session affinity: the cookie pins every follow-up to the first destination.
-        using HttpResponseMessage first = await client.SendAsync(server.Request("aff.test", "/x"), ct);
-        string pinned = await first.Content.ReadAsStringAsync(ct);
-        string cookie = first.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(SnapshotCompiler.AffinityCookieName, StringComparison.Ordinal)).Split(';')[0];
-        for (int i = 0; i < 10; i++)
+        using var first = await client.SendAsync(server.Request("aff.test", "/x"), ct);
+        var pinned = await first.Content.ReadAsStringAsync(ct);
+        var cookie = first.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith(SnapshotCompiler.AffinityCookieName, StringComparison.Ordinal)).Split(';')[0];
+        for (var i = 0; i < 10; i++)
         {
-            using HttpRequestMessage request = server.Request("aff.test", "/x");
+            using var request = server.Request("aff.test", "/x");
             request.Headers.Add("Cookie", cookie);
-            using HttpResponseMessage response = await client.SendAsync(request, ct);
+            using var response = await client.SendAsync(request, ct);
             Assert.Equal(pinned, await response.Content.ReadAsStringAsync(ct));
         }
 
         // Passive health: failures against the dead destination take it out of rotation.
-        IProxyStateLookup state = server.Services.GetRequiredService<IProxyStateLookup>();
-        Assert.True(state.TryGetCluster(TestIds.Upstream("ph").ToString(), out ClusterState? cluster));
-        DestinationState dead = cluster.Destinations[TestIds.Destination("ph-dead").ToString()];
-        for (int i = 0; i < 40 && dead.Health.Passive != DestinationHealth.Unhealthy; i++)
+        var state = server.Services.GetRequiredService<IProxyStateLookup>();
+        Assert.True(state.TryGetCluster(TestIds.Upstream("ph").ToString(), out var cluster));
+        var dead = cluster.Destinations[TestIds.Destination("ph-dead").ToString()];
+        for (var i = 0; i < 40 && dead.Health.Passive != DestinationHealth.Unhealthy; i++)
         {
-            using HttpResponseMessage response = await client.SendAsync(server.Request("ph.test", "/x"), ct);
+            using var response = await client.SendAsync(server.Request("ph.test", "/x"), ct);
         }
 
         Assert.Equal(DestinationHealth.Unhealthy, dead.Health.Passive);
-        for (int i = 0; i < 10; i++)
+        for (var i = 0; i < 10; i++)
         {
             Assert.Equal("/good/x", await GetAsync(server, "ph.test"));
         }
@@ -397,9 +395,9 @@ public sealed class SnapshotPublisherTests(TestUpstream upstream) : IClassFixtur
 
     private static async Task<string> GetAsync(ProxyTestServer server, string host)
     {
-        using HttpClient client = ProxyTestServer.CreateClient();
-        using HttpResponseMessage response = await client.SendAsync(server.Request(host, "/x"), TestContext.Current.CancellationToken);
-        string body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        using var client = ProxyTestServer.CreateClient();
+        using var response = await client.SendAsync(server.Request(host, "/x"), TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         Assert.True(response.StatusCode == HttpStatusCode.OK, $"{(int)response.StatusCode}: {body}");
         return body;
     }

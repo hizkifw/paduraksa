@@ -3,10 +3,8 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Paduraksa.Acme;
-using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Tests.Acme.Fakes;
-using static Paduraksa.Tests.Acme.Fakes.AcmeHarness;
 
 namespace Paduraksa.Tests.Acme;
 

@@ -12,7 +12,7 @@
 @if (_me is null)
 {
     <div class="pdk-account-grid" aria-busy="true">
-        @for (int i = 0; i < 4; i++)
+        @for (var i = 0; i < 4; i++)
         {
             <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
                 <MudSkeleton SkeletonType="SkeletonType.Text" Width="35%" Height="28px" />
@@ -59,14 +59,14 @@ else
 
     private async Task LoadAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
         }
 
         _mayEditUsers = user.Has(Permission.UsersWrite);
-        UserResult result = await Identity.GetUserAsync(user.Session.OriginFor(Channel.Dashboard), user.UserId);
+        var result = await Identity.GetUserAsync(user.Session.OriginFor(Channel.Dashboard), user.UserId);
         if (result.User is { } me)
         {
             _me = me;

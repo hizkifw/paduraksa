@@ -147,7 +147,7 @@ public sealed class SettingsInheritanceTests
     [MemberData(nameof(FieldNames))]
     public void EveryFieldResolvesThroughTheLayers(string name)
     {
-        Field field = Fields.Single(f => f.Name == name);
+        var field = Fields.Single(f => f.Name == name);
 
         // Set at one layer only: that layer's value reaches the host.
         AssertResolved(field, field.First, defaults: field.First, profile: null, host: null);
@@ -169,11 +169,11 @@ public sealed class SettingsInheritanceTests
         // Walked from the contract itself, nested settings records included: a field added to HostSettings has to get its
         // row here, or this test names it.
         List<string> contract = [];
-        foreach (System.Reflection.PropertyInfo property in typeof(HostSettings).GetProperties())
+        foreach (var property in typeof(HostSettings).GetProperties())
         {
             if (typeof(ISettingsLayer).IsAssignableFrom(property.PropertyType))
             {
-                foreach (System.Reflection.PropertyInfo nested in property.PropertyType.GetProperties().Where(p => p.Name != nameof(ISettingsLayer.SetsNothing)))
+                foreach (var nested in property.PropertyType.GetProperties().Where(p => p.Name != nameof(ISettingsLayer.SetsNothing)))
                 {
                     contract.Add($"{Camel(property.Name)}.{Camel(nested.Name)}");
                 }
@@ -200,20 +200,20 @@ public sealed class SettingsInheritanceTests
     [MemberData(nameof(NestedNames))]
     public void EveryFieldOfANestedRecordKeepsItsOwnLayer(string name)
     {
-        NestedCase nested = NestedCases.Single(c => c.Name == name);
-        HostSettings defaults = LayersOf(nested.Defaults);
-        HostSettings profile = LayersOf(nested.Profile);
-        HostSettings host = LayersOf(nested.Host);
+        var nested = NestedCases.Single(c => c.Name == name);
+        var defaults = LayersOf(nested.Defaults);
+        var profile = LayersOf(nested.Profile);
+        var host = LayersOf(nested.Host);
 
-        ConfigDocument document = Document(defaults, profile, host);
+        var document = Document(defaults, profile, host);
         Assert.Empty(ConfigValidator.Validate(document));
-        MappedConfig mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
         Assert.Empty(mapped.Errors);
-        HostSpec compiled = Assert.Single(mapped.Model.Hosts);
+        var compiled = Assert.Single(mapped.Model.Hosts);
         Assert.True(SnapshotCompiler.Compile(mapped.Model).Succeeded);
 
         // Every field the case places is still the value it was given, wherever its layer sits.
-        foreach (Field field in nested.Fields)
+        foreach (var field in nested.Fields)
         {
             Assert.Equal(SampleOf(field), field.Resolved(compiled));
         }
@@ -227,9 +227,9 @@ public sealed class SettingsInheritanceTests
     {
         // A new nested settings record gets its case here, the same way a new field gets its row: the walk starts at the
         // contract, so the field can't be forgotten.
-        foreach ((string name, Type type, string[] fields) in NestedRecords())
+        foreach (var (name, type, fields) in NestedRecords())
         {
-            NestedCase nested = Assert.Single(NestedCases, c => c.Name == name);
+            var nested = Assert.Single(NestedCases, c => c.Name == name);
             Assert.Equal(fields.Order(StringComparer.Ordinal), nested.Fields.Select(f => f.Name).Order(StringComparer.Ordinal));
             Assert.All(nested.Fields, field => Assert.Equal(type, FieldTypeOf(field)));
         }
@@ -242,21 +242,21 @@ public sealed class SettingsInheritanceTests
     {
         // The one rule canonical JSON drops an empty layer with: each record's conjunction has to name every field, so a
         // field added without it fails here rather than silently vanishing from stored documents.
-        foreach ((string name, Type type, string[] fields) in NestedRecords())
+        foreach (var (name, type, fields) in NestedRecords())
         {
-            System.Reflection.PropertyInfo property = typeof(HostSettings).GetProperties().Single(p => p.PropertyType == type);
-            ISettingsLayer empty = (ISettingsLayer)Activator.CreateInstance(type)!;
+            var property = typeof(HostSettings).GetProperties().Single(p => p.PropertyType == type);
+            var empty = (ISettingsLayer)Activator.CreateInstance(type)!;
             Assert.True(empty.SetsNothing, $"{type.Name} with no field set must set nothing");
 
-            foreach (string fieldName in fields)
+            foreach (var fieldName in fields)
             {
-                Field field = FieldOf(fieldName);
-                HostSettings layer = field.Layer(SampleOf(field));
-                ISettingsLayer record = (ISettingsLayer)property.GetValue(layer)!;
+                var field = FieldOf(fieldName);
+                var layer = field.Layer(SampleOf(field));
+                var record = (ISettingsLayer)property.GetValue(layer)!;
                 Assert.False(record.SetsNothing, $"{fieldName} is set, so {type.Name}.SetsNothing must be false");
 
                 // And the canonical document writes the record, so the rule keeps what a document that sets it says.
-                string json = System.Text.Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(Document(layer, null, null)));
+                var json = System.Text.Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(Document(layer, null, null)));
                 Assert.Contains($"\"{name}\":", json, StringComparison.Ordinal);
             }
         }
@@ -287,9 +287,9 @@ public sealed class SettingsInheritanceTests
     /// </summary>
     private static string SampleOf(Field field)
     {
-        HostSettings alone = field.Layer(field.First);
-        string nested = field.Name[..field.Name.IndexOf('.')];
-        bool setsOthers = Fields
+        var alone = field.Layer(field.First);
+        var nested = field.Name[..field.Name.IndexOf('.')];
+        var setsOthers = Fields
             .Where(f => f.Name.StartsWith(nested + ".", StringComparison.Ordinal) && f != field)
             .Any(f => f.Read(alone) is not null);
         return setsOthers ? field.Second : field.First;
@@ -299,7 +299,7 @@ public sealed class SettingsInheritanceTests
     private static HostSettings LayersOf(IEnumerable<string> fields)
     {
         HostSettings layer = new();
-        foreach (string name in fields)
+        foreach (var name in fields)
         {
             layer = HostSettingsLayers.Merge(layer, FieldOf(name).Layer(SampleOf(FieldOf(name))));
         }
@@ -318,16 +318,16 @@ public sealed class SettingsInheritanceTests
         Assert.Equal(profile, profile is null ? null : field.Read(field.Layer(profile)));
         Assert.Equal(host, host is null ? null : field.Read(field.Layer(host)));
 
-        ConfigDocument document = Document(
+        var document = Document(
             defaults: defaults is null ? null : field.Layer(defaults),
             profile: profile is null ? null : field.Layer(profile),
             host: host is null ? null : field.Layer(host));
 
         Assert.Empty(ConfigValidator.Validate(document));
 
-        MappedConfig mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
         Assert.Empty(mapped.Errors);
-        HostSpec compiled = Assert.Single(mapped.Model.Hosts);
+        var compiled = Assert.Single(mapped.Model.Hosts);
 
         // The compiler accepts what the mapping produced, and the host it compiled says what the merge resolved.
         Assert.True(SnapshotCompiler.Compile(mapped.Model).Succeeded);

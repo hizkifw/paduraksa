@@ -32,13 +32,13 @@ public sealed class ConfigPageTests
     public async Task TheHostsList_OffersAddingOnlyToWriters(Role role, bool offered)
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, role);
+        var config = ConfigPages.SignIn(context, role);
         config.Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
 
-        IRenderedComponent<Hosts> page = context.Render<Hosts>();
+        var page = context.Render<Hosts>();
 
         await page.WaitForStateAsync(() => page.FindAll(".pdk-hosts-table").Count == 1);
-        string row = page.Find("[data-host='app.example.com']").TextContent;
+        var row = page.Find("[data-host='app.example.com']").TextContent;
         Assert.Contains("app", row, StringComparison.Ordinal);
         Assert.Contains("http://app:8080", row, StringComparison.Ordinal);
         Assert.Equal(offered, page.FindAll($"a[href='{Paduraksa.Dashboard.DashboardRoutes.NewHost}']").Count > 0);
@@ -49,9 +49,9 @@ public sealed class ConfigPageTests
     public async Task TheHostsList_FollowsCommitsMadeElsewhere()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Viewer);
+        var config = ConfigPages.SignIn(context, Role.Viewer);
         config.Document = new ConfigDocument(Upstreams: [App]);
-        IRenderedComponent<Hosts> page = context.Render<Hosts>();
+        var page = context.Render<Hosts>();
         await page.WaitForStateAsync(() => page.Markup.Contains("No hosts yet", StringComparison.Ordinal));
 
         config.Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
@@ -69,10 +69,10 @@ public sealed class ConfigPageTests
     public async Task AHostsAddress_OpensItsDrawer_ReadOnlyWithoutConfigWrite(Role role, bool writable)
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, role);
+        var config = ConfigPages.SignIn(context, role);
         config.Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        var drawers = context.Render<DrawerHost>();
 
         context.Render<Hosts>(parameters => parameters.Add(p => p.Key, Host.Id.ToString()));
 
@@ -90,7 +90,7 @@ public sealed class ConfigPageTests
     {
         await using DashboardTestContext context = new();
         ConfigPages.SignIn(context, Role.Viewer).Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        var drawers = context.Render<DrawerHost>();
 
         context.Render<Hosts>(parameters => parameters.Add(p => p.Key, key));
 
@@ -104,9 +104,9 @@ public sealed class ConfigPageTests
         await using DashboardTestContext context = new();
         ConfigPages.SignIn(context, Role.Operator).Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
-        NavigationManager navigation = context.Services.GetRequiredService<NavigationManager>();
-        IRenderedComponent<Hosts> page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, Host.Id.ToString()));
+        var drawers = context.Render<DrawerHost>();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        var page = context.Render<Hosts>(parameters => parameters.Add(p => p.Key, Host.Id.ToString()));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] .pdk-form").Count == 1);
 
         await drawers.Find("[data-drawer=host] [data-action=cancel]").ClickAsync(new());
@@ -125,16 +125,16 @@ public sealed class ConfigPageTests
     public async Task AnUpstreamInUse_CannotBeDeleted_AndSaysWhy()
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, Role.Operator);
+        var config = ConfigPages.SignIn(context, Role.Operator);
         config.Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
         context.Render<MudPopoverProvider>();
-        IRenderedComponent<DrawerHost> drawers = context.Render<DrawerHost>();
+        var drawers = context.Render<DrawerHost>();
         context.Render<Upstreams>(parameters => parameters.Add(p => p.Key, App.Id.ToString()));
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-action=delete]").Count == 1);
 
         await drawers.Find("[data-action=delete]").ClickAsync(new());
 
-        string banner = drawers.Find("[data-banner=in-use]").TextContent;
+        var banner = drawers.Find("[data-banner=in-use]").TextContent;
         Assert.Contains("app is still in use, so it can't be deleted.", banner, StringComparison.Ordinal);
         Assert.Contains("app.example.com (route /)", banner, StringComparison.Ordinal);
         Assert.Empty(config.Executed);
@@ -147,10 +147,10 @@ public sealed class ConfigPageTests
         await using DashboardTestContext context = new();
         ConfigPages.SignIn(context, Role.Viewer).Document = new ConfigDocument(Upstreams: [App], Hosts: [Host]);
 
-        IRenderedComponent<Upstreams> page = context.Render<Upstreams>();
+        var page = context.Render<Upstreams>();
 
         await page.WaitForStateAsync(() => page.FindAll("[data-upstream=app]").Count == 1);
-        IElement usedBy = page.Find("[data-upstream=app] [data-label='Used by'] a");
+        var usedBy = page.Find("[data-upstream=app] [data-label='Used by'] a");
         Assert.Equal("app.example.com", usedBy.TextContent);
         Assert.Equal(Paduraksa.Dashboard.DashboardRoutes.Host(Host.Id), usedBy.GetAttribute("href"));
         Assert.Empty(page.FindAll($"a[href='{Paduraksa.Dashboard.DashboardRoutes.NewUpstream}']"));
@@ -162,7 +162,7 @@ public sealed class ConfigPageTests
         await using DashboardTestContext context = new();
         ConfigPages.SignIn(context, Role.Auditor);
 
-        IRenderedComponent<Simulator> page = context.Render<Simulator>();
+        var page = context.Render<Simulator>();
 
         await page.WaitForStateAsync(() => page.Markup.Contains("Your role can't run the simulator", StringComparison.Ordinal));
         Assert.Empty(page.FindAll("[data-action=simulate]"));
@@ -174,16 +174,16 @@ public sealed class ConfigPageTests
     public async Task RollingBack_IsOfferedOnlyToWriters(Role role, bool offered)
     {
         await using DashboardTestContext context = new();
-        FakeDashboardConfig config = ConfigPages.SignIn(context, role);
-        UserId me = UserId.New();
-        RevisionDetail first = Revision(1, null, new ConfigDocument(Upstreams: [App]), [new UpstreamChange(ConfigChangeKind.Added, App.Id, "/upstreams/0", [])], me);
-        RevisionDetail second = Revision(2, first.Revision.Id, new ConfigDocument(Upstreams: [App], Hosts: [Host]), [new HostChange(ConfigChangeKind.Added, Host.Id, "/hosts/0", [])], me);
+        var config = ConfigPages.SignIn(context, role);
+        var me = UserId.New();
+        var first = Revision(1, null, new ConfigDocument(Upstreams: [App]), [new UpstreamChange(ConfigChangeKind.Added, App.Id, "/upstreams/0", [])], me);
+        var second = Revision(2, first.Revision.Id, new ConfigDocument(Upstreams: [App], Hosts: [Host]), [new HostChange(ConfigChangeKind.Added, Host.Id, "/hosts/0", [])], me);
         config.Revisions[first.Revision.Id] = first;
         config.Revisions[second.Revision.Id] = second;
         context.Render<MudPopoverProvider>();
         context.Services.GetRequiredService<NavigationManager>().NavigateTo($"/history?revision={first.Revision.Id}");
 
-        IRenderedComponent<History> page = context.Render<History>();
+        var page = context.Render<History>();
 
         await page.WaitForStateAsync(() => page.Markup.Contains("Revision #1", StringComparison.Ordinal));
         Assert.Equal(2, page.FindAll(".pdk-timeline-item").Count);

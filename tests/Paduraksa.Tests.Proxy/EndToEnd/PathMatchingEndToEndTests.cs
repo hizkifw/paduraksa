@@ -38,9 +38,9 @@ public sealed class PathMatchingEndToEndTests(TestUpstream upstream) : IClassFix
     [InlineData("/x\\..\\admin")]
     public async Task EverySpellingOfAGuardedPathHitsItsPolicy(string target)
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(Config);
+        await using var server = await ProxyTestServer.StartAsync(Config);
 
-        (int status, string body, _) = await RawHttp.GetAsync(server.BaseAddress, "guard.test", target, TestContext.Current.CancellationToken);
+        var (status, body, _) = await RawHttp.GetAsync(server.BaseAddress, "guard.test", target, TestContext.Current.CancellationToken);
 
         Assert.Equal(403, status);
         Assert.Equal("denied\n", body);
@@ -53,9 +53,9 @@ public sealed class PathMatchingEndToEndTests(TestUpstream upstream) : IClassFix
     [InlineData("/")]
     public async Task OtherPathsStillReachTheUpstream(string target)
     {
-        await using ProxyTestServer server = await ProxyTestServer.StartAsync(Config);
+        await using var server = await ProxyTestServer.StartAsync(Config);
 
-        (int status, _, _) = await RawHttp.GetAsync(server.BaseAddress, "guard.test", target, TestContext.Current.CancellationToken);
+        var (status, _, _) = await RawHttp.GetAsync(server.BaseAddress, "guard.test", target, TestContext.Current.CancellationToken);
 
         Assert.Equal(200, status);
     }

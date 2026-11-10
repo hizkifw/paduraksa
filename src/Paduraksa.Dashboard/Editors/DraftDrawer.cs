@@ -160,7 +160,7 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
         Touched.Clear();
         OnReset();
 
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -200,7 +200,7 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
     }
 
     protected string? E(string path) =>
-        (Attempted || Touched.Contains(path)) && FieldErrors.TryGetValue(path, out string? message) ? message : null;
+        (Attempted || Touched.Contains(path)) && FieldErrors.TryGetValue(path, out var message) ? message : null;
 
     protected void Set(Action apply, string path)
     {
@@ -245,7 +245,7 @@ public abstract class DraftDrawer<TModel, TConfig> : ComponentBase, IDisposable
     protected void MergeErrors(IEnumerable<KeyValuePair<string, string>> found)
     {
         Dictionary<string, string> merged = new(FieldErrors, StringComparer.Ordinal);
-        foreach ((string path, string message) in found)
+        foreach (var (path, message) in found)
         {
             merged[path] = message;
         }

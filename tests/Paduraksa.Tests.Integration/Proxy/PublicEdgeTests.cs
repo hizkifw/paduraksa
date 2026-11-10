@@ -41,25 +41,25 @@ public sealed class PublicEdgeTests : IAsyncLifetime
 
     private static async Task<PaduraksaHost> StartAsync(Dictionary<string, string?>? settings = null)
     {
-        PaduraksaHost host = TestHost.Create(settings: settings);
+        var host = TestHost.Create(settings: settings);
         await host.StartAsync(TestContext.Current.CancellationToken);
         return host;
     }
 
     private static async Task PublishAsync(PaduraksaHost host, ProxyConfigModel model, SnapshotCompilerOptions? options = null)
     {
-        PublishResult result = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, model, options), TestContext.Current.CancellationToken);
+        var result = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, model, options), TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded, string.Join("; ", result.Errors));
     }
 
     private static async Task<(HttpResponseMessage Response, Dictionary<string, string> Upstream)> SendAsync(
         PaduraksaHost host, string scheme, string hostHeader, Action<HttpRequestMessage>? configure = null, string path = "/", Version? version = null)
     {
-        using HttpClient client = EdgeClient.Create(out _);
-        using HttpRequestMessage request = EdgeClient.Request(host, scheme, hostHeader, path, version);
+        using var client = EdgeClient.Create(out _);
+        using var request = EdgeClient.Request(host, scheme, hostHeader, path, version);
         configure?.Invoke(request);
-        HttpResponseMessage response = await client.SendAsync(request, TestContext.Current.CancellationToken);
-        string body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         return (response, EdgeUpstream.Parse(body));
     }
 
@@ -67,11 +67,11 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     public async Task ServesEachHostItsCertificateAndSwapsThemOnPublish()
     {
         using TestCertificates certificates = new();
-        await using PaduraksaHost host = await StartAsync();
+        await using var host = await StartAsync();
         host.Shared.Certificates.Set(TestIds.Certificate("a"), certificates.Create("a.test v1", "a.test"));
         host.Shared.Certificates.Set(TestIds.Certificate("b"), certificates.Create("b.test", "b.test", "*.b.test"));
         host.Shared.Certificates.Set(TestIds.Certificate("fallback"), certificates.Create("fallback", "fallback.test"));
-        ProxyConfigModel model = App(
+        var model = App(
             new HostSpec { Id = TestIds.Host("a"), Names = ["a.test"], Certificate = TestIds.Certificate("a"), Kind = HostKind.Respond, Respond = new RespondSpec { Body = "a" } },
             new HostSpec { Id = TestIds.Host("b"), Names = ["b.test", "*.b.test"], Certificate = TestIds.Certificate("b"), Kind = HostKind.Respond, Respond = new RespondSpec { Body = "b" } });
         model = model with { Defaults = new DefaultsSpec { Certificate = TestIds.Certificate("fallback") } };
@@ -95,11 +95,11 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     public async Task UnknownNamesAreRejectedWithoutADefaultCertificate()
     {
         using TestCertificates certificates = new();
-        await using PaduraksaHost host = await StartAsync();
+        await using var host = await StartAsync();
         host.Shared.Certificates.Set(TestIds.Certificate("b"), certificates.Create("b.test", "b.test"));
 
         // Compiled directly: the shared Compile helper would add the placeholder as the default certificate.
-        CompileResult bare = SnapshotCompiler.Compile(
+        var bare = SnapshotCompiler.Compile(
             App(new HostSpec { Id = TestIds.Host("b"), Names = ["b.test"], Certificate = TestIds.Certificate("b"), Kind = HostKind.Respond, Respond = new RespondSpec { Body = "b" } }),
             host.Shared.PublicListeners.CompilerOptions with { Certificates = host.Shared.Certificates });
         Assert.True((await host.Shared.SnapshotPublisher.PublishAsync(bare.Snapshot!, TestContext.Current.CancellationToken)).Succeeded);
@@ -115,7 +115,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [InlineData(System.Security.Authentication.SslProtocols.Tls13, HttpStatusCode.OK)]
     public async Task AHostRequiringTls13RefusesAWeakerConnectionNegotiatedForAnotherName(System.Security.Authentication.SslProtocols client, HttpStatusCode expected)
     {
-        await using PaduraksaHost host = await StartAsync();
+        await using var host = await StartAsync();
         // No SNI (an IP-literal URL): the default entry (TLS 1.2+) negotiates; the Host names the strict host.
         await PublishAsync(host, App(new HostSpec
         {
@@ -125,8 +125,8 @@ public sealed class PublicEdgeTests : IAsyncLifetime
             Routes = [new RouteSpec { Id = TestIds.Route("strict-root"), Upstream = TestIds.Upstream("echo") }],
         }));
 
-        using HttpClient http = EdgeClient.Create(out _, client);
-        using HttpResponseMessage response = await http.GetAsync(TestHost.Endpoint(host, HostRole.Public, "https"), TestContext.Current.CancellationToken);
+        using var http = EdgeClient.Create(out _, client);
+        using var response = await http.GetAsync(TestHost.Endpoint(host, HostRole.Public, "https"), TestContext.Current.CancellationToken);
 
         Assert.Equal(expected, response.StatusCode);
     }
@@ -134,17 +134,17 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [Fact]
     public async Task PlainHttpIsRedirectedToThePublicHttpsPort()
     {
-        await using PaduraksaHost host = await StartAsync(new() { ["Paduraksa:Listen:PublicHttpsPort"] = "8443" });
+        await using var host = await StartAsync(new() { ["Paduraksa:Listen:PublicHttpsPort"] = "8443" });
         await PublishAsync(host, App(new HostSpec { Id = TestIds.Host("secure"), Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Id = TestIds.Route("secure-root"), Upstream = TestIds.Upstream("echo") }] }));
 
-        (HttpResponseMessage redirect, _) = await SendAsync(host, "http", "secure.test", path: "/a%20b?c=d");
+        var (redirect, _) = await SendAsync(host, "http", "secure.test", path: "/a%20b?c=d");
         using (redirect)
         {
             Assert.Equal(HttpStatusCode.MovedPermanently, redirect.StatusCode);
             Assert.Equal("https://secure.test:8443/a%20b?c=d", redirect.Headers.Location!.OriginalString);
         }
 
-        (HttpResponseMessage secure, Dictionary<string, string> seen) = await SendAsync(host, "https", "secure.test", path: "/a%20b?c=d", version: HttpVersion.Version20);
+        var (secure, seen) = await SendAsync(host, "https", "secure.test", path: "/a%20b?c=d", version: HttpVersion.Version20);
         using (secure)
         {
             Assert.Equal(HttpStatusCode.OK, secure.StatusCode);
@@ -155,7 +155,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [Fact]
     public async Task ProxyProtocolOnTheHttpListenerSetsTheClientIp()
     {
-        await using PaduraksaHost host = await StartAsync(new()
+        await using var host = await StartAsync(new()
         {
             ["Paduraksa:Listen:HttpProxyProtocol:Enabled"] = "true",
             ["Paduraksa:Listen:HttpProxyProtocol:TrustedSources:0"] = "127.0.0.0/8",
@@ -169,20 +169,20 @@ public sealed class PublicEdgeTests : IAsyncLifetime
 
         // Counted as deltas around each of this test's own connections, like the HTTPS listener's test: another test's stray
         // connection to this host's reused port would otherwise move an absolute count.
-        ProxyProtocolCounters counters = host.Shared.PublicListeners.HttpProxyProtocol!.Counters;
+        var counters = host.Shared.PublicListeners.HttpProxyProtocol!.Counters;
 
-        long accepted = counters.Accepted;
-        string response = await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes(
+        var accepted = counters.Accepted;
+        var response = await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes(
             "PROXY TCP4 203.0.113.7 192.0.2.1 50000 80\r\nGET /pp HTTP/1.1\r\nHost: app.test\r\nX-Forwarded-For: 1.2.3.4\r\nConnection: close\r\n\r\n"));
 
         Assert.StartsWith("HTTP/1.1 200", response, StringComparison.Ordinal); // the allow-list saw the PROXY protocol client
-        Dictionary<string, string> seen = EdgeUpstream.Parse(response);
+        var seen = EdgeUpstream.Parse(response);
         Assert.Equal("203.0.113.7", seen["X-Forwarded-For"]);
         Assert.Equal("203.0.113.7", seen["X-Real-IP"]);
         Assert.Equal(accepted + 1, counters.Accepted);
 
         // The header is mandatory on this listener: a plain request is dropped unanswered.
-        long invalid = counters.Invalid;
+        var invalid = counters.Invalid;
         Assert.Equal(string.Empty, await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: app.test\r\nConnection: close\r\n\r\n")));
         Assert.Equal(invalid + 1, counters.Invalid);
         Assert.Null(host.Shared.PublicListeners.HttpsProxyProtocol);
@@ -191,7 +191,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [Fact]
     public async Task ProxyProtocolOnTheHttpsListenerIsReadBeforeTls()
     {
-        await using PaduraksaHost host = await StartAsync(new()
+        await using var host = await StartAsync(new()
         {
             ["Paduraksa:Listen:HttpsProxyProtocol:Enabled"] = "true",
             ["Paduraksa:Listen:HttpsProxyProtocol:TrustedSources:0"] = "127.0.0.0/8",
@@ -204,20 +204,20 @@ public sealed class PublicEdgeTests : IAsyncLifetime
 
         // Counted as deltas around each of this test's own connections: under a parallel run another test can reach this
         // host's reused port, and an absolute count would then depend on it (the invalid count used to read 3, not 1).
-        ProxyProtocolCounters counters = host.Shared.PublicListeners.HttpsProxyProtocol!.Counters;
+        var counters = host.Shared.PublicListeners.HttpsProxyProtocol!.Counters;
 
         // The header arrives in clear ahead of the ClientHello; TLS and HTTP follow on the same connection.
-        long accepted = counters.Accepted;
-        string response = await EdgeClient.RawHttpsAsync(host, Encoding.ASCII.GetBytes("PROXY TCP4 198.51.100.20 192.0.2.1 40404 443\r\n"), "app.test", "/pp");
+        var accepted = counters.Accepted;
+        var response = await EdgeClient.RawHttpsAsync(host, Encoding.ASCII.GetBytes("PROXY TCP4 198.51.100.20 192.0.2.1 40404 443\r\n"), "app.test", "/pp");
 
         Assert.StartsWith("HTTP/1.1 200", response, StringComparison.Ordinal); // the allow-list saw the PROXY protocol client
         Assert.Equal(accepted + 1, counters.Accepted);
-        Dictionary<string, string> seen = EdgeUpstream.Parse(response);
+        var seen = EdgeUpstream.Parse(response);
         Assert.Equal("198.51.100.20", seen["X-Forwarded-For"]);
         Assert.Equal("https", seen["X-Forwarded-Proto"]);
 
         // Mandatory on this listener: TLS straight away is dropped, and the plain HTTP listener is unaffected.
-        long invalid = counters.Invalid;
+        var invalid = counters.Invalid;
         Assert.Equal(string.Empty, await EdgeClient.RawHttpsAsync(host, [], "app.test"));
         Assert.Equal(invalid + 1, counters.Invalid);
         Assert.Null(host.Shared.PublicListeners.HttpProxyProtocol);
@@ -226,8 +226,8 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [Fact]
     public async Task CloudflareProxyModeTrustsOnlyTheEdge()
     {
-        await using PaduraksaHost host = await StartAsync();
-        ProxyConfigModel model = App(new HostSpec
+        await using var host = await StartAsync();
+        var model = App(new HostSpec
         {
             Id = TestIds.Host("members"),
             Names = ["members.test"],
@@ -248,7 +248,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
 
         // Loopback stands in for Cloudflare's edge: the peer is trusted and CF-Connecting-IP is the client.
         await PublishAsync(host, model, host.Shared.PublicListeners.CompilerOptions with { CloudflareEdgeRanges = LoopbackEdge });
-        (HttpResponseMessage trusted, Dictionary<string, string> seen) = await SendAsync(host, "https", "members.test", ViaCloudflare, version: HttpVersion.Version20);
+        var (trusted, seen) = await SendAsync(host, "https", "members.test", ViaCloudflare, version: HttpVersion.Version20);
         using (trusted)
         {
             Assert.Equal(HttpStatusCode.OK, trusted.StatusCode); // the allow-list judged 198.51.100.7, not 127.0.0.1
@@ -259,13 +259,13 @@ public sealed class PublicEdgeTests : IAsyncLifetime
 
         // The baked-in ranges don't contain loopback: the same headers are now a spoof, ignored and stripped.
         await PublishAsync(host, model);
-        (HttpResponseMessage blocked, _) = await SendAsync(host, "https", "members.test", ViaCloudflare, version: HttpVersion.Version20);
+        var (blocked, _) = await SendAsync(host, "https", "members.test", ViaCloudflare, version: HttpVersion.Version20);
         using (blocked)
         {
             Assert.Equal(HttpStatusCode.Forbidden, blocked.StatusCode);
         }
 
-        (HttpResponseMessage spoofed, Dictionary<string, string> clean) = await SendAsync(host, "https", "app.test", ViaCloudflare, version: HttpVersion.Version20);
+        var (spoofed, clean) = await SendAsync(host, "https", "app.test", ViaCloudflare, version: HttpVersion.Version20);
         using (spoofed)
         {
             Assert.Equal(HttpStatusCode.OK, spoofed.StatusCode);
@@ -282,14 +282,14 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [InlineData("10.0.0.2", HttpStatusCode.MovedPermanently)] // anyone else: CF-Visitor is a spoof, redirect
     public async Task ATunnelOnPlainHttpDoesNotLoopTheHttpsRedirect(string cloudflared, HttpStatusCode expected)
     {
-        await using PaduraksaHost host = await StartAsync();
+        await using var host = await StartAsync();
         await PublishAsync(host, App(new HostSpec { Id = TestIds.Host("secure"), Names = ["secure.test"], ForceHttps = true, Routes = [new RouteSpec { Id = TestIds.Route("secure-root"), Upstream = TestIds.Upstream("echo") }] }) with
         {
             Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareTunnel, Proxies = [cloudflared, "::1"] } },
         });
 
         // cloudflared forwards to http://paduraksa:80 with the visitor's scheme in CF-Visitor.
-        (HttpResponseMessage response, Dictionary<string, string> seen) = await SendAsync(
+        var (response, seen) = await SendAsync(
             host,
             "http",
             "secure.test",
@@ -316,13 +316,13 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [Fact]
     public async Task GenericModeTakesTheClientFromTheForwardedChain()
     {
-        await using PaduraksaHost host = await StartAsync();
+        await using var host = await StartAsync();
         await PublishAsync(host, App() with
         {
             Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.Generic, Proxies = ["127.0.0.0/8", "::1"] } },
         });
 
-        (HttpResponseMessage response, Dictionary<string, string> seen) = await SendAsync(
+        var (response, seen) = await SendAsync(
             host,
             "http",
             "app.test",
@@ -337,7 +337,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [Fact]
     public async Task TheUpstreamGetsCleanForwardingHeaders()
     {
-        await using PaduraksaHost host = await StartAsync();
+        await using var host = await StartAsync();
         await PublishAsync(host, App());
         static void Spoof(HttpRequestMessage request)
         {
@@ -349,7 +349,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
             request.Headers.TryAddWithoutValidation("CF-Connecting-IP", "1.2.3.4");
         }
 
-        (HttpResponseMessage response, Dictionary<string, string> seen) = await SendAsync(host, "https", "app.test", Spoof, "/a%2Fb", HttpVersion.Version20);
+        var (response, seen) = await SendAsync(host, "https", "app.test", Spoof, "/a%2Fb", HttpVersion.Version20);
         using (response)
         {
             Assert.Equal(HttpVersion.Version20, response.Version);
@@ -366,14 +366,14 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [Fact]
     public async Task AltSvcAdvertisesThePublicPortOnTcpHttps()
     {
-        await using PaduraksaHost host = await StartAsync(new() { ["Paduraksa:Listen:PublicHttpsPort"] = "8443" });
-        ProxyConfigModel model = App(
+        await using var host = await StartAsync(new() { ["Paduraksa:Listen:PublicHttpsPort"] = "8443" });
+        var model = App(
             new HostSpec { Id = TestIds.Host("tcp"), Names = ["tcp.test"], Tls = new HostTlsSpec { Http3 = false }, Routes = [new RouteSpec { Id = TestIds.Route("tcp-root"), Upstream = TestIds.Upstream("echo") }] },
             new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } });
         // No libmsquic here (or H3 off): tell the compiler the H3 listener exists, as it does in production.
         await PublishAsync(host, model, host.Shared.PublicListeners.CompilerOptions with { AdvertiseHttp3 = true });
 
-        foreach ((string scheme, string name, string? expected) in new (string, string, string?)[]
+        foreach (var (scheme, name, expected) in new (string, string, string?)[]
         {
             ("https", "app.test", "h3=\":8443\""), // forwarded: ours replaces the upstream's
             ("https", "soon.test", "h3=\":8443\""), // answered by the gate
@@ -382,11 +382,11 @@ public sealed class PublicEdgeTests : IAsyncLifetime
             ("http", "app.test", null),
         })
         {
-            (HttpResponseMessage response, _) = await SendAsync(host, scheme, name, version: scheme == "https" ? HttpVersion.Version20 : HttpVersion.Version11);
+            var (response, _) = await SendAsync(host, scheme, name, version: scheme == "https" ? HttpVersion.Version20 : HttpVersion.Version11);
             using (response)
             {
                 // SocketsHttpHandler parses Alt-Svc for H3 discovery and drops the default "ma=86400".
-                string? altSvc = response.Headers.TryGetValues("Alt-Svc", out IEnumerable<string>? values) ? string.Join(", ", values) : null;
+                var altSvc = response.Headers.TryGetValues("Alt-Svc", out var values) ? string.Join(", ", values) : null;
                 Assert.True(expected == altSvc, $"{scheme}://{name}: expected {expected ?? "none"}, got {altSvc ?? "none"}");
             }
         }
@@ -394,7 +394,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
         // Without the H3 listener (the default here), nothing is advertised.
         Assert.False(host.Shared.PublicListeners.Http3);
         await PublishAsync(host, model);
-        (HttpResponseMessage plain, _) = await SendAsync(host, "https", "app.test", version: HttpVersion.Version20);
+        var (plain, _) = await SendAsync(host, "https", "app.test", version: HttpVersion.Version20);
         using (plain)
         {
             Assert.False(plain.Headers.Contains("Alt-Svc"));
@@ -409,7 +409,7 @@ public sealed class PublicEdgeTests : IAsyncLifetime
     [InlineData("Paduraksa:Listen:HttpsProxyProtocol:HeaderTimeout", "00:05:00", "HeaderTimeout must be positive and at most")]
     public void InvalidListenerOptionsFailValidation(string key, string value, string expected)
     {
-        Microsoft.Extensions.Options.OptionsValidationException ex = Assert.Throws<Microsoft.Extensions.Options.OptionsValidationException>(
+        var ex = Assert.Throws<Microsoft.Extensions.Options.OptionsValidationException>(
             () => TestHost.Create(settings: new Dictionary<string, string?> { [key] = value }));
         Assert.Contains(ex.Failures, f => f.Contains(expected, StringComparison.Ordinal));
     }

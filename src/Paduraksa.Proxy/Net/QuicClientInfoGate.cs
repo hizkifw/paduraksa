@@ -28,7 +28,7 @@ public static class QuicClientInfoGate
     /// <summary>Admits the connection and attaches its <see cref="ClientInfo"/>; false would reject the handshake.</summary>
     public static bool Admit(IPEndPoint? remoteEndPoint, ConnectionContext? connection)
     {
-        ClientInfo info = ClientInfo.FromEndPoint(remoteEndPoint);
+        var info = ClientInfo.FromEndPoint(remoteEndPoint);
 
         // SEAM: the global connection-level IP deny and the per-IP connection cap go here, on info.Address,
         // reading the live snapshot's deny set. Neither exists yet, so every connection is admitted.

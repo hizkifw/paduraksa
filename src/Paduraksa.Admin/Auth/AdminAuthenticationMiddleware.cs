@@ -61,7 +61,7 @@ public static class AdminAuthEndpointExtensions
     public static ClientContext GetClientContext(this HttpContext context, Channel channel)
     {
         ArgumentNullException.ThrowIfNull(context);
-        string? userAgent = context.Request.Headers.UserAgent.ToString();
+        var userAgent = context.Request.Headers.UserAgent.ToString();
         if (userAgent.Length > MaxUserAgentInput)
         {
             userAgent = userAgent[..MaxUserAgentInput];
@@ -74,7 +74,7 @@ public static class AdminAuthEndpointExtensions
     public static IPAddress? GetClientAddress(this HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        IPAddress? address = context.Connection.RemoteIpAddress;
+        var address = context.Connection.RemoteIpAddress;
         return address is { IsIPv4MappedToIPv6: true } ? address.MapToIPv4() : address;
     }
 
@@ -118,9 +118,9 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
             return;
         }
 
-        bool anonymousAllowed = context.GetEndpoint()?.Metadata.GetMetadata<AdminAnonymousMetadata>() is not null;
-        (bool cookiePresent, bool cookieAmbiguous, string? cookie) = AdminSessionCookie.Read(context.Request);
-        StringValues authorization = context.Request.Headers.Authorization;
+        var anonymousAllowed = context.GetEndpoint()?.Metadata.GetMetadata<AdminAnonymousMetadata>() is not null;
+        var (cookiePresent, cookieAmbiguous, cookie) = AdminSessionCookie.Read(context.Request);
+        var authorization = context.Request.Headers.Authorization;
 
         if (cookieAmbiguous || authorization.Count > 1)
         {
@@ -136,13 +136,13 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
 
         if (authorization.Count == 1)
         {
-            if (!TryReadBearer(authorization[0], out string? token))
+            if (!TryReadBearer(authorization[0], out var token))
             {
                 await RefuseAsync(context, "The Authorization header must be 'Bearer <token>'.", ApiCodes.Auth.InvalidAuthorization, "invalid_request").ConfigureAwait(false);
                 return;
             }
 
-            ApiTokenVerification verified = await tokens.VerifyAsync(token, context.RequestAborted).ConfigureAwait(false);
+            var verified = await tokens.VerifyAsync(token, context.RequestAborted).ConfigureAwait(false);
             if (verified.Principal is not { } principal)
             {
                 await RefuseAsync(context, "The API token is not valid.", ApiCodes.Auth.InvalidToken, "invalid_token").ConfigureAwait(false);
@@ -154,7 +154,7 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
         }
         else if (cookiePresent)
         {
-            SessionValidation validation = await sessions.ValidateAsync(cookie, context.RequestAborted).ConfigureAwait(false);
+            var validation = await sessions.ValidateAsync(cookie, context.RequestAborted).ConfigureAwait(false);
             switch (validation)
             {
                 case { Status: SessionStatus.Valid, Principal: { } principal }:
@@ -188,10 +188,10 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
             return;
         }
 
-        (bool cookiePresent, bool cookieAmbiguous, string? cookie) = AdminSessionCookie.Read(context.Request);
+        var (cookiePresent, cookieAmbiguous, cookie) = AdminSessionCookie.Read(context.Request);
         if (cookiePresent && !cookieAmbiguous)
         {
-            SessionValidation validation = await sessions.ValidateAsync(cookie, context.RequestAborted).ConfigureAwait(false);
+            var validation = await sessions.ValidateAsync(cookie, context.RequestAborted).ConfigureAwait(false);
             switch (validation)
             {
                 case { Status: SessionStatus.Valid, Principal: { } principal }:
@@ -238,13 +238,13 @@ internal sealed class AdminAuthenticationMiddleware(RequestDelegate next, Sessio
             return false;
         }
 
-        int space = header.IndexOf(' ', StringComparison.Ordinal);
+        var space = header.IndexOf(' ', StringComparison.Ordinal);
         if (space <= 0 || !header.AsSpan(0, space).Equals(BearerScheme, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        string value = header[(space + 1)..].Trim();
+        var value = header[(space + 1)..].Trim();
         if (value.Length == 0 || value.Any(char.IsWhiteSpace))
         {
             return false;

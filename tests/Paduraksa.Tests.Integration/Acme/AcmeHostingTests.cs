@@ -34,14 +34,14 @@ public sealed class AcmeHostingTests
     [Fact]
     public async Task TheSchedulerRunsWithTheProcessAndStopsWithItBeforeThePublicAppDrains()
     {
-        bool completedWhenPublicStopping = false;
-        await using PaduraksaHost host = TestHost.Create(configureServices: (role, services) =>
+        var completedWhenPublicStopping = false;
+        await using var host = TestHost.Create(configureServices: (role, services) =>
         {
             if (role == HostRole.Public)
             {
                 services.AddSingleton<IHostedService>(sp =>
                 {
-                    AcmeRenewalScheduler scheduler = sp.GetRequiredService<AcmeRenewalScheduler>();
+                    var scheduler = sp.GetRequiredService<AcmeRenewalScheduler>();
                     return new PublicStoppingProbe(
                         sp.GetRequiredService<IHostApplicationLifetime>(),
                         () => completedWhenPublicStopping = scheduler.ExecuteTask?.IsCompleted == true);
@@ -76,7 +76,7 @@ public sealed class AcmeHostingTests
     [Fact]
     public async Task WithTheSchedulerSwitchedOffNothingIsScheduled()
     {
-        await using PaduraksaHost host = TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:Enabled"] = "false" });
+        await using var host = TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:Enabled"] = "false" });
         await host.StartAsync(Ct);
 
         // Never started: a hosted service would have an execution task by now. The services are there for an operator's request.
@@ -93,7 +93,7 @@ public sealed class AcmeHostingTests
     [InlineData("Paduraksa:Acme:DnsPropagationDelay", "-00:00:01")]
     public void PacingOutsideItsBoundsIsRefusedAtStartup(string key, string value)
     {
-        OptionsValidationException ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?> { [key] = value }));
+        var ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?> { [key] = value }));
 
         Assert.Contains(ex.Failures, f => f.StartsWith(key, StringComparison.Ordinal));
     }
@@ -102,13 +102,13 @@ public sealed class AcmeHostingTests
     public void ATrustedRootsFileThatHoldsNoRootStopsTheStartAndNamesTheFile()
     {
         using TempDirectory directory = new();
-        string file = Path.Combine(directory.Path, "roots.pem");
+        var file = Path.Combine(directory.Path, "roots.pem");
         File.WriteAllText(file, NotARootPem);
 
-        OptionsValidationException ex = Assert.Throws<OptionsValidationException>(
+        var ex = Assert.Throws<OptionsValidationException>(
             () => TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:TrustedRootsFile"] = file }));
 
-        string failure = Assert.Single(ex.Failures);
+        var failure = Assert.Single(ex.Failures);
         Assert.Contains("not a self-signed CA certificate", failure, StringComparison.Ordinal);
         Assert.Contains(file, failure, StringComparison.Ordinal);
     }
@@ -117,13 +117,13 @@ public sealed class AcmeHostingTests
     public void ATrustedRootsFileThatIsTooLargeOrNotPemIsRefused()
     {
         using TempDirectory directory = new();
-        string large = Path.Combine(directory.Path, "large.pem");
+        var large = Path.Combine(directory.Path, "large.pem");
         File.WriteAllBytes(large, new byte[(1024 * 1024) + 1]);
-        string text = Path.Combine(directory.Path, "text.pem");
+        var text = Path.Combine(directory.Path, "text.pem");
         File.WriteAllText(text, "this is not a certificate");
 
         Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:TrustedRootsFile"] = large }));
-        OptionsValidationException ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:TrustedRootsFile"] = text }));
+        var ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:TrustedRootsFile"] = text }));
         Assert.Contains("holds no certificate", Assert.Single(ex.Failures), StringComparison.Ordinal);
     }
 
@@ -133,7 +133,7 @@ public sealed class AcmeHostingTests
     public async Task PlainHttpAcmeIsAWarnedOptInAndOffByDefault(string setting, bool warned)
     {
         LogCapture logs = new();
-        await using PaduraksaHost host = TestHost.Create(
+        await using var host = TestHost.Create(
             settings: new Dictionary<string, string?> { ["Paduraksa:Development:AcmeInsecureHttp"] = setting },
             logs: logs);
         await host.StartAsync(Ct);
@@ -153,7 +153,7 @@ public sealed class AcmeHostingTests
     [InlineData("Paduraksa:Acme:DnsPropagation:Resolvers:0", "not-an-address")]
     public void InvalidDnsPropagationSettingsRefuseTheStart(string key, string value)
     {
-        OptionsValidationException ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?> { [key] = value }));
+        var ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?> { [key] = value }));
 
         Assert.Contains(ex.Failures, f => f.StartsWith(key.Replace(":Resolvers:0", ":Resolvers", StringComparison.Ordinal), StringComparison.Ordinal));
     }
@@ -161,7 +161,7 @@ public sealed class AcmeHostingTests
     [Fact]
     public void AMaximumIntervalBelowTheInitialOneRefusesTheStart()
     {
-        OptionsValidationException ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?>
+        var ex = Assert.Throws<OptionsValidationException>(() => TestHost.Create(settings: new Dictionary<string, string?>
         {
             ["Paduraksa:Acme:DnsPropagation:InitialInterval"] = "00:00:30",
             ["Paduraksa:Acme:DnsPropagation:MaxInterval"] = "00:00:05",
@@ -174,7 +174,7 @@ public sealed class AcmeHostingTests
     public async Task DnsProvidersAreInstalledSoDns01IsNoLongerNotSupportedAndTheSettingsAreBound()
     {
         IDbContextFactory<ConfigDbContext>? contexts = null;
-        await using PaduraksaHost host = TestHost.Create(
+        await using var host = TestHost.Create(
             settings: new Dictionary<string, string?>
             {
                 ["Paduraksa:Acme:DnsPropagation:Timeout"] = "00:02:00",
@@ -186,17 +186,17 @@ public sealed class AcmeHostingTests
         // A provider row whose secret is not in the vault: the real provider is built and asks the vault for a handler, which refuses
         // before anything is sent (no network). Without a registered factory the answer would be "No DNS provider implementations".
         // (A raw insert: the row type is internal to Data, and the vault's secret store is not reachable from here.)
-        DnsProviderId id = DnsProviderId.New();
-        byte[] idBytes = id.Value.ToByteArray(bigEndian: true);
-        byte[] secretBytes = SecretId.New().Value.ToByteArray(bigEndian: true);
-        await using (ConfigDbContext context = await contexts!.CreateDbContextAsync(Ct))
+        var id = DnsProviderId.New();
+        var idBytes = id.Value.ToByteArray(bigEndian: true);
+        var secretBytes = SecretId.New().Value.ToByteArray(bigEndian: true);
+        await using (var context = await contexts!.CreateDbContextAsync(Ct))
         {
             _ = await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO DnsProviders (Id, Kind, Label, CredentialSecretId, CreatedAt, UpdatedAt) VALUES ({idBytes}, 'cloudflare', 'test', {secretBytes}, '2026-01-01T00:00:00.0000000Z', '2026-01-01T00:00:00.0000000Z')",
                 Ct);
         }
 
-        DnsProviderTestResult result = await host.Shared.DnsProviders.TestAsync(id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct);
+        var result = await host.Shared.DnsProviders.TestAsync(id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct);
 
         Assert.True(result.Found);
         Assert.False(result.Valid);
@@ -208,7 +208,7 @@ public sealed class AcmeHostingTests
     [Fact]
     public async Task TheDnsPropagationCheckCanBeSwitchedOff()
     {
-        await using PaduraksaHost host = TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:DnsPropagation:Enabled"] = "false" });
+        await using var host = TestHost.Create(settings: new Dictionary<string, string?> { ["Paduraksa:Acme:DnsPropagation:Enabled"] = "false" });
         await host.StartAsync(Ct);
         await host.StopAsync(Ct);
     }

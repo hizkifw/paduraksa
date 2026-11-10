@@ -32,7 +32,7 @@
             return;
         }
 
-        QrCode code = QrCode.Encode(Text);
+        var code = QrCode.Encode(Text);
         _path = code.ToSvgPath(QuietZone);
         _extent = code.Size + (2 * QuietZone);
         _encoded = Text;

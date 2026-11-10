@@ -13,7 +13,7 @@ public sealed class DnsClientTests
     [Fact]
     public void AQueryHasOneQuestionAnOptRecordAndTheRecursionBitAsAsked()
     {
-        byte[] query = DnsWire.BuildQuery(0xABCD, "a.example.com", DnsRecordType.TXT, recursionDesired: true);
+        var query = DnsWire.BuildQuery(0xABCD, "a.example.com", DnsRecordType.TXT, recursionDesired: true);
 
         Assert.Equal([0xAB, 0xCD, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 1], query[..12]);
         Assert.Equal([.. DnsMessages.Name("a.example.com"), 0, 16, 0, 1], query[12..(12 + 15 + 4)]);
@@ -37,7 +37,7 @@ public sealed class DnsClientTests
     [Fact]
     public void AnswersOfEveryReadTypeAreParsedWithCompressionAndMultiStringTxt()
     {
-        byte[] message = DnsMessages.Response(
+        var message = DnsMessages.Response(
             7,
             "Example.COM",
             16,
@@ -52,7 +52,7 @@ public sealed class DnsClientTests
             truncated: false,
             rcode: 3);
 
-        DnsResponse response = DnsWire.ParseResponse(message);
+        var response = DnsWire.ParseResponse(message);
 
         Assert.Equal(7, response.Id);
         Assert.True(response.Authoritative);
@@ -69,9 +69,9 @@ public sealed class DnsClientTests
     [Fact]
     public void EveryTruncationOfAValidMessageIsRejectedCleanlyOrParsed()
     {
-        byte[] message = DnsMessages.Response(1, Name, 16, [TxtAnswer("hello"), TxtAnswer("world")]);
+        var message = DnsMessages.Response(1, Name, 16, [TxtAnswer("hello"), TxtAnswer("world")]);
 
-        for (int length = 0; length < message.Length; length++)
+        for (var length = 0; length < message.Length; length++)
         {
             try
             {
@@ -89,12 +89,12 @@ public sealed class DnsClientTests
     [Fact]
     public void RandomlyDamagedMessagesOnlyEverCauseFormatErrors()
     {
-        byte[] original = DnsMessages.Response(1, Name, 2, [DnsMessages.Record(DnsMessages.QuestionPointer, 2, [2, (byte)'n', (byte)'s', 0xC0, 0x10]), TxtAnswer("x")]);
+        var original = DnsMessages.Response(1, Name, 2, [DnsMessages.Record(DnsMessages.QuestionPointer, 2, [2, (byte)'n', (byte)'s', 0xC0, 0x10]), TxtAnswer("x")]);
         Random random = new(1234);
-        for (int i = 0; i < 5000; i++)
+        for (var i = 0; i < 5000; i++)
         {
-            byte[] damaged = (byte[])original.Clone();
-            for (int flips = random.Next(1, 4); flips > 0; flips--)
+            var damaged = (byte[])original.Clone();
+            for (var flips = random.Next(1, 4); flips > 0; flips--)
             {
                 damaged[random.Next(damaged.Length)] = (byte)random.Next(256);
             }
@@ -114,8 +114,8 @@ public sealed class DnsClientTests
     public void ACompressionPointerToItselfOrForwardIsRejected()
     {
         // The answer's name is a pointer to its own position.
-        byte[] self = DnsMessages.Response(1, Name, 16, [DnsMessages.Record([0xC0, (byte)(12 + DnsMessages.Name(Name).Length + 4)], 16, DnsMessages.Txt("x"))]);
-        byte[] forward = DnsMessages.Response(1, Name, 16, [DnsMessages.Record([0xC0, 0xFF], 16, DnsMessages.Txt("x"))]);
+        var self = DnsMessages.Response(1, Name, 16, [DnsMessages.Record([0xC0, (byte)(12 + DnsMessages.Name(Name).Length + 4)], 16, DnsMessages.Txt("x"))]);
+        var forward = DnsMessages.Response(1, Name, 16, [DnsMessages.Record([0xC0, 0xFF], 16, DnsMessages.Txt("x"))]);
 
         Assert.Contains("backward", Assert.Throws<DnsFormatException>(() => DnsWire.ParseResponse(self)).Message, StringComparison.Ordinal);
         Assert.Contains("backward", Assert.Throws<DnsFormatException>(() => DnsWire.ParseResponse(forward)).Message, StringComparison.Ordinal);
@@ -127,18 +127,18 @@ public sealed class DnsClientTests
         // An unknown record's data holds a name "a" followed by 40 pointers that each point at the one before: every pointer is
         // legal (backward), but the chain is longer than the client follows. A second answer's name points at the last of them.
         byte[] question = [.. DnsMessages.Name(Name), .. DnsMessages.UInt16(16), .. DnsMessages.UInt16(1)];
-        int chainStart = 12 + question.Length + 2 + 10;
+        var chainStart = 12 + question.Length + 2 + 10;
         List<byte> chain = [1, (byte)'a', 0];
-        int previous = chainStart;
-        for (int i = 0; i < 40; i++)
+        var previous = chainStart;
+        for (var i = 0; i < 40; i++)
         {
-            int here = chainStart + chain.Count;
+            var here = chainStart + chain.Count;
             chain.AddRange([(byte)(0xC0 | (previous >> 8)), (byte)previous]);
             previous = here;
         }
 
-        byte[] carrier = DnsMessages.Record(DnsMessages.QuestionPointer, 99, [.. chain]);
-        byte[] answer = DnsMessages.Record([(byte)(0xC0 | (previous >> 8)), (byte)previous], 16, DnsMessages.Txt("x"));
+        var carrier = DnsMessages.Record(DnsMessages.QuestionPointer, 99, [.. chain]);
+        var answer = DnsMessages.Record([(byte)(0xC0 | (previous >> 8)), (byte)previous], 16, DnsMessages.Txt("x"));
         byte[] message =
         [
             .. DnsMessages.UInt16(1), .. DnsMessages.UInt16(0x8400), .. DnsMessages.UInt16(1), .. DnsMessages.UInt16(2), 0, 0, 0, 0,
@@ -171,11 +171,11 @@ public sealed class DnsClientTests
     [Fact]
     public void AQueryOrANonStandardOrWrongClassMessageIsNotAResponse()
     {
-        byte[] query = DnsMessages.Response(1, Name, 16, []);
+        var query = DnsMessages.Response(1, Name, 16, []);
         query[2] &= 0x7F;
-        byte[] opcode = DnsMessages.Response(1, Name, 16, []);
+        var opcode = DnsMessages.Response(1, Name, 16, []);
         opcode[2] |= 0x10;
-        byte[] noQuestion = DnsMessages.Response(1, Name, 16, []);
+        var noQuestion = DnsMessages.Response(1, Name, 16, []);
         noQuestion[5] = 0;
 
         Assert.Throws<DnsFormatException>(() => DnsWire.ParseResponse(query));
@@ -190,11 +190,11 @@ public sealed class DnsClientTests
         using FakeDnsServer server = new();
         server.AddTxt(Name, "value");
 
-        DnsResponse response = await new DnsClient(TimeSpan.FromSeconds(5)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, recursionDesired: false, Token);
+        var response = await new DnsClient(TimeSpan.FromSeconds(5)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, recursionDesired: false, Token);
 
         Assert.True(response.Authoritative);
         Assert.Equal("value", Assert.Single(response.Answers).Text);
-        FakeQuery query = Assert.Single(server.Queries);
+        var query = Assert.Single(server.Queries);
         Assert.False(query.RecursionDesired);
         Assert.False(query.Tcp);
     }
@@ -205,7 +205,7 @@ public sealed class DnsClientTests
         using FakeDnsServer server = new() { TruncateUdp = true };
         server.AddTxt(Name, "value");
 
-        DnsResponse response = await new DnsClient(TimeSpan.FromSeconds(5)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, false, Token);
+        var response = await new DnsClient(TimeSpan.FromSeconds(5)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, false, Token);
 
         Assert.Equal("value", Assert.Single(response.Answers).Text);
         Assert.Equal([false, true], server.Queries.Select(q => q.Tcp));
@@ -224,7 +224,7 @@ public sealed class DnsClientTests
             DnsMessages.Response(q.Id, q.Name.ToUpperInvariant(), q.Type, [TxtAnswer("genuine")]),
         ];
 
-        DnsResponse response = await new DnsClient(TimeSpan.FromSeconds(5)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, false, Token);
+        var response = await new DnsClient(TimeSpan.FromSeconds(5)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, false, Token);
 
         Assert.Equal("genuine", Assert.Single(response.Answers).Text);
     }
@@ -234,7 +234,7 @@ public sealed class DnsClientTests
     {
         using FakeDnsServer server = new();
         DnsClient client = new(TimeSpan.FromSeconds(5));
-        for (int i = 0; i < 8; i++)
+        for (var i = 0; i < 8; i++)
         {
             _ = await client.QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, false, Token);
         }
@@ -249,7 +249,7 @@ public sealed class DnsClientTests
     {
         using FakeDnsServer server = new() { Override = _ => [] };
 
-        DnsQueryException ex = await Assert.ThrowsAsync<DnsQueryException>(async () =>
+        var ex = await Assert.ThrowsAsync<DnsQueryException>(async () =>
             await new DnsClient(TimeSpan.FromMilliseconds(200)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, false, Token));
 
         Assert.Contains("in time", ex.Message, StringComparison.Ordinal);
@@ -305,7 +305,7 @@ public sealed class DnsClientTests
         server.AddTxt(Name, "value");
         server.Override = q => q.Edns ? [DnsMessages.Response(q.Id, q.Name, q.Type, [], rcode: 1)] : null;
 
-        DnsResponse response = await new DnsClient(TimeSpan.FromSeconds(5)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, false, Token);
+        var response = await new DnsClient(TimeSpan.FromSeconds(5)).QueryAsync(server.EndPoint, Name, DnsRecordType.TXT, false, Token);
 
         Assert.Equal("value", Assert.Single(response.Answers).Text);
         Assert.Equal([true, false], server.Queries.Select(q => q.Edns));
@@ -314,8 +314,8 @@ public sealed class DnsClientTests
     [Fact]
     public void AQueryWithoutEdnsHasNoOptRecord()
     {
-        byte[] with = DnsWire.BuildQuery(1, "a.example.com", DnsRecordType.TXT, false);
-        byte[] without = DnsWire.BuildQuery(1, "a.example.com", DnsRecordType.TXT, false, edns: false);
+        var with = DnsWire.BuildQuery(1, "a.example.com", DnsRecordType.TXT, false);
+        var without = DnsWire.BuildQuery(1, "a.example.com", DnsRecordType.TXT, false, edns: false);
 
         Assert.Equal(0, without[11]);
         Assert.Equal(with.Length - 11, without.Length);
@@ -325,7 +325,7 @@ public sealed class DnsClientTests
     public void APointerIntoTheHeaderIsRejected()
     {
         // The answer's name points at offset 4, inside the header: backward, but not at a name.
-        byte[] message = DnsMessages.Response(1, Name, 16, [DnsMessages.Record([0xC0, 4], 16, DnsMessages.Txt("x"))]);
+        var message = DnsMessages.Response(1, Name, 16, [DnsMessages.Record([0xC0, 4], 16, DnsMessages.Txt("x"))]);
 
         Assert.Throws<DnsFormatException>(() => DnsWire.ParseResponse(message));
     }

@@ -28,7 +28,7 @@ public sealed class TypedIdJsonConverter<T> : JsonConverter<T>
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
     {
         Span<byte> buffer = stackalloc byte[T.FormattedLength];
-        value.TryFormat(buffer, out int written, default, null);
+        value.TryFormat(buffer, out var written, default, null);
         writer.WriteStringValue(buffer[..written]);
     }
 
@@ -38,7 +38,7 @@ public sealed class TypedIdJsonConverter<T> : JsonConverter<T>
     public override void WriteAsPropertyName(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
     {
         Span<byte> buffer = stackalloc byte[T.FormattedLength];
-        value.TryFormat(buffer, out int written, default, null);
+        value.TryFormat(buffer, out var written, default, null);
         writer.WritePropertyName(buffer[..written]);
     }
 
@@ -46,19 +46,19 @@ public sealed class TypedIdJsonConverter<T> : JsonConverter<T>
     {
         if (!reader.HasValueSequence && !reader.ValueIsEscaped)
         {
-            if (T.TryParse(reader.ValueSpan, out T id))
+            if (T.TryParse(reader.ValueSpan, out var id))
             {
                 return id;
             }
         }
         else
         {
-            long rawLength = reader.HasValueSequence ? reader.ValueSequence.Length : reader.ValueSpan.Length;
+            var rawLength = reader.HasValueSequence ? reader.ValueSequence.Length : reader.ValueSpan.Length;
             if (rawLength <= (long)T.FormattedLength * MaxEscapeExpansion)
             {
                 Span<char> buffer = stackalloc char[(int)rawLength];
-                int length = reader.CopyString(buffer);
-                if (T.TryParse(buffer[..length], out T id))
+                var length = reader.CopyString(buffer);
+                if (T.TryParse(buffer[..length], out var id))
                 {
                     return id;
                 }

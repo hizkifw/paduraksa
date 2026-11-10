@@ -7,8 +7,6 @@
 @using Paduraksa.Application.Commands
 @using Paduraksa.Application.Issuance
 @using Paduraksa.Contracts.Certificates
-@using Paduraksa.Contracts.Config
-@using Paduraksa.Contracts.Issuance
 @using Paduraksa.Dashboard.Certificates
 @inject CertificateService CertificateInventory
 @inject AcmeIssuanceService Issuance
@@ -43,10 +41,10 @@
 }
 
 <div class="pdk-cert-summary" role="group" aria-label="Show only">
-    @foreach (CertificateFilter filter in Filters)
+    @foreach (var filter in Filters)
     {
         int? count = _view is null ? null : _view.Rows.Count(row => filter.Matches(row, _now));
-        bool on = _filter == filter.Key;
+        var on = _filter == filter.Key;
         <button type="button" class="pdk-cert-counter pdk-tone-@filter.Tone @(on ? "pdk-cert-counter-on" : null)" aria-pressed="@(on ? "true" : "false")"
                 disabled="@(count is null || (count == 0 && !on))" @onclick="() => _filter = on ? null : filter.Key" data-filter="@filter.Key">
             <span class="pdk-status-dot" aria-hidden="true"></span>
@@ -66,7 +64,7 @@
 <MudPaper Class="pdk-card pdk-table-card pdk-cert-card" Elevation="0" Outlined="true">
     @if (_view is null)
     {
-        @for (int i = 0; i < 4; i++)
+        @for (var i = 0; i < 4; i++)
         {
             <div class="pdk-row-skeleton">
                 <MudSkeleton SkeletonType="SkeletonType.Circle" Width="32px" Height="32px" />
@@ -99,9 +97,9 @@
                 <span role="columnheader">Issuer</span>
                 <span role="columnheader">Used by</span>
             </div>
-            @foreach (CertificateRow row in Shown)
+            @foreach (var row in Shown)
             {
-                CertificateSummary s = row.Summary;
+                var s = row.Summary;
                 <div class="pdk-dt-row pdk-dt-link @(_drawer?.Key == row.Id.ToString() ? "pdk-dt-selected" : null)" role="row" @onclick="() => Open(row)"
                      data-certificate="@row.Id" @key="row.Id">
                     <div class="pdk-dt-main" role="cell">
@@ -147,7 +145,7 @@
                         else
                         {
                             <span class="pdk-use-chips">
-                                @foreach (CertificateUse use in row.Uses.Take(2))
+                                @foreach (var use in row.Uses.Take(2))
                                 {
                                     <span class="pdk-name-chip">@(use.Kind == CertificateUseKind.Default ? "default" : use.HostName)</span>
                                 }
@@ -202,7 +200,7 @@
     protected override async Task OnInitializedAsync()
     {
         _now = Time.GetUtcNow();
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -264,7 +262,7 @@
 
     /// <summary>The drawer an address names: the segment is parsed here, and anything that isn't a certificate ID is not found.</summary>
     private DrawerLevel OpenDrawer(string key) =>
-        CertificateId.TryParse(key, out CertificateId id)
+        CertificateId.TryParse(key, out var id)
             ? Drawers.Push<CertificateDrawer>(new Dictionary<string, object?> { [nameof(CertificateDrawer.Id)] = id }, DrawerWidth.Medium)
             : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Certificate not found", "There is no such certificate", "Back to the certificates"), DrawerWidth.Narrow);
 
@@ -275,7 +273,7 @@
 
     private async Task AddAsync(AddCertificateKind? kind)
     {
-        DrawerResult result = await Drawers.OpenAsync<CertificateCreateDrawer>(
+        var result = await Drawers.OpenAsync<CertificateCreateDrawer>(
             new Dictionary<string, object?> { [nameof(CertificateCreateDrawer.Method)] = kind },
             DrawerWidth.Medium);
         await LoadAsync();

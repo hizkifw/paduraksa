@@ -40,13 +40,13 @@ public sealed class LogFileStoreTests : IDisposable
     public void ItListsBothLogsWithTheirLiveFileFirstAndCompressedOnesMarked()
     {
         WriteLive("error.log", "warn: one\nwarn: two\n");
-        string rotated = LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, Noon.AddDays(-1)));
+        var rotated = LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, Noon.AddDays(-1)));
         WriteGzip(rotated, "warn: older\n");
         WriteLive("access.log", "GET / 200\n");
         File.WriteAllText(Path.Combine(_directory, "notes.txt"), "not a log");
         File.WriteAllText(Path.Combine(_directory, "error-2026.log"), "not a log either");
 
-        IReadOnlyList<LogFileSummary> files = new LogFileStore(_directory).List();
+        var files = new LogFileStore(_directory).List();
 
         Assert.Equal(["access.log", "error.log", rotated], files.Select(file => file.Name));
         Assert.Equal(["access", "error", "error"], files.Select(file => file.Log));
@@ -63,7 +63,7 @@ public sealed class LogFileStoreTests : IDisposable
         WriteGzip(LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, Noon.AddDays(-2))), "two days ago\n");
         WriteGzip(LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, Noon.AddDays(-1))), "yesterday\n");
 
-        IReadOnlyList<LogFileSummary> files = new LogFileStore(_directory).List();
+        var files = new LogFileStore(_directory).List();
 
         Assert.Equal(["error.log", LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, Noon.AddDays(-1))), LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, Noon.AddDays(-2)))], files.Select(file => file.Name));
     }
@@ -76,7 +76,7 @@ public sealed class LogFileStoreTests : IDisposable
         WriteGzip(LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, Noon, 2)), "second\n");
         WriteGzip(LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Error, Noon, 10)), "tenth\n");
 
-        IReadOnlyList<LogFileSummary> files = new LogFileStore(_directory).List();
+        var files = new LogFileStore(_directory).List();
 
         Assert.Equal(
             [
@@ -114,18 +114,18 @@ public sealed class LogFileStoreTests : IDisposable
     public void ASingleHugeLineInAGzipIsNeverDecodedWhole()
     {
         // 64 Mi characters with no newline: a gzip bomb in one line. The reader stops at its cap and keeps one cut line, not 64 MiB.
-        string name = LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Access, Noon));
-        using (FileStream file = File.Create(Path.Combine(_directory, name)))
+        var name = LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Access, Noon));
+        using (var file = File.Create(Path.Combine(_directory, name)))
         using (GZipStream gzip = new(file, CompressionLevel.SmallestSize))
         {
-            byte[] chunk = Encoding.UTF8.GetBytes(new string('x', 1024 * 1024));
-            for (int i = 0; i < 64; i++)
+            var chunk = Encoding.UTF8.GetBytes(new string('x', 1024 * 1024));
+            for (var i = 0; i < 64; i++)
             {
                 gzip.Write(chunk, 0, chunk.Length);
             }
         }
 
-        LogFileTail tail = new LogFileStore(_directory).ReadTail(name, 10)!;
+        var tail = new LogFileStore(_directory).ReadTail(name, 10)!;
 
         Assert.Single(tail.Lines);
         Assert.Equal(LogFileStore.MaxLineLength + 3, tail.Lines[0].Length);
@@ -137,7 +137,7 @@ public sealed class LogFileStoreTests : IDisposable
     {
         WriteLive("error.log", "one\ntwo\nthree\nfour\n");
 
-        LogFileTail tail = new LogFileStore(_directory).ReadTail("error.log", 2)!;
+        var tail = new LogFileStore(_directory).ReadTail("error.log", 2)!;
 
         Assert.Equal(["three", "four"], tail.Lines);
         Assert.True(tail.Truncated);
@@ -150,7 +150,7 @@ public sealed class LogFileStoreTests : IDisposable
     {
         WriteLive("error.log", "one\ntwo\n");
 
-        LogFileTail tail = new LogFileStore(_directory).ReadTail("error.log", 10)!;
+        var tail = new LogFileStore(_directory).ReadTail("error.log", 10)!;
 
         Assert.Equal(["one", "two"], tail.Lines);
         Assert.False(tail.Truncated);
@@ -161,8 +161,8 @@ public sealed class LogFileStoreTests : IDisposable
     {
         WriteLive("error.log", "warn: a\nerror: boom\nwarn: b\nERROR: BOOM AGAIN\n");
 
-        LogFileTail filtered = new LogFileStore(_directory).ReadTail("error.log", 10, "boom")!;
-        LogFileTail none = new LogFileStore(_directory).ReadTail("error.log", 10, "nothing like this")!;
+        var filtered = new LogFileStore(_directory).ReadTail("error.log", 10, "boom")!;
+        var none = new LogFileStore(_directory).ReadTail("error.log", 10, "nothing like this")!;
 
         Assert.Equal(["error: boom", "ERROR: BOOM AGAIN"], filtered.Lines);
         Assert.Empty(none.Lines);
@@ -173,7 +173,7 @@ public sealed class LogFileStoreTests : IDisposable
     {
         WriteLive("error.log", string.Concat(Enumerable.Range(0, 50).Select(i => $"warn: {i}\n")));
 
-        LogFileTail tail = new LogFileStore(_directory).ReadTail("error.log", 5, "warn")!;
+        var tail = new LogFileStore(_directory).ReadTail("error.log", 5, "warn")!;
 
         Assert.Equal(["warn: 45", "warn: 46", "warn: 47", "warn: 48", "warn: 49"], tail.Lines);
         Assert.True(tail.Truncated);
@@ -182,10 +182,10 @@ public sealed class LogFileStoreTests : IDisposable
     [Fact]
     public void ACompressedFileIsDecompressedForItsTail()
     {
-        string name = LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Access, Noon));
+        var name = LogFileNames.Compressed(LogFileNames.Rotated(LogFileKind.Access, Noon));
         WriteGzip(name, "one\ntwo\nthree\n");
 
-        LogFileTail tail = new LogFileStore(_directory).ReadTail(name, 2)!;
+        var tail = new LogFileStore(_directory).ReadTail(name, 2)!;
 
         Assert.Equal("access", tail.Log);
         Assert.Equal(["two", "three"], tail.Lines);
@@ -198,13 +198,13 @@ public sealed class LogFileStoreTests : IDisposable
         // 300 bytes of window: the file is several times bigger, so the read starts in the middle and drops the partial line.
         LogFileStore store = new(_directory);
         StringBuilder text = new();
-        for (int i = 0; i < 120_000; i++)
+        for (var i = 0; i < 120_000; i++)
         {
             text.Append("warn: line ").Append(i.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
         }
 
         WriteLive("error.log", text.ToString());
-        LogFileTail tail = store.ReadTail("error.log", 3)!;
+        var tail = store.ReadTail("error.log", 3)!;
 
         Assert.Equal(3, tail.Lines.Count);
         Assert.All(tail.Lines, line => Assert.StartsWith("warn: line ", line, StringComparison.Ordinal));
@@ -217,7 +217,7 @@ public sealed class LogFileStoreTests : IDisposable
     {
         WriteLive("error.log", new string('x', LogFileStore.MaxLineLength + 100) + "\n");
 
-        LogFileTail tail = new LogFileStore(_directory).ReadTail("error.log", 1)!;
+        var tail = new LogFileStore(_directory).ReadTail("error.log", 1)!;
 
         Assert.Equal(LogFileStore.MaxLineLength + 3, tail.Lines[0].Length);
         Assert.EndsWith("...", tail.Lines[0], StringComparison.Ordinal);
@@ -228,7 +228,7 @@ public sealed class LogFileStoreTests : IDisposable
     {
         WriteLive("error.log", string.Empty);
 
-        LogFileTail tail = new LogFileStore(_directory).ReadTail("error.log", 10)!;
+        var tail = new LogFileStore(_directory).ReadTail("error.log", 10)!;
 
         Assert.Empty(tail.Lines);
         Assert.False(tail.Truncated);
@@ -264,7 +264,7 @@ public sealed class LogFileStoreTests : IDisposable
             return;
         }
 
-        string outside = Path.Combine(_directory, "outside.txt");
+        var outside = Path.Combine(_directory, "outside.txt");
         File.WriteAllText(outside, "warn: from outside\n");
         File.CreateSymbolicLink(Path.Combine(_directory, "error.log"), outside);
 
@@ -280,7 +280,7 @@ public sealed class LogFileStoreTests : IDisposable
     {
         WriteLive("error.log", "one\ntwo\n");
 
-        using Stream? stream = new LogFileStore(_directory).OpenRead("error.log", out long length);
+        using var stream = new LogFileStore(_directory).OpenRead("error.log", out var length);
         using StreamReader reader = new(stream!);
 
         Assert.Equal(8, length);
@@ -300,7 +300,7 @@ public sealed class LogFileStoreTests : IDisposable
 
     private void WriteGzip(string name, string text)
     {
-        using FileStream file = File.Create(Path.Combine(_directory, name));
+        using var file = File.Create(Path.Combine(_directory, name));
         using GZipStream gzip = new(file, CompressionLevel.Fastest);
         gzip.Write(Encoding.UTF8.GetBytes(text));
     }

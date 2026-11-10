@@ -1,5 +1,4 @@
 using System.Net;
-
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
@@ -50,7 +49,7 @@ public static partial class SnapshotCompiler
         ArgumentNullException.ThrowIfNull(model);
         CompileContext context = new(model, options ?? SnapshotCompilerOptions.Default);
         context.CompileDefaultsAndUpstreams();
-        foreach (HostSpec spec in model.Hosts ?? [])
+        foreach (var spec in model.Hosts ?? [])
         {
             context.CompileHost(spec);
         }
@@ -73,8 +72,7 @@ public static partial class SnapshotCompiler
         },
         HttpRequest = new ForwarderRequestConfig
         {
-            Version = HttpVersion.Version11,
-            VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact,
         },
     };
 
@@ -82,7 +80,8 @@ public static partial class SnapshotCompiler
     private static string CaseCollision(string kind, string id, string existing) =>
         $"{kind} ID '{id}' differs from '{existing}' only in case (YARP ignores case)";
 
-    private static void RemoveSlotsFrom(CompiledRoute[] routes, List<RouteConfig> yarpRoutes, List<RouteId> routeIdBySlot)
+    private static void RemoveSlotsFrom(CompiledRoute[] routes, List<RouteConfig> yarpRoutes,
+        List<RouteId> routeIdBySlot)
     {
         if (routes.Length == 0)
         {
@@ -90,7 +89,7 @@ public static partial class SnapshotCompiler
         }
 
         // A host's routes take the last slots, so dropping them is a tail truncation.
-        int first = routeIdBySlot.Count - routes.Length;
+        var first = routeIdBySlot.Count - routes.Length;
         routeIdBySlot.RemoveRange(first, routes.Length);
         yarpRoutes.RemoveRange(first, routes.Length);
     }
@@ -159,10 +158,12 @@ public static partial class SnapshotCompiler
                 Errors.Add(new(CompileErrorSource.Defaults, $"unknown default-host behaviour {Defaults.UnknownHost}"));
             }
 
-            DefaultCertificate = ResolveCertificate(Defaults.Certificate, CompileErrorSource.Defaults, Options.Certificates, Errors);
+            DefaultCertificate = ResolveCertificate(Defaults.Certificate, CompileErrorSource.Defaults,
+                Options.Certificates, Errors);
             if (DefaultCertificate is not null)
             {
-                Certificates.SetDefault(DefaultCertificate, CompileTlsPolicy(Defaults.Tls, CompileErrorSource.Defaults, Errors));
+                Certificates.SetDefault(DefaultCertificate,
+                    CompileTlsPolicy(Defaults.Tls, CompileErrorSource.Defaults, Errors));
             }
 
             TrustedProxies = CompileTrustedProxies(Defaults.TrustedProxies, Options, Errors);
@@ -203,7 +204,7 @@ public static partial class SnapshotCompiler
 
         private ClusterConfig[] BuildClusters()
         {
-            ClusterConfig[] clusters = new ClusterConfig[Clusters.Count + (AdminHost && Options.AdminUpstream ? 1 : 0)];
+            var clusters = new ClusterConfig[Clusters.Count + (AdminHost && Options.AdminUpstream ? 1 : 0)];
             Clusters.Values.CopyTo(clusters, 0);
             if (AdminHost && Options.AdminUpstream)
             {

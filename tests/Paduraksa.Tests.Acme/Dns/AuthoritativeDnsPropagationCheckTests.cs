@@ -51,7 +51,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     {
         _servers.ForEach(s => s.AddTxt(Challenge, "v1"));
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
         Assert.Contains("2 name server(s)", result.Detail, StringComparison.Ordinal);
@@ -66,13 +66,13 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     public async Task ALaggingServerIsWaitedForUntilItHasTheValue()
     {
         _servers[0].AddTxt(Challenge, "v1");
-        Task late = Task.Run(async () =>
+        var late = Task.Run(async () =>
         {
             await Task.Delay(250, Token);
             _servers[1].AddTxt(Challenge, "v1");
         }, Token);
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
         await late;
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
@@ -87,7 +87,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
         _servers.ForEach(s => s.AddTxt(Challenge, "wildcard-value"));
         _servers[1].AddTxt(Challenge, "apex-value");
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Options(new DnsPropagationOptions { Timeout = TimeSpan.FromSeconds(30) }), _virtualTime)
+        var result = await new AuthoritativeDnsPropagationCheck(Options(new DnsPropagationOptions { Timeout = TimeSpan.FromSeconds(30) }), _virtualTime)
             .WaitAsync(Records("wildcard-value", "apex-value"), Token);
 
         Assert.Equal(DnsPropagationOutcome.TimedOut, result.Outcome);
@@ -103,7 +103,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     {
         _servers.ForEach(s => s.Add(Challenge, 16, DnsMessages.Txt("v", "1")));
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
     }
@@ -111,7 +111,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     [Fact]
     public async Task TheWaitBacksOffAndEndsAtTheTimeout()
     {
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(
+        var result = await new AuthoritativeDnsPropagationCheck(
             Options(new DnsPropagationOptions { Timeout = TimeSpan.FromSeconds(60), InitialInterval = TimeSpan.FromSeconds(2), MaxInterval = TimeSpan.FromSeconds(15), BackoffFactor = 2 }),
             _virtualTime).WaitAsync(Records("v1"), Token);
 
@@ -130,7 +130,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
         _servers[1].Authoritative = false;
         _servers[1].AddTxt(Challenge, "v1");
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
         Assert.Contains("1 name server(s)", result.Detail, StringComparison.Ordinal);
@@ -146,7 +146,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
             s.AddTxt(Challenge, "v1");
         });
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Unverifiable, result.Outcome);
     }
@@ -156,9 +156,9 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     {
         _servers[0].AddTxt(Challenge, "v1");
         _servers[1].Override = _ => [];
-        DnsPropagationOptions options = Fast() with { QueryTimeout = TimeSpan.FromMilliseconds(50) };
+        var options = Fast() with { QueryTimeout = TimeSpan.FromMilliseconds(50) };
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(options).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(options).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
         Assert.Equal(3, _servers[1].Queries.Count);
@@ -173,7 +173,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     {
         _resolver.RemoveAll("example.com", 2);
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Unverifiable, result.Outcome);
         Assert.Contains("could not be found", result.Detail, StringComparison.Ordinal);
@@ -188,7 +188,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
             closed = gone.EndPoint;
         }
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast() with { Resolvers = [closed] }).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast() with { Resolvers = [closed] }).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Unverifiable, result.Outcome);
     }
@@ -204,7 +204,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
 
         _servers.ForEach(s => s.AddTxt(Challenge, "v1"));
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast() with { Resolvers = [closed, _resolver.EndPoint] }).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast() with { Resolvers = [closed, _resolver.EndPoint] }).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
     }
@@ -214,7 +214,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     {
         _servers.ForEach(s => s.AddTxt("_acme-challenge.a.b.example.com", "v1"));
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast())
+        var result = await new AuthoritativeDnsPropagationCheck(Fast())
             .WaitAsync([new DnsChallengeRecord("_acme-challenge.a.b.example.com.", "v1")], Token);
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
@@ -232,7 +232,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
             s.AddTxt(Challenge, "v1");
         });
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast()).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
         Assert.All(_servers, s => Assert.Equal([false, true], s.Queries.Select(q => q.Tcp)));
@@ -248,7 +248,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
             DnsMessages.Response(q.Id, "other.example.com", q.Type, [DnsMessages.Record(DnsMessages.QuestionPointer, 16, DnsMessages.Txt("v1"))]),
         ]);
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast() with { QueryTimeout = TimeSpan.FromMilliseconds(50) }).WaitAsync(Records("v1"), Token);
+        var result = await new AuthoritativeDnsPropagationCheck(Fast() with { QueryTimeout = TimeSpan.FromMilliseconds(50) }).WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.Unverifiable, result.Outcome);
     }
@@ -261,7 +261,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
             DnsMessages.Response(q.Id, q.Name, q.Type, [DnsMessages.Record(DnsMessages.Name("elsewhere.example.com"), 16, DnsMessages.Txt("v1"))]),
         ]);
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Options(new DnsPropagationOptions { Timeout = TimeSpan.FromSeconds(10) }), _virtualTime)
+        var result = await new AuthoritativeDnsPropagationCheck(Options(new DnsPropagationOptions { Timeout = TimeSpan.FromSeconds(10) }), _virtualTime)
             .WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.TimedOut, result.Outcome);
@@ -292,7 +292,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
         _servers.ForEach(s => s.AddTxt(Challenge, "v1"));
         _servers[0].AddTxt("_acme-challenge.example.org", "v2");
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast() with { Timeout = TimeSpan.FromSeconds(10) })
+        var result = await new AuthoritativeDnsPropagationCheck(Fast() with { Timeout = TimeSpan.FromSeconds(10) })
             .WaitAsync([new DnsChallengeRecord(Challenge, "v1"), new DnsChallengeRecord("_acme-challenge.example.org", "v2")], Token);
 
         Assert.Equal(DnsPropagationOutcome.Propagated, result.Outcome);
@@ -305,7 +305,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
         // record is already satisfied everywhere when the second joins the zone; it must still be asked for.
         const string Second = "_acme-challenge.a.example.com";
         _servers.ForEach(s => s.AddTxt(Challenge, "v1"));
-        bool dropped = false;
+        var dropped = false;
         _resolver.Override = q =>
         {
             if (!dropped && q.Type == 2 && q.Name == Second)
@@ -317,7 +317,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
             return null;
         };
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Fast() with { Timeout = TimeSpan.FromSeconds(1) })
+        var result = await new AuthoritativeDnsPropagationCheck(Fast() with { Timeout = TimeSpan.FromSeconds(1) })
             .WaitAsync([new DnsChallengeRecord(Challenge, "v1"), new DnsChallengeRecord(Second, "v2")], Token);
 
         // No server has the second record, so this must not be reported as propagated, and it must have been asked about.
@@ -332,7 +332,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
         // One server never answers; the other never has the record, so the wait runs to its timeout on the virtual clock.
         _servers[1].Override = _ => [];
 
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(
+        var result = await new AuthoritativeDnsPropagationCheck(
             Options(new DnsPropagationOptions { Timeout = TimeSpan.FromSeconds(60) }) with { QueryTimeout = TimeSpan.FromMilliseconds(50) },
             _virtualTime).WaitAsync(Records("v1"), Token);
 
@@ -344,7 +344,7 @@ public sealed class AuthoritativeDnsPropagationCheckTests : IDisposable
     [Fact]
     public async Task ATimeoutWithNoServerHoldingAnyRecordSaysSo()
     {
-        DnsPropagationResult result = await new AuthoritativeDnsPropagationCheck(Options(new DnsPropagationOptions { Timeout = TimeSpan.FromSeconds(20) }), _virtualTime)
+        var result = await new AuthoritativeDnsPropagationCheck(Options(new DnsPropagationOptions { Timeout = TimeSpan.FromSeconds(20) }), _virtualTime)
             .WaitAsync(Records("v1"), Token);
 
         Assert.Equal(DnsPropagationOutcome.TimedOut, result.Outcome);

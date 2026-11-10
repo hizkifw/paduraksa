@@ -15,7 +15,7 @@ public static class InlineValidation
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(host);
-        ConfigDocument document = current with { Hosts = [.. current.Hosts.Where(h => h.Id != host.Id), host] };
+        var document = current with { Hosts = [.. current.Hosts.Where(h => h.Id != host.Id), host] };
         return Relative(ConfigValidator.Validate(document), $"/hosts/{document.Hosts.Count - 1}", document);
     }
 
@@ -24,7 +24,7 @@ public static class InlineValidation
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(upstream);
-        ConfigDocument document = current with { Upstreams = [.. current.Upstreams.Where(u => u.Id != upstream.Id), upstream] };
+        var document = current with { Upstreams = [.. current.Upstreams.Where(u => u.Id != upstream.Id), upstream] };
         return Relative(ConfigValidator.Validate(document), $"/upstreams/{document.Upstreams.Count - 1}");
     }
 
@@ -41,7 +41,7 @@ public static class InlineValidation
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(profile);
-        ConfigDocument document = current with { Profiles = [.. current.Profiles.Where(p => p.Id != profile.Id), profile] };
+        var document = current with { Profiles = [.. current.Profiles.Where(p => p.Id != profile.Id), profile] };
         return Relative(ConfigValidator.Validate(document), $"/profiles/{document.Profiles.Count - 1}");
     }
 
@@ -51,8 +51,8 @@ public static class InlineValidation
         ArgumentNullException.ThrowIfNull(errors);
         ArgumentNullException.ThrowIfNull(prefix);
         Dictionary<string, string> byPath = new(StringComparer.Ordinal);
-        string nested = prefix + "/";
-        foreach (ConfigError error in errors)
+        var nested = prefix + "/";
+        foreach (var error in errors)
         {
             if (error.Path == prefix || error.Path.StartsWith(nested, StringComparison.Ordinal))
             {

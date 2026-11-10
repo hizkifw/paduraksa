@@ -22,24 +22,24 @@ public sealed class VaultCommandsTests
     [Fact]
     public async Task RotateKekRewrapsTheVaultAndTheServiceStartsWithTheNewKey()
     {
-        string data = TestDataDirectories.NewPath();
+        var data = TestDataDirectories.NewPath();
         string fingerprint;
-        await using (PaduraksaHost first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
+        await using (var first = TestHost.Create(settings: NoPlaceholder, dataDirectory: data))
         {
             await first.StartAsync(Ct);
             fingerprint = (await first.Shared.CertificateOperations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["rot.test"]), Origin, Ct)).Certificate!.Sha256Fingerprint;
             await CommitAsync(first, new UpsertHostCommand(RespondHost("r", "rot.test", "ok")), Ct);
         }
 
-        string keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
-        string oldKey = await File.ReadAllTextAsync(keyFile, Ct);
-        string newKeyPath = Path.Combine(data, "new.key");
-        string newKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
+        var oldKey = await File.ReadAllTextAsync(keyFile, Ct);
+        var newKeyPath = Path.Combine(data, "new.key");
+        var newKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         await File.WriteAllTextAsync(newKeyPath, newKey + "\n", Ct);
         using StringWriter output = new();
         using StringWriter error = new();
 
-        int exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), newKeyPath, TextReader.Null, standardInputIsTerminal: false, output, error, Ct);
+        var exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), newKeyPath, TextReader.Null, standardInputIsTerminal: false, output, error, Ct);
 
         Assert.True(exitCode == ExitCodes.Success, error.ToString());
         Assert.Equal(newKey, (await File.ReadAllTextAsync(keyFile, Ct)).Trim());
@@ -52,7 +52,7 @@ public sealed class VaultCommandsTests
             Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(keyFile + ".old"));
         }
 
-        await using PaduraksaHost host = TestHost.Create(settings: NoPlaceholder, dataDirectory: data);
+        await using var host = TestHost.Create(settings: NoPlaceholder, dataDirectory: data);
         await host.StartAsync(Ct);
         Assert.Equal(fingerprint, Fingerprint((await VaultCertificatesEndToEndTests.HandshakeAsync(host, "rot.test")).Certificate));
     }
@@ -60,21 +60,21 @@ public sealed class VaultCommandsTests
     [Fact]
     public async Task RotateKekReadsTheKeyFromStandardInputAndKeepsAnEarlierBackupSafe()
     {
-        string data = TestDataDirectories.NewPath();
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        var data = TestDataDirectories.NewPath();
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(Ct);
         }
 
-        string newKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var newKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         using StringWriter output = new();
         using StringWriter error = new();
 
         Assert.Equal(ExitCodes.Success, await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(newKey + "\n"), standardInputIsTerminal: false, output, error, Ct));
 
         // A second rotation would overwrite master.key.old, the only copy of the previous key: refused until it is deleted.
-        string another = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-        string keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
+        var another = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
         Assert.Equal(ExitCodes.Failure, await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(another), standardInputIsTerminal: false, output, error, Ct));
         Assert.Contains("master.key.old", error.ToString(), StringComparison.Ordinal);
         Assert.Equal(newKey, (await File.ReadAllTextAsync(keyFile, Ct)).Trim());
@@ -85,18 +85,18 @@ public sealed class VaultCommandsTests
     [InlineData("AAAA")]
     public async Task RotateKekRefusesAKeyThatIsNotThirtyTwoBytesAndChangesNothing(string badKey)
     {
-        string data = TestDataDirectories.NewPath();
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        var data = TestDataDirectories.NewPath();
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(Ct);
         }
 
-        string keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
-        string before = await File.ReadAllTextAsync(keyFile, Ct);
+        var keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
+        var before = await File.ReadAllTextAsync(keyFile, Ct);
         using StringWriter output = new();
         using StringWriter error = new();
 
-        int exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(badKey), standardInputIsTerminal: false, output, error, Ct);
+        var exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(badKey), standardInputIsTerminal: false, output, error, Ct);
 
         Assert.Equal(ExitCodes.Failure, exitCode);
         Assert.Equal(before, await File.ReadAllTextAsync(keyFile, Ct));
@@ -107,15 +107,15 @@ public sealed class VaultCommandsTests
     [Fact]
     public async Task RotateKekRefusesStandardInputThatIsATerminal()
     {
-        string data = TestDataDirectories.NewPath();
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        var data = TestDataDirectories.NewPath();
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(Ct);
         }
 
         using StringWriter error = new();
 
-        int exitCode = await VaultCommands.RotateKekAsync(
+        var exitCode = await VaultCommands.RotateKekAsync(
             TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))), standardInputIsTerminal: true, TextWriter.Null, error, Ct);
 
         Assert.Equal(ExitCodes.Failure, exitCode);
@@ -126,18 +126,18 @@ public sealed class VaultCommandsTests
     [Fact]
     public async Task AFailedRotationPutsTheOldKeyBackAndLeavesNoBackup()
     {
-        string data = TestDataDirectories.NewPath();
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        var data = TestDataDirectories.NewPath();
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(Ct);
         }
 
-        string keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
-        string current = await File.ReadAllTextAsync(keyFile, Ct);
+        var keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
+        var current = await File.ReadAllTextAsync(keyFile, Ct);
         using StringWriter error = new();
 
         // The "new" key is the one in use: the vault refuses the rotation after master.key was already replaced.
-        int exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(current), standardInputIsTerminal: false, TextWriter.Null, error, Ct);
+        var exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(current), standardInputIsTerminal: false, TextWriter.Null, error, Ct);
 
         Assert.Equal(ExitCodes.Failure, exitCode);
         Assert.Contains("already in use", error.ToString(), StringComparison.Ordinal);
@@ -153,18 +153,18 @@ public sealed class VaultCommandsTests
     [Fact]
     public async Task AStaleTemporaryFileOfAnInterruptedRunIsReplacedNotTrusted()
     {
-        string data = TestDataDirectories.NewPath();
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        var data = TestDataDirectories.NewPath();
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(Ct);
         }
 
-        string keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
+        var keyFile = Path.Combine(data, VaultCommands.GeneratedKeyFileName);
         await File.WriteAllTextAsync(keyFile + ".new", "junk from an earlier crash", Ct);
-        string newKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var newKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
         using StringWriter error = new();
 
-        int exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(newKey), standardInputIsTerminal: false, TextWriter.Null, error, Ct);
+        var exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(newKey), standardInputIsTerminal: false, TextWriter.Null, error, Ct);
 
         Assert.True(exitCode == ExitCodes.Success, error.ToString());
         Assert.Equal(newKey, (await File.ReadAllTextAsync(keyFile, Ct)).Trim());
@@ -179,18 +179,18 @@ public sealed class VaultCommandsTests
             return;
         }
 
-        string data = TestDataDirectories.NewPath();
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        var data = TestDataDirectories.NewPath();
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(Ct);
         }
 
-        string newKeyPath = Path.Combine(data, "new.key");
+        var newKeyPath = Path.Combine(data, "new.key");
         await File.WriteAllTextAsync(newKeyPath, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)), Ct);
         File.SetUnixFileMode(newKeyPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead);
         using StringWriter error = new();
 
-        int exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), newKeyPath, TextReader.Null, standardInputIsTerminal: false, TextWriter.Null, error, Ct);
+        var exitCode = await VaultCommands.RotateKekAsync(TestHost.CreateOptions(dataDirectory: data), newKeyPath, TextReader.Null, standardInputIsTerminal: false, TextWriter.Null, error, Ct);
 
         Assert.True(exitCode == ExitCodes.Success, error.ToString());
         Assert.Contains("can be read by other users", error.ToString(), StringComparison.Ordinal);
@@ -199,16 +199,16 @@ public sealed class VaultCommandsTests
     [Fact]
     public async Task AnAllZeroKeyIsNotAKeyEitherWayTheVaultsParserSaysSo()
     {
-        string data = TestDataDirectories.NewPath();
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        var data = TestDataDirectories.NewPath();
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(Ct);
         }
 
-        string before = await File.ReadAllTextAsync(Path.Combine(data, "master.key"), Ct);
+        var before = await File.ReadAllTextAsync(Path.Combine(data, "master.key"), Ct);
         using StringWriter error = new();
 
-        int exitCode = await VaultCommands.RotateKekAsync(
+        var exitCode = await VaultCommands.RotateKekAsync(
             TestHost.CreateOptions(dataDirectory: data), "-", new StringReader(Convert.ToBase64String(new byte[32])), standardInputIsTerminal: false, TextWriter.Null, error, Ct);
 
         Assert.Equal(ExitCodes.Failure, exitCode);
@@ -218,8 +218,8 @@ public sealed class VaultCommandsTests
     [Fact]
     public void RotateKekTakesTheKeyFromAFileOrStandardInputNeverAsAValue()
     {
-        Command vault = PaduraksaCli.BuildRootCommand().Subcommands.Single(c => c.Name == "vault");
-        Command rotate = vault.Subcommands.Single(c => c.Name == "rotate-kek");
+        var vault = PaduraksaCli.BuildRootCommand().Subcommands.Single(c => c.Name == "vault");
+        var rotate = vault.Subcommands.Single(c => c.Name == "rotate-kek");
 
         Assert.Equal(["--new-key-file"], rotate.Options.Select(o => o.Name).Where(n => n != "--help" && n != "--version"));
         Assert.Empty(PaduraksaCli.BuildRootCommand().Parse(["vault", "rotate-kek", "--new-key-file", "-"]).Errors);

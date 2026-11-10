@@ -25,19 +25,19 @@ public sealed class FirstRunEndToEndTests
     [Fact]
     public async Task Setup_LandsOnTheOverview_ThenTwoStepAndCertificatesFromTheirPages()
     {
-        (IPlaywright playwright, IBrowser browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
-        using IPlaywright ownedPlaywright = playwright;
-        await using IBrowser ownedBrowser = browser;
-        await using DashboardHost host = await DashboardHost.StartAsync(Ct);
-        await using IBrowserContext context = await browser.NewContextAsync(new BrowserNewContextOptions
+        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
+        using var ownedPlaywright = playwright;
+        await using var ownedBrowser = browser;
+        await using var host = await DashboardHost.StartAsync(Ct);
+        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
         {
             BaseURL = host.Admin.ToString(),
             IgnoreHTTPSErrors = true,
             ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
             ColorScheme = ColorScheme.Dark,
         });
-        IPage page = await context.NewPageAsync();
-        List<string> problems = PlaywrightBrowser.CollectProblems(page);
+        var page = await context.NewPageAsync();
+        var problems = PlaywrightBrowser.CollectProblems(page);
 
         // Token and Owner, on the plain setup page, with the strength hint.
         await page.GotoAsync("/");
@@ -70,7 +70,7 @@ public sealed class FirstRunEndToEndTests
         await page.ClickAsync(".pdk-totp-begin");
         await Expect(page.Locator("svg.pdk-qr")).ToBeVisibleAsync();
         await page.Locator(".pdk-totp-manual summary").ClickAsync();
-        string secret = (await page.Locator(".pdk-totp-secret").TextContentAsync())!.Replace(" ", string.Empty, StringComparison.Ordinal);
+        var secret = (await page.Locator(".pdk-totp-secret").TextContentAsync())!.Replace(" ", string.Empty, StringComparison.Ordinal);
         await PlaywrightBrowser.ScreenshotAsync(page, "two-step-qr", fullPage: false);
         await page.FillAsync(".pdk-totp-code input", TotpOracle.CodeFor($"otpauth://totp/x?secret={secret}"));
         await page.ClickAsync(".pdk-totp-confirm");
@@ -89,7 +89,7 @@ public sealed class FirstRunEndToEndTests
         await page.FillAsync(".pdk-sheet[data-top] .pdk-local-names textarea", HostName);
         await PlaywrightBrowser.ScreenshotAsync(page, "certificate-local", fullPage: false);
         await page.ClickAsync(".pdk-sheet[data-top] .pdk-local-submit");
-        ILocator row = page.Locator(".pdk-certs-table .pdk-dt-row", new() { HasText = HostName });
+        var row = page.Locator(".pdk-certs-table .pdk-dt-row", new() { HasText = HostName });
         await Expect(row).ToContainTextAsync("Local CA", new() { Timeout = 15_000 });
         await page.Keyboard.PressAsync("Escape");
         await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0);
@@ -155,12 +155,12 @@ public sealed class FirstRunEndToEndTests
     /// <summary>A self-signed certificate with its PKCS#8 key in one PEM file, or null without openssl.</summary>
     private static async Task<string?> MakePemAsync()
     {
-        string directory = Directory.CreateTempSubdirectory("paduraksa-pem-").FullName;
-        string key = Path.Combine(directory, "key.pem");
-        string certificate = Path.Combine(directory, "cert.pem");
+        var directory = Directory.CreateTempSubdirectory("paduraksa-pem-").FullName;
+        var key = Path.Combine(directory, "key.pem");
+        var certificate = Path.Combine(directory, "cert.pem");
         try
         {
-            using Process? process = Process.Start(new ProcessStartInfo("openssl")
+            using var process = Process.Start(new ProcessStartInfo("openssl")
             {
                 ArgumentList =
                 {
@@ -181,7 +181,7 @@ public sealed class FirstRunEndToEndTests
                 return null;
             }
 
-            string combined = Path.Combine(Directory.CreateTempSubdirectory("paduraksa-upload-").FullName, "upload.pem");
+            var combined = Path.Combine(Directory.CreateTempSubdirectory("paduraksa-upload-").FullName, "upload.pem");
             await File.WriteAllTextAsync(combined, await File.ReadAllTextAsync(certificate, Ct) + await File.ReadAllTextAsync(key, Ct), Ct);
             return combined;
         }

@@ -28,7 +28,7 @@ public static class AdminSessionCookie
     public static void Clear(HttpResponse response)
     {
         ArgumentNullException.ThrowIfNull(response);
-        CookieOptions options = Options(DateTimeOffset.UnixEpoch);
+        var options = Options(DateTimeOffset.UnixEpoch);
         options.MaxAge = TimeSpan.Zero;
         response.Cookies.Append(Name, string.Empty, options);
     }
@@ -41,18 +41,18 @@ public static class AdminSessionCookie
     {
         ArgumentNullException.ThrowIfNull(request);
         string? found = null;
-        int count = 0;
-        foreach (string? header in request.Headers.Cookie)
+        var count = 0;
+        foreach (var header in request.Headers.Cookie)
         {
             if (header is null)
             {
                 continue;
             }
 
-            foreach (Range part in header.AsSpan().Split(';'))
+            foreach (var part in header.AsSpan().Split(';'))
             {
-                ReadOnlySpan<char> pair = header.AsSpan(part).Trim();
-                int eq = pair.IndexOf('=');
+                var pair = header.AsSpan(part).Trim();
+                var eq = pair.IndexOf('=');
                 if (eq > 0 && pair[..eq].Trim().SequenceEqual(Name))
                 {
                     count++;

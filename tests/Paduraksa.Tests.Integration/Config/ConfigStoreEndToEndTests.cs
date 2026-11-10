@@ -31,24 +31,24 @@ public sealed class ConfigStoreEndToEndTests
         // Measured on a dev machine, with the rest of the suite running alongside: median 11-15 ms, max 25 ms. Only the
         // median is asserted, after a warm-up, and a slow round (a loaded CI machine) gets one more try, like the
         // pipeline's own timing test.
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        (IHost upstream, string address) = await HeaderEchoUpstreamHost.StartAsync(null, ct);
-        using IHost upstreamHost = upstream;
-        await using PaduraksaHost host = TestHost.Create();
+        var ct = TestContext.Current.CancellationToken;
+        var (upstream, address) = await HeaderEchoUpstreamHost.StartAsync(null, ct);
+        using var upstreamHost = upstream;
+        await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
+        using var client = TestHost.CreateClient(host);
 
-        int rounds = 0;
+        var rounds = 0;
         async Task<double> RoundAsync()
         {
-            string label = $"live{rounds++}";
-            string name = $"{label}.test";
-            long started = Stopwatch.GetTimestamp();
+            var label = $"live{rounds++}";
+            var name = $"{label}.test";
+            var started = Stopwatch.GetTimestamp();
             await CommitAsync(host, new UpsertUpstreamCommand(Upstream(label, address)), ct);
             await CommitAsync(host, new UpsertHostCommand(ProxyHost(label, name, label)), ct);
             while (true)
             {
-                (HttpStatusCode status, string body) = await GetAsync(client, host, name, "/first", ct);
+                var (status, body) = await GetAsync(client, host, name, "/first", ct);
                 if (status == HttpStatusCode.OK && body.Contains("target: /first", StringComparison.Ordinal))
                 {
                     return Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -61,7 +61,7 @@ public sealed class ConfigStoreEndToEndTests
         async Task<double> MedianAsync(int count)
         {
             List<double> timings = [];
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
                 timings.Add(await RoundAsync());
             }
@@ -73,7 +73,7 @@ public sealed class ConfigStoreEndToEndTests
         }
 
         await MedianAsync(3); // warm-up: JIT, SQLite page cache, YARP's first applies, the client's connection
-        double median = await MedianAsync(9);
+        var median = await MedianAsync(9);
         if (median >= 100)
         {
             median = await MedianAsync(9);
@@ -86,33 +86,33 @@ public sealed class ConfigStoreEndToEndTests
     [Fact]
     public async Task ARollbackServesTheEarlierConfigAgain()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
+        await using var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
+        using var client = TestHost.CreateClient(host);
 
-        RevisionRef a = await CommitAsync(host, new ReplaceConfigCommand(new ConfigDocument(Hosts: [RespondHost("app", "app.test", "A")]), null), ct);
+        var a = await CommitAsync(host, new ReplaceConfigCommand(new ConfigDocument(Hosts: [RespondHost("app", "app.test", "A")]), null), ct);
         Assert.Equal((HttpStatusCode.OK, "A"), await GetAsync(client, host, "app.test", "/", ct));
 
-        HostConfig app = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single();
-        RevisionRef b = await CommitAsync(host, new UpsertHostCommand(app with { Respond = new RespondConfig(200, "B") }), ct);
+        var app = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single();
+        var b = await CommitAsync(host, new UpsertHostCommand(app with { Respond = new RespondConfig(200, "B") }), ct);
         Assert.Equal((HttpStatusCode.OK, "B"), await GetAsync(client, host, "app.test", "/", ct));
 
-        RevisionRef rollback = await CommitAsync(host, new RollbackConfigCommand(a.Id, b.Id), ct);
+        var rollback = await CommitAsync(host, new RollbackConfigCommand(a.Id, b.Id), ct);
         Assert.Equal((HttpStatusCode.OK, "A"), await GetAsync(client, host, "app.test", "/", ct));
         Assert.Equal(rollback.Id, host.Shared.SnapshotStore.Current.Revision);
 
-        await using ConfigDbContext database = OpenDatabase(data);
-        IReadOnlyList<RevisionInfo> history = await ConfigRevisionStore.ListAsync(database, 10, cancellationToken: ct);
+        await using var database = OpenDatabase(data);
+        var history = await ConfigRevisionStore.ListAsync(database, 10, cancellationToken: ct);
         Assert.Equal([rollback.Id, b.Id, a.Id], history.Select(r => r.Id));
         Assert.Equal([3L, 2, 1], history.Select(r => r.Seq));
         Assert.Equal("Rollback to #1", history[0].Message);
-        AuditChainReport audit = await AuditChainVerifier.VerifyAsync(database, ct);
+        var audit = await AuditChainVerifier.VerifyAsync(database, ct);
         Assert.True(audit.IsIntact, audit.Break?.Description);
         // Exactly: the three config revisions, plus the process's own certificate events at startup - the local CA root and the
         // admin listener's leaf, each registered pending (certificate.add) and then active (certificate.update).
-        long certificateEvents = Convert.ToInt64(await ScalarAsync(data, "SELECT count(*) FROM AuditEvents WHERE \"Action\" IN ('certificate.add', 'certificate.update')", ct));
+        var certificateEvents = Convert.ToInt64(await ScalarAsync(data, "SELECT count(*) FROM AuditEvents WHERE \"Action\" IN ('certificate.add', 'certificate.update')", ct));
         Assert.Equal(2 * 2, certificateEvents);
         Assert.Equal(3 + 4, audit.VerifiedEvents);
     }
@@ -120,10 +120,10 @@ public sealed class ConfigStoreEndToEndTests
     [Fact]
     public async Task ARestartRecompilesTheLatestRevisionAndRewritesAStaleProjection()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
         RevisionRef latest;
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(ct);
             await CommitAsync(first, new UpsertHostCommand(RespondHost("one", "one.test", "one")), ct);
@@ -133,10 +133,10 @@ public sealed class ConfigStoreEndToEndTests
         // A projection that doesn't show the latest revision (a restored or hand-edited database): rewritten at startup.
         await ExecuteSqlAsync(data, "DELETE FROM GlobalSettings; DELETE FROM Hosts;", ct);
 
-        await using PaduraksaHost second = TestHost.Create(dataDirectory: data);
+        await using var second = TestHost.Create(dataDirectory: data);
         await second.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(second);
-        using HttpClient adminClient = TestHost.CreateAdminClient(second);
+        using var client = TestHost.CreateClient(second);
+        using var adminClient = TestHost.CreateAdminClient(second);
 
         Assert.Equal(latest.Id, second.Shared.SnapshotStore.Current.Revision);
         Assert.Equal(new ConfigStoreStatus(ConfigSource.Database, latest), second.Shared.Config.Status);
@@ -147,7 +147,7 @@ public sealed class ConfigStoreEndToEndTests
         Assert.Equal(1L, await ScalarAsync(data, "SELECT count(*) FROM GlobalSettings", ct));
 
         // And the store works on: the next command builds on the latest revision.
-        RevisionRef third = await CommitAsync(second, new UpsertHostCommand(RespondHost("three", "three.test", "three")), ct);
+        var third = await CommitAsync(second, new UpsertHostCommand(RespondHost("three", "three.test", "three")), ct);
         Assert.Equal(3, third.Seq);
         Assert.Equal((HttpStatusCode.OK, "two"), await GetAsync(client, second, "two.test", "/", ct));
     }
@@ -157,14 +157,14 @@ public sealed class ConfigStoreEndToEndTests
     [InlineData("unreadable database file")]
     public async Task AnUnusableDatabaseStartsDegradedOnTheLastKnownGoodConfig(string damage)
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
         RevisionRef latest;
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(ct);
             await CommitAsync(first, new UpsertHostCommand(RespondHost("app", "app.test", "A")), ct);
-            HostConfig app = (await first.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single();
+            var app = (await first.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single();
             latest = await CommitAsync(first, new UpsertHostCommand(app with { Respond = new RespondConfig(200, "B") }), ct);
         }
 
@@ -181,13 +181,13 @@ public sealed class ConfigStoreEndToEndTests
         }
 
         LogCapture logs = new();
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data, logs: logs);
+        await using var host = TestHost.Create(dataDirectory: data, logs: logs);
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
-        using HttpClient adminClient = TestHost.CreateAdminClient(host);
+        using var client = TestHost.CreateClient(host);
+        using var adminClient = TestHost.CreateAdminClient(host);
 
         // The proxy serves the last-known-good config (the latest revision that went live: B) ...
-        ConfigStoreStatus status = host.Shared.Config.Status;
+        var status = host.Shared.Config.Status;
         Assert.True(status.IsDegraded);
         Assert.Equal(ConfigSource.LastKnownGood, status.Source);
         Assert.Equal(latest, status.Revision);
@@ -200,7 +200,7 @@ public sealed class ConfigStoreEndToEndTests
         Assert.Contains(logs.Entries, e => e.Level == LogLevel.Critical && e.Message.StartsWith("DEGRADED: serving the last-known-good config", StringComparison.Ordinal));
 
         // ... and refuses changes.
-        ConfigCommandResult refused = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(RespondHost("new", "new.test", "new")), Origin, ct);
+        var refused = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(RespondHost("new", "new.test", "new")), Origin, ct);
         Assert.Equal(ConfigCommandStatus.Unavailable, refused.Status);
         Assert.Equal(ConfigService.StoreUnavailableCode, Assert.Single(refused.Errors).Code);
         Assert.Equal(latest.Id, host.Shared.SnapshotStore.Current.Revision);
@@ -212,10 +212,10 @@ public sealed class ConfigStoreEndToEndTests
         // Revision #2 binds a certificate this process doesn't have (the in-memory test certificate died with the first
         // process, as an expired or key-less one would): the start is healthy, the host degrades to the default
         // certificate, and the problem is a warning, not a failed start.
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
         CertificateBinding gone = new() { Mode = CertificateBindingMode.Specific, CertificateId = TestIds.Certificate("gone") };
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(ct);
             first.Shared.Certificates.Set(TestIds.Certificate("gone"), first.Shared.Certificates.Placeholder);
@@ -223,25 +223,25 @@ public sealed class ConfigStoreEndToEndTests
             await CommitAsync(first, new UpsertHostCommand(RespondHost("two", "two.test", "two") with { Certificate = gone }), ct);
         }
 
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        await using var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
+        using var client = TestHost.CreateClient(host);
 
-        ConfigStoreStatus status = host.Shared.Config.Status;
+        var status = host.Shared.Config.Status;
         Assert.Equal(ConfigSource.Database, status.Source);
         Assert.False(status.IsDegraded);
         Assert.Equal(2, status.Revision!.Seq);
         Assert.Equal((HttpStatusCode.OK, "one"), await GetAsync(client, host, "one.test", "/", ct));
         Assert.Equal((HttpStatusCode.OK, "two"), await GetAsync(client, host, "two.test", "/", ct));
-        ConfigWarning warning = Assert.Single(host.Shared.Config.Warnings, w => w.Code != "certificate.auto.noCoverage"); // the other host is Auto, and nothing covers one.test
+        var warning = Assert.Single(host.Shared.Config.Warnings, w => w.Code != "certificate.auto.noCoverage"); // the other host is Auto, and nothing covers one.test
         Assert.Equal("certificate.specific.unusable", warning.Code);
         Assert.Equal("/hosts/1/certificate", warning.Path);
 
         // An unrelated edit of that host isn't blocked by it; binding another host to the gone certificate is.
-        HostConfig two = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single(h => h.Id == TestIds.Host("two"));
-        ConfigCommandResult edited = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(two with { Notes = "edited" }), Origin, ct);
+        var two = (await host.Shared.Config.GetCurrentAsync(ct)).Document.Hosts.Single(h => h.Id == TestIds.Host("two"));
+        var edited = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(two with { Notes = "edited" }), Origin, ct);
         Assert.Equal(ConfigCommandStatus.Committed, edited.Status);
-        ConfigCommandResult rebound = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(RespondHost("one", "one.test", "one") with { Version = 1, Certificate = gone }), Origin, ct);
+        var rebound = await host.Shared.Config.ExecuteAsync(new UpsertHostCommand(RespondHost("one", "one.test", "one") with { Version = 1, Certificate = gone }), Origin, ct);
         Assert.Equal(ConfigCommandStatus.Invalid, rebound.Status);
         Assert.Equal("host.certificate.unusable", Assert.Single(rebound.Errors.Concat(rebound.RelatedErrors)).Code);
     }
@@ -250,10 +250,10 @@ public sealed class ConfigStoreEndToEndTests
     [Fact]
     public async Task ALostDatabaseIsRestoredFromLastGoodJson()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
         RevisionRef lost;
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: data))
+        await using (var first = TestHost.Create(dataDirectory: data))
         {
             await first.StartAsync(ct);
             await CommitAsync(first, new UpsertHostCommand(RespondHost("one", "one.test", "one")), ct);
@@ -261,27 +261,27 @@ public sealed class ConfigStoreEndToEndTests
         }
 
         ClearPool(data);
-        foreach (string file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
+        foreach (var file in Directory.GetFiles(data, ConfigDatabase.FileName + "*"))
         {
             File.Delete(file);
         }
 
         LogCapture logs = new();
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data, logs: logs);
+        await using var host = TestHost.Create(dataDirectory: data, logs: logs);
         await host.StartAsync(ct);
-        using HttpClient client = TestHost.CreateClient(host);
-        using HttpClient adminClient = TestHost.CreateAdminClient(host);
+        using var client = TestHost.CreateClient(host);
+        using var adminClient = TestHost.CreateAdminClient(host);
 
         // The file's config is committed again as revision #1 (audited) and served, healthy.
-        ConfigStoreStatus status = host.Shared.Config.Status;
+        var status = host.Shared.Config.Status;
         Assert.False(status.IsDegraded);
         Assert.Equal(1, status.Revision!.Seq);
         Assert.Equal((HttpStatusCode.OK, "one"), await GetAsync(client, host, "one.test", "/", ct));
         Assert.Equal((HttpStatusCode.OK, "two"), await GetAsync(client, host, "two.test", "/", ct));
         Assert.Equal((HttpStatusCode.OK, "ready\n"), await ReadyzAsync(adminClient, host, ct));
         Assert.Contains(logs.Entries, e => e.Level == LogLevel.Critical && e.Message.Contains($"#{lost.Seq} ({lost.Id})", StringComparison.Ordinal));
-        await using ConfigDbContext database = OpenDatabase(data);
-        RevisionInfo restored = Assert.Single(await ConfigRevisionStore.ListAsync(database, 10, cancellationToken: ct));
+        await using var database = OpenDatabase(data);
+        var restored = Assert.Single(await ConfigRevisionStore.ListAsync(database, 10, cancellationToken: ct));
         Assert.Equal($"Restored from last-known-good #{lost.Seq} ({lost.Id})", restored.Message);
         Assert.True((await AuditChainVerifier.VerifyAsync(database, ct)).IsIntact);
     }
@@ -289,12 +289,12 @@ public sealed class ConfigStoreEndToEndTests
     [Fact]
     public async Task NothingToServeFailsTheStart()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
         Directory.CreateDirectory(data);
         await File.WriteAllTextAsync(DatabasePath(data), "not a database\n", ct);
         LogCapture logs = new();
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data, logs: logs);
+        await using var host = TestHost.Create(dataDirectory: data, logs: logs);
 
         Assert.Equal(ExitCodes.StartupFailed, await host.RunAsync(ct).WaitAsync(TimeSpan.FromSeconds(30), ct));
 
@@ -305,10 +305,10 @@ public sealed class ConfigStoreEndToEndTests
     [Fact]
     public async Task LastGoodJsonHoldsTheDocumentOfTheLiveRevision()
     {
-        CancellationToken ct = TestContext.Current.CancellationToken;
-        string data = TestDataDirectories.NewPath();
-        string path = Path.Combine(data, LastKnownGoodFile.FileName);
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: data);
+        var ct = TestContext.Current.CancellationToken;
+        var data = TestDataDirectories.NewPath();
+        var path = Path.Combine(data, LastKnownGoodFile.FileName);
+        await using var host = TestHost.Create(dataDirectory: data);
         await host.StartAsync(ct);
 
         // The empty config is no revision: nothing to fall back to, nothing written.
@@ -316,20 +316,20 @@ public sealed class ConfigStoreEndToEndTests
         Assert.False(File.Exists(path));
 
         await CommitAsync(host, new UpsertHostCommand(RespondHost("one", "one.test", "one")), ct);
-        RevisionRef second = await CommitAsync(host, new UpsertHostCommand(RespondHost("two", "two.test", "two")), ct);
+        var second = await CommitAsync(host, new UpsertHostCommand(RespondHost("two", "two.test", "two")), ct);
         await host.Shared.LastKnownGood.FlushAsync();
 
-        byte[] file = await File.ReadAllBytesAsync(path, ct);
-        using JsonDocument json = JsonDocument.Parse(file);
-        JsonElement root = json.RootElement;
+        var file = await File.ReadAllBytesAsync(path, ct);
+        using var json = JsonDocument.Parse(file);
+        var root = json.RootElement;
         Assert.Equal(LastKnownGoodFile.Format, root.GetProperty("format").GetString());
         Assert.Equal(second.Id.ToString(), root.GetProperty("revision").GetString());
         Assert.Equal(2, root.GetProperty("seq").GetInt64());
 
         // The document is the revision's canonical bytes, verbatim: its hash is the one the database stores.
-        byte[] document = System.Text.Encoding.UTF8.GetBytes(root.GetProperty("document").GetRawText());
-        await using ConfigDbContext database = OpenDatabase(data);
-        RevisionInfo stored = (await ConfigRevisionStore.ListAsync(database, 1, cancellationToken: ct)).Single();
+        var document = System.Text.Encoding.UTF8.GetBytes(root.GetProperty("document").GetRawText());
+        await using var database = OpenDatabase(data);
+        var stored = (await ConfigRevisionStore.ListAsync(database, 1, cancellationToken: ct)).Single();
         Assert.Equal(Convert.ToHexStringLower(stored.DocumentHash.Span), root.GetProperty("sha256").GetString());
         Assert.Equal(root.GetProperty("sha256").GetString(), Convert.ToHexStringLower(SHA256.HashData(document)));
         Assert.Equal(["one.test", "two.test"], CanonicalHosts(document));

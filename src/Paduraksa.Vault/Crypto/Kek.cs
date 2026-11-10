@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using Paduraksa.Core;
-using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Vault.Crypto;
 

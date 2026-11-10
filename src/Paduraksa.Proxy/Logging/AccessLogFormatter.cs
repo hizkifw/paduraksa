@@ -93,7 +93,7 @@ public static class AccessLogFormatter
 
         // 1. Time of the end of the request.
         if (line.Remaining.Length >= 24
-            && new DateTime(entry.TimestampUtcTicks, DateTimeKind.Utc).TryFormat(line.Remaining, out int timeWritten, TimeFormat, CultureInfo.InvariantCulture))
+            && new DateTime(entry.TimestampUtcTicks, DateTimeKind.Utc).TryFormat(line.Remaining, out var timeWritten, TimeFormat, CultureInfo.InvariantCulture))
         {
             line.Advance(timeWritten);
         }
@@ -111,7 +111,7 @@ public static class AccessLogFormatter
         // 4. The request target, built (with its query redacted) apart from the line.
         line.Write(' ');
         Span<char> target = stackalloc char[MaxRequestTargetLength];
-        int targetLength = BuildRequestTarget(in entry, options, target);
+        var targetLength = BuildRequestTarget(in entry, options, target);
         line.Quote(target[..targetLength], MaxRequestTargetLength);
 
         // 5-8. Status, bytes, total and upstream durations.
@@ -176,13 +176,13 @@ public static class AccessLogFormatter
         {
             // The entry carries the raw query, '?' included; the target writes it back as one token.
             truncated |= !Append("?", target, ref length);
-            int start = query[0] == '?' ? 1 : 0;
+            var start = query[0] == '?' ? 1 : 0;
             while (true)
             {
-                int end = query.AsSpan(start).IndexOf('&');
-                ReadOnlySpan<char> parameter = end < 0 ? query.AsSpan(start) : query.AsSpan(start, end);
-                int equals = parameter.IndexOf('=');
-                ReadOnlySpan<char> name = equals < 0 ? parameter : parameter[..equals];
+                var end = query.AsSpan(start).IndexOf('&');
+                var parameter = end < 0 ? query.AsSpan(start) : query.AsSpan(start, end);
+                var equals = parameter.IndexOf('=');
+                var name = equals < 0 ? parameter : parameter[..equals];
                 if (options.IsSensitive(name))
                 {
                     // Whatever the value was, it doesn't reach the log. A bare name becomes an explicit redacted pair, so
@@ -252,7 +252,7 @@ public static class AccessLogFormatter
     /// <summary>Appends <paramref name="text"/>; false when the buffer filled first.</summary>
     private static bool Append(ReadOnlySpan<char> text, Span<char> target, ref int length)
     {
-        int room = target.Length - length;
+        var room = target.Length - length;
         if (text.Length > room)
         {
             text[..room].CopyTo(target[length..]);
@@ -313,7 +313,7 @@ public static class AccessLogFormatter
 
         public void Write(int value)
         {
-            if (!value.TryFormat(_buffer[_length..], out int written, provider: CultureInfo.InvariantCulture))
+            if (!value.TryFormat(_buffer[_length..], out var written, provider: CultureInfo.InvariantCulture))
             {
                 MarkOverflow();
                 return;
@@ -324,7 +324,7 @@ public static class AccessLogFormatter
 
         public void Write(long value)
         {
-            if (!value.TryFormat(_buffer[_length..], out int written, provider: CultureInfo.InvariantCulture))
+            if (!value.TryFormat(_buffer[_length..], out var written, provider: CultureInfo.InvariantCulture))
             {
                 MarkOverflow();
                 return;
@@ -335,8 +335,8 @@ public static class AccessLogFormatter
 
         public void WriteMilliseconds(long ticks)
         {
-            double milliseconds = ticks / (double)TimeSpan.TicksPerMillisecond;
-            if (!milliseconds.TryFormat(_buffer[_length..], out int written, MillisecondsFormat, CultureInfo.InvariantCulture))
+            var milliseconds = ticks / (double)TimeSpan.TicksPerMillisecond;
+            if (!milliseconds.TryFormat(_buffer[_length..], out var written, MillisecondsFormat, CultureInfo.InvariantCulture))
             {
                 MarkOverflow();
                 return;
@@ -362,9 +362,9 @@ public static class AccessLogFormatter
 
             Write('"');
             var written = 0;
-            for (int i = 0; i < value.Length; i++)
+            for (var i = 0; i < value.Length; i++)
             {
-                char c = value[i];
+                var c = value[i];
                 if (c is '"' or '\\')
                 {
                     if (written + 2 > budget)

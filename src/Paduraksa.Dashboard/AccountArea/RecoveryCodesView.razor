@@ -4,7 +4,7 @@
    page, nothing served from a URL. *@
 <div class="pdk-recovery" data-section="recovery-codes">
     <ol class="pdk-recovery-codes pdk-mono">
-        @foreach (string recovery in Codes)
+        @foreach (var recovery in Codes)
         {
             <li>@recovery</li>
         }

@@ -20,9 +20,9 @@ internal static class CertificateNames
     {
         List<string> normalized = [];
         rejected = [];
-        foreach (string name in names)
+        foreach (var name in names)
         {
-            string? value = Normalize(name);
+            var value = Normalize(name);
             if (value is null)
             {
                 rejected.Add(name);
@@ -39,7 +39,7 @@ internal static class CertificateNames
     /// <summary>The normal form of a single name; null when it isn't one.</summary>
     public static string? Normalize(string? name)
     {
-        string trimmed = (name ?? string.Empty).Trim();
+        var trimmed = (name ?? string.Empty).Trim();
         if (trimmed.Length > 2 && trimmed[0] == '[' && trimmed[^1] == ']')
         {
             trimmed = trimmed[1..^1];
@@ -48,11 +48,11 @@ internal static class CertificateNames
         if (LooksLikeIp(trimmed))
         {
             // An IPv4 address is exactly four dotted decimal parts ("1.2" and "16909060" are numbers, not addresses).
-            bool shapeOk = trimmed.Contains(':', StringComparison.Ordinal) || trimmed.Count(c => c == '.') == 3;
-            return shapeOk && IPAddress.TryParse(trimmed, out IPAddress? address) ? address.ToString() : null;
+            var shapeOk = trimmed.Contains(':', StringComparison.Ordinal) || trimmed.Count(c => c == '.') == 3;
+            return shapeOk && IPAddress.TryParse(trimmed, out var address) ? address.ToString() : null;
         }
 
-        return HostNames.TryNormalize(trimmed, out string normalized, out HostNameKind kind, out _) && kind != HostNameKind.IPv6Literal
+        return HostNames.TryNormalize(trimmed, out var normalized, out var kind, out _) && kind != HostNameKind.IPv6Literal
             ? normalized
             : null;
     }
@@ -68,7 +68,7 @@ internal static class CertificateNames
             return null; // an address has no wildcard
         }
 
-        int firstDot = name.IndexOf('.', StringComparison.Ordinal);
+        var firstDot = name.IndexOf('.', StringComparison.Ordinal);
         return firstDot > 0 && !name.StartsWith("*.", StringComparison.Ordinal) ? string.Concat("*", name.AsSpan(firstDot)) : null;
     }
 }

@@ -28,12 +28,12 @@ public sealed class DataProtectionTests
     [Fact]
     public async Task OnlyTheAdminHostUsesTheVaultRepository()
     {
-        string directory = TestDataDirectories.NewPath();
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: directory);
+        var directory = TestDataDirectories.NewPath();
+        await using var host = TestHost.Create(dataDirectory: directory);
         await host.StartAsync(Ct);
         try
         {
-            IServiceProvider admin = host.GetServices(HostRole.Admin);
+            var admin = host.GetServices(HostRole.Admin);
             Assert.NotNull(admin.GetService<IDataProtectionProvider>());
             Assert.IsType<VaultXmlRepository>(KeyManagement(admin).XmlRepository);
             Assert.Null(KeyManagement(admin).XmlEncryptor);
@@ -43,7 +43,7 @@ public sealed class DataProtectionTests
 
             // YARP registers Data Protection in the public app for session affinity, but its destination ID is not a secret:
             // an in-memory ephemeral provider, no vault repository and no key-ring warm-up that could create a key.
-            IServiceProvider publicServices = host.GetServices(HostRole.Public);
+            var publicServices = host.GetServices(HostRole.Public);
             Assert.IsType<EphemeralDataProtectionProvider>(publicServices.GetRequiredService<IDataProtectionProvider>());
             Assert.DoesNotContain(
                 publicServices.GetServices<IHostedService>(),
@@ -61,20 +61,20 @@ public sealed class DataProtectionTests
     [Fact]
     public async Task ThePublicAppsProtectorWritesNothingToTheVaultAndCannotOpenTheAdminsPayload()
     {
-        string directory = TestDataDirectories.NewPath();
-        await using PaduraksaHost host = TestHost.Create(dataDirectory: directory);
+        var directory = TestDataDirectories.NewPath();
+        await using var host = TestHost.Create(dataDirectory: directory);
         await host.StartAsync(Ct);
         try
         {
-            int before = (await host.Shared.KeyRing.ReadAllAsync(Ct)).Count;
-            IDataProtectionProvider publicProvider = host.GetServices(HostRole.Public).GetRequiredService<IDataProtectionProvider>();
+            var before = (await host.Shared.KeyRing.ReadAllAsync(Ct)).Count;
+            var publicProvider = host.GetServices(HostRole.Public).GetRequiredService<IDataProtectionProvider>();
 
-            string affinity = publicProvider.CreateProtector("yarp-affinity").Protect("destination-1");
+            var affinity = publicProvider.CreateProtector("yarp-affinity").Protect("destination-1");
             Assert.Equal("destination-1", publicProvider.CreateProtector("yarp-affinity").Unprotect(affinity));
 
             // The two providers have different keys and purposes: neither opens the other's payload.
             Assert.ThrowsAny<CryptographicException>(() => AdminProtector(host, "yarp-affinity").Unprotect(affinity));
-            string adminPayload = AdminProtector(host).Protect("the dashboard's antiforgery state");
+            var adminPayload = AdminProtector(host).Protect("the dashboard's antiforgery state");
             Assert.ThrowsAny<CryptographicException>(() => publicProvider.CreateProtector(Purpose).Unprotect(adminPayload));
 
             // The public app read nothing and wrote nothing to the vault, and no key reached the disk.
@@ -91,11 +91,11 @@ public sealed class DataProtectionTests
     [Fact]
     public async Task ProtectsAndUnprotectsAcrossARestartFromTheVault()
     {
-        string directory = TestDataDirectories.NewPath();
+        var directory = TestDataDirectories.NewPath();
         string protectedValue;
         HashSet<string> storedElements;
 
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: directory))
+        await using (var first = TestHost.Create(dataDirectory: directory))
         {
             await first.StartAsync(Ct);
             try
@@ -115,17 +115,17 @@ public sealed class DataProtectionTests
         // The key elements are in the vault, sealed: no plain key XML (and no key directory) is on disk.
         Assert.Empty(Directory.GetDirectories(directory, "DataProtection-Keys", SearchOption.AllDirectories));
         Assert.Empty(Directory.GetFiles(directory, "*.xml", SearchOption.AllDirectories));
-        foreach (string file in Directory.GetFiles(directory, "*.db*", SearchOption.AllDirectories))
+        foreach (var file in Directory.GetFiles(directory, "*.db*", SearchOption.AllDirectories))
         {
             Assert.DoesNotContain("</key>", Encoding.UTF8.GetString(File.ReadAllBytes(file)), StringComparison.Ordinal);
         }
 
-        await using (PaduraksaHost second = TestHost.Create(dataDirectory: directory))
+        await using (var second = TestHost.Create(dataDirectory: directory))
         {
             await second.StartAsync(Ct);
             try
             {
-                string unprotected = AdminProtector(second).Unprotect(protectedValue);
+                var unprotected = AdminProtector(second).Unprotect(protectedValue);
                 Assert.Equal("the dashboard's circuit and antiforgery state", unprotected);
 
                 // The same elements came back out of the vault, unchanged.
@@ -146,7 +146,7 @@ public sealed class DataProtectionTests
     public async Task TheFrameworkWarningIsFilteredAndTheVaultLogsItsOwnLine()
     {
         LogCapture logs = new();
-        await using PaduraksaHost host = TestHost.Create(
+        await using var host = TestHost.Create(
             dataDirectory: TestDataDirectories.NewPath(),
             settings: new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
             {
@@ -174,8 +174,8 @@ public sealed class DataProtectionTests
     [Fact]
     public async Task AWrongMasterKeyStopsTheProcessLikeTheRestOfTheVault()
     {
-        string directory = TestDataDirectories.NewPath();
-        await using (PaduraksaHost first = TestHost.Create(dataDirectory: directory))
+        var directory = TestDataDirectories.NewPath();
+        await using (var first = TestHost.Create(dataDirectory: directory))
         {
             await first.StartAsync(Ct);
             try
@@ -189,12 +189,12 @@ public sealed class DataProtectionTests
         }
 
         // The vault generated master.key; replace it with a key the database was not written under.
-        string keyPath = Path.Combine(directory, "master.key");
+        var keyPath = Path.Combine(directory, "master.key");
         Assert.True(File.Exists(keyPath), "The vault did not generate master.key.");
         await File.WriteAllTextAsync(keyPath, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) + "\n", Ct);
 
-        await using PaduraksaHost second = TestHost.Create(dataDirectory: directory);
-        InvalidOperationException failure = await Assert.ThrowsAsync<InvalidOperationException>(() => second.StartAsync(Ct));
+        await using var second = TestHost.Create(dataDirectory: directory);
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => second.StartAsync(Ct));
         Assert.Contains("master key", failure.Message, StringComparison.OrdinalIgnoreCase);
     }
 

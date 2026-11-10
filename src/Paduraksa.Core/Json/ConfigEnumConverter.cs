@@ -24,7 +24,7 @@ public sealed class ConfigEnumConverter<TEnum> : JsonConverter<TEnum>
 
     public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType == JsonTokenType.String && reader.GetString() is { } name && ByName.TryGetValue(name, out TEnum value))
+        if (reader.TokenType == JsonTokenType.String && reader.GetString() is { } name && ByName.TryGetValue(name, out var value))
         {
             return value;
         }
@@ -35,7 +35,7 @@ public sealed class ConfigEnumConverter<TEnum> : JsonConverter<TEnum>
     public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
     {
         ArgumentNullException.ThrowIfNull(writer);
-        if (NameOf.TryGetValue(value, out string? name))
+        if (NameOf.TryGetValue(value, out var name))
         {
             writer.WriteStringValue(name);
         }

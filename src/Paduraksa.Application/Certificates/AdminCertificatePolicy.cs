@@ -23,7 +23,7 @@ public static class AdminCertificatePolicy
             return true;
         }
 
-        TimeSpan lifetime = current.NotAfter - current.NotBefore;
+        var lifetime = current.NotAfter - current.NotBefore;
         return now >= current.NotAfter - (lifetime / 3);
     }
 

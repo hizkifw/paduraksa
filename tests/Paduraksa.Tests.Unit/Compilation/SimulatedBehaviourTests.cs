@@ -5,7 +5,6 @@ using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
-using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -35,30 +34,30 @@ public sealed class SimulatedBehaviourTests : IDisposable
     [Fact]
     public async Task TheSimulatorSaysWhatTheGateAnswersForGeneratedDocuments()
     {
-        int documents = 0;
-        int compared = 0;
-        int rejectedHandshakes = 0;
-        for (int seed = 0; seed < 300; seed++)
+        var documents = 0;
+        var compared = 0;
+        var rejectedHandshakes = 0;
+        for (var seed = 0; seed < 300; seed++)
         {
-            ConfigDocument random = Random(seed);
-            ConfigDocument document = random with { Settings = random.Settings with { TrustedProxies = new TrustedProxySettings() } };
+            var random = Random(seed);
+            var document = random with { Settings = random.Settings with { TrustedProxies = new TrustedProxySettings() } };
             if (ConfigValidator.Validate(document).Count > 0)
             {
                 continue;
             }
 
-            ConfigCompilation compilation = _certificates.Compile(document, Revision);
+            var compilation = _certificates.Compile(document, Revision);
             Assert.True(compilation.Succeeded, string.Join("; ", compilation.Errors.Select(e => $"{e.Path}: {e.Message}")));
-            RuntimeSnapshot snapshot = compilation.Snapshot!;
+            var snapshot = compilation.Snapshot!;
             documents++;
             using GateHarness gate = new(snapshot);
-            foreach (HostConfig host in document.Hosts.Where(h => h.Enabled))
+            foreach (var host in document.Hosts.Where(h => h.Enabled))
             {
-                foreach (string scheme in (string[])["http", "https"])
+                foreach (var scheme in (string[])["http", "https"])
                 {
-                    foreach (string path in Paths)
+                    foreach (var path in Paths)
                     {
-                        foreach (IPAddress client in Clients)
+                        foreach (var client in Clients)
                         {
                             GateProbe probe = new()
                             {
@@ -70,7 +69,7 @@ public sealed class SimulatedBehaviourTests : IDisposable
                                 // completes a handshake on this connection accepts.
                                 TlsVersion = SslProtocols.Tls12,
                             };
-                            GateSimulation simulated = GateSimulator.Run(snapshot, probe);
+                            var simulated = GateSimulator.Run(snapshot, probe);
                             if (simulated.Outcome.Reason == GateReason.HandshakeRejected)
                             {
                                 // A request behind a failed handshake never reaches the gate: the certificate table must agree.
@@ -79,8 +78,8 @@ public sealed class SimulatedBehaviourTests : IDisposable
                                 continue;
                             }
 
-                            int expected = await gate.SendAsync(host.Names[0], scheme, path, client);
-                            int actual = simulated.Outcome.Action switch
+                            var expected = await gate.SendAsync(host.Names[0], scheme, path, client);
+                            var actual = simulated.Outcome.Action switch
                             {
                                 GateOutcomeAction.Forward => GateHarness.Forwarded,
                                 GateOutcomeAction.Abort => GateHarness.Aborted,
@@ -103,8 +102,8 @@ public sealed class SimulatedBehaviourTests : IDisposable
     /// <summary>The certificate table says the same: no entry takes the name, or the entry only speaks TLS 1.3.</summary>
     private static bool Rejects(RuntimeSnapshot snapshot, GateProbe probe)
     {
-        string name = HostTable.HostName(probe.Host).ToString();
-        TlsSelection selection = TlsHandshakeSelector.Select(snapshot.Certificates, name.StartsWith('[') ? string.Empty : name, quic: false);
+        var name = HostTable.HostName(probe.Host).ToString();
+        var selection = TlsHandshakeSelector.Select(snapshot.Certificates, name.StartsWith('[') ? string.Empty : name, quic: false);
         return selection.Options is null || (selection.Options.EnabledSslProtocols & SslProtocols.Tls12) == 0;
     }
 }

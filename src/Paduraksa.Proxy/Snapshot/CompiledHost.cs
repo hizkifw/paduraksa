@@ -1,11 +1,7 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
-
 using Paduraksa.Core.Model;
-using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
-using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Snapshot;
@@ -76,7 +72,7 @@ public sealed class CompiledHost
     /// <summary>The first route that takes <paramref name="path"/>, or <see langword="null"/>.</summary>
     public CompiledRoute? Match(ReadOnlySpan<char> path)
     {
-        foreach (CompiledRoute route in Routes)
+        foreach (var route in Routes)
         {
             if (route.Matches(path))
             {
@@ -97,7 +93,7 @@ internal sealed class HttpsRedirect
 {
     public HttpsRedirect(int publicHttpsPort)
     {
-        RedirectTarget target = RedirectTarget.Https(publicHttpsPort);
+        var target = RedirectTarget.Https(publicHttpsPort);
         Safe = PrecomputedResponse.RedirectTo(StatusCodes.Status301MovedPermanently, target);
         Unsafe = PrecomputedResponse.RedirectTo(StatusCodes.Status308PermanentRedirect, target);
     }

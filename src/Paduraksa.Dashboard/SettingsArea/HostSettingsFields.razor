@@ -226,13 +226,13 @@
 
     private string? E(string path)
     {
-        string full = PathPrefix + path;
-        return (ShowAll || Touched.Contains(full)) && Errors.TryGetValue(full, out string? message) ? message : null;
+        var full = PathPrefix + path;
+        return (ShowAll || Touched.Contains(full)) && Errors.TryGetValue(full, out var message) ? message : null;
     }
 
     private string? FirstUnder(string path)
     {
-        string full = PathPrefix + path;
+        var full = PathPrefix + path;
         return ShowAll || Touched.Contains(full)
             ? Errors.Where(e => e.Key == full || e.Key.StartsWith(full + "/", StringComparison.Ordinal)).Select(e => e.Value).FirstOrDefault()
             : null;

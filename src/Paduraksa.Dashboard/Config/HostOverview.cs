@@ -66,18 +66,18 @@ public static class HostOverview
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(liveWarnings);
         List<HostRow> rows = [];
-        for (int i = 0; i < document.Hosts.Count; i++)
+        for (var i = 0; i < document.Hosts.Count; i++)
         {
-            HostConfig host = document.Hosts[i];
-            string prefix = $"/hosts/{i.ToString(CultureInfo.InvariantCulture)}";
+            var host = document.Hosts[i];
+            var prefix = $"/hosts/{i.ToString(CultureInfo.InvariantCulture)}";
             string[] problems =
             [
                 .. liveWarnings
                     .Where(w => w.Path == prefix || w.Path.StartsWith(prefix + "/", StringComparison.Ordinal))
                     .Select(w => ReviewNotices.Sentence(w.Message)),
             ];
-            CertificateState? certificate = certificates is null ? null : CertificateOf(host, certificates, now);
-            Tone health = !host.Enabled ? Tone.Default
+            var certificate = certificates is null ? null : CertificateOf(host, certificates, now);
+            var health = !host.Enabled ? Tone.Default
                 : problems.Length > 0 || certificate?.Tone is Tone.Warning or Tone.Error ? Tone.Warning
                 : Tone.Success;
             rows.Add(new HostRow(host, KindLabel(host.Kind), certificate, HttpsOf(host, document), TargetOf(host, document), health, problems, DestinationsOf(host, document)));
@@ -117,7 +117,7 @@ public static class HostOverview
             return true;
         }
 
-        int dot = name.IndexOf('.', StringComparison.Ordinal);
+        var dot = name.IndexOf('.', StringComparison.Ordinal);
         return certificateName.StartsWith("*.", StringComparison.Ordinal)
             && dot > 0
             && !name.StartsWith("*.", StringComparison.Ordinal)
@@ -149,7 +149,7 @@ public static class HostOverview
             case CertificateBindingMode.None:
                 return new CertificateState("No HTTPS", Tone.Default, "The host is bound to no certificate: it answers plain HTTP only.");
             case CertificateBindingMode.Specific:
-                CertificateSummary? bound = certificates.FirstOrDefault(c => c.Id == host.Certificate.CertificateId);
+                var bound = certificates.FirstOrDefault(c => c.Id == host.Certificate.CertificateId);
                 if (bound is null)
                 {
                     return new CertificateState("Missing", Tone.Error, "The certificate this host is bound to isn't in the inventory; the default one is served.");
@@ -167,7 +167,7 @@ public static class HostOverview
                 [
                     .. host.Names.Select(name => usable.Where(c => c.Names.Any(n => Covers(n, name))).OrderByDescending(c => c.NotAfter).FirstOrDefault()),
                 ];
-                int covered = covering.Count(c => c is not null);
+                var covered = covering.Count(c => c is not null);
                 if (covered == 0)
                 {
                     return new CertificateState("Default", Tone.Warning, "No certificate covers these names: browsers see the default certificate and warn.");
@@ -181,7 +181,7 @@ public static class HostOverview
                         $"No certificate covers {string.Join(", ", host.Names.Where((_, i) => covering[i] is null))}.");
                 }
 
-                CertificateSummary soonest = covering.OrderBy(c => c!.NotAfter).First()!;
+                var soonest = covering.OrderBy(c => c!.NotAfter).First()!;
                 return Judge(soonest, now, $"Covered by {CertificateTitle(soonest)}.");
         }
     }
@@ -198,7 +198,7 @@ public static class HostOverview
             return new CertificateState("Failed", Tone.Error, (certificate.StatusMessage ?? "Issuance failed.") + " " + detail);
         }
 
-        TimeSpan left = certificate.NotAfter - now;
+        var left = certificate.NotAfter - now;
         if (certificate.Validity == CertificateValidity.Expired || left <= TimeSpan.Zero)
         {
             return new CertificateState("Expired", Tone.Error, detail);
@@ -211,7 +211,7 @@ public static class HostOverview
 
         if (left <= TimeSpan.FromDays(ExpiringDays))
         {
-            int days = Math.Max(1, (int)left.TotalDays);
+            var days = Math.Max(1, (int)left.TotalDays);
             return new CertificateState(days == 1 ? "Expires tomorrow" : $"Expires in {days} days", Tone.Warning, detail);
         }
 
@@ -230,8 +230,8 @@ public static class HostOverview
             return "HTTP only";
         }
 
-        HostSettings? profile = host.ProfileId is { } id ? document.Profiles.FirstOrDefault(p => p.Id == id)?.Settings : null;
-        bool redirect = HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, document.Settings.Defaults, profile, host.Settings).ForceHttps == true;
+        var profile = host.ProfileId is { } id ? document.Profiles.FirstOrDefault(p => p.Id == id)?.Settings : null;
+        var redirect = HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, document.Settings.Defaults, profile, host.Settings).ForceHttps == true;
         return redirect ? "HTTPS, redirects HTTP" : "HTTP and HTTPS";
     }
 
@@ -252,7 +252,7 @@ public static class HostOverview
                 [
                     .. host.Routes.OrderBy(r => r.Order).Select(route =>
                     {
-                        string path = route.Match == RouteMatchKind.Exact ? $"= {route.Path}" : route.Path;
+                        var path = route.Match == RouteMatchKind.Exact ? $"= {route.Path}" : route.Path;
                         return document.Upstreams.FirstOrDefault(u => u.Id == route.UpstreamId) is { } upstream
                             ? new HostDestination(path, upstream.Name, AddressOf(upstream))
                             : new HostDestination(path, "missing upstream", null, Missing: true);

@@ -48,7 +48,7 @@
         <section class="pdk-detail-section">
             <MudText Typo="Typo.overline" Class="pdk-muted">Hostnames</MudText>
             <div class="pdk-name-chips">
-                @foreach (string name in S.Names)
+                @foreach (var name in S.Names)
                 {
                     <span class="pdk-name-chip pdk-mono">@name</span>
                 }
@@ -69,7 +69,7 @@
         else
         {
             <ul class="pdk-use-list">
-                @foreach (CertificateUse use in Row.Uses)
+                @foreach (var use in Row.Uses)
                 {
                     <li>
                         <MudIcon Icon="@(use.Kind == CertificateUseKind.Default ? Icons.Material.Outlined.Star : Icons.Material.Outlined.Language)" Size="Size.Small" />
@@ -99,7 +99,7 @@
                 <dt>Chain</dt>
                 <dd>
                     <ol class="pdk-chain">
-                        @foreach (string issuer in detail.ChainIssuers)
+                        @foreach (var issuer in detail.ChainIssuers)
                         {
                             <li>@CertificateDisplay.CommonName(issuer)</li>
                         }
@@ -113,7 +113,7 @@
 
     @if (Row.Order is not null || _progress is not null)
     {
-        AcmeOrderSummary? order = _order ?? Row.Order;
+        var order = _order ?? Row.Order;
         <section class="pdk-detail-section">
             <MudText Typo="Typo.overline" Class="pdk-muted">ACME</MudText>
             @if (_progress is { } progress)
@@ -251,10 +251,10 @@
     /// <summary>Reads the running issuance's step, if there is one; keeps the steps seen so the list shows the way it went.</summary>
     private bool Watch()
     {
-        AcmeOrderProgress? now = Row.Origin == CertificateOrigin.Acme ? Issuance.GetProgress(Row.Id) : null;
+        var now = Row.Origin == CertificateOrigin.Acme ? Issuance.GetProgress(Row.Id) : null;
         if (now is null)
         {
-            bool changed = _progress is not null;
+            var changed = _progress is not null;
             _progress = null;
             _watched.Clear();
             return changed;
@@ -281,7 +281,7 @@
         {
             await InvokeAsync(async () =>
             {
-                bool running = _progress is not null;
+                var running = _progress is not null;
                 if (Watch() || running)
                 {
                     _order = await Issuance.GetOrderAsync(Row.Id);

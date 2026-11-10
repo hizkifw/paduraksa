@@ -59,7 +59,7 @@ public sealed class AccessLogRing
         Capacity = capacity;
         _mask = capacity - 1;
         _cells = new Cell[capacity];
-        for (int i = 0; i < capacity; i++)
+        for (var i = 0; i < capacity; i++)
         {
             _cells[i].Sequence = i;
         }
@@ -85,11 +85,11 @@ public sealed class AccessLogRing
     /// </summary>
     public bool TryWrite(in AccessLogEntry entry)
     {
-        long position = Interlocked.Read(ref _tail);
+        var position = Interlocked.Read(ref _tail);
         while (true)
         {
-            ref Cell cell = ref _cells[(int)(position & _mask)];
-            long sequence = Volatile.Read(ref cell.Sequence) - position;
+            ref var cell = ref _cells[(int)(position & _mask)];
+            var sequence = Volatile.Read(ref cell.Sequence) - position;
             if (sequence == 0)
             {
                 if (Interlocked.CompareExchange(ref _tail, position + 1, position) != position)
@@ -117,8 +117,8 @@ public sealed class AccessLogRing
     /// <summary>Reads the oldest entry; only the one consumer may call it.</summary>
     public bool TryRead(out AccessLogEntry entry)
     {
-        long position = _head;
-        ref Cell cell = ref _cells[(int)(position & _mask)];
+        var position = _head;
+        ref var cell = ref _cells[(int)(position & _mask)];
         if (Volatile.Read(ref cell.Sequence) - (position + 1) < 0)
         {
             entry = default;

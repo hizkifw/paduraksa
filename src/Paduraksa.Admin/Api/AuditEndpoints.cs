@@ -20,7 +20,7 @@ internal static class AuditEndpoints
 
     public static void Map(RouteGroupBuilder api)
     {
-        RouteGroupBuilder audit = api.MapGroup("/audit").WithTags("Audit");
+        var audit = api.MapGroup("/audit").WithTags("Audit");
         audit.MapGet("/", QueryAsync).WithName("QueryAudit").WithSummary("Query the audit log")
             .WithDescription("Newest first. Filters (all optional, all must match): from (inclusive) and to (exclusive) as ISO 8601 times, actor ('system', 'cli', a user ID or a token ID), action (exact, or a prefix ending in '*'), target (a typed ID), outcome (success, denied, invalid, conflict or failed). Pagination: limit (1 to 200) and cursor.")
             .Produces<Page<AuditEventSummary>>().ProducesApiProblems(400).RequirePermission(Permission.AuditRead);
@@ -31,7 +31,7 @@ internal static class AuditEndpoints
 
     private static async Task<IResult> QueryAsync(HttpContext http, AuditQueryService audit, CancellationToken ct)
     {
-        if (!Pagination.TryGetPage(http, out int limit, out string? cursor, out IResult? problem))
+        if (!Pagination.TryGetPage(http, out var limit, out var cursor, out var problem))
         {
             return problem!;
         }
@@ -47,7 +47,7 @@ internal static class AuditEndpoints
             after = id;
         }
 
-        if (!TryGetTime(http, "from", out DateTimeOffset? from) || !TryGetTime(http, "to", out DateTimeOffset? to))
+        if (!TryGetTime(http, "from", out var from) || !TryGetTime(http, "to", out var to))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from and to must be ISO 8601 times with a zone, e.g. 2026-11-08T12:00:00Z (write the + of an offset as %2B).");
         }
@@ -57,7 +57,7 @@ internal static class AuditEndpoints
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "from must not be after to.");
         }
 
-        if (!TryGetFilter(http, "actor", out string? actor) || !TryGetFilter(http, "action", out string? action) || !TryGetFilter(http, "target", out string? target))
+        if (!TryGetFilter(http, "actor", out var actor) || !TryGetFilter(http, "action", out var action) || !TryGetFilter(http, "target", out var target))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, $"actor, action and target are at most {MaxFilterLength} characters.");
         }
@@ -77,12 +77,12 @@ internal static class AuditEndpoints
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "target must be a typed ID such as host_...");
         }
 
-        if (!TryGetOutcome(http, out AuditOutcome? outcome))
+        if (!TryGetOutcome(http, out var outcome))
         {
             return ApiProblems.Problem(StatusCodes.Status400BadRequest, "outcome must be success, denied, invalid, conflict or failed.");
         }
 
-        AuditPage page = await audit.QueryAsync(new AuditFilter(from, to, actor, action, target, outcome), limit, after, ct).ConfigureAwait(false);
+        var page = await audit.QueryAsync(new AuditFilter(from, to, actor, action, target, outcome), limit, after, ct).ConfigureAwait(false);
         return EndpointSupport.Json(
             new Page<AuditEventSummary>(page.Items, page.Next is { } next ? Pagination.Encode(next) : null),
             AdminJsonContext.Default.PageAuditEventSummary);
@@ -94,7 +94,7 @@ internal static class AuditEndpoints
     /// <summary>A filter value (null when absent); false when it is longer than a filter can be, which is an error, not a filter that quietly isn't applied.</summary>
     private static bool TryGetFilter(HttpContext http, string name, out string? value)
     {
-        string text = http.Request.Query[name].ToString();
+        var text = http.Request.Query[name].ToString();
         value = text.Length == 0 ? null : text;
         return text.Length <= MaxFilterLength;
     }
@@ -103,13 +103,13 @@ internal static class AuditEndpoints
     private static bool TryGetOutcome(HttpContext http, out AuditOutcome? outcome)
     {
         outcome = null;
-        string text = http.Request.Query["outcome"].ToString();
+        var text = http.Request.Query["outcome"].ToString();
         if (text.Length == 0)
         {
             return true;
         }
 
-        foreach (AuditOutcome candidate in Enum.GetValues<AuditOutcome>())
+        foreach (var candidate in Enum.GetValues<AuditOutcome>())
         {
             if (string.Equals(candidate.ToName(), text, StringComparison.Ordinal))
             {
@@ -123,7 +123,7 @@ internal static class AuditEndpoints
 
     private static bool IsActionFilter(string action)
     {
-        string name = action.EndsWith('*') ? action[..^1] : action;
+        var name = action.EndsWith('*') ? action[..^1] : action;
         return name.All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '_' or '.');
     }
 
@@ -136,13 +136,13 @@ internal static class AuditEndpoints
     private static bool TryGetTime(HttpContext http, string name, out DateTimeOffset? value)
     {
         value = null;
-        string text = http.Request.Query[name].ToString();
+        var text = http.Request.Query[name].ToString();
         if (text.Length == 0)
         {
             return true;
         }
 
-        if (DateTimeOffset.TryParseExact(text, TimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTimeOffset parsed) && text.Contains('T', StringComparison.Ordinal))
+        if (DateTimeOffset.TryParseExact(text, TimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed) && text.Contains('T', StringComparison.Ordinal))
         {
             value = parsed.ToUniversalTime();
             return true;

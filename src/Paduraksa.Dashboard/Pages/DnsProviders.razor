@@ -37,7 +37,7 @@
 @if (_providers is null)
 {
     <div class="pdk-provider-list">
-        @for (int i = 0; i < 2; i++)
+        @for (var i = 0; i < 2; i++)
         {
             <MudPaper Class="pdk-card pdk-provider" Elevation="0" Outlined="true">
                 <MudSkeleton SkeletonType="SkeletonType.Circle" Width="34px" Height="34px" />
@@ -63,7 +63,7 @@ else if (_providers.Count == 0)
 else
 {
     <div class="pdk-provider-list">
-        @foreach (DnsProviderSummary provider in _providers)
+        @foreach (var provider in _providers)
         {
             <MudPaper Class="pdk-card pdk-provider pdk-dns-row" Elevation="0" Outlined="true" data-provider="@provider.Id">
                 <span class="pdk-stat-icon pdk-tone-primary"><MudIcon Icon="@ProviderDisplay.KindIcon(provider.Kind)" Size="Size.Small" /></span>
@@ -109,7 +109,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        DashboardPrincipal? user = await Caller.CheckAsync();
+        var user = await Caller.CheckAsync();
         if (user is null)
         {
             return;
@@ -153,7 +153,7 @@ else
 
     private async Task AddAsync()
     {
-        DrawerResult result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(null), DrawerWidth.Narrow);
+        var result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(null), DrawerWidth.Narrow);
         await LoadAsync();
         if (result.As<DnsProviderSummary>() is { } added)
         {
@@ -163,7 +163,7 @@ else
 
     private async Task RotateAsync(DnsProviderSummary provider)
     {
-        DrawerResult result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(provider), DrawerWidth.Narrow);
+        var result = await Drawers.OpenAsync<DnsProviderDrawer>(DnsProviderDrawer.For(provider), DrawerWidth.Narrow);
         _results.Remove(provider.Id);
         await LoadAsync();
         if (!result.Canceled)
@@ -195,7 +195,7 @@ else
 
     private async Task DeleteAsync(DnsProviderSummary provider)
     {
-        bool confirmed = await ConfirmActionDialog.AskAsync(
+        var confirmed = await ConfirmActionDialog.AskAsync(
             Dialogs,
             $"Delete {provider.Label}?",
             "The provider and its token are removed from the vault. Certificates that renew through it must be moved first.",

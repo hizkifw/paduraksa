@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -34,7 +33,7 @@ internal static class HeaderEchoUpstreamHost
     /// <returns>The started host and its base address, with a trailing <c>/</c>.</returns>
     public static async Task<(IHost Host, string Address)> StartAsync(Action<HttpResponse>? onResponse, CancellationToken cancellationToken)
     {
-        IHost host = new HostBuilder()
+        var host = new HostBuilder()
             .ConfigureLogging(static logging => logging.ClearProviders())
             .ConfigureWebHost(web => web
                 .UseKestrel(static kestrel =>
@@ -49,7 +48,7 @@ internal static class HeaderEchoUpstreamHost
                 })))
             .Build();
         await host.StartAsync(cancellationToken);
-        string address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
+        var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
         return (host, address + "/");
     }
 
@@ -59,16 +58,16 @@ internal static class HeaderEchoUpstreamHost
     /// </summary>
     public static Dictionary<string, string> Parse(string body)
     {
-        int head = body.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        var head = body.IndexOf("\r\n\r\n", StringComparison.Ordinal);
         if (head >= 0)
         {
             body = body[(head + 4)..];
         }
 
         Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string line in body.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var line in body.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
-            int colon = line.IndexOf(": ", StringComparison.Ordinal);
+            var colon = line.IndexOf(": ", StringComparison.Ordinal);
             if (colon > 0)
             {
                 headers[line[..colon]] = line[(colon + 2)..];
@@ -81,7 +80,7 @@ internal static class HeaderEchoUpstreamHost
     private static string Render(HttpRequest request, string rawTarget)
     {
         List<string> lines = [$"target: {rawTarget}"];
-        foreach (string name in Echoed)
+        foreach (var name in Echoed)
         {
             if (request.Headers.TryGetValue(name, out var values))
             {

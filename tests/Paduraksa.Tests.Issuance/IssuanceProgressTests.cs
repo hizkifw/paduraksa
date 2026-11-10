@@ -74,7 +74,7 @@ public sealed class IssuanceProgressTests
         var result = await h.Issuance.RequestCertificateAsync(Http01(account.Id, "example.com"), Admin, progress, Ct);
 
         Assert.Equal(IssuanceOutcome.Failed, result.Outcome);
-        AcmeOrderProgress last = progress.Steps[^1];
+        var last = progress.Steps[^1];
         Assert.Equal((AcmeProgressStage.Failed, result.Message), (last.Stage, last.Detail));
         Assert.Equal((await h.OrderAsync(result.CertificateId!.Value)).RetryAt, last.RetryAt);
     }

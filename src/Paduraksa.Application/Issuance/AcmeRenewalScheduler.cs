@@ -60,8 +60,8 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
     /// <summary>One look at every order, doing what is due. Returns how many certificates it acted on (a renewal, retry, resume or ARI refresh).</summary>
     public async Task<int> RunOnceAsync(CancellationToken cancellationToken)
     {
-        int acted = 0;
-        foreach (AcmeOrderSummary order in await _issuance.ListOrdersAsync(cancellationToken).ConfigureAwait(false))
+        var acted = 0;
+        foreach (var order in await _issuance.ListOrdersAsync(cancellationToken).ConfigureAwait(false))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (_draining)

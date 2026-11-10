@@ -30,8 +30,8 @@ public sealed class ConfigValidatorTests
     public void PathsIndexTheDocumentAsSent()
     {
         // Hosts and their names listed out of canonical order: the error points at what the client wrote.
-        ConfigDocument document = Valid();
-        ConfigDocument unsorted = document with
+        var document = Valid();
+        var unsorted = document with
         {
             Hosts =
             [
@@ -50,8 +50,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void RejectsEmptyAndDuplicateIds()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Profiles = [.. document.Profiles, new ProfileConfig(LanProfile, "other")],
             Upstreams =
@@ -77,14 +77,14 @@ public sealed class ConfigValidatorTests
     public void IdsDifferingOnlyInCaseAreDuplicates()
     {
         // YARP compares route, cluster and destination IDs ignoring case.
-        string text = AppUpstream.ToString();
-        int letter = text.AsSpan(UpstreamId.Prefix.Length + 1).LastIndexOfAnyInRange('A', 'Z') + UpstreamId.Prefix.Length + 1;
+        var text = AppUpstream.ToString();
+        var letter = text.AsSpan(UpstreamId.Prefix.Length + 1).LastIndexOfAnyInRange('A', 'Z') + UpstreamId.Prefix.Length + 1;
         Assert.True(letter > UpstreamId.Prefix.Length, "the sample ID needs an upper-case letter");
-        UpstreamId twin = UpstreamId.Parse(string.Concat(text.AsSpan(0, letter), char.ToLowerInvariant(text[letter]).ToString(), text.AsSpan(letter + 1)), null);
+        var twin = UpstreamId.Parse(string.Concat(text.AsSpan(0, letter), char.ToLowerInvariant(text[letter]).ToString(), text.AsSpan(letter + 1)), null);
         Assert.NotEqual(AppUpstream, twin);
 
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Upstreams = [.. document.Upstreams, new UpstreamConfig(twin, "twin", Destinations: [new DestinationConfig(Id<DestinationId>(2), "http://b")])],
         };
@@ -95,7 +95,7 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void RouteIdsAreUniqueAcrossHosts()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         HostConfig other = new(
             Id<HostId>(9),
             ["other.example.com"],
@@ -107,8 +107,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void RejectsNegativeVersions()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Settings = document.Settings with { Version = -1 },
             Hosts = MapHost(document, RespondHost, h => h with { Version = -3 }),
@@ -120,8 +120,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void RejectsUndefinedEnums()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Settings = document.Settings with
             {
@@ -136,7 +136,7 @@ public sealed class ConfigValidatorTests
                 Routes = [h.Routes[0] with { Match = (RouteMatchKind)9 }],
             }),
         };
-        ConfigDocument kind = document with { Hosts = MapHost(document, RespondHost, h => h with { Kind = (HostKind)9 }) };
+        var kind = document with { Hosts = MapHost(document, RespondHost, h => h with { Kind = (HostKind)9 }) };
 
         AssertErrors(
             changed,
@@ -153,8 +153,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ProfileAndUpstreamNamesAreRequiredShortAndUniqueIgnoringCase()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Profiles =
             [
@@ -181,8 +181,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksUpstreams()
     {
-        ConfigDocument document = Valid();
-        UpstreamConfig upstream = document.Upstreams[0] with
+        var document = Valid();
+        var upstream = document.Upstreams[0] with
         {
             Destinations =
             [
@@ -217,8 +217,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void AnUpstreamAnEnabledHostRoutesToNeedsAnEnabledDestination()
     {
-        ConfigDocument document = Valid();
-        UpstreamConfig off = document.Upstreams[0] with
+        var document = Valid();
+        var off = document.Upstreams[0] with
         {
             Destinations = [.. document.Upstreams[0].Destinations.Select(d => d with { Enabled = false })],
         };
@@ -237,8 +237,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksHostNames()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Hosts = MapHost(document, AppHost, h => h with { Names = ["app.example.com", "*.com", "a..b", "APP.example.com."] })
                 .Append(new HostConfig(Id<HostId>(9), [], Kind: HostKind.Respond, Respond: new RespondConfig(200)))
@@ -256,7 +256,7 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void HostNamesAreUniqueAcrossEnabledHostsOnly()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         static HostConfig Copy(int id, bool enabled, string name) =>
             new(Id<HostId>(id), [name], Kind: HostKind.Redirect, Enabled: enabled, Redirect: new RedirectConfig("https://example.com"));
 
@@ -274,8 +274,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksReferences()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Hosts = MapHost(document, AppHost, h => h with
             {
@@ -291,8 +291,8 @@ public sealed class ConfigValidatorTests
     public void AnEmptyReferenceIsMissing_NotUnknown()
     {
         // A form that left a picker empty sends the empty ID: that is a choice not made, not an object that doesn't exist.
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Hosts = MapHost(document, AppHost, h => h with
             {
@@ -307,8 +307,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksCertificateBindings()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Settings = document.Settings with { DefaultCertificateId = default(CertificateId) },
             Hosts = MapHost(
@@ -332,21 +332,21 @@ public sealed class ConfigValidatorTests
     public void AHostWithoutHttpsCantForceHttpsAfterLayering()
     {
         // Valid() forces HTTPS in the global defaults; the app host's profile is the LAN profile.
-        ConfigDocument document = Valid();
+        var document = Valid();
         CertificateBinding none = new() { Mode = CertificateBindingMode.None };
-        ConfigDocument inherited = document with { Hosts = MapHost(document, RespondHost, h => h with { Certificate = none }) };
-        ConfigDocument fromProfile = document with
+        var inherited = document with { Hosts = MapHost(document, RespondHost, h => h with { Certificate = none }) };
+        var fromProfile = document with
         {
             Settings = document.Settings with { Defaults = new HostSettings() },
             Profiles = [document.Profiles[0] with { Settings = new HostSettings { ForceHttps = true } }],
             Hosts = MapHost(document, AppHost, h => h with { Certificate = none }),
         };
-        ConfigDocument own = document with
+        var own = document with
         {
             Settings = document.Settings with { Defaults = new HostSettings() },
             Hosts = MapHost(document, RespondHost, h => h with { Certificate = none, Settings = new HostSettings { ForceHttps = true } }),
         };
-        ConfigDocument lifted = document with
+        var lifted = document with
         {
             Hosts = MapHost(document, RespondHost, h => h with { Certificate = none, Settings = new HostSettings { ForceHttps = false } }),
         };
@@ -362,7 +362,7 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksKindSpecificParts()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         RedirectConfig redirect = new("https://example.com");
         RespondConfig respond = new(200);
         RouteConfig route = new(Id<RouteId>(9), AppUpstream);
@@ -387,7 +387,7 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void AdminHostsAreSingleAndHaveNoRoutesOrOtherAnswer()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         HostConfig admin = new(Id<HostId>(8), ["admin.example.com"], Kind: HostKind.Admin);
         RouteConfig route = new(Id<RouteId>(9), AppUpstream);
 
@@ -425,7 +425,7 @@ public sealed class ConfigValidatorTests
     [InlineData("https://b\u00fccher.example", 301, true, "/target", RedirectTargetInvalid)]
     public void ChecksRedirects(string target, int status, bool preservePath, string field, string code)
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
 
         AssertErrors(
             document with { Hosts = MapHost(document, RedirectHost, h => h with { Redirect = new RedirectConfig(target, status, preservePath) }) },
@@ -447,7 +447,7 @@ public sealed class ConfigValidatorTests
     [InlineData(200, "", "text/plain\u0000", "/contentType", RespondContentTypeInvalid)]
     public void ChecksFixedResponses(int status, string body, string contentType, string field, string code)
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         Assert.Empty(ConfigValidator.Validate(document with
         {
             Hosts = MapHost(document, RespondHost, h => h with { Respond = new RespondConfig(200, "<p>ok</p>", "text/html;\tcharset=utf-8") }),
@@ -471,8 +471,8 @@ public sealed class ConfigValidatorTests
     [InlineData("/admin.", RoutePathNotCanonical)]
     public void ChecksRoutePaths(string path, string code)
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with { Hosts = MapHost(document, AppHost, h => h with { Routes = [h.Routes[0] with { Path = path }] }) };
+        var document = Valid();
+        var changed = document with { Hosts = MapHost(document, AppHost, h => h with { Routes = [h.Routes[0] with { Path = path }] }) };
 
         AssertErrors(changed, ($"{Proxy}/routes/0/path", code));
     }
@@ -480,9 +480,9 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void RejectsRoutesThatCanNeverMatch()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         static RouteConfig Route(int id, string path, RouteMatchKind match = RouteMatchKind.Prefix) => new(Id<RouteId>(id), AppUpstream, Path: path, Match: match);
-        ConfigDocument changed = document with
+        var changed = document with
         {
             Hosts = MapHost(document, AppHost, h => h with
             {
@@ -500,8 +500,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void AcceptsCanonicalRoutePaths()
     {
-        ConfigDocument document = Valid();
-        foreach (string path in new[] { "/", "/api", "/api/", "/a/b.c/d", "/ÄPI" })
+        var document = Valid();
+        foreach (var path in new[] { "/", "/api", "/api/", "/a/b.c/d", "/ÄPI" })
         {
             Assert.Empty(ConfigValidator.Validate(document with
             {
@@ -513,10 +513,10 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksAllowListsInEveryLayer()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         IpAllowListSettings bad = new(["10.0.0.0/8", "10.0.0.0/33", "nope"]);
         HostSettings settings = new() { IpAllowList = bad };
-        ConfigDocument changed = document with
+        var changed = document with
         {
             Settings = document.Settings with { Defaults = settings },
             Profiles = [document.Profiles[0] with { Settings = new HostSettings { IpAllowList = new IpAllowListSettings([], DropDenied: true) } }],
@@ -566,7 +566,7 @@ public sealed class ConfigValidatorTests
         string field,
         string code)
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         TrustedProxySettings trusted = new(mode, proxies, header, trueClientIp, forwardedForFallback, forwardedProto);
 
         AssertErrors(document with { Settings = document.Settings with { TrustedProxies = trusted } }, ($"/settings/trustedProxies{field}", code));
@@ -575,8 +575,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksTags()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Hosts = MapHost(document, AppHost, h => h with { Tags = [" Media ", "k8s:prod/eu", "", "two words", new string('t', 65)] }),
         };
@@ -587,9 +587,9 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksLengthsAndControlCharacters()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         string notes = new('n', ConfigValidator.MaxNotesLength + 1);
-        ConfigDocument changed = document with
+        var changed = document with
         {
             Profiles = [document.Profiles[0] with { Name = "LAN\u0007only", Notes = notes }],
             Upstreams = [document.Upstreams[0] with { Notes = notes }],
@@ -612,8 +612,8 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ReportsNullElementsOfHandBuiltDocuments()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument changed = document with
+        var document = Valid();
+        var changed = document with
         {
             Profiles = [null!],
             Upstreams = [document.Upstreams[0] with { Destinations = [.. document.Upstreams[0].Destinations, null!] }],
@@ -631,15 +631,15 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ReportsEveryErrorWithAMessage()
     {
-        ConfigDocument document = Valid();
-        ConfigDocument broken = document with
+        var document = Valid();
+        var broken = document with
         {
             ApiVersion = "v0",
             Upstreams = [],
             Hosts = MapHost(document, AppHost, h => h with { Names = ["-bad-"] }),
         };
 
-        IReadOnlyList<ConfigError> errors = ConfigValidator.Validate(broken);
+        var errors = ConfigValidator.Validate(broken);
 
         Assert.Equal(4, errors.Count); // apiVersion, the name, two routes to a missing upstream
         Assert.All(errors, e => Assert.False(string.IsNullOrWhiteSpace(e.Message)));
@@ -650,21 +650,21 @@ public sealed class ConfigValidatorTests
     public void TheAdminListenersCertificateCannotBeBound()
     {
         // It is reserved for the admin port: the process's own certificate is not the config's to serve.
-        ConfigDocument document = Valid();
-        ConfigDocument specific = document with
+        var document = Valid();
+        var specific = document with
         {
             Hosts = MapHost(document, AppHost, host => host with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.Specific, CertificateId = AdminCertificate.Id } }),
         };
         AssertErrors(specific, ($"{Proxy}/certificate/certificateId", HostCertificateUnusable));
 
-        ConfigDocument asDefault = document with { Settings = document.Settings with { DefaultCertificateId = AdminCertificate.Id } };
+        var asDefault = document with { Settings = document.Settings with { DefaultCertificateId = AdminCertificate.Id } };
         AssertErrors(asDefault, ("/settings/defaultCertificateId", SettingsDefaultCertificateUnusable));
     }
 
     [Fact]
     public void ChecksTheServerHeaderValueInEveryLayerAndCustomNeedsOne()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         HostSettings invalid = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "bad\tvalue" } };
         HostSettings tooLong = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = new string('a', 129) } };
 
@@ -680,7 +680,7 @@ public sealed class ConfigValidatorTests
 
         // Custom with no value is refused where it would be sent, like HSTS's preload pair.
         HostSettings custom = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } };
-        ConfigError missing = Assert.Single(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = custom }) }));
+        var missing = Assert.Single(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = custom }) }));
         Assert.Equal(($"{Proxy}/settings/serverHeader/value", ServerHeaderValueRequired), (missing.Path, missing.Code));
         HostSettings empty = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = string.Empty } };
         AssertErrors(
@@ -688,7 +688,7 @@ public sealed class ConfigValidatorTests
             ($"{Proxy}/settings/serverHeader/value", ServerHeaderValueRequired));
 
         // The mode and the value may come from different layers: field by field, the resolved pair is what matters.
-        ConfigDocument split = document with
+        var split = document with
         {
             Settings = document.Settings with { Defaults = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } } },
             Hosts =
@@ -706,21 +706,21 @@ public sealed class ConfigValidatorTests
         Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = ignored }) }));
 
         // But when a higher layer makes it custom, the value it inherits has to be usable.
-        ConfigDocument used = document with
+        var used = document with
         {
             Settings = document.Settings with { Defaults = new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "bad\tvalue" } } },
             Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } } }),
         };
-        ConfigError inherited = Assert.Single(ConfigValidator.Validate(used));
+        var inherited = Assert.Single(ConfigValidator.Validate(used));
         Assert.Equal(($"{Proxy}/settings/serverHeader/value", ServerHeaderValueInvalid), (inherited.Path, inherited.Code));
         Assert.Contains("inherited from the global defaults", inherited.Message, StringComparison.Ordinal);
 
-        ConfigDocument fromProfile = document with
+        var fromProfile = document with
         {
             Profiles = [document.Profiles[0] with { Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "bad\tvalue" } } }],
             Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } } }),
         };
-        ConfigError profileError = Assert.Single(ConfigValidator.Validate(fromProfile));
+        var profileError = Assert.Single(ConfigValidator.Validate(fromProfile));
         Assert.Equal(($"{Proxy}/settings/serverHeader/value", ServerHeaderValueInvalid), (profileError.Path, profileError.Code));
         Assert.Contains("inherited from its profile", profileError.Message, StringComparison.Ordinal);
     }
@@ -728,7 +728,7 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void ChecksHstsMaxAgeInEveryLayer()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         HostSettings tooLong = new() { Hsts = new HstsSettings { MaxAge = HstsHeader.MaxMaxAgeSeconds + 1 } };
         HostSettings negative = new() { Hsts = new HstsSettings { MaxAge = -1 } };
         Assert.True(HstsHeader.MaxMaxAgeSeconds == 63_072_000, "two years");
@@ -744,7 +744,7 @@ public sealed class ConfigValidatorTests
             ($"{Proxy}/settings/hsts/maxAge", HstsMaxAgeInvalid));
 
         // 0 is valid, and means "tell browsers to forget the host"; the cap itself is valid too.
-        foreach (int maxAge in new[] { 0, HstsHeader.DefaultMaxAgeSeconds, HstsHeader.MaxMaxAgeSeconds })
+        foreach (var maxAge in new[] { 0, HstsHeader.DefaultMaxAgeSeconds, HstsHeader.MaxMaxAgeSeconds })
         {
             Assert.Empty(ConfigValidator.Validate(document with
             {
@@ -756,7 +756,7 @@ public sealed class ConfigValidatorTests
     [Fact]
     public void PreloadNeedsIncludeSubDomainsAndAYear()
     {
-        ConfigDocument document = Valid();
+        var document = Valid();
         static HostConfig WithHsts(HostConfig host, bool enabled, int? maxAge, bool? subdomains, bool? preload) =>
             host with { Settings = new HostSettings { Hsts = new HstsSettings { Enabled = enabled, MaxAge = maxAge, IncludeSubDomains = subdomains, Preload = preload } } };
 
@@ -774,7 +774,7 @@ public sealed class ConfigValidatorTests
         }));
 
         // The pair may come from any layer: the host's preload with the profile's subdomains and the defaults' max-age.
-        ConfigDocument layered = document with
+        var layered = document with
         {
             Settings = document.Settings with { Defaults = new HostSettings { Hsts = new HstsSettings { Enabled = true, MaxAge = HstsHeader.DefaultMaxAgeSeconds } } },
             Profiles = [document.Profiles[0] with { Settings = new HostSettings { Hsts = new HstsSettings { IncludeSubDomains = true } } }],
@@ -795,8 +795,8 @@ public sealed class ConfigValidatorTests
     public void PreloadIsJudgedOnEachHostsResolvedSettings()
     {
         // The profile asks for preload and the host supplies the subdomains: together that is valid, so neither is refused.
-        ConfigDocument document = Valid();
-        ConfigDocument split = document with
+        var document = Valid();
+        var split = document with
         {
             Profiles = [document.Profiles[0] with { Settings = new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } } }],
             Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { Hsts = new HstsSettings { IncludeSubDomains = true } } }),
@@ -804,14 +804,14 @@ public sealed class ConfigValidatorTests
         Assert.Empty(ConfigValidator.Validate(split));
 
         // The same profile on a host that leaves includeSubDomains off is refused at that host, naming where preload came from.
-        ConfigDocument broken = split with { Hosts = MapHost(split, AppHost, h => h with { Settings = new HostSettings() }) };
-        ConfigError error = Assert.Single(ConfigValidator.Validate(broken));
+        var broken = split with { Hosts = MapHost(split, AppHost, h => h with { Settings = new HostSettings() }) };
+        var error = Assert.Single(ConfigValidator.Validate(broken));
         Assert.Equal(($"{Proxy}/settings/hsts/preload", HstsPreloadNeedsIncludeSubDomains), (error.Path, error.Code));
         Assert.Contains("inherited from its profile", error.Message, StringComparison.Ordinal);
 
         // A month is not a year, wherever the number came from.
-        ConfigDocument tooShort = split with { Settings = split.Settings with { Defaults = new HostSettings { Hsts = new HstsSettings { MaxAge = 86_400 } } } };
-        ConfigError shortError = Assert.Single(ConfigValidator.Validate(tooShort));
+        var tooShort = split with { Settings = split.Settings with { Defaults = new HostSettings { Hsts = new HstsSettings { MaxAge = 86_400 } } } };
+        var shortError = Assert.Single(ConfigValidator.Validate(tooShort));
         Assert.Equal(HstsPreloadMaxAgeTooShort, shortError.Code);
         Assert.Contains("86400", shortError.Message, StringComparison.Ordinal);
     }
@@ -820,8 +820,8 @@ public sealed class ConfigValidatorTests
     public void ALayerNoHostUsesIsNotRefusedForPreload()
     {
         // Nothing would send the header, so there is nothing to refuse: neither a profile no host picks...
-        ConfigDocument document = Valid();
-        ConfigDocument unusedProfile = document with
+        var document = Valid();
+        var unusedProfile = document with
         {
             Profiles = [.. document.Profiles, new ProfileConfig(Id<ProfileId>(9), "preload", Settings: new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } })],
         };
@@ -835,7 +835,7 @@ public sealed class ConfigValidatorTests
         ConfigDocument withHost = new(
             Settings: new GlobalSettings(Defaults: new HostSettings { Hsts = new HstsSettings { Enabled = true, Preload = true } }),
             Hosts: [new HostConfig(Id<HostId>(1), ["a.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200))]);
-        ConfigError error = Assert.Single(ConfigValidator.Validate(withHost));
+        var error = Assert.Single(ConfigValidator.Validate(withHost));
         Assert.Equal(("/hosts/0/settings/hsts/preload", HstsPreloadNeedsIncludeSubDomains), (error.Path, error.Code));
         Assert.Contains("inherited from the global defaults", error.Message, StringComparison.Ordinal);
     }
@@ -843,7 +843,7 @@ public sealed class ConfigValidatorTests
     /// <summary>Validates <paramref name="document"/> as written and expects exactly these errors, in order.</summary>
     private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected)
     {
-        IReadOnlyList<ConfigError> errors = ConfigValidator.Validate(document);
+        var errors = ConfigValidator.Validate(document);
         Assert.Equal(expected, errors.Select(e => (e.Path, e.Code)));
     }
     private static HostConfig[] MapHost(ConfigDocument document, HostId id, Func<HostConfig, HostConfig> change) =>

@@ -13,7 +13,7 @@
             <MudText Typo="Typo.h6" HtmlTag="h2">@User.DisplayName</MudText>
             <span class="pdk-list-sub pdk-mono">@User.Username</span>
             <span class="pdk-tags">
-                @foreach (Role role in User.Roles)
+                @foreach (var role in User.Roles)
                 {
                     <MudTooltip Text="@IdentityText.Describe(role)" Arrow="true">
                         <span class="pdk-badge pdk-tone-@(role == Role.Owner ? "primary" : "default")">@IdentityText.Name(role)</span>
@@ -69,7 +69,7 @@
         _saving = true;
         try
         {
-            UserResult result = await Identity.UpdateUserAsync(origin, User.Id, new UpdateUserRequest(DisplayName: _displayName.Trim()));
+            var result = await Identity.UpdateUserAsync(origin, User.Id, new UpdateUserRequest(DisplayName: _displayName.Trim()));
             if (result.Succeeded)
             {
                 Snackbar.Add("Saved your display name.", Severity.Success);

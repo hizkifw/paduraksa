@@ -40,13 +40,13 @@ internal static class SignInFlow
             return new(null, null, SignInHeldBack.RateLimited, retryAfter);
         }
 
-        using IDisposable? slot = await throttle.EnterPasswordCheckAsync(http.RequestAborted).ConfigureAwait(false);
+        using var slot = await throttle.EnterPasswordCheckAsync(http.RequestAborted).ConfigureAwait(false);
         if (slot is null)
         {
             return new(null, null, SignInHeldBack.Busy);
         }
 
-        LoginResult result = await login.LoginAsync(username, password, http.GetClientContext(channel), http.RequestAborted).ConfigureAwait(false);
+        var result = await login.LoginAsync(username, password, http.GetClientContext(channel), http.RequestAborted).ConfigureAwait(false);
         if (result.Session is null)
         {
             throttle.RecordFailure(AdminThrottleScope.Login, username);
@@ -63,20 +63,20 @@ internal static class SignInFlow
         HttpContext http, LoginService login, AdminThrottle throttle, string? code, string? recoveryCode, Channel channel)
     {
         // Throttled per user (the partial session's), not per typed value: a code guess is the thing being limited.
-        string? subject = http.GetPartialSession()?.Principal.UserId.ToString();
+        var subject = http.GetPartialSession()?.Principal.UserId.ToString();
         if (throttle.TryEnter(AdminThrottleScope.SecondFactor, http.GetClientAddress(), subject) is { } retryAfter)
         {
             return new(null, null, SignInHeldBack.RateLimited, retryAfter);
         }
 
-        using IDisposable? slot = await throttle.EnterPasswordCheckAsync(http.RequestAborted).ConfigureAwait(false);
+        using var slot = await throttle.EnterPasswordCheckAsync(http.RequestAborted).ConfigureAwait(false);
         if (slot is null)
         {
             return new(null, null, SignInHeldBack.Busy);
         }
 
-        string? cookie = AdminSessionCookie.Read(http.Request).Value;
-        LoginResult result = await login.CompleteSecondFactorAsync(cookie, code, recoveryCode, http.GetClientContext(channel), http.RequestAborted).ConfigureAwait(false);
+        var cookie = AdminSessionCookie.Read(http.Request).Value;
+        var result = await login.CompleteSecondFactorAsync(cookie, code, recoveryCode, http.GetClientContext(channel), http.RequestAborted).ConfigureAwait(false);
         if (result.Status == LoginStatus.InvalidCode)
         {
             throttle.RecordFailure(AdminThrottleScope.SecondFactor, subject);
@@ -102,18 +102,18 @@ internal static class SignInFlow
             return new(null, null, SignInHeldBack.RateLimited, retryAfter);
         }
 
-        using IDisposable? slot = await throttle.EnterPasswordCheckAsync(http.RequestAborted).ConfigureAwait(false);
+        using var slot = await throttle.EnterPasswordCheckAsync(http.RequestAborted).ConfigureAwait(false);
         if (slot is null)
         {
             return new(null, null, SignInHeldBack.Busy);
         }
 
-        ClientContext client = http.GetClientContext(channel);
-        SetupResult result = await setup.CompleteSetupAsync(request.SetupToken, request.Username, request.Password, request.DisplayName, client, http.RequestAborted).ConfigureAwait(false);
+        var client = http.GetClientContext(channel);
+        var result = await setup.CompleteSetupAsync(request.SetupToken, request.Username, request.Password, request.DisplayName, client, http.RequestAborted).ConfigureAwait(false);
         SessionStarted? session = null;
         if (result.Outcome == SetupOutcome.Succeeded)
         {
-            LoginResult signedIn = await login.LoginAsync(request.Username, request.Password, client, http.RequestAborted).ConfigureAwait(false);
+            var signedIn = await login.LoginAsync(request.Username, request.Password, client, http.RequestAborted).ConfigureAwait(false);
             session = IdentityApi.StartSession(http, signedIn);
         }
         else if (result.Outcome == SetupOutcome.InvalidToken)

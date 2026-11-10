@@ -3,7 +3,6 @@ using Bunit;
 using MudBlazor;
 
 using Paduraksa.Application.Compilation;
-using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -23,7 +22,7 @@ public sealed class HostSettingsServerHeaderTests
         HostSettings settings = new();
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<HostSettingsFields> fields = Render(context, settings, changed: value => settings = value);
+        var fields = Render(context, settings, changed: value => settings = value);
 
         Assert.Single(fields.FindAll("[data-field=server-header-mode]"));
         Assert.Empty(fields.FindAll("[data-field=server-header-value]"));
@@ -41,7 +40,7 @@ public sealed class HostSettingsServerHeaderTests
     {
         await using DashboardTestContext context = new();
 
-        string markup = Render(
+        var markup = Render(
             context,
             new HostSettings(),
             inherited: Inherited(ServerHeaderMode.Custom, "edge/1.0")).Markup;
@@ -55,7 +54,7 @@ public sealed class HostSettingsServerHeaderTests
         HostSettings settings = new() { ServerHeader = new ServerHeaderSettings { Value = "edge/1.0" } };
         await using DashboardTestContext context = new();
 
-        IRenderedComponent<HostSettingsFields> fields = Render(context, settings, errors: Errors(new ServerHeaderSettings { Mode = ServerHeaderMode.Custom }));
+        var fields = Render(context, settings, errors: Errors(new ServerHeaderSettings { Mode = ServerHeaderMode.Custom }));
 
         Assert.Single(fields.FindAll("[data-field=server-header-value]"));
         Assert.Contains("needs a value", Row(fields, "server-header-value"), StringComparison.Ordinal);
@@ -67,7 +66,7 @@ public sealed class HostSettingsServerHeaderTests
         HostSettings settings = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge\t1.0" } };
         await using DashboardTestContext context = new();
 
-        string row = Row(Render(context, settings, errors: Errors(new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge\t1.0" })), "server-header-value");
+        var row = Row(Render(context, settings, errors: Errors(new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge\t1.0" })), "server-header-value");
 
         Assert.Contains("visible ASCII", row, StringComparison.Ordinal);
         Assert.Contains("mud-input-error", row, StringComparison.Ordinal);
@@ -89,25 +88,25 @@ public sealed class HostSettingsServerHeaderTests
     public async Task AGlobalDefaultsChangeGoesThroughReview()
     {
         await using DashboardTestContext context = new();
-        (_, _, FakeDashboardConfig config, _) = IdentityPages.SignIn(context, Role.Operator);
+        var (_, _, config, _) = IdentityPages.SignIn(context, Role.Operator);
         config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 4));
         context.Render<MudPopoverProvider>();
         context.Render<Paduraksa.Dashboard.Drawers.DrawerHost>();
-        IRenderedComponent<GlobalDefaults> page = context.Render<GlobalDefaults>();
+        var page = context.Render<GlobalDefaults>();
         await page.WaitForStateAsync(() => page.FindAll("[data-form=defaults]").Count == 1);
 
         await Set(page.FindComponents<MudSelect<ServerHeaderMode?>>().Single(s => s.Instance.Label == "Server header"), ServerHeaderMode.Remove);
         await page.Find("[data-action=review]").ClickAsync(new());
 
         await page.WaitForStateAsync(() => config.Executed.Count == 1);
-        UpdateSettingsCommand command = Assert.IsType<UpdateSettingsCommand>(config.Executed[0]);
+        var command = Assert.IsType<UpdateSettingsCommand>(config.Executed[0]);
         Assert.Equal(4, command.Settings.Version);
         Assert.Equal(new ServerHeaderSettings { Mode = ServerHeaderMode.Remove }, command.Settings.Defaults.ServerHeader);
     }
 
     private static string Row(IRenderedComponent<HostSettingsFields> fields, string field)
     {
-        AngleSharp.Dom.IElement element = fields.Find($"[data-field={field}]");
+        var element = fields.Find($"[data-field={field}]");
         while (!element.ClassList.Contains("pdk-setting") && element.ParentElement is { } parent)
         {
             element = parent;

@@ -36,10 +36,10 @@ internal static class PlaywrightBrowser
             throw;
         }
 
-        string? executable = Environment.GetEnvironmentVariable(ExecutableVariable);
+        var executable = Environment.GetEnvironmentVariable(ExecutableVariable);
         try
         {
-            IBrowser browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = true,
                 ExecutablePath = string.IsNullOrWhiteSpace(executable) ? null : executable,
@@ -103,7 +103,7 @@ internal static class PlaywrightBrowser
     /// </summary>
     public static async Task ScreenshotAsync(IPage page, string name, bool fullPage = true)
     {
-        string? directory = Environment.GetEnvironmentVariable(ScreenshotVariable);
+        var directory = Environment.GetEnvironmentVariable(ScreenshotVariable);
         if (string.IsNullOrWhiteSpace(directory))
         {
             return;

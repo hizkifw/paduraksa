@@ -107,14 +107,14 @@ public static class FieldLabels
     public static string Of(string field)
     {
         ArgumentNullException.ThrowIfNull(field);
-        return Fields.TryGetValue(field, out string? label) ? label : Spell(field);
+        return Fields.TryGetValue(field, out var label) ? label : Spell(field);
     }
 
     /// <summary>The words for an enum value as the document spells it; anything else as it is.</summary>
     public static string Value(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return Values.TryGetValue(value, out string? label) ? label : value;
+        return Values.TryGetValue(value, out var label) ? label : value;
     }
 
     /// <summary><c>someFieldName</c> as "Some field name".</summary>
@@ -127,9 +127,9 @@ public static class FieldLabels
 
         StringBuilder text = new(camel.Length + 4);
         text.Append(char.ToUpperInvariant(camel[0]));
-        for (int i = 1; i < camel.Length; i++)
+        for (var i = 1; i < camel.Length; i++)
         {
-            char c = camel[i];
+            var c = camel[i];
             if (char.IsUpper(c))
             {
                 text.Append(' ').Append(char.ToLowerInvariant(c));
