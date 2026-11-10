@@ -524,7 +524,9 @@
 
 .pdk-audit-summary {
     display: grid;
-    grid-template-columns: 96px minmax(0, 1fr) minmax(0, 220px) auto 24px;
+    /* Each row is its own grid, so every column needs a fixed width: an auto status column followed each row's chip
+       ("Denied" is narrower than "Success") and moved the actor. 84px fits the widest, "Conflict". */
+    grid-template-columns: 96px minmax(0, 1fr) minmax(0, 220px) 84px 24px;
     align-items: center;
     gap: 12px;
     width: 100%;
@@ -535,6 +537,10 @@
     font: inherit;
     text-align: left;
     cursor: pointer;
+}
+
+.pdk-audit-outcome {
+    justify-self: end;
 }
 
 .pdk-audit-summary:hover {

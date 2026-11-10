@@ -203,7 +203,7 @@ else
                                 <MudIcon Icon="@(e.Actor.Kind == ActorKind.Token ? Icons.Material.Outlined.Key : e.Actor.Kind == ActorKind.User ? Icons.Material.Outlined.Person : Icons.Material.Outlined.Memory)" Size="Size.Small" />
                                 @AuditText.Actor(e.Actor, _me, _users, _tokens)
                             </span>
-                            <span class="pdk-badge pdk-tone-@AuditText.ToneOf(e.Outcome).Css()">@AuditText.Name(e.Outcome)</span>
+                            <span class="pdk-badge pdk-tone-@AuditText.ToneOf(e.Outcome).Css() pdk-audit-outcome">@AuditText.Name(e.Outcome)</span>
                             <MudIcon Icon="@Icons.Material.Rounded.ChevronRight" Size="Size.Small" Class="pdk-audit-chevron" />
                         </button>
                     </li>
