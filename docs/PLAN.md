@@ -604,7 +604,7 @@ C. Gate middleware (first in pipeline), in this order (as built in M1)
 D. Policy chains: one per host, one per route (IRequestPolicy[], sealed classes, evaluated in order;
    host policies run before a route is known, so State.Route is null for them)
    IpAccess → Geo → RateLimit → RequestLimits → PathRules → UserAgentRules → Robots →
-   Auth (basic / forward-auth / OIDC) → [future: PoW gate, bot heuristics, header rules]
+   Auth (basic / forward-auth / OIDC) → ProofOfWork → [future: bot heuristics, header rules]
    each returns PolicyDecision { Continue | Respond(status, page) | Challenge | Drop } as a struct
 
 E. YARP (endpoint already set by the gate → affinity → load balancing → passive health → forwarder)
@@ -657,6 +657,42 @@ whole list again, so the host's `Alt-Svc`, HSTS, `Server` and response `X-Reques
 materialises; the trace reports it as such. An unknown host and an ACME challenge answer use the global defaults' list,
 which carries neither `Alt-Svc` nor HSTS.
 
+**As built (M7): the PoW gate.** `HostSettings.ProofOfWork` (`Enabled`, `Difficulty`, `TokenLifetimeHours`; built-in off,
+16 bits, seven days) inherits through the layers, and `RouteSettings.ProofOfWork` carries only `Enabled`, which overrides
+the host's resolved switch either way, so an `/api` route can be exempted and one path protected on a host that is otherwise
+open. The compiled route gets a `ProofOfWorkPolicy` after its other policies (a Redirect/Respond host has no routes and is
+never challenged); a route's values are the host's, because only the switch is overridable. `ProofOfWorkStats` are
+process-lifetime `Interlocked` counters (challenges, solved, rejected by reason, 403s to non-browsers), registered beside the
+runtime but not shown yet.
+
+*Protocol.* The page (`GET`/`HEAD` accepting `text/html`) carries a challenge: base64url of
+`version | issuedAt | nonce(16) | difficulty | tag(16)`, HMAC-SHA-256 over a `paduraksa-pow-challenge-v1` prefix, the
+host's stable `HostId` bytes and the client IP masked to /32 (IPv4) or /64 (IPv6), valid ten minutes. Its JavaScript, a
+pure-JS SHA-256 because `crypto.subtle` needs a secure origin, searches in `navigator.hardwareConcurrency` Web Workers
+(1-8) for a decimal counter where `SHA-256(challenge + ":" + counter)` has `Difficulty` leading zero bits, then posts
+`challenge`, `solution` and `return` to `POST /.well-known/paduraksa/pow`. The gate answers that endpoint itself, before
+route matching, on any host where the gate is on for the host or a route (elsewhere the path falls through): it checks the
+body (2 KiB), the challenge's tag and age, the solution and the challenge's difficulty against the host's current one, and
+answers `303` to a local `return` target with `paduraksa_pow` = base64url of
+`version | expiresAt | difficulty | tag(first 16 bytes)`, `Path=/; HttpOnly; SameSite=Lax; Max-Age`, and `Secure` on the
+trusted request scheme. An expired challenge gets the same `303` without a cookie (a fresh challenge follows); anything else
+is `403`. The valid-token path reads the cookie from the `Cookie` header span into `stackalloc` buffers, verifies with
+`IMacKey` and allocates 0 B (`GateMiddleware.Decide` allocation test). The page's CSP is
+`default-src 'none'; script-src 'sha256-...'; style-src 'sha256-...'; worker-src blob:; form-action 'self'; base-uri 'none';
+frame-ancestors 'none'`, with the hashes computed once from the inline script and style; `Referrer-Policy: no-referrer` and
+`X-Content-Type-Options: nosniff` ride along, and the host's response headers apply as on any gate answer.
+
+*Exemptions and failure.* `GET`/`HEAD /robots.txt` and the verify endpoint are never challenged. The key is one vault
+secret of kind `HmacSigningKey` (HMAC-SHA-256, 32 random bytes) under a reserved ID
+(`ProofOfWorkKey.Id`), created at first start and opened into the process runtime by a core-host step after the vault and
+before the public listener binds; rotation stays the vault's `ReplaceAsync` plus its `Verify` grace window. If it can't be
+opened, every protected route answers `503` and one Error is logged: never a request through unchallenged. The challenge is
+stateless, so a solved one can be redeemed again within its ten minutes; that only yields a cookie for the same host and
+client address, which is the accepted trade-off (no table to grow, nothing a second solve would not give). A warning is
+reported for a host with the gate on that answers plain HTTP without forcing HTTPS, where the cookie cannot be `Secure`.
+`IMacKey.VerifyTruncated` compares a tag of 16 bytes or more as the prefix of the full tag (constant time), which is how
+the 16-byte token and challenge tags are checked; `Verify` itself only takes whole tags.
+
 ### 7.3 WAF building blocks (all compiled per snapshot)
 
 | Feature | Implementation |
@@ -667,6 +703,7 @@ which carries neither `Alt-Svc` nor HSTS.
 | Request size limits | `IHttpMaxRequestBodySizeFeature` per host/route. Header count/size and URL length are checked cheaply in the gate. Global Kestrel limits act as the outer bound. |
 | Path deny rules | Exact/prefix in a trie. Glob compiled to a small matcher. Regex as an escape hatch: `RegexOptions.NonBacktracking` (ReDoS-safe) with a compile-time validation timeout. |
 | User-agent deny | `SearchValues<string>` (vectorised multi-substring, case-insensitive), plus presets ("AI crawlers", "known scanners", "empty UA"). |
+| Proof of work | A route policy: a browser without a valid `paduraksa_pow` cookie gets a small challenge page whose pure-JS SHA-256 workers find a counter with `Difficulty` leading zero bits; the verify endpoint returns an HMAC-signed, host- and client-bound cookie. `IMacKey`, no server-side table, 0 B on the valid-token path. |
 | Robots.txt | Per host: passthrough / managed (preset: disallow all, block AI crawlers, custom text). Served from pre-encoded bytes. |
 | Error pages | Per status (and "upstream down" / "blocked" / "rate limited" / "maintenance"). Templates pre-split into byte segments at compile time, with variables (`{status}`, `{requestId}`, `{host}`) written straight into the response `PipeWriter`. **Replacing upstream error bodies** (opt-in per host) is decided at **response-header time** from status + content type. The upstream body is drained and discarded, never buffered. It's never applied to `101` upgrades, `text/event-stream`, gRPC (`application/grpc*`), or responses whose headers have already been flushed. |
 | Maintenance mode | Per host, a toggle with a custom page and an IP bypass list. |
@@ -850,7 +887,7 @@ Notes on the refinements:
 - **Import.** PEM must carry a PKCS#8 key (plain or encrypted), otherwise PFX under the vault's own `Pkcs12LoaderLimits`; at most 1 MiB is read; every failure surfaces as `CertificateImportException` with a reason. The leaf is also refused if it is an RSA key under 2048 bits (`WeakKey`) or a CA certificate (`CaCertificate`); an expired leaf is accepted (the inventory treats it as unusable until renewed). "Usable name" is decided by `ICertificateNameRules`, implemented by the inventory's own normaliser (`CertificateNameRules`) and handed to `AddPaduraksaVault`, so the vault never accepts names the inventory drops (a vault built without one uses its strict rule). The KDF cost of an encrypted PKCS#8 is bounded before it runs (PBKDF2 or PKCS#5/12 iteration count at most 600000, else `Unreadable`) and runs once per key type the certificates could have (normally once); everything found wrong while reading the certificate's extensions after parsing is `Unreadable`, never an exception.
 - **Certificate metadata.** `CertificateInfo` has the SHA-256 fingerprint, the serial number as the DER INTEGER content bytes (leading `00` kept), the Authority Key Identifier (with the serial it is the RFC 9773 ARI certificate ID) and the issuers of the chain (for `preferred_chain` selection). The subject has a CN only for a DNS name of at most 64 characters, otherwise it is empty.
 - **JWS.** Acme writes the protected header and payload; the vault base64url-encodes, signs (ES256/ES384 as fixed-width `R||S`, RS256 as PKCS#1 v1.5) and returns the flattened-JWS pieces. It refuses a header whose `alg` is not the key's. EAB's inner JWS is built by Acme and signed with an `IMacKey` (HS256). Account key rollover is deferred (§9).
-- **MAC keys.** The algorithm is fixed in the secret's metadata when it is stored, and `OpenAsync` checks the expected kind. A handle resolves the current version on every call; `Verify` also accepts the previous version for a grace window after a rotation, `Sign` never does.
+- **MAC keys.** The algorithm is fixed in the secret's metadata when it is stored, and `OpenAsync` checks the expected kind. A handle resolves the current version on every call; `Verify` also accepts the previous version for a grace window after a rotation, `Sign` never does. `Verify` takes only whole tags; `VerifyTruncated` takes a prefix of 16 to full-length bytes (the proof-of-work token keeps the first 16 bytes of HMAC-SHA-256 on purpose), a separate method so a protocol whose tag length an attacker controls can never be checked against one byte.
 - **Secrets carry their destinations.** `SecretOptions.AllowedHosts` (required for `DnsApiToken`) is set by the admin when creating the DNS provider and stored with the secret. The authenticating handler uses its intersection with the provider code's own `SecretInjection.AllowedHosts` (normalised host names, compared with `Uri.IdnHost`).
 - **TOTP.** Since there is no get, M4's TOTP needs vault-side generation: the vault creates the secret, returns only the one-time provisioning URI for the QR code, and verifies codes itself.
   **As built (M4, `ITotpAuthenticator`).** `BeginEnrollmentAsync` generates 160 random bits, seals them as a `TotpSecret`, and returns the secret's ID and the `otpauth://` URI (a `Uri`: the one deliberate egress, once); `ConfirmEnrollmentAsync` turns a pending secret into a confirmed one with a code; `VerifyAsync` accepts codes for confirmed secrets only; `DeleteAsync` removes it. RFC 6238 with SHA-1, 6 digits, 30 s steps, one step of drift either way, every step compared in constant time. **Replay protection** is a `TotpStates.LastStep` column advanced by one conditional update, so a time step (and every earlier one) is accepted once per secret, across restarts, processes and simultaneous requests (vault migration `Totp`). No call returns the secret after enrolment, and the architecture test holds the contract to plain data. Recovery codes are not the vault's: ten 16-character codes (about 79 bits), shown once, stored as SHA-256 in the config DB, single use by one atomic update.
