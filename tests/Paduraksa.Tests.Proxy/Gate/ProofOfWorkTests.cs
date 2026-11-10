@@ -159,6 +159,34 @@ public sealed class ProofOfWorkTests
     }
 
     [Fact]
+    public void AFullLengthForgeryIsMalformed_NeverAnException()
+    {
+        // Base64Url.TryDecodeFromChars throws on a character outside the alphabet and on nonzero spare bits in the last
+        // character; a forged cookie or challenge with either was a 500 (the verify endpoint's, in production) instead of
+        // a refusal. Every last character, and one that isn't base64url at all, is tried at the full length.
+        var token = Encode((uint)(Now.ToUnixTimeSeconds() + 60), 16);
+        var challenge = Challenge((uint)Now.ToUnixTimeSeconds(), 16);
+        const string Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_!=.+/";
+        foreach (var last in Alphabet)
+        {
+            var forgedToken = token[..^1] + last;
+            var tokenValid = ProofOfWorkToken.TryValidate(forgedToken, Key, Scope, V4, Now.ToUnixTimeSeconds(), 16, out _, out _, out var tokenProblem);
+            Assert.True(tokenValid == (forgedToken == token), $"token ending in '{last}'");
+            Assert.True(tokenValid == (tokenProblem == ProofOfWorkTokenProblem.None), $"token ending in '{last}': {tokenProblem}");
+
+            var forgedChallenge = challenge[..^1] + last;
+            var challengeValid = ProofOfWorkChallenge.TryValidate(forgedChallenge, Key, Scope, V4, Now.ToUnixTimeSeconds(), out _, out _, out var challengeProblem);
+            Assert.True(challengeValid == (forgedChallenge == challenge), $"challenge ending in '{last}'");
+            Assert.True(challengeValid == (challengeProblem == ProofOfWorkChallengeProblem.None), $"challenge ending in '{last}': {challengeProblem}");
+        }
+
+        Assert.False(ProofOfWorkToken.TryValidate(token[..10] + "!" + token[11..], Key, Scope, V4, Now.ToUnixTimeSeconds(), 16, out _, out _, out var middle));
+        Assert.Equal(ProofOfWorkTokenProblem.Malformed, middle);
+        Assert.False(ProofOfWorkChallenge.TryValidate(challenge[..10] + "!" + challenge[11..], Key, Scope, V4, Now.ToUnixTimeSeconds(), out _, out _, out var challengeMiddle));
+        Assert.Equal(ProofOfWorkChallengeProblem.Malformed, challengeMiddle);
+    }
+
+    [Fact]
     public void AChallengeRoundTripsAndItsTagAgeAndScopeAreChecked()
     {
         var issuedAt = (uint)Now.ToUnixTimeSeconds();

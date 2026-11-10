@@ -132,8 +132,12 @@ internal static class ProofOfWorkToken
             return false;
         }
 
+        // TryDecodeFromChars throws, not returns false, on a character outside the alphabet or nonzero spare bits in the
+        // last one, and the cookie is the client's: checked first, so a forged one is malformed, not a 500 (and no exception).
         Span<byte> decoded = stackalloc byte[ValueLength];
-        if (!Base64Url.TryDecodeFromChars(value, decoded, out var decodedLength)
+        if (!Base64Url.IsValid(value, out var validLength)
+            || validLength != ValueLength
+            || !Base64Url.TryDecodeFromChars(value, decoded, out var decodedLength)
             || decodedLength != ValueLength
             || decoded[0] != Version)
         {
