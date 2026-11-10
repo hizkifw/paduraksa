@@ -365,6 +365,40 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void ANullRobotsLayerAddsNoKeyAndItsValuesChangeTheHash()
+    {
+        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
+        Assert.DoesNotContain("robots", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
+
+        var emptyLayer = without with
+        {
+            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, Robots = new RobotsSettings() } }],
+        };
+        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
+
+        var custom = without with
+        {
+            Hosts =
+            [
+                without.Hosts[0] with
+                {
+                    Settings = new HostSettings
+                    {
+                        ForceHttps = true,
+                        Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "User-agent: *\r\nDisallow: /\r\n" },
+                    },
+                },
+            ],
+        };
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(custom));
+
+        // The stored document keeps the text as written; only the proxy normalises line endings when it compiles.
+        Assert.Contains("\"robots\":{\"mode\":\"custom\",\"customText\":\"User-agent: *\\r\\nDisallow: /\\r\\n\"}", json, StringComparison.Ordinal);
+        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(custom));
+        Assert.Equal(CanonicalConfigJson.Serialize(custom), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(custom))));
+    }
+
+    [Fact]
     public void NormalisesSetsAndBlankValues()
     {
         ConfigDocument document = new(

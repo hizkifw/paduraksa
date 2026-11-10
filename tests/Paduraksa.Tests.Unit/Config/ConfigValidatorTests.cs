@@ -909,6 +909,77 @@ public sealed class ConfigValidatorTests
             ($"{Proxy}/routes/0/settings/proofOfWork/tokenLifetimeHours", ProofOfWorkRouteTokenLifetimeUnexpected));
     }
 
+    [Fact]
+    public void ChecksRobotsTextInEveryLayer()
+    {
+        var document = Valid();
+        HostSettings valid = new()
+        {
+            Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "User-agent: *\nDisallow: /admin\r\n" },
+        };
+        HostSettings preset = new() { Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers } };
+        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = valid } }));
+        Assert.Empty(ConfigValidator.Validate(document with { Profiles = [document.Profiles[0] with { Settings = valid }] }));
+        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = valid }) }));
+        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = preset } }));
+
+        // The resolved custom mode needs its text, wherever the mode is set; the error is at the host that would serve it.
+        HostSettings missing = new() { Robots = new RobotsSettings { Mode = RobotsMode.Custom } };
+        AssertErrors(
+            document with { Settings = document.Settings with { Defaults = missing } },
+            ($"{Proxy}/settings/robots/customText", RobotsCustomTextRequired),
+            ($"{RedirectHostPath}/settings/robots/customText", RobotsCustomTextRequired),
+            ($"{RespondHostPath}/settings/robots/customText", RobotsCustomTextRequired));
+        Assert.Contains(
+            "inherited from the global defaults",
+            ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = missing } })[0].Message,
+            StringComparison.Ordinal);
+        AssertErrors(
+            document with { Profiles = [document.Profiles[0] with { Settings = missing }] },
+            ($"{Proxy}/settings/robots/customText", RobotsCustomTextRequired));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = missing }) },
+            ($"{Proxy}/settings/robots/customText", RobotsCustomTextRequired));
+
+        // A blank text is no text.
+        HostSettings blank = new() { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "  \r\n\t" } };
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = blank }) },
+            ($"{Proxy}/settings/robots/customText", RobotsCustomTextRequired));
+
+        // A layer may set the mode and let a lower layer supply the text.
+        Assert.Empty(ConfigValidator.Validate(document with
+        {
+            Settings = document.Settings with { Defaults = valid },
+            Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.Custom } } }),
+        }));
+
+        // Text under any other mode is refused at the layer that sets it.
+        HostSettings ignored = new() { Robots = new RobotsSettings { Mode = RobotsMode.DisallowAll, CustomText = "User-agent: *\nDisallow:\n" } };
+        AssertErrors(
+            document with { Profiles = [document.Profiles[0] with { Settings = ignored }] },
+            ("/profiles/0/settings/robots/customText", RobotsCustomTextUnexpected));
+
+        // A text may be set under a mode it inherits, so a layer that only sets the text is fine.
+        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = new HostSettings { Robots = new RobotsSettings { CustomText = "User-agent: *\nDisallow:\n" } } }) }));
+
+        HostSettings tooLong = new() { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = new string('a', RobotsText.MaxCustomBytes + 1) } };
+        AssertErrors(
+            document with { Settings = document.Settings with { Defaults = tooLong } },
+            ("/settings/defaults/robots/customText", RobotsCustomTextTooLong));
+
+        HostSettings control = new() { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "User-agent: *\nDis\u0000allow: /\n" } };
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = control }) },
+            ($"{Proxy}/settings/robots/customText", RobotsCustomTextInvalid));
+
+        // An undefined mode is the enum's error, not a text one.
+        HostSettings undefined = new() { Robots = new RobotsSettings { Mode = (RobotsMode)9 } };
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = undefined }) },
+            ($"{Proxy}/settings/robots/mode", EnumUndefined));
+    }
+
     /// <summary>Validates <paramref name="document"/> as written and expects exactly these errors, in order.</summary>
     private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected)
     {

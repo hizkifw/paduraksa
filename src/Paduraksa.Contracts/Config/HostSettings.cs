@@ -6,7 +6,8 @@ namespace Paduraksa.Contracts.Config;
 /// <summary>
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
-/// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>) merge field by field; list-valued settings
+/// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>,
+/// <see cref="Robots"/>) merge field by field; list-valued settings
 /// (<see cref="IpAllowList"/>) replace as a whole.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
@@ -45,6 +46,9 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below. Built-in default: none.</summary>
     public RateLimitSettings? RateLimit { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: pass through to the upstream.</summary>
+    public RobotsSettings? Robots { get; init; }
 }
 
 /// <summary>
@@ -192,4 +196,23 @@ public sealed record RateLimitSettings : ISettingsLayer
 
     [JsonIgnore]
     public bool SetsNothing => Enabled is null && PolicyId is null;
+}
+
+/// <summary>
+/// What the host answers at <c>/robots.txt</c>. There is no route-level override: a host has one file, and every route
+/// shares it. Each field inherits on its own, so a layer can change the mode and keep the text below it.
+/// </summary>
+public sealed record RobotsSettings : ISettingsLayer
+{
+    /// <summary>Passthrough, a preset, or the operator's text. Built-in default: passthrough.</summary>
+    public RobotsMode? Mode { get; init; }
+
+    /// <summary>
+    /// The text <see cref="RobotsMode.Custom"/> serves. Set with that mode at its layer, or inherited from one that set it;
+    /// any other mode ignores it. Line endings are normalised when the proxy compiles it, not in the stored document.
+    /// </summary>
+    public string? CustomText { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => Mode is null && CustomText is null;
 }

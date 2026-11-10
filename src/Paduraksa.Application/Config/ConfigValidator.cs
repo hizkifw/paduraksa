@@ -12,6 +12,7 @@ using static Paduraksa.Application.Config.ConfigErrorCodes;
 
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
 using HostRateLimitSpec = Paduraksa.Proxy.Config.HostRateLimitSpec;
+using HostRobotsSpec = Paduraksa.Proxy.Config.HostRobotsSpec;
 using HostServerHeaderSpec = Paduraksa.Proxy.Config.HostServerHeaderSpec;
 using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
@@ -363,6 +364,7 @@ public static class ConfigValidator
             CheckHostSettings(host.Settings, $"{path}/settings");
             CheckHstsPreload(resolved.Hsts, defaults, profile, host.Settings, $"{path}/settings/hsts");
             CheckServerHeader(resolved.ServerHeader, defaults, profile, host.Settings, $"{path}/settings/serverHeader");
+            CheckRobots(resolved.Robots, defaults, profile, host.Settings, $"{path}/settings/robots");
             CheckRateLimit(resolved.RateLimit, policies, $"{path}/settings/rateLimit", HostRateLimitUnknown, defaults, profile, host.Settings);
             if (kindDefined)
             {
@@ -658,6 +660,67 @@ public static class ConfigValidator
             {
                 CheckProofOfWork(proofOfWork, $"{path}/proofOfWork", route: false);
             }
+
+            if (settings.Robots is { } robots)
+            {
+                CheckRobots(robots, $"{path}/robots");
+            }
+        }
+
+        /// <summary>
+        /// The robots.txt values at the layer that sets them: a custom text belongs to the custom mode, and a text is
+        /// bounded in bytes and free of control characters. A text set under a mode it inherits is fine, so only a layer
+        /// that sets some other mode refuses one; whether a resolved custom mode actually has text is the host's rule
+        /// below, since the text may come from a lower layer.
+        /// </summary>
+        private void CheckRobots(RobotsSettings settings, string path)
+        {
+            if (settings.Mode is { } mode)
+            {
+                CheckEnum(mode, $"{path}/mode");
+            }
+
+            if (settings.Mode is { } other && other != RobotsMode.Custom && settings.CustomText is not null)
+            {
+                Add($"{path}/customText", RobotsCustomTextUnexpected, $"a custom robots.txt text only belongs to the custom mode, not {Name(other)}");
+            }
+
+            if (settings.CustomText is not { } text)
+            {
+                return;
+            }
+
+            if (!RobotsText.IsWithinSizeLimit(text))
+            {
+                Add($"{path}/customText", RobotsCustomTextTooLong, $"the robots.txt text can't be longer than {RobotsText.MaxCustomBytes} bytes of UTF-8");
+            }
+
+            if (!RobotsText.HasNoControlCharacters(text))
+            {
+                Add($"{path}/customText", RobotsCustomTextInvalid, "the robots.txt text can't contain control characters other than tab and line breaks");
+            }
+        }
+
+        /// <summary>
+        /// The custom mode's cross-field rule, judged on the host's resolved settings like the <c>Server</c> header's
+        /// value: a resolved custom mode needs a text, wherever the mode and the text were set, and the message names the
+        /// layer that set the mode when the host didn't.
+        /// </summary>
+        private void CheckRobots(HostRobotsSpec resolved, HostSettings? defaults, HostSettings? profile, HostSettings? host, string path)
+        {
+            if (resolved.Mode != RobotsMode.Custom || !string.IsNullOrWhiteSpace(resolved.CustomText))
+            {
+                return;
+            }
+
+            // Name the layer that left it blank when one does, else the layer that chose the mode the text is missing for.
+            var layer = HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Robots?.CustomText);
+            if (layer == SettingsLayer.BuiltIn)
+            {
+                layer = HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.Robots?.Mode);
+            }
+
+            Add($"{path}/customText", RobotsCustomTextRequired, $"the custom robots.txt needs text{HostSettingsLayers.InheritedSuffix(layer)}");
         }
 
         /// <summary>

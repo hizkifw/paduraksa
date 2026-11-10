@@ -58,6 +58,7 @@ namespace Paduraksa.Admin.Json;
         typeof(ConfigEnumConverter<RequestIdPropagation>),
         typeof(ConfigEnumConverter<RateLimitPeriod>),
         typeof(ConfigEnumConverter<RateLimitKey>),
+        typeof(ConfigEnumConverter<RobotsMode>),
     ])]
 [JsonSerializable(typeof(ApiProblem))]
 [JsonSerializable(typeof(CurrentConfig))]

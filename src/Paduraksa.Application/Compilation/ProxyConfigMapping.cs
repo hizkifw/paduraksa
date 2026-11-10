@@ -286,6 +286,7 @@ public static class ProxyConfigMapping
             ServerHeader = effective.ServerHeader,
             ProofOfWork = effective.ProofOfWork,
             RateLimit = effective.RateLimit,
+            Robots = effective.Robots,
             Routes = routes,
             Policies = hostChain,
             Redirect = host.Redirect is { } redirect

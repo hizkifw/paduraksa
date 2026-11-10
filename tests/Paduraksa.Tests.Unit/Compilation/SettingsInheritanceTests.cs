@@ -179,6 +179,23 @@ public sealed class SettingsInheritanceTests
             BuiltIn: null,
             First: Id<RateLimitPolicyId>(1).ToString()!,
             Second: Id<RateLimitPolicyId>(2).ToString()!),
+        new(
+            "robots.mode",
+            static s => s.Robots?.Mode?.ToString(),
+            static v => new HostSettings { Robots = new RobotsSettings { Mode = Enum.Parse<RobotsMode>(v) } },
+            static h => h.Robots.Mode.ToString(),
+            BuiltIn: "Passthrough",
+            First: "BlockAiCrawlers",
+            Second: "DisallowAll"),
+        new(
+            "robots.customText",
+            static s => s.Robots?.CustomText,
+            // The text only exists with the custom mode at its own layer, or the document isn't valid.
+            static v => new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = v } },
+            static h => h.Robots.CustomText,
+            BuiltIn: null,
+            First: "User-agent: *\nDisallow: /",
+            Second: "User-agent: *\nAllow: /\n"),
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
@@ -409,6 +426,7 @@ public sealed class SettingsInheritanceTests
         new("serverHeader", Defaults: [], Profile: ["serverHeader.value"], Host: ["serverHeader.mode"]),
         new("proofOfWork", Defaults: ["proofOfWork.enabled"], Profile: ["proofOfWork.difficulty"], Host: ["proofOfWork.tokenLifetimeHours"]),
         new("rateLimit", Defaults: ["rateLimit.enabled"], Profile: [], Host: ["rateLimit.policyId"]),
+        new("robots", Defaults: ["robots.customText"], Profile: ["robots.mode"], Host: []),
     ];
 
     /// <summary>

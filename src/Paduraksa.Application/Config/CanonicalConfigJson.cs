@@ -372,6 +372,7 @@ public static class CanonicalConfigJson
             ServerHeader = DropIfNothingSet(settings.ServerHeader),
             ProofOfWork = DropIfNothingSet(settings.ProofOfWork),
             RateLimit = DropIfNothingSet(settings.RateLimit),
+            Robots = DropIfNothingSet(settings.Robots),
         };
     }
 

@@ -158,6 +158,18 @@ public sealed record HostProofOfWorkSpec
     public int TokenLifetimeHours { get; init; } = ProofOfWorkLimits.DefaultTokenLifetimeHours;
 }
 
+/// <summary>The <c>robots.txt</c> settings resolved across the layers; a host has one file, so a route has no say.</summary>
+public sealed record HostRobotsSpec
+{
+    /// <summary>Forward <c>/robots.txt</c> to the upstream, which answers with its own file.</summary>
+    public static HostRobotsSpec Passthrough { get; } = new();
+
+    public RobotsMode Mode { get; init; } = RobotsMode.Passthrough;
+
+    /// <summary>The text <see cref="RobotsMode.Custom"/> serves, as stored; the compiler normalises its line endings.</summary>
+    public string? CustomText { get; init; }
+}
+
 /// <summary>The rate-limit settings resolved across the layers; a route may override the switch and the policy.</summary>
 public sealed record HostRateLimitSpec
 {
@@ -250,6 +262,9 @@ public sealed record HostSpec
 
     /// <summary>The host's resolved rate-limit policy; each route's own layer may override it.</summary>
     public HostRateLimitSpec RateLimit { get; init; } = HostRateLimitSpec.Off;
+
+    /// <summary>What the host answers at <c>/robots.txt</c>.</summary>
+    public HostRobotsSpec Robots { get; init; } = HostRobotsSpec.Passthrough;
 
     /// <summary>Proxy hosts only; listed in the order the host evaluates them: exact first, then the longest prefix,
     /// then <see cref="RouteSpec.Order"/>, then as listed.</summary>

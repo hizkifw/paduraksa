@@ -35,9 +35,10 @@ public sealed class SettingsMergeReflectionTests
         {
             var value = leaf.Read(HostSettingsLayers.BuiltIn);
             if (leaf.Name is nameof(HostSettings.IpAllowList) or $"{nameof(HostSettings.ServerHeader)}.{nameof(ServerHeaderSettings.Value)}"
-                or $"{nameof(HostSettings.RateLimit)}.{nameof(RateLimitSettings.PolicyId)}")
+                or $"{nameof(HostSettings.RateLimit)}.{nameof(RateLimitSettings.PolicyId)}"
+                or $"{nameof(HostSettings.Robots)}.{nameof(RobotsSettings.CustomText)}")
             {
-                // The absence is the default: no restriction, and no custom Server value.
+                // The absence is the default: no restriction, no custom Server value and no custom robots.txt text.
                 Assert.Null(value);
                 continue;
             }

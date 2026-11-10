@@ -39,6 +39,10 @@ public static class ConfigErrorCodes
     public const string RateLimitHeaderRequired = "rateLimit.header.required";
     public const string RateLimitHeaderUnexpected = "rateLimit.header.unexpected";
     public const string RateLimitHeaderInvalid = "rateLimit.header.invalid";
+    public const string RobotsCustomTextRequired = "robots.customText.required";
+    public const string RobotsCustomTextUnexpected = "robots.customText.unexpected";
+    public const string RobotsCustomTextTooLong = "robots.customText.tooLong";
+    public const string RobotsCustomTextInvalid = "robots.customText.invalid";
     public const string TrustedProxiesProxiesRequired = "trustedProxies.proxies.required";
     public const string TrustedProxiesProxiesUnexpected = "trustedProxies.proxies.unexpected";
     public const string TrustedProxiesHeaderInvalid = "trustedProxies.header.invalid";

@@ -45,7 +45,12 @@ public sealed class ConfigDiffTests
         {
             Settings = document.Settings with
             {
-                Defaults = new HostSettings { ForceHttps = false, Tls = new TlsSettings { Http3 = false } },
+                Defaults = new HostSettings
+                {
+                    ForceHttps = false,
+                    Tls = new TlsSettings { Http3 = false },
+                    Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers },
+                },
                 TrustedProxies = document.Settings.TrustedProxies with { Proxies = ["10.0.0.0/8", "172.16.0.0/12"] },
             },
         };
@@ -54,7 +59,7 @@ public sealed class ConfigDiffTests
 
         Assert.Equal(ConfigChangeKind.Modified, change.Kind);
         Assert.Equal("/settings", change.Path);
-        Assert.Equal(["/settings/defaults/forceHttps", "/settings/defaults/tls", "/settings/trustedProxies/proxies"], change.Fields);
+        Assert.Equal(["/settings/defaults/forceHttps", "/settings/defaults/tls", "/settings/defaults/robots", "/settings/trustedProxies/proxies"], change.Fields);
     }
 
     [Fact]

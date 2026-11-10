@@ -17,7 +17,8 @@ namespace Paduraksa.Application.Compilation;
 /// below, then its validator rules, its dashboard field and the tests.</para>
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
-/// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>) merge field by field and stay absent when neither layer sets a field of
+/// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>,
+/// <see cref="HostSettings.Robots"/>) merge field by field and stay absent when neither layer sets a field of
 /// theirs. The IP allow list replaces as a whole, and an empty one means no restriction (that is how a layer lifts an
 /// inherited list). Everything else is a plain override.</para>
 /// </remarks>
@@ -40,6 +41,7 @@ public static class HostSettingsLayers
     private const int BuiltInProofOfWorkDifficulty = ProofOfWorkLimits.DefaultDifficulty;
     private const int BuiltInProofOfWorkTokenLifetimeHours = ProofOfWorkLimits.DefaultTokenLifetimeHours;
     private const bool BuiltInRateLimitEnabled = true;
+    private const RobotsMode BuiltInRobotsMode = RobotsMode.Passthrough;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -58,6 +60,7 @@ public static class HostSettingsLayers
             TokenLifetimeHours = BuiltInProofOfWorkTokenLifetimeHours,
         },
         RateLimit = new RateLimitSettings { Enabled = BuiltInRateLimitEnabled },
+        Robots = new RobotsSettings { Mode = BuiltInRobotsMode },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -84,6 +87,7 @@ public static class HostSettingsLayers
             ServerHeader = Merge(lower.ServerHeader, upper.ServerHeader),
             ProofOfWork = Merge(lower.ProofOfWork, upper.ProofOfWork),
             RateLimit = Merge(lower.RateLimit, upper.RateLimit),
+            Robots = Merge(lower.Robots, upper.Robots),
         };
     }
 
@@ -191,6 +195,24 @@ public static class HostSettingsLayers
         return merged is { Enabled: null, PolicyId: null } ? null : merged;
     }
 
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static RobotsSettings? Merge(RobotsSettings? lower, RobotsSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        RobotsSettings merged = new()
+        {
+            Mode = upper.Mode ?? lower?.Mode,
+            CustomText = upper.CustomText ?? lower?.CustomText,
+        };
+
+        return merged is { Mode: null, CustomText: null } ? null : merged;
+    }
+
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
     /// host); null layers are skipped, and the built-in defaults sit underneath them all.</summary>
     internal static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers) => Concrete(MergeAll(layers));
@@ -278,6 +300,7 @@ public static class HostSettingsLayers
         var server = settings.ServerHeader ?? new ServerHeaderSettings();
         var proofOfWork = settings.ProofOfWork ?? new ProofOfWorkSettings();
         var rateLimit = settings.RateLimit ?? new RateLimitSettings();
+        var robots = settings.Robots ?? new RobotsSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -314,6 +337,13 @@ public static class HostSettingsLayers
                 // Naming a policy is enough: only a layer that says otherwise turns the limit off.
                 Enabled = rateLimit.Enabled ?? BuiltInRateLimitEnabled,
                 PolicyId = rateLimit.PolicyId ?? RateLimitPolicyId.Empty,
+            },
+            new HostRobotsSpec
+            {
+                Mode = robots.Mode ?? BuiltInRobotsMode,
+
+                // No built-in text: only the Custom mode serves one, and the validator requires it there.
+                CustomText = robots.CustomText,
             });
     }
 
@@ -345,6 +375,7 @@ public enum SettingsLayer
 /// <param name="ServerHeader">Concrete <c>Server</c> header settings.</param>
 /// <param name="ProofOfWork">Concrete proof-of-work settings.</param>
 /// <param name="RateLimit">The policy in force, with the switch as it resolved.</param>
+/// <param name="Robots">What the host answers at <c>/robots.txt</c>.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -354,4 +385,5 @@ internal sealed record EffectiveHostSettings(
     RequestIdPropagation RequestIdPropagation,
     HostServerHeaderSpec ServerHeader,
     HostProofOfWorkSpec ProofOfWork,
-    HostRateLimitSpec RateLimit);
+    HostRateLimitSpec RateLimit,
+    HostRobotsSpec Robots);
