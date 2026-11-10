@@ -222,8 +222,53 @@
         });
     }
 
+    // The log drawer's pane: where its end is and whether the person is still there, so following can pause when they scroll up and
+    // resume when they come back. The component is only called back while it watches (one pane at a time: one drawer shows a log).
+    let logListener = null;
+    const logPane = Object.freeze({
+        /** Whether the pane is at its end (within a couple of lines, so a partly visible last line still counts). */
+        atEnd(element) {
+            return !!element && element.scrollHeight - element.scrollTop - element.clientHeight <= 24;
+        },
+
+        /** Scrolls the pane to its end (turning Follow on, or jumping back to the latest lines). */
+        toEnd(element) {
+            if (element) {
+                element.scrollTop = element.scrollHeight;
+            }
+        },
+
+        /** Reports the pane's end on every scroll; the component pauses or resumes following from it. */
+        watch(element, dotNet) {
+            logPane.detach();
+            if (!element) {
+                return;
+            }
+
+            const report = () => {
+                try {
+                    dotNet.invokeMethodAsync("LogScrolledAsync", logPane.atEnd(element)).catch(() => {});
+                } catch {
+                    // The circuit is already gone.
+                }
+            };
+
+            report();
+            element.addEventListener("scroll", report, { passive: true });
+            logListener = () => element.removeEventListener("scroll", report);
+        },
+
+        detach() {
+            if (logListener) {
+                logListener();
+                logListener = null;
+            }
+        },
+    });
+
     window.paduraksa = Object.freeze({
         drawers,
+        logPane,
 
         /** Stores the person's choice ("dark" or "light") and applies it to the plain-HTML pages' colours. */
         setTheme(value) {

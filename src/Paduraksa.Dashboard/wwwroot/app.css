@@ -951,6 +951,68 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     color: var(--mud-palette-primary);
 }
 
+/* Follow: a toggle that reads as on through its icon, colour and the live dot, and as off through all three going quiet. */
+.pdk-log-follow {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 13px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--mud-palette-text-secondary);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 140ms var(--pdk-ease-out), border-color 140ms var(--pdk-ease-out), color 140ms var(--pdk-ease-out);
+}
+
+.pdk-log-follow:hover:not(:disabled) {
+    border-color: var(--mud-palette-lines-inputs);
+    background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+    color: var(--mud-palette-text-primary);
+}
+
+.pdk-log-follow:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.pdk-log-follow:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.pdk-log-follow-on,
+.pdk-log-follow-on:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--mud-palette-success) 55%, transparent);
+    background: color-mix(in srgb, var(--mud-palette-success) 12%, transparent);
+    color: var(--mud-palette-success);
+}
+
+.pdk-log-live {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pdk-log-pulse 1.6s var(--pdk-ease-out) infinite;
+}
+
+@keyframes pdk-log-pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
+    70% { box-shadow: 0 0 0 6px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pdk-log-live {
+        animation: none;
+    }
+}
+
 /* The drawer body is a grid built for forms. The log viewer is one column that has to fill it: the pane scrolls, the body doesn't,
    so there is no empty area between the last line and the download. */
 .pdk-drawer-body:has(> .pdk-log-viewer) {
@@ -988,6 +1050,36 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
+}
+
+/* While following and scrolled up, the way back to the newest lines stays in the pane's corner. */
+.pdk-log-latest {
+    position: absolute;
+    right: 14px;
+    bottom: 12px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border: 1px solid color-mix(in srgb, var(--mud-palette-primary) 35%, var(--mud-palette-lines-default));
+    border-radius: 999px;
+    background: var(--mud-palette-surface);
+    box-shadow: 0 10px 26px -16px rgba(0, 0, 0, 0.6);
+    color: var(--mud-palette-primary);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pdk-log-latest:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 9%, var(--mud-palette-surface));
+}
+
+.pdk-log-latest:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
 }
 
 .pdk-log-lines {

@@ -2,11 +2,13 @@
    the file only (a compressed one decompressed up to a cap), never the whole thing. *@
 @using Paduraksa.Application.Logging
 @using Paduraksa.Contracts.Logging
+@implements IAsyncDisposable
 @inject ILogFileStore Store
+@inject IJSRuntime JS
 @inject TimeProvider Time
 
 <DrawerShell Title="@File.Name" Name="log-file" Icon="@Icons.Material.Outlined.Article"
-            Subtitle="@($"Last written {RevisionText.Ago(File.LastModified, Time.GetUtcNow())}")">
+            Subtitle="@($"Last written {RevisionText.Ago(_lastWritten, Time.GetUtcNow())}")">
     <ChildContent>
         <div class="pdk-log-viewer">
             <div class="pdk-log-toolbar">
@@ -23,6 +25,15 @@
                         <MudSelectItem T="int" Value="1000">Last 1000</MudSelectItem>
                     </MudSelect>
                 </div>
+                <button type="button" class="@FollowClass" aria-pressed="@(_follow ? "true" : "false")" data-action="follow"
+                        title="@(_follow ? "Stop following new lines" : "Follow new lines")" disabled="@_failed" @onclick="ToggleFollow">
+                    <MudIcon Icon="@(_follow ? Icons.Material.Rounded.Pause : Icons.Material.Rounded.PlayArrow)" Size="Size.Small" />
+                    <span>Follow</span>
+                    @if (_follow)
+                    {
+                        <span class="pdk-log-live" aria-hidden="true"></span>
+                    }
+                </button>
                 <button type="button" class="@($"pdk-log-wrap pdk-log-icon-toggle{(_wrap ? " is-on" : null)}")" aria-pressed="@(_wrap ? "true" : "false")"
                         aria-label="Wrap lines" title="Wrap lines" data-action="wrap" @onclick="() => _wrap = !_wrap">
                     <MudIcon Icon="@Icons.Material.Rounded.WrapText" Size="Size.Small" />
@@ -52,13 +63,20 @@
             {
                 <div class="pdk-log-pane">
                     <div class="pdk-log-stage">
-                        <div class="@($"pdk-log-lines{(_wrap ? " pdk-log-wrapped" : null)}")" data-section="tail"
+                        <div class="@($"pdk-log-lines{(_wrap ? " pdk-log-wrapped" : null)}")" @ref="_pane" data-section="tail"
                              aria-label="@($"The last lines of {File.Name}")" tabindex="0">
                             @foreach (var line in tail.Lines)
                             {
                                 <div class="pdk-log-line">@LogLine(line)</div>
                             }
                         </div>
+                        @if (_follow && !_atEnd)
+                        {
+                            <button type="button" class="pdk-log-latest" data-action="jump-latest" @onclick="JumpToLatest">
+                                <span>@(_newBelow ? "New lines below" : "Jump to latest")</span>
+                                <MudIcon Icon="@Icons.Material.Rounded.ArrowDownward" Size="Size.Small" />
+                            </button>
+                        }
                     </div>
                     @if (tail.Truncated)
                     {
@@ -81,32 +99,62 @@
     private LogFileTail? _tail;
     private string _filter = string.Empty;
     private int _count = LogFileStore.DefaultTailLines;
+    private DateTimeOffset _lastWritten;
     private bool _loading;
     private bool _failed;
     private bool _wrap;
+    private bool _follow;
+    private bool _atEnd = true;
+    private bool _newBelow;
+    private bool _scrollToEnd;
+    private bool _watching;
     private int _loads;
+
+    private ElementReference _pane;
+    private DotNetObjectReference<LogFileDrawer>? _self;
+    private CancellationTokenSource? _followCts;
+    private Task? _followTask;
 
     [Parameter, EditorRequired]
     public LogFileSummary File { get; set; } = default!;
 
+    /// <summary>How often Follow reads the file again. A test shortens it; the person never changes it.</summary>
+    [Parameter]
+    public TimeSpan FollowInterval { get; set; } = TimeSpan.FromSeconds(2);
+
     /// <summary>The file through the API's authenticated download, which the browser fetches with its session cookie.</summary>
     private string DownloadUrl => "/api/v1/logs/" + Uri.EscapeDataString(File.Name);
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private string FollowClass => "pdk-log-follow" + (_follow ? " pdk-log-follow-on" : null);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _lastWritten = File.LastModified;
+        await LoadAsync();
+    }
 
     private async Task SetFilterAsync(string? filter)
     {
         _filter = filter ?? string.Empty;
         await LoadAsync();
+        if (_failed)
+        {
+            StopFollow();
+        }
     }
 
     private async Task SetCountAsync(int count)
     {
         _count = Math.Clamp(count, 1, MaxLines);
         await LoadAsync();
+        if (_failed)
+        {
+            StopFollow();
+        }
     }
 
-    private async Task LoadAsync()
+    /// <summary>The read the drawer shows now; false when a later read replaced it, or it failed.</summary>
+    private async Task<bool> LoadAsync()
     {
         var load = ++_loads;
         _loading = true;
@@ -117,16 +165,22 @@
             if (load != _loads)
             {
                 // A later keystroke's read is the one to show.
-                return;
+                return false;
             }
 
             _tail = tail;
             _failed = tail is null;
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _failed = true;
-            _tail = null;
+            if (load == _loads)
+            {
+                _failed = true;
+                _tail = null;
+            }
+
+            return false;
         }
         finally
         {
@@ -135,6 +189,231 @@
                 _loading = false;
             }
         }
+    }
+
+    /// <summary>Follow is a button: it starts the loop and the loop stops it, so the state and the timer never disagree.</summary>
+    private void ToggleFollow()
+    {
+        if (_follow)
+        {
+            StopFollow();
+            return;
+        }
+
+        _follow = true;
+        _newBelow = false;
+        _scrollToEnd = true;
+        var cts = new CancellationTokenSource();
+        _followCts = cts;
+        _followTask = FollowAsync(cts);
+    }
+
+    /// <summary>
+    /// Re-reads the tail every <see cref="FollowInterval"/> while the person follows. The loop awaits each read before the next tick, so
+    /// reads never overlap; the component cancels it on its way out and the loop stops on the first failure.
+    /// </summary>
+    private async Task FollowAsync(CancellationTokenSource cts)
+    {
+        var token = cts.Token;
+        try
+        {
+            using PeriodicTimer timer = new(FollowInterval > TimeSpan.Zero ? FollowInterval : TimeSpan.FromSeconds(2), Time);
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await InvokeAsync(() => RefreshAsync(token));
+                if (!_follow || token.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // Follow was turned off, or the circuit is gone.
+        }
+        finally
+        {
+            if (ReferenceEquals(_followCts, cts))
+            {
+                _followCts = null;
+            }
+
+            cts.Dispose();
+        }
+    }
+
+    /// <summary>One follow tick: read, then keep the pane at the end only if the person was already there.</summary>
+    private async Task RefreshAsync(CancellationToken token)
+    {
+        if (!_follow)
+        {
+            return;
+        }
+
+        var atEnd = await AtEndAsync();
+        var before = _tail;
+        var applied = await LoadAsync();
+        if (_failed)
+        {
+            StopFollow();
+            StateHasChanged();
+            return;
+        }
+
+        if (!applied || !_follow || token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        await RefreshLastWrittenAsync();
+        if (atEnd)
+        {
+            _scrollToEnd = true;
+        }
+        else if (TailChanged(before, _tail))
+        {
+            _newBelow = true;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task<bool> AtEndAsync()
+    {
+        if (!_watching)
+        {
+            return _atEnd;
+        }
+
+        try
+        {
+            return await JS.InvokeAsync<bool>("paduraksa.logPane.atEnd", _pane);
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+        {
+            return _atEnd;
+        }
+    }
+
+    /// <summary>The subtitle's "last written": the file may have grown since the drawer opened, or since the list was read.</summary>
+    private async Task RefreshLastWrittenAsync()
+    {
+        try
+        {
+            var file = await Task.Run(() => Store.List().FirstOrDefault(candidate => string.Equals(candidate.Name, File.Name, StringComparison.Ordinal)));
+            if (file is not null)
+            {
+                _lastWritten = file.LastModified;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The tail read is what the failure state is about; an older time is better than a blank subtitle.
+        }
+    }
+
+    private static bool TailChanged(LogFileTail? before, LogFileTail? after) =>
+        after is not null
+        && (before is null || before.Lines.Count != after.Lines.Count || !before.Lines.SequenceEqual(after.Lines, StringComparer.Ordinal));
+
+    private void StopFollow()
+    {
+        _follow = false;
+        _newBelow = false;
+        _followCts?.Cancel();
+    }
+
+    /// <summary>The person asked for the latest lines again: the next render puts the pane at its end.</summary>
+    private void JumpToLatest()
+    {
+        _newBelow = false;
+        _atEnd = true;
+        _scrollToEnd = true;
+    }
+
+    /// <summary>The pane's scroll position, from <c>paduraksa.js</c>: following pauses when the person scrolls up and resumes at the end.</summary>
+    [JSInvokable]
+    public Task LogScrolledAsync(bool atEnd) => InvokeAsync(() =>
+    {
+        if (_atEnd == atEnd)
+        {
+            return;
+        }
+
+        _atEnd = atEnd;
+        if (atEnd)
+        {
+            _newBelow = false;
+        }
+
+        StateHasChanged();
+    });
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_tail is { Lines.Count: > 0 })
+            {
+                if (!_watching)
+                {
+                    _self ??= DotNetObjectReference.Create(this);
+                    await JS.InvokeVoidAsync("paduraksa.logPane.watch", _pane, _self);
+                    _watching = true;
+                }
+
+                if (_scrollToEnd)
+                {
+                    _scrollToEnd = false;
+                    await JS.InvokeVoidAsync("paduraksa.logPane.toEnd", _pane);
+                }
+            }
+            else if (_watching)
+            {
+                _watching = false;
+                await JS.InvokeVoidAsync("paduraksa.logPane.detach");
+            }
+        }
+        catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+        {
+            // The circuit is going away, or the page isn't live: there is no pane to scroll.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopFollow();
+        if (_followTask is { } task)
+        {
+            try
+            {
+                await task.ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+            {
+                // Already stopping.
+            }
+        }
+
+        if (_watching)
+        {
+            _watching = false;
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.logPane.detach");
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // Gone with the circuit.
+            }
+        }
+
+        _self?.Dispose();
     }
 
     /// <summary>
@@ -164,7 +443,7 @@
         builder.AddContent(7, after);
     };
 
-    /// <summary>The line split around the parts worth a colour: the ISO time it starts with, and the first bare 4xx or 5xx token.</summary>
+    /// <summary>The line split around the parts worth a colour: the ISO time it starts with, and an access log's 4xx or 5xx status.</summary>
     private static (string? Timestamp, string Before, string? Status, string After) Split(string line)
     {
         var time = TimestampLength(line);
@@ -221,64 +500,88 @@
     }
 
     /// <summary>
-    /// The first 4xx or 5xx status: a three-digit token of its own, outside the quoted fields (the request target and the headers
-    /// can hold any text). The access log writes the status before the byte count, so the first one is the response's.
+    /// The response's status, when the line is in the access log's shape: the client address, the quoted (or missing) host, the quoted
+    /// (or missing) request target and then the status. Only that fourth field is read, so a byte count or a number inside the target is
+    /// never mistaken for it, and a line in another shape (an error log line) simply has no status to tint.
     /// </summary>
     private static bool TryFindStatus(ReadOnlySpan<char> text, out int start, out int length)
     {
         start = 0;
         length = 0;
-        var quoted = false;
-        for (var i = 0; i < text.Length; i++)
+        var at = SkipSpaces(text, 0);
+        at = SkipToken(text, at);
+        for (var field = 0; field < 2; field++)
         {
-            if (quoted)
+            at = SkipSpaces(text, at);
+            if (at >= text.Length)
             {
-                if (text[i] == '\\')
-                {
-                    i++;
-                }
-                else if (text[i] == '"')
-                {
-                    quoted = false;
-                }
-
-                continue;
+                return false;
             }
 
-            if (text[i] == '"')
+            if (text[at] == '"')
             {
-                quoted = true;
-                continue;
+                at = SkipQuoted(text, at);
             }
-
-            if (text[i] is not (' ' or '\t'))
+            else if (text[at] == '-' && (at + 1 == text.Length || text[at + 1] is ' ' or '\t'))
             {
-                continue;
+                at++;
             }
-
-            var token = i + 1;
-            while (token < text.Length && text[token] is ' ' or '\t')
+            else
             {
-                token++;
+                return false;
             }
-
-            var end = token;
-            while (end < text.Length && text[end] is not (' ' or '\t'))
-            {
-                end++;
-            }
-
-            if (end - token == 3 && text[token] is >= '4' and <= '5' && char.IsAsciiDigit(text[token + 1]) && char.IsAsciiDigit(text[token + 2]))
-            {
-                start = token;
-                length = 3;
-                return true;
-            }
-
-            i = end - 1;
         }
 
-        return false;
+        at = SkipSpaces(text, at);
+        var end = SkipToken(text, at);
+        if (end - at != 3 || text[at] is not (>= '4' and <= '5') || !char.IsAsciiDigit(text[at + 1]) || !char.IsAsciiDigit(text[at + 2]))
+        {
+            return false;
+        }
+
+        start = at;
+        length = 3;
+        return true;
+    }
+
+    private static int SkipSpaces(ReadOnlySpan<char> text, int at)
+    {
+        while (at < text.Length && text[at] is ' ' or '\t')
+        {
+            at++;
+        }
+
+        return at;
+    }
+
+    private static int SkipToken(ReadOnlySpan<char> text, int at)
+    {
+        while (at < text.Length && text[at] is not (' ' or '\t'))
+        {
+            at++;
+        }
+
+        return at;
+    }
+
+    private static int SkipQuoted(ReadOnlySpan<char> text, int at)
+    {
+        at++;
+        while (at < text.Length)
+        {
+            if (text[at] == '\\')
+            {
+                at += 2;
+                continue;
+            }
+
+            if (text[at++] == '"')
+            {
+                return at;
+            }
+        }
+
+        return at;
     }
 
     private static bool Digits(string text, int start, int count)
