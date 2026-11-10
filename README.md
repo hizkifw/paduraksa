@@ -9,6 +9,8 @@ users from a web dashboard or a REST API, with every change versioned and revers
 
 *Paduraksa*: the gate into the inner sanctum, flanked by guardian figures meant to keep evil out.
 
+<img width="960" height="560" alt="192 168 0 254_9443_ (1)" src="https://github.com/user-attachments/assets/3c7bda95-7af7-4b29-8e34-111ed743dd67" />
+
 ## Features
 
 - **Proxying:** HTTP/1.1, HTTP/2 and HTTP/3, a certificate per name (SNI), HTTPS redirects, WebSockets, HSTS. Real
