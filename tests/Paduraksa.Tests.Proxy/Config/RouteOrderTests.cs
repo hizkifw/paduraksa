@@ -97,6 +97,47 @@ public sealed class RouteOrderTests
     }
 
     [Fact]
+    public void AnExactRouteBeatsOnlyTheLongerPrefixesThatCannotTakeItsPath()
+    {
+        var host = Compile(new ProxyConfigModel
+        {
+            Upstreams = [Upstream("web", "http://127.0.0.1:1/"), Upstream("api", "http://127.0.0.1:2/")],
+            Hosts =
+            [
+                ProxyHost(
+                    "site",
+                    "site.test",
+                    Route("site-deep", "api", "/a/b"),
+                    Route("site-exact", "web", "/a", RouteMatchKind.Exact)),
+            ],
+        }).Hosts.Find("site.test")!;
+
+        Assert.Equal(TestIds.Route("site-exact"), host.Match("/a")!.Id);
+        Assert.Equal(TestIds.Route("site-deep"), host.Match("/a/b/c")!.Id);
+        Assert.Null(host.Match("/a/x"));
+    }
+
+    [Fact]
+    public void ATrailingSlashPrefixIsTheMoreSpecificOne()
+    {
+        var host = Compile(new ProxyConfigModel
+        {
+            Upstreams = [Upstream("web", "http://127.0.0.1:1/"), Upstream("api", "http://127.0.0.1:2/")],
+            Hosts =
+            [
+                ProxyHost(
+                    "site",
+                    "site.test",
+                    Route("site-bare", "web", "/a"),
+                    Route("site-slash", "api", "/a/")),
+            ],
+        }).Hosts.Find("site.test")!;
+
+        Assert.Equal(TestIds.Route("site-slash"), host.Match("/a/x")!.Id);
+        Assert.Equal(TestIds.Route("site-bare"), host.Match("/a")!.Id);
+    }
+
+    [Fact]
     public void EqualSpecificityKeepsOrderThenTheListedOrder()
     {
         // Same kind and path length: Order decides, whatever the list order.

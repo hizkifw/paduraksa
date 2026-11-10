@@ -16,7 +16,7 @@ public class RouteMatchBenchmarks
 
     [Params(
         "/api/v1/items/42",            // 2nd in evaluation order, after the exact /healthz route, canonical
-        "/assets/app.3f9a1c.js",       // 4th in evaluation order, canonical
+        "/assets/app.3f9a1c.js",       // 5th in evaluation order, canonical
         "/dashboard/settings",         // falls through to the catch-all
         "/api\\v1//items/./42;jsessionid=x")] // needs rewriting: '\', '//', '.', ';params'
     public string Path { get; set; } = "";

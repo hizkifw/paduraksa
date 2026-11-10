@@ -160,7 +160,7 @@ public sealed class CompiledBehaviourTests : IDisposable
                 .. host.Routes
                     .Select((route, listed) => (Route: route, Listed: listed))
                     .OrderBy(r => r.Route.Match == RouteMatchKind.Exact ? 0 : 1)
-                    .ThenByDescending(r => r.Route.Path.Length)
+                    .ThenByDescending(r => r.Route.Match == RouteMatchKind.Exact ? 0 : r.Route.Path.Length)
                     .ThenBy(r => r.Route.Order)
                     .ThenBy(r => r.Listed)
                     .Select(r => r.Route),

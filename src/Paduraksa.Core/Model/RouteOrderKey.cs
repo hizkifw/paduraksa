@@ -8,8 +8,8 @@ namespace Paduraksa.Core.Model;
 /// A host sorts its routes by this key once, when the config is compiled, so matching stays a plain scan and the
 /// list order never decides between routes with different paths. Exact routes come first: only one can match a path,
 /// but it must beat a prefix that also does. Among prefixes, path length is specificity: route paths are canonical and
-/// prefixes are segment-aware, so <c>/api</c> takes <c>/api</c> and <c>/api/x</c>, never <c>/apix</c>, and a longer
-/// prefix always names a narrower set of requests. <see cref="Order"/> used to decide outright (first match won); it
+/// prefixes are segment-aware, so <c>/api</c> takes <c>/api</c> and <c>/api/x</c>, never <c>/apix</c>: when two prefixes
+/// can both take a request, the shorter is a segment-ancestor of the longer, so the longer names the narrower set. <see cref="Order"/> used to decide outright (first match won); it
 /// now only breaks a tie, which is what stops a catch-all listed first from silently shadowing every route after it.
 /// </remarks>
 /// <param name="Match">Exact routes come before prefix routes.</param>
@@ -24,11 +24,13 @@ public readonly record struct RouteOrderKey(RouteMatchKind Match, int PathLength
 
     public int CompareTo(RouteOrderKey other)
     {
-        if (Match != other.Match)
+        var byKind = Rank(Match).CompareTo(Rank(other.Match));
+        if (byKind != 0)
         {
-            return Match == RouteMatchKind.Exact ? -1 : 1;
+            return byKind;
         }
 
+        // Length only ranks prefixes: two exact routes that can take one request have the same path.
         if (Match == RouteMatchKind.Prefix)
         {
             var byLength = other.PathLength.CompareTo(PathLength);
@@ -41,6 +43,14 @@ public readonly record struct RouteOrderKey(RouteMatchKind Match, int PathLength
         var byOrder = Order.CompareTo(other.Order);
         return byOrder != 0 ? byOrder : Listed.CompareTo(other.Listed);
     }
+
+    // An explicit rank keeps the order total if a match kind is ever added.
+    private static int Rank(RouteMatchKind match) => match switch
+    {
+        RouteMatchKind.Exact => 0,
+        RouteMatchKind.Prefix => 1,
+        _ => throw new ArgumentOutOfRangeException(nameof(match), match, "A route match kind without a place in the route order."),
+    };
 
     public static bool operator <(RouteOrderKey left, RouteOrderKey right) => left.CompareTo(right) < 0;
 
