@@ -152,6 +152,8 @@ public sealed class GateMiddlewareTests : IDisposable
 
         Assert.Equal(GateAction.Respond, denied.Action);
         Assert.Equal(451, denied.Response!.StatusCode);
+        // A custom deny body is the operator's text, not the built-in page.
+        Assert.Null(denied.Response.HtmlPage);
         Assert.Equal(GateAction.Abort, dropped.Action);
     }
 
@@ -185,6 +187,7 @@ public sealed class GateMiddlewareTests : IDisposable
 
         Assert.Equal(GateAction.Respond, blocked.Action);
         Assert.Equal(403, blocked.Response!.StatusCode);
+        Assert.NotNull(blocked.Response.HtmlPage);
     }
 
     [Theory]

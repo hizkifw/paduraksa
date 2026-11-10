@@ -35,6 +35,7 @@ public sealed class RateLimitPolicyTests
         Assert.Equal(GateAction.Respond, limited.Action);
         Assert.Equal(StatusCodes.Status429TooManyRequests, limited.Response!.StatusCode);
         Assert.Equal("1", limited.RetryAfter);
+        Assert.NotNull(limited.Response.HtmlPage);
         Assert.Equal(2, runtime.Stats.Allowed);
         Assert.Equal(1, runtime.Stats.Limited);
     }

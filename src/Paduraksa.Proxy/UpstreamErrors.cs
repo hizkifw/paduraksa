@@ -24,13 +24,15 @@ namespace Paduraksa.Proxy;
 internal static class UpstreamErrors
 {
     /// <summary>
-    /// Writes the page for YARP's status when the response hasn't started. A status without a built-in page, or a
-    /// response that already started (a body error), keeps YARP's own answer.
+    /// Writes the page for YARP's status when the response hasn't started and the client is still waiting. A status
+    /// without a built-in page, a response that already started (a body error), or an aborted request keeps YARP's own
+    /// answer.
     /// </summary>
     public static Task WriteAsync(HttpContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.Response.HasStarted || ErrorPages.Upstream(context.Response.StatusCode) is not { } response)
+        if (context.Response.HasStarted || context.RequestAborted.IsCancellationRequested
+            || ErrorPages.Upstream(context.Response.StatusCode) is not { } response)
         {
             return Task.CompletedTask;
         }
