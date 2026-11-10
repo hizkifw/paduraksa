@@ -72,7 +72,8 @@ public static partial class SnapshotCompiler
         },
         HttpRequest = new ForwarderRequestConfig
         {
-            Version = HttpVersion.Version11, VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            Version = HttpVersion.Version11,
+            VersionPolicy = HttpVersionPolicy.RequestVersionExact,
         },
     };
 

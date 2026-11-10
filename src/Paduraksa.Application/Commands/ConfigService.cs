@@ -305,7 +305,7 @@ public sealed partial class ConfigService : IDisposable
             var restoring = command is RollbackConfigCommand ||
                             (command is ReplaceConfigCommand && origin.Actor.Kind == ActorKind.System);
             if (!restoring && IntroducedUnusableBindings(current, candidate, compilation.Warnings) is
-                    { Count: > 0 } unusable)
+                { Count: > 0 } unusable)
             {
                 var invalid = Invalid(plan, candidate, candidate, unusable, changes);
                 return await RejectAsync(command, origin, audited, invalid, AuditOutcome.Invalid).ConfigureAwait(false);
