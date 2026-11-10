@@ -52,7 +52,7 @@ def load(raw: Path, name: str):
     bad = sum(n for code, n in statuses.items() if not code.startswith("2"))
     errors = sum(n for kind, n in data.get("errorDistribution", {}).items() if kind != "aborted due to deadline")
     seconds = data["summary"]["total"]
-    pct = data["latencyPercentiles"]
+    pct = data.get("latencyPercentiles") or {}
     result = {
         "requests": ok + bad,
         "seconds": seconds,
@@ -316,7 +316,8 @@ def main() -> None:
             results = rate_runs[(scenario, rate, proxy)]
 
             def med(field):
-                return statistics.median(r[field] for r in results)
+                values = [r[field] for r in results if r[field] is not None]
+                return statistics.median(values) if values else None
 
             p99 = ms(med("p99"))
             if len(results) > 1:

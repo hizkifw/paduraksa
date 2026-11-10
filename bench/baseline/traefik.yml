@@ -7,9 +7,9 @@ global:
 
 entryPoints:
   web:
-    address: ":18085"
+    address: "127.0.0.1:18085"
   websecure:
-    address: ":18447"
+    address: "127.0.0.1:18447"
     http:
       tls: {}
 

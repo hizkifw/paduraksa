@@ -5,7 +5,7 @@ Usage:
     python3 -I bench/history.py report
 
 `append` adds the run's summary.json as one line to bench/results/history.jsonl. It refuses a dirty run (unless
---allow-dirty) and a run from a different machine than the previous entries (unless --new-machine). `report` reads the
+--allow-dirty) and a run from a different machine than the last entry (unless --new-machine). `report` reads the
 history and writes bench/RESULTS.md: the latest run's tables, Paduraksa's trend per commit, and the change since the
 previous entry, flagging a >10% throughput loss or a >25% fixed-rate p99 increase as a possible regression.
 """
@@ -166,7 +166,8 @@ def delta_table(lines: list[str], latest: dict, previous: dict | None) -> None:
         lines.append("")
         return
 
-    if machine_of(latest) != machine_of(previous):
+    same_machine = machine_of(latest) == machine_of(previous)
+    if not same_machine:
         lines.append("The two runs are from different machines, so this comparison is informational only.")
         lines.append("")
 
@@ -183,7 +184,7 @@ def delta_table(lines: list[str], latest: dict, previous: dict | None) -> None:
         old_fixed = previous_results.get(("paduraksa", scenario, None))
         if fixed and old_fixed and old_fixed.get("rps"):
             change = (fixed["rps"] / old_fixed["rps"] - 1) * 100
-            note = "**possible regression**" if change < -10 else ""
+            note = "**possible regression**" if same_machine and change < -10 else ""
             lines.append(f"| {scenario} | {MISSING} | req/s | {fmt(old_fixed['rps'])} | {fmt(fixed['rps'])} "
                          f"| {pct(change)} | {note} |")
             seen = True
@@ -194,7 +195,7 @@ def delta_table(lines: list[str], latest: dict, previous: dict | None) -> None:
             if not fixed or not old_fixed or not old_fixed.get("p99_ms") or not fixed.get("p99_ms"):
                 continue
             change = (fixed["p99_ms"] / old_fixed["p99_ms"] - 1) * 100
-            note = "**possible regression**" if change > 25 else ""
+            note = "**possible regression**" if same_machine and change > 25 else ""
             lines.append(f"| {scenario} | {rate:,} | p99 ms | {fmt(old_fixed['p99_ms'], 2)} "
                          f"| {fmt(fixed['p99_ms'], 2)} | {pct(change)} | {note} |")
             seen = True

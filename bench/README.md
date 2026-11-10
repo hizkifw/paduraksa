@@ -279,7 +279,10 @@ p99 as a possible regression.
   little more than this scenario.
 - **Different defaults.**
   - Caddy adds a `Via` header.
-  - nginx buffers responses; Envoy, HAProxy and Traefik stream them.
+  - Traefik also adds `X-Forwarded-Port` and `X-Real-Ip`, and Envoy generates an `x-request-id` (a UUID) per request,
+    all by default.
+  - nginx buffers responses; Envoy, HAProxy and Traefik stream them. For `body-64k` that includes nginx's default
+    proxy buffers (8 x 4 KiB), so a body the client side can't keep up with spills to a temp file.
   - Paduraksa forwards the raw path and runs its gate (host lookup, route match, policies) on every request.
   - Paduraksa's `answered` path writes `Cache-Control: no-store` (precomputed); nginx, Caddy, HAProxy and Envoy don't.
   - HAProxy and Envoy answer `respond.test` from a built-in static response; Traefik has none and skips `answered`.

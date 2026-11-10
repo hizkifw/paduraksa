@@ -127,7 +127,8 @@ cleanup() {
     exit "$status"
 }
 trap cleanup EXIT
-trap 'exit 130' INT TERM
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 log() { printf '\n== %s\n' "$*" >&2; }
 
@@ -220,6 +221,14 @@ preflight() {
             echo "unknown proxy '$proxy' (known: paduraksa nginx caddy haproxy traefik envoy yarp)" >&2
             return 1
         fi
+    done
+
+    for scenario in $SCENARIOS; do
+        case "$scenario" in
+            h1|h1-tls|h2-tls|browser|body-64k|handshake|answered|cf) ;;
+            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k handshake answered cf)" >&2
+               return 1 ;;
+        esac
     done
 
     check_cpu_set PROXY_CPUS "$PROXY_CPUS"
@@ -359,6 +368,8 @@ oha() {
         output=(--output-format json -o "/out/$name.json")
     fi
     if [[ -n "$OHA_DB_DIR" ]]; then
+        # Docker would create a missing bind source root-owned, and oha runs as this user.
+        mkdir -p "$OHA_DB_DIR"
         mounts+=(-v "$OHA_DB_DIR:/db")
     fi
     docker run --rm --name "$PREFIX-oha" --network host --cpuset-cpus "$LOAD_CPUS" --user "$(id -u):$(id -g)" \
@@ -550,7 +561,7 @@ start_nginx() {
 }
 
 start_caddy() {
-    start_container caddy -v "$CONF/Caddyfile:/etc/caddy/Caddyfile:ro" "$CADDY_IMAGE"
+    start_container caddy -e GOMAXPROCS=4 -v "$CONF/Caddyfile:/etc/caddy/Caddyfile:ro" "$CADDY_IMAGE"
     wait_ready bench.test "$(ports_for caddy | cut -d' ' -f1)"
 }
 
