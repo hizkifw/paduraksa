@@ -5,6 +5,7 @@
 #   PROFILE=quick bench/run-baseline.sh                      # short harness iteration, never recorded
 #   bench/run-baseline.sh                                    # full profile, all proxies and scenarios
 #   PROXIES=paduraksa SCENARIOS=h1 RATES=30000 bench/run-baseline.sh
+#   PROXIES=paduraksa SCENARIOS="access-log rate-limit rate-limited browser-check error-page" bench/run-baseline.sh
 #   RATES="" bench/run-baseline.sh                           # no fixed-rate runs
 #   REPEATS=3 RATE_DURATION=30s RATES=30000 bench/run-baseline.sh
 #   RECORD=1 bench/run-baseline.sh                           # append to the history and regenerate RESULTS.md
@@ -78,8 +79,9 @@ RATES=${RATES-$profile_rates}
 RATE_DURATION=${RATE_DURATION:-$DURATION}
 RATE_WARMUP=${RATE_WARMUP:-$WARMUP}
 REPEATS=${REPEATS:-$profile_repeats}
-# `cf` is Paduraksa only: a second runner process with loopback as a trusted Cloudflare Tunnel.
-SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k handshake answered cf}
+# `cf` is Paduraksa only: a second runner process with loopback as a trusted Cloudflare Tunnel. The five scenarios
+# between `answered` and `cf` run only on Paduraksa too: they use extra hosts in the one runner process.
+SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k handshake answered access-log rate-limit rate-limited browser-check error-page cf}
 PROXIES=${PROXIES:-paduraksa nginx caddy haproxy traefik envoy yarp}
 # Set to a directory to also keep oha's per-request SQLite database for every fixed-rate run (large; not committed).
 OHA_DB_DIR=${OHA_DB_DIR:-}
@@ -109,6 +111,8 @@ PREFIX=paduraksa-bench
 WORK=$(mktemp -d)
 RUNNER_PID=""
 YARP_PID=""
+# The solved proof-of-work cookie the browser-check scenario sends; set by start_paduraksa from the runner's output.
+POW_COOKIE=""
 
 cleanup() {
     local status=$? pid
@@ -225,8 +229,8 @@ preflight() {
 
     for scenario in $SCENARIOS; do
         case "$scenario" in
-            h1|h1-tls|h2-tls|browser|body-64k|handshake|answered|cf) ;;
-            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k handshake answered cf)" >&2
+            h1|h1-tls|h2-tls|browser|body-64k|handshake|answered|access-log|rate-limit|rate-limited|browser-check|error-page|cf) ;;
+            *) echo "unknown scenario '$scenario' (known: h1 h1-tls h2-tls browser body-64k handshake answered access-log rate-limit rate-limited browser-check error-page cf)" >&2
                return 1 ;;
         esac
     done
@@ -287,6 +291,11 @@ estimate_seconds() {
         if wants body-64k; then total=$((total + base)); calls=$((calls + 2)); fi
         if wants handshake; then total=$((total + base)); calls=$((calls + 2)); fi
         if answers_locally "$proxy" && wants answered; then total=$((total + base)); calls=$((calls + 2)); fi
+        if [[ "$proxy" == paduraksa ]]; then
+            for scenario in access-log rate-limit rate-limited browser-check error-page; do
+                if wants "$scenario"; then total=$((total + base)); calls=$((calls + 2)); fi
+            done
+        fi
         if [[ "$proxy" == paduraksa ]] && wants cf; then
             total=$((total + $(duration_seconds "$PROXY_WARMUP") + duration))
             calls=$((calls + 2))
@@ -338,6 +347,39 @@ wait_ready() {
     return 1
 }
 
+# The hosts the Paduraksa-only scenarios use; the runner serves them from the same process. Every check makes its
+# scenario's own point, so a wrong config fails here instead of producing a plausible-looking number.
+check_paduraksa_hosts() {
+    local http=$1 body code
+    if wants access-log; then
+        body=$(curl -sf -H "Host: access-log.test" "http://127.0.0.1:$http/")
+        [[ "$body" == "upstream ok" ]] || { echo "access-log.test: unexpected body '$body'" >&2; return 1; }
+    fi
+    if wants rate-limit; then
+        body=$(curl -sf -H "Host: rate-limit.test" "http://127.0.0.1:$http/")
+        [[ "$body" == "upstream ok" ]] || { echo "rate-limit.test: unexpected body '$body'" >&2; return 1; }
+    fi
+    if wants rate-limited; then
+        # The burst is one token: the first request spends it and the second must be the 429 the scenario measures.
+        code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: rate-limited.test" "http://127.0.0.1:$http/")
+        [[ "$code" == "200" ]] || { echo "rate-limited.test: the first request was $code, not 200" >&2; return 1; }
+        code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: rate-limited.test" "http://127.0.0.1:$http/")
+        [[ "$code" == "429" ]] || { echo "rate-limited.test: the second request was $code, not 429" >&2; return 1; }
+    fi
+    if wants browser-check; then
+        body=$(curl -sf -H "Host: browser-check.test" -H "Accept: text/html" "http://127.0.0.1:$http/")
+        [[ "$body" == *'name="challenge"'* ]] \
+            || { echo "browser-check.test: no challenge input without a cookie" >&2; return 1; }
+        body=$(curl -sf -H "Host: browser-check.test" -H "Accept: text/html" -H "Cookie: $POW_COOKIE" "http://127.0.0.1:$http/")
+        [[ "$body" == "upstream ok" ]] \
+            || { echo "browser-check.test: the solved cookie didn't forward (body '$body')" >&2; return 1; }
+    fi
+    if wants error-page; then
+        code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: error-page.test" -H "Accept: text/html" "http://127.0.0.1:$http/")
+        [[ "$code" == "502" ]] || { echo "error-page.test: the closed upstream answered $code, not 502" >&2; return 1; }
+    fi
+}
+
 # Checks that a proxy forwards, answers (when it can), speaks H2 over TLS, and serves the fixed 64 KiB body; records
 # the TLS parameters.
 check_proxy() {
@@ -351,6 +393,9 @@ check_proxy() {
     if wants body-64k; then
         size=$(curl -sf -H "Host: bench.test" "http://127.0.0.1:$http/64k" | wc -c)
         ((size == 65536)) || { echo "expected a 64 KiB body, got $size bytes" >&2; return 1; }
+    fi
+    if [[ "$proxy" == paduraksa ]]; then
+        check_paduraksa_hosts "$http"
     fi
     version=$(curl -sfk --http2 -o /dev/null -w '%{http_version}' --resolve "bench.test:$https:127.0.0.1" "https://bench.test:$https/")
     [[ "$version" == "2" ]] || { echo "HTTPS did not negotiate H2 ($version)" >&2; return 1; }
@@ -488,6 +533,54 @@ run_scenarios() {
         oha "" -z "$WARMUP" "${answered[@]}" "$answered_url"
         measure "$proxy" "$proxy.answered" -z "$DURATION" "${answered[@]}" "$answered_url"
     fi
+
+    # These five use extra hosts in the one Paduraksa runner, so only Paduraksa runs them.
+    if [[ "$proxy" == paduraksa ]]; then
+        if wants access-log; then
+            log "$proxy: access-log (plain HTTP/1.1, access log on, c=$CONNS)"
+            local access_url="http://access-log.test:$http/"
+            local access=(--connect-to "access-log.test:$http:127.0.0.1:$http" -c "$CONNS")
+            oha "" -z "$WARMUP" "${access[@]}" "$access_url"
+            measure "$proxy" "$proxy.access-log" -z "$DURATION" "${access[@]}" "$access_url"
+        fi
+
+        if wants rate-limit; then
+            log "$proxy: rate-limit (plain HTTP/1.1, one hot bucket well inside its budget, c=$CONNS)"
+            local rate_url="http://rate-limit.test:$http/"
+            local rate=(--connect-to "rate-limit.test:$http:127.0.0.1:$http" -c "$CONNS")
+            oha "" -z "$WARMUP" "${rate[@]}" "$rate_url"
+            measure "$proxy" "$proxy.rate-limit" -z "$DURATION" "${rate[@]}" "$rate_url"
+        fi
+
+        if wants rate-limited; then
+            log "$proxy: rate-limited (plain HTTP/1.1, every request refused with 429, c=$CONNS)"
+            local limited_url="http://rate-limited.test:$http/"
+            local limited=(--connect-to "rate-limited.test:$http:127.0.0.1:$http" -c "$CONNS")
+            oha "" -z "$WARMUP" "${limited[@]}" "$limited_url"
+            measure "$proxy" "$proxy.rate-limited" -z "$DURATION" "${limited[@]}" "$limited_url"
+        fi
+
+        if wants browser-check; then
+            log "$proxy: browser-check (plain HTTP/1.1 with a solved PoW cookie, c=$CONNS)"
+            if [[ -z "$POW_COOKIE" ]]; then
+                echo "browser-check needs the runner's POW_COOKIE line" >&2
+                return 1
+            fi
+            local pow_url="http://browser-check.test:$http/"
+            local pow=(--connect-to "browser-check.test:$http:127.0.0.1:$http" -c "$CONNS"
+                -H "Cookie: $POW_COOKIE" -H 'Accept: text/html')
+            oha "" -z "$WARMUP" "${pow[@]}" "$pow_url"
+            measure "$proxy" "$proxy.browser-check" -z "$DURATION" "${pow[@]}" "$pow_url"
+        fi
+
+        if wants error-page; then
+            log "$proxy: error-page (plain HTTP/1.1, a closed upstream, the built-in 502 page, c=$CONNS)"
+            local error_url="http://error-page.test:$http/"
+            local error=(--connect-to "error-page.test:$http:127.0.0.1:$http" -c "$CONNS" -H 'Accept: text/html')
+            oha "" -z "$WARMUP" "${error[@]}" "$error_url"
+            measure "$proxy" "$proxy.error-page" -z "$DURATION" "${error[@]}" "$error_url"
+        fi
+    fi
 }
 
 # $1 = log name (default paduraksa), rest = extra runner arguments.
@@ -496,6 +589,7 @@ start_paduraksa() {
     local http https
     RUNNER_LOG=${1:-paduraksa}
     shift || true
+    POW_COOKIE=""
     read -r http https < <(ports_for paduraksa)
     # DOTNET_* GC settings in the environment (DOTNET_GCDynamicAdaptationMode, DOTNET_GCHeapCount, ...) pass through.
     taskset -c "$PROXY_CPUS" dotnet "$ROOT/bench/Paduraksa.Bench.Runner/bin/Release/net10.0/Paduraksa.Bench.Runner.dll" \
@@ -503,6 +597,32 @@ start_paduraksa() {
         >"$WORK/$RUNNER_LOG.log" 2>&1 &
     RUNNER_PID=$!
     wait_ready bench.test "$http"
+    if wants browser-check; then
+        read_pow_cookie
+    fi
+}
+
+# The runner solves one challenge at startup and prints it before READY; the log is already written by the time
+# wait_ready returns, but poll briefly in case the two writes land out of order.
+read_pow_cookie() {
+    local i line
+    for i in $(seq 1 40); do
+        line=$(grep -m1 '^POW_COOKIE=' "$WORK/$RUNNER_LOG.log" || true)
+        if [[ -n "$line" ]]; then
+            POW_COOKIE=${line#POW_COOKIE=}
+            if [[ "$POW_COOKIE" != paduraksa_pow=* ]]; then
+                echo "the runner's POW_COOKIE line holds no paduraksa_pow cookie: '$line'" >&2
+                return 1
+            fi
+            return 0
+        fi
+        if ! kill -0 "$RUNNER_PID" 2>/dev/null; then
+            break
+        fi
+        sleep 0.25
+    done
+    echo "the runner printed no POW_COOKIE line; browser-check can't run without it" >&2
+    return 1
 }
 
 stop_paduraksa() {
@@ -510,7 +630,9 @@ stop_paduraksa() {
     wait "$RUNNER_PID" || true
     RUNNER_PID=""
     cp "$WORK/$RUNNER_LOG.log" "$OUT/$RUNNER_LOG.log"
-    grep -v '^METRICS ' "$WORK/$RUNNER_LOG.log" >&2 || true
+    # The first lines are the startup, which is what a failed run needs; the error-page scenario also logs a YARP
+    # warning per failed forward, and printing all of those would flood the terminal (they stay in the copied log).
+    grep -v '^METRICS ' "$WORK/$RUNNER_LOG.log" | head -n 60 >&2 || true
 }
 
 start_yarp() {
@@ -621,7 +743,7 @@ record_environment() {
         echo "yarp: Yarp.ReverseProxy $(sed -n 's/.*"Yarp.ReverseProxy" Version="\([^"]*\)".*/\1/p' "$ROOT/Directory.Packages.props")"
         echo "oha: $OHA_IMAGE ($(docker run --rm "$OHA_IMAGE" --version))"
         echo "cpu sets: proxy=$PROXY_CPUS upstream=$UPSTREAM_CPUS load=$LOAD_CPUS (oha worker threads: $LOAD_THREADS)"
-        echo "runs: $DURATION (warm-up: $PROXY_WARMUP per proxy, $WARMUP per scenario), c=$CONNS (h1/body-64k), ${H2_CONNS}x$H2_STREAMS (h2), c=$HANDSHAKE_CONNS (handshake)"
+        echo "runs: $DURATION (warm-up: $PROXY_WARMUP per proxy, $WARMUP per scenario), c=$CONNS (h1, body-64k and the Paduraksa-only paths), ${H2_CONNS}x$H2_STREAMS (h2), c=$HANDSHAKE_CONNS (handshake)"
         echo "fixed rates: ${RATES:-none} (${REPEATS}x $RATE_DURATION each, $RATE_WARMUP warm-up per rate)"
         echo "scenarios: $SCENARIOS; proxies: $PROXIES"
     } >"$OUT/env.txt"

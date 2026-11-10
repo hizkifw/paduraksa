@@ -31,15 +31,32 @@ SCENARIOS = [
     ("body-64k", "HTTP/1.1 plain, 64 KiB body, proxied"),
     ("handshake", "HTTPS HTTP/1.1, new connection per request (TLS handshake), proxied"),
     ("answered", "HTTP/1.1 plain, answered by the proxy"),
+    ("access-log", "HTTP/1.1 plain, access log on, proxied"),
+    ("rate-limit", "HTTP/1.1 plain, rate-limit take, proxied (no 429s expected)"),
+    ("rate-limited", "HTTP/1.1 plain, every request refused (429)"),
+    ("browser-check", "HTTP/1.1 plain, valid proof-of-work cookie, proxied"),
+    ("error-page", "HTTP/1.1 plain, closed upstream, the built-in 502 page"),
     ("cf", "HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers"),
 ]
 LABELS = dict(SCENARIOS)
 # A proxy that has no built-in static response can't run `answered`; it's a declared skip, not missing data.
 UNAVAILABLE = {("traefik", "answered")}
+# These two measure what the proxy answers when it doesn't answer 2xx: the refusal and the failure path. Their
+# throughput is every response, 429s and 502s included, so that the table says how much abuse or failure the proxy
+# absorbed instead of printing zero.
+ALL_STATUSES = {"rate-limited", "error-page"}
+# The Paduraksa-only paths are always listed in the status breakdown, even when every answer is 200: "no 429s" is
+# the rate-limit scenario's result, not a missing row.
+STATUS_SCENARIOS = {"access-log", "rate-limit", "rate-limited", "browser-check", "error-page"}
 RATE_RUN = re.compile(r"^(?P<proxy>[a-z]+)\.(?P<scenario>[a-z0-9-]+)\.q(?P<rate>\d+)\.r(?P<repeat>\d+)$")
 METRICS = re.compile(r"^METRICS (.*)$")
 
 MISSING = "-"
+
+
+def throughput(scenario: str, result) -> float:
+    """Requests per second for this scenario: every response for the non-2xx scenarios, else the successful ones."""
+    return result["all_rps"] if scenario in ALL_STATUSES else result["rps"]
 
 
 def load(raw: Path, name: str):
@@ -57,6 +74,8 @@ def load(raw: Path, name: str):
         "requests": ok + bad,
         "seconds": seconds,
         "rps": ok / seconds if seconds else 0.0,
+        "all_rps": (ok + bad) / seconds if seconds else 0.0,
+        "statuses": {int(code): n for code, n in statuses.items()},
         "p50": pct.get("p50"),
         "p90": pct.get("p90"),
         "p95": pct.get("p95"),
@@ -189,7 +208,8 @@ def summary_json(out: Path, proxies, runs, rate_runs) -> dict:
                 "proxy": proxy,
                 "scenario": scenario,
                 "rate": None,
-                "rps": round(result["rps"], 4),
+                "rps": round(throughput(scenario, result), 4),
+                "statuses": {str(code): n for code, n in sorted(result["statuses"].items())},
                 "p50_ms": None if result["p50"] is None else round(result["p50"] * 1000, 4),
                 "p99_ms": None if result["p99"] is None else round(result["p99"] * 1000, 4),
                 "p999_ms": None if result["p999"] is None else round(result["p999"] * 1000, 4),
@@ -254,16 +274,22 @@ def main() -> None:
              + "".join(f" | Paduraksa ÷ {NAMES[p]}" for p in ratios) + " |")
         emit("|---|" + "---:|" * (len(proxies) + len(ratios)))
         for key, label in scenarios:
-            cells = [num(runs[(p, key)]["rps"]) if runs[(p, key)] else MISSING for p in proxies]
+            cells = [num(throughput(key, runs[(p, key)])) if runs[(p, key)] else MISSING for p in proxies]
             for other in ratios:
                 mine, theirs = runs[("paduraksa", key)], runs[(other, key)]
-                cells.append(f"{mine['rps'] / theirs['rps']:.2f}"
-                             if mine and theirs and theirs["rps"] else MISSING)
+                cells.append(f"{throughput(key, mine) / throughput(key, theirs):.2f}"
+                             if mine and theirs and throughput(key, theirs) else MISSING)
             emit(f"| {label} | " + " | ".join(cells) + " |")
         upstream = load(raw, "upstream.h1")
         if upstream is not None:
             emit("")
             emit(f"Upstream alone (HTTP/1.1, same concurrency): {num(upstream['rps'])} requests/s.")
+        measured = [key for key, _ in scenarios if key in ALL_STATUSES]
+        if measured:
+            emit("")
+            emit("For " + " and ".join(f"`{key}`" for key in measured)
+                 + ", the number is every response, 429s or 502s included: those scenarios measure what the proxy")
+            emit("answers when it refuses or fails, so counting only 2xx would report zero.")
 
         emit("")
         emit("### Proxy CPU per request (µs of user + system CPU; in brackets, CPUs busy on average out of 4)")
@@ -289,11 +315,43 @@ def main() -> None:
             for p in proxies:
                 r = runs[(p, key)]
                 if r is not None:
-                    emit(f"| {label} | {NAMES[p]} | {num(r['rps'])} | {ms(r['p50'])} | {ms(r['p90'])} | {ms(r['p99'])} "
+                    emit(f"| {label} | {NAMES[p]} | {num(throughput(key, r))} | {ms(r['p50'])} | {ms(r['p90'])} | {ms(r['p99'])} "
                          f"| {ms(r['p999'])} | {r['failed']} |")
                 elif (p, key) in UNAVAILABLE:
                     emit(f"| {label} | {NAMES[p]} | {MISSING} | {MISSING} | {MISSING} | {MISSING} "
                          f"| {MISSING} | {MISSING} |")
+
+        status_rows = []
+        codes = set()
+        for key, label in scenarios:
+            for p in proxies:
+                r = runs[(p, key)]
+                if r is None or (key not in STATUS_SCENARIOS and all(code == 200 for code in r["statuses"])):
+                    continue
+                status_rows.append((key, label, p, r))
+                codes.update(r["statuses"])
+        if status_rows:
+            emit("")
+            emit("### Response status codes at fixed concurrency")
+            emit("")
+            emit("A pair is listed when it isn't all 200, and the Paduraksa-only paths are listed even when they are.")
+            emit("")
+            order = sorted(codes)
+            emit("| Scenario | Proxy | " + " | ".join(str(code) for code in order) + " |")
+            emit("|---|---|" + "---:|" * len(order))
+            for key, label, p, r in status_rows:
+                cells = [f"{r['statuses'].get(code, 0):,}" for code in order]
+                emit(f"| {label} | {NAMES[p]} | " + " | ".join(cells) + " |")
+            limit = runs.get(("paduraksa", "rate-limit"))
+            if limit is not None:
+                refused = limit["statuses"].get(429, 0)
+                emit("")
+                if refused:
+                    emit(f"`rate-limit` answered {refused:,} 429s: the policy's rate or burst is below the load, so it no")
+                    emit("longer measures the token take alone.")
+                else:
+                    emit("`rate-limit` answered no 429s: the policy stayed inside its budget, so the run measures the")
+                    emit("token take on one hot bucket, as intended.")
 
     rate_runs = {}
     for path in sorted(raw.glob("*.json")):

@@ -4,23 +4,34 @@
 //       --upstream http://127.0.0.1:18080 [--http 18081] [--https 18443] [--admin 18943] [--cloudflare-tunnel true]
 //
 // Hosts:
-//   bench.test    proxy host, one catch-all route to --upstream (YARP)
-//   respond.test  Respond host: the gate answers 200 "ok\n" itself
+//   bench.test          proxy host, one catch-all route to --upstream (YARP)
+//   respond.test        Respond host: the gate answers 200 "ok\n" itself
+//   access-log.test     like bench.test, with the access log on (the production default; the others turn it off)
+//   rate-limit.test     like bench.test, under a policy whose rate and burst are far above the load (no 429s)
+//   rate-limited.test   like bench.test, under 1 request per hour with a burst of 1: every request is refused
+//   browser-check.test  like bench.test, behind the proof-of-work gate at 8 bits
+//   error-page.test     like bench.test, but its upstream is a closed loopback port, so forwarding fails
 //
 // Configuration and logging are production's: the shipped appsettings.json (copied from Paduraksa.Server) plus the
 // listener ports, a throwaway data directory (deleted on exit) and HTTP/3 off (the scenarios are TCP only; an H3
 // listener would also add Alt-Svc to every response). The config goes in as one command once the host has started
 // (revision #1 of the fresh database), like any admin change, and is live before READY is printed.
-// HTTPS goes through the per-SNI certificate table: both hosts name the placeholder certificate (self-signed, in
-// memory) as their own, so the handshake takes the exact-name path with the default TLS policy, as a configured host
+// HTTPS goes through the per-SNI certificate table: every host names the placeholder certificate (self-signed, in
+// memory) as its own, so the handshake takes the exact-name path with the default TLS policy, as a configured host
 // would. The placeholder is enabled explicitly (Paduraksa:Development:PlaceholderCertificate), as a release build needs.
+//
+// The new hosts share the one process on purpose: a single runner serves every scenario, so nothing restarts between
+// them and each scenario's numbers keep the same warm process the h1 baseline had.
 //
 // Trusted proxies are off (production's default) unless --cloudflare-tunnel true: then loopback is cloudflared, so
 // CF-Connecting-IP and CF-Visitor from oha are honoured (the `cf` scenario). Tunnel mode exercises the same
 // resolver path as Cloudflare proxy mode; the edge ranges of proxy mode can't be injected from the runner.
 //
-// Output (stdout): "READY ..." once every listener is bound, then one METRICS line per second (see RuntimeSampler).
-// Stops gracefully on SIGINT/SIGTERM.
+// The browser-check host's difficulty is 8 bits, so the runner can solve one challenge itself at startup and print the
+// cookie as a POW_COOKIE= line. A solve failure exits non-zero instead of letting the harness measure 403s.
+//
+// Output (stdout): "POW_COOKIE=..." once the config is live, then "READY ..." once every listener is bound, then one
+// METRICS line per second (see RuntimeSampler). Stops gracefully on SIGINT/SIGTERM.
 using System.Globalization;
 using System.Runtime;
 using System.Runtime.InteropServices;
@@ -35,6 +46,10 @@ using Paduraksa.Core.Model;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Server.Placeholders;
 
+// The closed port the error-page host forwards to. It is inside the harness's own port block and nothing binds it.
+const int ClosedUpstreamPort = 18079;
+const int BrowserCheckDifficulty = 8;
+
 var options = ParseArgs(args);
 if (!options.TryGetValue("upstream", out var upstream) || !Uri.TryCreate(upstream, UriKind.Absolute, out _))
 {
@@ -42,22 +57,64 @@ if (!options.TryGetValue("upstream", out var upstream) || !Uri.TryCreate(upstrea
     return 2;
 }
 
-var upstreamId = UpstreamId.New();
+var benchUpstreamId = UpstreamId.New();
+var errorUpstreamId = UpstreamId.New();
+var allowedPolicyId = RateLimitPolicyId.New();
+var refusedPolicyId = RateLimitPolicyId.New();
 CertificateBinding placeholderCertificate = new() { Mode = CertificateBindingMode.Specific, CertificateId = PlaceholderCertificates.Id };
 ConfigDocument document = new(
     Settings: new GlobalSettings(
         // Access logs off, like every other proxy under test: the default is on, and logging every request would put
         // the writer's work into Paduraksa's measurement and into the host it shares with the benchmark's other work.
+        // The access-log host turns it back on, which is what that scenario measures.
         Defaults: new HostSettings { AccessLog = false },
         TrustedProxies: Get("cloudflare-tunnel", "false") == "true"
             ? new TrustedProxySettings(TrustedProxyMode.CloudflareTunnel, ["127.0.0.1", "::1"])
             : new TrustedProxySettings()),
-    Upstreams: [new UpstreamConfig(upstreamId, "bench", Destinations: [new DestinationConfig(DestinationId.New(), upstream)])],
+    Upstreams:
+    [
+        new UpstreamConfig(benchUpstreamId, "bench", Destinations: [new DestinationConfig(DestinationId.New(), upstream)]),
+        // Nothing listens here, so every forward is a refused loopback connect: that is the error-page scenario.
+        new UpstreamConfig(errorUpstreamId, "closed", Destinations: [new DestinationConfig(DestinationId.New(), $"http://127.0.0.1:{ClosedUpstreamPort}")]),
+    ],
+    RateLimitPolicies:
+    [
+        // Far more tokens than a run can spend, and one client IP: the bucket is a single hot, contended key, and the
+        // measurement is the CAS take itself rather than a refusal.
+        new RateLimitPolicyConfig(
+            allowedPolicyId, "bench-allowed", Requests: 1_000_000, Per: RateLimitPeriod.Second, Burst: 1_048_575, Key: RateLimitKey.ClientIp),
+        // One token an hour with a burst of one. The pre-run probe spends it (the warm-up would too), so the
+        // measured run is all 429s.
+        new RateLimitPolicyConfig(refusedPolicyId, "bench-refused", Requests: 1, Per: RateLimitPeriod.Hour, Burst: 1, Key: RateLimitKey.ClientIp),
+    ],
     Hosts:
     [
-        new HostConfig(HostId.New(), ["bench.test"], Certificate: placeholderCertificate, Routes: [new RouteConfig(RouteId.New(), upstreamId)]),
+        new HostConfig(HostId.New(), ["bench.test"], Certificate: placeholderCertificate, Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
         new HostConfig(
             HostId.New(), ["respond.test"], Kind: HostKind.Respond, Certificate: placeholderCertificate, Respond: new RespondConfig(200, "ok\n")),
+        new HostConfig(
+            HostId.New(), ["access-log.test"], Certificate: placeholderCertificate,
+            Settings: new HostSettings { AccessLog = true },
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
+        new HostConfig(
+            HostId.New(), ["rate-limit.test"], Certificate: placeholderCertificate,
+            Settings: new HostSettings { RateLimit = new RateLimitSettings { PolicyId = allowedPolicyId } },
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
+        new HostConfig(
+            HostId.New(), ["rate-limited.test"], Certificate: placeholderCertificate,
+            Settings: new HostSettings { RateLimit = new RateLimitSettings { PolicyId = refusedPolicyId } },
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
+        new HostConfig(
+            HostId.New(), ["browser-check.test"], Certificate: placeholderCertificate,
+            // Eight bits is the lowest difficulty the config accepts, so the runner's own solve is quick.
+            Settings: new HostSettings
+            {
+                ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = BrowserCheckDifficulty, TokenLifetimeHours = 1 },
+            },
+            Routes: [new RouteConfig(RouteId.New(), benchUpstreamId)]),
+        new HostConfig(
+            HostId.New(), ["error-page.test"], Certificate: placeholderCertificate,
+            Routes: [new RouteConfig(RouteId.New(), errorUpstreamId)]),
     ]);
 
 var dataDirectory = Path.Combine(Path.GetTempPath(), "paduraksa-bench-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
@@ -72,6 +129,10 @@ Dictionary<string, string?> settings = new(StringComparer.OrdinalIgnoreCase)
     ["Paduraksa:ShutdownTimeout"] = "00:00:05",
     // The benchmark serves the in-memory placeholder certificate, which a release build only has on request.
     ["Paduraksa:Development:PlaceholderCertificate"] = "true",
+    // The error-page scenario fails every forward, and YARP's forwarder logs a full stack trace at Warning for each
+    // failure. Left on, the log writer (not the built-in 502 page) would be what that scenario measured; the
+    // access-log scenario is where the logging cost belongs.
+    ["Logging:LogLevel:Yarp.ReverseProxy.Forwarder"] = "None",
 };
 
 try
@@ -102,6 +163,20 @@ try
         return 1;
     }
 
+    string powCookie;
+    try
+    {
+        powCookie = await ProofOfWorkSolver.SolveAsync(
+            int.Parse(Get("http", "18081"), CultureInfo.InvariantCulture), "browser-check.test", BrowserCheckDifficulty, CancellationToken.None);
+    }
+    catch (InvalidOperationException exception)
+    {
+        await Console.Error.WriteLineAsync($"The browser-check proof of work could not be solved: {exception.Message}");
+        return 1;
+    }
+
+    // Before READY: the harness reads this line from the log before it runs browser-check.
+    Console.WriteLine($"POW_COOKIE={powCookie}");
     Console.WriteLine(
         $"READY public={string.Join(',', host.GetListenAddresses(HostRole.Public))} " +
         $"gc={(GCSettings.IsServerGC ? "server" : "workstation")} cpus={Environment.ProcessorCount} " +
