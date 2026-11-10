@@ -668,6 +668,48 @@ which carries neither `Alt-Svc` nor HSTS.
 | Error pages | Per status (and "upstream down" / "blocked" / "rate limited" / "maintenance"). Templates pre-split into byte segments at compile time, with variables (`{status}`, `{requestId}`, `{host}`) written straight into the response `PipeWriter`. **Replacing upstream error bodies** (opt-in per host) is decided at **response-header time** from status + content type. The upstream body is drained and discarded, never buffered. It's never applied to `101` upgrades, `text/event-stream`, gRPC (`application/grpc*`), or responses whose headers have already been flushed. |
 | Maintenance mode | Per host, a toggle with a custom page and an IP bypass list. |
 
+**As built (M7): the rate-limit engine** (`src/Paduraksa.Proxy/RateLimiting`, the engine only: no config, compiler or gate
+policy yet). `RateLimitTable.TryAcquire(ushort slot, ulong partitionHash, in RateLimitParameters, long nowMs, out int
+retryAfterSeconds)` is the hot path: 0 B, lock-free, two `long[]`s of a power-of-two length (256 Ki by default, the class
+takes any power of two, `Paduraksa:RateLimiting:TableSize` is validated to 1024-16 Mi). The time is passed in, so tests
+drive it; `RateLimitClock.NowMs` is `Stopwatch`'s ms since process start. `RateLimitParameters(double tokensPerSecond,
+int burst)` validates itself and stores the rate in integer 1/16-token steps scaled by 1024 (so "one a minute" is a
+policy, not a rounding error), plus `FullRefillMs` (burst / rate) for the sweeper. `retryAfterSeconds` is the ceiling of
+the wait for one whole token, at least 1. A token count above the current burst is clamped the next time the bucket is
+touched, which is how a lowered burst takes effect (§6.3).
+
+**The accepted races** are listed on the table's type, each with its bound: k threads probing for the same absent key
+in a full window can each evict a different entry for it (k buckets, at most (k - 1) bursts extra once, all but one never
+found again), a token update can land in a slot another thread has just evicted and re-claimed (at most one burst, once), a
+thread between another's key claim and its state write sees the previous occupant's state (a full bucket once), and the
+sweeper's cleared state (0) is a bucket a request refills from zero. None is unbounded: every touch recomputes the tokens
+from the state it read and clamps them to its policy's burst, and after four probes that each lost their slot the request
+is let through without a token rather than stalled (one request per four lost probes, at whatever rate window churn
+produces them). A clock sample older than the stored time earns no refill and never moves the time back, in a take and
+in the sweeper: masked, it would read as 2^40 ms.
+
+`RateLimitPolicySlots` maps a stable identity (a `string` for now; the compiler will pass a typed ID's string form) to its
+16-bit slot: `GetOrAdd(identity, nowMs)` on the compiler's cold path (one lock), `IsLive(slot)` and `Parameters` lock-free
+for the sweeper. Slot 0 is "no policy"; retirement makes a slot non-live at once but reusable only after a grace period
+(one minute, like the metric slots), and the reuse clears its buckets first, so a new policy never reads an old one's
+tokens. `Publish` swaps an immutable `RateLimitPolicyParameters` (slot -> parameters) atomically. All 65 535 slots in use
+throws with a message that says so.
+
+`RateLimitSweeper` (a `BackgroundService`, every 30 s, `Sweep(nowMs)` public for tests) clears an entry whose slot is no
+longer live, or whose last refill is older than its policy's `FullRefillMs`; an entry whose slot has no published
+parameters is left alone. It clears with a CAS on the state it read, so a request that touched the entry in between wins
+and the entry survives. A live slot's parameters are the ones published at that moment: a sweep across a publish may use
+either set, which moves a clear by one pass at most.
+
+`RateLimitPartition` hashes a partition key to 48 bits with FNV-1a and a murmur3 finalizer, keyed by a per-process
+`RandomNumberGenerator` seed (a fresh `RateLimitPartition(seed)` exists for tests) and domain-separated for IP, IP+path
+and header. IPv4 is keyed whole, IPv6 by its /64 (`IpKey.MaskTo(32, 64)`); the path is the canonical matching view the
+gate uses. Constructing two seeds in a test shows the per-process part: the same key hashes differently.
+
+Registered in `AddPaduraksaProxy` (`AddPaduraksaRateLimiting`): the table, the registry and the sweeper as singletons, the
+sweeper as a hosted service. Nothing calls `TryAcquire` yet. `RateLimitTableBenchmarks` (bench/Paduraksa.Benchmarks) covers
+one key, a 64 Ki working set and one contended entry.
+
 ### 7.4 Observability (no locks on the hot path)
 - **Counters:** `long[]` indexed by `metricSlot * K + metric` (stable slots, §6.3; never the snapshot's host index), striped per core (cache-line padded) to avoid contention. Summed only when read.
 - **Latency:** fixed log-linear histogram buckets (≈ 1 µs → 60 s, ~120 buckets), updated with `Interlocked.Increment`. Two histograms are kept: total time and upstream time, so the proxy's own overhead is visible.
