@@ -330,6 +330,23 @@ public sealed class HostSettingsFieldsTests
     }
 
     [Fact]
+    public async Task EveryDifficultyChoiceNamesItsOwnBits()
+    {
+        // The items' text is a render fragment drawn after the loop has finished, so reading the loop variable there gave
+        // every choice the last value ("29 bits") while their values stayed right.
+        await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
+        var fields = Render(context, new Holder(), new HostSettings());
+
+        await fields.InvokeAsync(() => fields.FindComponents<MudSelect<int?>>().Single(s => s.Instance.Label == "Difficulty").Instance.OpenMenu());
+
+        var texts = popovers.FindAll(".mud-popover-open .mud-list-item").Select(item => item.TextContent.Trim()).ToList();
+        Assert.Contains("8 bits", texts[1], StringComparison.Ordinal);
+        Assert.Contains("28 bits", texts[^1], StringComparison.Ordinal);
+        Assert.Equal(texts.Count, texts.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
     public void TheRowsCoverTheWholeContract()
     {
         // Walked from the contract itself, nested records included: a field added to HostSettings has to get its row here, or

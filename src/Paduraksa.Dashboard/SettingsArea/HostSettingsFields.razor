@@ -93,7 +93,7 @@
             @for (var bits = 8; bits <= 28; bits++)
             {
                 var value = bits;
-                <MudSelectItem T="int?" Value="value">@bits bits (@SettingsSummary.DifficultyText(bits))</MudSelectItem>
+                <MudSelectItem T="int?" Value="value">@value bits (@SettingsSummary.DifficultyText(value))</MudSelectItem>
             }
         </InheritSelect>
 
