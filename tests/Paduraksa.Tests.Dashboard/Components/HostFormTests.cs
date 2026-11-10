@@ -227,6 +227,39 @@ public sealed class HostFormTests
         Assert.Null(model.ToConfig().Settings.RequestIdPropagation);
     }
 
+    [Fact]
+    public async Task TheRouteRateLimit_InheritsTheHostsPolicy_AndOverridesItForOneRoute()
+    {
+        RateLimitPolicyConfig strict = new(RateLimitPolicyId.New(), "Strict API", Requests: 10, Per: RateLimitPeriod.Second, Burst: 50);
+        var model = HostEditModel.From(new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(RouteId.New(), App.Id)]));
+        await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
+        var form = context.Render<HostForm>(parameters => parameters
+            .Add(f => f.Model, model)
+            .Add(f => f.Upstreams, [App])
+            .Add(f => f.RateLimits, [strict])
+            .Add(f => f.Defaults, new HostSettings { RateLimit = new RateLimitSettings { PolicyId = strict.Id } })
+            .Add(f => f.Errors, new Dictionary<string, string>()));
+
+        await form.Find("[data-action='route-menu-0'] button").ClickAsync(new());
+        await popovers.Find("[data-action='route-settings']").ClickAsync(new());
+
+        // The route's inherit choice names the host's policy; the route can turn the limit off or name the policy itself.
+        var field = form.Find("[data-field='route-rate-limit-0']");
+        Assert.Contains("Inherit (Strict API, 10/s)", field.OuterHtml, StringComparison.Ordinal);
+        await ChooseRateLimit(form, "off");
+        Assert.Equal(new RateLimitSettings { Enabled = false }, model.ToConfig().Routes[0].Settings.RateLimit);
+        await ChooseRateLimit(form, "p0");
+        Assert.Equal(new RateLimitSettings { Enabled = true, PolicyId = strict.Id }, model.ToConfig().Routes[0].Settings.RateLimit);
+        await ChooseRateLimit(form, "inherit");
+        Assert.Null(model.ToConfig().Routes[0].Settings.RateLimit);
+    }
+
+    private static Task ChooseRateLimit(IRenderedComponent<HostForm> form, string key) =>
+        form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Rate limit on this route")
+            .Instance.ValueChanged.InvokeAsync(key));
+
     private static IRenderedComponent<HostForm> Render(
         DashboardTestContext context, HostEditModel model, IReadOnlyDictionary<string, string>? errors = null, bool showAll = false, bool readOnly = false) =>
         context.Render<HostForm>(parameters => parameters

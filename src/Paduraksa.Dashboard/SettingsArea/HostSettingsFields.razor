@@ -77,26 +77,11 @@
     <AllowListField Value="_current.IpAllowList" ValueChanged="@(value => Update(_current with { IpAllowList = value }, "/ipAllowList"))"
                     Inherited="Inherited.IpAllowList" InheritedFrom="@InheritedFrom" Error="@FirstUnder("/ipAllowList")" ReadOnly="@ReadOnly" />
 
-    <InheritSelect T="bool" Value="_current.RateLimit?.Enabled" ValueChanged="@(value => Update(WithRateLimit(limit => limit with { Enabled = value }), "/rateLimit/enabled"))"
-                   Inherited="@(Resolved.RateLimit?.Enabled ?? true)" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                   Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately."
-                   Label="Rate limit" Field="rate-limit-enabled" Error="@E("/rateLimit/enabled")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-    </InheritSelect>
-
-    <div class="pdk-setting-children">
-        @if (RateLimitOn)
-        {
-            <SettingRow Title="Policy">
-                <MudTextField T="string" Value="@(_current.RateLimit?.PolicyId?.ToString() ?? string.Empty)"
-                              ValueChanged="@(value => Update(WithRateLimit(limit => limit with { PolicyId = ParsePolicy(value) }), "/rateLimit/policyId"))"
-                              Label="Policy ID" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly"
-                              HelperText="The ID of a rate-limit policy (rlp_...)" Class="pdk-mono-input"
-                              Error="@(E("/rateLimit/policyId") is not null)" ErrorText="@E("/rateLimit/policyId")" data-field="rate-limit-policy" />
-            </SettingRow>
-        }
-    </div>
+    <SettingRow Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately.">
+        <RateLimitField Value="_current.RateLimit" ValueChanged="SetRateLimit" Inherited="@(Resolved.RateLimit ?? new RateLimitSettings())"
+                        Policies="Policies" Staged="StagedRateLimits" InheritWord="@InheritWord" OnNew="OnNewRateLimit"
+                        Error="@RateLimitError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+    </SettingRow>
 
     <InheritSelect T="bool" Value="_current.ProofOfWork?.Enabled" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Enabled = value }), "/proofOfWork/enabled"))"
                    Inherited="@Resolved.ProofOfWork!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
@@ -125,8 +110,7 @@
 
     <h4 class="pdk-setting-section">Headers and logging</h4>
 
-    <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"
-                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
+    <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
                   InheritWord="@InheritWord" Title="Server header" Help="Hiding the upstream's header stops it advertising its software and version." Label="Server header" Field="server-header-mode"
                   Error="@E("/serverHeader/mode")" ReadOnly="@ReadOnly">
         <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Paduraksa">Paduraksa (no version)</MudSelectItem>
@@ -218,6 +202,18 @@
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
+    /// <summary>The rate-limit policies a host or a profile can pick, including those staged in a host's draft.</summary>
+    [Parameter]
+    public IReadOnlyList<RateLimitPolicyConfig> Policies { get; set; } = [];
+
+    /// <summary>The policies made in this host's drawer (marked "New").</summary>
+    [Parameter]
+    public IReadOnlySet<RateLimitPolicyId> StagedRateLimits { get; set; } = new HashSet<RateLimitPolicyId>();
+
+    /// <summary>"New rate limit..." in the picker: the host's drawer makes one and selects it.</summary>
+    [Parameter]
+    public EventCallback OnNewRateLimit { get; set; }
+
     /// <summary>A field changed; its path (with the prefix).</summary>
     [Parameter]
     public EventCallback<string> OnChanged { get; set; }
@@ -246,8 +242,8 @@
     /// <summary>Whether the HSTS fields under the switch apply: this layer's choice, else what it inherits.</summary>
     private bool HstsOn => _current.Hsts?.Enabled ?? Resolved.Hsts?.Enabled ?? false;
 
-    /// <summary>Whether the policy under the rate-limit switch applies: this layer's choice, else what it inherits.</summary>
-    private bool RateLimitOn => _current.RateLimit?.Enabled ?? Resolved.RateLimit?.Enabled ?? true;
+    /// <summary>An error at either field the picker owns: the reference the validator refuses, or the old switch's path.</summary>
+    private string? RateLimitError => E("/rateLimit/policyId") ?? E("/rateLimit/enabled");
 
     /// <summary>The custom value shows for a custom mode, or when this layer or an error has one to show.</summary>
     private bool ServerValueVisible =>
@@ -267,11 +263,9 @@
 
     private HostSettings WithProofOfWork(Func<ProofOfWorkSettings, ProofOfWorkSettings> change) => HostSettingsEdit.WithProofOfWork(_current, change);
 
-    private HostSettings WithRateLimit(Func<RateLimitSettings, RateLimitSettings> change) => HostSettingsEdit.WithRateLimit(_current, change);
-
-    /// <summary>A typed policy ID, or null when the field is blank or not an ID this build accepts (the validator says so).</summary>
-    private static RateLimitPolicyId? ParsePolicy(string? text) =>
-        RateLimitPolicyId.TryParse(text?.Trim(), out var policy) && !policy.IsEmpty ? policy : null;
+    /// <summary>The picker's record: null (or one that sets nothing) is no layer at all, which is how a layer inherits.</summary>
+    private Task SetRateLimit(RateLimitSettings? value) =>
+        Update(HostSettingsEdit.WithRateLimit(_current, _ => value ?? new RateLimitSettings()), "/rateLimit/policyId");
 
     /// <summary>Hands the changed layer to the form, then says which field changed (so its errors show and it revalidates).</summary>
     private async Task Update(HostSettings settings, string path)

@@ -1,0 +1,144 @@
+@using Paduraksa.Contracts.Config
+@using Paduraksa.Core.Model
+@* One picker for a layer's rate limit: inherit what the layer below resolves, no limit, or one of the policies by name.
+   The three choices are the contract's RateLimitSettings exactly: no record inherits, Enabled false is no limit, and a
+   policy is Enabled true with its ID. A policy is never shown by ID. *@
+<RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
+           ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="New rate limit..." OnNew="@OnNew"
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field">
+    <MudSelectItem T="string" Value="@InheritChoice">
+        <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
+    </MudSelectItem>
+    <MudSelectItem T="string" Value="@OffChoice">
+        <span class="pdk-picker-item"><span>No limit</span><span class="pdk-picker-hint">no requests are refused</span></span>
+    </MudSelectItem>
+    @if (Missing is not null)
+    {
+        <MudSelectItem T="string" Value="@MissingChoice">
+            <span class="pdk-picker-item"><span>A policy that isn't here</span><span class="pdk-picker-hint">choose another, or no limit</span></span>
+        </MudSelectItem>
+    }
+    @for (var i = 0; i < Policies.Count; i++)
+    {
+        var index = i;
+        var policy = Policies[index];
+        <MudSelectItem T="string" Value="@PolicyChoice(index)">
+            <span class="pdk-picker-item">
+                <span>@policy.Name</span>
+                @if (Staged.Contains(policy.Id))
+                {
+                    <span class="pdk-chip pdk-tone-primary">New</span>
+                }
+                <span class="pdk-picker-hint">@RateLimitText.Summary(policy)</span>
+            </span>
+        </MudSelectItem>
+    }
+</RefPicker>
+
+@code {
+    private const string InheritChoice = "inherit";
+    private const string OffChoice = "off";
+    private const string MissingChoice = "missing";
+    private const string NewChoice = "new";
+
+    /// <summary>This layer's record; null inherits.</summary>
+    [Parameter]
+    public RateLimitSettings? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<RateLimitSettings?> ValueChanged { get; set; }
+
+    /// <summary>What the layer below resolves to, which the inherit choice names in words.</summary>
+    [Parameter, EditorRequired]
+    public RateLimitSettings Inherited { get; set; } = new();
+
+    /// <summary>The policies a choice can name: the document's, and those staged in a host's draft.</summary>
+    [Parameter]
+    public IReadOnlyList<RateLimitPolicyConfig> Policies { get; set; } = [];
+
+    /// <summary>The policies made in the host's drawer, marked "New".</summary>
+    [Parameter]
+    public IReadOnlySet<RateLimitPolicyId> Staged { get; set; } = new HashSet<RateLimitPolicyId>();
+
+    /// <summary>"New rate limit...": the caller opens the editor and selects what it hands back.</summary>
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    /// <summary>The words of the inherit choice: "Inherit" or "Built-in default".</summary>
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter]
+    public string Label { get; set; } = "Rate limit";
+
+    /// <summary>The <c>data-field</c> the tests and the browser select it by.</summary>
+    [Parameter]
+    public string Field { get; set; } = "rate-limit";
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>The policy this layer names that the list doesn't have; it gets an option of its own so the select still says so.</summary>
+    private RateLimitPolicyId? Missing =>
+        Value?.PolicyId is { IsEmpty: false } id && IndexOf(id) < 0 ? id : null;
+
+    private string Choice => Value switch
+    {
+        { Enabled: false } => OffChoice,
+        { PolicyId: { IsEmpty: false } id } when IndexOf(id) >= 0 => PolicyChoice(IndexOf(id)),
+        { PolicyId: { IsEmpty: false } } => MissingChoice,
+        _ => InheritChoice,
+    };
+
+    private string? ChoiceText(string? key) => key switch
+    {
+        InheritChoice => $"{InheritWord} ({RateLimitText.Inherited(Inherited, Policies)})",
+        OffChoice => "No limit",
+        MissingChoice => "A policy that isn't here",
+        _ when key is not null && key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Policies.Count => Policies[index].Name,
+        _ => string.Empty,
+    };
+
+    private int IndexOf(RateLimitPolicyId id)
+    {
+        for (var i = 0; i < Policies.Count; i++)
+        {
+            if (Policies[i].Id == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string PolicyChoice(int index) => $"p{index}";
+
+    private async Task OnChoiceAsync(string key)
+    {
+        if (key == InheritChoice)
+        {
+            await ValueChanged.InvokeAsync(null);
+        }
+        else if (key == OffChoice)
+        {
+            await ValueChanged.InvokeAsync(new RateLimitSettings { Enabled = false });
+        }
+        else if (key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Policies.Count)
+        {
+            await ValueChanged.InvokeAsync(new RateLimitSettings { Enabled = true, PolicyId = Policies[index].Id });
+        }
+    }
+}

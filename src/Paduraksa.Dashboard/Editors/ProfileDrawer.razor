@@ -84,7 +84,8 @@
                     </Aside>
                     <ChildContent>
                         <HostSettingsFields Settings="Model.Settings" SettingsChanged="SetSettings" Inherited="_inherited" InheritedFrom="the global defaults" InheritWord="Inherit"
-                                            PathPrefix="/settings" Errors="FieldErrors" ShowAll="Attempted" Touched="Touched" ReadOnly="!MayWrite" OnChanged="Touch" />
+                                            PathPrefix="/settings" Errors="FieldErrors" ShowAll="Attempted" Touched="Touched" ReadOnly="!MayWrite" OnChanged="Touch"
+                                            Policies="Document.RateLimitPolicies" />
                     </ChildContent>
                 </FormSection>
 

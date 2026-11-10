@@ -13,6 +13,7 @@ using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Config;
 using Paduraksa.Dashboard.Drawers;
 using Paduraksa.Dashboard.Pages;
+using Paduraksa.Dashboard.SettingsArea;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
@@ -326,6 +327,51 @@ public sealed class DrawerStackTests
 
         Assert.Empty(drawers.FindAll(".pdk-sheet"));
         Assert.Empty(config.Executed);
+    }
+
+    [Fact]
+    public async Task ARateLimitMadeFromTheHostDrawer_IsStagedAndSelected_AndAppliedWithTheHost()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        UpstreamConfig app = new(UpstreamId.New(), "app", Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);
+        config.Document = new ConfigDocument(Upstreams: [app]);
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "app.home.test");
+
+        // "New rate limit..." on the host's Access row stacks the policy editor on the host's.
+        var picker = drawers.FindComponents<RateLimitField>().Single(field => field.Instance.Field == "rate-limit");
+        var choosing = drawers.InvokeAsync(() => picker.Instance.OnNew.InvokeAsync());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=rate-limit] input[data-field=name]").Count == 1);
+        Assert.Equal(2, drawers.FindAll(".pdk-sheet").Count);
+        Assert.Equal("Back to New host", drawers.Find("[data-drawer=rate-limit] [data-drawer-action=back]").GetAttribute("aria-label"));
+        await TypeAsync(drawers, "[data-drawer=rate-limit] input[data-field=name]", "Strict API");
+        await drawers.Find("form[data-drawer=rate-limit]").SubmitAsync();
+        await choosing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+
+        // Staged with the host, and the host's picker now names it; nothing is sent yet.
+        var hosted = drawers.FindComponent<HostForm>().Instance.Model;
+        var chosen = hosted.Settings.RateLimit;
+        Assert.True(chosen?.Enabled);
+        Assert.NotNull(chosen?.PolicyId);
+        Assert.Single(drawers.FindAll("[data-staged='Strict API']"));
+        Assert.Contains("Strict API", drawers.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(chosen!.PolicyId.ToString()!, drawers.Markup, StringComparison.Ordinal);
+        Assert.Empty(config.Executed);
+
+        // The host and the policy go in one revision.
+        _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.Find("[data-review=apply]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
+
+        var applied = Assert.IsType<ReplaceConfigCommand>(config.Executed[^1]);
+        Assert.False(applied.DryRun);
+        Assert.Equal("Strict API", Assert.Single(applied.Document.RateLimitPolicies).Name);
+        Assert.Equal(Assert.Single(applied.Document.Hosts).Settings.RateLimit?.PolicyId, chosen!.PolicyId);
     }
 
     /// <summary>What a level handed back; fails rather than waits forever when it is still open.</summary>

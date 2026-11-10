@@ -6,21 +6,32 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// A host together with the objects made for it in its drawer: an upstream or a profile created from the host form is not
-/// applied on its own but staged into the host's draft, so the host and what it needs are reviewed and applied as one revision, and
-/// cancelling the host leaves nothing behind. Without staged objects the host goes as its own object command, as before.
+/// A host together with the objects made for it in its drawer: an upstream, profile or rate-limit policy created from the
+/// host form is not applied on its own but staged into the host's draft, so the host and what it needs are reviewed and
+/// applied as one revision, and cancelling the host leaves nothing behind. Without staged objects the host goes as its
+/// own object command, as before.
 /// </summary>
 public static class StagedChange
 {
     /// <summary>The current document with the staged objects added: what the form's pickers offer and its inline validation runs against.</summary>
-    public static ConfigDocument Draft(ConfigDocument current, IReadOnlyList<UpstreamConfig> upstreams, IReadOnlyList<ProfileConfig> profiles)
+    public static ConfigDocument Draft(
+        ConfigDocument current,
+        IReadOnlyList<UpstreamConfig> upstreams,
+        IReadOnlyList<ProfileConfig> profiles,
+        IReadOnlyList<RateLimitPolicyConfig> rateLimits)
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(upstreams);
         ArgumentNullException.ThrowIfNull(profiles);
-        return upstreams.Count == 0 && profiles.Count == 0
+        ArgumentNullException.ThrowIfNull(rateLimits);
+        return upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0
             ? current
-            : current with { Upstreams = [.. current.Upstreams, .. upstreams], Profiles = [.. current.Profiles, .. profiles] };
+            : current with
+            {
+                Upstreams = [.. current.Upstreams, .. upstreams],
+                Profiles = [.. current.Profiles, .. profiles],
+                RateLimitPolicies = [.. current.RateLimitPolicies, .. rateLimits],
+            };
     }
 
     /// <summary>The staged upstreams <paramref name="host"/> still routes to (one made and then replaced by another is dropped).</summary>
@@ -39,21 +50,41 @@ public static class StagedChange
         return [.. staged.Where(p => p.Id == host.ProfileId)];
     }
 
+    /// <summary>The staged rate limits the host or one of its routes still names.</summary>
+    public static IReadOnlyList<RateLimitPolicyConfig> UsedRateLimits(HostConfig host, IReadOnlyList<RateLimitPolicyConfig> staged)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(staged);
+        return
+        [
+            .. staged.Where(policy =>
+                host.Settings.RateLimit?.PolicyId == policy.Id
+                || host.Routes.Any(route => route.Settings?.RateLimit?.PolicyId == policy.Id)),
+        ];
+    }
+
     /// <summary>
     /// <paramref name="head"/> with <paramref name="host"/> put in (in its place, or last when new) and the staged objects added: the
     /// document of the one revision a <c>ReplaceConfigCommand</c> based on <paramref name="head"/> makes.
     /// </summary>
-    public static ConfigDocument Apply(ConfigDocument head, HostConfig host, IReadOnlyList<UpstreamConfig> upstreams, IReadOnlyList<ProfileConfig> profiles)
+    public static ConfigDocument Apply(
+        ConfigDocument head,
+        HostConfig host,
+        IReadOnlyList<UpstreamConfig> upstreams,
+        IReadOnlyList<ProfileConfig> profiles,
+        IReadOnlyList<RateLimitPolicyConfig> rateLimits)
     {
         ArgumentNullException.ThrowIfNull(head);
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(upstreams);
         ArgumentNullException.ThrowIfNull(profiles);
+        ArgumentNullException.ThrowIfNull(rateLimits);
         var exists = head.Hosts.Any(h => h.Id == host.Id);
         return head with
         {
             Upstreams = [.. head.Upstreams.Where(u => upstreams.All(s => s.Id != u.Id)), .. upstreams],
             Profiles = [.. head.Profiles.Where(p => profiles.All(s => s.Id != p.Id)), .. profiles],
+            RateLimitPolicies = [.. head.RateLimitPolicies.Where(p => rateLimits.All(s => s.Id != p.Id)), .. rateLimits],
             Hosts = exists ? [.. head.Hosts.Select(h => h.Id == host.Id ? host : h)] : [.. head.Hosts, host],
         };
     }

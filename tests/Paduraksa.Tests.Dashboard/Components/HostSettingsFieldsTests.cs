@@ -22,6 +22,9 @@ public sealed class HostSettingsFieldsTests
 
     private static readonly RateLimitPolicyId SamplePolicy = RateLimitPolicyId.New();
 
+    private static readonly RateLimitPolicyConfig SamplePolicyConfig = new(
+        SamplePolicy, "Strict API", Requests: 10, Per: RateLimitPeriod.Second, Burst: 50);
+
     /// <summary>What the layer below sets for every field, so each inherit choice has a value in words to name.</summary>
     private static readonly HostSettings Inherited = new()
     {
@@ -33,6 +36,7 @@ public sealed class HostSettingsFieldsTests
         RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
         ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 18, TokenLifetimeHours = 168 },
+        RateLimit = new RateLimitSettings { PolicyId = SamplePolicy },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -269,30 +273,32 @@ public sealed class HostSettingsFieldsTests
             ShowsAtField = true,
         },
 
-        // Group key: the validator has no rule for the switch on its own.
+        // Group key: the validator has no rule for the switch on its own; the picker reads both paths, so the old
+        // switch's error still lands here.
         new(
             "rateLimit.enabled",
-            "rate-limit-enabled",
+            "rate-limit",
             "/rateLimit/enabled",
             new HostSettings(),
-            (fields, _) => SetSelect<bool>(fields, "Rate limit", false),
+            (fields, _) => SetRateLimit(fields, "off"),
             new HostSettings { RateLimit = new RateLimitSettings { Enabled = false } },
-            (fields, _) => SetSelect<bool>(fields, "Rate limit", null),
+            (fields, _) => SetRateLimit(fields, "inherit"),
             new HostSettings(),
-            "Inherit (on)")
+            "Inherit (Strict API, 10/s)")
         {
-            GroupKey = true,
+            ValidatorPath = "/rateLimit/enabled",
+            ShowsAtField = true,
         },
         new(
             "rateLimit.policyId",
-            "rate-limit-policy",
+            "rate-limit",
             "/rateLimit/policyId",
             new HostSettings(),
-            (fields, _) => Input(fields, "rate-limit-policy", SamplePolicy.ToString()!),
-            new HostSettings { RateLimit = new RateLimitSettings { PolicyId = SamplePolicy } },
-            (fields, _) => Input(fields, "rate-limit-policy", string.Empty),
+            (fields, _) => SetRateLimit(fields, "p0"),
+            new HostSettings { RateLimit = new RateLimitSettings { Enabled = true, PolicyId = SamplePolicy } },
+            (fields, _) => SetRateLimit(fields, "inherit"),
             new HostSettings(),
-            InheritText: null)
+            "Inherit (Strict API, 10/s)")
         {
             ValidatorPath = "/rateLimit/policyId",
             ShowsAtField = true,
@@ -378,6 +384,26 @@ public sealed class HostSettingsFieldsTests
     }
 
     [Fact]
+    public async Task TheRateLimitPicker_NamesWhatItInherits_AndMapsEachChoice()
+    {
+        await using DashboardTestContext context = new();
+        Holder holder = new() { Value = new HostSettings() };
+        var fields = Render(context, holder, holder.Value);
+
+        // The inherit choice names the policy the layer below resolves, and the picker shows it as the selection.
+        Assert.Contains("Inherit (Strict API, 10/s)", fields.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
+
+        await SetRateLimit(fields, "off");
+        Assert.Equal(new RateLimitSettings { Enabled = false }, holder.Value.RateLimit);
+        Assert.Contains("No limit", fields.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
+        await SetRateLimit(fields, "p0");
+        Assert.Equal(new RateLimitSettings { Enabled = true, PolicyId = SamplePolicy }, holder.Value.RateLimit);
+        Assert.Contains("Strict API", fields.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
+        await SetRateLimit(fields, "inherit");
+        Assert.Null(holder.Value.RateLimit);
+    }
+
+    [Fact]
     public void TheRowsCoverTheWholeContract()
     {
         // Walked from the contract itself, nested records included: a field added to HostSettings has to get its row here, or
@@ -432,13 +458,20 @@ public sealed class HostSettingsFieldsTests
             .Add(f => f.InheritWord, InheritWord)
             .Add(f => f.PathPrefix, "/settings")
             .Add(f => f.Errors, errors ?? new Dictionary<string, string>())
-            .Add(f => f.ShowAll, true));
+            .Add(f => f.ShowAll, true)
+            .Add(f => f.Policies, [SamplePolicyConfig]));
 
     private static Task SetSelect<T>(IRenderedComponent<HostSettingsFields> fields, string label, T? value)
         where T : struct =>
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<T?>>()
             .Single(select => select.Instance.Label == label)
             .Instance.ValueChanged.InvokeAsync(value));
+
+    /// <summary>Chooses the picker's inherit, no-limit, or nth-policy item by its key.</summary>
+    private static Task SetRateLimit(IRenderedComponent<HostSettingsFields> fields, string key) =>
+        fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Rate limit")
+            .Instance.ValueChanged.InvokeAsync(key));
 
     private static async Task SetMaxAgeAsync(IRenderedComponent<HostSettingsFields> fields)
     {

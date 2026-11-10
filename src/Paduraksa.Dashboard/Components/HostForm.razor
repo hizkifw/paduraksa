@@ -132,6 +132,12 @@
                                     <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
                                     <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
                                 </MudSelect>
+                                <RateLimitField Value="route.RateLimit" ValueChanged="@(value => SetAsync(() => route.RateLimit = value, $"/routes/{index}/settings/rateLimit/policyId"))"
+                                                Inherited="HostRateLimit" Policies="RateLimits" Staged="StagedRateLimits" Label="Rate limit on this route"
+                                                OnNew="@(OnNewRateLimit.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRateLimit.InvokeAsync(route)) : default)"
+                                                HelperText="Inherits the host's policy unless this route names one or turns it off."
+                                                Error="@(E($"/routes/{index}/settings/rateLimit/policyId") ?? E($"/routes/{index}/settings/rateLimit/enabled"))" ReadOnly="ReadOnly"
+                                                Field="@($"route-rate-limit-{index}")" />
                                 </div>
                             </div>
                         }
@@ -213,7 +219,9 @@
     <FormSection Title="Settings" Description="The profile first: every setting under it inherits from the profile, then the global defaults, unless the host sets its own." Name="settings">
         <HostSettingsFields Settings="Model.Settings" SettingsChanged="@(settings => Model.Settings = settings)" Inherited="Inherited" InheritedFrom="@InheritedFrom" InheritWord="Inherit" PathPrefix="/settings" Errors="Errors"
                             ShowAll="ShowAll" Touched="_touched" ReadOnly="ReadOnly" ShowForceHttps="@(Model.Kind != HostKind.Admin)"
-                            ForceHttpsDisabled="@(Model.CertificateMode == CertificateBindingMode.None)" OnChanged="TouchAsync">
+                            ForceHttpsDisabled="@(Model.CertificateMode == CertificateBindingMode.None)" OnChanged="TouchAsync"
+                            Policies="RateLimits" StagedRateLimits="StagedRateLimits"
+                            OnNewRateLimit="@(OnNewRateLimit.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRateLimit.InvokeAsync(null)) : default)">
             <div class="pdk-setting">
                 <div class="pdk-setting-text">
                     <span class="pdk-setting-title">Profile</span>
@@ -279,6 +287,14 @@
     [Parameter]
     public IReadOnlySet<ProfileId> StagedProfiles { get; set; } = new HashSet<ProfileId>();
 
+    /// <summary>The rate-limit policies a host or a route can pick: the config's, and those made in this drawer.</summary>
+    [Parameter]
+    public IReadOnlyList<RateLimitPolicyConfig> RateLimits { get; set; } = [];
+
+    /// <summary>The rate limits made in this drawer (marked "New").</summary>
+    [Parameter]
+    public IReadOnlySet<RateLimitPolicyId> StagedRateLimits { get; set; } = new HashSet<RateLimitPolicyId>();
+
     /// <summary>The inventory for the picker; null when the user may not read it.</summary>
     [Parameter]
     public IReadOnlyList<CertificateSummary>? Certificates { get; set; }
@@ -318,10 +334,18 @@
     [Parameter]
     public EventCallback OnNewProfile { get; set; }
 
+    /// <summary>"New rate limit..." for the host (null) or one of its routes: the drawer makes one and selects it there.</summary>
+    [Parameter]
+    public EventCallback<RouteEntry?> OnNewRateLimit { get; set; }
+
     private ProfileConfig? Profile => Model.ProfileId is { } id ? Profiles.FirstOrDefault(p => p.Id == id) : null;
 
     /// <summary>What the host's settings inherit: the profile's over the global defaults over the built-in ones.</summary>
     private HostSettings Inherited => HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings);
+
+    /// <summary>What a route inherits: the host's own layer over what the host itself inherits.</summary>
+    private RateLimitSettings HostRateLimit =>
+        HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).RateLimit ?? new RateLimitSettings();
 
     private bool InheritedForceHttps => Inherited.ForceHttps == true;
 
@@ -453,5 +477,6 @@
     private bool RouteSettingsShown(RouteEntry route, int index) =>
         _routeSettingsOpen.Contains(route)
         || route.ProofOfWorkEnabled is not null
+        || route.RateLimit is not null
         || Errors.Keys.Any(key => key.StartsWith($"/routes/{index}/settings", StringComparison.Ordinal));
 }
