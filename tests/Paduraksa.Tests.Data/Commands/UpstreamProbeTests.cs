@@ -100,6 +100,54 @@ public sealed class UpstreamProbeTests
     }
 
     [Fact]
+    public async Task TheCertificateIsFetchedForTheServerNameAsked()
+    {
+        // The proxy sends the client's host name as SNI, and an upstream with several names picks its certificate by it:
+        // the pin has to be the one presented for that name, not for the bare address.
+        await using var h = await ConfigServiceHarness.CreateAsync();
+        using var fallback = SelfSigned("default.lan");
+        using var named = SelfSigned("app.example.test");
+        using TcpListener listener = new(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        var server = Task.Run(async () =>
+        {
+            for (var i = 0; i < 2; i++)
+            {
+                using var client = await listener.AcceptTcpClientAsync(Ct);
+                await using SslStream tls = new(client.GetStream());
+                await tls.AuthenticateAsServerAsync(
+                    new SslServerAuthenticationOptions
+                    {
+                        ServerCertificateSelectionCallback = (_, name) => name == "app.example.test" ? named : fallback,
+                    },
+                    Ct);
+            }
+        }, Ct);
+        var probe = new UpstreamProbe(h.Service);
+
+        var bare = await probe.FetchCertificateAsync($"https://127.0.0.1:{port}/", ConfigServiceHarness.Admin, Ct);
+        var forName = await probe.FetchCertificateAsync($"https://127.0.0.1:{port}/", "app.example.test", ConfigServiceHarness.Admin, Ct);
+        await server;
+
+        Assert.Equal(Convert.ToHexStringLower(fallback.GetCertHash(HashAlgorithmName.SHA256)), bare.Certificate!.Sha256);
+        Assert.Equal(Convert.ToHexStringLower(named.GetCertHash(HashAlgorithmName.SHA256)), forName.Certificate!.Sha256);
+    }
+
+    [Theory]
+    [InlineData("*.example.test")]
+    [InlineData("10.0.0.5")]
+    [InlineData("not a name")]
+    public async Task OnlyAHostNameIsAskedForAsTheServerName(string serverName)
+    {
+        await using var h = await ConfigServiceHarness.CreateAsync();
+
+        var result = await new UpstreamProbe(h.Service).FetchCertificateAsync("https://127.0.0.1:1", serverName, ConfigServiceHarness.Admin, Ct);
+
+        Assert.Equal(UpstreamCertificateOutcome.Invalid, result.Outcome);
+    }
+
+    [Fact]
     public async Task APlainPortHasNoCertificateToFetch()
     {
         await using var h = await ConfigServiceHarness.CreateAsync();

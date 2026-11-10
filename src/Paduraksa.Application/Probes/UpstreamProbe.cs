@@ -25,7 +25,7 @@ public sealed partial class UpstreamProbe
     /// <summary>How long the name lookup and the connection may take together.</summary>
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(3);
 
-    /// <summary>How long the connection and the TLS handshake of <see cref="FetchCertificateAsync"/> may take together.</summary>
+    /// <summary>How long the connection and the TLS handshake of <c>FetchCertificateAsync</c> may take together.</summary>
     public static readonly TimeSpan CertificateTimeout = TimeSpan.FromSeconds(5);
 
     private readonly ConfigService _config;
@@ -87,7 +87,15 @@ public sealed partial class UpstreamProbe
     /// sends nothing after it and closes. Unlike <see cref="CheckAsync"/> it reads what the other side sends, but only its
     /// public certificate, and only for a caller who may already route traffic to the address and read its answers.
     /// </summary>
-    public async Task<UpstreamCertificateResult> FetchCertificateAsync(string address, CommandOrigin origin, CancellationToken cancellationToken = default)
+    public Task<UpstreamCertificateResult> FetchCertificateAsync(string address, CommandOrigin origin, CancellationToken cancellationToken = default) =>
+        FetchCertificateAsync(address, null, origin, cancellationToken);
+
+    /// <summary>
+    /// As <see cref="FetchCertificateAsync(string, CommandOrigin, CancellationToken)"/>, asking for <paramref name="serverName"/> in SNI.
+    /// The proxy sends the client's host name as SNI, and an upstream that serves several names picks its certificate by
+    /// it, so a pin is only right when it is fetched with the name the proxy will send.
+    /// </summary>
+    public async Task<UpstreamCertificateResult> FetchCertificateAsync(string address, string? serverName, CommandOrigin origin, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(origin);
         if (!await PermissionGate.MayAsync(_permissions, _config, origin, Permission.ConfigWrite, "upstream.certificate", null, cancellationToken).ConfigureAwait(false))
@@ -101,6 +109,11 @@ public sealed partial class UpstreamProbe
             return new UpstreamCertificateResult(UpstreamCertificateOutcome.Invalid, Message: "Only an https:// destination has a certificate to fetch.");
         }
 
+        if (serverName is not null && Uri.CheckHostName(serverName) != UriHostNameType.Dns)
+        {
+            return new UpstreamCertificateResult(UpstreamCertificateOutcome.Invalid, Message: "The server name must be a host name.");
+        }
+
         using CancellationTokenSource timeout = new(CertificateTimeout, _time);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         UpstreamCertificateInfo? presented = null;
@@ -112,8 +125,8 @@ public sealed partial class UpstreamProbe
             await tls.AuthenticateAsClientAsync(
                 new SslClientAuthenticationOptions
                 {
-                    // SNI as the address names it; an IP literal sends none.
-                    TargetHost = uri.HostNameType == UriHostNameType.Dns ? uri.IdnHost : string.Empty,
+                    // SNI as asked, else as the address names it; an IP literal sends none.
+                    TargetHost = serverName ?? (uri.HostNameType == UriHostNameType.Dns ? uri.IdnHost : string.Empty),
                     // Accept anything: the point is to see the certificate, not to trust it, and nothing is sent after the
                     // handshake. It is read here, while it is certainly alive.
 #pragma warning disable CA5359 // Deliberate: this only reads the certificate so a person can decide to pin it.

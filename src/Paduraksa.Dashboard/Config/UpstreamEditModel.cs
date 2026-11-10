@@ -120,7 +120,10 @@ public sealed class UpstreamEditModel
     // System trust with nothing pinned is the default, so it stays out of the document.
     private UpstreamTlsConfig? TlsConfig()
     {
-        string[] pins = [.. PinnedSha256.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+        // Pins mean something only under pinned trust; the field keeps its text, so switching back before saving restores it.
+        string[] pins = TlsTrust == UpstreamTlsTrust.Pinned
+            ? [.. PinnedSha256.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)]
+            : [];
         return TlsTrust == UpstreamTlsTrust.System && pins.Length == 0 ? null : new UpstreamTlsConfig(TlsTrust, pins.Length == 0 ? null : pins);
     }
 }

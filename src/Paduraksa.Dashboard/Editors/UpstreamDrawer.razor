@@ -191,28 +191,38 @@
                                         <div class="pdk-span-2" data-section="tls-fetch">
                                             <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Download" OnClick="FetchCertificatesAsync"
                                                        Disabled="@(_fetching || !HttpsDestinations.Any())" data-action="fetch-certificates">Fetch from destinations</MudButton>
-                                            @foreach (var (address, result) in _certificates)
+                                            @if (UnpinnedFingerprints.Count > 1)
                                             {
-                                                <div class="pdk-probe-line" role="status" data-fetched="@(result.Certificate is null ? "false" : "true")">
-                                                    @if (result.Certificate is { } certificate)
+                                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="PinAll" data-action="pin-all">Pin all @UnpinnedFingerprints.Count</MudButton>
+                                            }
+                                            @foreach (var group in FetchedCertificates)
+                                            {
+                                                var certificate = group.Certificate;
+                                                <div class="pdk-probe-line" role="status" data-fetched="true">
+                                                    <span class="pdk-mono">@Grouped(certificate.Sha256)</span>
+                                                    <span class="pdk-muted">@CommonName(certificate.Subject) &middot; @(certificate.SelfSigned ? "self-signed" : $"issued by {CommonName(certificate.Issuer)}") &middot; expires @certificate.NotAfter.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)@(group.Names.Count > 0 ? $" \u00b7 for {string.Join(", ", group.Names)}" : null)</span>
+                                                    @if (IsPinned(certificate.Sha256))
                                                     {
-                                                        <span class="pdk-mono">@Grouped(certificate.Sha256)</span>
-                                                        <span class="pdk-muted">@CommonName(certificate.Subject) &middot; @(certificate.SelfSigned ? "self-signed" : $"issued by {CommonName(certificate.Issuer)}") &middot; expires @certificate.NotAfter.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</span>
-                                                        @if (IsPinned(certificate.Sha256))
-                                                        {
-                                                            <StatusChip Tone="Tone.Success" Dot="true" Text="Pinned" />
-                                                        }
-                                                        else
-                                                        {
-                                                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => Pin(certificate.Sha256))" data-action="pin">Pin</MudButton>
-                                                        }
+                                                        <StatusChip Tone="Tone.Success" Dot="true" Text="Pinned" />
                                                     }
                                                     else
                                                     {
-                                                        <StatusChip Tone="Tone.Error" Dot="true" Text="@address" />
-                                                        <span class="pdk-muted">@CertificateText(result)</span>
+                                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => Pin(certificate.Sha256))" data-action="pin">Pin</MudButton>
                                                     }
                                                 </div>
+                                            }
+                                            @foreach (var (address, name, result) in _certificates.Where(c => c.Result.Certificate is null))
+                                            {
+                                                <div class="pdk-probe-line" role="status" data-fetched="false">
+                                                    <StatusChip Tone="Tone.Error" Dot="true" Text="@address" />
+                                                    <span class="pdk-muted">@CertificateText(result)@(name is null ? null : $" (for {name})")</span>
+                                                </div>
+                                            }
+                                            @if (_fetchedWithoutNames)
+                                            {
+                                                <MudText Typo="Typo.caption" Class="pdk-muted" data-section="tls-fetch-unnamed">
+                                                    No host uses this upstream yet, so only the address's own name was asked for. A host's name may get another certificate: fetch again once one uses it.
+                                                </MudText>
                                             }
                                         </div>
                                     }
@@ -294,13 +304,33 @@
 </DrawerShell>
 
 @code {
-    private readonly List<(string Address, UpstreamCertificateResult Result)> _certificates = [];
+    /// <summary>At most this many host names are asked for; each one is a handshake per destination.</summary>
+    private const int MaxFetchNames = 8;
+
+    private readonly List<(string Address, string? Name, UpstreamCertificateResult Result)> _certificates = [];
     private bool _fetching;
+    private bool _fetchedWithoutNames;
 
     private IEnumerable<string> HttpsDestinations => (Model?.Destinations ?? [])
         .Where(d => d.Enabled && d.Address.Trim().StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         .Select(d => d.Address.Trim())
         .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The names the proxy will send as SNI: the client's host name, so the names of the hosts routing here. A wildcard or
+    /// an IP literal is no name a handshake can ask for.
+    /// </summary>
+    private IReadOnlyList<string> ServerNames => [.. Uses
+        .SelectMany(use => use.Host.Names)
+        .Where(name => !name.StartsWith('*') && Uri.CheckHostName(name) == UriHostNameType.Dns)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Take(MaxFetchNames)];
+
+    /// <summary>Each certificate fetched once, with the names it was presented for.</summary>
+    private IEnumerable<(UpstreamCertificateInfo Certificate, IReadOnlyList<string> Names)> FetchedCertificates => _certificates
+        .Where(c => c.Result.Certificate is not null)
+        .GroupBy(c => c.Result.Certificate!.Sha256, StringComparer.Ordinal)
+        .Select(g => (g.First().Result.Certificate!, (IReadOnlyList<string>)[.. g.Select(c => c.Name).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase)]));
 
     private async Task FetchCertificatesAsync()
     {
@@ -312,16 +342,33 @@
 
         _fetching = true;
         _certificates.Clear();
+        var names = ServerNames;
+        _fetchedWithoutNames = names.Count == 0;
         try
         {
             foreach (var address in HttpsDestinations.ToArray())
             {
-                await Logger.TryAsync(Snackbar, "The certificate couldn't be fetched.", async () => _certificates.Add((address, await probe.FetchCertificateAsync(address, origin))));
+                // The address's own name (or none, for an IP) first: what a client that sends no host name would get.
+                foreach (var name in names.Cast<string?>().Prepend(null))
+                {
+                    await Logger.TryAsync(Snackbar, "The certificate couldn't be fetched.", async () => _certificates.Add((address, name, await probe.FetchCertificateAsync(address, name, origin))));
+                }
             }
         }
         finally
         {
             _fetching = false;
+        }
+    }
+
+    private IReadOnlyList<string> UnpinnedFingerprints => [.. FetchedCertificates.Select(c => c.Certificate.Sha256).Where(sha => !IsPinned(sha))];
+
+    /// <summary>Every certificate the destinations presented: an upstream that picks one per name needs each of them pinned.</summary>
+    private void PinAll()
+    {
+        foreach (var fingerprint in UnpinnedFingerprints)
+        {
+            Pin(fingerprint);
         }
     }
 

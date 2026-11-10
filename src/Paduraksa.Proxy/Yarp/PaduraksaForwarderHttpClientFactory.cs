@@ -1,3 +1,5 @@
+using System.Net.Security;
+
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Core.Hosting;
@@ -21,11 +23,13 @@ namespace Paduraksa.Proxy.Yarp;
 internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientFactory
 {
     private readonly AdminInternalListener? _admin;
+    private readonly ILogger _logger;
 
     public PaduraksaForwarderHttpClientFactory(ILogger<ForwarderHttpClientFactory> logger, AdminInternalListener? admin)
         : base(logger)
     {
         _admin = admin;
+        _logger = logger;
     }
 
     /// <summary>The default; per-upstream values come from the upstream settings.</summary>
@@ -53,7 +57,19 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
 
         if (UpstreamCertificatePins.FromMetadata(context.NewMetadata) is { } pins)
         {
-            handler.SslOptions.RemoteCertificateValidationCallback = pins.Validate;
+            var clusterId = context.ClusterId;
+            handler.SslOptions.RemoteCertificateValidationCallback = (sender, certificate, chain, errors) =>
+            {
+                if (pins.Validate(sender, certificate, chain, errors))
+                {
+                    return true;
+                }
+
+                // YARP's own error only says the callback refused; the fingerprint that came instead, and the name asked
+                // for (the client's host, which can select another certificate), are what it takes to fix the pin.
+                UpstreamCertificatePins.LogRefused(_logger, clusterId, (sender as SslStream)?.TargetHostName, certificate);
+                return false;
+            };
         }
 
         if (string.Equals(context.ClusterId, YarpConfig.AdminClusterId, StringComparison.OrdinalIgnoreCase))

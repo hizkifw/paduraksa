@@ -3,13 +3,15 @@ using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
+using Microsoft.Extensions.Logging;
+
 namespace Paduraksa.Proxy.Yarp;
 
 /// <summary>
 /// The SHA-256 fingerprints an upstream with pinned trust accepts. They travel to the HTTP client factory in the YARP
 /// cluster's metadata (<see cref="MetadataKey"/>), because <c>HttpClientConfig</c> has no field for a validation callback.
 /// </summary>
-public sealed class UpstreamCertificatePins
+public sealed partial class UpstreamCertificatePins
 {
     public const string MetadataKey = "paduraksa.tls.pinnedSha256";
 
@@ -51,6 +53,16 @@ public sealed class UpstreamCertificatePins
     // The leaf alone is compared: a pinned certificate is trusted for what it is, so its name, chain and dates don't matter.
     public bool Validate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors) =>
         certificate is not null && _pins.Contains(Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256)));
+
+    internal static void LogRefused(ILogger logger, string clusterId, string? serverName, X509Certificate? certificate) =>
+        LogPinMismatch(
+            logger,
+            clusterId,
+            string.IsNullOrEmpty(serverName) ? "(none)" : serverName,
+            certificate is null ? "(none)" : Convert.ToHexStringLower(certificate.GetCertHash(HashAlgorithmName.SHA256)));
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Upstream {ClusterId}: the certificate presented for server name {ServerName} has SHA-256 {Sha256}, which isn't pinned.")]
+    private static partial void LogPinMismatch(ILogger logger, string clusterId, string serverName, string sha256);
 
     private static string? Joined(IReadOnlyDictionary<string, string>? metadata) =>
         metadata is not null && metadata.TryGetValue(MetadataKey, out var joined) ? joined : null;

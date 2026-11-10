@@ -36,4 +36,21 @@ public sealed class UpstreamEditModelTests
 
         Assert.Equal(new UpstreamTlsConfig(UpstreamTlsTrust.Any), model.ToConfig().Tls);
     }
+
+    [Fact]
+    public void LeavingPinnedTrustDropsThePinsButTheFieldKeepsThem()
+    {
+        // The validator refuses pins under any other trust, so switching from pinned to any had to be refused.
+        string pin = new('a', 64);
+        var model = UpstreamEditModel.From(Nas with { Tls = new UpstreamTlsConfig(UpstreamTlsTrust.Pinned, [pin]) });
+
+        model.TlsTrust = UpstreamTlsTrust.Any;
+        Assert.Equal(new UpstreamTlsConfig(UpstreamTlsTrust.Any), model.ToConfig().Tls);
+
+        model.TlsTrust = UpstreamTlsTrust.System;
+        Assert.Null(model.ToConfig().Tls);
+
+        model.TlsTrust = UpstreamTlsTrust.Pinned;
+        Assert.Equal([pin], model.ToConfig().Tls!.PinnedSha256);
+    }
 }
