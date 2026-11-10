@@ -1,0 +1,4 @@
+# Raw oha output and runner logs for new runs; a recorded run commits only summary.md, summary.json and env.txt.
+# (The 2026-11-07-* directories were committed before this rule and stay tracked.)
+*/raw/
+*/*.log
