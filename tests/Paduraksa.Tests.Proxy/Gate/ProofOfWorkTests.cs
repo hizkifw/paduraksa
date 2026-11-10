@@ -248,7 +248,7 @@ public sealed class ProofOfWorkTests
         Assert.Contains("base-uri 'none'", csp, StringComparison.Ordinal);
         Assert.Contains("frame-ancestors 'none'", csp, StringComparison.Ordinal);
 
-        var response = new ProofOfWorkPage(10, 168).Build(Challenge((uint)Now.ToUnixTimeSeconds(), 10), "/a?b=1&c=2");
+        var response = new ProofOfWorkPage(10).Build(Challenge((uint)Now.ToUnixTimeSeconds(), 10), "/a?b=1&c=2");
         Assert.Equal(200, response.StatusCode);
         Assert.Equal("text/html; charset=utf-8", response.ContentType.ToString());
         Assert.Equal("no-store", response.CacheControl.ToString());

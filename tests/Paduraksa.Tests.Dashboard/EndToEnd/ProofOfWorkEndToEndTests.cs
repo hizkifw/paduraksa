@@ -54,8 +54,7 @@ public sealed class ProofOfWorkEndToEndTests
         Assert.Equal(200, first.Status);
         var challengeHtml = await first.TextAsync();
         Assert.Contains("Checking your browser", challengeHtml, StringComparison.Ordinal);
-        Assert.Contains("This check needs JavaScript", challengeHtml, StringComparison.Ordinal);
-        Assert.Contains("once every 1 days", challengeHtml, StringComparison.Ordinal);
+        Assert.Contains("Enable JavaScript to continue", challengeHtml, StringComparison.Ordinal);
         Assert.Equal("no-store", first.Headers["cache-control"]);
         await Expect(page.Locator("body")).ToContainTextAsync("the upstream page", new() { Timeout = 30_000 });
         var cookies = await context.CookiesAsync();

@@ -19,8 +19,9 @@ namespace Paduraksa.Proxy.Gate;
 /// </remarks>
 internal sealed class ProofOfWorkPage
 {
+    // Colours are the brand's (the dashboard's favicon), so the gate reads as Paduraksa's own page.
     private const string Style = """
-        :root{color-scheme:light dark}html{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f5f6f8;color:#16181d}main{max-width:30rem;padding:2rem}h1{font-size:1.2rem;margin:0 0 .75rem}p{margin:.5rem 0;color:#3b3f47}#progress{font-variant-numeric:tabular-nums;color:#16181d;min-height:1.5em}@media (prefers-color-scheme:dark){body{background:#111317;color:#eef0f3}p{color:#b8bdc7}#progress{color:#eef0f3}}
+        :root{color-scheme:light dark;--bg:#f5f5f3;--fg:#111110;--muted:#5d5c58;--track:#e2e1dc}@media (prefers-color-scheme:dark){:root{--bg:#111110;--fg:#e7e5e0;--muted:#9a988f;--track:#2b2b29}}html{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg)}main{display:flex;flex-direction:column;align-items:center;gap:.6rem;max-width:22rem;padding:2rem;text-align:center}svg{width:44px;height:44px;margin-bottom:.4rem}h1{font-size:1.05rem;font-weight:600;margin:0}p{margin:0;font-size:.9rem;color:var(--muted)}.bar{width:9rem;height:3px;margin-top:.6rem;border-radius:3px;background:var(--track);overflow:hidden}.bar::after{content:"";display:block;width:40%;height:100%;border-radius:3px;background:var(--fg);animation:slide 1.1s ease-in-out infinite}@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}@media (prefers-reduced-motion:reduce){.bar::after{animation:none;width:100%;opacity:.35}}#progress:empty{display:none}footer{position:fixed;bottom:1.25rem;left:0;right:0;text-align:center;font-size:.75rem}footer a{color:var(--muted);text-decoration:none}footer a:hover{text-decoration:underline}
         """;
 
     private const string Script = """
@@ -38,7 +39,7 @@ internal sealed class ProofOfWorkPage
         'function writeDigits(n,pos){var digits=0,t=n,p;if(n===0){buf[pos++]=48;return pos;}while(t>0){digits++;t=Math.floor(t/10);}p=pos+digits;while(n>0){buf[--p]=48+(n%10);n=Math.floor(n/10);}return pos+digits;}' +
         'function hash(blocks){var i,b;h0=1779033703;h1=-1150833019;h2=1013904242;h3=-1521486534;h4=1359893119;h5=-1694144372;h6=528734635;h7=1541459225;for(b=0;b<blocks;b++){compress(b*64);}out[0]=(h0>>>24)&255;out[1]=(h0>>>16)&255;out[2]=(h0>>>8)&255;out[3]=h0&255;out[4]=(h1>>>24)&255;out[5]=(h1>>>16)&255;out[6]=(h1>>>8)&255;out[7]=h1&255;out[8]=(h2>>>24)&255;out[9]=(h2>>>16)&255;out[10]=(h2>>>8)&255;out[11]=h2&255;out[12]=(h3>>>24)&255;out[13]=(h3>>>16)&255;out[14]=(h3>>>8)&255;out[15]=h3&255;out[16]=(h4>>>24)&255;out[17]=(h4>>>16)&255;out[18]=(h4>>>8)&255;out[19]=h4&255;out[20]=(h5>>>24)&255;out[21]=(h5>>>16)&255;out[22]=(h5>>>8)&255;out[23]=h5&255;out[24]=(h6>>>24)&255;out[25]=(h6>>>16)&255;out[26]=(h6>>>8)&255;out[27]=h6&255;out[28]=(h7>>>24)&255;out[29]=(h7>>>16)&255;out[30]=(h7>>>8)&255;out[31]=h7&255;}' +
         'function leadingZeroBits(){var i,v,bits=0;for(i=0;i<32;i++){v=out[i];if(v===0){bits+=8;continue;}bits+=Math.clz32(v)-24;break;}return bits;}' +
-        'self.onmessage=function(event){var d=event.data,n=d.start,stride=d.stride,tried=0;prefix=new TextEncoder().encode(d.challenge+":");prefixLength=prefix.length;difficulty=d.difficulty;for(;;){buf.fill(0);buf.set(prefix,0);var length=writeDigits(n,prefixLength);buf[length]=0x80;var bitLength=length*8;var blocks=((length+9+63)>>6);var end=blocks*64;buf[end-4]=(bitLength>>>24)&255;buf[end-3]=(bitLength>>>16)&255;buf[end-2]=(bitLength>>>8)&255;buf[end-1]=bitLength&255;hash(blocks);if(leadingZeroBits()>=difficulty){self.postMessage({solution:n});return;}n+=stride;tried++;if((tried&1023)===0){self.postMessage({tried:tried});}}};';
+        'self.onmessage=function(event){var d=event.data,n=d.start,stride=d.stride;prefix=new TextEncoder().encode(d.challenge+":");prefixLength=prefix.length;difficulty=d.difficulty;for(;;){buf.fill(0);buf.set(prefix,0);var length=writeDigits(n,prefixLength);buf[length]=0x80;var bitLength=length*8;var blocks=((length+9+63)>>6);var end=blocks*64;buf[end-4]=(bitLength>>>24)&255;buf[end-3]=(bitLength>>>16)&255;buf[end-2]=(bitLength>>>8)&255;buf[end-1]=bitLength&255;hash(blocks);if(leadingZeroBits()>=difficulty){self.postMessage({solution:n});return;}n+=stride;}};';
         var challenge=document.getElementById("challenge").value;
         var difficulty=parseInt(document.getElementById("difficulty").value,10);
         var form=document.getElementById("pow");
@@ -47,19 +48,17 @@ internal sealed class ProofOfWorkPage
         var count=Math.max(1,Math.min(navigator.hardwareConcurrency||1,8));
         var workers=[];
         var found=false;
-        var tried=0;
         function stop(n){if(found){return;}found=true;for(var i=0;i<workers.length;i++){workers[i].terminate();}solution.value=String(n);form.submit();}
-        function fail(){progress.textContent="This browser could not run the check. Reload the page, or try another browser.";}
+        function fail(){progress.textContent="Your browser couldn't run the check. Reload to try again.";}
         try{
         var url=URL.createObjectURL(new Blob([workerSource],{type:"text/javascript"}));
         for(var i=0;i<count;i++){(function(start){
         var worker=new Worker(url);
-        worker.onmessage=function(event){var d=event.data;if(d.solution!==undefined){stop(d.solution);return;}tried+=d.tried;progress.textContent="Trying... "+tried.toLocaleString()+" hashes";};
+        worker.onmessage=function(event){if(event.data.solution!==undefined){stop(event.data.solution);}};
         worker.onerror=fail;
         worker.postMessage({challenge:challenge,difficulty:difficulty,start:start,stride:count});
         workers.push(worker);
         })(i);}
-        progress.textContent="Starting "+count+" worker"+(count===1?"":"s")+"...";
         }catch(error){fail();}
         })();
         """;
@@ -76,26 +75,17 @@ internal sealed class ProofOfWorkPage
     private readonly byte[] _middle;
     private readonly byte[] _tail;
 
-    public ProofOfWorkPage(int difficulty, int tokenLifetimeHours)
+    public ProofOfWorkPage(int difficulty)
     {
-        var days = Math.Max(1, (int)Math.Round(tokenLifetimeHours / 24.0, MidpointRounding.AwayFromZero));
-        var rough = difficulty switch
-        {
-            <= 18 => "a moment",
-            <= 20 => "a second or two",
-            <= 22 => "a few seconds",
-            <= 25 => "up to a minute",
-            _ => "a minute or more",
-        };
-
         string head = string.Concat(
             "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
             "<title>Checking your browser</title><style>", Style, "</style></head><body><main>",
+            "<svg viewBox=\"0 0 32 32\" role=\"img\" aria-label=\"Paduraksa\"><path fill=\"currentColor\" d=\"M4 27V19h2v-5h2V9h2V5h4v22zM28 27V19h-2v-5h-2V9h-2V5h-4v22z\"/>",
+            "<rect fill=\"currentColor\" opacity=\"0.45\" x=\"2\" y=\"28\" width=\"28\" height=\"2\" rx=\"1\"/></svg>",
             "<h1>Checking your browser</h1>",
-            "<p>This site checks that your browser can solve a small challenge before it lets you in. It usually takes ", rough, ".</p>",
-            "<p>You will only see this once every ", days.ToString(System.Globalization.CultureInfo.InvariantCulture), " days.</p>",
-            "<noscript><p>This check needs JavaScript. Enable it and reload the page.</p></noscript>",
-            "<p id=\"progress\" aria-live=\"polite\">Starting...</p>",
+            "<noscript><p>Enable JavaScript to continue.</p></noscript>",
+            "<div class=\"bar\" aria-hidden=\"true\"></div>",
+            "<p id=\"progress\" role=\"status\" aria-live=\"polite\"></p>",
             "<form id=\"pow\" method=\"post\" action=\"/.well-known/paduraksa/pow\" hidden>",
             "<input id=\"challenge\" name=\"challenge\" type=\"hidden\" value=\"");
         string middle = string.Concat(
@@ -104,7 +94,8 @@ internal sealed class ProofOfWorkPage
         string tail = string.Concat(
             "\"><input id=\"difficulty\" type=\"hidden\" value=\"",
             difficulty.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            "\"></form><script>", Script, "</script></main></body></html>\n");
+            "\"></form><script>", Script, "</script></main>",
+            "<footer><a href=\"https://github.com/hizkifw/paduraksa\">Protected by Paduraksa</a></footer></body></html>\n");
         _head = Encoding.ASCII.GetBytes(head);
         _middle = Encoding.ASCII.GetBytes(middle);
         _tail = Encoding.ASCII.GetBytes(tail);

@@ -36,7 +36,7 @@ public sealed class ProofOfWorkPolicy : IRequestPolicy
         _hostScope = hostScope;
         _routeOverride = routeOverride;
         _runtime = runtime;
-        _page = new ProofOfWorkPage(spec.Difficulty, spec.TokenLifetimeHours);
+        _page = new ProofOfWorkPage(spec.Difficulty);
     }
 
     public PolicyDecision Evaluate(in RequestView request)
