@@ -183,7 +183,7 @@ oha (Docker, CPUs 4-11) ──► one proxy under test (CPUs 0-3) ──► upst
   - Upstream and client timeouts are not tighter than the others': 60 s to connect and 120 s idle (Envoy's 15 s route
     timeout is raised to 120 s).
   - **Traefik has no built-in static response.** Its routers only point at services, redirects or error pages, so
-    `respond.test` is not configured for it and `answered` is skipped. The tables show `—` for that cell, and
+    `respond.test` is not configured for it and `answered` is skipped. The tables show `-` for that cell, and
     `check_proxy` skips the answered probe for a proxy that declares it can't answer, rather than inventing a number.
   - **Envoy's X-Forwarded-For value on loopback.** Envoy deliberately appends its own local address when the peer is
     a loopback address, so the upstream sees the host's LAN address (`192.168.x.x`) instead of `127.0.0.1`, which is

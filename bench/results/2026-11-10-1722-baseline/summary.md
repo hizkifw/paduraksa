@@ -8,8 +8,8 @@
 | HTTPS HTTP/2, browser-like headers, proxied | 121,776 | 206,545 | 37,719 | 211,637 | 49,456 | 105,787 | 132,434 | 0.59 |
 | HTTP/1.1 plain, 64 KiB body, proxied | 69,491 | 76,682 | 50,255 | 104,022 | 38,797 | 70,155 | 69,921 | 0.91 |
 | HTTPS HTTP/1.1, new connection per request (TLS handshake), proxied | 7,187 | 8,977 | 11,169 | 7,978 | 9,159 | 13,854 | 10,056 | 0.80 |
-| HTTP/1.1 plain, answered by the proxy | 406,828 | 803,824 | 207,097 | 594,317 | — | 267,982 | 384,421 | 0.51 |
-| HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | 150,940 | — | — | — | — | — | — | — |
+| HTTP/1.1 plain, answered by the proxy | 406,828 | 803,824 | 207,097 | 594,317 | - | 267,982 | 384,421 | 0.51 |
+| HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | 150,940 | - | - | - | - | - | - | - |
 
 Upstream alone (HTTP/1.1, same concurrency): 1,010,985 requests/s.
 
@@ -23,8 +23,8 @@ Upstream alone (HTTP/1.1, same concurrency): 1,010,985 requests/s.
 | HTTPS HTTP/2, browser-like headers, proxied | 29.7 (3.61) | 16.0 (3.31) | 98.6 (3.72) | 15.7 (3.32) | 70.8 (3.50) | 35.4 (3.75) | 27.3 (3.62) |
 | HTTP/1.1 plain, 64 KiB body, proxied | 49.9 (3.47) | 41.6 (3.19) | 70.3 (3.53) | 32.2 (3.34) | 66.9 (2.60) | 51.1 (3.59) | 49.1 (3.43) |
 | HTTPS HTTP/1.1, new connection per request (TLS handshake), proxied | 524.4 (3.77) | 376.2 (3.38) | 337.6 (3.77) | 470.9 (3.76) | 341.5 (3.13) | 225.1 (3.12) | 369.6 (3.72) |
-| HTTP/1.1 plain, answered by the proxy | 7.1 (2.87) | 3.7 (2.97) | 17.2 (3.56) | 5.4 (3.20) | — | 13.5 (3.62) | 7.5 (2.87) |
-| HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | 22.4 (3.38) | — | — | — | — | — | — |
+| HTTP/1.1 plain, answered by the proxy | 7.1 (2.87) | 3.7 (2.97) | 17.2 (3.56) | 5.4 (3.20) | - | 13.5 (3.62) | 7.5 (2.87) |
+| HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | 22.4 (3.38) | - | - | - | - | - | - |
 
 ### Latency at fixed concurrency (ms)
 
@@ -79,7 +79,7 @@ medians here restate the throughput table; the tails are the informative part.
 | HTTP/1.1 plain, answered by the proxy | nginx | 803,824 | 0.08 | 0.10 | 0.11 | 0.14 | 0 |
 | HTTP/1.1 plain, answered by the proxy | Caddy | 207,097 | 0.21 | 0.66 | 1.81 | 2.69 | 0 |
 | HTTP/1.1 plain, answered by the proxy | HAProxy | 594,317 | 0.10 | 0.14 | 0.20 | 0.25 | 0 |
-| HTTP/1.1 plain, answered by the proxy | Traefik | — | — | — | — | — | — |
+| HTTP/1.1 plain, answered by the proxy | Traefik | - | - | - | - | - | - |
 | HTTP/1.1 plain, answered by the proxy | Envoy | 267,982 | 0.24 | 0.29 | 0.37 | 0.41 | 0 |
 | HTTP/1.1 plain, answered by the proxy | YARP | 384,421 | 0.15 | 0.19 | 0.49 | 2.34 | 0 |
 | HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers | Paduraksa | 150,940 | 0.40 | 0.48 | 1.01 | 2.28 | 0 |

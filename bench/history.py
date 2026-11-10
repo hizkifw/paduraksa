@@ -32,7 +32,7 @@ NAMES = {
 PROXY_ORDER = ["paduraksa", "nginx", "caddy", "haproxy", "traefik", "envoy", "yarp"]
 SCENARIO_ORDER = ["h1", "h1-tls", "h2-tls", "browser", "body-64k", "handshake", "answered", "cf"]
 MAIN_SCENARIOS = ["h1", "h2-tls"]
-MISSING = "—"
+MISSING = "-"
 
 
 def load_history(path: Path = HISTORY) -> list[dict]:
@@ -200,7 +200,7 @@ def delta_table(lines: list[str], latest: dict, previous: dict | None) -> None:
                          f"| {fmt(fixed['p99_ms'], 2)} | {pct(change)} | {note} |")
             seen = True
     if not seen:
-        lines.append("| — | — | — | — | — | — | No comparable Paduraksa results. |")
+        lines.append("| - | - | - | - | - | - | No comparable Paduraksa results. |")
     lines.append("")
 
 

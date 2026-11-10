@@ -39,7 +39,7 @@ UNAVAILABLE = {("traefik", "answered")}
 RATE_RUN = re.compile(r"^(?P<proxy>[a-z]+)\.(?P<scenario>[a-z0-9-]+)\.q(?P<rate>\d+)\.r(?P<repeat>\d+)$")
 METRICS = re.compile(r"^METRICS (.*)$")
 
-MISSING = "—"
+MISSING = "-"
 
 
 def load(raw: Path, name: str):
