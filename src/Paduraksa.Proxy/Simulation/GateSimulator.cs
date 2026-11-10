@@ -454,7 +454,7 @@ public static class GateSimulator
                 return new GateOutcome(GateOutcomeAction.Forward, GateReason.Forwarded);
             case GateAction.Respond:
                 var response = decision.Response!;
-                ResponseWriter.ApplyHeaders(context, response);
+                ResponseWriter.ApplyHeaders(context, response, decision.RetryAfter);
                 var location = response.StatusCode / 100 == 3 && context.Response.Headers.Location.Count > 0
                     ? context.Response.Headers.Location.ToString()
                     : null;

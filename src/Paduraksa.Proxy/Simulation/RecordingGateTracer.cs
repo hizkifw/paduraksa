@@ -249,6 +249,11 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             facts.Add(new("status", response.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         }
 
+        if (verdict.RetryAfter is { } retryAfter)
+        {
+            facts.Add(new("retryAfter", retryAfter));
+        }
+
         steps.Add(new GateStep(
             scope == PolicyScope.Host ? GateStepKind.HostPolicy : GateStepKind.RoutePolicy,
             stopped ? GateStepVerdict.Stopped : GateStepVerdict.Passed,
