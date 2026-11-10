@@ -68,6 +68,7 @@
                       Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" Errors="FieldErrors" ShowAll="Attempted" ReadOnly="!MayWrite"
                       OnChanged="Changed"
                       OnNewUpstream="@(MayWrite ? EventCallback.Factory.Create<RouteEntry>(this, NewUpstreamAsync) : default)"
+                      OnEditUpstream="EventCallback.Factory.Create<UpstreamId>(this, EditUpstreamAsync)"
                       OnNewProfile="@(MayWrite ? EventCallback.Factory.Create(this, NewProfileAsync) : default)"
                       OnNewCertificate="@(MayWrite && _mayWriteCertificates ? EventCallback.Factory.Create(this, NewCertificateAsync) : default)" />
             @if (_staged.Count > 0 || _stagedProfiles.Count > 0)
@@ -426,6 +427,21 @@
 
         RouteStagedErrors(errors, document.Upstreams, _staged, upstream => upstream.Id, (id, found) => _stagedUpstreamErrors[id] = found, "upstreams");
         RouteStagedErrors(errors, document.Profiles, _stagedProfiles, profile => profile.Id, (id, found) => _stagedProfileErrors[id] = found, "profiles");
+    }
+
+    // An upstream made in this drawer is still staged and is edited as such; any other is the config's own, edited and
+    // applied in its own drawer on top, after which this drawer reloads so the route shows the new name and address.
+    private async Task EditUpstreamAsync(UpstreamId id)
+    {
+        if (_staged.Find(upstream => upstream.Id == id) is { } staged)
+        {
+            await EditStagedUpstreamAsync(staged);
+            return;
+        }
+
+        await Drawers.OpenAsync<UpstreamDrawer>(new Dictionary<string, object?> { [nameof(UpstreamDrawer.Id)] = id }, DrawerWidth.Medium);
+        await RefreshAsync();
+        StateHasChanged();
     }
 
     private async Task EditStagedUpstreamAsync(UpstreamConfig staged)

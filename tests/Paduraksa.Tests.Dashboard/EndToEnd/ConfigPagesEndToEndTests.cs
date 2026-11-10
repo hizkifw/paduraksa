@@ -94,6 +94,21 @@ public sealed class ConfigPagesEndToEndTests
         await Expect(page.Locator("[data-staged=app]")).ToContainTextAsync("http://127.0.0.1:18080");
         await PlaywrightBrowser.ScreenshotAsync(page, "drawer-host", fullPage: false);
 
+        // A route's menu sits on its fields' centre line, as the destinations' buttons do.
+        var routePath = (await page.Locator("input[data-field='route-path-0']").BoundingBoxAsync())!;
+        var menu = (await page.Locator("[data-action='route-menu-0'] button").BoundingBoxAsync())!;
+        var (pathMiddle, menuMiddle) = (routePath.Y + (routePath.Height / 2), menu.Y + (menu.Height / 2));
+        Assert.True(Math.Abs(pathMiddle - menuMiddle) <= 2, $"The route menu's middle ({menuMiddle}) should line up with the path's ({pathMiddle}).");
+
+        // Its settings open from the menu, as a card named after the route, and close again.
+        await page.Locator("[data-action='route-menu-0'] button").ClickAsync();
+        await page.Locator("[data-action='route-settings']").ClickAsync();
+        var settings = page.Locator("[data-section='route-settings-0']");
+        await Expect(settings).ToContainTextAsync("Route settings");
+        await PlaywrightBrowser.ScreenshotAsync(page, "drawer-host-route-settings", fullPage: false);
+        await settings.Locator("button[aria-label='Close route 1 settings']").ClickAsync();
+        await Expect(settings).ToHaveCountAsync(0);
+
         // The staged upstream opens again, as it was given, to be changed before anything is applied.
         await page.Locator("[data-staged=app] [data-action=edit-staged]").ClickAsync();
         await ExpectDrawerTitleAsync(page, "app");

@@ -127,15 +127,55 @@ public sealed class HostFormTests
         var stored = new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(route, App.Id, Settings: settings)]);
         var model = HostEditModel.From(stored);
         await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
         var form = Render(context, model);
+        Assert.Empty(form.FindAll("[data-section='route-settings-0']"));
 
+        // The route's settings sit behind its menu.
+        await form.Find("[data-action='route-menu-0'] button").ClickAsync(new());
+        await popovers.Find("[data-action='route-settings']").ClickAsync(new());
         await form.InvokeAsync(() => form.FindComponents<MudSelect<bool?>>()
-            .Single(select => select.Instance.Label == "Route browser check")
+            .Single(select => select.Instance.Label == "Browser check on this route")
             .Instance.ValueChanged.InvokeAsync(false));
 
         var kept = Assert.Single(model.ToConfig().Routes);
         Assert.Equal((route, false), (kept.Id, kept.Settings.ProofOfWork?.Enabled));
         Assert.Same(settings.IpAllowList, kept.Settings.IpAllowList);
+    }
+
+    [Fact]
+    public async Task ARouteThatOverridesShowsItsSettingsWithoutTheMenu()
+    {
+        var stored = new HostConfig(HostId.New(), ["app.example.com"],
+            Routes: [new RouteConfig(RouteId.New(), App.Id, Settings: new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = false } })]);
+        await using DashboardTestContext context = new();
+
+        var form = Render(context, HostEditModel.From(stored));
+
+        Assert.Single(form.FindAll("[data-section='route-settings-0']"));
+    }
+
+    [Fact]
+    public async Task TheRouteMenuEditsTheUpstreamAndRemovesTheRoute()
+    {
+        var model = HostEditModel.From(new HostConfig(HostId.New(), ["app.example.com"],
+            Routes: [new RouteConfig(RouteId.New(), App.Id, Path: "/"), new RouteConfig(RouteId.New(), App.Id, Path: "/api")]));
+        await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
+        UpstreamId? edited = null;
+        var form = context.Render<HostForm>(parameters => parameters
+            .Add(f => f.Model, model)
+            .Add(f => f.Upstreams, [App])
+            .Add(f => f.Errors, new Dictionary<string, string>())
+            .Add(f => f.OnEditUpstream, id => edited = id));
+
+        await form.Find("[data-action='route-menu-1'] button").ClickAsync(new());
+        await popovers.Find("[data-action='edit-upstream']").ClickAsync(new());
+        Assert.Equal(App.Id, edited);
+
+        await form.Find("[data-action='route-menu-1'] button").ClickAsync(new());
+        await popovers.Find("[data-action='remove-route']").ClickAsync(new());
+        Assert.Equal(["/"], model.Routes.Select(r => r.Path));
     }
 
     [Fact]

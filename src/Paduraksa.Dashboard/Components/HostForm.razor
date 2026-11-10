@@ -100,19 +100,41 @@
                                     </MudSelectItem>
                                 }
                             </RefPicker>
-                            @if (Model.Routes.Count > 1 && !ReadOnly)
-                            {
-                                <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="() => RemoveRouteAsync(route)" aria-label="@($"Remove route {index + 1}")" />
-                            }
-                            <MudSelect T="bool?" Value="route.ProofOfWorkEnabled" ValueChanged="@(value => SetAsync(() => route.ProofOfWorkEnabled = value, $"/routes/{index}/settings/proofOfWork/enabled"))"
-                                       Label="Route browser check" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-route-pow"
-                                       Error="@(E($"/routes/{index}/settings/proofOfWork/enabled") is not null)" ErrorText="@E($"/routes/{index}/settings/proofOfWork/enabled")"
-                                       data-field="@($"route-proof-of-work-{index}")">
-                                <MudSelectItem T="bool?" Value="null">Inherit</MudSelectItem>
-                                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-                                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-                            </MudSelect>
+                            <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small" Dense="true" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight"
+                                     AriaLabel="@($"Route {index + 1} options")" data-action="@($"route-menu-{index}")">
+                                <MudMenuItem Icon="@Icons.Material.Outlined.Tune" OnClick="() => ToggleRouteSettings(route)" data-action="route-settings">Route settings</MudMenuItem>
+                                @if (OnEditUpstream.HasDelegate && route.UpstreamId is { } upstreamId && Upstreams.Any(u => u.Id == upstreamId))
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Hub" OnClick="() => OnEditUpstream.InvokeAsync(upstreamId)" data-action="edit-upstream">Edit upstream</MudMenuItem>
+                                }
+                                @if (Model.Routes.Count > 1 && !ReadOnly)
+                                {
+                                    <MudMenuItem Icon="@Icons.Material.Outlined.Delete" OnClick="() => RemoveRouteAsync(route)" data-action="remove-route">Remove route</MudMenuItem>
+                                }
+                            </MudMenu>
                         </div>
+                        @if (RouteSettingsShown(route, index))
+                        {
+                            <div class="pdk-route-settings" data-section="@($"route-settings-{index}")">
+                                <div class="pdk-route-settings-head">
+                                    <span>Route settings &middot; <span class="pdk-mono">@(string.IsNullOrWhiteSpace(route.Path) ? "/" : route.Path)</span></span>
+                                    @if (_routeSettingsOpen.Contains(route))
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Outlined.Close" Size="Size.Small" OnClick="() => ToggleRouteSettings(route)" aria-label="@($"Close route {index + 1} settings")" />
+                                    }
+                                </div>
+                                <div class="pdk-route-settings-grid">
+                                <MudSelect T="bool?" Value="route.ProofOfWorkEnabled" ValueChanged="@(value => SetAsync(() => route.ProofOfWorkEnabled = value, $"/routes/{index}/settings/proofOfWork/enabled"))"
+                                           Label="Browser check on this route" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly"
+                                           Error="@(E($"/routes/{index}/settings/proofOfWork/enabled") is not null)" ErrorText="@E($"/routes/{index}/settings/proofOfWork/enabled")"
+                                           data-field="@($"route-proof-of-work-{index}")">
+                                    <MudSelectItem T="bool?" Value="null">As the host</MudSelectItem>
+                                    <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                                    <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+                                </MudSelect>
+                                </div>
+                            </div>
+                        }
                     }
                     @if (E("/routes") is { } routesError)
                     {
@@ -284,6 +306,10 @@
     [Parameter]
     public EventCallback<RouteEntry> OnNewUpstream { get; set; }
 
+    /// <summary>"Edit upstream" in a route's menu: the drawer opens it on top of this one.</summary>
+    [Parameter]
+    public EventCallback<UpstreamId> OnEditUpstream { get; set; }
+
     /// <summary>"New certificate...": the drawer makes one and binds it. None without <c>certificates:write</c>.</summary>
     [Parameter]
     public EventCallback OnNewCertificate { get; set; }
@@ -406,5 +432,26 @@
 
     private Task AddRouteAsync() => SetAsync(() => Model.AddRoute(Upstreams.Count == 1 ? Upstreams[0].Id : null), "/routes");
 
-    private Task RemoveRouteAsync(RouteEntry route) => SetAsync(() => Model.Routes.Remove(route), "/routes");
+    private Task RemoveRouteAsync(RouteEntry route)
+    {
+        _routeSettingsOpen.Remove(route);
+        return SetAsync(() => Model.Routes.Remove(route), "/routes");
+    }
+
+    private readonly HashSet<RouteEntry> _routeSettingsOpen = [];
+
+    private void ToggleRouteSettings(RouteEntry route)
+    {
+        if (!_routeSettingsOpen.Remove(route))
+        {
+            _routeSettingsOpen.Add(route);
+        }
+    }
+
+    // A route that overrides something, or whose settings have an error, shows them whatever the toggle says, so nothing a
+    // route does is hidden behind its menu.
+    private bool RouteSettingsShown(RouteEntry route, int index) =>
+        _routeSettingsOpen.Contains(route)
+        || route.ProofOfWorkEnabled is not null
+        || Errors.Keys.Any(key => key.StartsWith($"/routes/{index}/settings", StringComparison.Ordinal));
 }
