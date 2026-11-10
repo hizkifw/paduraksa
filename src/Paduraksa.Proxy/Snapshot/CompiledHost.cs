@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Tls;
@@ -62,6 +63,21 @@ public sealed class CompiledHost
     /// <summary>Where the request ID is sent upstream: the settings layers resolved it, built-in default upstream and
     /// response.</summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
+
+    /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
+    public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
+
+    /// <summary>
+    /// True when the host or at least one of its routes has the proof-of-work gate on, so the gate answers its verify
+    /// endpoint for this host instead of letting the path fall through.
+    /// </summary>
+    public bool ServesProofOfWork { get; init; }
+
+    /// <summary>
+    /// The host's stable scope for token and challenge tags, precomputed from <see cref="Id"/>'s bytes. A token signed
+    /// for one host never verifies on another.
+    /// </summary>
+    public byte[] ProofOfWorkHostScope { get; init; } = [];
 
     /// <summary>
     /// Placeholder for the stable metric slot: the same host keeps the same slot across snapshots.

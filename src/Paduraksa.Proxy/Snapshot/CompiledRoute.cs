@@ -1,4 +1,5 @@
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 
 namespace Paduraksa.Proxy.Snapshot;
@@ -28,6 +29,12 @@ public sealed class CompiledRoute
 
     /// <summary>The route's own policies. The host's chain has already run when these do (see <c>GateMiddleware</c>).</summary>
     public required IRequestPolicy[] Policies { get; init; }
+
+    /// <summary>This route's effective proof of work: the host's values with the route's own switch applied.</summary>
+    public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
+
+    /// <summary>True when the route's own layer decided <see cref="ProofOfWork"/>'s switch (the trace says so).</summary>
+    public bool ProofOfWorkRouteOverride { get; init; }
 
     /// <summary>
     /// True for the implicit route every admin host gets: it takes every path and forwards to the

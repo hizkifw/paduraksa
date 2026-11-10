@@ -51,6 +51,7 @@ internal static class ConfigStore
         bool placeholderEnabled,
         AdminOptions admin,
         TimeProvider timeProvider,
+        ProofOfWorkRuntime proofOfWork,
         ILoggerFactory loggerFactory)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -78,6 +79,7 @@ internal static class ConfigStore
             .AddSingleton<IUpstreamHealth>(health)
             .AddSingleton(new ListenerFacts(listeners.HttpProxyProtocol, listeners.HttpsProxyProtocol, listeners.Http3))
             .AddSingleton(challenges)
+            .AddSingleton(proofOfWork)
             .AddPaduraksaConfigService()
             .AddPaduraksaCertificateOperations()
             .AddPaduraksaCertificateRecovery();

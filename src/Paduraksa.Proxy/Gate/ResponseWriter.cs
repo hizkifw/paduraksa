@@ -40,6 +40,11 @@ internal static class ResponseWriter
             headers.Location = new StringValues(BuildLocation(context, redirect));
         }
 
+        foreach (var header in response.Headers)
+        {
+            headers[header.Name] = header.Value;
+        }
+
         // 204/205/304 carry no body and no Content-Length (their bodies are rejected at compile time).
         if (!PrecomputedResponse.ForbidsBody(response.StatusCode))
         {

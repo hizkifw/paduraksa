@@ -55,7 +55,7 @@ public static partial class SnapshotCompiler
             var routes = spec.Kind switch
             {
                 HostKind.Admin => CompileAdminRoute(spec, Options.AdminUpstream, RouteIdBySlot, YarpRoutes, where, Errors),
-                HostKind.Proxy => CompileRoutes(spec, Clusters, RouteIds, YarpRouteIds, YarpRoutes, RouteIdBySlot, where, Errors),
+                HostKind.Proxy => CompileRoutes(spec, Clusters, RouteIds, YarpRouteIds, YarpRoutes, RouteIdBySlot, where, Errors, Options.ProofOfWork),
                 _ => RejectRoutes(spec, where, Errors),
             };
             var fixedResponse = CompileFixedResponse(spec, where, Errors);
@@ -80,6 +80,32 @@ public static partial class SnapshotCompiler
                 : ResolveCertificate(spec.Certificate, where, Options.Certificates, Errors);
             var nameCertificates = ResolveNameCertificates(spec, where, Options.Certificates, Errors);
             var tls = CompileTlsPolicy(spec.Tls, where, Errors);
+            var servesProofOfWork = spec.Kind == HostKind.Proxy
+                && (spec.ProofOfWork.Enabled || AnyProofOfWorkRoute(spec));
+            if (servesProofOfWork)
+            {
+                CheckProofOfWork(spec.ProofOfWork, where, "the host", Errors);
+                foreach (var route in spec.Routes ?? [])
+                {
+                    if (!route.ProofOfWorkRouteOverride)
+                    {
+                        continue;
+                    }
+
+                    if (route.ProofOfWork.Enabled)
+                    {
+                        CheckProofOfWork(route.ProofOfWork, CompileErrorSource.Route(spec.Id, route.Id), "the route", Errors);
+                    }
+
+                    if (route.ProofOfWork.Difficulty != spec.ProofOfWork.Difficulty
+                        || route.ProofOfWork.TokenLifetimeHours != spec.ProofOfWork.TokenLifetimeHours)
+                    {
+                        Errors.Add(new(CompileErrorSource.Route(spec.Id, route.Id), "a route only overrides the proof-of-work switch; the difficulty and token lifetime are the host's"));
+                    }
+                }
+            }
+
+            var hostScope = HostScopeOf(spec.Id);
             var serverNames =
                 spec.Enabled ? GroupByCertificate(ServerNamesOf(spec.Names ?? []), certificate, nameCertificates) : [];
             // Only hosts with names in the certificate table can be reached over HTTP/3 (an IP-literal-only host has none:
@@ -110,6 +136,9 @@ public static partial class SnapshotCompiler
                 AccessLog = spec.AccessLog,
                 RequestIdPropagation = spec.RequestIdPropagation,
                 ResponseHeaders = responseHeaders,
+                ProofOfWork = spec.ProofOfWork,
+                ServesProofOfWork = servesProofOfWork,
+                ProofOfWorkHostScope = hostScope,
             };
 
             if (spec.Names is null || spec.Names.Count == 0)
@@ -228,7 +257,8 @@ public static partial class SnapshotCompiler
         List<RouteConfig> yarpRoutes,
         List<RouteId> routeIdBySlot,
         CompileErrorSource where,
-        List<CompileError> errors)
+        List<CompileError> errors,
+        ProofOfWorkRuntime? proofOfWork)
     {
         var specs = host.Routes ?? [];
         if (specs.Count == 0)
@@ -301,6 +331,13 @@ public static partial class SnapshotCompiler
 
             // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
             var own = CompilePolicies(spec.Policies ?? [], routeWhere, errors);
+            var routeProofOfWork = spec.ProofOfWorkRouteOverride ? spec.ProofOfWork : host.ProofOfWork;
+            if (routeProofOfWork.Enabled)
+            {
+                // After the route's other policies: an allow list or a deny has already decided, so the challenge is only
+                // reached by a request the rest of the chain lets through.
+                own = [.. own, new ProofOfWorkPolicy(routeProofOfWork, HostScopeOf(host.Id), spec.ProofOfWorkRouteOverride, proofOfWork ?? ProofOfWorkRuntime.Unavailable)];
+            }
 
             var slot = routeIdBySlot.Count;
             routeIdBySlot.Add(spec.Id);
@@ -317,10 +354,47 @@ public static partial class SnapshotCompiler
                 Path = path,
                 Slot = slot,
                 Policies = own,
+                ProofOfWork = routeProofOfWork,
+                ProofOfWorkRouteOverride = spec.ProofOfWorkRouteOverride,
             };
         }
 
         return routes;
+    }
+
+    /// <summary>The host's scope bytes: its stable <see cref="HostId"/>, so a token signed for one host never verifies on another.</summary>
+    private static byte[] HostScopeOf(HostId id)
+    {
+        var scope = new byte[16];
+        id.Value.TryWriteBytes(scope, bigEndian: true, out _);
+        return scope;
+    }
+
+    private static bool AnyProofOfWorkRoute(HostSpec spec)
+    {
+        foreach (var route in spec.Routes ?? [])
+        {
+            if ((route.ProofOfWorkRouteOverride ? route.ProofOfWork : spec.ProofOfWork).Enabled)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>The compiler's backstop for the values the validator and the mapping already judged.</summary>
+    private static void CheckProofOfWork(HostProofOfWorkSpec spec, CompileErrorSource where, string what, List<CompileError> errors)
+    {
+        if (spec.Difficulty is < ProofOfWorkLimits.MinDifficulty or > ProofOfWorkLimits.MaxDifficulty)
+        {
+            errors.Add(new(where, $"{what}'s proof-of-work difficulty must be {ProofOfWorkLimits.MinDifficulty}-{ProofOfWorkLimits.MaxDifficulty}, got {spec.Difficulty}"));
+        }
+
+        if (spec.TokenLifetimeHours is < ProofOfWorkLimits.MinTokenLifetimeHours or > ProofOfWorkLimits.MaxTokenLifetimeHours)
+        {
+            errors.Add(new(where, $"{what}'s proof-of-work token lifetime must be {ProofOfWorkLimits.MinTokenLifetimeHours}-{ProofOfWorkLimits.MaxTokenLifetimeHours} hours, got {spec.TokenLifetimeHours}"));
+        }
     }
 
     private static CompiledRoute[] RejectRoutes(HostSpec host, CompileErrorSource where, List<CompileError> errors)

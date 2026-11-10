@@ -97,7 +97,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                 })
                 .ConfigureServices(s =>
                 {
-                    s.AddPaduraksaProxy(publisher);
+                    s.AddPaduraksaProxy(publisher, proofOfWork: options.ProofOfWork);
                     s.Configure<TransportFailureRateHealthPolicyOptions>(o =>
                     {
                         o.MinimalTotalCountThreshold = 2;
@@ -218,6 +218,9 @@ internal sealed record ProxyTestServerOptions
 
     /// <summary>Options of the new publisher (ignored with <see cref="Publisher"/>).</summary>
     public SnapshotPublisherOptions? PublisherOptions { get; init; }
+
+    /// <summary>The proof-of-work runtime the gate's verify endpoint uses; keep it the same one the compiler options carry.</summary>
+    public ProofOfWorkRuntime? ProofOfWork { get; init; }
 }
 
 /// <summary>

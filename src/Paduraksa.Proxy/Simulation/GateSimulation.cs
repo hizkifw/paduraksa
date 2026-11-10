@@ -48,6 +48,9 @@ public enum GateReason : byte
     /// <summary>A policy of the route's chain stopped it.</summary>
     RoutePolicy,
 
+    /// <summary>The proof-of-work verify endpoint answered it.</summary>
+    ProofOfWork,
+
     /// <summary>The route has no YARP endpoint (not possible for a bound snapshot).</summary>
     Unavailable,
 
@@ -87,6 +90,10 @@ public enum GateStepKind : byte
     HostPolicy,
     HttpsRedirect,
     FixedResponse,
+
+    /// <summary>The proof-of-work verify endpoint, which the gate answers before route matching.</summary>
+    ProofOfWork,
+
     RouteMatch,
     RoutePolicy,
     Upstream,

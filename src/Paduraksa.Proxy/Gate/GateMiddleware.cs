@@ -25,6 +25,10 @@ internal enum GateAction : byte
 
     /// <summary>Write <see cref="GateDecision.Response"/>.</summary>
     Respond,
+
+    /// <summary>The gate's own proof-of-work verify endpoint: <see cref="GateMiddleware.InvokeAsync"/> reads the body, checks it
+    /// and answers with the cookie and a redirect.</summary>
+    VerifyProofOfWork,
 }
 
 /// <summary>The gate's synchronous verdict: 16 bytes, returned by value. <c>default</c> is <see cref="Abort"/>.</summary>
@@ -35,6 +39,8 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
     public static GateDecision Abort => default;
 
     public static GateDecision Respond(PrecomputedResponse response) => new(GateAction.Respond, response);
+
+    public static GateDecision VerifyProofOfWork => new(GateAction.VerifyProofOfWork, null);
 }
 
 /// <summary>
@@ -50,17 +56,21 @@ public sealed class GateMiddleware
     private readonly SnapshotStore _store;
     private readonly IClientAddressSource _clientAddresses;
     private readonly AcmeChallengeStore? _challenges;
+    private readonly ProofOfWorkRuntime _proofOfWork;
 
     /// <param name="store">The live snapshot.</param>
     /// <param name="clientAddresses">Resolves the client address.</param>
     /// <param name="challenges">The HTTP-01 answers; without it the gate answers no challenge.</param>
-    public GateMiddleware(SnapshotStore store, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges = null)
+    /// <param name="proofOfWork">The proof-of-work key, clock and counters for the verify endpoint; null: a keyless runtime.</param>
+    public GateMiddleware(
+        SnapshotStore store, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges = null, ProofOfWorkRuntime? proofOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(clientAddresses);
         _store = store;
         _clientAddresses = clientAddresses;
         _challenges = challenges;
+        _proofOfWork = proofOfWork ?? ProofOfWorkRuntime.Unavailable;
     }
 
     /// <summary>For <c>app.Use(gate.InvokeAsync)</c>.</summary>
@@ -81,16 +91,27 @@ public sealed class GateMiddleware
             ResponseHeaders.ApplyStage(context, headers, ResponseHeaderStage.AfterDecision, state, [], applyRequestId: true);
         }
 
+        if (decision.Action == GateAction.VerifyProofOfWork && state?.Host is { } verifyHost)
+        {
+            return ProofOfWorkEndpoint.HandleAsync(context, verifyHost, _proofOfWork);
+        }
+
         return CompleteAsync(context, decision, next);
     }
 
-    internal GateDecision Decide(HttpContext context) => Decide(context, _store.Current, _clientAddresses, _challenges, default(NoGateTracer));
+    internal GateDecision Decide(HttpContext context) => Decide(context, _store.Current, _clientAddresses, _challenges, _proofOfWork, default(NoGateTracer));
+
+    /// <summary><see cref="Decide{TTracer}(HttpContext, RuntimeSnapshot, IClientAddressSource, AcmeChallengeStore, ProofOfWorkRuntime, TTracer)"/> with a keyless runtime (a test that doesn't exercise proof of work).</summary>
+    internal static GateDecision Decide<TTracer>(HttpContext context, RuntimeSnapshot snapshot, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges, TTracer tracer)
+        where TTracer : struct, IGateTracer =>
+        Decide(context, snapshot, clientAddresses, challenges, ProofOfWorkRuntime.Unavailable, tracer);
 
     /// <summary>
     /// The decision over <paramref name="snapshot"/>, reporting every step to <paramref name="tracer"/>. The one body
     /// production (<see cref="NoGateTracer"/>, which the JIT removes) and the request simulator both run.
     /// </summary>
-    internal static GateDecision Decide<TTracer>(HttpContext context, RuntimeSnapshot snapshot, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges, TTracer tracer)
+    internal static GateDecision Decide<TTracer>(
+        HttpContext context, RuntimeSnapshot snapshot, IClientAddressSource clientAddresses, AcmeChallengeStore? challenges, ProofOfWorkRuntime proofOfWork, TTracer tracer)
         where TTracer : struct, IGateTracer
     {
         var state = AcquireState(context);
@@ -162,6 +183,20 @@ public sealed class GateMiddleware
         {
             tracer.FixedResponse(host);
             return GateDecision.Respond(fixedResponse);
+        }
+
+        // The proof-of-work verify endpoint, before route matching: the gate answers it for any host where the gate is on
+        // for the host or one of its routes, and every other host lets the path fall through as usual. A verify POST is a
+        // body to read, so the asynchronous endpoint handles it after this decision (see InvokeCoreAsync).
+        if (host.ServesProofOfWork && ProofOfWorkTargets.IsVerifyPath(request.Path.Value.AsSpan()))
+        {
+            if (HttpMethods.IsPost(request.Method))
+            {
+                tracer.ProofOfWorkVerify(context, host);
+                return GateDecision.VerifyProofOfWork;
+            }
+
+            return GateDecision.Respond(ProofOfWorkResponses.MethodNotAllowed);
         }
 
         var route = MatchRoute(host, request.Path.Value, tracer);

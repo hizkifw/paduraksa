@@ -35,6 +35,9 @@ internal static class CoreHost
 
         // The vault first: the config store loads certificates through it, and a vault that cannot start must stop the process.
         builder.Services.AddHostedService<VaultStartup>();
+        // The proof-of-work key: ensured and opened after the vault is ready, before the public listener binds. Its
+        // failure is logged and leaves protected routes failing closed, not a reason to stop the process.
+        builder.Services.AddHostedService(static services => services.GetRequiredService<ProofOfWorkKeyStartup>());
         builder.Services.AddHostedService<ConfigStartup>();
         builder.Services.AddHostedService<IdentityStartup>();
         // Then what the vault holds that the database lost, before the web apps take their first request: it is an awaited

@@ -267,6 +267,14 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             [new("scheme", isHttps ? "https" : "http")],
             host.Id));
 
+    public void ProofOfWorkVerify(HttpContext context, CompiledHost host) =>
+        steps.Add(new GateStep(
+            GateStepKind.ProofOfWork,
+            GateStepVerdict.Stopped,
+            "the proof-of-work verify endpoint: a solved challenge gets 303 and the token; a simulated request posts no form, so it gets 403",
+            [new("path", ProofOfWorkTargets.VerifyPath), new("difficulty", host.ProofOfWork.Difficulty.ToString(System.Globalization.CultureInfo.InvariantCulture))],
+            host.Id));
+
     public void FixedResponse(CompiledHost host) =>
         steps.Add(new GateStep(
             GateStepKind.FixedResponse,

@@ -73,7 +73,7 @@ internal static partial class PublicApp
                     })
                     .ConfigureServices(services =>
         {
-            services.AddPaduraksaProxy(context.Shared.SnapshotPublisher, context.Shared.AdminInternal);
+            services.AddPaduraksaProxy(context.Shared.SnapshotPublisher, context.Shared.AdminInternal, context.Shared.ProofOfWork);
             // YARP's AddReverseProxy registers Data Protection and a key-ring warm-up hosted service. The public app's
             // provider is the in-memory ephemeral one (HostSetup), so the warm-up must go: it would create a key elsewhere.
             EphemeralDataProtection.RemoveKeyRingWarmup(services);

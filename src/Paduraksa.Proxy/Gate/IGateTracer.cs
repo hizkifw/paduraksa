@@ -65,6 +65,9 @@ internal interface IGateTracer
     /// <summary>The host forces HTTPS: <paramref name="redirected"/> says whether this request was sent to it.</summary>
     void HttpsRedirect(CompiledHost host, bool isHttps, bool redirected);
 
+    /// <summary>The proof-of-work verify endpoint took the request: the gate reads the posted challenge and answers it.</summary>
+    void ProofOfWorkVerify(HttpContext context, CompiledHost host);
+
     /// <summary>A Redirect or Respond host answered with its fixed response.</summary>
     void FixedResponse(CompiledHost host);
 
@@ -114,6 +117,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void HttpsRedirect(CompiledHost host, bool isHttps, bool redirected)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void ProofOfWorkVerify(HttpContext context, CompiledHost host)
     {
     }
 

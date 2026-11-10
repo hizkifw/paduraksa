@@ -54,6 +54,8 @@ internal sealed class SharedServices : IAsyncDisposable
         Certificates = Get<PlaceholderCertificates>();
         AdminCertificate = Get<AdminCertificateService>();
         AdminInternal = Get<AdminInternalListener>();
+        ProofOfWork = Get<ProofOfWorkRuntime>();
+        ProofOfWorkKey = Get<ProofOfWorkKeyStartup>();
         LogFiles = Get<ServerLogFiles>();
         LogStore = Get<ILogFileStore>();
         Catalog = Get<ICertificateCatalog>();
@@ -136,6 +138,12 @@ internal sealed class SharedServices : IAsyncDisposable
     /// which the public proxy reaches the admin. Exists independent of the config, so creating an admin host needs no restart.
     /// </summary>
     public AdminInternalListener AdminInternal { get; }
+
+    /// <summary>The proof-of-work gate's key, clock and counters; the compiler hands it to every protected route.</summary>
+    public ProofOfWorkRuntime ProofOfWork { get; }
+
+    /// <summary>Opens the proof-of-work key at startup, before the public listener binds (see <see cref="ProofOfWorkKeyStartup"/>).</summary>
+    public ProofOfWorkKeyStartup ProofOfWorkKey { get; }
 
     /// <summary>
     /// The process's log files: the error log's writer and provider, and the access log's writer, which the access log's
@@ -235,6 +243,8 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.Add(new CertificateRecoveryCompletion());
             var snapshots = builder.Add(new SnapshotStore());
             RoleLoggerFactory coreLoggers = new(loggerFactory, HostRole.Core);
+            // The proof-of-work gate's key is opened into this at startup; until then a protected route fails closed.
+            var proofOfWork = builder.Add(new ProofOfWorkRuntime(timeProvider, coreLoggers.CreateLogger("Paduraksa.Proxy.ProofOfWork")));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
             var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
@@ -253,7 +263,7 @@ internal sealed class SharedServices : IAsyncDisposable
                 throw;
             }
 
-            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled));
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 
@@ -274,7 +284,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // The vault's own catalog is a shared instance too: the CA download endpoints read the root from it (public facts).
             builder.AddOwnedElsewhere(vault.Catalog);
             var configStore = ConfigStore.AddTo(
-                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, coreLoggers);
+                builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, coreLoggers);
 
             // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
             IssuanceStore.AddTo(builder, options, configStore, vault, challenges, health, timeProvider, coreLoggers);
@@ -288,6 +298,9 @@ internal sealed class SharedServices : IAsyncDisposable
             var caRoot = builder.Add(new CaRootSource());
             builder.Add(new AdminCertificateService(
                 certificates, vault.ServerCertificates, vault.Catalog, caRoot, configStore.Operations, configStore.Config, configStore.Setup, options, timeProvider, coreLoggers));
+            // The proof-of-work HMAC key: ensured at its reserved ID and opened into the runtime before the public
+            // listener binds (a core-host start step), so the first protected request has a key or fails closed.
+            builder.Add(new ProofOfWorkKeyStartup(vault.Secrets, vault.MacKeys, proofOfWork, coreLoggers));
             // TODO: MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();

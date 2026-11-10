@@ -48,7 +48,10 @@ public static class GateSimulator
     /// config, so every target uses it); null: none is answered.</param>
     /// <param name="listeners">The public listeners' PROXY protocol rules and HTTP/3 availability; null: the listener isn't
     /// modelled, and any connection is let through.</param>
-    public static GateSimulation Run(RuntimeSnapshot snapshot, GateProbe probe, AcmeChallengeStore? challenges = null, ListenerFacts? listeners = null)
+    /// <param name="proofOfWork">The process's proof-of-work key, clock and counters; the live one for a live simulation.
+    /// Null: a keyless runtime, so a protected route reports the 503 it would give.</param>
+    public static GateSimulation Run(
+        RuntimeSnapshot snapshot, GateProbe probe, AcmeChallengeStore? challenges = null, ListenerFacts? listeners = null, ProofOfWorkRuntime? proofOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(probe);
@@ -87,7 +90,7 @@ public static class GateSimulator
         }
 
         var context = BuildContext(bound, probe, peer, negotiated, tlsVersion, path, hostHeader);
-        var decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, new RecordingGateTracer(steps));
+        var decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, proofOfWork ?? ProofOfWorkRuntime.Unavailable, new RecordingGateTracer(steps));
         var outcome = OutcomeOf(decision, context, steps);
         var upstream = outcome.Action == GateOutcomeAction.Forward && context.Features.Get<IGateFeature>()?.State.Route is { } route
             ? route.Admin
@@ -456,6 +459,9 @@ public static class GateSimulator
                     ? context.Response.Headers.Location.ToString()
                     : null;
                 return new GateOutcome(GateOutcomeAction.Respond, reason, response.StatusCode, location, BodyOf(response));
+            // A probe carries no body, and the real gate refuses a post without a challenge and solution with 403.
+            case GateAction.VerifyProofOfWork:
+                return new GateOutcome(GateOutcomeAction.Respond, GateReason.ProofOfWork, StatusCodes.Status403Forbidden);
             default:
                 return new GateOutcome(GateOutcomeAction.Abort, reason);
         }
@@ -491,6 +497,7 @@ public static class GateSimulator
                     GateStepKind.HostPolicy => GateReason.HostPolicy,
                     GateStepKind.HttpsRedirect => GateReason.HttpsRedirect,
                     GateStepKind.FixedResponse => GateReason.FixedHost,
+                    GateStepKind.ProofOfWork => GateReason.ProofOfWork,
                     GateStepKind.RouteMatch => GateReason.NoRoute,
                     GateStepKind.RoutePolicy => GateReason.RoutePolicy,
                     _ => GateReason.Unavailable,

@@ -1,4 +1,5 @@
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -14,7 +15,7 @@ namespace Paduraksa.Server.Hosting;
 /// </summary>
 internal sealed class PublicListenerSetup
 {
-    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots, bool adminInternal)
+    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots, bool adminInternal, ProofOfWorkRuntime? proofOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(listen);
         ArgumentNullException.ThrowIfNull(snapshots);
@@ -29,6 +30,7 @@ internal sealed class PublicListenerSetup
             PublicHttpsPort = listen.PublicHttpsPort,
             AdvertiseHttp3 = Http3,
             AdminUpstream = adminInternal,
+            ProofOfWork = proofOfWork,
         };
     }
 
@@ -48,7 +50,7 @@ internal sealed class PublicListenerSetup
     /// <summary>Per-SNI certificate selection on TCP and QUIC, reading the live snapshot's certificate table.</summary>
     public TlsHandshakeSelector Selector { get; }
 
-    /// <summary>What every snapshot is compiled with (certificates, public port, H3 advertising).</summary>
+    /// <summary>What every snapshot is compiled with (certificates, public port, H3 advertising, the proof-of-work runtime).</summary>
     public SnapshotCompilerOptions CompilerOptions { get; }
 
     private static ProxyProtocolOptions? Create(ProxyProtocolListenOptions options) =>

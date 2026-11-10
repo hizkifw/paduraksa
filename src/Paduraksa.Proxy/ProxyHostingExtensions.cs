@@ -39,15 +39,20 @@ public static class ProxyHostingExtensions
     /// <param name="services">The public app's services.</param>
     /// <param name="publisher">The one snapshot publisher of the process.</param>
     /// <param name="adminInternal">The admin app's internal listener; null in a test app that can't compile an admin host.</param>
+    /// <param name="proofOfWork">The process's proof-of-work key, clock and counters; null: a fresh, keyless runtime (a
+    /// protected route then fails closed). The snapshot compiler must carry the same instance.</param>
     public static IServiceCollection AddPaduraksaProxy(
-        this IServiceCollection services, SnapshotPublisher publisher, AdminInternalListener? adminInternal = null)
+        this IServiceCollection services, SnapshotPublisher publisher, AdminInternalListener? adminInternal = null, ProofOfWorkRuntime? proofOfWork = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(publisher);
 
+        ProofOfWorkRuntime runtime = proofOfWork ?? new ProofOfWorkRuntime();
         AdminInternalSecretTransform adminSecret = new(adminInternal);
         services.TryAddSingleton(publisher);
         services.TryAddSingleton(publisher.Store);
+        services.TryAddSingleton(runtime);
+        services.TryAddSingleton(runtime.Stats);
         services.AddSingleton<IProxyConfigProvider>(publisher.ConfigProvider);
         services.AddSingleton<IConfigChangeListener>(publisher.ApplyListener);
         services.AddRoutingCore();

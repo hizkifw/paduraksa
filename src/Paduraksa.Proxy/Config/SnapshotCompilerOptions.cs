@@ -1,3 +1,4 @@
+using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Tls;
 
@@ -45,4 +46,10 @@ public sealed record SnapshotCompilerOptions
     /// <summary>Cloudflare's edge ranges for <see cref="Paduraksa.Core.Model.TrustedProxyMode.CloudflareProxy"/>;
     /// null for the baked-in <see cref="CloudflareIpRanges.Default"/>.</summary>
     public CidrSet? CloudflareEdgeRanges { get; init; }
+
+    /// <summary>
+    /// The process's proof-of-work key, clock and counters; null: a policy that needs them finds no key and fails closed.
+    /// The same instance is what the public app's verify endpoint uses, so the policy and the endpoint always agree.
+    /// </summary>
+    public ProofOfWorkRuntime? ProofOfWork { get; init; }
 }

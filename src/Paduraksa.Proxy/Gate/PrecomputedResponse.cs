@@ -14,7 +14,7 @@ public sealed class PrecomputedResponse
     private static readonly StringValues TextPlain = new("text/plain; charset=utf-8");
     private static readonly StringValues NoStore = new("no-store");
 
-    private PrecomputedResponse(int statusCode, byte[] body, StringValues contentType, StringValues cacheControl, StringValues location, RedirectTarget? redirect)
+    private PrecomputedResponse(int statusCode, byte[] body, StringValues contentType, StringValues cacheControl, StringValues location, RedirectTarget? redirect, PrecomputedHeader[]? headers = null)
     {
         StatusCode = statusCode;
         Body = body;
@@ -22,6 +22,7 @@ public sealed class PrecomputedResponse
         CacheControl = cacheControl;
         Location = location;
         Redirect = redirect;
+        Headers = headers ?? [];
     }
 
     public int StatusCode { get; }
@@ -40,6 +41,9 @@ public sealed class PrecomputedResponse
 
     /// <summary>A fixed <c>Location</c>. Empty when there is none, or when <see cref="Redirect"/> builds it per request.</summary>
     public StringValues Location { get; }
+
+    /// <summary>Headers this answer carries besides the standard ones (the proof-of-work page's CSP and its kin).</summary>
+    public PrecomputedHeader[] Headers { get; }
 
     /// <summary>
     /// Set when the <c>Location</c> depends on the request (the HTTP→HTTPS redirect, a redirect host that keeps the
@@ -61,6 +65,15 @@ public sealed class PrecomputedResponse
     {
         ValidateStatus(statusCode, body.Length, nameof(body));
         return new(statusCode, body.ToArray(), Values(contentType), Values(cacheControl), default, null);
+    }
+
+    /// <summary>A response with an arbitrary body, content type and extra headers (the proof-of-work page).</summary>
+    public static PrecomputedResponse Create(
+        int statusCode, ReadOnlySpan<byte> body, string? contentType, string? cacheControl, PrecomputedHeader[] headers)
+    {
+        ArgumentNullException.ThrowIfNull(headers);
+        ValidateStatus(statusCode, body.Length, nameof(body));
+        return new(statusCode, body.ToArray(), Values(contentType), Values(cacheControl), default, null, headers);
     }
 
     /// <summary>A redirect to a fixed URL.</summary>
@@ -107,6 +120,9 @@ public sealed class PrecomputedResponse
         }
     }
 }
+
+/// <summary>One fixed header of a precomputed answer, e.g. the proof-of-work page's CSP.</summary>
+public readonly record struct PrecomputedHeader(string Name, StringValues Value);
 
 /// <summary>
 /// How a per-request <c>Location</c> is put together: <c>Prefix</c> [+ request host + <c>PortSuffix</c>]
