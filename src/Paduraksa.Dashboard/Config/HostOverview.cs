@@ -235,7 +235,8 @@ public static class HostOverview
         return redirect ? "HTTPS, redirects HTTP" : "HTTP and HTTPS";
     }
 
-    /// <summary>Where <paramref name="host"/>'s requests go, a line per route (its path, the upstream, the upstream's address).</summary>
+    /// <summary>Where <paramref name="host"/>'s requests go, a line per route in evaluation order (its path, the
+    /// upstream, the upstream's address).</summary>
     public static IReadOnlyList<HostDestination> DestinationsOf(HostConfig host, ConfigDocument document)
     {
         ArgumentNullException.ThrowIfNull(host);
@@ -250,13 +251,17 @@ public static class HostOverview
 
                 return
                 [
-                    .. host.Routes.OrderBy(r => r.Order).Select(route =>
-                    {
-                        var path = route.Match == RouteMatchKind.Exact ? $"= {route.Path}" : route.Path;
-                        return document.Upstreams.FirstOrDefault(u => u.Id == route.UpstreamId) is { } upstream
-                            ? new HostDestination(path, upstream.Name, AddressOf(upstream))
-                            : new HostDestination(path, "missing upstream", null, Missing: true);
-                    }),
+                    .. host.Routes
+                        .Select((route, listed) => (Route: route, Key: RouteOrderKey.For(route.Match, route.Path, route.Order, listed)))
+                        .OrderBy(entry => entry.Key)
+                        .Select(entry =>
+                        {
+                            var route = entry.Route;
+                            var path = route.Match == RouteMatchKind.Exact ? $"= {route.Path}" : route.Path;
+                            return document.Upstreams.FirstOrDefault(u => u.Id == route.UpstreamId) is { } upstream
+                                ? new HostDestination(path, upstream.Name, AddressOf(upstream))
+                                : new HostDestination(path, "missing upstream", null, Missing: true);
+                        }),
                 ];
             case HostKind.Redirect:
                 return host.Redirect is { } redirect
