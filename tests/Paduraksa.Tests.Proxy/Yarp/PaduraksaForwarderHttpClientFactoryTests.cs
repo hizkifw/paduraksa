@@ -18,6 +18,7 @@ public sealed class PaduraksaForwarderHttpClientFactoryTests
 
         Assert.Equal(TimeSpan.FromSeconds(60), handler.PooledConnectionLifetime);
         Assert.Equal(TimeSpan.FromSeconds(10), handler.ConnectTimeout);
+        Assert.Null(handler.ActivityHeadersPropagator);
     }
 
     [Fact]

@@ -70,5 +70,9 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
     {
         handler.PooledConnectionLifetime = PooledConnectionLifetime;
         handler.ConnectTimeout = ConnectTimeout;
+        // No propagator means no DiagnosticsHandler: without it every forward would start an Activity and rewrite
+        // traceparent, ~7% of plain-HTTP throughput (bench h1) for tracing nothing here reads. A client's own
+        // traceparent still reaches the upstream unchanged, as any other header.
+        handler.ActivityHeadersPropagator = null;
     }
 }

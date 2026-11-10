@@ -64,6 +64,17 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
     }
 
     [Fact]
+    public async Task AClientsTraceparentReachesTheUpstreamUnchanged()
+    {
+        // The proxy traces nothing, so it neither starts a span of its own nor rewrites the client's.
+        const string Traceparent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
+
+        var seen = await SendAsync(Model(TrustedProxySpec.Off), static request => request.Headers.TryAddWithoutValidation("traceparent", Traceparent), "/");
+
+        Assert.Equal(Traceparent, seen["traceparent"]);
+    }
+
+    [Fact]
     public async Task ATrustedCloudflareEdgePassesTheClientAndItsHeaders()
     {
         var seen = await SendAsync(Model(new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy }), Spoof, "/");
