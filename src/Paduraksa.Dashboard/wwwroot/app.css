@@ -1485,12 +1485,12 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     align-self: start;
 }
 
-/* A card under its route, named after it, so what its controls apply to is plain. */
+/* A card under its route, named after it, so what its controls apply to is plain. No accent edge: a thick one-sided
+   border bends into a crescent at rounded corners; the dashboard's cards carry their tone in a badge or icon instead. */
 .pdk-route-settings {
     margin: 2px 0 12px;
-    padding: 6px 12px 12px 14px;
+    padding: 6px 12px 12px;
     border: 1px solid var(--mud-palette-lines-default);
-    border-left: 3px solid var(--mud-palette-primary);
     border-radius: 8px;
     background: color-mix(in srgb, var(--mud-palette-primary) 4%, transparent);
 }
@@ -1949,18 +1949,11 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 }
 
 .pdk-diff-group {
-    --pdk-tone: var(--mud-palette-text-secondary);
     overflow: hidden;
     border: 1px solid var(--mud-palette-lines-default);
-    border-left: 3px solid var(--pdk-tone);
     border-radius: var(--pdk-radius);
     background: var(--mud-palette-surface);
 }
-
-.pdk-diff-added { --pdk-tone: var(--mud-palette-success); }
-.pdk-diff-removed { --pdk-tone: var(--mud-palette-error); }
-.pdk-diff-modified { --pdk-tone: var(--mud-palette-warning); }
-.pdk-diff-context { --pdk-tone: var(--mud-palette-lines-inputs); }
 
 .pdk-diff-head {
     display: flex;
@@ -2046,7 +2039,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-diff-child {
     margin: 0 10px 10px 36px;
     border: 1px solid var(--mud-palette-lines-default);
-    border-left: 3px solid var(--pdk-tone);
     border-radius: 8px;
     background: var(--mud-palette-background-gray);
 }
