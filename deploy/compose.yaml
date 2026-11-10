@@ -1,19 +1,19 @@
-# Paduraksa v0.1, single node (PLAN §16). Run it from this directory (it builds the image from the checkout one level up):
+# Paduraksa v0.1, single node (PLAN §16). Put this file in a directory of its own and run:
 #
-#   docker compose up -d --build
+#   docker compose up -d
 #
 # The ports are mapped 1:1 on purpose: Paduraksa advertises 443 in Alt-Svc and in its HTTP->HTTPS redirect, so a
 # translated in-container port would send clients to the wrong place. 443/udp is HTTP/3; without it the proxy still
 # serves H1/H2 over 443/tcp.
 services:
   paduraksa:
-    # Built from this checkout: run `docker compose up -d --build` in deploy/, with the repository one directory up. To run
-    # the image CI publishes instead, replace these two lines with `image: ghcr.io/hizkifw/paduraksa:main` (a release
-    # tag such as `:0.1` once there is one).
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    image: paduraksa:local
+    # The image CI publishes from every commit on main that passes (amd64 and arm64); a release tag such as `:0.1` once
+    # there is one. To build from a checkout instead, run compose from its deploy/ directory with these lines next to
+    # `image:` (which then names the local build) and start it with `docker compose up -d --build`:
+    #   build:
+    #     context: ..
+    #     dockerfile: Dockerfile
+    image: ghcr.io/hizkifw/paduraksa:main
     container_name: paduraksa
     # A stable MachineName: the admin certificate covers it, so a recreated container keeps the same name set.
     hostname: paduraksa

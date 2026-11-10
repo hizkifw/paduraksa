@@ -21,18 +21,18 @@ Requirements: Docker 20.10+ with Compose v2. Docker sets `net.ipv4.ip_unprivileg
 network namespace, so the image's non-root user can bind 80/443; the apphost also carries `cap_net_bind_service` for
 runtimes that do not.
 
-1. From a checkout, build the image and start it (the compose file's `build.context` is the repository root, one
-   directory up):
+1. Get [`deploy/compose.yaml`](../deploy/compose.yaml) into a directory of its own and start it. It runs
+   `ghcr.io/hizkifw/paduraksa:main`, which CI publishes from every commit on `main` that passes, for amd64 and arm64:
 
    ```sh
-   cd deploy
-   docker compose up -d --build
+   mkdir paduraksa && cd paduraksa
+   curl -fsSLO https://raw.githubusercontent.com/hizkifw/paduraksa/main/deploy/compose.yaml
+   docker compose up -d
    ```
 
-   If you prefer to keep the compose file elsewhere, set `build.context` to your checkout (and `dockerfile` to its
-   `Dockerfile`), or build the image once with `docker build -t paduraksa:local .` in the repository root and replace
-   the `build:` block with `image: paduraksa:local`. The image CI publishes, `ghcr.io/hizkifw/paduraksa:main` (built from every
-   commit on `main` that passes CI, for amd64 and arm64), is a drop-in replacement for either.
+   **To build the image yourself**, run compose from a checkout's `deploy/` directory with the commented `build:` block
+   enabled (its context is the repository root, one directory up), and start it with `docker compose up -d --build`.
+   Or build once with `docker build -t paduraksa:local .` in the repository root and set `image: paduraksa:local`.
 
    **A bind-mounted data directory** (instead of the named volume) must be owned by the container's uid 10001:
 
@@ -178,19 +178,19 @@ point `Paduraksa__Logs__Directory` at it; it must be writable by uid 10001.
 
 ### Upgrading
 
-For a local build (the default compose file):
+With the published image (the default compose file):
+
+```sh
+docker compose pull
+docker compose up -d
+```
+
+With an image you build from a checkout:
 
 ```sh
 git pull
 cd deploy
 docker compose up -d --build
-```
-
-For a **published image** (replace the `build:` block with `image: ghcr.io/hizkifw/paduraksa:main` first):
-
-```sh
-docker compose pull
-docker compose up -d
 ```
 
 Migrations are applied at startup, before the listeners bind. Stop with `docker compose down` (not `kill`): the
@@ -209,8 +209,7 @@ a file you keep. In Docker:
 
 ```sh
 docker compose down
-docker run --rm -it -v paduraksa-data:/data -v "$PWD:/keys:ro" paduraksa:local \
-  vault rotate-kek --new-key-file /keys/new-master.key
+docker compose run --rm -v "$PWD:/keys:ro" paduraksa vault rotate-kek --new-key-file /keys/new-master.key
 # put the new key where PADURAKSA_MASTER_KEY_FILE points (or let the command replace master.key), then:
 docker compose up -d
 ```

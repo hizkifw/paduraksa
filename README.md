@@ -29,11 +29,12 @@ a CLI, an MCP server, YAML import/export and backups. See the [roadmap](docs/PLA
 
 ## Quick start
 
-With Docker and Compose v2, from a checkout:
+With Docker and Compose v2:
 
 ```sh
-cd deploy
-docker compose up -d --build
+mkdir paduraksa && cd paduraksa
+curl -fsSLO https://raw.githubusercontent.com/hizkifw/paduraksa/main/deploy/compose.yaml
+docker compose up -d
 docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"   # the one-time setup token
 ```
 
@@ -42,7 +43,8 @@ browser warning, trust its root from `https://<host>:9443/api/v1/ca/root.crt`.
 
 Map ports **80/tcp, 443/tcp, 443/udp and 9443/tcp** one to one (443/udp is HTTP/3).
 
-The [install guide](docs/install.md) covers the master key, backups, upgrades and running without Docker.
+The image is `ghcr.io/hizkifw/paduraksa`, for amd64 and arm64. The [install guide](docs/install.md) covers the master
+key, backups, upgrades, building the image yourself and running without Docker.
 
 ## Development
 
