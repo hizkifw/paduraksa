@@ -1,41 +1,35 @@
 # Paduraksa
 
-**Paduraksa**: the gate into the inner sanctum, flanked by guardian figures meant to keep evil out.
+A self-hosted reverse proxy for homelabs, built on Kestrel and YARP. Deploy it once, then manage hosts, certificates and
+users from a web dashboard or a REST API, with every change versioned and reversible.
 
-An open-source, homelab-grade reverse proxy and lightweight WAF built on Kestrel + YARP.
+> [!WARNING]
+> Pre-alpha. It works end to end, but expect breaking changes until v0.1, and don't put it in front of anything that
+> matters yet.
 
-Deploy it once, then manage everything from the dashboard, REST API, MCP or CLI.
+*Paduraksa*: the gate into the inner sanctum, flanked by guardian figures meant to keep evil out.
 
-> Status: pre-alpha. See [docs/PLAN.md](docs/PLAN.md) for the design and roadmap.
+## Features
 
-## Build
+- **Proxying:** HTTP/1.1, HTTP/2 and HTTP/3, a certificate per name (SNI), HTTPS redirects, WebSockets, HSTS. Real
+  client IPs from behind Cloudflare, a trusted proxy or the PROXY protocol.
+- **Certificates:** ACME issuance and renewal (HTTP-01, DNS-01 via Cloudflare or deSEC, ARI renewal windows), uploaded,
+  self-signed, or issued from a built-in local CA.
+- **Safe config changes:** review every change as a diff before it goes live, roll back any revision, and see who did
+  what in a tamper-evident audit log. Changes go live in milliseconds without dropping requests.
+- **Dashboard and API:** a web dashboard with a first-run wizard, and a REST API with OpenAPI docs over the same
+  operations.
+- **Multiple users:** roles, two-step sign-in (TOTP) and scoped API tokens.
+- **Request simulator:** ask why a request was routed, redirected or refused, against the live config or a draft.
+- **Logs:** access and error logs, rotated and compressed, browsable from the dashboard.
+- **Secrets stay encrypted:** certificate keys, DNS credentials and TOTP secrets live in an encrypted vault.
 
-```sh
-dotnet build
-dotnet test
-dotnet format --verify-no-changes
-dotnet run --project src/Paduraksa.Server --launch-profile dev
-```
+**Planned:** access lists and forward auth, WAF policies (rate limits, geo, proof-of-work), custom error pages, metrics,
+a CLI, an MCP server, YAML import/export and backups. See the [roadmap](docs/PLAN.md#14-milestones).
 
-Warnings are errors, and CI runs all three checks.
+## Quick start
 
-Write ASCII. `NoConfusableCharactersTests` (architecture tests) fails on an ambiguous or invisible Unicode
-character anywhere in a tracked file - an en dash, a smart quote, a non-breaking or zero-width space, a Greek or
-Cyrillic homoglyph - because editors flag them and every reviewer has to look twice; the test's remarks list
-what stays allowed (box drawing, arrows, `§`). `./scripts/check-confusables.sh` is the same check in one grep,
-for a local answer in a second.
-
-The server keeps its state in its data directory (`Paduraksa:DataDirectory`, default `./data` next to the shipped
-`appsettings.json`, so `src/Paduraksa.Server/bin/Debug/net10.0/data/` for the `dev` profile; set
-`Paduraksa__DataDirectory` to move it): the config database `paduraksa.db` and `last-good.json`, the config that was
-last live. The server falls back to that file (degraded) when the database can't be used at startup, and restores the
-database from it when the database has no revisions (deleted or replaced). So to start over with an empty config, stop
-the server and delete both. One data directory serves one server at a time.
-
-## Install
-
-Docker is the supported deployment: the [`Dockerfile`](Dockerfile) builds a non-root, Ubuntu Noble image with
-libmsquic for HTTP/3, and [`deploy/compose.yaml`](deploy/compose.yaml) is a one-node example that builds it.
+With Docker and Compose v2, from a checkout:
 
 ```sh
 cd deploy
@@ -43,46 +37,24 @@ docker compose up -d --build
 docker logs paduraksa 2>&1 | grep -A8 "Paduraksa first-run setup"   # the one-time setup token
 ```
 
-Map **80/tcp, 443/tcp, 443/udp and 9443/tcp 1:1** (the UDP port is HTTP/3; without it clients use HTTP/2). Then trust the
-local CA root from `https://<host>:9443/api/v1/ca/root.crt` and open `https://<host>:9443/`.
+Then open `https://<host>:9443/` and follow the setup wizard. The admin port uses Paduraksa's local CA; to stop the
+browser warning, trust its root from `https://<host>:9443/api/v1/ca/root.crt`.
 
-The full guide - the master key and Docker secrets, reading or reprinting the setup token, trusting the CA root,
-backups and where data lives, upgrades, UDP notes, external health checks, and a systemd unit for a bare-metal
-self-contained publish ([`deploy/paduraksa.service`](deploy/paduraksa.service)) - is in [docs/install.md](docs/install.md).
+Map ports **80/tcp, 443/tcp, 443/udp and 9443/tcp** one to one (443/udp is HTTP/3).
 
-## Database migrations
+The [install guide](docs/install.md) covers the master key, backups, upgrades and running without Docker.
 
-The config database schema (`ConfigDbContext` in `src/Paduraksa.Data`) comes from EF Core migrations in
-`src/Paduraksa.Data/Migrations`, applied at startup by `ConfigDatabase.InitializeAsync` (the server's startup recompile
-calls it first). After changing an entity or its mapping, add a migration with the pinned `dotnet-ef` from the local tool manifest:
+## Development
+
+You need the .NET 10 SDK.
 
 ```sh
-dotnet tool restore
-dotnet restore
-dotnet ef migrations add <Name> --project src/Paduraksa.Data --output-dir Migrations
+dotnet build
+dotnet test
 ```
 
-Commit the tool's output as is: `.editorconfig` marks the Migrations folder as generated code, so the style rules
-and `dotnet format` skip it. Review it, though, like any other change. A test (`HasPendingModelChanges`) fails when
-the model and the migrations disagree. Commands that open a database (`database update`, `migrations remove`) use
-a scratch file in the temp directory unless you name one after `--`, e.g.
-`dotnet ef database update --project src/Paduraksa.Data -- data/paduraksa.db`. Keep `dotnet-ef` in `.config/dotnet-tools.json` on the same version as the EF Core packages in
-`Directory.Packages.props`.
-
-The vault database (`VaultDbContext` in `src/Paduraksa.Vault`, `data/vault.db`) has migrations of its own in
-`src/Paduraksa.Vault/Migrations`, applied at startup by the vault (`IVaultLifecycle.InitializeAsync`). Add one the same way:
-`dotnet ef migrations add <Name> --project src/Paduraksa.Vault --output-dir Migrations`.
-
-## Repository layout
-
-- `src/`: the product projects (layering in [docs/PLAN.md](docs/PLAN.md) §1).
-- `tests/`: unit (`Paduraksa.Tests.Unit`), data (`Paduraksa.Tests.Data`), proxy hot path and end-to-end
-  (`Paduraksa.Tests.Proxy`), integration (`Paduraksa.Tests.Integration`) and architecture
-  (`Paduraksa.Tests.Architecture`) tests, and `Paduraksa.Tests.Vault` for the vault (a key-material boundary project like the vault itself).
-- `bench/`: BenchmarkDotNet micro-benchmarks (`Paduraksa.Benchmarks`), the end-to-end runner
-  (`Paduraksa.Bench.Runner`) and the nginx/Caddy baseline (`run-baseline.sh`, results in `bench/results/`).
-- `spikes/`: throwaway experiments, excluded from the solution. Findings live in [docs/spikes/](docs/spikes/).
-- `docs/`: the design plan and spike write-ups.
+The checks CI runs, the data directory, database migrations and the repository layout are in
+[docs/development.md](docs/development.md). The design is in [docs/PLAN.md](docs/PLAN.md).
 
 ## License
 

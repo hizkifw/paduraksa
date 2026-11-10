@@ -41,7 +41,7 @@ public sealed class VaultDatabaseTests : IDisposable
     [Fact]
     public async Task TheModelHasNoChangesMissingAMigration()
     {
-        // Fails when an entity or mapping changed without `dotnet ef migrations add` (README, "Database migrations").
+        // Fails when an entity or mapping changed without `dotnet ef migrations add` (docs/development.md, "Database migrations").
         await using var context = await Factory().CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         Assert.False(context.Database.HasPendingModelChanges(), "The model changed since the last migration: add one.");
