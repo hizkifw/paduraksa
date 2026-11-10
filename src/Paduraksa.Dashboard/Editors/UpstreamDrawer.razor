@@ -185,8 +185,37 @@
                                 {
                                     <MudTextField T="string" Value="Model.PinnedSha256" ValueChanged="@(value => Set(() => Model.PinnedSha256 = value, "/tls/pinnedSha256"))"
                                                   Label="SHA-256 fingerprints, one per line" Lines="2" Sizing="InputSizing.Auto" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
-                                                  HelperText="openssl s_client -connect host:port </dev/null | openssl x509 -noout -fingerprint -sha256" Class="pdk-span-2 pdk-mono" data-field="tls-pins"
-                                                  Error="@(PinError is not null)" ErrorText="@PinError" />
+                                                  Class="pdk-span-2 pdk-mono" data-field="tls-pins" Error="@(PinError is not null)" ErrorText="@PinError" />
+                                    @if (MayWrite && Probe is not null)
+                                    {
+                                        <div class="pdk-span-2" data-section="tls-fetch">
+                                            <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Download" OnClick="FetchCertificatesAsync"
+                                                       Disabled="@(_fetching || !HttpsDestinations.Any())" data-action="fetch-certificates">Fetch from destinations</MudButton>
+                                            @foreach (var (address, result) in _certificates)
+                                            {
+                                                <div class="pdk-probe-line" role="status" data-fetched="@(result.Certificate is null ? "false" : "true")">
+                                                    @if (result.Certificate is { } certificate)
+                                                    {
+                                                        <span class="pdk-mono">@Grouped(certificate.Sha256)</span>
+                                                        <span class="pdk-muted">@CommonName(certificate.Subject) &middot; @(certificate.SelfSigned ? "self-signed" : $"issued by {CommonName(certificate.Issuer)}") &middot; expires @certificate.NotAfter.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)</span>
+                                                        @if (IsPinned(certificate.Sha256))
+                                                        {
+                                                            <StatusChip Tone="Tone.Success" Dot="true" Text="Pinned" />
+                                                        }
+                                                        else
+                                                        {
+                                                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => Pin(certificate.Sha256))" data-action="pin">Pin</MudButton>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <StatusChip Tone="Tone.Error" Dot="true" Text="@address" />
+                                                        <span class="pdk-muted">@CertificateText(result)</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
                                 }
                                 else if (Model.TlsTrust == UpstreamTlsTrust.Any)
                                 {
@@ -265,6 +294,66 @@
 </DrawerShell>
 
 @code {
+    private readonly List<(string Address, UpstreamCertificateResult Result)> _certificates = [];
+    private bool _fetching;
+
+    private IEnumerable<string> HttpsDestinations => (Model?.Destinations ?? [])
+        .Where(d => d.Enabled && d.Address.Trim().StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        .Select(d => d.Address.Trim())
+        .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    private async Task FetchCertificatesAsync()
+    {
+        var origin = await Caller.OriginAsync();
+        if (origin is null || Probe is not { } probe)
+        {
+            return;
+        }
+
+        _fetching = true;
+        _certificates.Clear();
+        try
+        {
+            foreach (var address in HttpsDestinations.ToArray())
+            {
+                await Logger.TryAsync(Snackbar, "The certificate couldn't be fetched.", async () => _certificates.Add((address, await probe.FetchCertificateAsync(address, origin))));
+            }
+        }
+        finally
+        {
+            _fetching = false;
+        }
+    }
+
+    private bool IsPinned(string fingerprint) =>
+        (Model?.PinnedSha256 ?? string.Empty).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(pin => string.Equals(pin.Replace(":", string.Empty, StringComparison.Ordinal).Replace(" ", string.Empty, StringComparison.Ordinal), fingerprint, StringComparison.OrdinalIgnoreCase));
+
+    private void Pin(string fingerprint)
+    {
+        if (Model is { } model)
+        {
+            Set(() => model.PinnedSha256 = string.IsNullOrWhiteSpace(model.PinnedSha256) ? fingerprint : model.PinnedSha256.TrimEnd() + "\n" + fingerprint, "/tls/pinnedSha256");
+        }
+    }
+
+    // AB:CD:... reads like what a browser's certificate viewer shows.
+    private static string Grouped(string fingerprint) =>
+        string.Join(':', Enumerable.Range(0, fingerprint.Length / 2).Select(i => fingerprint.Substring(i * 2, 2))).ToUpperInvariant();
+
+    private static string CommonName(string distinguishedName) =>
+        distinguishedName.Split(',', StringSplitOptions.TrimEntries).FirstOrDefault(part => part.StartsWith("CN=", StringComparison.OrdinalIgnoreCase)) is { } cn
+            ? cn[3..]
+            : distinguishedName;
+
+    private static string CertificateText(UpstreamCertificateResult result) => result.Outcome switch
+    {
+        UpstreamCertificateOutcome.Unreachable => $"No connection within {(int)UpstreamProbe.CertificateTimeout.TotalSeconds} seconds.",
+        UpstreamCertificateOutcome.NoTls => "It answered, but not with TLS.",
+        UpstreamCertificateOutcome.Denied => IdentityText.CantChangeConfig,
+        _ => result.Message ?? "Nothing was fetched.",
+    };
+
     // A refused fingerprint is reported at its index; the one text field shows the first of them.
     private string? PinError => E("/tls/pinnedSha256")
         ?? ((Attempted || Touched.Contains("/tls/pinnedSha256"))

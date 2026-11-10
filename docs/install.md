@@ -224,9 +224,11 @@ client asked for. Homelab gear with a self-signed certificate (a NAS, a router, 
 `The remote certificate is invalid ... RemoteCertificateNameMismatch, RemoteCertificateChainErrors` with a 502 to the client.
 Set the upstream's **HTTPS certificate trust** (Advanced, in the upstream's form):
 
-- **Pinned fingerprint**: accepts exactly that certificate. Get its SHA-256 fingerprint with
-  `openssl s_client -connect nas.lan:8443 </dev/null | openssl x509 -noout -fingerprint -sha256` and paste it (colons are
-  fine). When the device renews its certificate, add the new fingerprint.
+- **Pinned fingerprint**: accepts exactly that certificate. **Fetch from destinations** shows the certificate each
+  `https://` destination presents (fingerprint, name, issuer, expiry) and **Pin** adds it; check it is the device you meant
+  before you pin it. Or paste a SHA-256 fingerprint yourself (colons are fine), e.g. from
+  `openssl s_client -connect nas.lan:8443 </dev/null | openssl x509 -noout -fingerprint -sha256`. When the device renews its
+  certificate, fetch and pin the new one.
 - **Any certificate**: no verification. Traffic is still encrypted, but anyone on the path can read and change it; the
   config review warns about it.
 
