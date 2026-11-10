@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Paduraksa.Admin.Api;
 using Paduraksa.Application.Commands;
 using Paduraksa.Core.Hosting;
+using Paduraksa.Core.Text;
 
 namespace Paduraksa.Admin.Auth;
 
@@ -153,7 +154,7 @@ internal sealed class AdminForwardedHeadersMiddleware(RequestDelegate next, Admi
     private static void ApplyHost(HttpContext context)
     {
         var value = context.Request.Headers["X-Forwarded-Host"].ToString().Trim();
-        if (value.Length == 0 || value.AsSpan().ContainsAnyExceptInRange('\x21', '\x7E'))
+        if (value.Length == 0 || value.AsSpan().ContainsAnyExcept(AsciiChars.Visible))
         {
             return;
         }

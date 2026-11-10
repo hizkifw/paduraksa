@@ -12,6 +12,8 @@ namespace Paduraksa.Tests.Unit.Config;
 
 public sealed class ConfigValidatorTests
 {
+    private static readonly System.Buffers.SearchValues<char> Upper = System.Buffers.SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+
     // Valid() as written: profile 0, upstream 0, hosts 0 (proxy, routes 0 = "/", 1 = "/api"), 1 (redirect), 2 (respond).
     // Paths index the input document, which is validated as sent.
     private const string Proxy = "/hosts/0";
@@ -78,7 +80,7 @@ public sealed class ConfigValidatorTests
     {
         // YARP compares route, cluster and destination IDs ignoring case.
         var text = AppUpstream.ToString();
-        var letter = text.AsSpan(UpstreamId.Prefix.Length + 1).LastIndexOfAnyInRange('A', 'Z') + UpstreamId.Prefix.Length + 1;
+        var letter = text.AsSpan(UpstreamId.Prefix.Length + 1).LastIndexOfAny(Upper) + UpstreamId.Prefix.Length + 1;
         Assert.True(letter > UpstreamId.Prefix.Length, "the sample ID needs an upper-case letter");
         var twin = UpstreamId.Parse(string.Concat(text.AsSpan(0, letter), char.ToLowerInvariant(text[letter]).ToString(), text.AsSpan(letter + 1)), null);
         Assert.NotEqual(AppUpstream, twin);

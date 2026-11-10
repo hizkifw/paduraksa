@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using Paduraksa.Core.Text;
 
 namespace Paduraksa.Proxy.Net;
 
@@ -54,7 +55,7 @@ internal static class DnsNames
         }
 
         var lastLabel = span[(span.LastIndexOf('.') + 1)..];
-        var numeric = !lastLabel.ContainsAnyExceptInRange('0', '9');
+        var numeric = !lastLabel.ContainsAnyExcept(AsciiChars.Digits);
         if (wildcard && numeric)
         {
             problem = "a wildcard can't cover an IP address";

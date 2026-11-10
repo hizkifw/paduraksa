@@ -1,6 +1,6 @@
 using System.Globalization;
 using Microsoft.Extensions.Primitives;
-
+using Paduraksa.Core.Text;
 using Paduraksa.Proxy.Config;
 
 namespace Paduraksa.Proxy.Tls;
@@ -124,7 +124,7 @@ public static class HstsHeader
                 return true;
             }
 
-            return label.IndexOfAnyExceptInRange('0', '9') < 0;
+            return !label.ContainsAnyExcept(AsciiChars.Digits);
         }
     }
 }

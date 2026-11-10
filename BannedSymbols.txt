@@ -1,3 +1,15 @@
 M:System.Guid.NewGuid;Use a TypedId factory (UUIDv7/v4 via Paduraksa.Core.Ids), never bare Guids
 M:System.Guid.CreateVersion7;Use a TypedId factory (Paduraksa.Core.Ids.UuidV7Generator is monotonic within a millisecond), never bare Guids
 M:System.Guid.CreateVersion7(System.DateTimeOffset);Use a TypedId factory (Paduraksa.Core.Ids.UuidV7Generator is monotonic within a millisecond), never bare Guids
+M:System.MemoryExtensions.ContainsAnyInRange``1(System.ReadOnlySpan{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.ContainsAnyInRange``1(System.Span{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.ContainsAnyExceptInRange``1(System.ReadOnlySpan{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.ContainsAnyExceptInRange``1(System.Span{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.IndexOfAnyInRange``1(System.ReadOnlySpan{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.IndexOfAnyInRange``1(System.Span{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.IndexOfAnyExceptInRange``1(System.ReadOnlySpan{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.IndexOfAnyExceptInRange``1(System.Span{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.LastIndexOfAnyInRange``1(System.ReadOnlySpan{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.LastIndexOfAnyInRange``1(System.Span{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.LastIndexOfAnyExceptInRange``1(System.ReadOnlySpan{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)
+M:System.MemoryExtensions.LastIndexOfAnyExceptInRange``1(System.Span{``0},``0,``0);On Microsoft's .NET 10.0.14 builds the range searches allocate 96 B per call; use a SearchValues (Paduraksa.Core.Text.AsciiChars)

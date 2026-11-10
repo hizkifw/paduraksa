@@ -5,6 +5,7 @@ using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Text;
 
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 
@@ -476,7 +477,7 @@ public static class ConfigValidator
             // The target becomes the Location header: printable ASCII only (punycode host, percent-encoded path), so
             // nothing can break the header (CR/LF) or put raw non-ASCII on the wire.
             var target = (redirect.Target ?? string.Empty).Trim();
-            if (target.AsSpan().ContainsAnyExceptInRange('\x21', '\x7E'))
+            if (target.AsSpan().ContainsAnyExcept(AsciiChars.Visible))
             {
                 Add($"{path}/target", RedirectTargetInvalid, "the redirect target must be printable ASCII without spaces (use punycode and percent-encoding)");
             }

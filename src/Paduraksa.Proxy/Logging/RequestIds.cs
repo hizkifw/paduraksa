@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Paduraksa.Core.Text;
 
 namespace Paduraksa.Proxy.Logging;
 
@@ -44,7 +45,7 @@ public static class RequestIds
     /// characters. Allocation-free.
     /// </summary>
     public static bool IsValid(ReadOnlySpan<char> value) =>
-        !value.IsEmpty && value.Length <= MaxLength && !value.ContainsAnyExceptInRange('\x21', '\x7E');
+        !value.IsEmpty && value.Length <= MaxLength && !value.ContainsAnyExcept(AsciiChars.Visible);
 
     /// <summary>The next per-process counter value, for a generated ID.</summary>
     public static long NextCounter() => Interlocked.Increment(ref s_counter);

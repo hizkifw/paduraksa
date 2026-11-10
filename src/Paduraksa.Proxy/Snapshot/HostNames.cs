@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-
+using Paduraksa.Core.Text;
 using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Proxy.Snapshot;
@@ -166,7 +166,7 @@ public static class HostNames
         {
             var part = name.AsSpan()[range];
             parts++;
-            if (part.Length is 0 or > 3 || part.ContainsAnyExceptInRange('0', '9') || (part.Length > 1 && part[0] == '0')
+            if (part.Length is 0 or > 3 || part.ContainsAnyExcept(AsciiChars.Digits) || (part.Length > 1 && part[0] == '0')
                 || int.Parse(part, CultureInfo.InvariantCulture) > 255)
             {
                 return false;

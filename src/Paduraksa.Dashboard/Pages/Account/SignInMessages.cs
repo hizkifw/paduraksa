@@ -1,4 +1,5 @@
 using System.Globalization;
+using Paduraksa.Core.Text;
 
 namespace Paduraksa.Dashboard.Pages.Account;
 
@@ -54,7 +55,7 @@ public static class SignInMessages
     /// </summary>
     public static string? LocalReturnUrl(string? returnUrl) =>
         returnUrl is { Length: > 0 } && returnUrl[0] == '/' && (returnUrl.Length == 1 || (returnUrl[1] != '/' && returnUrl[1] != '\\'))
-            && !returnUrl.Contains('\\', StringComparison.Ordinal) && !returnUrl.AsSpan().ContainsAnyInRange('\0', ' ')
+            && !returnUrl.Contains('\\', StringComparison.Ordinal) && !returnUrl.AsSpan().ContainsAny(AsciiChars.ControlOrSpace)
             ? returnUrl
             : null;
 }

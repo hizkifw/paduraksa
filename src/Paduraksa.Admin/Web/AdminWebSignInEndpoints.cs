@@ -10,6 +10,7 @@ using Paduraksa.Admin.Identity;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Text;
 
 namespace Paduraksa.Admin.Web;
 
@@ -203,7 +204,7 @@ internal static class AdminWebSignInEndpoints
         && url[0] == '/'
         && (url.Length == 1 || (url[1] != '/' && url[1] != '\\'))
         && !url.Contains('\\', StringComparison.Ordinal)
-        && !url.AsSpan().ContainsAnyInRange('\0', ' ');
+        && !url.AsSpan().ContainsAny(AsciiChars.ControlOrSpace);
 
     /// <summary>A 303 to a local URL: the browser follows it with a <c>GET</c>.</summary>
     private static IResult SeeOther(HttpContext http, string location)
