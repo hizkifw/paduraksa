@@ -16,24 +16,24 @@ public sealed class ErrorPagesTests
 {
     private const string Injected = "<script>alert(1)</script>";
 
-    public static TheoryData<int, HtmlPageTemplate, string, string> Pages => new()
+    public static TheoryData<int, HtmlPageTemplate, string> Pages => new()
     {
-        { 403, ErrorPages.AccessDenied, "403 - Forbidden", "Access denied." },
-        { 404, ErrorPages.NotFound, "404 - Not found", "Page not found." },
-        { 421, ErrorPages.Misdirected, "421 - Misdirected request", "Wrong connection." },
-        { 429, ErrorPages.TooManyRequests, "429 - Too many requests", "Too many requests." },
-        { 502, ErrorPages.BadGateway, "502 - Bad gateway", "Bad gateway." },
-        { 503, ErrorPages.ServiceUnavailable, "503 - Service unavailable", "Service unavailable." },
-        { 504, ErrorPages.GatewayTimeout, "504 - Gateway timeout", "Gateway timeout." },
-        { 403, ErrorPages.BrowserRequired, "403 - Forbidden", "Browser required." },
-        { 403, ErrorPages.CheckFailed, "403 - Forbidden", "The check failed." },
-        { 503, ErrorPages.CheckUnavailable, "503 - Service unavailable", "The check is unavailable." },
-        { 413, ErrorPages.PayloadTooLarge, "413 - Content too large", "Too large." },
+        { 403, ErrorPages.AccessDenied, "403 Forbidden" },
+        { 404, ErrorPages.NotFound, "404 Not Found" },
+        { 421, ErrorPages.Misdirected, "421 Misdirected Request" },
+        { 429, ErrorPages.TooManyRequests, "429 Too Many Requests" },
+        { 502, ErrorPages.BadGateway, "502 Bad Gateway" },
+        { 503, ErrorPages.ServiceUnavailable, "503 Service Unavailable" },
+        { 504, ErrorPages.GatewayTimeout, "504 Gateway Timeout" },
+        { 403, ErrorPages.BrowserRequired, "403 Forbidden" },
+        { 403, ErrorPages.CheckFailed, "403 Forbidden" },
+        { 503, ErrorPages.CheckUnavailable, "503 Service Unavailable" },
+        { 413, ErrorPages.PayloadTooLarge, "413 Content Too Large" },
     };
 
     [Theory]
     [MemberData(nameof(Pages))]
-    public async Task ABrowserGetsThePageWithItsStatusLineRequestIdAndCsp(int status, HtmlPageTemplate page, string statusLine, string heading)
+    public async Task ABrowserGetsThePageWithItsStatusAsHeadingRequestIdAndCsp(int status, HtmlPageTemplate page, string heading)
     {
         var (context, body) = Context("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
         await ResponseWriter.WriteAsync(context, PrecomputedResponse.Text(status, "plain only\n", htmlPage: page));
@@ -42,7 +42,7 @@ public sealed class ErrorPagesTests
         Assert.Equal(status, context.Response.StatusCode);
         Assert.Equal(HtmlPageTemplate.ContentType, context.Response.ContentType);
         Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
-        Assert.Contains($"<p class=\"status\">{statusLine}</p>", pageText, StringComparison.Ordinal);
+        Assert.Contains($"<title>{heading}</title>", pageText, StringComparison.Ordinal);
         Assert.Contains($"<h1>{heading}</h1>", pageText, StringComparison.Ordinal);
         Assert.Contains("Request ID: <code>&lt;script&gt;alert(1)&lt;/script&gt;</code>", pageText, StringComparison.Ordinal);
         Assert.DoesNotContain(Injected, pageText, StringComparison.Ordinal);
@@ -58,7 +58,7 @@ public sealed class ErrorPagesTests
 
     [Theory]
     [MemberData(nameof(Pages))]
-    public async Task AClientThatDoesNotAskForHtmlGetsThePlainAnswer(int status, HtmlPageTemplate page, string statusLine, string heading)
+    public async Task AClientThatDoesNotAskForHtmlGetsThePlainAnswer(int status, HtmlPageTemplate page, string heading)
     {
         var (context, body) = Context("application/json");
         await ResponseWriter.WriteAsync(context, PrecomputedResponse.Text(status, "plain only\n", htmlPage: page));
@@ -68,19 +68,17 @@ public sealed class ErrorPagesTests
         Assert.Equal("text/plain; charset=utf-8", context.Response.ContentType);
         Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
         Assert.False(context.Response.Headers.ContainsKey("Content-Security-Policy"));
-        Assert.DoesNotContain(statusLine, text, StringComparison.Ordinal);
         Assert.DoesNotContain(heading, text, StringComparison.Ordinal);
     }
 
     [Theory]
     [MemberData(nameof(Pages))]
-    public async Task HeadGetsTheHeadersAndNoBody(int status, HtmlPageTemplate page, string statusLine, string heading)
+    public async Task HeadGetsTheHeadersAndNoBody(int status, HtmlPageTemplate page, string heading)
     {
         var html = Context("text/html", method: "HEAD");
         await ResponseWriter.WriteAsync(html.Context, PrecomputedResponse.Text(status, "plain only\n", htmlPage: page));
         var htmlBody = await WrittenAsync(html.Context, html.Body);
         Assert.Empty(htmlBody);
-        Assert.DoesNotContain(statusLine, htmlBody, StringComparison.Ordinal);
         Assert.DoesNotContain(heading, htmlBody, StringComparison.Ordinal);
         Assert.Equal(HtmlPageTemplate.ContentType, html.Context.Response.ContentType);
 
@@ -101,7 +99,7 @@ public sealed class ErrorPagesTests
         Assert.Equal(429, context.Response.StatusCode);
         Assert.Equal("7", context.Response.Headers.RetryAfter.ToString());
         Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
-        Assert.Contains("<h1>Too many requests.</h1>", await WrittenAsync(context, body), StringComparison.Ordinal);
+        Assert.Contains("<h1>429 Too Many Requests</h1>", await WrittenAsync(context, body), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -111,7 +109,7 @@ public sealed class ErrorPagesTests
         Assert.NotNull(notFound.HtmlPage);
         var (context, body) = Context("text/html");
         await ResponseWriter.WriteAsync(context, notFound);
-        Assert.Contains("<h1>Page not found.</h1>", await WrittenAsync(context, body), StringComparison.Ordinal);
+        Assert.Contains("<h1>404 Not Found</h1>", await WrittenAsync(context, body), StringComparison.Ordinal);
 
         var (configuredContext, configuredBody) = Context("text/html");
         var configured = DefaultHostBehaviour.NotFound("maintenance\n").Response!;
@@ -132,20 +130,23 @@ public sealed class ErrorPagesTests
     [Fact]
     public async Task EveryProofOfWorkFailureHasAPageAndKeepsItsPlainText()
     {
-        (PrecomputedResponse Response, string Heading)[] answers =
+        // Three of them share "403 Forbidden", so each is told apart by its sentence.
+        (PrecomputedResponse Response, string Heading, string Sentence)[] answers =
         [
-            (ProofOfWorkResponses.NonBrowser, "Browser required."),
-            (ProofOfWorkResponses.Unavailable, "The check is unavailable."),
-            (ProofOfWorkResponses.BodyTooLarge, "Too large."),
-            (ProofOfWorkResponses.VerificationFailed, "The check failed."),
+            (ProofOfWorkResponses.NonBrowser, "403 Forbidden", "which needs JavaScript"),
+            (ProofOfWorkResponses.Unavailable, "503 Service Unavailable", "The browser check is temporarily unavailable."),
+            (ProofOfWorkResponses.BodyTooLarge, "413 Content Too Large", "sent more data than expected"),
+            (ProofOfWorkResponses.VerificationFailed, "403 Forbidden", "The browser check didn't pass."),
         ];
 
-        foreach (var (response, heading) in answers)
+        foreach (var (response, heading, sentence) in answers)
         {
             Assert.NotNull(response.HtmlPage);
             var (html, htmlBody) = Context("text/html");
             await ResponseWriter.WriteAsync(html, response);
-            Assert.Contains($"<h1>{heading}</h1>", await WrittenAsync(html, htmlBody), StringComparison.Ordinal);
+            var page = await WrittenAsync(html, htmlBody);
+            Assert.Contains($"<h1>{heading}</h1>", page, StringComparison.Ordinal);
+            Assert.Contains(sentence, page, StringComparison.Ordinal);
 
             var (plain, plainBody) = Context("application/json");
             await ResponseWriter.WriteAsync(plain, response);

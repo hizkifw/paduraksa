@@ -47,8 +47,8 @@ public sealed class UpstreamErrorPageTests(TestUpstream upstream) : IClassFixtur
         Assert.Equal("no-store", browser.Headers.CacheControl!.ToString());
         Assert.True(browser.Headers.TryGetValues("X-Request-Id", out var ids));
         var page = await browser.Content.ReadAsStringAsync(ct);
-        Assert.Contains("<p class=\"status\">502 - Bad gateway</p>", page, StringComparison.Ordinal);
-        Assert.Contains("<h1>Bad gateway.</h1>", page, StringComparison.Ordinal);
+        Assert.Contains("<title>502 Bad Gateway</title>", page, StringComparison.Ordinal);
+        Assert.Contains("<h1>502 Bad Gateway</h1>", page, StringComparison.Ordinal);
         Assert.Contains($"Request ID: <code>{Assert.Single(ids)}</code>", page, StringComparison.Ordinal);
         Assert.Contains("default-src 'none'", browser.Headers.GetValues("Content-Security-Policy").Single(), StringComparison.Ordinal);
 
@@ -88,8 +88,8 @@ public sealed class UpstreamErrorPageTests(TestUpstream upstream) : IClassFixtur
         using var browser = await client.SendAsync(Request(server, "slow.test", "/x", "text/html"), ct);
         Assert.Equal(HttpStatusCode.GatewayTimeout, browser.StatusCode);
         var page = await browser.Content.ReadAsStringAsync(ct);
-        Assert.Contains("<p class=\"status\">504 - Gateway timeout</p>", page, StringComparison.Ordinal);
-        Assert.Contains("<h1>Gateway timeout.</h1>", page, StringComparison.Ordinal);
+        Assert.Contains("<title>504 Gateway Timeout</title>", page, StringComparison.Ordinal);
+        Assert.Contains("<h1>504 Gateway Timeout</h1>", page, StringComparison.Ordinal);
         Assert.Contains("Request ID: <code>", page, StringComparison.Ordinal);
 
         using var api = await client.SendAsync(Request(server, "slow.test", "/x", "text/plain"), ct);
@@ -117,8 +117,8 @@ public sealed class UpstreamErrorPageTests(TestUpstream upstream) : IClassFixtur
         using var browser = await client.SendAsync(Request(server, "dead.test", "/x", "text/html"), ct);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, browser.StatusCode);
         var page = await browser.Content.ReadAsStringAsync(ct);
-        Assert.Contains("<p class=\"status\">503 - Service unavailable</p>", page, StringComparison.Ordinal);
-        Assert.Contains("<h1>Service unavailable.</h1>", page, StringComparison.Ordinal);
+        Assert.Contains("<title>503 Service Unavailable</title>", page, StringComparison.Ordinal);
+        Assert.Contains("<h1>503 Service Unavailable</h1>", page, StringComparison.Ordinal);
         Assert.Contains("Request ID: <code>", page, StringComparison.Ordinal);
 
         using var api = await client.SendAsync(Request(server, "dead.test", "/x", "application/json"), ct);
@@ -161,7 +161,7 @@ public sealed class UpstreamErrorPageTests(TestUpstream upstream) : IClassFixtur
         var second = first < 0 ? -1 : raw.IndexOf("HTTP/1.1 502", first + 1, StringComparison.Ordinal);
         Assert.True(first >= 0, raw);
         Assert.True(second >= 0, "the second request on the keep-alive connection went unanswered:" + raw);
-        Assert.Equal(2, raw.Split("<h1>Bad gateway.</h1>", StringSplitOptions.None).Length - 1);
+        Assert.Equal(2, raw.Split("<h1>502 Bad Gateway</h1>", StringSplitOptions.None).Length - 1);
         Assert.EndsWith("0\r\n\r\n", raw, StringComparison.Ordinal);
         Assert.Contains("connection: close", raw, StringComparison.OrdinalIgnoreCase);
     }
@@ -184,7 +184,7 @@ public sealed class UpstreamErrorPageTests(TestUpstream upstream) : IClassFixtur
         var firstHeadersEnd = raw.IndexOf("\r\n\r\n", StringComparison.Ordinal);
         Assert.True(firstHeadersEnd >= 0 && firstHeadersEnd < second, raw);
         Assert.DoesNotContain("<h1>", raw[(firstHeadersEnd + 4)..second], StringComparison.Ordinal);
-        Assert.Contains("<h1>Bad gateway.</h1>", raw[second..], StringComparison.Ordinal);
+        Assert.Contains("<h1>502 Bad Gateway</h1>", raw[second..], StringComparison.Ordinal);
         Assert.EndsWith("0\r\n\r\n", raw, StringComparison.Ordinal);
     }
 
@@ -199,7 +199,7 @@ public sealed class UpstreamErrorPageTests(TestUpstream upstream) : IClassFixtur
 
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         Assert.Equal(HttpVersion.Version20, response.Version);
-        Assert.Contains("<h1>Bad gateway.</h1>", await response.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.Contains("<h1>502 Bad Gateway</h1>", await response.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -235,7 +235,7 @@ public sealed class UpstreamErrorPageTests(TestUpstream upstream) : IClassFixtur
         Assert.Equal("no-store", browser.Headers.CacheControl!.ToString());
         Assert.NotEqual(5000L, browser.Content.Headers.ContentLength);
         Assert.False(browser.Headers.Contains("X-Upstream"));
-        Assert.Contains("<h1>Bad gateway.</h1>", await browser.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.Contains("<h1>502 Bad Gateway</h1>", await browser.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
 
         using var api = await client.SendAsync(Request(server, "lying.test", "/x", "application/json"), ct);
         Assert.Equal(HttpStatusCode.BadGateway, api.StatusCode);
