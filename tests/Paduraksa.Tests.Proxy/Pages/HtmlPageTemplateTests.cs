@@ -99,7 +99,9 @@ public sealed class HtmlPageTemplateTests
     public void WritingAPageAllocatesNothing()
     {
         var template = HtmlPageTemplate.Create("Checking", "<p>{first}</p><p>{second}</p>", Script, "worker-src blob:", allowForm: true, slots: ["first", "second"]);
-        var state = (Writer: new NullBufferWriter(), Template: template, First: "abc", Second: "/a?b=1&c=2");
+        // More than one encoder chunk: the slot is long enough that the span loop runs several times.
+        var longValue = new string('<', 300);
+        var state = (Writer: new NullBufferWriter(), Template: template, First: longValue, Second: "/a?b=1&c=2");
 
         AllocAssert.Zero(
             state,

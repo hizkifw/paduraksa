@@ -130,12 +130,28 @@ public sealed class ErrorPagesTests
     }
 
     [Fact]
-    public void EveryProofOfWorkFailureHasAPageAndKeepsItsPlainText()
+    public async Task EveryProofOfWorkFailureHasAPageAndKeepsItsPlainText()
     {
-        Assert.NotNull(ProofOfWorkResponses.NonBrowser.HtmlPage);
-        Assert.NotNull(ProofOfWorkResponses.Unavailable.HtmlPage);
-        Assert.NotNull(ProofOfWorkResponses.BodyTooLarge.HtmlPage);
-        Assert.NotNull(ProofOfWorkResponses.VerificationFailed.HtmlPage);
+        (PrecomputedResponse Response, string Heading)[] answers =
+        [
+            (ProofOfWorkResponses.NonBrowser, "Browser required."),
+            (ProofOfWorkResponses.Unavailable, "The check is unavailable."),
+            (ProofOfWorkResponses.BodyTooLarge, "Too large."),
+            (ProofOfWorkResponses.VerificationFailed, "The check failed."),
+        ];
+
+        foreach (var (response, heading) in answers)
+        {
+            Assert.NotNull(response.HtmlPage);
+            var (html, htmlBody) = Context("text/html");
+            await ResponseWriter.WriteAsync(html, response);
+            Assert.Contains($"<h1>{heading}</h1>", await WrittenAsync(html, htmlBody), StringComparison.Ordinal);
+
+            var (plain, plainBody) = Context("application/json");
+            await ResponseWriter.WriteAsync(plain, response);
+            Assert.Equal(Encoding.UTF8.GetString(response.Body), await WrittenAsync(plain, plainBody));
+        }
+
         Assert.Null(ProofOfWorkResponses.MethodNotAllowed.HtmlPage);
         Assert.Equal("text/plain; charset=utf-8", ProofOfWorkResponses.NonBrowser.ContentType.ToString());
         Assert.Equal("This page needs a browser that runs JavaScript.\n", Encoding.UTF8.GetString(ProofOfWorkResponses.NonBrowser.Body));
