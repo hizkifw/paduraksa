@@ -84,9 +84,6 @@ public sealed class RateLimitsTests
             .Instance.ValueChanged.InvokeAsync(RateLimitKey.Header));
         await TypeAsync(drawers, "[data-drawer=rate-limit] input[data-field=header]", "X-Api-Key");
 
-        // The preview follows the numbers before anything is sent.
-        Assert.Contains("A client gets 50 requests at once, then 10 a second.", drawers.Find("[data-preview=effect]").TextContent, StringComparison.Ordinal);
-
         var reviewing = drawers.Find("form[data-drawer=rate-limit]").SubmitAsync();
         await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
         var dry = Assert.IsType<UpsertRateLimitPolicyCommand>(config.Executed[0]);

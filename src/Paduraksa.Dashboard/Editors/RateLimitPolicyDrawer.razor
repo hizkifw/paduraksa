@@ -112,11 +112,6 @@
                                       HelperText="Each value of this header gets its own budget. A request without it counts by client IP."
                                       Error="@(E("/header") is not null)" ErrorText="@E("/header")" data-field="header" spellcheck="false" autocomplete="off" />
                     }
-
-                    @if (Model.Requests >= 1 && Model.Burst >= 1)
-                    {
-                        <MudText Typo="Typo.caption" Class="pdk-muted pdk-form-note" data-preview="effect">@RateLimitText.Effect(Model.Requests, Model.Per, Model.Burst)</MudText>
-                    }
                 </FormSection>
 
                 @if (!Stage && !Model.IsNew)
