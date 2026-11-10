@@ -53,6 +53,9 @@ public sealed class ForwardedHeadersTests(HeaderEchoUpstream upstream) : IClassF
         Assert.Equal("127.0.0.1", seen["X-Real-IP"]);
         Assert.Equal("http", seen["X-Forwarded-Proto"]); // an untrusted client can't claim https
         Assert.Equal("app.test", seen["X-Forwarded-Host"]);
+        // The client's Host, not the destination's address: name-based upstreams, absolute URLs and trusted-domain checks
+        // depend on it.
+        Assert.Equal("app.test", seen["Host"]);
         Assert.Equal("/a%2Fb?q=1", seen["target"]); // the raw-target forwarding is untouched
         foreach (var removed in (string[])["Forwarded", "X-Forwarded-Prefix", "X-Forwarded-Port", .. AnyCloudflare])
         {

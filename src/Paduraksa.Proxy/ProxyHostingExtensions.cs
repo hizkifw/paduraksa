@@ -63,6 +63,10 @@ public static class ProxyHostingExtensions
             .AddTransforms(transforms =>
             {
                 transforms.UseDefaultForwarders = false;
+                // YARP's default sends the destination's address as Host. Upstreams see the client's, as behind nginx or
+                // Caddy; on an HTTPS upstream that also makes it the SNI and the name the upstream's certificate is checked
+                // against.
+                transforms.AddOriginalHost(true);
                 transforms.AddRequestTransform(AccessLogTransform.OnRequestAsync);
                 transforms.AddRequestTransform(RawPathTransform.ApplyAsync);
                 transforms.AddRequestTransform(ForwardedHeadersTransform.ApplyAsync);
