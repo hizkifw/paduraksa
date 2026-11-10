@@ -90,6 +90,8 @@ public static class ReviewNotices
             ConfigErrorCodes.RouteUpstreamRequired => "Choose an upstream.",
             ConfigErrorCodes.RouteUpstreamUnknown => "That upstream doesn't exist any more. Choose another one.",
             ConfigErrorCodes.HostProfileUnknown => "That profile doesn't exist any more. Choose another one, or no profile.",
+            ConfigErrorCodes.HostRateLimitUnknown or ConfigErrorCodes.RouteRateLimitUnknown =>
+                "That rate limit doesn't exist any more. Choose another one, or no limit.",
             ConfigErrorCodes.IdEmpty when error.Path.EndsWith("/profileId", StringComparison.Ordinal) => "Choose a profile, or no profile.",
             _ => Sentence(error.Message),
         };

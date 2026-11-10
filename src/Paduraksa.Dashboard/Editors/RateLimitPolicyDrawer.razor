@@ -1,0 +1,297 @@
+@inherits DraftDrawer<RateLimitPolicyEditModel, RateLimitPolicyConfig>
+
+@* A rate-limit policy in a drawer: a name, the requests per period, the burst, and the key one bucket belongs to. On its
+   own it goes through Review changes; opened from a host's form it is handed back, to be applied with the host in one
+   revision. Its ID is never shown: a host or a route picks it by name. *@
+
+<DrawerShell Title="@Title"
+             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : "Hosts and routes pick it in their Access settings.")"
+             Icon="@Icons.Material.Outlined.Speed" Name="rate-limit" OnSubmit="SubmitAsync">
+    <Banner>
+        @if (ChangedElsewhere is { } elsewhere)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
+                This rate limit was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
+                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
+            </MudAlert>
+        }
+        @if (DeleteRefusal is { } refusal)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => DeleteRefusal = null">
+                <strong>@StoredName is still in use, so it can't be deleted.</strong> @refusal
+            </MudAlert>
+        }
+        @if (Failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
+                The rate limit couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
+        @if (Denied)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
+        }
+        else if (!MayWrite && Model is not null)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this rate limit but not change it.</MudAlert>
+        }
+    </Banner>
+    <ChildContent>
+        @if (Missing)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such rate limit" Description="It may have been deleted, or the link is wrong." />
+        }
+        else if (Model is null || Document is null)
+        {
+            @if (!Failed && !Denied)
+            {
+                <div class="pdk-form" aria-busy="true">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" Height="24px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Class="mt-2" />
+                </div>
+            }
+        }
+        else
+        {
+            <div class="pdk-form" data-form="rate-limit">
+                @if (Attempted && FieldErrors.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
+                        <strong>@(FieldErrors.Count == 1 ? "One thing to fix" : $"{FieldErrors.Count} things to fix"):</strong>
+                        <ul class="pdk-error-list">
+                            @foreach (var (path, message) in FieldErrors)
+                            {
+                                <li><span class="pdk-error-where">@ChangeView.Locate(path, null)</span> @message</li>
+                            }
+                        </ul>
+                    </MudAlert>
+                }
+
+                <FormSection Title="Policy" Name="policy">
+                    <div class="pdk-field-grid">
+                        <MudTextField T="string" Value="Model.Name" ValueChanged="@(value => Set(() => Model.Name = value, "/name"))" Immediate="true" DebounceInterval="250"
+                                      Label="Name" Placeholder="Strict API" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" AutoFocus="Model.IsNew"
+                                      Error="@(E("/name") is not null)" ErrorText="@E("/name")" data-field="name" />
+                        <MudTextField T="string" Value="Model.Notes" ValueChanged="@(value => Set(() => Model.Notes = value, "/notes"))" Label="Notes"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Error="@(E("/notes") is not null)" ErrorText="@E("/notes")" />
+                    </div>
+                </FormSection>
+
+                <FormSection Title="Allowance" Name="allowance">
+                    <div class="pdk-request-row">
+                        <MudNumericField T="int" Value="Model.Requests" ValueChanged="@(value => Set(() => Model.Requests = value, "/requests"))"
+                                         Label="Requests" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
+                                         Error="@(E("/requests") is not null)" ErrorText="@E("/requests")" data-field="requests" />
+                        <MudSelect T="RateLimitPeriod" Value="Model.Per" ValueChanged="@(value => Set(() => Model.Per = value, "/per"))"
+                                   Label="Per" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite"
+                                   Error="@(E("/per") is not null)" ErrorText="@E("/per")" data-field="per">
+                            <MudSelectItem Value="RateLimitPeriod.Second">Per second</MudSelectItem>
+                            <MudSelectItem Value="RateLimitPeriod.Minute">Per minute</MudSelectItem>
+                            <MudSelectItem Value="RateLimitPeriod.Hour">Per hour</MudSelectItem>
+                        </MudSelect>
+                    </div>
+
+                    <MudNumericField T="int" Value="Model.Burst" ValueChanged="@(value => Set(() => Model.Burst = value, "/burst"))"
+                                     Label="Burst" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
+                                     HelperText="How many requests may arrive at once before the rate has to earn more."
+                                     Error="@(E("/burst") is not null)" ErrorText="@E("/burst")" data-field="burst" />
+
+                    <MudSelect T="RateLimitKey" Value="Model.Key" ValueChanged="@(value => Set(() => Model.Key = value, "/key"))"
+                               Label="Count by" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite"
+                               HelperText="@KeyHelp" Error="@(E("/key") is not null)" ErrorText="@E("/key")" data-field="key">
+                        <MudSelectItem Value="RateLimitKey.ClientIp">Client IP</MudSelectItem>
+                        <MudSelectItem Value="RateLimitKey.ClientIpAndPath">Client IP and path</MudSelectItem>
+                        <MudSelectItem Value="RateLimitKey.Header">A header</MudSelectItem>
+                    </MudSelect>
+
+                    @if (Model.Key == RateLimitKey.Header)
+                    {
+                        <MudTextField T="string" Value="Model.Header" ValueChanged="@(value => Set(() => Model.Header = value, "/header"))" Immediate="true" DebounceInterval="250"
+                                      Label="Header name" Placeholder="X-Api-Key" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="!MayWrite"
+                                      HelperText="Each value of this header gets its own budget. A request without it counts by client IP."
+                                      Error="@(E("/header") is not null)" ErrorText="@E("/header")" data-field="header" spellcheck="false" autocomplete="off" />
+                    }
+
+                    @if (Model.Requests >= 1 && Model.Burst >= 1)
+                    {
+                        <MudText Typo="Typo.caption" Class="pdk-muted pdk-form-note" data-preview="effect">@RateLimitText.Effect(Model.Requests, Model.Per, Model.Burst)</MudText>
+                    }
+                </FormSection>
+
+                @if (!Stage && !Model.IsNew)
+                {
+                    <FormSection Title="Used by" Name="usage">
+                        @if (Usage.IsEmpty)
+                        {
+                            <MudText Typo="Typo.body2" Class="pdk-muted">No host or route uses it yet. Pick it in a host's Access settings.</MudText>
+                        }
+                        else
+                        {
+                            <ul class="pdk-list" data-section="usage-list">
+                                @foreach (var host in Usage.Hosts)
+                                {
+                                    <li class="pdk-list-row">
+                                        <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
+                                        <span class="pdk-list-main">
+                                            <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
+                                            <span class="pdk-list-sub">Applies it to the routes that name none of their own</span>
+                                        </span>
+                                    </li>
+                                }
+                                @foreach (var use in Usage.Routes)
+                                {
+                                    <li class="pdk-list-row">
+                                        <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.AltRoute" Size="Size.Small" /></span>
+                                        <span class="pdk-list-main">
+                                            <a class="pdk-row-link" href="@DashboardRoutes.Host(use.Host.Id)">@ChangeView.HostTitle(use.Host)</a>
+                                            <span class="pdk-list-sub">Route @use.Route.Path uses it</span>
+                                        </span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </FormSection>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <div class="pdk-drawer-actions">
+            @if (!Stage && Model is { IsNew: false } && MayWrite && Usage.IsEmpty)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="ReviewDeleteAsync" data-action="delete"
+                           Class="pdk-drawer-actions-start">Delete</MudButton>
+            }
+            @if (MayWrite && Model is not null)
+            {
+                <MudButton Variant="Variant.Text" OnClick="Cancel" data-action="cancel">Cancel</MudButton>
+                @if (Stage)
+                {
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Check" data-action="stage">
+                        Use this rate limit
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
+                        Review changes
+                    </MudButton>
+                }
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Cancel" data-action="cancel">Close</MudButton>
+            }
+        </div>
+    </Footer>
+</DrawerShell>
+
+@code {
+    /// <summary>The policy to edit; null for a new one.</summary>
+    [Parameter]
+    public RateLimitPolicyId? Id { get; set; }
+
+    private string Title => Missing ? "Rate limit not found" : Staged is { } staged ? staged.Name : Model is null ? (Id is null ? "New rate limit" : "Rate limit") : Model.IsNew ? "New rate limit" : StoredName;
+
+    private RateLimitUsage Usage =>
+        Model is null || Document is null || Model.IsNew ? new RateLimitUsage([], []) : RateLimitUsageOf.Find(Document, Model.Id);
+
+    private string KeyHelp => Model?.Key switch
+    {
+        RateLimitKey.ClientIpAndPath => "Each client address and path gets its own budget.",
+        RateLimitKey.Header => "Each value of the header gets its own budget.",
+        _ => "Each client address gets its own budget.",
+    };
+
+    protected override string LoadFailureMessage => "Couldn't load the rate-limit form.";
+
+    protected override string RefreshFailureMessage => "Couldn't refresh a rate limit's usage.";
+
+    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetCurrentAsync()).Document;
+
+    protected override bool LoadModel(ConfigDocument document)
+    {
+        if (Id is { } policyId && !Stage)
+        {
+            if (document.RateLimitPolicies.FirstOrDefault(p => p.Id == policyId) is not { } policy)
+            {
+                Missing = true;
+                return false;
+            }
+
+            StoredName = policy.Name;
+            Model = RateLimitPolicyEditModel.From(policy);
+            return true;
+        }
+
+        Model = Stage && Staged is { } staged ? RateLimitPolicyEditModel.FromDraft(staged) : RateLimitPolicyEditModel.New();
+        return true;
+    }
+
+    protected override RateLimitPolicyConfig ToConfig() => Model!.ToConfig();
+
+    protected override string Fingerprint() => Model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(RateLimitPolicies: [ToConfig()]));
+
+    protected override void Validate()
+    {
+        if (Model is not null && Document is not null)
+        {
+            FieldErrors = InlineValidation.ForRateLimitPolicy(Document, Model.ToConfig());
+        }
+    }
+
+    protected override bool TracksCommits => Model is not { IsNew: true };
+
+    protected override bool IsChangedElsewhere(ConfigCommitted committed) =>
+        !Model!.IsNew && committed.Changes.Any(c => c is RateLimitPolicyChange policy && policy.RateLimitPolicyId == Model.Id);
+
+    protected override async Task RefreshAsync()
+    {
+        Document = (await Config.GetCurrentAsync()).Document;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!CanSubmit())
+        {
+            return;
+        }
+
+        var policy = ToConfig();
+        if (Stage)
+        {
+            Level?.Close(policy);
+            return;
+        }
+
+        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New rate limit {policy.Name}" : $"Edit rate limit {policy.Name}", new UpsertRateLimitPolicyCommand(policy))
+        {
+            SuccessMessage = Model.IsNew ? $"Created the rate limit {policy.Name}" : $"Saved the rate limit {policy.Name}",
+            OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
+        });
+    }
+
+    private async Task ReviewDeleteAsync()
+    {
+        if (Model is null || Model.IsNew || !MayWrite)
+        {
+            return;
+        }
+
+        if (!Usage.IsEmpty)
+        {
+            DeleteRefusal = $"{Usage.CountText} {(Usage.Hosts.Count == 1 && Usage.Routes.Count == 0 ? "uses" : "use")} it. "
+                + "Pick another rate limit (or no limit) for them first.";
+            Snackbar.Add($"{StoredName} is in use and can't be deleted.", Severity.Warning);
+            return;
+        }
+
+        await RunReviewAsync(new ReviewRequest($"Delete rate limit {StoredName}", new DeleteRateLimitPolicyCommand(Model.Id, Model.Version))
+        {
+            ApplyLabel = "Delete",
+            Destructive = true,
+            SuccessMessage = $"Deleted the rate limit {StoredName}",
+        });
+    }
+}

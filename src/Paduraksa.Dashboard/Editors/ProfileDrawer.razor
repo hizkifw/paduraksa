@@ -104,7 +104,7 @@
                                         <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
                                         <span class="pdk-list-main">
                                             <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
-                                            <span class="pdk-list-sub">@(SettingsSummary.Summary(host.Settings) is { Count: > 0 } own ? $"Sets its own: {string.Join(", ", own).ToLowerInvariant()}" : "Takes everything from the profile")</span>
+                                            <span class="pdk-list-sub">@(SettingsSummary.Summary(host.Settings, Document) is { Count: > 0 } own ? $"Sets its own: {string.Join(", ", own).ToLowerInvariant()}" : "Takes everything from the profile")</span>
                                         </span>
                                     </li>
                                 }

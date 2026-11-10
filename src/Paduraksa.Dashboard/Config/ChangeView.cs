@@ -20,6 +20,7 @@ public enum ChangedObject
     Destination,
     Host,
     Route,
+    RateLimitPolicy,
 }
 
 /// <summary>One field of a changed object, as the diff shows it: its label and its value before and after (null: not set).</summary>
@@ -123,6 +124,8 @@ public static class ChangeView
             DeleteUpstreamCommand c => current with { Upstreams = [.. current.Upstreams.Where(u => u.Id != c.UpstreamId)] },
             UpsertProfileCommand c => current with { Profiles = [.. current.Profiles.Where(p => p.Id != c.Profile.Id), c.Profile] },
             DeleteProfileCommand c => current with { Profiles = [.. current.Profiles.Where(p => p.Id != c.ProfileId)] },
+            UpsertRateLimitPolicyCommand c => current with { RateLimitPolicies = [.. current.RateLimitPolicies.Where(p => p.Id != c.Policy.Id), c.Policy] },
+            DeleteRateLimitPolicyCommand c => current with { RateLimitPolicies = [.. current.RateLimitPolicies.Where(p => p.Id != c.RateLimitPolicyId)] },
             UpdateSettingsCommand c => current with { Settings = c.Settings },
             ReplaceConfigCommand c => c.Document,
             _ => null,
@@ -173,6 +176,10 @@ public static class ChangeView
                     break;
                 case "profiles" when index < document.Profiles.Count:
                     parts.Add($"Profile {document.Profiles[index].Name}");
+                    i = 2;
+                    break;
+                case "rateLimitPolicies" when index < document.RateLimitPolicies.Count:
+                    parts.Add($"Rate limit {document.RateLimitPolicies[index].Name}");
                     i = 2;
                     break;
             }
@@ -256,6 +263,7 @@ public static class ChangeView
         UpstreamChange c => c.UpstreamId.ToString(),
         DestinationChange c => c.DestinationId.ToString(),
         ProfileChange c => c.ProfileId.ToString(),
+        RateLimitPolicyChange c => c.RateLimitPolicyId.ToString(),
         SettingsChange => "settings",
         _ => "document",
     };
@@ -283,6 +291,10 @@ public static class ChangeView
             ProfileChange c => (ChangedObject.Profile, names.Profile(c.ProfileId),
                 Node(before.Profiles.FirstOrDefault(p => p.Id == c.ProfileId), ConfigJsonContext.Default.ProfileConfig),
                 Node(after.Profiles.FirstOrDefault(p => p.Id == c.ProfileId), ConfigJsonContext.Default.ProfileConfig),
+                ["id", "version"]),
+            RateLimitPolicyChange c => (ChangedObject.RateLimitPolicy, names.RateLimitPolicy(c.RateLimitPolicyId),
+                Node(before.RateLimitPolicies.FirstOrDefault(p => p.Id == c.RateLimitPolicyId), ConfigJsonContext.Default.RateLimitPolicyConfig),
+                Node(after.RateLimitPolicies.FirstOrDefault(p => p.Id == c.RateLimitPolicyId), ConfigJsonContext.Default.RateLimitPolicyConfig),
                 ["id", "version"]),
             SettingsChange => (ChangedObject.Settings, "Global settings",
                 Node(before.Settings, ConfigJsonContext.Default.GlobalSettings),
@@ -388,6 +400,9 @@ public static class ChangeView
         public string Profile(ProfileId id) =>
             (after.Profiles.FirstOrDefault(p => p.Id == id) ?? before.Profiles.FirstOrDefault(p => p.Id == id))?.Name ?? id.ToString();
 
+        public string RateLimitPolicy(RateLimitPolicyId id) =>
+            (after.RateLimitPolicies.FirstOrDefault(p => p.Id == id) ?? before.RateLimitPolicies.FirstOrDefault(p => p.Id == id))?.Name ?? "a policy that isn't here";
+
         /// <summary>A value as one line: references by name, switches as on/off, lists comma-separated, nested settings as key: value.</summary>
         public string? Format(string path, JsonNode? value)
         {
@@ -434,6 +449,11 @@ public static class ChangeView
             if (ProfileId.TryParse(text, out var profile))
             {
                 return $"Profile {Profile(profile)}";
+            }
+
+            if (RateLimitPolicyId.TryParse(text, out var policy))
+            {
+                return RateLimitPolicy(policy);
             }
 
             return null;

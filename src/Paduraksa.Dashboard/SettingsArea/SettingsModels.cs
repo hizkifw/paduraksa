@@ -89,33 +89,34 @@ public static class SettingsSummary
     /// <summary>
     /// One phrase per setting, in the contract's field order. A new setting adds its phrase here, beside the field it describes.
     /// </summary>
-    private static readonly Func<HostSettings, string?>[] Phrases =
+    private static readonly Func<HostSettings, ConfigDocument?, string?>[] Phrases =
     [
-        static settings => settings.ForceHttps is { } force ? (force ? "Redirects to HTTPS" : "No HTTPS redirect") : null,
-        static settings => settings.Tls?.MinimumVersion is { } minimum ? $"{TlsText(minimum)} minimum" : null,
-        static settings => settings.Tls?.TcpAlpn is { } alpn ? AlpnText(alpn) : null,
-        static settings => settings.Tls?.Http3 is { } http3 ? (http3 ? "HTTP/3 on" : "HTTP/3 off") : null,
+        static (settings, _) => settings.ForceHttps is { } force ? (force ? "Redirects to HTTPS" : "No HTTPS redirect") : null,
+        static (settings, _) => settings.Tls?.MinimumVersion is { } minimum ? $"{TlsText(minimum)} minimum" : null,
+        static (settings, _) => settings.Tls?.TcpAlpn is { } alpn ? AlpnText(alpn) : null,
+        static (settings, _) => settings.Tls?.Http3 is { } http3 ? (http3 ? "HTTP/3 on" : "HTTP/3 off") : null,
 
         // Set but empty is not "no list": it overrides whatever list the layer below sets, so every client is let through again.
-        static settings => settings.IpAllowList is { } allow
+        static (settings, _) => settings.IpAllowList is { } allow
             ? (allow.Addresses.Count == 0 ? "Allow list: none (overrides the inherited one)" : $"Allow list: {allow.Addresses.Count} {(allow.Addresses.Count == 1 ? "entry" : "entries")}")
             : null,
-        static settings => settings.Hsts is { } hsts ? HstsText(hsts) : null,
-        static settings => settings.AccessLog is { } accessLog ? (accessLog ? "Access log on" : "Access log off") : null,
-        static settings => settings.RequestIdPropagation is { } propagation ? $"Request ID: {PropagationText(propagation)}" : null,
-        static settings => settings.ServerHeader is { } server ? ServerText(server) : null,
-        static settings => settings.ProofOfWork is { } proofOfWork ? ProofOfWorkText(proofOfWork) : null,
-        static settings => settings.RateLimit is { } rateLimit ? RateLimitText(rateLimit) : null,
+        static (settings, _) => settings.Hsts is { } hsts ? HstsText(hsts) : null,
+        static (settings, _) => settings.AccessLog is { } accessLog ? (accessLog ? "Access log on" : "Access log off") : null,
+        static (settings, _) => settings.RequestIdPropagation is { } propagation ? $"Request ID: {PropagationText(propagation)}" : null,
+        static (settings, _) => settings.ServerHeader is { } server ? ServerText(server) : null,
+        static (settings, _) => settings.ProofOfWork is { } proofOfWork ? ProofOfWorkText(proofOfWork) : null,
+        static (settings, document) => settings.RateLimit is { } rateLimit ? RateLimitText(rateLimit, document) : null,
     ];
 
-    /// <summary>What <paramref name="settings"/> sets, in short phrases.</summary>
-    public static IReadOnlyList<string> Summary(HostSettings settings)
+    /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
+    /// <paramref name="document"/>, so the line names it rather than its ID.</summary>
+    public static IReadOnlyList<string> Summary(HostSettings settings, ConfigDocument? document = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         List<string> parts = [];
         foreach (var phrase in Phrases)
         {
-            if (phrase(settings) is { } part)
+            if (phrase(settings, document) is { } part)
             {
                 parts.Add(part);
             }
@@ -247,7 +248,7 @@ public static class SettingsSummary
         };
     }
 
-    private static string? RateLimitText(RateLimitSettings rateLimit)
+    private static string? RateLimitText(RateLimitSettings rateLimit, ConfigDocument? document)
     {
         if (rateLimit is { Enabled: null, PolicyId: null })
         {
@@ -259,7 +260,13 @@ public static class SettingsSummary
             return "Rate limit off";
         }
 
-        return rateLimit.PolicyId is { IsEmpty: false } policy ? $"Rate limit: {policy}" : "Rate limit: the inherited policy";
+        if (rateLimit.PolicyId is not { IsEmpty: false } policy)
+        {
+            return "Rate limit: the inherited policy";
+        }
+
+        var name = document?.RateLimitPolicies.FirstOrDefault(candidate => candidate.Id == policy)?.Name;
+        return $"Rate limit: {name ?? "a policy"}";
     }
 }
 

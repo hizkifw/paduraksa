@@ -22,6 +22,8 @@ public static class DashboardRoutes
 
     public const string Profiles = "/profiles";
 
+    public const string RateLimits = "/rate-limits";
+
     public const string Certificates = "/certificates";
 
     public const string LocalCa = Certificates + "/local-ca";
@@ -51,6 +53,8 @@ public static class DashboardRoutes
 
     public const string NewProfile = Profiles + "/" + NewSegment;
 
+    public const string NewRateLimit = RateLimits + "/" + NewSegment;
+
     /// <summary>The page shown for an address the dashboard has no page at.</summary>
     public const string NotFound = "/not-found";
 
@@ -61,6 +65,9 @@ public static class DashboardRoutes
 
     /// <summary>A profile: <c>/profiles/prof_...</c>, the profiles with its drawer open. The page parses the segment back into a <see cref="ProfileId"/>.</summary>
     public static string Profile(ProfileId id) => $"{Profiles}/{id}";
+
+    /// <summary>A rate-limit policy: <c>/rate-limits/rlp_...</c>, the policies with its drawer open. The page parses the segment back into a <see cref="RateLimitPolicyId"/>.</summary>
+    public static string RateLimit(RateLimitPolicyId id) => $"{RateLimits}/{id}";
 
     public static string Certificate(CertificateId id) => $"{Certificates}/{id}";
 

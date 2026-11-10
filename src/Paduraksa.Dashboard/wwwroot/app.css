@@ -871,6 +871,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-hosts-table { --pdk-dt-cols: minmax(0, 1.5fr) minmax(0, 1.8fr) minmax(0, 1fr) minmax(150px, 0.8fr); }
 .pdk-upstreams-table { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.4fr); }
 .pdk-profiles-table { --pdk-dt-cols: minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.2fr) 40px; }
+.pdk-rate-limits-table { --pdk-dt-cols: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 40px; }
 .pdk-users-table { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) 80px; }
 .pdk-users-table.pdk-users-seen { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(90px, 0.7fr) 80px; }
 .pdk-tokens-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.8fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
@@ -1240,7 +1241,8 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
         text-transform: uppercase;
     }
 
-    .pdk-hosts-table .pdk-dt-cell[data-label="Destination"], .pdk-upstreams-table .pdk-dt-cell, .pdk-profiles-table .pdk-dt-cell[data-label] {
+    .pdk-hosts-table .pdk-dt-cell[data-label="Destination"], .pdk-upstreams-table .pdk-dt-cell, .pdk-profiles-table .pdk-dt-cell[data-label],
+    .pdk-rate-limits-table .pdk-dt-cell[data-label] {
         grid-column: 1 / -1;
     }
 
@@ -1255,6 +1257,12 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     }
 
     .pdk-profiles-table .pdk-dt-actions {
+        position: absolute;
+        top: 10px;
+        right: 8px;
+    }
+
+    .pdk-rate-limits-table .pdk-dt-actions {
         position: absolute;
         top: 10px;
         right: 8px;
@@ -1558,6 +1566,14 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-field-grid-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin: 4px 0 8px 48px;
+}
+
+/* Requests and its period on one line: a number and the unit it is measured over, read as one sentence. */
+.pdk-request-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 190px);
+    gap: 4px 12px;
+    align-items: start;
 }
 
 .pdk-span-2 {

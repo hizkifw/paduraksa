@@ -51,6 +51,7 @@ public static class Tones
         ChangedObject.Upstream => Icons.Material.Outlined.Hub,
         ChangedObject.Destination => Icons.Material.Outlined.Dns,
         ChangedObject.Profile => Icons.Material.Outlined.Badge,
+        ChangedObject.RateLimitPolicy => Icons.Material.Outlined.Speed,
         ChangedObject.Settings => Icons.Material.Outlined.Tune,
         _ => Icons.Material.Outlined.Description,
     };

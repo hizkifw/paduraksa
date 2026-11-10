@@ -53,6 +53,8 @@ public sealed class OverviewAndNavigationTests
 
     [Theory]
     [InlineData("/profiles/prof_0J9zb3xQk1Lr8m2V7aYc4D", "Profiles")]
+    [InlineData("/rate-limits", "Rate limits")]
+    [InlineData("/rate-limits/new", "Rate limits")]
     [InlineData("/hosts/new", "Hosts")]
     [InlineData("/certificates/crt_02x5L6n2fuxI8jmEuqQF0v", "Certificates")]
     [InlineData("/certificates/acme", "ACME accounts")]

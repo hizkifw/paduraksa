@@ -45,6 +45,15 @@ public static class InlineValidation
         return Relative(ConfigValidator.Validate(document), $"/profiles/{document.Profiles.Count - 1}");
     }
 
+    /// <summary>The errors of <paramref name="policy"/> in <paramref name="current"/>, relative to it (<c>/requests</c>, <c>/header</c>).</summary>
+    public static IReadOnlyDictionary<string, string> ForRateLimitPolicy(ConfigDocument current, RateLimitPolicyConfig policy)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(policy);
+        var document = current with { RateLimitPolicies = [.. current.RateLimitPolicies.Where(p => p.Id != policy.Id), policy] };
+        return Relative(ConfigValidator.Validate(document), $"/rateLimitPolicies/{document.RateLimitPolicies.Count - 1}");
+    }
+
     /// <summary>The first message per path of <paramref name="errors"/> that point into <paramref name="prefix"/>, relative to it, as sentences.</summary>
     public static IReadOnlyDictionary<string, string> Relative(IEnumerable<ConfigError> errors, string prefix, ConfigDocument? document = null)
     {

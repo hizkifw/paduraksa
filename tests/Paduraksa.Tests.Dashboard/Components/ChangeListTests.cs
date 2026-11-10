@@ -1,6 +1,7 @@
 using Bunit;
 
 using Paduraksa.Application.Config;
+using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Components;
@@ -64,6 +65,42 @@ public sealed class ChangeListTests
         var route = Assert.Single(group.Children);
         Assert.Equal(ConfigChangeKind.Added, route.Kind);
         Assert.Contains(route.Fields, f => f.Label == "Upstream" && f.After == "app");
+    }
+
+    [Fact]
+    public void AnAddedRateLimitPolicy_IsItsOwnChange_AndItsFieldsAreLabelled()
+    {
+        RateLimitPolicyConfig policy = new(
+            RateLimitPolicyId.New(), "Strict API", Requests: 10, Per: RateLimitPeriod.Second, Burst: 50, Key: RateLimitKey.Header, Header: "X-Api-Key");
+        ConfigDocument older = new();
+        ConfigDocument newer = new(RateLimitPolicies: [policy]);
+
+        var group = Assert.Single(ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer)));
+
+        Assert.Equal(("Strict API", ChangedObject.RateLimitPolicy, ConfigChangeKind.Added), (group.Head.Title, group.Head.What, group.Head.Kind));
+        Assert.Contains(group.Head.Fields, f => f.Label == "Requests" && f.After == "10");
+        Assert.Contains(group.Head.Fields, f => f.Label == "Burst" && f.After == "50");
+        Assert.Contains(group.Head.Fields, f => f.Label == "Count by" && f.After == "Header");
+        Assert.DoesNotContain(policy.Id.ToString(), group.Head.Fields.SelectMany(f => new[] { f.Label, f.Before, f.After }).OfType<string>(), StringComparer.Ordinal);
+
+        // The command's document is resolvable too, so the review drawer shows this diff rather than the bare document.
+        Assert.Equal(policy.Id, Assert.Single(ChangeView.Apply(older, new UpsertRateLimitPolicyCommand(policy))!.RateLimitPolicies).Id);
+    }
+
+    [Fact]
+    public void AHostsRateLimitChange_NamesThePolicy_NotItsId()
+    {
+        RateLimitPolicyConfig policy = new(RateLimitPolicyId.New(), "Strict API", Requests: 10, Per: RateLimitPeriod.Second, Burst: 50);
+        HostConfig before = new(HostId.New(), ["app.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200));
+        var after = before with { Settings = new HostSettings { RateLimit = new RateLimitSettings { PolicyId = policy.Id } } };
+        ConfigDocument older = new(RateLimitPolicies: [policy], Hosts: [before]);
+        ConfigDocument newer = older with { Hosts = [after] };
+
+        var group = Assert.Single(ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer)));
+
+        var field = Assert.Single(group.Head.Fields, f => f.Label == "Rate limit");
+        Assert.Equal(("", "Policy: Strict API"), (field.Before ?? string.Empty, field.After ?? string.Empty));
+        Assert.DoesNotContain(policy.Id.ToString(), field.After!, StringComparison.Ordinal);
     }
 
     [Fact]
