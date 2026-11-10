@@ -107,6 +107,53 @@ public sealed class PublicHttp3Tests
         Assert.Equal(HttpStatusCode.MisdirectedRequest, misdirected.StatusCode);
     }
 
+    [Fact]
+    public async Task TheProxysOwnHtmlPagesKeepTheirBodyOverHttp3()
+    {
+        // A page is written into the body pipe after the response starts. Over HTTP/3 a body left unflushed when the request
+        // ends was dropped: the 404 and 502 pages, and the proof-of-work challenge, reached Safari with no bytes at all.
+        QuicSupport.Require();
+        var ct = TestContext.Current.CancellationToken;
+        using TestCertificates certificates = new();
+        await using var host = await StartOnFreePortAsync(new ClientInfoProbe());
+        host.Shared.Certificates.Set(TestIds.Certificate("app"), certificates.Create("app.test", "app.test"));
+        using (TcpListener closed = new(IPAddress.Loopback, 0))
+        {
+            closed.Start();
+            var port = ((IPEndPoint)closed.LocalEndpoint).Port;
+            closed.Stop();
+            var snapshot = Compile(host, new ProxyConfigModel
+            {
+                Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("down"), Destinations = [new(TestIds.Destination("down-1"), $"http://127.0.0.1:{port}")] }],
+                Hosts =
+                [
+                    new HostSpec
+                    {
+                        Id = TestIds.Host("app"),
+                        Names = ["app.test"],
+                        Certificate = TestIds.Certificate("app"),
+                        Routes = [new RouteSpec { Id = TestIds.Route("app-down"), Path = "/down", Upstream = TestIds.Upstream("down") }],
+                    },
+                ],
+            });
+            var published = await host.Shared.SnapshotPublisher.PublishAsync(snapshot, ct);
+            Assert.True(published.Succeeded, string.Join("; ", published.Errors));
+        }
+
+        using var quic = EdgeClient.Create(out _);
+        foreach (var (path, status, heading) in new[] { ("/nothing-here", HttpStatusCode.NotFound, "404 Not Found"), ("/down", HttpStatusCode.BadGateway, "502 Bad Gateway") })
+        {
+            using var request = EdgeClient.Request(host, "https", "app.test", path, HttpVersion.Version30);
+            request.Headers.Accept.ParseAdd("text/html");
+            using var response = await quic.SendAsync(request, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+            Assert.Equal(HttpVersion.Version30, response.Version);
+            Assert.Equal(status, response.StatusCode);
+            Assert.Contains($"<h1>{heading}</h1>", body, StringComparison.Ordinal);
+            Assert.EndsWith("</html>\n", body, StringComparison.Ordinal);
+        }
+    }
+
     private static async Task<PaduraksaHost> StartOnFreePortAsync(ClientInfoProbe probe)
     {
         for (var attempt = 1; ; attempt++)

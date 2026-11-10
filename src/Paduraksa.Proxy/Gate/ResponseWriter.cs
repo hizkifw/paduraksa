@@ -143,9 +143,10 @@ internal static class ResponseWriter
     }
 
     /// <summary>
-    /// Starts the response (headers first) and writes the page into the body pipe without flushing: Kestrel flushes when
-    /// the request ends. Starting explicitly is what keeps the page's bytes behind its headers; advancing them into an
-    /// unstarted response would put the body before the status line.
+    /// Starts the response (headers first), writes the page into the body pipe and flushes it. Starting explicitly is what
+    /// keeps the page's bytes behind its headers; advancing them into an unstarted response would put the body before the
+    /// status line. The flush is not optional: HTTP/1.1 and HTTP/2 send bytes left in the pipe when the request ends, but
+    /// HTTP/3 drops them, and Safari got the challenge page and the error pages with no body at all.
     /// </summary>
     private static Task WritePageAsync(HttpContext context, HtmlPageTemplate page, string? slot0, string? slot1, string? slot2)
     {
@@ -171,6 +172,12 @@ internal static class ResponseWriter
                         template.Write(writer, s0 ?? string.Empty, s1 ?? string.Empty, s2 ?? string.Empty);
                         break;
                 }
+
+                var flush = writer.FlushAsync(http.RequestAborted);
+                if (!flush.IsCompletedSuccessfully)
+                {
+                    return flush.AsTask();
+                }
             }
 
             return Task.CompletedTask;
@@ -179,7 +186,7 @@ internal static class ResponseWriter
         static async Task AwaitStartAsync(Task start, HttpContext http, HtmlPageTemplate template, string? s0, string? s1, string? s2)
         {
             await start.ConfigureAwait(false);
-            _ = WritePage(http, template, s0, s1, s2);
+            await WritePage(http, template, s0, s1, s2).ConfigureAwait(false);
         }
     }
 
