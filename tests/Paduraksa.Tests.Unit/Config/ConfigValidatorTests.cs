@@ -217,6 +217,30 @@ public sealed class ConfigValidatorTests
     }
 
     [Fact]
+    public void UpstreamTlsTrustNeedsPinsExactlyWhenItPins()
+    {
+        var document = Valid();
+        var upstream = document.Upstreams[0];
+        string pin = new('a', 64);
+
+        AssertErrors(
+            document with
+            {
+                Upstreams =
+                [
+                    upstream with { Tls = new UpstreamTlsConfig(UpstreamTlsTrust.Pinned) },
+                    upstream with { Id = Id<UpstreamId>(2), Name = "b", Destinations = [new DestinationConfig(Id<DestinationId>(92), "https://b")], Tls = new UpstreamTlsConfig(UpstreamTlsTrust.System, [pin]) },
+                    upstream with { Id = Id<UpstreamId>(3), Name = "c", Destinations = [new DestinationConfig(Id<DestinationId>(93), "https://c")], Tls = new UpstreamTlsConfig(UpstreamTlsTrust.Pinned, [pin, "not-a-fingerprint"]) },
+                    upstream with { Id = Id<UpstreamId>(4), Name = "d", Destinations = [new DestinationConfig(Id<DestinationId>(94), "https://d")], Tls = new UpstreamTlsConfig((UpstreamTlsTrust)42) },
+                ],
+            },
+            ("/upstreams/0/tls/pinnedSha256", UpstreamTlsPinsMissing),
+            ("/upstreams/1/tls/pinnedSha256", UpstreamTlsPinsUnused),
+            ("/upstreams/2/tls/pinnedSha256/1", UpstreamTlsPinInvalid),
+            ("/upstreams/3/tls/trust", EnumUndefined));
+    }
+
+    [Fact]
     public void AnUpstreamAnEnabledHostRoutesToNeedsAnEnabledDestination()
     {
         var document = Valid();

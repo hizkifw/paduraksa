@@ -364,6 +364,30 @@ public sealed class ProxyConfigMappingTests
         Assert.Contains("always served over HTTPS", warning.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PinnedTrustCarriesNormalisedFingerprintsAndAnyTrustWarnsOnlyForHttps()
+    {
+        static UpstreamConfig Upstream(int id, string address, UpstreamTlsConfig tls) =>
+            new(Id<UpstreamId>(id), $"u{id}", Destinations: [new DestinationConfig(Id<DestinationId>(id), address)], Tls: tls);
+        var colons = string.Join(':', Enumerable.Repeat("AB", 32));
+        ConfigDocument document = new(Upstreams:
+        [
+            Upstream(1, "https://nas:8443", new UpstreamTlsConfig(UpstreamTlsTrust.Pinned, [colons, new string('b', 64), new string('B', 64)])),
+            Upstream(2, "https://router", new UpstreamTlsConfig(UpstreamTlsTrust.Any)),
+            Upstream(3, "http://plain", new UpstreamTlsConfig(UpstreamTlsTrust.Any)),
+        ]);
+
+        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+
+        var pinned = Assert.Single(mapped.Model.Upstreams, u => u.Id == Id<UpstreamId>(1));
+        Assert.Equal(UpstreamTlsTrust.Pinned, pinned.TlsTrust);
+        // Colons dropped, lowercased, and the two spellings of one fingerprint kept once.
+        Assert.Equal([string.Concat(Enumerable.Repeat("ab", 32)), new string('b', 64)], pinned.PinnedSha256.Order(StringComparer.Ordinal));
+        var warning = Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.UpstreamTlsUnverified);
+        Assert.Equal(CompileErrorSource.Upstream(Id<UpstreamId>(2)), warning.Source);
+        Assert.Equal("/tls/trust", warning.Member);
+    }
+
     // One proxy host with two routes ("/" and "/b") under a profile-less, default-less document.
     private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second)
     {

@@ -39,7 +39,9 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
     protected override bool CanReuseOldClient(ForwarderHttpClientContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return context.OldClient is not null && context.OldConfig == context.NewConfig;
+        return context.OldClient is not null
+            && context.OldConfig == context.NewConfig
+            && UpstreamCertificatePins.SamePins(context.OldMetadata, context.NewMetadata);
     }
 
     protected override void ConfigureHandler(ForwarderHttpClientContext context, SocketsHttpHandler handler)
@@ -48,6 +50,11 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
         ArgumentNullException.ThrowIfNull(handler);
         base.ConfigureHandler(context, handler);
         ApplyDefaults(handler);
+
+        if (UpstreamCertificatePins.FromMetadata(context.NewMetadata) is { } pins)
+        {
+            handler.SslOptions.RemoteCertificateValidationCallback = pins.Validate;
+        }
 
         if (string.Equals(context.ClusterId, YarpConfig.AdminClusterId, StringComparison.OrdinalIgnoreCase))
         {

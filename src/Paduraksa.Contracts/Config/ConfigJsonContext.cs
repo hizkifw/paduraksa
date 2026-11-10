@@ -40,6 +40,7 @@ namespace Paduraksa.Contracts.Config;
         typeof(ConfigEnumConverter<TlsMinimumVersion>),
         typeof(ConfigEnumConverter<TcpAlpn>),
         typeof(ConfigEnumConverter<ServerHeaderMode>),
+        typeof(ConfigEnumConverter<UpstreamTlsTrust>),
         typeof(ConfigEnumConverter<RequestIdPropagation>),
     ])]
 [JsonSerializable(typeof(ConfigDocument))]

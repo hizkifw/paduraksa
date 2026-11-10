@@ -15,6 +15,7 @@ using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
 using RoutePath = Paduraksa.Proxy.Snapshot.RoutePath;
 using ServerHeader = Paduraksa.Proxy.Http.ServerHeader;
+using UpstreamCertificatePins = Paduraksa.Proxy.Yarp.UpstreamCertificatePins;
 
 namespace Paduraksa.Application.Config;
 
@@ -245,6 +246,27 @@ public static class ConfigValidator
             if (upstream.MaxConnectionsPerServer is < 1)
             {
                 Add($"{path}/maxConnectionsPerServer", UpstreamMaxConnectionsInvalid, "maxConnectionsPerServer must be positive (leave it unset for no limit)");
+            }
+
+            if (upstream.Tls is { } tls && CheckEnum(tls.Trust, $"{path}/tls/trust"))
+            {
+                var pins = tls.PinnedSha256 ?? [];
+                if (tls.Trust == UpstreamTlsTrust.Pinned && pins.Count == 0)
+                {
+                    Add($"{path}/tls/pinnedSha256", UpstreamTlsPinsMissing, "pinned trust needs at least one SHA-256 fingerprint of the upstream's certificate");
+                }
+                else if (tls.Trust != UpstreamTlsTrust.Pinned && pins.Count > 0)
+                {
+                    Add($"{path}/tls/pinnedSha256", UpstreamTlsPinsUnused, "fingerprints are only used with trust: pinned");
+                }
+
+                for (var i = 0; i < pins.Count; i++)
+                {
+                    if (!UpstreamCertificatePins.TryNormalize(pins[i], out _))
+                    {
+                        Add($"{path}/tls/pinnedSha256/{i}", UpstreamTlsPinInvalid, "a fingerprint is the certificate's SHA-256: 64 hex digits, colons allowed");
+                    }
+                }
             }
 
             if (upstream.PassiveHealth?.ReactivationPeriod is { } reactivation && reactivation <= TimeSpan.Zero)

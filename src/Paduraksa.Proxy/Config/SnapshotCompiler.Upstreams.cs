@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Health;
@@ -84,6 +85,12 @@ public static partial class SnapshotCompiler
                 errors.Add(new(where, "MaxConnectionsPerServer must be positive"));
             }
 
+            // Pinned trust with nothing pinned would refuse every certificate, which no one means.
+            if (spec.TlsTrust == UpstreamTlsTrust.Pinned && !AreNormalisedPins(spec.PinnedSha256))
+            {
+                errors.Add(new(where, "pinned TLS trust needs at least one normalised SHA-256 fingerprint"));
+            }
+
             if (spec.ActiveHealth is { } active
                 && (active.Path is not ['/', ..] || active.Path.Contains('?', StringComparison.Ordinal) || active.Interval <= TimeSpan.Zero || active.Timeout <= TimeSpan.Zero))
             {
@@ -127,11 +134,38 @@ public static partial class SnapshotCompiler
                             : null,
                     }
                     : null,
-                HttpClient = spec.MaxConnectionsPerServer is { } max ? new HttpClientConfig { MaxConnectionsPerServer = max } : null,
+                HttpClient = spec.MaxConnectionsPerServer is not null || spec.TlsTrust == UpstreamTlsTrust.Any
+                    ? new HttpClientConfig
+                    {
+                        MaxConnectionsPerServer = spec.MaxConnectionsPerServer,
+                        DangerousAcceptAnyServerCertificate = spec.TlsTrust == UpstreamTlsTrust.Any ? true : null,
+                    }
+                    : null,
+                Metadata = spec.TlsTrust == UpstreamTlsTrust.Pinned
+                    ? new Dictionary<string, string> { [UpstreamCertificatePins.MetadataKey] = string.Join(',', spec.PinnedSha256) }
+                    : null,
             };
         }
 
         return clusters;
+    }
+
+    private static bool AreNormalisedPins(IReadOnlyList<string> pins)
+    {
+        if (pins.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var pin in pins)
+        {
+            if (!UpstreamCertificatePins.TryNormalize(pin, out var normal) || !string.Equals(normal, pin, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors)

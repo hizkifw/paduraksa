@@ -30,15 +30,23 @@ internal static class HeaderEchoUpstreamHost
     /// <summary>Starts the upstream on an ephemeral loopback port.</summary>
     /// <param name="onResponse">Runs before the body is written, e.g. to set response headers.</param>
     /// <param name="cancellationToken">Cancels the start.</param>
+    /// <param name="certificate">Serves HTTPS with it; null serves plain HTTP.</param>
     /// <returns>The started host and its base address, with a trailing <c>/</c>.</returns>
-    public static async Task<(IHost Host, string Address)> StartAsync(Action<HttpResponse>? onResponse, CancellationToken cancellationToken)
+    public static async Task<(IHost Host, string Address)> StartAsync(
+        Action<HttpResponse>? onResponse, CancellationToken cancellationToken, System.Security.Cryptography.X509Certificates.X509Certificate2? certificate = null)
     {
         var host = new HostBuilder()
             .ConfigureLogging(static logging => logging.ClearProviders())
             .ConfigureWebHost(web => web
-                .UseKestrel(static kestrel =>
+                .UseKestrel(kestrel =>
                 {
-                    kestrel.Listen(IPAddress.Loopback, 0);
+                    kestrel.Listen(IPAddress.Loopback, 0, listen =>
+                    {
+                        if (certificate is not null)
+                        {
+                            listen.UseHttps(certificate);
+                        }
+                    });
                     kestrel.AddServerHeader = false;
                 })
                 .Configure(app => app.Run(context =>

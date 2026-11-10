@@ -122,7 +122,10 @@ internal static class ConfigSamples
                 SessionAffinity: Coin(),
                 PassiveHealth: Maybe(() => new PassiveHealthConfig { ReactivationPeriod = Coin() ? TimeSpan.FromSeconds(random.Next(1, 600)) : null }),
                 ActiveHealth: Maybe(() => new ActiveHealthConfig("/health", Interval: TimeSpan.FromMilliseconds(random.Next(1, 100_000)))),
-                MaxConnectionsPerServer: Coin() ? random.Next(1, 1000) : null)),
+                MaxConnectionsPerServer: Coin() ? random.Next(1, 1000) : null,
+                Tls: Maybe(() => Coin()
+                    ? new UpstreamTlsConfig(UpstreamTlsTrust.Pinned, [Convert.ToHexStringLower(BitConverter.GetBytes(random.NextInt64())).PadLeft(64, '0')])
+                    : new UpstreamTlsConfig(Coin() ? UpstreamTlsTrust.Any : UpstreamTlsTrust.System)))),
         ];
         HostConfig[] hosts =
         [

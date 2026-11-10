@@ -270,6 +270,12 @@ public sealed record UpstreamSpec
 
     /// <summary>Part of the HTTP client config: changing it creates a new client for this upstream.</summary>
     public int? MaxConnectionsPerServer { get; init; }
+
+    public UpstreamTlsTrust TlsTrust { get; init; }
+
+    /// <summary>With <see cref="UpstreamTlsTrust.Pinned"/>: normalised fingerprints (<see
+    /// cref="Yarp.UpstreamCertificatePins.TryNormalize"/>).</summary>
+    public IReadOnlyList<string> PinnedSha256 { get; init; } = [];
 }
 
 /// <summary>

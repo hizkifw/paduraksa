@@ -76,7 +76,7 @@ public static class ProxyConfigMapping
         {
             Revision = revision,
             Hosts = hosts,
-            Upstreams = [.. canonical.Upstreams.Select(u => MapUpstream(u, errors))],
+            Upstreams = [.. canonical.Upstreams.Select(u => MapUpstream(u, errors, warnings))],
             Defaults = new DefaultsSpec
             {
                 UnknownHost = (UnknownHostBehaviour)settings.UnknownHost,
@@ -285,8 +285,19 @@ public static class ProxyConfigMapping
     private static PolicySpec[] AllowListPolicy(IpAllowListSettings? allowList) =>
         allowList is null ? [] : [new IpAllowListPolicySpec(allowList.Addresses, allowList.DropDenied)];
 
-    private static UpstreamSpec MapUpstream(UpstreamConfig upstream, List<CompileError> errors)
+    private static UpstreamSpec MapUpstream(UpstreamConfig upstream, List<CompileError> errors, List<MappedWarning> warnings)
     {
+        var trust = upstream.Tls?.Trust ?? UpstreamTlsTrust.System;
+        if (trust == UpstreamTlsTrust.Any
+            && upstream.Destinations.Any(d => d.Enabled && d.Address.StartsWith("https:", StringComparison.OrdinalIgnoreCase)))
+        {
+            warnings.Add(new MappedWarning(
+                CompileErrorSource.Upstream(upstream.Id),
+                "/tls/trust",
+                ConfigWarningCodes.UpstreamTlsUnverified,
+                $"upstream {upstream.Name} accepts any certificate: the traffic is encrypted but not authenticated, so pin the certificate's fingerprint instead if you can"));
+        }
+
         string? loadBalancing = null;
         if (upstream.LoadBalancing is { } policy)
         {
@@ -314,6 +325,10 @@ public static class ProxyConfigMapping
                 }
                 : null,
             MaxConnectionsPerServer = upstream.MaxConnectionsPerServer,
+            TlsTrust = trust,
+            PinnedSha256 = trust == UpstreamTlsTrust.Pinned
+                ? [.. (upstream.Tls?.PinnedSha256 ?? []).Select(pin => Paduraksa.Proxy.Yarp.UpstreamCertificatePins.TryNormalize(pin, out var normal) ? normal : pin).Distinct(StringComparer.Ordinal)]
+                : [],
         };
     }
 

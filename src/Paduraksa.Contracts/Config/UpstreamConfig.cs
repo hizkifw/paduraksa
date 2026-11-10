@@ -18,6 +18,7 @@ namespace Paduraksa.Contracts.Config;
 /// <param name="ActiveHealth">Active health probes; null = off.</param>
 /// <param name="MaxConnectionsPerServer">Null: no limit beyond the HTTP client's default.</param>
 /// <param name="Notes">Free text.</param>
+/// <param name="Tls">How HTTPS destinations are authenticated; null = the system trust store.</param>
 public sealed record UpstreamConfig(
     UpstreamId Id,
     string Name,
@@ -28,7 +29,8 @@ public sealed record UpstreamConfig(
     PassiveHealthConfig? PassiveHealth = null,
     ActiveHealthConfig? ActiveHealth = null,
     int? MaxConnectionsPerServer = null,
-    string? Notes = null)
+    string? Notes = null,
+    UpstreamTlsConfig? Tls = null)
 {
     public IReadOnlyList<DestinationConfig> Destinations { get; init; } = Destinations ?? [];
 }
@@ -68,3 +70,9 @@ public sealed record ActiveHealthConfig(string Path = "/", TimeSpan? Interval = 
 
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(5);
 }
+
+/// <summary>How the proxy authenticates an upstream's HTTPS destinations.</summary>
+/// <param name="Trust">Which certificates are accepted.</param>
+/// <param name="PinnedSha256">With <see cref="UpstreamTlsTrust.Pinned"/>: the SHA-256 fingerprints of the certificates to
+/// accept, 64 hex digits each (colons allowed, as <c>openssl x509 -noout -fingerprint -sha256</c> prints them).</param>
+public sealed record UpstreamTlsConfig(UpstreamTlsTrust Trust = UpstreamTlsTrust.System, IReadOnlyList<string>? PinnedSha256 = null);

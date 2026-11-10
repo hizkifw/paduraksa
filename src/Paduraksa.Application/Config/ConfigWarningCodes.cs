@@ -24,4 +24,7 @@ public static class ConfigWarningCodes
 
     /// <summary>An admin host exists while <c>Paduraksa:Listen:AdminInternal</c> is off: it answers 503 until the listener is enabled.</summary>
     public const string AdminInternalDisabled = "host.admin.internalDisabled";
+
+    /// <summary>An upstream with HTTPS destinations accepts any certificate (<c>tls.trust: any</c>).</summary>
+    public const string UpstreamTlsUnverified = "upstream.tls.unverified";
 }

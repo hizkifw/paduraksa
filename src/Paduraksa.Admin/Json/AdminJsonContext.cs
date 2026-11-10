@@ -54,6 +54,7 @@ namespace Paduraksa.Admin.Json;
         typeof(ConfigEnumConverter<TlsMinimumVersion>),
         typeof(ConfigEnumConverter<TcpAlpn>),
         typeof(ConfigEnumConverter<ServerHeaderMode>),
+        typeof(ConfigEnumConverter<UpstreamTlsTrust>),
         typeof(ConfigEnumConverter<RequestIdPropagation>),
     ])]
 [JsonSerializable(typeof(ApiProblem))]

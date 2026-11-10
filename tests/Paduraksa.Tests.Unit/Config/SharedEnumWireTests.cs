@@ -41,6 +41,7 @@ public sealed class SharedEnumWireTests
                 typeof(TlsMinimumVersion),
                 typeof(TrustedProxyMode),
                 typeof(UnknownHostBehaviour),
+                typeof(UpstreamTlsTrust),
             ],
             shared);
     }
@@ -91,6 +92,7 @@ public sealed class SharedEnumWireTests
             "\"tcpAlpn\":\"http11Only\"",
             "\"mode\":\"upstream\"",
             "\"requestIdPropagation\":\"responseOnly\"",
+            "\"trust\":\"any\"",
         })
         {
             Assert.True(written.Contains(member, StringComparison.Ordinal), written);
@@ -110,6 +112,14 @@ public sealed class SharedEnumWireTests
             },
             UnknownHost: UnknownHostBehaviour.Close,
             TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareTunnel, ["10.0.0.0/8"])),
+        Upstreams:
+        [
+            new UpstreamConfig(
+                ConfigSamples.Id<UpstreamId>(1),
+                "app",
+                Destinations: [new DestinationConfig(ConfigSamples.Id<DestinationId>(1), "https://app:8443")],
+                Tls: new UpstreamTlsConfig(UpstreamTlsTrust.Any)),
+        ],
         Hosts:
         [
             new HostConfig(
