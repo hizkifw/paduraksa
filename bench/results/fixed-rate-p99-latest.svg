@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="390" viewBox="0 0 960 390" role="img" aria-labelledby="chart-title chart-desc">
 <title id="chart-title">Fixed-rate p99 latency, latest run</title>
-<desc id="chart-desc">Latest recorded run: 2026-11-10T11:42:41Z (commit e9ea546f). p99 latency in ms at each fixed request rate; each panel has its own scale.</desc>
+<desc id="chart-desc">Latest recorded run: 2026-11-10T17:06:32Z (commit ba02cad5). p99 latency in ms at each fixed request rate; each panel has its own scale.</desc>
 <style>svg{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 .surface{fill:#fcfcfb}
 .text{fill:#0b0b0b}
@@ -22,105 +22,105 @@
 </style>
 <rect class="surface" x="0" y="0" width="960" height="390"/>
 <text class="text title" x="16" y="28">Fixed-rate p99 latency, latest run</text>
-<text class="secondary subtitle" x="16" y="46">Latest recorded run: 2026-11-10T11:42:41Z (commit e9ea546f). p99 latency in ms at each fixed request rate; each panel has its own scale.</text>
+<text class="secondary subtitle" x="16" y="46">Latest recorded run: 2026-11-10T17:06:32Z (commit ba02cad5). p99 latency in ms at each fixed request rate; each panel has its own scale.</text>
 <text class="text panel-title" x="16" y="84">h1 at 10,000 req/s</text>
 <line class="grid" x1="247.00" y1="94" x2="247.00" y2="206"/>
 <line class="grid" x1="414.00" y1="94" x2="414.00" y2="206"/>
 <line class="axis" x1="80" y1="94" x2="80" y2="206"/>
-<path class="bar accent" d="M80.00 94.00 H152.09 A4.00 4.00 0 0 1 156.09 98.00 V104.00 A4.00 4.00 0 0 1 152.09 108.00 H80.00 Z"><title>paduraksa h1 at 10,000 req/s: 1.37 ms p99</title></path>
+<path class="bar accent" d="M80.00 94.00 H151.84 A4.00 4.00 0 0 1 155.84 98.00 V104.00 A4.00 4.00 0 0 1 151.84 108.00 H80.00 Z"><title>paduraksa h1 at 10,000 req/s: 1.82 ms p99</title></path>
 <text class="axis-label tick" x="16" y="105">Paduraksa</text>
-<text class="text value" x="162.09" y="105">1.37</text>
-<path class="bar" d="M80.00 110.00 H122.09 A4.00 4.00 0 0 1 126.09 114.00 V120.00 A4.00 4.00 0 0 1 122.09 124.00 H80.00 Z"><title>nginx h1 at 10,000 req/s: 0.83 ms p99</title></path>
+<text class="text value" x="161.84" y="105">1.82</text>
+<path class="bar" d="M80.00 110.00 H109.43 A4.00 4.00 0 0 1 113.43 114.00 V120.00 A4.00 4.00 0 0 1 109.43 124.00 H80.00 Z"><title>nginx h1 at 10,000 req/s: 0.80 ms p99</title></path>
 <text class="axis-label tick" x="16" y="121">nginx</text>
-<text class="text value" x="132.09" y="121">0.83</text>
-<path class="bar" d="M80.00 126.00 H344.74 A4.00 4.00 0 0 1 348.74 130.00 V136.00 A4.00 4.00 0 0 1 344.74 140.00 H80.00 Z"><title>caddy h1 at 10,000 req/s: 4.83 ms p99</title></path>
+<text class="text value" x="119.43" y="121">0.80</text>
+<path class="bar" d="M80.00 126.00 H292.75 A4.00 4.00 0 0 1 296.75 130.00 V136.00 A4.00 4.00 0 0 1 292.75 140.00 H80.00 Z"><title>caddy h1 at 10,000 req/s: 5.19 ms p99</title></path>
 <text class="axis-label tick" x="16" y="137">Caddy</text>
-<text class="text value" x="354.74" y="137">4.83</text>
-<path class="bar" d="M80.00 142.00 H112.93 A4.00 4.00 0 0 1 116.93 146.00 V152.00 A4.00 4.00 0 0 1 112.93 156.00 H80.00 Z"><title>haproxy h1 at 10,000 req/s: 0.66 ms p99</title></path>
+<text class="text value" x="302.75" y="137">5.19</text>
+<path class="bar" d="M80.00 142.00 H103.74 A4.00 4.00 0 0 1 107.74 146.00 V152.00 A4.00 4.00 0 0 1 103.74 156.00 H80.00 Z"><title>haproxy h1 at 10,000 req/s: 0.66 ms p99</title></path>
 <text class="axis-label tick" x="16" y="153">HAProxy</text>
-<text class="text value" x="122.93" y="153">0.66</text>
-<path class="bar" d="M80.00 158.00 H379.88 A4.00 4.00 0 0 1 383.88 162.00 V168.00 A4.00 4.00 0 0 1 379.88 172.00 H80.00 Z"><title>traefik h1 at 10,000 req/s: 5.46 ms p99</title></path>
+<text class="text value" x="113.74" y="153">0.66</text>
+<path class="bar" d="M80.00 158.00 H334.27 A4.00 4.00 0 0 1 338.27 162.00 V168.00 A4.00 4.00 0 0 1 334.27 172.00 H80.00 Z"><title>traefik h1 at 10,000 req/s: 6.19 ms p99</title></path>
 <text class="axis-label tick" x="16" y="169">Traefik</text>
-<text class="text value" x="389.88" y="169">5.46</text>
-<path class="bar" d="M80.00 174.00 H166.17 A4.00 4.00 0 0 1 170.17 178.00 V184.00 A4.00 4.00 0 0 1 166.17 188.00 H80.00 Z"><title>envoy h1 at 10,000 req/s: 1.62 ms p99</title></path>
+<text class="text value" x="344.27" y="169">6.19</text>
+<path class="bar" d="M80.00 174.00 H147.11 A4.00 4.00 0 0 1 151.11 178.00 V184.00 A4.00 4.00 0 0 1 147.11 188.00 H80.00 Z"><title>envoy h1 at 10,000 req/s: 1.70 ms p99</title></path>
 <text class="axis-label tick" x="16" y="185">Envoy</text>
-<text class="text value" x="176.17" y="185">1.62</text>
-<path class="bar" d="M80.00 190.00 H164.11 A4.00 4.00 0 0 1 168.11 194.00 V200.00 A4.00 4.00 0 0 1 164.11 204.00 H80.00 Z"><title>yarp h1 at 10,000 req/s: 1.58 ms p99</title></path>
+<text class="text value" x="157.11" y="185">1.70</text>
+<path class="bar" d="M80.00 190.00 H156.38 A4.00 4.00 0 0 1 160.38 194.00 V200.00 A4.00 4.00 0 0 1 156.38 204.00 H80.00 Z"><title>yarp h1 at 10,000 req/s: 1.93 ms p99</title></path>
 <text class="axis-label tick" x="16" y="201">YARP</text>
-<text class="text value" x="174.11" y="201">1.58</text>
+<text class="text value" x="166.38" y="201">1.93</text>
 <text class="text panel-title" x="492" y="84">h1 at 30,000 req/s</text>
 <line class="grid" x1="723.00" y1="94" x2="723.00" y2="206"/>
 <line class="grid" x1="890.00" y1="94" x2="890.00" y2="206"/>
 <line class="axis" x1="556" y1="94" x2="556" y2="206"/>
-<path class="bar accent" d="M556.00 94.00 H849.77 A4.00 4.00 0 0 1 853.77 98.00 V104.00 A4.00 4.00 0 0 1 849.77 108.00 H556.00 Z"><title>paduraksa h1 at 30,000 req/s: 5.35 ms p99</title></path>
+<path class="bar accent" d="M556.00 94.00 H717.81 A4.00 4.00 0 0 1 721.81 98.00 V104.00 A4.00 4.00 0 0 1 717.81 108.00 H556.00 Z"><title>paduraksa h1 at 30,000 req/s: 2.48 ms p99</title></path>
 <text class="axis-label tick" x="492" y="105">Paduraksa</text>
-<text class="text value" x="859.77" y="105">5.35</text>
-<path class="bar" d="M556.00 110.00 H622.06 A4.00 4.00 0 0 1 626.06 114.00 V120.00 A4.00 4.00 0 0 1 622.06 124.00 H556.00 Z"><title>nginx h1 at 30,000 req/s: 1.26 ms p99</title></path>
+<text class="text value" x="727.81" y="105">2.48</text>
+<path class="bar" d="M556.00 110.00 H696.54 A4.00 4.00 0 0 1 700.54 114.00 V120.00 A4.00 4.00 0 0 1 696.54 124.00 H556.00 Z"><title>nginx h1 at 30,000 req/s: 2.16 ms p99</title></path>
 <text class="axis-label tick" x="492" y="121">nginx</text>
-<text class="text value" x="632.06" y="121">1.26</text>
-<path class="bar" d="M556.00 126.00 H728.78 A4.00 4.00 0 0 1 732.78 130.00 V136.00 A4.00 4.00 0 0 1 728.78 140.00 H556.00 Z"><title>caddy h1 at 30,000 req/s: 3.18 ms p99</title></path>
+<text class="text value" x="706.54" y="121">2.16</text>
+<path class="bar" d="M556.00 126.00 H769.81 A4.00 4.00 0 0 1 773.81 130.00 V136.00 A4.00 4.00 0 0 1 769.81 140.00 H556.00 Z"><title>caddy h1 at 30,000 req/s: 3.26 ms p99</title></path>
 <text class="axis-label tick" x="492" y="137">Caddy</text>
-<text class="text value" x="738.78" y="137">3.18</text>
-<path class="bar" d="M556.00 142.00 H642.71 A4.00 4.00 0 0 1 646.71 146.00 V152.00 A4.00 4.00 0 0 1 642.71 156.00 H556.00 Z"><title>haproxy h1 at 30,000 req/s: 1.63 ms p99</title></path>
+<text class="text value" x="779.81" y="137">3.26</text>
+<path class="bar" d="M556.00 142.00 H655.67 A4.00 4.00 0 0 1 659.67 146.00 V152.00 A4.00 4.00 0 0 1 655.67 156.00 H556.00 Z"><title>haproxy h1 at 30,000 req/s: 1.55 ms p99</title></path>
 <text class="axis-label tick" x="492" y="153">HAProxy</text>
-<text class="text value" x="652.71" y="153">1.63</text>
-<path class="bar" d="M556.00 158.00 H807.30 A4.00 4.00 0 0 1 811.30 162.00 V168.00 A4.00 4.00 0 0 1 807.30 172.00 H556.00 Z"><title>traefik h1 at 30,000 req/s: 4.59 ms p99</title></path>
+<text class="text value" x="665.67" y="153">1.55</text>
+<path class="bar" d="M556.00 158.00 H872.21 A4.00 4.00 0 0 1 876.21 162.00 V168.00 A4.00 4.00 0 0 1 872.21 172.00 H556.00 Z"><title>traefik h1 at 30,000 req/s: 4.79 ms p99</title></path>
 <text class="axis-label tick" x="492" y="169">Traefik</text>
-<text class="text value" x="817.30" y="169">4.59</text>
-<path class="bar" d="M556.00 174.00 H625.50 A4.00 4.00 0 0 1 629.50 178.00 V184.00 A4.00 4.00 0 0 1 625.50 188.00 H556.00 Z"><title>envoy h1 at 30,000 req/s: 1.32 ms p99</title></path>
+<text class="text value" x="882.21" y="169">4.79</text>
+<path class="bar" d="M556.00 174.00 H640.22 A4.00 4.00 0 0 1 644.22 178.00 V184.00 A4.00 4.00 0 0 1 640.22 188.00 H556.00 Z"><title>envoy h1 at 30,000 req/s: 1.32 ms p99</title></path>
 <text class="axis-label tick" x="492" y="185">Envoy</text>
-<text class="text value" x="635.50" y="185">1.32</text>
-<path class="bar" d="M556.00 190.00 H687.35 A4.00 4.00 0 0 1 691.35 194.00 V200.00 A4.00 4.00 0 0 1 687.35 204.00 H556.00 Z"><title>yarp h1 at 30,000 req/s: 2.43 ms p99</title></path>
+<text class="text value" x="650.22" y="185">1.32</text>
+<path class="bar" d="M556.00 190.00 H680.38 A4.00 4.00 0 0 1 684.38 194.00 V200.00 A4.00 4.00 0 0 1 680.38 204.00 H556.00 Z"><title>yarp h1 at 30,000 req/s: 1.92 ms p99</title></path>
 <text class="axis-label tick" x="492" y="201">YARP</text>
-<text class="text value" x="697.35" y="201">2.43</text>
+<text class="text value" x="690.38" y="201">1.92</text>
 <text class="text panel-title" x="16" y="248">h2-tls at 10,000 req/s</text>
 <line class="grid" x1="247.00" y1="258" x2="247.00" y2="370"/>
 <line class="grid" x1="414.00" y1="258" x2="414.00" y2="370"/>
 <line class="axis" x1="80" y1="258" x2="80" y2="370"/>
-<path class="bar accent" d="M80.00 258.00 H224.76 A4.00 4.00 0 0 1 228.76 262.00 V268.00 A4.00 4.00 0 0 1 224.76 272.00 H80.00 Z"><title>paduraksa h2-tls at 10,000 req/s: 2.23 ms p99</title></path>
+<path class="bar accent" d="M80.00 258.00 H211.52 A4.00 4.00 0 0 1 215.52 262.00 V268.00 A4.00 4.00 0 0 1 211.52 272.00 H80.00 Z"><title>paduraksa h2-tls at 10,000 req/s: 2.03 ms p99</title></path>
 <text class="axis-label tick" x="16" y="269">Paduraksa</text>
-<text class="text value" x="234.76" y="269">2.23</text>
-<path class="bar" d="M80.00 274.00 H130.29 A4.00 4.00 0 0 1 134.29 278.00 V284.00 A4.00 4.00 0 0 1 130.29 288.00 H80.00 Z"><title>nginx h2-tls at 10,000 req/s: 0.81 ms p99</title></path>
+<text class="text value" x="221.52" y="269">2.03</text>
+<path class="bar" d="M80.00 274.00 H136.86 A4.00 4.00 0 0 1 140.86 278.00 V284.00 A4.00 4.00 0 0 1 136.86 288.00 H80.00 Z"><title>nginx h2-tls at 10,000 req/s: 0.91 ms p99</title></path>
 <text class="axis-label tick" x="16" y="285">nginx</text>
-<text class="text value" x="140.29" y="285">0.81</text>
-<path class="bar" d="M80.00 290.00 H330.89 A4.00 4.00 0 0 1 334.89 294.00 V300.00 A4.00 4.00 0 0 1 330.89 304.00 H80.00 Z"><title>caddy h2-tls at 10,000 req/s: 3.82 ms p99</title></path>
+<text class="text value" x="146.86" y="285">0.91</text>
+<path class="bar" d="M80.00 290.00 H357.29 A4.00 4.00 0 0 1 361.29 294.00 V300.00 A4.00 4.00 0 0 1 357.29 304.00 H80.00 Z"><title>caddy h2-tls at 10,000 req/s: 4.21 ms p99</title></path>
 <text class="axis-label tick" x="16" y="301">Caddy</text>
-<text class="text value" x="340.89" y="301">3.82</text>
-<path class="bar" d="M80.00 306.00 H129.51 A4.00 4.00 0 0 1 133.51 310.00 V316.00 A4.00 4.00 0 0 1 129.51 320.00 H80.00 Z"><title>haproxy h2-tls at 10,000 req/s: 0.80 ms p99</title></path>
+<text class="text value" x="367.29" y="301">4.21</text>
+<path class="bar" d="M80.00 306.00 H133.13 A4.00 4.00 0 0 1 137.13 310.00 V316.00 A4.00 4.00 0 0 1 133.13 320.00 H80.00 Z"><title>haproxy h2-tls at 10,000 req/s: 0.86 ms p99</title></path>
 <text class="axis-label tick" x="16" y="317">HAProxy</text>
-<text class="text value" x="139.51" y="317">0.80</text>
-<path class="bar" d="M80.00 322.00 H391.70 A4.00 4.00 0 0 1 395.70 326.00 V332.00 A4.00 4.00 0 0 1 391.70 336.00 H80.00 Z"><title>traefik h2-tls at 10,000 req/s: 4.73 ms p99</title></path>
+<text class="text value" x="143.13" y="317">0.86</text>
+<path class="bar" d="M80.00 322.00 H385.07 A4.00 4.00 0 0 1 389.07 326.00 V332.00 A4.00 4.00 0 0 1 385.07 336.00 H80.00 Z"><title>traefik h2-tls at 10,000 req/s: 4.63 ms p99</title></path>
 <text class="axis-label tick" x="16" y="333">Traefik</text>
-<text class="text value" x="401.70" y="333">4.73</text>
-<path class="bar" d="M80.00 338.00 H183.15 A4.00 4.00 0 0 1 187.15 342.00 V348.00 A4.00 4.00 0 0 1 183.15 352.00 H80.00 Z"><title>envoy h2-tls at 10,000 req/s: 1.60 ms p99</title></path>
+<text class="text value" x="395.07" y="333">4.63</text>
+<path class="bar" d="M80.00 338.00 H186.88 A4.00 4.00 0 0 1 190.88 342.00 V348.00 A4.00 4.00 0 0 1 186.88 352.00 H80.00 Z"><title>envoy h2-tls at 10,000 req/s: 1.66 ms p99</title></path>
 <text class="axis-label tick" x="16" y="349">Envoy</text>
-<text class="text value" x="193.15" y="349">1.60</text>
-<path class="bar" d="M80.00 354.00 H223.63 A4.00 4.00 0 0 1 227.63 358.00 V364.00 A4.00 4.00 0 0 1 223.63 368.00 H80.00 Z"><title>yarp h2-tls at 10,000 req/s: 2.21 ms p99</title></path>
+<text class="text value" x="196.88" y="349">1.66</text>
+<path class="bar" d="M80.00 354.00 H235.91 A4.00 4.00 0 0 1 239.91 358.00 V364.00 A4.00 4.00 0 0 1 235.91 368.00 H80.00 Z"><title>yarp h2-tls at 10,000 req/s: 2.39 ms p99</title></path>
 <text class="axis-label tick" x="16" y="365">YARP</text>
-<text class="text value" x="233.63" y="365">2.21</text>
+<text class="text value" x="245.91" y="365">2.39</text>
 <text class="text panel-title" x="492" y="248">h2-tls at 30,000 req/s</text>
 <line class="grid" x1="723.00" y1="258" x2="723.00" y2="370"/>
 <line class="grid" x1="890.00" y1="258" x2="890.00" y2="370"/>
 <line class="axis" x1="556" y1="258" x2="556" y2="370"/>
-<path class="bar accent" d="M556.00 258.00 H708.50 A4.00 4.00 0 0 1 712.50 262.00 V268.00 A4.00 4.00 0 0 1 708.50 272.00 H556.00 Z"><title>paduraksa h2-tls at 30,000 req/s: 2.34 ms p99</title></path>
+<path class="bar accent" d="M556.00 258.00 H718.02 A4.00 4.00 0 0 1 722.02 262.00 V268.00 A4.00 4.00 0 0 1 718.02 272.00 H556.00 Z"><title>paduraksa h2-tls at 30,000 req/s: 2.49 ms p99</title></path>
 <text class="axis-label tick" x="492" y="269">Paduraksa</text>
-<text class="text value" x="718.50" y="269">2.34</text>
-<path class="bar" d="M556.00 274.00 H813.86 A4.00 4.00 0 0 1 817.86 278.00 V284.00 A4.00 4.00 0 0 1 813.86 288.00 H556.00 Z"><title>nginx h2-tls at 30,000 req/s: 3.92 ms p99</title></path>
+<text class="text value" x="728.02" y="269">2.49</text>
+<path class="bar" d="M556.00 274.00 H701.54 A4.00 4.00 0 0 1 705.54 278.00 V284.00 A4.00 4.00 0 0 1 701.54 288.00 H556.00 Z"><title>nginx h2-tls at 30,000 req/s: 2.24 ms p99</title></path>
 <text class="axis-label tick" x="492" y="285">nginx</text>
-<text class="text value" x="823.86" y="285">3.92</text>
-<path class="bar" d="M556.00 290.00 H824.81 A4.00 4.00 0 0 1 828.81 294.00 V300.00 A4.00 4.00 0 0 1 824.81 304.00 H556.00 Z"><title>caddy h2-tls at 30,000 req/s: 4.08 ms p99</title></path>
+<text class="text value" x="711.54" y="285">2.24</text>
+<path class="bar" d="M556.00 290.00 H805.56 A4.00 4.00 0 0 1 809.56 294.00 V300.00 A4.00 4.00 0 0 1 805.56 304.00 H556.00 Z"><title>caddy h2-tls at 30,000 req/s: 3.80 ms p99</title></path>
 <text class="axis-label tick" x="492" y="301">Caddy</text>
-<text class="text value" x="834.81" y="301">4.08</text>
-<path class="bar" d="M556.00 306.00 H871.72 A4.00 4.00 0 0 1 875.72 310.00 V316.00 A4.00 4.00 0 0 1 871.72 320.00 H556.00 Z"><title>haproxy h2-tls at 30,000 req/s: 4.79 ms p99</title></path>
+<text class="text value" x="815.56" y="301">3.80</text>
+<path class="bar" d="M556.00 306.00 H695.42 A4.00 4.00 0 0 1 699.42 310.00 V316.00 A4.00 4.00 0 0 1 695.42 320.00 H556.00 Z"><title>haproxy h2-tls at 30,000 req/s: 2.15 ms p99</title></path>
 <text class="axis-label tick" x="492" y="317">HAProxy</text>
-<text class="text value" x="881.72" y="317">4.79</text>
-<path class="bar" d="M556.00 322.00 H804.92 A4.00 4.00 0 0 1 808.92 326.00 V332.00 A4.00 4.00 0 0 1 804.92 336.00 H556.00 Z"><title>traefik h2-tls at 30,000 req/s: 3.79 ms p99</title></path>
+<text class="text value" x="705.42" y="317">2.15</text>
+<path class="bar" d="M556.00 322.00 H828.00 A4.00 4.00 0 0 1 832.00 326.00 V332.00 A4.00 4.00 0 0 1 828.00 336.00 H556.00 Z"><title>traefik h2-tls at 30,000 req/s: 4.13 ms p99</title></path>
 <text class="axis-label tick" x="492" y="333">Traefik</text>
-<text class="text value" x="814.92" y="333">3.79</text>
-<path class="bar" d="M556.00 338.00 H651.06 A4.00 4.00 0 0 1 655.06 342.00 V348.00 A4.00 4.00 0 0 1 651.06 352.00 H556.00 Z"><title>envoy h2-tls at 30,000 req/s: 1.48 ms p99</title></path>
+<text class="text value" x="838.00" y="333">4.13</text>
+<path class="bar" d="M556.00 338.00 H646.78 A4.00 4.00 0 0 1 650.78 342.00 V348.00 A4.00 4.00 0 0 1 646.78 352.00 H556.00 Z"><title>envoy h2-tls at 30,000 req/s: 1.42 ms p99</title></path>
 <text class="axis-label tick" x="492" y="349">Envoy</text>
-<text class="text value" x="661.06" y="349">1.48</text>
-<path class="bar" d="M556.00 354.00 H708.61 A4.00 4.00 0 0 1 712.61 358.00 V364.00 A4.00 4.00 0 0 1 708.61 368.00 H556.00 Z"><title>yarp h2-tls at 30,000 req/s: 2.34 ms p99</title></path>
+<text class="text value" x="656.78" y="349">1.42</text>
+<path class="bar" d="M556.00 354.00 H717.92 A4.00 4.00 0 0 1 721.92 358.00 V364.00 A4.00 4.00 0 0 1 717.92 368.00 H556.00 Z"><title>yarp h2-tls at 30,000 req/s: 2.48 ms p99</title></path>
 <text class="axis-label tick" x="492" y="365">YARP</text>
-<text class="text value" x="718.61" y="365">2.34</text>
+<text class="text value" x="727.92" y="365">2.48</text>
 </svg>
