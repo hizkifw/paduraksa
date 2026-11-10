@@ -61,6 +61,7 @@ public sealed partial class RequestSimulator : IDisposable
     private readonly ISimulationAuthorizer _authorizer;
     private readonly AcmeChallengeStore? _challenges;
     private readonly ListenerFacts? _listeners;
+    private readonly ProofOfWorkRuntime? _proofOfWork;
     private readonly ILogger _logger;
 
     /// <param name="config">Where drafts and revisions come from.</param>
@@ -71,6 +72,8 @@ public sealed partial class RequestSimulator : IDisposable
     /// or an old revision too) is asked against this one store, as the live gate is; null: no challenge is answered.</param>
     /// <param name="listeners">What the public listeners do before a request exists (PROXY protocol, HTTP/3); null: not
     /// modelled, any connection is let through.</param>
+    /// <param name="proofOfWork">The live proof-of-work key, clock and counters: a simulated protected route reports the
+    /// challenge or 503 the real gate would, without touching counters; null: a keyless runtime.</param>
     /// <param name="busyWait">How long a draft or revision waits for a compile slot; default <see cref="BusyWait"/>.</param>
     /// <param name="logger">Where a failure to read the store is logged; null: nowhere (a test that only checks the answer).</param>
     internal RequestSimulator(
@@ -80,6 +83,7 @@ public sealed partial class RequestSimulator : IDisposable
         ISimulationAuthorizer? authorizer = null,
         AcmeChallengeStore? challenges = null,
         ListenerFacts? listeners = null,
+        ProofOfWorkRuntime? proofOfWork = null,
         ILogger<RequestSimulator>? logger = null,
         TimeSpan? busyWait = null)
     {
@@ -91,6 +95,7 @@ public sealed partial class RequestSimulator : IDisposable
         _authorizer = authorizer ?? AllowAllSimulations.Instance;
         _challenges = challenges;
         _listeners = listeners;
+        _proofOfWork = proofOfWork;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RequestSimulator>.Instance;
         _busyWait = busyWait ?? BusyWait;
     }
@@ -149,7 +154,7 @@ public sealed partial class RequestSimulator : IDisposable
             return failure;
         }
 
-        var run = GateSimulator.Run(resolved.Snapshot!, probe!, _challenges, _listeners);
+        var run = GateSimulator.Run(resolved.Snapshot!, probe!, _challenges, _listeners, _proofOfWork);
         List<string> notes = [.. resolved.Notes];
         var upstream = run.Upstream is null ? null : DescribeUpstream(run.Upstream, resolved.Source.Kind != SimulationTargetKind.Live, notes);
         List<SimulationStep> trace = new(run.Steps.Count);
@@ -403,6 +408,7 @@ public sealed partial class RequestSimulator : IDisposable
         GateStepKind.HostPolicy => SimulationStepKind.HostPolicy,
         GateStepKind.HttpsRedirect => SimulationStepKind.HttpsRedirect,
         GateStepKind.FixedResponse => SimulationStepKind.FixedResponse,
+        GateStepKind.ProofOfWork => SimulationStepKind.ProofOfWork,
         GateStepKind.RouteMatch => SimulationStepKind.RouteMatch,
         GateStepKind.RoutePolicy => SimulationStepKind.RoutePolicy,
         GateStepKind.Upstream => SimulationStepKind.Upstream,

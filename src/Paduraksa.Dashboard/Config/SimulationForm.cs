@@ -92,6 +92,7 @@ public sealed class SimulationForm
             SimulationStepKind.HostPolicy => $"Host policy{policy}",
             SimulationStepKind.HttpsRedirect => "HTTPS redirect",
             SimulationStepKind.FixedResponse => "Fixed answer",
+            SimulationStepKind.ProofOfWork => "Proof of work",
             SimulationStepKind.RouteMatch => "Route match",
             SimulationStepKind.RoutePolicy => $"Route policy{policy}",
             SimulationStepKind.Upstream => "Upstream",

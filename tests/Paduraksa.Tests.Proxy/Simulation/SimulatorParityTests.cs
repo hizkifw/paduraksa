@@ -39,10 +39,10 @@ public sealed class SimulatorParityTests : IDisposable
     [
         "app.test", "APP.test:8080", "x.app.test", "a.b.app.test", "secure.test", "old.test", "soon.test", "strict.test", "h1.test",
         "noh3.test", "plain.test", "locked.test", "unknown.test", "admin.test", "[::1]", "full.test", "localhost", "app.localhost",
-        "127.0.0.1", "127.0.0.1:8443", string.Empty,
+        "127.0.0.1", "127.0.0.1:8443", "pow.test", "open.test", string.Empty,
     ];
 
-    private static readonly string[] Paths = ["/", "/api/x", "/health", "/health/x", "/blocked", "/drop", "/API/../api", "/%2Fapi", "/nothing", "/a;b/api"];
+    private static readonly string[] Paths = ["/", "/api/x", "/health", "/health/x", "/blocked", "/drop", "/API/../api", "/%2Fapi", "/nothing", "/a;b/api", "/protect"];
 
     private readonly TestPki _pki = TestPki.Create();
 
@@ -297,9 +297,35 @@ public sealed class SimulatorParityTests : IDisposable
             ProxyHost("locked", "locked.test", Route("locked-api", "api", "/api")) with { ForceHttps = true, Policies = [new IpAllowListPolicySpec(["10.0.0.5"])] },
             ProxyHost("ipv6", "[::1]", Route("ipv6-root", "web")),
             ProxyHost("lax", "lax.test", Route("lax-root", "web")),
+            new HostSpec
+            {
+                Id = TestIds.Host("pow"),
+                Names = ["pow.test"],
+                ProofOfWork = Spec,
+                Routes =
+                [
+                    Route("pow-api", "web", "/api") with { ProofOfWork = SpecOff, ProofOfWorkRouteOverride = true },
+                    Route("pow-root", "web") with { ProofOfWork = Spec },
+                ],
+            },
+            new HostSpec
+            {
+                Id = TestIds.Host("open"),
+                Names = ["open.test"],
+                ProofOfWork = SpecOff,
+                Routes =
+                [
+                    Route("open-protect", "web", "/protect") with { ProofOfWork = Spec, ProofOfWorkRouteOverride = true },
+                    Route("open-root", "web"),
+                ],
+            },
             new HostSpec { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, ForceHttps = true },
         ],
     };
+
+    private static HostProofOfWorkSpec Spec => new() { Enabled = true, Difficulty = 10, TokenLifetimeHours = 24 };
+
+    private static HostProofOfWorkSpec SpecOff => new() { Enabled = false, Difficulty = 10, TokenLifetimeHours = 24 };
 
     /// <summary>The facts of a request as they reach the server, before anything interprets them.</summary>
     private sealed record Wire(string Host, bool Https, ProbeHttpVersion Version, SslProtocols TlsVersion, string Path, IPAddress Peer)
@@ -318,6 +344,100 @@ public sealed class SimulatorParityTests : IDisposable
         public string? ServerName { get; init; }
     }
 
+    [Fact]
+    public async Task ProofOfWorkMatchesAndExplainsEveryCase()
+    {
+        using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
+        var now = (uint)fixture.ProofOfWork.Time.GetUtcNow().ToUnixTimeSeconds();
+        var host = fixture.Snapshot.HostsByIndex.Single(h => h.Id == TestIds.Host("pow"));
+        var scope = host.ProofOfWorkHostScope;
+
+        string Mint(uint expiresAt, int difficulty = 10, byte[]? tokenScope = null, IPAddress? client = null)
+        {
+            var buffer = new char[ProofOfWorkToken.EncodedLength];
+            Assert.True(ProofOfWorkToken.TryEncode(fixture.ProofOfWork.Key!, tokenScope ?? scope, IpKey.FromIPAddress(client ?? Lan), expiresAt, difficulty, buffer, out var written));
+            return new string(buffer, 0, written);
+        }
+
+        Wire WireFor(string path, string method = "GET", string? token = null)
+        {
+            List<(string Name, string Value)> headers = [("Accept", "text/html")];
+            if (token is not null)
+            {
+                headers.Add(("Cookie", $"{ProofOfWorkToken.CookieName}={token}"));
+            }
+
+            return new Wire("pow.test", false, ProbeHttpVersion.Http11, SslProtocols.None, path, Lan) { Method = method, Headers = headers };
+        }
+
+        // No token: the browser gets the challenge page, and both sides agree.
+        var noToken = WireFor("/");
+        Assert.Equal(1, await fixture.CompareAsync(noToken));
+        var run = fixture.Simulate(noToken);
+        Assert.Equal(200, run.Outcome.StatusCode);
+        Assert.Contains("challenge page", PolicyStep(run).Summary, StringComparison.Ordinal);
+
+        // A valid token goes through, and the trace names its expiry.
+        var valid = WireFor("/", token: Mint(now + 3600));
+        Assert.Equal(1, await fixture.CompareAsync(valid));
+        run = fixture.Simulate(valid);
+        Assert.Equal(GateOutcomeAction.Forward, run.Outcome.Action);
+        Assert.Contains("expiring at", PolicyStep(run).Summary, StringComparison.Ordinal);
+
+        // Expired, too easy, another host scope, another client: a challenge, each with its reason.
+        var expired = WireFor("/", token: Mint(now - 1));
+        Assert.Equal(1, await fixture.CompareAsync(expired));
+        Assert.Contains("expired", PolicyStep(fixture.Simulate(expired)).Summary, StringComparison.Ordinal);
+
+        var tooEasy = WireFor("/", token: Mint(now + 3600, difficulty: 8));
+        Assert.Equal(1, await fixture.CompareAsync(tooEasy));
+        Assert.Contains("difficulty", PolicyStep(fixture.Simulate(tooEasy)).Summary, StringComparison.Ordinal);
+
+        var otherHost = WireFor("/", token: Mint(now + 3600, tokenScope: new byte[16]));
+        Assert.Equal(1, await fixture.CompareAsync(otherHost));
+        Assert.Contains("other host or IP", PolicyStep(fixture.Simulate(otherHost)).Summary, StringComparison.Ordinal);
+
+        var otherClient = WireFor("/", token: Mint(now + 3600, client: Outsider));
+        Assert.Equal(1, await fixture.CompareAsync(otherClient));
+        Assert.Contains("other host or IP", PolicyStep(fixture.Simulate(otherClient)).Summary, StringComparison.Ordinal);
+
+        // A non-browser gets 403, and the trace says why.
+        var api = WireFor("/", "POST");
+        Assert.Equal(1, await fixture.CompareAsync(api));
+        Assert.Equal(403, fixture.Simulate(api).Outcome.StatusCode);
+        Assert.Contains("403, because", PolicyStep(fixture.Simulate(api)).Summary, StringComparison.Ordinal);
+
+        // robots.txt is exempt.
+        var robots = WireFor(ProofOfWorkTargets.RobotsPath);
+        Assert.Equal(1, await fixture.CompareAsync(robots));
+        Assert.Contains("robots.txt", PolicyStep(fixture.Simulate(robots)).Summary, StringComparison.Ordinal);
+
+        // The route's own switch exempts /api, and turns the check on for /protect on a host that is otherwise open.
+        var apiRoute = WireFor("/api/x");
+        Assert.Equal(1, await fixture.CompareAsync(apiRoute));
+        Assert.Equal(GateOutcomeAction.Forward, fixture.Simulate(apiRoute).Outcome.Action);
+        Assert.DoesNotContain(fixture.Simulate(apiRoute).Steps, step => step.Kind == GateStepKind.RoutePolicy);
+
+        var protectedRoute = new Wire("open.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/protect", Lan)
+        {
+            Headers = [("Accept", "text/html")],
+        };
+        Assert.Equal(1, await fixture.CompareAsync(protectedRoute));
+        var protectedStep = PolicyStep(fixture.Simulate(protectedRoute));
+        Assert.Contains("route's own override", protectedStep.Summary, StringComparison.Ordinal);
+        Assert.Contains("challenge page", protectedStep.Summary, StringComparison.Ordinal);
+
+        // The verify endpoint is a step of its own; a bodyless post is refused by the simulator and the real gate alike.
+        var verify = new Wire("pow.test", false, ProbeHttpVersion.Http11, SslProtocols.None, ProofOfWorkTargets.VerifyPath, Lan) { Method = "POST" };
+        Assert.Equal(1, await fixture.CompareAsync(verify));
+        var verifyRun = fixture.Simulate(verify);
+        Assert.Equal((GateOutcomeAction.Respond, GateReason.ProofOfWork, 403), (verifyRun.Outcome.Action, verifyRun.Outcome.Reason, verifyRun.Outcome.StatusCode));
+        Assert.Contains(verifyRun.Steps, step => step.Kind == GateStepKind.ProofOfWork);
+    }
+
+    private static GateStep PolicyStep(GateSimulation run) =>
+        Assert.Single(run.Steps, step => step.Kind == GateStepKind.RoutePolicy);
+
     private sealed class Fixture : IDisposable
     {
         private readonly SnapshotStore _store = new();
@@ -327,14 +447,25 @@ public sealed class SimulatorParityTests : IDisposable
         public Fixture(ProxyConfigModel model, TestPki pki)
         {
             Challenges.Publish("tok-en_1", "tok-en_1.thumbprint");
+            ProofOfWork = new ProofOfWorkRuntime(new FixedTime(DateTimeOffset.FromUnixTimeSeconds(1_800_000_000)));
+            ProofOfWork.UseKey(new TestMacKey());
             var shared = pki.Leaf("shared", "*.test", "*.app.test", "app.test");
-            Snapshot = Bound(model, options: new SnapshotCompilerOptions { Certificates = new Single(shared), PublicHttpsPort = 8443, AdminUpstream = true });
+            Snapshot = Bound(model, options: new SnapshotCompilerOptions
+            {
+                Certificates = new Single(shared),
+                PublicHttpsPort = 8443,
+                AdminUpstream = true,
+                ProofOfWork = ProofOfWork,
+            });
             _store.Publish(Snapshot);
-            _gate = new GateMiddleware(_store, new TrustedProxyClientAddressSource(), Challenges);
+            _gate = new GateMiddleware(_store, new TrustedProxyClientAddressSource(), Challenges, ProofOfWork);
             _handshakes = new TlsHandshakeSelector(_store);
         }
 
         public RuntimeSnapshot Snapshot { get; }
+
+        /// <summary>The proof-of-work key and clock both sides use: the real gate and the simulator.</summary>
+        public ProofOfWorkRuntime ProofOfWork { get; }
 
         /// <summary>The live HTTP-01 answers, shared by the real gate and the simulations.</summary>
         public AcmeChallengeStore Challenges { get; } = new();
@@ -344,8 +475,10 @@ public sealed class SimulatorParityTests : IDisposable
 
         public void Dispose() => _store.Dispose();
 
-        /// <summary>Runs the request both ways and asserts the outcomes are equal. Returns 1 when it reached the gate, else 0.</summary>
-        public async Task<int> CompareAsync(Wire wire, string? note = null)
+        /// <summary>The simulator's answer alone, for a test that reads the trace.</summary>
+        public GateSimulation Simulate(Wire wire) => GateSimulator.Run(Snapshot, ProbeOf(wire), Challenges, proofOfWork: ProofOfWork);
+
+        private static GateProbe ProbeOf(Wire wire)
         {
             GateProbe probe = new()
             {
@@ -368,7 +501,15 @@ public sealed class SimulatorParityTests : IDisposable
                 probe = probe with { HostHeaders = wire.HostHeaders };
             }
 
-            var simulated = GateSimulator.Run(Snapshot, probe, challenges: Challenges);
+            return probe;
+        }
+
+        /// <summary>Runs the request both ways and asserts the outcomes are equal. Returns 1 when it reached the gate, else 0.</summary>
+        public async Task<int> CompareAsync(Wire wire, string? note = null)
+        {
+            var probe = ProbeOf(wire);
+
+            var simulated = GateSimulator.Run(Snapshot, probe, challenges: Challenges, proofOfWork: ProofOfWork);
             Reasons.Add(simulated.Outcome.Reason);
             var label = $"{note} {(wire.Https ? "https" : "http")} {wire.Version} {wire.TlsVersion} {wire.Method} {wire.Host}{wire.Path} from {wire.Peer} via {string.Join(",", wire.Headers)}";
 
@@ -568,5 +709,10 @@ public sealed class SimulatorParityTests : IDisposable
             resolved = certificate;
             return true;
         }
+    }
+
+    private sealed class FixedTime(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 }

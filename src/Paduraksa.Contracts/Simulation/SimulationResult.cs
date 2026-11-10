@@ -129,6 +129,9 @@ public enum SimulationStepKind
     /// <summary>A Redirect or Respond host's fixed answer.</summary>
     FixedResponse,
 
+    /// <summary>The proof-of-work verify endpoint, which the gate answers before route matching.</summary>
+    ProofOfWork,
+
     /// <summary>The route match, on the canonical view of the path.</summary>
     RouteMatch,
 
