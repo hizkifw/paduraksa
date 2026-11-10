@@ -77,6 +77,16 @@ def pct(value) -> str:
     return f"{value:+.1f}%"
 
 
+def bold_best(cells: list[str], values: list, higher: bool) -> list[str]:
+    """Bolds the best of a comparison so a table can be skimmed and tallied: every value tied for best (compared as
+    displayed), and nothing when fewer than two values compare."""
+    numbers = [value for value in values if value is not None]
+    if len(numbers) < 2:
+        return cells
+    best = max(numbers) if higher else min(numbers)
+    return [f"**{cell}**" if value is not None and value == best else cell for cell, value in zip(cells, values)]
+
+
 def latest_tables(lines: list[str], entry: dict) -> None:
     results = entry.get("results", [])
     proxies = ordered({r["proxy"] for r in results})
@@ -108,7 +118,9 @@ def latest_tables(lines: list[str], entry: dict) -> None:
                  + "".join(f" | Paduraksa ÷ {NAMES.get(p, p)}" for p in ratios) + " |")
     lines.append("|---|" + "---:|" * (len(proxies) + len(ratios)))
     for scenario in scenarios:
-        cells = [fmt((by_key.get((p, scenario, None)) or {}).get("rps")) for p in proxies]
+        values = [(by_key.get((p, scenario, None)) or {}).get("rps") for p in proxies]
+        values = [None if v is None else round(v) for v in values]
+        cells = bold_best([fmt(v) for v in values], values, higher=True)
         for other in ratios:
             mine = by_key.get(("paduraksa", scenario, None))
             theirs = by_key.get((other, scenario, None))
@@ -126,13 +138,16 @@ def latest_tables(lines: list[str], entry: dict) -> None:
     lines.append("| Scenario | Proxy | req/s | p50 | p99 | p99.9 | errors |")
     lines.append("|---|---|---:|---:|---:|---:|---:|")
     for scenario in scenarios:
-        for proxy in proxies:
-            result = by_key.get((proxy, scenario, None))
-            if result is None:
-                continue
-            lines.append(f"| {scenario} | {NAMES.get(proxy, proxy)} | {fmt(result.get('rps'))} "
-                         f"| {fmt(result.get('p50_ms'), 2)} | {fmt(result.get('p99_ms'), 2)} "
-                         f"| {fmt(result.get('p999_ms'), 2)} | {result.get('errors', MISSING)} |")
+        measured = [(proxy, by_key[(proxy, scenario, None)]) for proxy in proxies if (proxy, scenario, None) in by_key]
+        # Each column is bolded within the scenario: the most throughput, the lowest latencies.
+        rps = [None if r.get("rps") is None else round(r["rps"]) for _, r in measured]
+        columns = [bold_best([fmt(v) for v in rps], rps, higher=True)]
+        for field in ("p50_ms", "p99_ms", "p999_ms"):
+            values = [None if r.get(field) is None else round(r[field], 2) for _, r in measured]
+            columns.append(bold_best([fmt(v, 2) for v in values], values, higher=False))
+        for index, (proxy, result) in enumerate(measured):
+            lines.append(f"| {scenario} | {NAMES.get(proxy, proxy)} | " + " | ".join(column[index] for column in columns)
+                         + f" | {result.get('errors', MISSING)} |")
     lines.append("")
 
 

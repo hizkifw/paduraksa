@@ -153,6 +153,16 @@ def num(value, digits=0) -> str:
     return MISSING if value is None else f"{value:,.{digits}f}"
 
 
+def bold_best(cells: list[str], values: list, higher: bool) -> list[str]:
+    """Bolds the best of a comparison so a table can be skimmed and tallied: every value tied for best (compared as
+    displayed), and nothing when fewer than two values compare."""
+    numbers = [value for value in values if value is not None]
+    if len(numbers) < 2:
+        return cells
+    best = max(numbers) if higher else min(numbers)
+    return [f"**{cell}**" if value is not None and value == best else cell for cell, value in zip(cells, values)]
+
+
 def cpu(result):
     """(µs of proxy CPU per request, average CPUs busy) for a run with metadata."""
     meta = result["meta"] if result else None
@@ -274,7 +284,8 @@ def main() -> None:
              + "".join(f" | Paduraksa ÷ {NAMES[p]}" for p in ratios) + " |")
         emit("|---|" + "---:|" * (len(proxies) + len(ratios)))
         for key, label in scenarios:
-            cells = [num(throughput(key, runs[(p, key)])) if runs[(p, key)] else MISSING for p in proxies]
+            values = [round(throughput(key, runs[(p, key)])) if runs[(p, key)] else None for p in proxies]
+            cells = bold_best([num(v) for v in values], values, higher=True)
             for other in ratios:
                 mine, theirs = runs[("paduraksa", key)], runs[(other, key)]
                 cells.append(f"{throughput(key, mine) / throughput(key, theirs):.2f}"
@@ -297,11 +308,12 @@ def main() -> None:
         emit("| Scenario | " + " | ".join(NAMES[p] for p in proxies) + " |")
         emit("|---|" + "---:|" * len(proxies))
         for key, label in scenarios:
-            cells = []
+            cells, values = [], []
             for p in proxies:
                 per_request, busy = cpu(runs[(p, key)])
                 cells.append(MISSING if per_request is None else f"{per_request:.1f} ({busy:.2f})")
-            emit(f"| {label} | " + " | ".join(cells) + " |")
+                values.append(None if per_request is None else round(per_request, 1))
+            emit(f"| {label} | " + " | ".join(bold_best(cells, values, higher=False)) + " |")
 
         emit("")
         emit("### Latency at fixed concurrency (ms)")
@@ -312,11 +324,19 @@ def main() -> None:
         emit("| Scenario | Proxy | req/s | p50 | p90 | p99 | p99.9 | failed |")
         emit("|---|---|---:|---:|---:|---:|---:|---:|")
         for key, label in scenarios:
+            measured = [(p, runs[(p, key)]) for p in proxies if runs[(p, key)] is not None]
+            # Each column is bolded within the scenario: the most throughput, the lowest latencies.
+            columns = [
+                bold_best([num(throughput(key, r)) for _, r in measured], [round(throughput(key, r)) for _, r in measured], higher=True),
+                *(bold_best([ms(r[field]) for _, r in measured],
+                            [None if r[field] is None else round(r[field] * 1000, 2) for _, r in measured], higher=False)
+                  for field in ("p50", "p90", "p99", "p999")),
+            ]
+            rows = {p: [column[i] for column in columns] for i, (p, _) in enumerate(measured)}
             for p in proxies:
                 r = runs[(p, key)]
                 if r is not None:
-                    emit(f"| {label} | {NAMES[p]} | {num(throughput(key, r))} | {ms(r['p50'])} | {ms(r['p90'])} | {ms(r['p99'])} "
-                         f"| {ms(r['p999'])} | {r['failed']} |")
+                    emit(f"| {label} | {NAMES[p]} | " + " | ".join(rows[p]) + f" | {r['failed']} |")
                 elif (p, key) in UNAVAILABLE:
                     emit(f"| {label} | {NAMES[p]} | {MISSING} | {MISSING} | {MISSING} | {MISSING} "
                          f"| {MISSING} | {MISSING} |")
@@ -370,6 +390,7 @@ def main() -> None:
         emit("| Scenario | Rate | Proxy | achieved req/s | p50 | p90 | p95 | p99 | p99.9 | CPU µs/req | failed |")
         emit("|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|")
         scenario_order = {k: i for i, (k, _) in enumerate(SCENARIOS)}
+        rows = []
         for (scenario, rate, proxy) in sorted(rate_runs, key=lambda k: (scenario_order.get(k[0], 99), k[1], PROXIES.index(k[2]))):
             results = rate_runs[(scenario, rate, proxy)]
 
@@ -381,9 +402,27 @@ def main() -> None:
             if len(results) > 1:
                 p99 += f" ({ms(min(r['p99'] for r in results))}-{ms(max(r['p99'] for r in results))})"
             cpus = [cpu(r)[0] for r in results if cpu(r)[0] is not None]
-            emit(f"| {LABELS.get(scenario, scenario)} | {num(rate)} | {NAMES[proxy]} | {num(med('rps'))} | {ms(med('p50'))} "
-                 f"| {ms(med('p90'))} | {ms(med('p95'))} | {p99} | {ms(med('p999'))} "
-                 f"| {num(statistics.median(cpus), 1) if cpus else MISSING} | {sum(r['failed'] for r in results)} |")
+            cpu_median = statistics.median(cpus) if cpus else None
+            latencies = [med(field) for field in ("p50", "p90", "p95", "p99", "p999")]
+            rows.append({
+                "group": (scenario, rate),
+                "head": f"| {LABELS.get(scenario, scenario)} | {num(rate)} | {NAMES[proxy]} | {num(med('rps'))}",
+                "cells": [ms(latencies[0]), ms(latencies[1]), ms(latencies[2]), p99, ms(latencies[4]),
+                          num(cpu_median, 1) if cpu_median is not None else MISSING],
+                "values": [None if v is None else round(v * 1000, 2) for v in latencies]
+                + [None if cpu_median is None else round(cpu_median, 1)],
+                "failed": sum(r["failed"] for r in results),
+            })
+        # Bolded within a scenario and rate (the rate is fixed, so achieved req/s is no contest): the lowest latencies
+        # and CPU per request.
+        for group in dict.fromkeys(row["group"] for row in rows):
+            members = [row for row in rows if row["group"] == group]
+            for column in range(len(members[0]["cells"])):
+                bolded = bold_best([row["cells"][column] for row in members], [row["values"][column] for row in members], higher=False)
+                for row, cell in zip(members, bolded):
+                    row["cells"][column] = cell
+        for row in rows:
+            emit(row["head"] + " | " + " | ".join(row["cells"]) + f" | {row['failed']} |")
 
     paduraksa_runs = [(k, runs[("paduraksa", k)]) for k, _ in SCENARIOS if runs.get(("paduraksa", k))]
     paduraksa_runs += [(f"{s} at {num(rate)} req/s (run {i + 1})", r)
