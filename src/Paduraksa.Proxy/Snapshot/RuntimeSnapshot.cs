@@ -3,6 +3,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
@@ -20,9 +21,9 @@ namespace Paduraksa.Proxy.Snapshot;
 /// </summary>
 public sealed class RuntimeSnapshot
 {
-    private static readonly PrecomputedResponse DefaultNoRoute = PrecomputedResponse.Text(StatusCodes.Status404NotFound, "not found\n");
-    private static readonly PrecomputedResponse DefaultUnavailable = PrecomputedResponse.Text(StatusCodes.Status503ServiceUnavailable, "service unavailable\n");
-    private static readonly PrecomputedResponse DefaultMisdirected = PrecomputedResponse.Text(StatusCodes.Status421MisdirectedRequest, "misdirected request\n");
+    private static readonly PrecomputedResponse DefaultNoRoute = PrecomputedResponse.Text(StatusCodes.Status404NotFound, "not found\n", htmlPage: ErrorPages.NotFound);
+    private static readonly PrecomputedResponse DefaultUnavailable = PrecomputedResponse.Text(StatusCodes.Status503ServiceUnavailable, "service unavailable\n", htmlPage: ErrorPages.ServiceUnavailable);
+    private static readonly PrecomputedResponse DefaultMisdirected = PrecomputedResponse.Text(StatusCodes.Status421MisdirectedRequest, "misdirected request\n", htmlPage: ErrorPages.Misdirected);
 
     /// <summary>0 until bound; then strictly increasing per store.</summary>
     public required long Generation { get; init; }

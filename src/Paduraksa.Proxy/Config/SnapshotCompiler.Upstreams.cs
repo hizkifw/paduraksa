@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy.Configuration;
@@ -197,7 +198,7 @@ public static partial class SnapshotCompiler
                 var allowed = CompileCidrs(allow.Addresses ?? [], where, errors);
                 var denied = allow.DropDenied
                     ? PolicyDecision.Drop
-                    : PolicyDecision.Respond(PrecomputedResponse.Text(StatusCodes.Status403Forbidden, "forbidden\n"));
+                    : PolicyDecision.Respond(PrecomputedResponse.Text(StatusCodes.Status403Forbidden, "forbidden\n", htmlPage: ErrorPages.AccessDenied));
                 return new IpAllowListPolicy(allowed, denied);
             default:
                 errors.Add(new(where, $"unsupported policy {spec?.GetType().Name ?? "null"}"));

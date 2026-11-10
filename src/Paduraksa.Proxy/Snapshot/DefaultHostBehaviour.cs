@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Pages;
 
 namespace Paduraksa.Proxy.Snapshot;
 
@@ -31,13 +32,18 @@ public sealed class DefaultHostBehaviour
     /// <summary>Abort unknown-host requests without answering.</summary>
     public static DefaultHostBehaviour Close { get; } = new(DefaultHostAction.Close, null);
 
-    /// <summary>404 with a short plain-text body.</summary>
-    public static DefaultHostBehaviour NotFound(string body = "no host configured\n") =>
-        new(DefaultHostAction.Respond, PrecomputedResponse.Text(StatusCodes.Status404NotFound, body));
+    /// <summary>404 with a short plain-text body, and the built-in 404 page when the body is the default text.</summary>
+    public static DefaultHostBehaviour NotFound(string? body = null) =>
+        new(DefaultHostAction.Respond, body is null
+            ? PrecomputedResponse.Text(StatusCodes.Status404NotFound, "no host configured\n", htmlPage: ErrorPages.NotFound)
+            : PrecomputedResponse.Text(StatusCodes.Status404NotFound, body));
 
-    /// <summary>421 Misdirected Request: tells H2 clients that coalesced a connection to retry on a new one.</summary>
-    public static DefaultHostBehaviour MisdirectedRequest(string body = "misdirected request\n") =>
-        new(DefaultHostAction.Respond, PrecomputedResponse.Text(StatusCodes.Status421MisdirectedRequest, body));
+    /// <summary>421 Misdirected Request: tells H2 clients that coalesced a connection to retry on a new one. The
+    /// built-in page is used only for the default text.</summary>
+    public static DefaultHostBehaviour MisdirectedRequest(string? body = null) =>
+        new(DefaultHostAction.Respond, body is null
+            ? PrecomputedResponse.Text(StatusCodes.Status421MisdirectedRequest, "misdirected request\n", htmlPage: ErrorPages.Misdirected)
+            : PrecomputedResponse.Text(StatusCodes.Status421MisdirectedRequest, body));
 
     /// <summary>Any other precomputed answer.</summary>
     public static DefaultHostBehaviour RespondWith(PrecomputedResponse response)

@@ -24,7 +24,7 @@ namespace Paduraksa.Proxy.Pages;
 /// <c>Blob</c> URLs. The style and script are hashed exactly as they are inlined, so the browser's check and the test's
 /// recomputation see the same bytes.</para>
 /// </remarks>
-internal sealed class HtmlPageTemplate
+public sealed class HtmlPageTemplate
 {
     /// <summary>The page's content type; UTF-8, though every byte of every built-in page is ASCII.</summary>
     public const string ContentType = "text/html; charset=utf-8";

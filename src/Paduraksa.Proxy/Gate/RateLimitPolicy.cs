@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
 
@@ -33,7 +34,7 @@ namespace Paduraksa.Proxy.Gate;
 public sealed class RateLimitPolicy : IRequestPolicy
 {
     private static readonly PrecomputedResponse TooManyRequests =
-        PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Please slow down.\n");
+        PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Please slow down.\n", htmlPage: ErrorPages.TooManyRequests);
 
     private readonly RateLimitTable _table;
     private readonly RateLimitPartition _partition;

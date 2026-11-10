@@ -454,7 +454,17 @@ public static class GateSimulator
                 return new GateOutcome(GateOutcomeAction.Forward, GateReason.Forwarded);
             case GateAction.Respond:
                 var response = decision.Response!;
-                ResponseWriter.ApplyHeaders(context, response, decision.RetryAfter);
+                // A page-only answer (the challenge) has no text to describe: set its status, and let BodyOf read the
+                // rendered page. Every other answer goes through the plain header path, redirects included.
+                if (response.HasPlainBody)
+                {
+                    ResponseWriter.ApplyHeaders(context, response, decision.RetryAfter);
+                }
+                else
+                {
+                    context.Response.StatusCode = response.StatusCode;
+                }
+
                 var location = response.StatusCode / 100 == 3 && context.Response.Headers.Location.Count > 0
                     ? context.Response.Headers.Location.ToString()
                     : null;

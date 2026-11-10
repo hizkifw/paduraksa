@@ -116,6 +116,26 @@ public sealed class PrecomputedResponseTests
             "ResponseWriter.ApplyHeaders");
     }
 
+    [Fact]
+    public void APageOnlyResponseRendersOnceAndRefusesThePlainPath()
+    {
+        var page = Paduraksa.Proxy.Pages.HtmlPageTemplate.Create("x", "<p>{value}</p>", slots: ["value"]);
+        var response = PrecomputedResponse.Page(200, page, "v", string.Empty, string.Empty);
+
+        Assert.False(response.HasPlainBody);
+        var first = response.Body;
+        Assert.Same(first, response.Body);
+        Assert.Contains("<p>v</p>", Encoding.UTF8.GetString(first), StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(() => ResponseWriter.ApplyHeaders(TestContexts.Create("a.test"), response));
+
+        // A text answer with an HTML alternative keeps its plain body: only the page-only form is refused.
+        var text = PrecomputedResponse.Text(404, "nope\n", htmlPage: page);
+        Assert.True(text.HasPlainBody);
+        var context = TestContexts.Create("a.test");
+        ResponseWriter.ApplyHeaders(context, text);
+        Assert.Equal("text/plain; charset=utf-8", context.Response.ContentType);
+    }
+
     private static DefaultHttpContext WithBody(DefaultHttpContext context, out MemoryStream body)
     {
         body = new MemoryStream();
