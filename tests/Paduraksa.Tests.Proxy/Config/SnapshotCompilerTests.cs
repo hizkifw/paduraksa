@@ -245,6 +245,50 @@ public sealed class SnapshotCompilerTests
     }
 
     [Fact]
+    public void RobotsTxtIsCompiledPerModeWithSharedPresetAnswers()
+    {
+        static HostSpec Host(string label, HostRobotsSpec robots) => new()
+        {
+            Id = TestIds.Host(label),
+            Names = [label + ".test"],
+            Kind = HostKind.Respond,
+            Respond = new RespondSpec { StatusCode = 200 },
+            Robots = robots,
+        };
+
+        var snapshot = Compile(new ProxyConfigModel
+        {
+            Hosts =
+            [
+                Host("pass", HostRobotsSpec.Passthrough),
+                Host("all", new HostRobotsSpec { Mode = RobotsMode.DisallowAll }),
+                Host("all-again", new HostRobotsSpec { Mode = RobotsMode.DisallowAll }),
+                Host("ai", new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers }),
+                Host("custom", new HostRobotsSpec { Mode = RobotsMode.Custom, CustomText = "User-agent: *\r\nDisallow: /private" }),
+            ],
+        });
+
+        var pass = snapshot.Hosts.Find("pass.test")!;
+        Assert.Null(pass.RobotsTxt);
+        Assert.Equal(RobotsMode.Passthrough, pass.RobotsMode);
+
+        var all = snapshot.Hosts.Find("all.test")!;
+        Assert.Equal(RobotsMode.DisallowAll, all.RobotsMode);
+        Assert.Equal(RobotsText.DisallowAll, Text(all.RobotsTxt!));
+        Assert.Equal(200, all.RobotsTxt!.StatusCode);
+        Assert.Equal("text/plain; charset=utf-8", all.RobotsTxt.ContentType.ToString());
+        Assert.Equal("max-age=3600", all.RobotsTxt.CacheControl.ToString());
+
+        // The presets are encoded once for the whole snapshot, not once per host.
+        Assert.Same(all.RobotsTxt, snapshot.Hosts.Find("all-again.test")!.RobotsTxt);
+
+        Assert.Equal(RobotsText.BlockAiCrawlers, Text(snapshot.Hosts.Find("ai.test")!.RobotsTxt!));
+        Assert.Equal("User-agent: *\nDisallow: /private\n", Text(snapshot.Hosts.Find("custom.test")!.RobotsTxt!));
+
+        static string Text(PrecomputedResponse response) => System.Text.Encoding.UTF8.GetString(response.Body);
+    }
+
+    [Fact]
     public void YarpConfigIsAPureFunctionOfContent()
     {
         var first = Compile(Sample);
@@ -285,6 +329,8 @@ public sealed class SnapshotCompilerTests
         { "duplicate name in a disabled host", Hosts(Respond("a", "a.test") with { Names = ["x.test", "X.test."], Enabled = false }), "duplicate host name 'x.test'" },
         { "no names", Hosts(new HostSpec { Id = TestIds.Host("a"), Names = [], Kind = HostKind.Respond, Respond = new RespondSpec() }), "at least one name" },
         { "empty host ID", Hosts(Respond("a", "a.test") with { Id = HostId.Empty }), "the host ID is empty" },
+        { "custom robots without text", Hosts(Respond("a", "a.test") with { Robots = new HostRobotsSpec { Mode = RobotsMode.Custom } }), "a custom robots.txt needs text" },
+        { "unknown robots mode", Hosts(Respond("a", "a.test") with { Robots = new HostRobotsSpec { Mode = (RobotsMode)9 } }), "unknown robots.txt mode" },
         { "empty route ID", WithWeb(ProxyHost("a", "a.test", Route("r", "web") with { Id = RouteId.Empty })), "the route ID is empty" },
         { "dangling upstream", WithWeb(ProxyHost("a", "a.test", Route("r", "missing"))), $"upstream '{TestIds.Upstream("missing")}' doesn't exist" },
         { "duplicate route ID", WithWeb(ProxyHost("a", "a.test", Route("r", "web")), ProxyHost("b", "b.test", Route("r", "web"))), "duplicate route ID" },

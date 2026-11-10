@@ -272,6 +272,19 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             [new("scheme", isHttps ? "https" : "http")],
             host.Id));
 
+    public void RobotsTxt(CompiledHost host, bool served)
+    {
+        var mode = TraceNames.Of(host.RobotsMode);
+        steps.Add(new GateStep(
+            GateStepKind.RobotsTxt,
+            served ? GateStepVerdict.Stopped : GateStepVerdict.Passed,
+            served
+                ? $"the gate served the host's managed robots.txt ({mode})"
+                : $"robots.txt is not managed on this host ({mode}): it goes on to {(host.Kind == HostKind.Proxy || host.Kind == HostKind.Admin ? "the upstream" : "the host's fixed answer")}",
+            [new("mode", mode), new("served", Flag(served))],
+            host.Id));
+    }
+
     public void ProofOfWorkVerify(HttpContext context, CompiledHost host) =>
         steps.Add(new GateStep(
             GateStepKind.ProofOfWork,

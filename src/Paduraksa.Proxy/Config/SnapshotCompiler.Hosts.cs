@@ -72,6 +72,7 @@ public static partial class SnapshotCompiler
                 _ => RejectRoutes(spec, where, Errors),
             };
             var fixedResponse = CompileFixedResponse(spec, where, Errors);
+            var robotsTxt = CompileRobots(spec.Robots, where, Errors);
 
             if (spec.ForceHttps)
             {
@@ -143,6 +144,8 @@ public static partial class SnapshotCompiler
                 Routes = routes,
                 Policies = hostPolicies,
                 FixedResponse = fixedResponse,
+                RobotsTxt = robotsTxt,
+                RobotsMode = spec.Robots.Mode,
                 HttpsRedirect = spec.ForceHttps ? HttpsRedirect : null,
                 Tls = tls,
                 Https = spec.Https,
@@ -432,6 +435,34 @@ public static partial class SnapshotCompiler
         if (spec.TokenLifetimeHours is < ProofOfWorkLimits.MinTokenLifetimeHours or > ProofOfWorkLimits.MaxTokenLifetimeHours)
         {
             errors.Add(new(where, $"{what}'s proof-of-work token lifetime must be {ProofOfWorkLimits.MinTokenLifetimeHours}-{ProofOfWorkLimits.MaxTokenLifetimeHours} hours, got {spec.TokenLifetimeHours}"));
+        }
+    }
+
+    /// <summary>
+    /// The host's <c>robots.txt</c> answer. Passthrough has none (the upstream's own file is served); the presets share
+    /// one encoded answer each; a custom text is normalised and encoded here, once per host.
+    /// </summary>
+    private static PrecomputedResponse? CompileRobots(HostRobotsSpec robots, CompileErrorSource where, List<CompileError> errors)
+    {
+        if (!Enum.IsDefined(robots.Mode))
+        {
+            errors.Add(new(where, $"unknown robots.txt mode {robots.Mode}"));
+            return null;
+        }
+
+        return robots.Mode switch
+        {
+            RobotsMode.Passthrough => null,
+            RobotsMode.DisallowAll => RobotsResponses.DisallowAll,
+            RobotsMode.BlockAiCrawlers => RobotsResponses.BlockAiCrawlers,
+            _ when string.IsNullOrWhiteSpace(robots.CustomText) => MissingCustomRobots(where, errors),
+            _ => RobotsResponses.Custom(robots.CustomText!),
+        };
+
+        static PrecomputedResponse? MissingCustomRobots(CompileErrorSource where, List<CompileError> errors)
+        {
+            errors.Add(new(where, "a custom robots.txt needs text"));
+            return null;
         }
     }
 

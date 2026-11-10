@@ -32,6 +32,15 @@ public sealed class CompiledHost
     public PrecomputedResponse? FixedResponse { get; init; }
 
     /// <summary>
+    /// The host's managed <c>/robots.txt</c>, encoded once at compile time; <see langword="null"/> means passthrough, so
+    /// the request goes on to the upstream (or a fixed answer).
+    /// </summary>
+    public PrecomputedResponse? RobotsTxt { get; init; }
+
+    /// <summary>The mode that produced <see cref="RobotsTxt"/>, for the trace: passthrough, a preset, or custom.</summary>
+    public RobotsMode RobotsMode { get; init; } = RobotsMode.Passthrough;
+
+    /// <summary>
     /// The host's response headers: <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>, <c>Server</c> and the
     /// response <c>X-Request-Id</c>, each with its precomputed value, what to do with it, when, and what has to hold. This
     /// is the one list the gate (<see cref="Http.ResponseHeaders.ApplyStage"/>), the reapply after a forward and YARP's

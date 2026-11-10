@@ -312,6 +312,7 @@ public sealed class SimulatorParityTests : IDisposable
             ProxyHost("locked", "locked.test", Route("locked-api", "api", "/api")) with { ForceHttps = true, Policies = [new IpAllowListPolicySpec(["10.0.0.5"])] },
             ProxyHost("ipv6", "[::1]", Route("ipv6-root", "web")),
             ProxyHost("lax", "lax.test", Route("lax-root", "web")),
+            ProxyHost("robots", "robots.test", Route("robots-root", "web")) with { Robots = new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers } },
             new HostSpec
             {
                 Id = TestIds.Host("pow"),
@@ -368,6 +369,32 @@ public sealed class SimulatorParityTests : IDisposable
         public bool ProxyProtocol { get; init; }
 
         public string? ServerName { get; init; }
+    }
+
+    [Fact]
+    public async Task TheManagedRobotsTxtStepSaysServedOrPassedThrough()
+    {
+        using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
+
+        var managed = new Wire("robots.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/robots.txt", Lan);
+        Assert.Equal(1, await fixture.CompareAsync(managed));
+        var run = fixture.Simulate(managed);
+        Assert.Equal((GateOutcomeAction.Respond, GateReason.RobotsTxt, 200), (run.Outcome.Action, run.Outcome.Reason, run.Outcome.StatusCode));
+        var served = Assert.Single(run.Steps, step => step.Kind == GateStepKind.RobotsTxt);
+        Assert.Equal(GateStepVerdict.Stopped, served.Verdict);
+        Assert.Contains("blockAiCrawlers", served.Summary, StringComparison.Ordinal);
+        Assert.Equal("blockAiCrawlers", Assert.Single(served.Facts, fact => fact.Name == "mode").Value);
+        Assert.Contains("User-agent: GPTBot", run.Outcome.Body!, StringComparison.Ordinal);
+
+        // A passthrough host still says what happened to the path, and the request goes on.
+        var passthrough = new Wire("app.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/robots.txt", Lan);
+        Assert.Equal(1, await fixture.CompareAsync(passthrough));
+        var passed = fixture.Simulate(passthrough);
+        Assert.Equal(GateOutcomeAction.Forward, passed.Outcome.Action);
+        var step = Assert.Single(passed.Steps, candidate => candidate.Kind == GateStepKind.RobotsTxt);
+        Assert.Equal(GateStepVerdict.Passed, step.Verdict);
+        Assert.Contains("not managed", step.Summary, StringComparison.Ordinal);
+        Assert.Equal("passthrough", Assert.Single(step.Facts, fact => fact.Name == "mode").Value);
     }
 
     [Fact]

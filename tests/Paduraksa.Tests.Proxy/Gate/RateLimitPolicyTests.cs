@@ -40,6 +40,31 @@ public sealed class RateLimitPolicyTests
         Assert.Equal(1, runtime.Stats.Limited);
     }
 
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("HEAD")]
+    public void RobotsTxtIsNeverRateLimited(string method)
+    {
+        var policy = TestIds.RateLimitPolicy("robots");
+        RateLimitRuntime runtime = Runtime();
+        var gate = Gate(runtime, Model(runtime, policy, new RateLimitParameters(1, 1)));
+
+        Assert.Equal(GateAction.Forward, Decide(gate, "rl.test", "/other").Action);
+        Assert.Equal(StatusCodes.Status429TooManyRequests, Decide(gate, "rl.test", "/other").Response!.StatusCode);
+
+        // The bucket is empty, but a crawler still gets the path, and the exemption spends nothing.
+        DefaultHttpContext context = Context("rl.test", "/robots.txt");
+        context.Request.Method = method;
+        Assert.Equal(GateAction.Forward, gate.Decide(context).Action);
+        Assert.Equal(1, runtime.Stats.Allowed);
+        Assert.Equal(1, runtime.Stats.Limited);
+
+        // Only GET and HEAD are exempt: another method on the same path pays like any other request.
+        DefaultHttpContext post = Context("rl.test", "/robots.txt");
+        post.Request.Method = "POST";
+        Assert.Equal(StatusCodes.Status429TooManyRequests, gate.Decide(post).Response!.StatusCode);
+    }
+
     [Fact]
     public void TwoHostsNamingOnePolicyKeepTheirOwnBuckets()
     {

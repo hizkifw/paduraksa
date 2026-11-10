@@ -122,6 +122,35 @@ public static class RoutePath
         return written;
     }
 
+    /// <summary>
+    /// Whether <paramref name="path"/> is <paramref name="canonical"/> in the matching view, ignoring case like route
+    /// matching. An already canonical path (the common case) compares in place; anything else is canonicalised on the
+    /// stack or in a pooled buffer, so a gate answer can test it without allocating.
+    /// </summary>
+    public static bool MatchesCanonical(ReadOnlySpan<char> path, ReadOnlySpan<char> canonical)
+    {
+        if (IsCanonical(path))
+        {
+            return path.Equals(canonical, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (path.Length < StackLimit)
+        {
+            Span<char> buffer = stackalloc char[StackLimit];
+            return buffer[..Canonicalize(path, buffer)].Equals(canonical, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var rented = ArrayPool<char>.Shared.Rent(path.Length + 1);
+        try
+        {
+            return rented.AsSpan(0, Canonicalize(path, rented)).Equals(canonical, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(rented);
+        }
+    }
+
     /// <summary>Allocating convenience for cold paths (the compiler).</summary>
     public static string Canonicalize(string path)
     {

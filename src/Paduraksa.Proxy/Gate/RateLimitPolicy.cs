@@ -88,6 +88,13 @@ public sealed class RateLimitPolicy : IRequestPolicy
             return PolicyDecision.Continue;
         }
 
+        // A crawler must always be able to read the host's file, as the proof-of-work gate says; the cheap length and
+        // substring guard keeps the canonical match off every other path.
+        if (RobotsTargets.IsRequest(request.Http.Request))
+        {
+            return PolicyDecision.Continue;
+        }
+
         var now = RateLimitClock.NowMs;
         var partition = Partition(in request);
         if (request.IsSimulation)
@@ -119,6 +126,11 @@ public sealed class RateLimitPolicy : IRequestPolicy
             _ => "client IP",
         };
         var source = _routeOverride ? "the route's own override; " : string.Empty;
+        if (RobotsTargets.IsRequest(request.Http.Request))
+        {
+            return string.Concat(source, "robots.txt is never rate limited, so a crawler can read it");
+        }
+
         if (_slot == 0)
         {
             return string.Concat(

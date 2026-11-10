@@ -126,6 +126,9 @@ public enum SimulationStepKind
     /// <summary>The HTTP to HTTPS redirect.</summary>
     HttpsRedirect,
 
+    /// <summary>The managed <c>robots.txt</c>: served for the host, or passed through to the upstream.</summary>
+    RobotsTxt,
+
     /// <summary>A Redirect or Respond host's fixed answer.</summary>
     FixedResponse,
 

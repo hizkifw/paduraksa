@@ -65,6 +65,10 @@ internal interface IGateTracer
     /// <summary>The host forces HTTPS: <paramref name="redirected"/> says whether this request was sent to it.</summary>
     void HttpsRedirect(CompiledHost host, bool isHttps, bool redirected);
 
+    /// <summary>The request was a <c>GET</c>/<c>HEAD /robots.txt</c>: <paramref name="served"/> says whether the host's
+    /// managed file answered it, or it goes on to the upstream (or the host's fixed answer).</summary>
+    void RobotsTxt(CompiledHost host, bool served);
+
     /// <summary>The proof-of-work verify endpoint took the request: the gate reads the posted challenge and answers it.</summary>
     void ProofOfWorkVerify(HttpContext context, CompiledHost host);
 
@@ -117,6 +121,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void HttpsRedirect(CompiledHost host, bool isHttps, bool redirected)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void RobotsTxt(CompiledHost host, bool served)
     {
     }
 

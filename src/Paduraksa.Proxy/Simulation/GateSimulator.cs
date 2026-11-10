@@ -506,6 +506,7 @@ public static class GateSimulator
                     GateStepKind.TlsPolicy => GateReason.MisdirectedConnection,
                     GateStepKind.HostPolicy => GateReason.HostPolicy,
                     GateStepKind.HttpsRedirect => GateReason.HttpsRedirect,
+                    GateStepKind.RobotsTxt => GateReason.RobotsTxt,
                     GateStepKind.FixedResponse => GateReason.FixedHost,
                     GateStepKind.ProofOfWork => GateReason.ProofOfWork,
                     GateStepKind.RouteMatch => GateReason.NoRoute,

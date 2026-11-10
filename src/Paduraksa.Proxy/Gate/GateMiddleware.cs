@@ -182,6 +182,19 @@ public sealed class GateMiddleware
             }
         }
 
+        // After the host chain and the HTTPS redirect, so an allow list still applies and plain HTTP still redirects first
+        // (crawlers follow the redirect). Before a fixed answer and route matching, so a Redirect/Respond host can carry a
+        // robots.txt too, and the route chain (rate limit, proof of work) never sees the file.
+        if (RobotsTargets.IsRequest(request))
+        {
+            var served = host.RobotsTxt is not null;
+            tracer.RobotsTxt(host, served);
+            if (served)
+            {
+                return GateDecision.Respond(host.RobotsTxt!);
+            }
+        }
+
         if (host.FixedResponse is { } fixedResponse)
         {
             tracer.FixedResponse(host);

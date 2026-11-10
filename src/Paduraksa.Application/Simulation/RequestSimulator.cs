@@ -407,6 +407,7 @@ public sealed partial class RequestSimulator : IDisposable
         GateStepKind.ResponseHeaders => SimulationStepKind.ResponseHeaders,
         GateStepKind.HostPolicy => SimulationStepKind.HostPolicy,
         GateStepKind.HttpsRedirect => SimulationStepKind.HttpsRedirect,
+        GateStepKind.RobotsTxt => SimulationStepKind.RobotsTxt,
         GateStepKind.FixedResponse => SimulationStepKind.FixedResponse,
         GateStepKind.ProofOfWork => SimulationStepKind.ProofOfWork,
         GateStepKind.RouteMatch => SimulationStepKind.RouteMatch,

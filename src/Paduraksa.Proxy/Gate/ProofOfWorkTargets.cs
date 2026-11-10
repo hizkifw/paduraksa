@@ -12,11 +12,12 @@ internal static class ProofOfWorkTargets
     public const string VerifyPath = "/.well-known/paduraksa/pow";
 
     /// <summary>Never challenged: a crawler must be able to read the host's robots file.</summary>
-    public const string RobotsPath = "/robots.txt";
+    public const string RobotsPath = RobotsTargets.Path;
 
     public static bool IsVerifyPath(ReadOnlySpan<char> path) => path.Equals(VerifyPath, StringComparison.OrdinalIgnoreCase);
 
-    public static bool IsRobots(ReadOnlySpan<char> path) => path.Equals(RobotsPath, StringComparison.OrdinalIgnoreCase);
+    /// <summary>The canonical matching view, so the exemption covers exactly what the managed answer does.</summary>
+    public static bool IsRobots(ReadOnlySpan<char> path) => RobotsTargets.IsPath(path);
 
     /// <summary>Whether the request is one a browser made for a page: <c>GET</c> or <c>HEAD</c> accepting <c>text/html</c>.</summary>
     public static bool IsBrowserRequest(HttpRequest request) =>

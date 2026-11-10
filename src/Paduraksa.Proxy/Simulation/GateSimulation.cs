@@ -39,6 +39,9 @@ public enum GateReason : byte
     /// <summary>The host forces HTTPS and the request isn't.</summary>
     HttpsRedirect,
 
+    /// <summary>The host's managed <c>/robots.txt</c> answered the request.</summary>
+    RobotsTxt,
+
     /// <summary>A Redirect or Respond host answers everything itself.</summary>
     FixedHost,
 
@@ -89,6 +92,10 @@ public enum GateStepKind : byte
     TlsPolicy,
     HostPolicy,
     HttpsRedirect,
+
+    /// <summary>The managed <c>robots.txt</c>: served, or passed through to the upstream.</summary>
+    RobotsTxt,
+
     FixedResponse,
 
     /// <summary>The proof-of-work verify endpoint, which the gate answers before route matching.</summary>
