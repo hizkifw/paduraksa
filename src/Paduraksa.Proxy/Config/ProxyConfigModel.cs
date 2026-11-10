@@ -1,5 +1,6 @@
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Config;
@@ -20,6 +21,9 @@ public sealed record ProxyConfigModel
     public IReadOnlyList<HostSpec> Hosts { get; init; } = [];
 
     public IReadOnlyList<UpstreamSpec> Upstreams { get; init; } = [];
+
+    /// <summary>The named rate-limit policies a host or route's settings can refer to.</summary>
+    public IReadOnlyList<RateLimitPolicySpec> RateLimitPolicies { get; init; } = [];
 
     public DefaultsSpec Defaults { get; init; } = new();
 }
@@ -154,6 +158,41 @@ public sealed record HostProofOfWorkSpec
     public int TokenLifetimeHours { get; init; } = ProofOfWorkLimits.DefaultTokenLifetimeHours;
 }
 
+/// <summary>The rate-limit settings resolved across the layers; a route may override the switch and the policy.</summary>
+public sealed record HostRateLimitSpec
+{
+    /// <summary>No limit.</summary>
+    public static HostRateLimitSpec Off { get; } = new();
+
+    /// <summary>False: an inherited policy is named but inert.</summary>
+    public bool Enabled { get; init; }
+
+    /// <summary>The policy to apply; <see cref="RateLimitPolicyId.Empty"/> when none is named.</summary>
+    public RateLimitPolicyId PolicyId { get; init; }
+
+    /// <summary>The policy that actually applies, or null.</summary>
+    public RateLimitPolicyId? EffectivePolicyId => Enabled && !PolicyId.IsEmpty ? PolicyId : null;
+}
+
+/// <summary>
+/// One named rate-limit policy, resolved across the document: its bucket numbers, partition key and, for a header key,
+/// the header name (already a valid token). The compiler pairs it with a host into a bucket scope.
+/// </summary>
+public sealed record RateLimitPolicySpec
+{
+    public required RateLimitPolicyId Id { get; init; }
+
+    /// <summary>The human label, for traces and errors.</summary>
+    public required string Name { get; init; }
+
+    public required RateLimitParameters Parameters { get; init; }
+
+    public RateLimitKey Key { get; init; }
+
+    /// <summary>With <see cref="RateLimitKey.Header"/>: the header whose value is the partition key; null otherwise.</summary>
+    public string? Header { get; init; }
+}
+
 /// <summary>A host. Disabled hosts are validated but left out of the snapshot.</summary>
 public sealed record HostSpec
 {
@@ -209,6 +248,9 @@ public sealed record HostSpec
     /// <summary>The host's proof-of-work switch and parameters; each route's own switch may override it.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 
+    /// <summary>The host's resolved rate-limit policy; each route's own layer may override it.</summary>
+    public HostRateLimitSpec RateLimit { get; init; } = HostRateLimitSpec.Off;
+
     /// <summary>Proxy hosts only; listed in the order the host evaluates them: exact first, then the longest prefix,
     /// then <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];
@@ -245,6 +287,12 @@ public sealed record RouteSpec
 
     /// <summary>True when the route's own layer decided <see cref="ProofOfWork"/>'s switch.</summary>
     public bool ProofOfWorkRouteOverride { get; init; }
+
+    /// <summary>This route's effective rate-limit policy: the host's, a different one, or none.</summary>
+    public RateLimitPolicyId? RateLimit { get; init; }
+
+    /// <summary>True when the route's own layer set the rate limit (the trace says so).</summary>
+    public bool RateLimitRouteOverride { get; init; }
 
     public IReadOnlyList<PolicySpec> Policies { get; init; } = [];
 }

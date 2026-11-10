@@ -42,8 +42,11 @@ namespace Paduraksa.Contracts.Config;
         typeof(ConfigEnumConverter<ServerHeaderMode>),
         typeof(ConfigEnumConverter<UpstreamTlsTrust>),
         typeof(ConfigEnumConverter<RequestIdPropagation>),
+        typeof(ConfigEnumConverter<RateLimitPeriod>),
+        typeof(ConfigEnumConverter<RateLimitKey>),
     ])]
 [JsonSerializable(typeof(ConfigDocument))]
+[JsonSerializable(typeof(RateLimitPolicyConfig))]
 [JsonSerializable(typeof(ConfigError))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigError>))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigChange>))]

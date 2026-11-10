@@ -48,7 +48,8 @@ public sealed class CanonicalConfigJsonTests
             + $"\"hosts\":[{{\"id\":\"{AppHost}\",\"names\":[\"app.example.com\"],\"version\":0,\"kind\":\"proxy\",\"enabled\":true,"
             + "\"notes\":\"\\u003Cb\\u003E\",\"certificate\":{\"mode\":\"auto\"},\"settings\":{\"tls\":{\"minimumVersion\":\"tls13\"}},"
             + $"\"routes\":[{{\"id\":\"{RootRoute}\",\"upstreamId\":\"{AppUpstream}\",\"order\":0,\"match\":\"prefix\",\"path\":\"/\",\"settings\":{{}}}}],"
-            + "\"tags\":[]}]}",
+            + "\"tags\":[]}],"
+            + "\"rateLimitPolicies\":[]}",
             json);
     }
 

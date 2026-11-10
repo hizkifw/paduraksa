@@ -27,6 +27,8 @@ public abstract record CompileErrorSource
 
     public static CompileErrorSource Upstream(UpstreamId upstream) => new UpstreamErrorSource(upstream);
 
+    public static CompileErrorSource RateLimitPolicy(RateLimitPolicyId policy) => new RateLimitPolicyErrorSource(policy);
+
     public static CompileErrorSource Destination(UpstreamId upstream, DestinationId destination) =>
         new DestinationErrorSource(upstream, destination);
 }
@@ -65,4 +67,10 @@ public sealed record UpstreamErrorSource(UpstreamId UpstreamId) : CompileErrorSo
 public sealed record DestinationErrorSource(UpstreamId UpstreamId, DestinationId DestinationId) : CompileErrorSource
 {
     public override string ToString() => $"upstream '{UpstreamId}', destination '{DestinationId}'";
+}
+
+/// <summary>A named rate-limit policy.</summary>
+public sealed record RateLimitPolicyErrorSource(RateLimitPolicyId PolicyId) : CompileErrorSource
+{
+    public override string ToString() => $"rate-limit policy '{PolicyId}'";
 }

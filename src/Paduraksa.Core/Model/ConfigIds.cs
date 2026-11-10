@@ -21,6 +21,10 @@ public readonly partial record struct RouteId;
 [TypedId("ups")]
 public readonly partial record struct UpstreamId;
 
+/// <summary>A rate-limit policy: one token bucket's rate, burst and partition key, which hosts and routes name.</summary>
+[TypedId("rlp")]
+public readonly partial record struct RateLimitPolicyId;
+
 /// <summary>A destination of an upstream; must stay stable for YARP health state to survive.</summary>
 [TypedId("dst")]
 public readonly partial record struct DestinationId;

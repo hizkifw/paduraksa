@@ -2,6 +2,7 @@ using System.Reflection;
 
 using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Model;
 
 namespace Paduraksa.Tests.Unit.Compilation;
 
@@ -33,7 +34,8 @@ public sealed class SettingsMergeReflectionTests
         foreach (var leaf in Leaves())
         {
             var value = leaf.Read(HostSettingsLayers.BuiltIn);
-            if (leaf.Name is nameof(HostSettings.IpAllowList) or $"{nameof(HostSettings.ServerHeader)}.{nameof(ServerHeaderSettings.Value)}")
+            if (leaf.Name is nameof(HostSettings.IpAllowList) or $"{nameof(HostSettings.ServerHeader)}.{nameof(ServerHeaderSettings.Value)}"
+                or $"{nameof(HostSettings.RateLimit)}.{nameof(RateLimitSettings.PolicyId)}")
             {
                 // The absence is the default: no restriction, and no custom Server value.
                 Assert.Null(value);
@@ -104,6 +106,11 @@ public sealed class SettingsMergeReflectionTests
         if (value == typeof(IpAllowListSettings))
         {
             return new IpAllowListSettings(["192.0.2.1"], DropDenied: true);
+        }
+
+        if (value == typeof(RateLimitPolicyId))
+        {
+            return RateLimitPolicyId.New();
         }
 
         if (value.IsEnum)

@@ -70,6 +70,14 @@ internal static class ConfigNormalization
         return value.Length == 0 || value == DefaultForwardingHeader ? null : value;
     }
 
+    /// <summary>A rate-limit partition header in its normal form: trimmed and lowercase (header names ignore case); null
+    /// when blank, which is how a header-keyed policy says it has none.</summary>
+    public static string? CanonicalRateLimitHeader(string? header)
+    {
+        var value = (header ?? string.Empty).Trim().ToLowerInvariant();
+        return value.Length == 0 ? null : value;
+    }
+
     /// <summary>A tag's normal form: trimmed and lowercase.</summary>
     public static string NormalizeTag(string? tag) => (tag ?? string.Empty).Trim().ToLowerInvariant();
 

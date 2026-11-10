@@ -21,6 +21,9 @@ public readonly struct RateLimitParameters : IEquatable<RateLimitParameters>
     /// <summary>Largest accepted rate. Faster than this, any bucket is full again within a millisecond.</summary>
     public const double MaxTokensPerSecond = 1_000_000;
 
+    /// <summary>Smallest accepted rate: one token every 16384 seconds (about 4.5 hours).</summary>
+    public const double MinTokensPerSecond = 1 / RateUnitsPerSecondPerToken;
+
     /// <summary>One whole token in the state's units (the low 24 bits hold tokens x 16).</summary>
     internal const long TokenUnit = 16;
 
@@ -31,12 +34,12 @@ public readonly struct RateLimitParameters : IEquatable<RateLimitParameters>
 
     public RateLimitParameters(double tokensPerSecond, int burst)
     {
-        if (!double.IsFinite(tokensPerSecond) || tokensPerSecond < 1 / RateUnitsPerSecondPerToken || tokensPerSecond > MaxTokensPerSecond)
+        if (!double.IsFinite(tokensPerSecond) || tokensPerSecond < MinTokensPerSecond || tokensPerSecond > MaxTokensPerSecond)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(tokensPerSecond),
                 tokensPerSecond,
-                $"A rate-limit rate must be between {1 / RateUnitsPerSecondPerToken} and {MaxTokensPerSecond} tokens per second.");
+                $"A rate-limit rate must be between {MinTokensPerSecond} and {MaxTokensPerSecond} tokens per second.");
         }
 
         if (burst < 1 || burst > MaxBurst)
@@ -68,6 +71,10 @@ public readonly struct RateLimitParameters : IEquatable<RateLimitParameters>
 
     /// <summary>How long an empty bucket needs to fill again (burst / rate), in whole milliseconds, at least 1.</summary>
     internal long FullRefillMs { get; }
+
+    /// <summary>The longest wait <see cref="RetryAfterSeconds"/> can return for this policy: the wait for a whole token
+    /// from an empty one, at least 1.</summary>
+    internal int MaxRetryAfterSeconds => RetryAfterSeconds(TokenUnit);
 
     public bool Equals(RateLimitParameters other) => RateUnitsPerSecond == other.RateUnitsPerSecond && Burst == other.Burst;
 

@@ -77,6 +77,27 @@
     <AllowListField Value="_current.IpAllowList" ValueChanged="@(value => Update(_current with { IpAllowList = value }, "/ipAllowList"))"
                     Inherited="Inherited.IpAllowList" InheritedFrom="@InheritedFrom" Error="@FirstUnder("/ipAllowList")" ReadOnly="@ReadOnly" />
 
+    <InheritSelect T="bool" Value="_current.RateLimit?.Enabled" ValueChanged="@(value => Update(WithRateLimit(limit => limit with { Enabled = value }), "/rateLimit/enabled"))"
+                   Inherited="@(Resolved.RateLimit?.Enabled ?? true)" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                   Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately."
+                   Label="Rate limit" Field="rate-limit-enabled" Error="@E("/rateLimit/enabled")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+    </InheritSelect>
+
+    <div class="pdk-setting-children">
+        @if (RateLimitOn)
+        {
+            <SettingRow Title="Policy">
+                <MudTextField T="string" Value="@(_current.RateLimit?.PolicyId?.ToString() ?? string.Empty)"
+                              ValueChanged="@(value => Update(WithRateLimit(limit => limit with { PolicyId = ParsePolicy(value) }), "/rateLimit/policyId"))"
+                              Label="Policy ID" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly"
+                              HelperText="The ID of a rate-limit policy (rlp_...)" Class="pdk-mono-input"
+                              Error="@(E("/rateLimit/policyId") is not null)" ErrorText="@E("/rateLimit/policyId")" data-field="rate-limit-policy" />
+            </SettingRow>
+        }
+    </div>
+
     <InheritSelect T="bool" Value="_current.ProofOfWork?.Enabled" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Enabled = value }), "/proofOfWork/enabled"))"
                    Inherited="@Resolved.ProofOfWork!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
                    Title="Browser check" Help="A browser solves a small proof of work once and keeps a signed cookie, so a plain scraper never gets in."
@@ -225,6 +246,9 @@
     /// <summary>Whether the HSTS fields under the switch apply: this layer's choice, else what it inherits.</summary>
     private bool HstsOn => _current.Hsts?.Enabled ?? Resolved.Hsts?.Enabled ?? false;
 
+    /// <summary>Whether the policy under the rate-limit switch applies: this layer's choice, else what it inherits.</summary>
+    private bool RateLimitOn => _current.RateLimit?.Enabled ?? Resolved.RateLimit?.Enabled ?? true;
+
     /// <summary>The custom value shows for a custom mode, or when this layer or an error has one to show.</summary>
     private bool ServerValueVisible =>
         _current.ServerHeader?.Mode == ServerHeaderMode.Custom || !string.IsNullOrEmpty(_current.ServerHeader?.Value) || E("/serverHeader/value") is not null;
@@ -242,6 +266,12 @@
     private HostSettings WithServerHeader(Func<ServerHeaderSettings, ServerHeaderSettings> change) => HostSettingsEdit.WithServerHeader(_current, change);
 
     private HostSettings WithProofOfWork(Func<ProofOfWorkSettings, ProofOfWorkSettings> change) => HostSettingsEdit.WithProofOfWork(_current, change);
+
+    private HostSettings WithRateLimit(Func<RateLimitSettings, RateLimitSettings> change) => HostSettingsEdit.WithRateLimit(_current, change);
+
+    /// <summary>A typed policy ID, or null when the field is blank or not an ID this build accepts (the validator says so).</summary>
+    private static RateLimitPolicyId? ParsePolicy(string? text) =>
+        RateLimitPolicyId.TryParse(text?.Trim(), out var policy) && !policy.IsEmpty ? policy : null;
 
     /// <summary>Hands the changed layer to the form, then says which field changed (so its errors show and it revalidates).</summary>
     private async Task Update(HostSettings settings, string path)

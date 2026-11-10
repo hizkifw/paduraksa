@@ -33,6 +33,7 @@ public sealed class CanonicalConfigGoldenTests
                     RequestIdPropagation = RequestIdPropagation.UpstreamAndResponse,
                     ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Paduraksa },
                     ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 16, TokenLifetimeHours = 168 },
+                    RateLimit = new RateLimitSettings { Enabled = true, PolicyId = ApiPolicy },
                 },
                 UnknownHost: UnknownHostBehaviour.MisdirectedRequest,
                 TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareProxy, [], UseTrueClientIp: true)),
@@ -79,6 +80,7 @@ public sealed class CanonicalConfigGoldenTests
                         RequestIdPropagation = RequestIdPropagation.ResponseOnly,
                         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Upstream, Value = "kept but unused" },
                         ProofOfWork = new ProofOfWorkSettings { Difficulty = 18, TokenLifetimeHours = 720 },
+                        RateLimit = new RateLimitSettings { PolicyId = ApiPolicy },
                     },
                     Routes:
                     [
@@ -87,12 +89,17 @@ public sealed class CanonicalConfigGoldenTests
                         {
                             IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]),
                             ProofOfWork = new ProofOfWorkSettings { Enabled = true },
+                            RateLimit = new RateLimitSettings { Enabled = false, PolicyId = ApiPolicy },
                         }),
                     ],
                     Tags: ["media"]),
+            ],
+            RateLimitPolicies:
+            [
+                new RateLimitPolicyConfig(ApiPolicy, "API", Version: 1, Requests: 30, Per: RateLimitPeriod.Second, Burst: 60, Key: RateLimitKey.ClientIpAndPath, Notes: "the API budget"),
             ]);
 
-        AssertPinned(document, "632F612921EDE34C03C4B8111EC6E5A5519C98B99843DACCFEF01EEB09F54F66");
+        AssertPinned(document, "B2816999413B51F7C741B9E39FEF114359CAAA7C5327A39169891D29C3F761D2");
     }
 
     [Fact]
@@ -121,13 +128,14 @@ public sealed class CanonicalConfigGoldenTests
                         Hsts = new HstsSettings(),
                         ServerHeader = new ServerHeaderSettings(),
                         ProofOfWork = new ProofOfWorkSettings(),
+                        RateLimit = new RateLimitSettings(),
                     },
                 },
             ],
         };
 
         Assert.Equal(CanonicalConfigJson.Serialize(bare), CanonicalConfigJson.Serialize(emptyLayers));
-        AssertPinned(bare, "03F89512CDBE4087744DEDB963F71B8D46AB43D337A65D43B7597226206DB370");
+        AssertPinned(bare, "AFFF22D6B9AC5A1AA34CC1F9816E7B3E6A09D7A2E2E14891E31AD8FA366DD9CB");
     }
 
     private static void AssertPinned(ConfigDocument document, string expectedSha256)

@@ -98,6 +98,7 @@ public sealed class ProxyConfigMappingTests
                         new RouteSpec { Id = RootRoute, Order = 10, Upstream = AppUpstream, Policies = [new IpAllowListPolicySpec(["192.168.0.0/16"])] },
                     ],
                     Policies = [],
+                    RateLimit = new HostRateLimitSpec { Enabled = true },
                 },
                 new HostSpec
                 {
@@ -106,6 +107,7 @@ public sealed class ProxyConfigMappingTests
                     Https = false,
                     Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
                     Routes = [new RouteSpec { Id = Id<RouteId>(4), Upstream = AppUpstream }],
+                    RateLimit = new HostRateLimitSpec { Enabled = true },
                 },
                 new HostSpec
                 {
@@ -116,6 +118,7 @@ public sealed class ProxyConfigMappingTests
                     Tls = lanTls,
                     Policies = [new IpAllowListPolicySpec(["192.168.0.0/16"])],
                     Redirect = new RedirectSpec { Target = "https://app.example.com", StatusCode = 308 },
+                    RateLimit = new HostRateLimitSpec { Enabled = true },
                 },
                 new HostSpec
                 {
@@ -126,6 +129,7 @@ public sealed class ProxyConfigMappingTests
                     ForceHttps = true,
                     Tls = new HostTlsSpec { MinimumVersion = TlsMinimumVersion.Tls13 },
                     Respond = new RespondSpec { StatusCode = 503, Body = "soon" },
+                    RateLimit = new HostRateLimitSpec { Enabled = true },
                 },
             ],
             Upstreams =
@@ -276,6 +280,42 @@ public sealed class ProxyConfigMappingTests
             host: new HostSettings { IpAllowList = new IpAllowListSettings([]) });
 
         Assert.Empty(Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts).Policies);
+    }
+
+    [Fact]
+    public void RoutesInheritOverrideOrTurnOffTheHostsRateLimit()
+    {
+        var document = new ConfigDocument(
+            Upstreams: [new UpstreamConfig(AppUpstream, "app", Destinations: [new DestinationConfig(AppDestination, "http://app")])],
+            RateLimitPolicies:
+            [
+                new RateLimitPolicyConfig(ApiPolicy, "api"),
+                new RateLimitPolicyConfig(OtherPolicy, "other"),
+            ],
+            Hosts:
+            [
+                new HostConfig(
+                    AppHost,
+                    ["app.example.com"],
+                    Settings: new HostSettings { RateLimit = new RateLimitSettings { PolicyId = ApiPolicy } },
+                    Routes:
+                    [
+                        new RouteConfig(RootRoute, AppUpstream),
+                        new RouteConfig(ApiRoute, AppUpstream, Path: "/off", Settings: new RouteSettings { RateLimit = new RateLimitSettings { Enabled = false } }),
+                        new RouteConfig(Id<RouteId>(3), AppUpstream, Path: "/other", Settings: new RouteSettings { RateLimit = new RateLimitSettings { PolicyId = OtherPolicy } }),
+                    ]),
+            ]);
+
+        Assert.Empty(ConfigValidator.Validate(document));
+        var host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
+        Dictionary<string, RouteSpec> routes = host.Routes.ToDictionary(r => r.Path);
+
+        Assert.Equal(ApiPolicy, routes["/"].RateLimit);
+        Assert.False(routes["/"].RateLimitRouteOverride);
+        Assert.Null(routes["/off"].RateLimit);
+        Assert.True(routes["/off"].RateLimitRouteOverride);
+        Assert.Equal(OtherPolicy, routes["/other"].RateLimit);
+        Assert.True(routes["/other"].RateLimitRouteOverride);
     }
 
     [Fact]

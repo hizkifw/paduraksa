@@ -4,15 +4,16 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Contracts.Config;
 
 /// <summary>
-/// The whole proxy config: global settings, profiles, upstreams and hosts with their routes. It is the
+/// The whole proxy config: global settings, profiles, upstreams, rate-limit policies and hosts with their routes. It is the
 /// source of truth: each revision stores it as canonical JSON (<see cref="ConfigJsonContext"/>), and startup, rollback,
 /// diff and YAML export all read it. It holds references only, never secrets.
 /// </summary>
 /// <remarks>
 /// <para><b>Evolving it.</b> A new field goes at the end of its record's parameters, is nullable, means "as before"
-/// when null, and is omitted when null; then every stored revision still reads and re-serialises byte for byte, so its
-/// hash still matches. Removing or renaming a field, or changing what an existing value means, needs a new
-/// <see cref="ApiVersion"/>.</para>
+/// when null, and is omitted when null; then every stored revision still reads and no object's config changes meaning.
+/// A new top-level list is written as an empty list, because the document always names its lists; a stored revision's
+/// own bytes are never rewritten, so its hash still matches. Removing or renaming a field, or changing what an existing
+/// value means, needs a new <see cref="ApiVersion"/>.</para>
 /// <para><b>Defaults are constructor defaults.</b> The JSON source generator sets init-only properties in an object
 /// initializer, so a property initializer would be overwritten when the property is absent; a field whose default isn't
 /// <c>default(T)</c> is therefore a constructor parameter.</para>
@@ -24,12 +25,14 @@ namespace Paduraksa.Contracts.Config;
 /// <param name="Profiles">Canonical order: by ID.</param>
 /// <param name="Upstreams">Canonical order: by ID.</param>
 /// <param name="Hosts">Canonical order: by ID.</param>
+/// <param name="RateLimitPolicies">Canonical order: by ID.</param>
 public sealed record ConfigDocument(
     [property: JsonRequired] string ApiVersion = ConfigDocument.V1,
     GlobalSettings? Settings = null,
     IReadOnlyList<ProfileConfig>? Profiles = null,
     IReadOnlyList<UpstreamConfig>? Upstreams = null,
-    IReadOnlyList<HostConfig>? Hosts = null)
+    IReadOnlyList<HostConfig>? Hosts = null,
+    IReadOnlyList<RateLimitPolicyConfig>? RateLimitPolicies = null)
 {
     /// <summary>The only <see cref="ApiVersion"/> this build reads and writes.</summary>
     public const string V1 = "paduraksa.dev/v1";
@@ -41,6 +44,8 @@ public sealed record ConfigDocument(
     public IReadOnlyList<UpstreamConfig> Upstreams { get; init; } = Upstreams ?? [];
 
     public IReadOnlyList<HostConfig> Hosts { get; init; } = Hosts ?? [];
+
+    public IReadOnlyList<RateLimitPolicyConfig> RateLimitPolicies { get; init; } = RateLimitPolicies ?? [];
 }
 
 /// <summary>The global settings: one per document.</summary>

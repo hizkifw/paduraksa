@@ -20,6 +20,8 @@ public sealed class HostSettingsFieldsTests
     private const string Message = "Refused for the test.";
     private const string InheritWord = "Inherit";
 
+    private static readonly RateLimitPolicyId SamplePolicy = RateLimitPolicyId.New();
+
     /// <summary>What the layer below sets for every field, so each inherit choice has a value in words to name.</summary>
     private static readonly HostSettings Inherited = new()
     {
@@ -264,6 +266,35 @@ public sealed class HostSettingsFieldsTests
             "Inherit (7 days)")
         {
             ValidatorPath = "/proofOfWork/tokenLifetimeHours",
+            ShowsAtField = true,
+        },
+
+        // Group key: the validator has no rule for the switch on its own.
+        new(
+            "rateLimit.enabled",
+            "rate-limit-enabled",
+            "/rateLimit/enabled",
+            new HostSettings(),
+            (fields, _) => SetSelect<bool>(fields, "Rate limit", false),
+            new HostSettings { RateLimit = new RateLimitSettings { Enabled = false } },
+            (fields, _) => SetSelect<bool>(fields, "Rate limit", null),
+            new HostSettings(),
+            "Inherit (on)")
+        {
+            GroupKey = true,
+        },
+        new(
+            "rateLimit.policyId",
+            "rate-limit-policy",
+            "/rateLimit/policyId",
+            new HostSettings(),
+            (fields, _) => Input(fields, "rate-limit-policy", SamplePolicy.ToString()!),
+            new HostSettings { RateLimit = new RateLimitSettings { PolicyId = SamplePolicy } },
+            (fields, _) => Input(fields, "rate-limit-policy", string.Empty),
+            new HostSettings(),
+            InheritText: null)
+        {
+            ValidatorPath = "/rateLimit/policyId",
             ShowsAtField = true,
         },
     ];

@@ -6,10 +6,12 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Text;
+using Paduraksa.Proxy.RateLimiting;
 
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
+using HostRateLimitSpec = Paduraksa.Proxy.Config.HostRateLimitSpec;
 using HostServerHeaderSpec = Paduraksa.Proxy.Config.HostServerHeaderSpec;
 using HstsHeader = Paduraksa.Proxy.Tls.HstsHeader;
 using IpNetwork = Paduraksa.Proxy.Net.IpNetwork;
@@ -114,13 +116,24 @@ public static class ConfigValidator
                 profileSettings.TryAdd(profile.Id, profile.Settings);
             }
 
+            var policies = document.RateLimitPolicies ?? [];
+            Dictionary<string, string> policyNames = new(StringComparer.OrdinalIgnoreCase);
+            HashSet<RateLimitPolicyId> policyIds = [];
+            for (var i = 0; i < policies.Count; i++)
+            {
+                if (NotNull(policies[i], $"/rateLimitPolicies/{i}"))
+                {
+                    CheckRateLimitPolicy(policies[i], $"/rateLimitPolicies/{i}", policyNames, policyIds);
+                }
+            }
+
             HashSet<UpstreamId> upstreamIds = [.. upstreams.Where(u => u is not null).Select(u => u.Id)];
             var defaults = document.Settings?.Defaults;
             for (var i = 0; i < hosts.Count; i++)
             {
                 if (NotNull(hosts[i], $"/hosts/{i}"))
                 {
-                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds);
+                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds, policyIds);
                 }
             }
         }
@@ -302,7 +315,8 @@ public static class ConfigValidator
             string path,
             HostSettings? defaults,
             Dictionary<ProfileId, HostSettings?> profiles,
-            HashSet<UpstreamId> upstreams)
+            HashSet<UpstreamId> upstreams,
+            HashSet<RateLimitPolicyId> policies)
         {
             CheckId(host.Id, path);
             CheckVersion(host.Version, path);
@@ -349,6 +363,7 @@ public static class ConfigValidator
             CheckHostSettings(host.Settings, $"{path}/settings");
             CheckHstsPreload(resolved.Hsts, defaults, profile, host.Settings, $"{path}/settings/hsts");
             CheckServerHeader(resolved.ServerHeader, defaults, profile, host.Settings, $"{path}/settings/serverHeader");
+            CheckRateLimit(resolved.RateLimit, policies, $"{path}/settings/rateLimit", HostRateLimitUnknown, defaults, profile, host.Settings);
             if (kindDefined)
             {
                 CheckKindParts(host, path);
@@ -361,7 +376,7 @@ public static class ConfigValidator
             {
                 if (NotNull(routes[i], $"{path}/routes/{i}"))
                 {
-                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches);
+                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches, policies);
                 }
             }
 
@@ -540,7 +555,7 @@ public static class ConfigValidator
             }
         }
 
-        private void CheckRoute(RouteConfig route, string path, HashSet<UpstreamId> upstreams, Dictionary<(RouteMatchKind, string), string> matches)
+        private void CheckRoute(RouteConfig route, string path, HashSet<UpstreamId> upstreams, Dictionary<(RouteMatchKind, string), string> matches, HashSet<RateLimitPolicyId> policies)
         {
             CheckId(route.Id, path);
             CheckEnum(route.Match, $"{path}/match");
@@ -577,6 +592,19 @@ public static class ConfigValidator
             if (route.Settings?.ProofOfWork is { } proofOfWork)
             {
                 CheckProofOfWork(proofOfWork, $"{path}/settings/proofOfWork", route: true);
+            }
+
+            // Only the route's own named policy is checked here: one inherited from the host is reported at the host.
+            if (route.Settings?.RateLimit?.PolicyId is { IsEmpty: false } routePolicyId)
+            {
+                CheckRateLimit(
+                    new HostRateLimitSpec { Enabled = true, PolicyId = routePolicyId },
+                    policies,
+                    $"{path}/settings/rateLimit",
+                    RouteRateLimitUnknown,
+                    defaults: null,
+                    profile: null,
+                    host: null);
             }
         }
 
@@ -667,6 +695,99 @@ public static class ConfigValidator
                         $"the token lifetime must be {ProofOfWorkLimits.MinTokenLifetimeHours}-{ProofOfWorkLimits.MaxTokenLifetimeHours} hours, got {hours}");
                 }
             }
+        }
+
+        /// <summary>
+        /// A rate-limit policy's own rules. The rate is <see cref="RateLimitPolicyConfig.Requests"/> over the
+        /// period's seconds, judged against the same bounds <see cref="RateLimitParameters"/> enforces, so a document
+        /// that validates can't make the mapping throw.
+        /// </summary>
+        private void CheckRateLimitPolicy(
+            RateLimitPolicyConfig policy, string path, Dictionary<string, string> names, HashSet<RateLimitPolicyId> ids)
+        {
+            CheckId(policy.Id, path);
+            CheckVersion(policy.Version, path);
+            CheckLabel(policy.Name, $"{path}/name", "rate-limit policy", names);
+            ids.Add(policy.Id);
+
+            if (policy.Requests < 1)
+            {
+                Add($"{path}/requests", RateLimitRequestsInvalid, "requests must be at least 1");
+            }
+            else if (RateLimitRate(policy) is { } rate
+                && (rate < RateLimitParameters.MinTokensPerSecond || rate > RateLimitParameters.MaxTokensPerSecond))
+            {
+                Add(
+                    $"{path}/requests",
+                    RateLimitRateInvalid,
+                    $"there are {policy.Requests} requests per {Name(policy.Per)}, which is {rate} a second; the rate must be between {RateLimitParameters.MinTokensPerSecond} and {RateLimitParameters.MaxTokensPerSecond} a second");
+            }
+
+            if (policy.Burst < 1 || policy.Burst > RateLimitParameters.MaxBurst)
+            {
+                Add($"{path}/burst", RateLimitBurstInvalid, $"burst must be between 1 and {RateLimitParameters.MaxBurst} tokens, got {policy.Burst}");
+            }
+
+            var keyDefined = CheckEnum(policy.Key, $"{path}/key");
+            CheckEnum(policy.Per, $"{path}/per");
+            var header = (policy.Header ?? string.Empty).Trim();
+            if (keyDefined && policy.Key == RateLimitKey.Header && header.Length == 0)
+            {
+                Add($"{path}/header", RateLimitHeaderRequired, "a header-keyed policy needs the header whose value is its key");
+            }
+            else if (keyDefined && policy.Key != RateLimitKey.Header && header.Length > 0)
+            {
+                Add($"{path}/header", RateLimitHeaderUnexpected, $"a header only belongs to the header key, not {Name(policy.Key)}");
+            }
+            else if (header.Length > 0 && header.AsSpan().ContainsAnyExcept(HeaderNameChars))
+            {
+                Add($"{path}/header", RateLimitHeaderInvalid, $"'{policy.Header}' isn't a valid header name");
+            }
+
+            CheckNotes(policy.Notes, path);
+        }
+
+        /// <summary>The period in seconds; null when the enum value is undefined (reported by its own rule).</summary>
+        private static double? Seconds(RateLimitPeriod period) => period switch
+        {
+            RateLimitPeriod.Second => 1,
+            RateLimitPeriod.Minute => 60,
+            RateLimitPeriod.Hour => 3600,
+            _ => null,
+        };
+
+        private static double? RateLimitRate(RateLimitPolicyConfig policy) =>
+            Seconds(policy.Per) is { } seconds ? policy.Requests / seconds : null;
+
+        /// <summary>
+        /// A host's or route's resolved rate limit: the policy must exist, and a limit that is on must name one. A
+        /// named policy is checked even while the switch is off, because the reference is kept for turning it back on.
+        /// </summary>
+        /// <param name="resolved">The resolved switch and policy.</param>
+        /// <param name="policies">The document's policy IDs.</param>
+        /// <param name="path">The rate-limit settings path.</param>
+        /// <param name="unknownCode">The code for a policy that doesn't exist (the host's or the route's).</param>
+        /// <param name="defaults">The global defaults layer, when the resolved value is a host's.</param>
+        /// <param name="profile">The profile layer, when the resolved value is a host's.</param>
+        /// <param name="host">The host's own layer, when the resolved value is a host's.</param>
+        private void CheckRateLimit(
+            HostRateLimitSpec resolved,
+            HashSet<RateLimitPolicyId> policies,
+            string path,
+            string unknownCode,
+            HostSettings? defaults,
+            HostSettings? profile,
+            HostSettings? host)
+        {
+            // Nothing named is no limit: the built-in switch is on, so a layer only has to name a policy.
+            if (resolved.PolicyId.IsEmpty || policies.Contains(resolved.PolicyId))
+            {
+                return;
+            }
+
+            var inherited = HostSettingsLayers.InheritedSuffix(
+                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.RateLimit?.PolicyId));
+            Add($"{path}/policyId", unknownCode, $"rate-limit policy '{resolved.PolicyId}' doesn't exist{inherited}");
         }
 
         /// <summary>

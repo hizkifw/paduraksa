@@ -14,7 +14,7 @@ namespace Paduraksa.Application.Config;
 /// the order and spelling of the content.
 /// </summary>
 /// <remarks>
-/// <para><b>Canonical order.</b> Profiles, upstreams and hosts by ID; destinations by ID (order means nothing to load
+/// <para><b>Canonical order.</b> Profiles, upstreams, rate-limit policies and hosts by ID; destinations by ID (order means nothing to load
 /// balancing). Routes by the order their host evaluates them in (<see cref="RouteOrderKey"/>): exact routes first, then
 /// the longest prefix, then <see cref="RouteConfig.Order"/>, then the listed order. The canonical list reads top to
 /// bottom the way requests are matched. Sets (host names, tags, IP allow-list addresses, trusted proxies) are sorted
@@ -144,6 +144,7 @@ public static class CanonicalConfigJson
             },
             Profiles = [.. NonNull(document.Profiles).OrderBy(p => p.Id).Select(Canonical)],
             Upstreams = [.. NonNull(document.Upstreams).OrderBy(u => u.Id).Select(Canonical)],
+            RateLimitPolicies = [.. NonNull(document.RateLimitPolicies).OrderBy(p => p.Id).Select(Canonical)],
             Hosts = [.. NonNull(document.Hosts).OrderBy(h => h.Id).Select(Canonical)],
         };
     }
@@ -159,9 +160,10 @@ public static class CanonicalConfigJson
             return new ConfigError("/apiVersion", ConfigErrorCodes.ApiVersionUnsupported, UnsupportedApiVersionMessage(document.ApiVersion));
         }
 
-        if (document.Settings?.TrustedProxies is null || document.Profiles is null || document.Upstreams is null || document.Hosts is null)
+        if (document.Settings?.TrustedProxies is null || document.Profiles is null || document.Upstreams is null || document.Hosts is null
+            || document.RateLimitPolicies is null)
         {
-            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams and hosts (empty lists, not null).");
+            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams, rate-limit policies and hosts (empty lists, not null).");
         }
 
         try
@@ -214,6 +216,8 @@ public static class CanonicalConfigJson
         {
             Check(document.Upstreams[i].Destinations, $"$.upstreams[{i}].destinations");
         }
+
+        Check(document.RateLimitPolicies, "$.rateLimitPolicies");
 
         Check(document.Hosts, "$.hosts");
         for (var i = 0; i < document.Hosts.Count; i++)
@@ -309,6 +313,13 @@ public static class CanonicalConfigJson
         Notes = ConfigNormalization.NormalizeNotes(upstream.Notes),
     };
 
+    private static RateLimitPolicyConfig Canonical(RateLimitPolicyConfig policy) => policy with
+    {
+        Name = ConfigNormalization.NormalizeName(policy.Name),
+        Header = ConfigNormalization.CanonicalRateLimitHeader(policy.Header),
+        Notes = ConfigNormalization.NormalizeNotes(policy.Notes),
+    };
+
     private static HostConfig Canonical(HostConfig host) => host with
     {
         Names = SortedSet(host.Names, ConfigNormalization.CanonicalHostName),
@@ -346,6 +357,7 @@ public static class CanonicalConfigJson
         {
             IpAllowList = Canonical(route.Settings?.IpAllowList),
             ProofOfWork = DropIfNothingSet(route.Settings?.ProofOfWork),
+            RateLimit = DropIfNothingSet(route.Settings?.RateLimit),
         },
     };
 
@@ -359,6 +371,7 @@ public static class CanonicalConfigJson
             Hsts = DropIfNothingSet(settings.Hsts),
             ServerHeader = DropIfNothingSet(settings.ServerHeader),
             ProofOfWork = DropIfNothingSet(settings.ProofOfWork),
+            RateLimit = DropIfNothingSet(settings.RateLimit),
         };
     }
 

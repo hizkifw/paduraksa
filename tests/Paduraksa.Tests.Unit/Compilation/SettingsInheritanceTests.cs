@@ -163,6 +163,22 @@ public sealed class SettingsInheritanceTests
             BuiltIn: "168",
             First: "24",
             Second: "720"),
+        new(
+            "rateLimit.enabled",
+            static s => s.RateLimit?.Enabled?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { RateLimit = new RateLimitSettings { Enabled = bool.Parse(v) } },
+            static h => h.RateLimit.Enabled ? "true" : "false",
+            BuiltIn: "true",
+            First: "false",
+            Second: "true"),
+        new(
+            "rateLimit.policyId",
+            static s => s.RateLimit?.PolicyId?.ToString(),
+            static v => new HostSettings { RateLimit = new RateLimitSettings { PolicyId = RateLimitPolicyId.Parse(v) } },
+            static h => h.RateLimit.PolicyId.IsEmpty ? null : h.RateLimit.PolicyId.ToString(),
+            BuiltIn: null,
+            First: Id<RateLimitPolicyId>(1).ToString()!,
+            Second: Id<RateLimitPolicyId>(2).ToString()!),
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
@@ -363,6 +379,11 @@ public sealed class SettingsInheritanceTests
         Settings: new GlobalSettings(Defaults: defaults),
         Profiles: profile is null ? [] : [new ProfileConfig(LanProfile, "profile", Settings: profile)],
         Upstreams: [new UpstreamConfig(AppUpstream, "app", Destinations: [new DestinationConfig(AppDestination, "http://app")])],
+        RateLimitPolicies:
+        [
+            new RateLimitPolicyConfig(Id<RateLimitPolicyId>(1), "one"),
+            new RateLimitPolicyConfig(Id<RateLimitPolicyId>(2), "two"),
+        ],
         Hosts: [new HostConfig(AppHost, ["app.example.com"], ProfileId: profile is null ? null : LanProfile, Settings: host, Routes: [new RouteConfig(RootRoute, AppUpstream)])]);
 
     /// <summary>One nested settings record and which of its fields each layer sets.</summary>
@@ -387,6 +408,7 @@ public sealed class SettingsInheritanceTests
         new("hsts", Defaults: ["hsts.enabled"], Profile: ["hsts.maxAge"], Host: ["hsts.includeSubDomains", "hsts.preload"]),
         new("serverHeader", Defaults: [], Profile: ["serverHeader.value"], Host: ["serverHeader.mode"]),
         new("proofOfWork", Defaults: ["proofOfWork.enabled"], Profile: ["proofOfWork.difficulty"], Host: ["proofOfWork.tokenLifetimeHours"]),
+        new("rateLimit", Defaults: ["rateLimit.enabled"], Profile: [], Host: ["rateLimit.policyId"]),
     ];
 
     /// <summary>

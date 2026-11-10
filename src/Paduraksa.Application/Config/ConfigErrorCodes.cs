@@ -33,6 +33,12 @@ public static class ConfigErrorCodes
     public const string ProofOfWorkTokenLifetimeInvalid = "proofOfWork.tokenLifetimeHours.invalid";
     public const string ProofOfWorkRouteDifficultyUnexpected = "proofOfWork.route.difficultyUnexpected";
     public const string ProofOfWorkRouteTokenLifetimeUnexpected = "proofOfWork.route.tokenLifetimeHoursUnexpected";
+    public const string RateLimitRequestsInvalid = "rateLimit.requests.invalid";
+    public const string RateLimitBurstInvalid = "rateLimit.burst.invalid";
+    public const string RateLimitRateInvalid = "rateLimit.rate.invalid";
+    public const string RateLimitHeaderRequired = "rateLimit.header.required";
+    public const string RateLimitHeaderUnexpected = "rateLimit.header.unexpected";
+    public const string RateLimitHeaderInvalid = "rateLimit.header.invalid";
     public const string TrustedProxiesProxiesRequired = "trustedProxies.proxies.required";
     public const string TrustedProxiesProxiesUnexpected = "trustedProxies.proxies.unexpected";
     public const string TrustedProxiesHeaderInvalid = "trustedProxies.header.invalid";
@@ -58,6 +64,7 @@ public static class ConfigErrorCodes
     public const string HostNameInvalid = "host.name.invalid";
     public const string HostNameDuplicate = "host.name.duplicate";
     public const string HostProfileUnknown = "host.profile.unknown";
+    public const string HostRateLimitUnknown = "host.rateLimit.unknown";
     public const string HostCertificateIdRequired = "host.certificate.idRequired";
     public const string HostCertificateIdUnexpected = "host.certificate.idUnexpected";
     public const string HostCertificateNoneWithForceHttps = "host.certificate.noneWithForceHttps";
@@ -89,4 +96,5 @@ public static class ConfigErrorCodes
     public const string RoutePathDuplicate = "route.path.duplicate";
     public const string RouteUpstreamRequired = "route.upstream.required";
     public const string RouteUpstreamUnknown = "route.upstream.unknown";
+    public const string RouteRateLimitUnknown = "route.rateLimit.unknown";
 }

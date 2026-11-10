@@ -48,6 +48,15 @@ public static class HostSettingsEdit
         return settings with { ProofOfWork = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its rate-limit record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithRateLimit(HostSettings settings, Func<RateLimitSettings, RateLimitSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.RateLimit ?? new RateLimitSettings());
+        return settings with { RateLimit = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary>
     /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
     /// <see cref="HostSettings"/> itself, so a new setting is counted without a hand-kept list. A preset-or-custom choice with no
@@ -96,6 +105,7 @@ public static class SettingsSummary
         static settings => settings.RequestIdPropagation is { } propagation ? $"Request ID: {PropagationText(propagation)}" : null,
         static settings => settings.ServerHeader is { } server ? ServerText(server) : null,
         static settings => settings.ProofOfWork is { } proofOfWork ? ProofOfWorkText(proofOfWork) : null,
+        static settings => settings.RateLimit is { } rateLimit ? RateLimitText(rateLimit) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases.</summary>
@@ -235,6 +245,21 @@ public static class SettingsSummary
             false => "Browser check off",
             _ => $"Browser check when on: {settings}",
         };
+    }
+
+    private static string? RateLimitText(RateLimitSettings rateLimit)
+    {
+        if (rateLimit is { Enabled: null, PolicyId: null })
+        {
+            return null;
+        }
+
+        if (rateLimit.Enabled == false)
+        {
+            return "Rate limit off";
+        }
+
+        return rateLimit.PolicyId is { IsEmpty: false } policy ? $"Rate limit: {policy}" : "Rate limit: the inherited policy";
     }
 }
 

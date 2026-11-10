@@ -56,6 +56,8 @@ namespace Paduraksa.Admin.Json;
         typeof(ConfigEnumConverter<ServerHeaderMode>),
         typeof(ConfigEnumConverter<UpstreamTlsTrust>),
         typeof(ConfigEnumConverter<RequestIdPropagation>),
+        typeof(ConfigEnumConverter<RateLimitPeriod>),
+        typeof(ConfigEnumConverter<RateLimitKey>),
     ])]
 [JsonSerializable(typeof(ApiProblem))]
 [JsonSerializable(typeof(CurrentConfig))]
@@ -64,6 +66,8 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(IReadOnlyList<HostConfig>))]
 [JsonSerializable(typeof(UpstreamConfig))]
 [JsonSerializable(typeof(IReadOnlyList<UpstreamConfig>))]
+[JsonSerializable(typeof(RateLimitPolicyConfig))]
+[JsonSerializable(typeof(IReadOnlyList<RateLimitPolicyConfig>))]
 [JsonSerializable(typeof(ProfileConfig))]
 [JsonSerializable(typeof(IReadOnlyList<ProfileConfig>))]
 [JsonSerializable(typeof(RouteConfig))]

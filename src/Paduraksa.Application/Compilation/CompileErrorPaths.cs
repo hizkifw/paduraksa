@@ -18,6 +18,7 @@ internal sealed class CompileErrorPaths
     private readonly Dictionary<(HostId, RouteId), (int Host, int Route)> _routes = [];
     private readonly Dictionary<UpstreamId, int> _upstreams = [];
     private readonly Dictionary<(UpstreamId, DestinationId), (int Upstream, int Destination)> _destinations = [];
+    private readonly Dictionary<RateLimitPolicyId, int> _rateLimitPolicies = [];
 
     public CompileErrorPaths(ConfigDocument document)
     {
@@ -59,6 +60,15 @@ internal sealed class CompileErrorPaths
                 }
             }
         }
+
+        var policies = document.RateLimitPolicies ?? [];
+        for (var i = 0; i < policies.Count; i++)
+        {
+            if (policies[i] is { } policy)
+            {
+                _rateLimitPolicies[policy.Id] = i;
+            }
+        }
     }
 
     public string Of(CompileErrorSource source) => source switch
@@ -70,6 +80,9 @@ internal sealed class CompileErrorPaths
             ? $"/hosts/{at.Host}/routes/{at.Route}"
             : Host(route.HostId),
         UpstreamErrorSource upstream => Upstream(upstream.UpstreamId),
+        RateLimitPolicyErrorSource policy => _rateLimitPolicies.TryGetValue(policy.PolicyId, out var at)
+            ? $"/rateLimitPolicies/{at}"
+            : string.Empty,
         DestinationErrorSource destination => _destinations.TryGetValue((destination.UpstreamId, destination.DestinationId), out var at)
             ? $"/upstreams/{at.Upstream}/destinations/{at.Destination}"
             : Upstream(destination.UpstreamId),

@@ -15,6 +15,8 @@ internal static class ConfigSamples
     public static readonly HostId RespondHost = Id<HostId>(3);
     public static readonly RouteId RootRoute = Id<RouteId>(1);
     public static readonly RouteId ApiRoute = Id<RouteId>(2);
+    public static readonly RateLimitPolicyId ApiPolicy = Id<RateLimitPolicyId>(1);
+    public static readonly RateLimitPolicyId OtherPolicy = Id<RateLimitPolicyId>(2);
 
     /// <summary>A small valid document: one profile, one upstream, a proxy, a redirect and a respond host.</summary>
     public static ConfigDocument Valid() => new(
@@ -43,7 +45,8 @@ internal static class ConfigSamples
                 Tags: ["media"]),
             new HostConfig(RedirectHost, ["old.example.com"], Kind: HostKind.Redirect, Redirect: new RedirectConfig("https://app.example.com")),
             new HostConfig(RespondHost, ["soon.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(503, "coming soon")),
-        ]);
+        ],
+        RateLimitPolicies: [new RateLimitPolicyConfig(ApiPolicy, "api")]);
 
     /// <summary>A deterministic ID: <paramref name="n"/> in the low bits of a UUIDv7-shaped value.</summary>
     public static T Id<T>(int n)
@@ -135,6 +138,23 @@ internal static class ConfigSamples
                     ? new UpstreamTlsConfig(UpstreamTlsTrust.Pinned, [Convert.ToHexStringLower(BitConverter.GetBytes(random.NextInt64())).PadLeft(64, '0')])
                     : new UpstreamTlsConfig(Coin() ? UpstreamTlsTrust.Any : UpstreamTlsTrust.System)))),
         ];
+        RateLimitPolicyConfig[] policies =
+        [
+            .. Enumerable.Range(0, random.Next(3)).Select(i =>
+            {
+                var key = (RateLimitKey)random.Next(3);
+                return new RateLimitPolicyConfig(
+                    NewId<RateLimitPolicyId>(),
+                    $"limit {i}",
+                    Version: random.Next(5),
+                    Requests: random.Next(1, 60_000),
+                    Per: (RateLimitPeriod)random.Next(3),
+                    Burst: random.Next(1, 10_000),
+                    Key: key,
+                    Header: key == RateLimitKey.Header ? "X-Api-Key" : null,
+                    Notes: Maybe(() => "rate notes"));
+            }),
+        ];
         HostConfig[] hosts =
         [
             .. Enumerable.Range(0, random.Next(5)).Select(i =>
@@ -189,7 +209,8 @@ internal static class ConfigSamples
                     : new TrustedProxySettings(TrustedProxyMode.Generic, Some(addresses), Header: Maybe(() => "X-Real-IP"))),
             Profiles: profiles,
             Upstreams: upstreams,
-            Hosts: hosts);
+            Hosts: hosts,
+            RateLimitPolicies: policies);
     }
 
     /// <summary>
@@ -224,6 +245,7 @@ internal static class ConfigSamples
             Hsts = settings.Hsts ?? (random.Next(2) == 0 ? new HstsSettings() : null),
             ServerHeader = settings.ServerHeader ?? (random.Next(2) == 0 ? new ServerHeaderSettings() : null),
             ProofOfWork = settings.ProofOfWork ?? (random.Next(2) == 0 ? new ProofOfWorkSettings() : null),
+            RateLimit = settings.RateLimit ?? (random.Next(2) == 0 ? new RateLimitSettings() : null),
         };
 
         return document with
@@ -244,6 +266,12 @@ internal static class ConfigSamples
                 Notes = p.Notes ?? "   ",
             })),
             Upstreams = Shuffle(document.Upstreams.Select(u => u with { Destinations = Shuffle(u.Destinations) })),
+            RateLimitPolicies = Shuffle(document.RateLimitPolicies.Select(p => p with
+            {
+                Name = $"  {p.Name}\t",
+                Header = p.Header?.ToUpperInvariant(),
+                Notes = p.Notes ?? "   ",
+            })),
             Hosts = Shuffle(document.Hosts.Select(h => h with
             {
                 Names = WithDuplicates([.. h.Names.Select(n => random.Next(2) == 0 ? $" {n.ToUpperInvariant()}. " : n)]),

@@ -34,6 +34,8 @@ public sealed class SharedEnumWireTests
         Assert.Equal(
             [
                 typeof(HostKind),
+                typeof(RateLimitKey),
+                typeof(RateLimitPeriod),
                 typeof(RequestIdPropagation),
                 typeof(RouteMatchKind),
                 typeof(ServerHeaderMode),
@@ -93,6 +95,8 @@ public sealed class SharedEnumWireTests
             "\"mode\":\"upstream\"",
             "\"requestIdPropagation\":\"responseOnly\"",
             "\"trust\":\"any\"",
+            "\"per\":\"hour\"",
+            "\"key\":\"header\"",
         })
         {
             Assert.True(written.Contains(member, StringComparison.Ordinal), written);
@@ -119,6 +123,16 @@ public sealed class SharedEnumWireTests
                 "app",
                 Destinations: [new DestinationConfig(ConfigSamples.Id<DestinationId>(1), "https://app:8443")],
                 Tls: new UpstreamTlsConfig(UpstreamTlsTrust.Any)),
+        ],
+        RateLimitPolicies:
+        [
+            new RateLimitPolicyConfig(
+                ConfigSamples.Id<RateLimitPolicyId>(1),
+                "api",
+                Requests: 10,
+                Per: RateLimitPeriod.Hour,
+                Key: RateLimitKey.Header,
+                Header: "x-api-key"),
         ],
         Hosts:
         [

@@ -6,7 +6,7 @@ namespace Paduraksa.Contracts.Config;
 /// <summary>
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
-/// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>) merge field by field; list-valued settings
+/// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>) merge field by field; list-valued settings
 /// (<see cref="IpAllowList"/>) replace as a whole.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
@@ -42,6 +42,9 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below. Built-in default: off.</summary>
     public ProofOfWorkSettings? ProofOfWork { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: none.</summary>
+    public RateLimitSettings? RateLimit { get; init; }
 }
 
 /// <summary>
@@ -69,6 +72,13 @@ public sealed record RouteSettings
     /// accepted here. It overrides the host's resolved switch either way, so one path can be exempt or protected.
     /// </summary>
     public ProofOfWorkSettings? ProofOfWork { get; init; }
+
+    /// <summary>
+    /// The route-level subset of <see cref="RateLimitSettings"/>: only <see cref="RateLimitSettings.Enabled"/> and
+    /// <see cref="RateLimitSettings.PolicyId"/> are accepted here, field by field over the host's resolved values. So a
+    /// route can inherit its host's policy, name another one, or turn the limit off for its own paths.
+    /// </summary>
+    public RateLimitSettings? RateLimit { get; init; }
 }
 
 /// <summary>TLS settings; each field inherits on its own. A layer that sets none is the same as no layer.</summary>
@@ -163,4 +173,23 @@ public sealed record ProofOfWorkSettings : ISettingsLayer
 
     [JsonIgnore]
     public bool SetsNothing => Enabled is null && Difficulty is null && TokenLifetimeHours is null;
+}
+
+/// <summary>
+/// Which rate-limit policy a layer applies. <see cref="PolicyId"/> names a policy the document declares; it inherits
+/// field by field, so a host can turn an inherited policy off without forgetting which one it was, and a route can
+/// inherit its host's, name another, or turn it off. A layer that names a policy without stating
+/// <see cref="Enabled"/> leaves the switch to the built-in default, which is on: naming a policy is the whole job.
+/// </summary>
+public sealed record RateLimitSettings : ISettingsLayer
+{
+    /// <summary>Apply the resolved policy. Built-in default: on. Off turns an inherited policy off.</summary>
+    public bool? Enabled { get; init; }
+
+    /// <summary>The policy to apply; null = inherit. With <see cref="Enabled"/> off the reference is kept but inert, so
+    /// turning the switch back on needs no second lookup.</summary>
+    public RateLimitPolicyId? PolicyId { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => Enabled is null && PolicyId is null;
 }

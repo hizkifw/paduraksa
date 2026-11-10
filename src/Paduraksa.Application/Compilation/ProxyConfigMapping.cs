@@ -3,6 +3,7 @@ using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.RateLimiting;
 
 using Yarp.ReverseProxy.LoadBalancing;
 
@@ -77,6 +78,13 @@ public static class ProxyConfigMapping
             Revision = revision,
             Hosts = hosts,
             Upstreams = [.. canonical.Upstreams.Select(u => MapUpstream(u, errors, warnings))],
+            RateLimitPolicies =
+            [
+                .. canonical.RateLimitPolicies
+                    .Select(p => MapRateLimitPolicy(p, errors))
+                    .Where(static p => p is not null)
+                    .Select(static p => p!),
+            ],
             Defaults = new DefaultsSpec
             {
                 UnknownHost = (UnknownHostBehaviour)settings.UnknownHost,
@@ -214,6 +222,7 @@ public static class ProxyConfigMapping
         for (var j = 0; j < routes.Length; j++)
         {
             var route = host.Routes[j];
+            var rateLimit = HostSettingsLayers.ResolveRouteRateLimit(effective, route.Settings);
             routes[j] = new RouteSpec
             {
                 Id = route.Id,
@@ -224,6 +233,8 @@ public static class ProxyConfigMapping
                 Policies = uniform ? [] : AllowListPolicy(routeLists[j]),
                 ProofOfWork = HostSettingsLayers.ResolveRouteProofOfWork(effective, route.Settings),
                 ProofOfWorkRouteOverride = HostSettingsLayers.RouteOverridesProofOfWork(route.Settings),
+                RateLimit = rateLimit.EffectivePolicyId,
+                RateLimitRouteOverride = HostSettingsLayers.RouteOverridesRateLimit(route.Settings),
             };
         }
 
@@ -274,6 +285,7 @@ public static class ProxyConfigMapping
             RequestIdPropagation = effective.RequestIdPropagation,
             ServerHeader = effective.ServerHeader,
             ProofOfWork = effective.ProofOfWork,
+            RateLimit = effective.RateLimit,
             Routes = routes,
             Policies = hostChain,
             Redirect = host.Redirect is { } redirect
@@ -299,6 +311,43 @@ public static class ProxyConfigMapping
 
     private static PolicySpec[] AllowListPolicy(IpAllowListSettings? allowList) =>
         allowList is null ? [] : [new IpAllowListPolicySpec(allowList.Addresses, allowList.DropDenied)];
+
+    /// <summary>
+    /// One rate-limit policy's numbers. The validator has already judged them; a value the engine would throw on is
+    /// reported here as a mapping error rather than aborting the whole compile.
+    /// </summary>
+    private static RateLimitPolicySpec? MapRateLimitPolicy(RateLimitPolicyConfig policy, List<CompileError> errors)
+    {
+        double? seconds = policy.Per switch
+        {
+            RateLimitPeriod.Second => 1,
+            RateLimitPeriod.Minute => 60,
+            RateLimitPeriod.Hour => 3600,
+            _ => null,
+        };
+        if (seconds is null)
+        {
+            errors.Add(new(CompileErrorSource.RateLimitPolicy(policy.Id), $"unknown rate-limit period {policy.Per}"));
+            return null;
+        }
+
+        try
+        {
+            return new RateLimitPolicySpec
+            {
+                Id = policy.Id,
+                Name = policy.Name,
+                Parameters = new RateLimitParameters(policy.Requests / seconds.Value, policy.Burst),
+                Key = policy.Key,
+                Header = ConfigNormalization.CanonicalRateLimitHeader(policy.Header),
+            };
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            errors.Add(new(CompileErrorSource.RateLimitPolicy(policy.Id), ex.Message));
+            return null;
+        }
+    }
 
     private static UpstreamSpec MapUpstream(UpstreamConfig upstream, List<CompileError> errors, List<MappedWarning> warnings)
     {

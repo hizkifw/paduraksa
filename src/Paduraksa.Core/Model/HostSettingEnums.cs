@@ -72,6 +72,34 @@ public static class RequestIdPropagationExtensions
         propagation is RequestIdPropagation.UpstreamAndResponse or RequestIdPropagation.ResponseOnly;
 }
 
+/// <summary>How long a rate-limit policy's rate is measured over.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<RateLimitPeriod>))]
+public enum RateLimitPeriod
+{
+    /// <summary>Requests per second.</summary>
+    Second,
+
+    /// <summary>Requests per minute (the built-in period).</summary>
+    Minute,
+
+    /// <summary>Requests per hour.</summary>
+    Hour,
+}
+
+/// <summary>What a rate-limit bucket is keyed by.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<RateLimitKey>))]
+public enum RateLimitKey
+{
+    /// <summary>One bucket per resolved client IP (IPv6 by /64).</summary>
+    ClientIp,
+
+    /// <summary>One bucket per client IP and canonical matching path.</summary>
+    ClientIpAndPath,
+
+    /// <summary>One bucket per request header value, with the client IP as the fallback.</summary>
+    Header,
+}
+
 /// <summary>The bounds of the proof-of-work settings, shared by the validator, the compiler and the proxy.</summary>
 public static class ProofOfWorkLimits
 {
