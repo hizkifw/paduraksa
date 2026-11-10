@@ -96,7 +96,9 @@ public sealed class AcmePebbleTests(PebbleFixture pebble) : IClassFixture<Pebble
             _clients = new AcmeClientProvider(
                 Signer,
                 macKeys: null,
-                new AcmeClientOptions { PollInterval = TimeSpan.FromMilliseconds(200), MinPollDelay = TimeSpan.FromMilliseconds(100), MaxPollDelay = TimeSpan.FromSeconds(2) },
+                // The image's config asks for a 5 s Retry-After on an order still processing, which finalization sometimes is
+                // when it's fetched: the bound must let the client wait that out.
+                new AcmeClientOptions { PollInterval = TimeSpan.FromMilliseconds(200), MinPollDelay = TimeSpan.FromMilliseconds(100), MaxPollDelay = TimeSpan.FromSeconds(10) },
                 PebbleFixture.CreateHandler);
             Accounts = new AcmeAccountService(config.Db.Factory, config.Service, _clients, Signer, null, TimeProvider.System, NullLogger<AcmeAccountService>.Instance);
             DnsProviders = new DnsProviderService(config.Db.Factory, config.Service, Secrets, Dns, TimeProvider.System, NullLogger<DnsProviderService>.Instance);
