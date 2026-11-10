@@ -108,6 +108,49 @@
                                   Error="@E("/proofOfWork/tokenLifetimeHours")" ReadOnly="@ReadOnly" />
     </div>
 
+    <InheritSelect T="RobotsMode" Value="_current.Robots?.Mode" ValueChanged="SetRobotsMode"
+                   Inherited="@Resolved.Robots!.Mode!.Value" Format="@(mode => SettingsSummary.RobotsModeText(mode))" InheritWord="@InheritWord"
+                   Title="robots.txt" Help="The file a crawler reads at /robots.txt. It is cached for an hour, so a change is picked up within the hour."
+                   Label="robots.txt" Field="robots-mode" Error="@E("/robots/mode")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="RobotsMode?" Value="RobotsMode.Passthrough">Pass through to the upstream</MudSelectItem>
+        <MudSelectItem T="RobotsMode?" Value="RobotsMode.DisallowAll">Disallow all crawlers</MudSelectItem>
+        <MudSelectItem T="RobotsMode?" Value="RobotsMode.BlockAiCrawlers">Block AI crawlers</MudSelectItem>
+        <MudSelectItem T="RobotsMode?" Value="RobotsMode.Custom">Custom</MudSelectItem>
+    </InheritSelect>
+
+    <div class="pdk-setting-children">
+        @if (EffectiveRobotsMode == RobotsMode.Custom)
+        {
+            <SettingRow Title="Custom text" Help="Served as typed, with a final newline. Left empty, an inherited text is used if there is one." Wide="true">
+                <MudTextField T="string" Value="@(_current.Robots?.CustomText ?? string.Empty)"
+                              ValueChanged="@(value => Update(WithRobots(robots => robots with { CustomText = string.IsNullOrEmpty(value) ? null : value }), "/robots/customText"))"
+                              Label="Text" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="8" ReadOnly="@ReadOnly"
+                              Class="pdk-mono-input" Error="@(E("/robots/customText") is not null)" ErrorText="@E("/robots/customText")"
+                              data-field="robots-custom-text" />
+            </SettingRow>
+        }
+        else if (EffectiveRobotsMode == RobotsMode.BlockAiCrawlers)
+        {
+            <SettingRow Title="Blocked crawlers" Help="Each gets Disallow: /; every other crawler is allowed." Wide="true">
+                <div class="pdk-robots">
+                    <details data-field="robots-crawlers">
+                        <summary>@RobotsText.AiCrawlers.Count user agents</summary>
+                        <div class="pdk-robots-agents">
+                            @foreach (var crawler in RobotsText.AiCrawlers)
+                            {
+                                <code>@crawler</code>
+                            }
+                        </div>
+                    </details>
+                    <details data-field="robots-preview">
+                        <summary>Preview the served file</summary>
+                        <pre class="pdk-robots-preview">@RobotsText.BlockAiCrawlers</pre>
+                    </details>
+                </div>
+            </SettingRow>
+        }
+    </div>
+
     <h4 class="pdk-setting-section">Headers and logging</h4>
 
     <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
@@ -242,6 +285,9 @@
     /// <summary>Whether the HSTS fields under the switch apply: this layer's choice, else what it inherits.</summary>
     private bool HstsOn => _current.Hsts?.Enabled ?? Resolved.Hsts?.Enabled ?? false;
 
+    /// <summary>Which robots.txt dependent row applies: this layer's mode, else what it inherits.</summary>
+    private RobotsMode EffectiveRobotsMode => _current.Robots?.Mode ?? Resolved.Robots?.Mode ?? RobotsMode.Passthrough;
+
     /// <summary>An error at either field the picker owns: the reference the validator refuses, or the old switch's path.</summary>
     private string? RateLimitError => E("/rateLimit/policyId") ?? E("/rateLimit/enabled");
 
@@ -262,6 +308,18 @@
     private HostSettings WithServerHeader(Func<ServerHeaderSettings, ServerHeaderSettings> change) => HostSettingsEdit.WithServerHeader(_current, change);
 
     private HostSettings WithProofOfWork(Func<ProofOfWorkSettings, ProofOfWorkSettings> change) => HostSettingsEdit.WithProofOfWork(_current, change);
+
+    private HostSettings WithRobots(Func<RobotsSettings, RobotsSettings> change) => HostSettingsEdit.WithRobots(_current, change);
+
+    /// <summary>
+    /// A concrete mode other than custom clears this layer's text: kept beside it, the validator would refuse the text as
+    /// unexpected rather than ignore it, so switching modes would leave a document that can't be saved. Inherit keeps it:
+    /// a layer may set only the text, for the custom mode a layer below resolves.
+    /// </summary>
+    private Task SetRobotsMode(RobotsMode? mode) =>
+        Update(
+            WithRobots(robots => mode is { } chosen && chosen != RobotsMode.Custom ? robots with { Mode = mode, CustomText = null } : robots with { Mode = mode }),
+            "/robots/mode");
 
     /// <summary>The picker's record: null (or one that sets nothing) is no layer at all, which is how a layer inherits.</summary>
     private Task SetRateLimit(RateLimitSettings? value) =>

@@ -81,9 +81,9 @@ public sealed class SimulationForm
         var policy = step.PolicyIndex is { } index ? $" {index + 1}" : string.Empty;
         return step.Kind switch
         {
-            SimulationStepKind.Connection => "Connection",
+            SimulationStepKind.Connection => "Connection admission",
             SimulationStepKind.TlsHandshake => "TLS handshake",
-            SimulationStepKind.Request => "Request",
+            SimulationStepKind.Request => "Request checks",
             SimulationStepKind.ClientAddress => "Client address",
             SimulationStepKind.AcmeChallenge => "ACME challenge",
             SimulationStepKind.HostMatch => "Host match",
@@ -91,12 +91,13 @@ public sealed class SimulationForm
             SimulationStepKind.ResponseHeaders => "Response headers",
             SimulationStepKind.HostPolicy => $"Host policy{policy}",
             SimulationStepKind.HttpsRedirect => "HTTPS redirect",
+            SimulationStepKind.RobotsTxt => "robots.txt",
             SimulationStepKind.FixedResponse => "Fixed answer",
             SimulationStepKind.ProofOfWork => "Proof of work",
             SimulationStepKind.RouteMatch => "Route match",
             SimulationStepKind.RoutePolicy => $"Route policy{policy}",
-            SimulationStepKind.Upstream => "Upstream",
-            _ => step.Kind.ToString(),
+            SimulationStepKind.Upstream => "Upstream forward",
+            _ => throw new ArgumentOutOfRangeException(nameof(step), step.Kind, "A simulator step the dashboard doesn't name."),
         };
     }
 

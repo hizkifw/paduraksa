@@ -175,7 +175,7 @@
                         <ChildContent>
                             <div class="pdk-field-grid">
                                 <MudSelect T="UpstreamTlsTrust" Value="Model.TlsTrust" ValueChanged="@(value => Set(() => Model.TlsTrust = value, "/tls/trust"))" Label="HTTPS certificate trust"
-                                           HelperText="Only for https:// destinations" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite" data-field="tls-trust"
+                                           HelperText="Only for https:// destinations" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite" Class="pdk-span-2" data-field="tls-trust"
                                            Error="@(E("/tls/trust") is not null)" ErrorText="@E("/tls/trust")">
                                     <MudSelectItem T="UpstreamTlsTrust" Value="UpstreamTlsTrust.System">System trust store</MudSelectItem>
                                     <MudSelectItem T="UpstreamTlsTrust" Value="UpstreamTlsTrust.Pinned">Pinned fingerprint (self-signed)</MudSelectItem>

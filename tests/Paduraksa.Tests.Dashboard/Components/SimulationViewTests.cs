@@ -4,11 +4,24 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard.Components;
+using Paduraksa.Dashboard.Config;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
 public sealed class SimulationViewTests
 {
+    [Fact]
+    public void EveryStepKindHasATitleOfItsOwn()
+    {
+        foreach (var kind in Enum.GetValues<SimulationStepKind>())
+        {
+            var title = SimulationForm.StepTitle(new SimulationStep(kind, SimulationStepVerdict.Passed, string.Empty, []));
+
+            Assert.False(string.IsNullOrWhiteSpace(title), $"{kind} has no title");
+            Assert.NotEqual(kind.ToString(), title);
+        }
+    }
+
     [Fact]
     public async Task AForwardedRequest_ShowsTheOutcome_TheDestinations_AndEveryStep()
     {
@@ -35,7 +48,7 @@ public sealed class SimulationViewTests
         Assert.Equal(
             ["pdk-trace-passed", "pdk-trace-skipped", "pdk-trace-stopped"],
             view.FindAll(".pdk-trace-step").Select(step => step.ClassList.Single(c => c.StartsWith("pdk-trace-", StringComparison.Ordinal) && c != "pdk-trace-step")));
-        Assert.Equal(["Client address", "ACME challenge", "Upstream"], view.FindAll(".pdk-trace-title").Select(t => t.TextContent));
+        Assert.Equal(["Client address", "ACME challenge", "Upstream forward"], view.FindAll(".pdk-trace-title").Select(t => t.TextContent));
         Assert.Equal(["Passed", "Skipped", "Decided"], view.FindAll(".pdk-trace-head .pdk-badge").Select(b => b.TextContent));
         Assert.Equal("Client 192.168.1.20.", view.FindAll(".pdk-trace-summary")[0].TextContent);
         Assert.Contains(view.FindAll(".pdk-fact"), fact => fact.TextContent == "peer192.168.1.20");

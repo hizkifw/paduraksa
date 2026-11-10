@@ -91,7 +91,7 @@
 
 .pdk-setting {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 360px);
     align-items: center;
     gap: 8px 24px;
     padding: 14px 0;
@@ -664,4 +664,40 @@
     .pdk-account-profile {
         align-items: flex-start;
     }
+}
+
+/* The AI crawler list and the file it produces: collapsed by default, so the row stays one line. */
+.pdk-robots {
+    display: grid;
+    gap: 6px;
+}
+
+.pdk-robots summary {
+    cursor: pointer;
+    font-size: 0.8125rem;
+}
+
+.pdk-robots-agents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 8px 0;
+}
+
+.pdk-robots-agents code {
+    font-family: var(--pdk-mono);
+    font-size: 0.75rem;
+}
+
+.pdk-robots-preview {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    max-height: 240px;
+    overflow: auto;
+    font-family: var(--pdk-mono);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    white-space: pre;
+    background: var(--mud-palette-action-default-hover);
+    border-radius: 4px;
 }

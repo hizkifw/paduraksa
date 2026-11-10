@@ -57,6 +57,15 @@ public static class HostSettingsEdit
         return settings with { RateLimit = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its robots.txt record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithRobots(HostSettings settings, Func<RobotsSettings, RobotsSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.Robots ?? new RobotsSettings());
+        return settings with { Robots = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary>
     /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
     /// <see cref="HostSettings"/> itself, so a new setting is counted without a hand-kept list. A preset-or-custom choice with no
@@ -106,6 +115,7 @@ public static class SettingsSummary
         static (settings, _) => settings.ServerHeader is { } server ? ServerText(server) : null,
         static (settings, _) => settings.ProofOfWork is { } proofOfWork ? ProofOfWorkText(proofOfWork) : null,
         static (settings, document) => settings.RateLimit is { } rateLimit ? RateLimitText(rateLimit, document) : null,
+        static (settings, _) => settings.Robots is { } robots ? RobotsSummary(robots) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
@@ -132,6 +142,16 @@ public static class SettingsSummary
         ServerHeaderMode.Custom => string.IsNullOrEmpty(value) ? "custom" : $"custom: {value}",
         ServerHeaderMode.Upstream => "the upstream's header",
         ServerHeaderMode.Remove => "none",
+        _ => "the layer below's",
+    };
+
+    /// <summary>A robots.txt mode in the words of the row's choices; the custom mode names its text when it has one.</summary>
+    public static string RobotsModeText(RobotsMode mode, string? customText = null) => mode switch
+    {
+        RobotsMode.Passthrough => "pass through",
+        RobotsMode.DisallowAll => "disallow all crawlers",
+        RobotsMode.BlockAiCrawlers => $"block {RobotsText.AiCrawlers.Count} AI crawlers",
+        RobotsMode.Custom => string.IsNullOrWhiteSpace(customText) ? "custom text" : "custom text, set",
         _ => "the layer below's",
     };
 
@@ -246,6 +266,16 @@ public static class SettingsSummary
             false => "Browser check off",
             _ => $"Browser check when on: {settings}",
         };
+    }
+
+    private static string? RobotsSummary(RobotsSettings robots)
+    {
+        if (robots is { Mode: null, CustomText: null })
+        {
+            return null;
+        }
+
+        return robots.Mode is { } mode ? $"robots.txt: {RobotsModeText(mode, robots.CustomText)}" : "robots.txt: custom text set";
     }
 
     private static string? RateLimitText(RateLimitSettings rateLimit, ConfigDocument? document)

@@ -192,10 +192,11 @@
     private RateLimitUsage Usage =>
         Model is null || Document is null || Model.IsNew ? new RateLimitUsage([], []) : RateLimitUsageOf.Find(Document, Model.Id);
 
-    private string KeyHelp => Model?.Key switch
+    /// <summary>The key's own explanation, except for a header key: the header field below already says how it is keyed.</summary>
+    private string? KeyHelp => Model?.Key switch
     {
         RateLimitKey.ClientIpAndPath => "Each client address and path gets its own budget.",
-        RateLimitKey.Header => "Each value of the header gets its own budget.",
+        RateLimitKey.Header => null,
         _ => "Each client address gets its own budget.",
     };
 

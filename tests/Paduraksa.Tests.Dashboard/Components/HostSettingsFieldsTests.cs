@@ -37,6 +37,7 @@ public sealed class HostSettingsFieldsTests
         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
         ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 18, TokenLifetimeHours = 168 },
         RateLimit = new RateLimitSettings { PolicyId = SamplePolicy },
+        Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -303,6 +304,37 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/rateLimit/policyId",
             ShowsAtField = true,
         },
+
+        // Group key: the validator only refuses an undefined mode, which the select can't produce.
+        new(
+            "robots.mode",
+            "robots-mode",
+            "/robots/mode",
+            new HostSettings(),
+            (fields, _) => SetSelect<RobotsMode>(fields, "robots.txt", RobotsMode.DisallowAll),
+            new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.DisallowAll } },
+            (fields, _) => SetSelect<RobotsMode>(fields, "robots.txt", null),
+            new HostSettings(),
+            $"Inherit (block {RobotsText.AiCrawlers.Count} AI crawlers)")
+        {
+            GroupKey = true,
+        },
+
+        // The text has no inherit choice of its own: it belongs to the custom mode, which says what a layer would inherit.
+        new(
+            "robots.customText",
+            "robots-custom-text",
+            "/robots/customText",
+            new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.Custom } },
+            (fields, _) => Input(fields, "robots-custom-text", "User-agent: *\nDisallow: /private\n"),
+            new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "User-agent: *\nDisallow: /private\n" } },
+            (fields, _) => Input(fields, "robots-custom-text", string.Empty),
+            new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.Custom } },
+            InheritText: null)
+        {
+            ValidatorPath = "/robots/customText",
+            ShowsAtField = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -401,6 +433,42 @@ public sealed class HostSettingsFieldsTests
         Assert.Contains("Strict API", fields.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
         await SetRateLimit(fields, "inherit");
         Assert.Null(holder.Value.RateLimit);
+    }
+
+    [Fact]
+    public async Task TheRobotsDependentsFollowTheModeAndTheListIsShown()
+    {
+        await using DashboardTestContext context = new();
+
+        Holder custom = new() { Value = new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.Custom } } };
+        var customFields = Render(context, custom, custom.Value);
+        Assert.Single(customFields.FindAll("[data-field=robots-custom-text]"));
+        Assert.Empty(customFields.FindAll("[data-field=robots-crawlers]"));
+
+        Holder ai = new() { Value = new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers } } };
+        var aiFields = Render(context, ai, ai.Value);
+        var list = aiFields.Find("[data-field=robots-crawlers]");
+        Assert.Contains($"{RobotsText.AiCrawlers.Count} user agents", list.TextContent, StringComparison.Ordinal);
+        Assert.Contains("GPTBot", list.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Ai2Bot-Dolma", list.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Disallow: /\n\nUser-agent: *", aiFields.Find("[data-field=robots-preview]").TextContent, StringComparison.Ordinal);
+        Assert.Empty(aiFields.FindAll("[data-field=robots-custom-text]"));
+
+        // Switching away from the custom mode drops this layer's text instead of leaving a document the validator refuses.
+        Holder switching = new() { Value = new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "x" } } };
+        var switchingFields = Render(context, switching, switching.Value);
+        await SetSelect<RobotsMode>(switchingFields, "robots.txt", RobotsMode.DisallowAll);
+        AssertSettings(new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.DisallowAll } }, switching.Value);
+
+        // Inherit keeps it: a layer that sets only the text serves it under the custom mode a layer below resolves.
+        Holder inheriting = new() { Value = new HostSettings { Robots = new RobotsSettings { CustomText = "B" } } };
+        var inheritingFields = Render(
+            context,
+            inheriting,
+            inheriting.Value,
+            inherited: new HostSettings { Robots = new RobotsSettings { Mode = RobotsMode.Custom, CustomText = "A" } });
+        await SetSelect<RobotsMode>(inheritingFields, "robots.txt", null);
+        AssertSettings(new HostSettings { Robots = new RobotsSettings { CustomText = "B" } }, inheriting.Value);
     }
 
     [Fact]
