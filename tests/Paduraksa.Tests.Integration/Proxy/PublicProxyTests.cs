@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -107,6 +108,17 @@ public sealed class PublicProxyTests
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
         using var proxied = await client.SendAsync(Request(host, "http", "app.test", "/started"), ct);
         Assert.Equal("upstream:/started", await proxied.Content.ReadAsStringAsync(ct));
+    }
+
+    [Fact]
+    public async Task ThePublicAppSetsNoRequestBodyLimit()
+    {
+        // Until hosts carry their own limit, an upload of any size goes through to the upstream, which decides.
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
+        await host.StartAsync(ct);
+
+        Assert.Null(host.Public.Services.GetRequiredService<IOptions<KestrelServerOptions>>().Value.Limits.MaxRequestBodySize);
     }
 
     [Fact]

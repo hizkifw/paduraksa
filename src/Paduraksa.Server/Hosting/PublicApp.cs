@@ -57,6 +57,9 @@ internal static partial class PublicApp
                     .ConfigureKestrel(kestrel =>
                     {
                         kestrel.AddServerHeader = false;
+                        // No body size limit until hosts get their own (PLAN §5.3): Kestrel's 30 MB default silently
+                        // breaks uploads to the apps people put behind this (photos, files, registries).
+                        kestrel.Limits.MaxRequestBodySize = null;
                         kestrel.ListenPublicHttp(address: null, listen.Http, http => http.UseClientInfo(listeners.HttpProxyProtocol));
                         var http3 = kestrel.ListenPublicHttps(
                             new PublicHttpsListenerOptions
