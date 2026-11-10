@@ -67,6 +67,7 @@ The proxy itself runs Server GC. That changes throughput, not what our code allo
 bench/run-baseline.sh                                     # all proxies and scenarios, the full profile
 PROFILE=quick bench/run-baseline.sh                       # short runs for iterating on the harness
 PROXIES=paduraksa SCENARIOS="h1 h2-tls" bench/run-baseline.sh
+PROFILE=quick PROXIES=paduraksa SCENARIOS="access-log rate-limit rate-limited browser-check error-page" bench/run-baseline.sh
 RATES="" bench/run-baseline.sh                            # no fixed-rate runs
 REPEATS=3 RATE_DURATION=30s RATES=30000 bench/run-baseline.sh   # tail latency: 3 x 30 s, medians reported
 OHA_DB_DIR=/tmp/oha-db PROXIES=paduraksa SCENARIOS=h1 RATES=30000 bench/run-baseline.sh
@@ -99,6 +100,11 @@ directory.
     flag, plus a SHA-256 of `git diff HEAD`, so a run from a dirty tree is visible.
 - `summary.md`: the tables (`baseline/summarize.py`).
 - `summary.json`: the same results in machine-readable form, for `bench/history.py`.
+- `bench/results/throughput-latest.svg`, `bench/results/paduraksa-trend.svg` and
+  `bench/results/fixed-rate-p99-latest.svg`: the report's charts (`bench/history.py report`), written next to the
+  history and embedded in `bench/RESULTS.md` with relative links. They are plain string-built SVG with no
+  dependencies, deterministic for the same history, and switch to dark colours through
+  `@media (prefers-color-scheme: dark)`.
 
 **Knobs:**
 
@@ -147,6 +153,17 @@ oha (Docker, CPUs 4-11) ──► one proxy under test (CPUs 0-3) ──► upst
     `paduraksa` itself.
   - `bench.test` is a proxy host with one catch-all route to the upstream (gate → routing → YARP).
   - `respond.test` is a Respond host answering `200 ok` from the gate.
+  - `access-log.test`, `rate-limit.test`, `rate-limited.test`, `browser-check.test` and `error-page.test` are the extra
+    hosts the Paduraksa-only scenarios use. They share the one runner process, so none of the scenarios restarts it
+    (`cf` is the one that does, and it starts a second process).
+    - `access-log.test` turns the access log on; every other host keeps it off.
+    - `rate-limit.test` and `rate-limited.test` name a rate-limit policy each: one far above the load, one at 1
+      request per hour with a burst of 1.
+    - `browser-check.test` has the proof-of-work gate on at 8 bits. The runner solves one challenge at startup, the
+      way the page's JavaScript would, and prints `POW_COOKIE=paduraksa_pow=...` before `READY`; the harness reads
+      that line and sends the cookie on every `browser-check` request. A failed solve exits non-zero instead of
+      letting the run measure 403s.
+    - `error-page.test` routes to `http://127.0.0.1:18079`, where nothing listens.
   - **Runtime counters:** every second the runner prints
     - GC counts per generation;
     - total and largest GC pause;
@@ -176,7 +193,9 @@ oha (Docker, CPUs 4-11) ──► one proxy under test (CPUs 0-3) ──► upst
   - nginx gets `reuseport` so its 4 workers share the connections. Without it nginx sometimes used ~1 of its 4 CPUs.
   - Access logs are off everywhere: nginx and Caddy are configured off, HAProxy has no `log` directive, Traefik has no
     `accessLog`, Envoy has `access_log: []`, YARP drops its logging below Information (Kestrel's request diagnostics),
-    and Paduraksa's runner turns the host access log off explicitly (its built-in default is on).
+    and Paduraksa's runner turns the host access log off explicitly (its built-in default is on). The one exception is
+    the `access-log` scenario's own host: it turns the log back on so that path can be measured. `bench.test` itself
+    stays off, so `h1` and the rest keep the numbers they had.
   - Worker counts follow the CPU set: nginx `worker_processes auto`, `GOMAXPROCS=4` for Caddy and Traefik, `nbthread 4`
     for HAProxy, `--concurrency 4` for Envoy, and `Environment.ProcessorCount=4` for .NET (4 Server GC heaps unless
     DATAS shrinks them).
@@ -238,7 +257,35 @@ throughput. Compare latency at the fixed rates below.
 | `body-64k` | plain HTTP/1.1 `GET /64k` to `bench.test`, proxied; the upstream answers a fixed 64 KiB body, so this measures body streaming instead of per-request overhead |
 | `handshake` | HTTPS, HTTP/1.1, proxied, with oha's `--disable-keepalive`: every request is a new TCP connection plus a TLS handshake. This is the cost a real browser pays on its first visit, and it is why it gets its own lower concurrency |
 | `answered` | plain HTTP/1.1 `GET /` to `respond.test`, answered by the proxy itself (Paduraksa: a Respond host in the gate; Traefik: skipped, no built-in static response) |
+| `access-log` | Paduraksa only: plain HTTP/1.1 like `h1`, to `access-log.test`, whose settings turn the access log on (the production default; every other host keeps it off). The ring, formatter and file writer see every request; the file goes to the runner's throwaway data directory. |
+| `rate-limit` | Paduraksa only: plain HTTP/1.1 like `h1`, to `rate-limit.test` under a client-IP policy of 1,000,000 req/s with a burst of 1,048,575. Every request comes from 127.0.0.1, so all of them take a token from one hot bucket: the worst case for the table's CAS loop. The budget is far above the load, so nothing is refused. |
+| `rate-limited` | Paduraksa only: plain HTTP/1.1 like `h1`, to `rate-limited.test` under 1 request per hour with a burst of 1. The scenario's warm-up spends the one token, so the measured run is all 429s. This is the refusal path: how much abuse the proxy absorbs. |
+| `browser-check` | Paduraksa only: plain HTTP/1.1 like `h1`, to `browser-check.test`, which has the proof-of-work gate on at 8 bits. Every request carries a valid `paduraksa_pow` cookie and `Accept: text/html`, so the token is verified (HMAC over the host and client IP) and the request forwarded. The runner solves one challenge at startup; see the runner's hosts above. |
+| `error-page` | Paduraksa only: plain HTTP/1.1 with `Accept: text/html`, to `error-page.test`, whose upstream is a closed loopback port. Every forward fails and Paduraksa writes its built-in 502 HTML page. This is the upstream-failure path. |
 | `cf` | Paduraksa only: plain HTTP/1.1 like `h1`, through a second runner process that trusts loopback as a Cloudflare Tunnel (`--cloudflare-tunnel true`). Each request carries `CF-Connecting-IP` (IPv6), `CF-Visitor` and `CF-Ray`; the client address and scheme are resolved per request and forwarded as `X-Forwarded-For`/`-Proto`. It gets its own 10 s warm-up. |
+
+**The Paduraksa-only paths.** `access-log`, `rate-limit`, `rate-limited`, `browser-check` and `error-page` all run at
+`c=$CONNS` with plain HTTP/1.1, like `h1`, and only against Paduraksa. They use extra hosts in the one runner process,
+so one process serves them all and nothing restarts between them.
+- **Status codes:** `summarize.py` prints a status breakdown for these paths. `rate-limit` must show no 429s; if it
+  does, its policy is below the load and the run no longer measures the token take alone. `rate-limited` must show
+  429s and `error-page` 502s, which is what their throughput columns count: for those two rows the number is every
+  response, not only 2xx, because counting only successes would report zero for the path being measured. The
+  latency tables' `failed` column includes those expected non-2xx answers.
+- **`error-page` and passive health:** the host's upstream has no `PassiveHealth` configured, so YARP retries the
+  closed destination on every request and the steady state is a 502 with the built-in HTML page (the smoke run's
+  status breakdown was 502 only). With passive health on, YARP's transport-failure-rate policy would take the
+  destination out after the first failures and answer 503 "no healthy destination" instead, which the breakdown would
+  say. A refused loopback connect is immediate, but each failure still throws and handles an exception and writes the
+  page: the quick smoke runs measured 12-20k req/s and about 315 µs of proxy CPU per request, CPU-bound on the four
+  proxy cores. That is the price of the 502 path, not of a connect timeout. The runner sets `Yarp.ReverseProxy.Forwarder` to
+  `None`: at Warning, YARP logs a stack trace for every failed forward, which would otherwise put a several-hundred-MB
+  log file and the formatter's work into the same run.
+- **`browser-check` scope:** the token is bound to this host and the client IP /32 (`127.0.0.1`), and lives for an
+  hour, so it outlasts the run. Solve failure stops the runner before `READY`.
+- **`access-log` disk:** at `h1` rates the writer sees several hundred MB in one run. It rotates and trims by
+  production's limits (64 MiB a file, 1 GiB total) inside the throwaway data directory, which the runner deletes on
+  exit, so the run never commits or keeps it.
 
 **Fixed rates:** `h1` and `h2-tls` are then run at fixed request rates (`RATES`, default 10,000 and 30,000 req/s).
 - Each rate is warmed up for 5 s at that rate first.
@@ -250,13 +297,13 @@ throughput. Compare latency at the fixed rates below.
 1. Start from a clean tree, so the run's `commit` means something (`env.txt` records the dirty state).
 2. `RECORD=1 bench/run-baseline.sh` (the full profile; `quick` refuses to record).
 3. Commit the run directory (`summary.md`, `summary.json` and `env.txt`; `raw/` and `*.log` are ignored), plus
-   `bench/results/history.jsonl` and the regenerated `bench/RESULTS.md`.
+   `bench/results/history.jsonl`, the regenerated `bench/RESULTS.md` and the SVG charts under `bench/results/`.
 
 `RECORD=1` calls `bench/history.py append` and then `bench/history.py report`. `append` refuses a dirty run unless
 given `--allow-dirty`, and a run from a different machine than the previous entry unless given `--new-machine`.
-`report` can be rerun at any time; it writes the latest tables, Paduraksa's trend per commit, and a delta against the
-previous entry, marking a Paduraksa scenario that lost more than 10 % throughput or more than 25 % at the fixed-rate
-p99 as a possible regression.
+`report` can be rerun at any time; it writes the latest tables, the SVG charts, Paduraksa's trend per commit, and a
+delta against the previous entry, marking a Paduraksa scenario that lost more than 10 % throughput or more than 25 %
+at the fixed-rate p99 as a possible regression.
 
 ### Caveats
 
@@ -292,6 +339,18 @@ p99 as a possible regression.
 - **CPU per request at fixed rates** includes the proxy's idle time around each run (oha's container start and stop)
   and .NET's thread-pool spin-waiting at low load. Compare it between proxies at the same rate, not with the
   fixed-concurrency figures.
+- **The Paduraksa-only paths have no cross-proxy comparison.** `access-log`, `rate-limit`, `rate-limited`,
+  `browser-check`, `error-page` and `cf` each show one bar, so they say what the feature costs Paduraksa, not where
+  Paduraksa stands against the others. That is why the charts put them in their own panels.
+- **`rate-limit` is one bucket, not a distribution.** Every client is `127.0.0.1`, so the run measures contention on
+  one hot entry: the worst case for the CAS loop, not the average over many keys. A real spread of client IPs hashes
+  to different entries and costs less.
+- **`rate-limited`'s one allowed request** is the pre-run probe's (the warm-up would spend it too); the measured run
+  should be all 429s. If the breakdown shows more than a handful of 2xx answers there, the policy isn't being applied
+  (or the bucket was swept) and the run is wrong.
+- **`rate-limited` and `error-page` report every response** in `summarize.py` and `bench/history.py`, because their
+  useful answer is a 429 or a 502. Do not compare those two rows with the successful-requests rows as if they were
+  the same metric; read the status breakdown beside them.
 
 ### Future work
 
