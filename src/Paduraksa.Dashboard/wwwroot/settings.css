@@ -130,32 +130,42 @@
     background: var(--mud-palette-action-default-hover);
 }
 
-/* A heading inside a list of settings: the group of rows under it. */
-.pdk-setting-heading {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 10px;
-    margin-top: 4px;
-    padding: 16px 0 2px;
-    border-top: 1px solid var(--mud-palette-lines-default);
+/* A section of a list of settings. It must not read as one more row: a heading with room above and a rule under it, and
+   the first row under it drops its own divider. */
+.pdk-setting-section {
+    margin: 28px 0 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    color: var(--mud-palette-text-primary);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
-.pdk-setting-heading-title {
-    font-weight: 600;
-    font-size: 0.9375rem;
-    letter-spacing: 0.01em;
-}
-
-.pdk-setting-heading:first-child {
+.pdk-setting-section:first-child {
     margin-top: 0;
-    padding-top: 0;
+}
+
+.pdk-setting-section + .pdk-setting {
     border-top: 0;
 }
 
-.pdk-setting-heading-note {
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.8125rem;
+/* Rows that only matter with the row above them, indented under it so they don't read as settings of their own. */
+.pdk-setting-children {
+    display: grid;
+    margin-left: 4px;
+    padding-left: 20px;
+    border-left: 2px solid var(--mud-palette-lines-default);
+}
+
+.pdk-setting-children:not(:has(.pdk-setting)) {
+    display: none;
+}
+
+.pdk-setting-children > .pdk-setting:first-child {
+    padding-top: 14px;
+    border-top: 1px solid var(--mud-palette-lines-default);
 }
 
 /* A setting with more than one control: they stack, the row keeps its two columns. */

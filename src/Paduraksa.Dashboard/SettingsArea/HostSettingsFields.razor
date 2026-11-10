@@ -3,6 +3,9 @@
    contract's own record, where null means inherit, and says what it would inherit. Paths are relative to the layer. *@
 <div class="pdk-setting-list">
     @ChildContent
+
+    <h4 class="pdk-setting-section">HTTPS and TLS</h4>
+
     @if (ShowForceHttps)
     {
         <InheritSelect T="bool" Value="_current.ForceHttps" ValueChanged="@(value => Update(_current with { ForceHttps = value }, "/forceHttps"))"
@@ -39,46 +42,90 @@
         <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
     </InheritSelect>
 
-    <div class="pdk-setting-heading">
-        <span class="pdk-setting-heading-title">HSTS</span>
-        <span class="pdk-setting-heading-note">Tells browsers to reach this host over HTTPS only, for as long as the max-age.</span>
-    </div>
-
     <InheritSelect T="bool" Value="_current.Hsts?.Enabled" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Enabled = value }), "/hsts"))"
                   Inherited="@Resolved.Hsts!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                  Title="HSTS" Label="HSTS" Field="hsts-enabled" Error="@E("/hsts")" ReadOnly="@ReadOnly">
+                  Title="HSTS" Help="Tell browsers to reach this host over HTTPS only, for as long as it is remembered." Label="HSTS" Field="hsts-enabled" Error="@E("/hsts")" ReadOnly="@ReadOnly">
         <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
         <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
     </InheritSelect>
 
-    <HstsMaxAgeField Value="_current.Hsts" ValueChanged="@(value => Update(WithHsts(_ => value ?? new HstsSettings()), "/hsts/maxAge"))"
-                     Inherited="@Resolved.Hsts!.MaxAge!.Value" HstsOn="HstsOn" InheritWord="@InheritWord" Error="@E("/hsts/maxAge")" ReadOnly="@ReadOnly" />
+    <div class="pdk-setting-children">
+        <HstsMaxAgeField Value="_current.Hsts" ValueChanged="@(value => Update(WithHsts(_ => value ?? new HstsSettings()), "/hsts/maxAge"))"
+                         Inherited="@Resolved.Hsts!.MaxAge!.Value" HstsOn="HstsOn" InheritWord="@InheritWord" Error="@E("/hsts/maxAge")" ReadOnly="@ReadOnly" />
 
-    @if (HstsOn)
-    {
-        <InheritSelect T="bool" Value="_current.Hsts?.IncludeSubDomains" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { IncludeSubDomains = value }), "/hsts/includeSubDomains"))"
-                      Inherited="@Resolved.Hsts!.IncludeSubDomains!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                      Title="Every subdomain" HelpContent="@SubdomainHelp" Label="Every subdomain" Field="hsts-include-subdomains"
-                      Error="@E("/hsts/includeSubDomains")" ReadOnly="@ReadOnly">
-            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-        </InheritSelect>
+        @if (HstsOn)
+        {
+            <InheritSelect T="bool" Value="_current.Hsts?.IncludeSubDomains" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { IncludeSubDomains = value }), "/hsts/includeSubDomains"))"
+                          Inherited="@Resolved.Hsts!.IncludeSubDomains!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                          Title="Every subdomain" HelpContent="@SubdomainHelp" Label="Every subdomain" Field="hsts-include-subdomains"
+                          Error="@E("/hsts/includeSubDomains")" ReadOnly="@ReadOnly">
+                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+            </InheritSelect>
 
-        <InheritSelect T="bool" Value="_current.Hsts?.Preload" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Preload = value }), "/hsts/preload"))"
-                      Inherited="@Resolved.Hsts!.Preload!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                      Title="Preload list" HelpContent="@PreloadHelp" Label="Preload list" Field="hsts-preload" Error="@E("/hsts/preload")" ReadOnly="@ReadOnly">
-            <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
-            <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
-        </InheritSelect>
-    }
+            <InheritSelect T="bool" Value="_current.Hsts?.Preload" ValueChanged="@(value => Update(WithHsts(hsts => hsts with { Preload = value }), "/hsts/preload"))"
+                          Inherited="@Resolved.Hsts!.Preload!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                          Title="Preload list" HelpContent="@PreloadHelp" Label="Preload list" Field="hsts-preload" Error="@E("/hsts/preload")" ReadOnly="@ReadOnly">
+                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+            </InheritSelect>
+        }
+    </div>
 
-    <InheritSelect T="bool" Value="_current.AccessLog" ValueChanged="@(value => Update(_current with { AccessLog = value }, "/accessLog"))"
-                  Inherited="@Resolved.AccessLog!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                  Title="Access log" Help="One line per request, whatever answered it. Turn it off for a host whose app keeps its own log."
-                  Label="Access log" Field="access-log" Error="@E("/accessLog")" ReadOnly="@ReadOnly">
+    <h4 class="pdk-setting-section">Access</h4>
+
+    <AllowListField Value="_current.IpAllowList" ValueChanged="@(value => Update(_current with { IpAllowList = value }, "/ipAllowList"))"
+                    Inherited="Inherited.IpAllowList" InheritedFrom="@InheritedFrom" Error="@FirstUnder("/ipAllowList")" ReadOnly="@ReadOnly" />
+
+    <InheritSelect T="bool" Value="_current.ProofOfWork?.Enabled" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Enabled = value }), "/proofOfWork/enabled"))"
+                   Inherited="@Resolved.ProofOfWork!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                   Title="Browser check" Help="A browser solves a small proof of work once and keeps a signed cookie, so a plain scraper never gets in."
+                   Label="Browser check" Field="proof-of-work-enabled" Error="@E("/proofOfWork/enabled")" ReadOnly="@ReadOnly">
         <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
         <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
     </InheritSelect>
+
+    <div class="pdk-setting-children">
+        <InheritSelect T="int" Value="_current.ProofOfWork?.Difficulty" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Difficulty = value }), "/proofOfWork/difficulty"))"
+                       Inherited="@Resolved.ProofOfWork!.Difficulty!.Value" Format="@(value => $"{value} bits ({SettingsSummary.DifficultyText(value)})")" InheritWord="@InheritWord"
+                       Title="Difficulty" Help="Leading zero bits a solution needs. Each extra bit doubles the work, for the visitor and for a bot."
+                       Label="Difficulty" Field="proof-of-work-difficulty" Error="@E("/proofOfWork/difficulty")" ReadOnly="@ReadOnly">
+            @for (var bits = 8; bits <= 28; bits++)
+            {
+                var value = bits;
+                <MudSelectItem T="int?" Value="value">@bits bits (@SettingsSummary.DifficultyText(bits))</MudSelectItem>
+            }
+        </InheritSelect>
+
+        <ProofOfWorkLifetimeField Value="_current.ProofOfWork" ValueChanged="@(value => Update(WithProofOfWork(_ => value ?? new ProofOfWorkSettings()), "/proofOfWork/tokenLifetimeHours"))"
+                                  Inherited="@Resolved.ProofOfWork!.TokenLifetimeHours!.Value" InheritWord="@InheritWord"
+                                  Error="@E("/proofOfWork/tokenLifetimeHours")" ReadOnly="@ReadOnly" />
+    </div>
+
+    <h4 class="pdk-setting-section">Headers and logging</h4>
+
+    <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"
+                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
+                  InheritWord="@InheritWord" Title="Server header" Help="Hiding the upstream's header stops it advertising its software and version." Label="Server header" Field="server-header-mode"
+                  Error="@E("/serverHeader/mode")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Paduraksa">Paduraksa (no version)</MudSelectItem>
+        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Custom">Custom value</MudSelectItem>
+        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Upstream">The upstream's header</MudSelectItem>
+        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Remove">Remove</MudSelectItem>
+    </InheritSelect>
+
+    <div class="pdk-setting-children">
+        @if (ServerValueVisible)
+        {
+            <SettingRow Title="Custom value">
+                <MudTextField T="string" Value="@(_current.ServerHeader?.Value ?? string.Empty)"
+                              ValueChanged="@(value => Update(WithServerHeader(server => server with { Value = string.IsNullOrEmpty(value) ? null : value }), "/serverHeader/value"))"
+                              Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="128"
+                              HelperText="1-128 visible ASCII characters" Class="pdk-mono-input"
+                              Error="@(E("/serverHeader/value") is not null)" ErrorText="@E("/serverHeader/value")" data-field="server-header-value" />
+            </SettingRow>
+        }
+    </div>
 
     <InheritSelect T="RequestIdPropagation" Value="_current.RequestIdPropagation" ValueChanged="@(value => Update(_current with { RequestIdPropagation = value }, "/requestIdPropagation"))"
                   Inherited="@Resolved.RequestIdPropagation!.Value" Format="@(value => SettingsSummary.PropagationText(value))" InheritWord="@InheritWord"
@@ -90,62 +137,13 @@
         <MudSelectItem T="RequestIdPropagation?" Value="RequestIdPropagation.Off">Off</MudSelectItem>
     </InheritSelect>
 
-    <div class="pdk-setting-heading">
-        <span class="pdk-setting-heading-title">Server header</span>
-        <span class="pdk-setting-heading-note">Hiding the upstream's header stops it advertising its software and version.</span>
-    </div>
-
-    <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"
-                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
-                  InheritWord="@InheritWord" Title="Server header" Label="Server header" Field="server-header-mode"
-                  Error="@E("/serverHeader/mode")" ReadOnly="@ReadOnly">
-        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Paduraksa">Paduraksa (no version)</MudSelectItem>
-        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Custom">Custom value</MudSelectItem>
-        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Upstream">The upstream's header</MudSelectItem>
-        <MudSelectItem T="ServerHeaderMode?" Value="ServerHeaderMode.Remove">Remove</MudSelectItem>
-    </InheritSelect>
-
-    @if (ServerValueVisible)
-    {
-        <SettingRow Title="Custom value">
-            <MudTextField T="string" Value="@(_current.ServerHeader?.Value ?? string.Empty)"
-                          ValueChanged="@(value => Update(WithServerHeader(server => server with { Value = string.IsNullOrEmpty(value) ? null : value }), "/serverHeader/value"))"
-                          Label="Value" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="128"
-                          HelperText="1-128 visible ASCII characters" Class="pdk-mono-input"
-                          Error="@(E("/serverHeader/value") is not null)" ErrorText="@E("/serverHeader/value")" data-field="server-header-value" />
-        </SettingRow>
-    }
-
-    <div class="pdk-setting-heading">
-        <span class="pdk-setting-heading-title">Browser check</span>
-        <span class="pdk-setting-heading-note">A visitor's browser solves a small proof of work once and keeps a signed cookie, so a plain scraper never gets in.</span>
-    </div>
-
-    <InheritSelect T="bool" Value="_current.ProofOfWork?.Enabled" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Enabled = value }), "/proofOfWork/enabled"))"
-                   Inherited="@Resolved.ProofOfWork!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
-                   Title="Browser check" Help="Ask a browser to solve a SHA-256 challenge before its first request goes through. It happens once per token lifetime."
-                   Label="Browser check" Field="proof-of-work-enabled" Error="@E("/proofOfWork/enabled")" ReadOnly="@ReadOnly">
+    <InheritSelect T="bool" Value="_current.AccessLog" ValueChanged="@(value => Update(_current with { AccessLog = value }, "/accessLog"))"
+                  Inherited="@Resolved.AccessLog!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                  Title="Access log" Help="One line per request, whatever answered it. Turn it off for a host whose app keeps its own log."
+                  Label="Access log" Field="access-log" Error="@E("/accessLog")" ReadOnly="@ReadOnly">
         <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
         <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
     </InheritSelect>
-
-    <InheritSelect T="int" Value="_current.ProofOfWork?.Difficulty" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Difficulty = value }), "/proofOfWork/difficulty"))"
-                   Inherited="@Resolved.ProofOfWork!.Difficulty!.Value" Format="@(value => $"{value} bits ({SettingsSummary.DifficultyText(value)})")" InheritWord="@InheritWord"
-                   Title="Difficulty" Help="Leading zero bits a solution needs. Each extra bit doubles the work, for the visitor and for a bot."
-                   Label="Difficulty" Field="proof-of-work-difficulty" Error="@E("/proofOfWork/difficulty")" ReadOnly="@ReadOnly">
-        @for (var bits = 8; bits <= 28; bits++)
-        {
-            var value = bits;
-            <MudSelectItem T="int?" Value="value">@bits bits (@SettingsSummary.DifficultyText(bits))</MudSelectItem>
-        }
-    </InheritSelect>
-
-    <ProofOfWorkLifetimeField Value="_current.ProofOfWork" ValueChanged="@(value => Update(WithProofOfWork(_ => value ?? new ProofOfWorkSettings()), "/proofOfWork/tokenLifetimeHours"))"
-                              Inherited="@Resolved.ProofOfWork!.TokenLifetimeHours!.Value" InheritWord="@InheritWord"
-                              Error="@E("/proofOfWork/tokenLifetimeHours")" ReadOnly="@ReadOnly" />
-
-    <AllowListField Value="_current.IpAllowList" ValueChanged="@(value => Update(_current with { IpAllowList = value }, "/ipAllowList"))"
-                    Inherited="Inherited.IpAllowList" InheritedFrom="@InheritedFrom" Error="@FirstUnder("/ipAllowList")" ReadOnly="@ReadOnly" />
 </div>
 
 @code {
