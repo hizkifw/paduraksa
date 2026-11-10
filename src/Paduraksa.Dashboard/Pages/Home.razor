@@ -30,61 +30,44 @@
     </MudAlert>
 }
 
-@if (_mayReadConfig || _mayReadCertificates)
+@* No card while loading or when all is well: it would only flash or restate what the counts below already say. *@
+@if ((_mayReadConfig || _mayReadCertificates) && Snapshot is not null && (Status.IsDegraded || Snapshot.Attention.Count > 0))
 {
     <MudPaper Class="pdk-card pdk-attention" Elevation="0" Outlined="true" data-section="attention">
-        @if (Snapshot is null)
-        {
-            <MudSkeleton SkeletonType="SkeletonType.Text" Width="30%" Height="28px" />
-            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="56px" Class="mt-2" />
-        }
-        else if (Status.IsDegraded || Snapshot.Attention.Count > 0)
-        {
+        @{
             var count = Snapshot.Attention.Count + (Status.IsDegraded ? 1 : 0);
-            <div class="pdk-card-head">
-                <div>
-                    <MudText Typo="Typo.h6" HtmlTag="h2">@(count == 1 ? "One thing needs you" : $"{count} things need you")</MudText>
-                    <MudText Typo="Typo.caption" Class="pdk-muted">Most serious first.</MudText>
-                </div>
-            </div>
-            <ul class="pdk-attention-list">
-                @if (Status.IsDegraded)
-                {
-                    <li class="pdk-attention-item" data-tone="error">
-                        <span class="pdk-list-icon pdk-tone-error"><MudIcon Icon="@Icons.Material.Outlined.Storage" Size="Size.Small" /></span>
-                        <span class="pdk-list-main">
-                            <span class="pdk-attention-title">Running on the last-known-good config</span>
-                            <span class="pdk-list-sub">The config database can't be used, so changes are refused until it is back. @Status.Problem</span>
-                        </span>
-                    </li>
-                }
-                @foreach (var item in Snapshot.Attention)
-                {
-                    <li class="pdk-attention-item" data-tone="@item.Tone.Css()">
-                        <span class="pdk-list-icon pdk-tone-@item.Tone.Css()">
-                            <MudIcon Icon="@(item.Tone == Tone.Error ? Icons.Material.Outlined.ErrorOutline : Icons.Material.Outlined.WarningAmber)" Size="Size.Small" />
-                        </span>
-                        <span class="pdk-list-main">
-                            <span class="pdk-attention-title">@item.Title</span>
-                            <span class="pdk-list-sub">@item.Detail</span>
-                        </span>
-                        <MudButton Href="@item.Href" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">@item.Action</MudButton>
-                    </li>
-                }
-            </ul>
         }
-        else
-        {
-            <div class="pdk-all-good" data-state="all-good">
-                <span class="pdk-list-icon pdk-tone-success"><MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" /></span>
-                <span class="pdk-list-main">
-                    <span class="pdk-attention-title">Nothing needs you</span>
-                    <span class="pdk-list-sub">
-                        @(Snapshot.Hosts is 0 ? "No hosts yet: add one to give a service on your network a name." : "Every host serves, and no certificate in use ends soon. Renewals run on their own.")
+        <div class="pdk-card-head">
+            <div>
+                <MudText Typo="Typo.h6" HtmlTag="h2">@(count == 1 ? "One thing needs you" : $"{count} things need you")</MudText>
+                <MudText Typo="Typo.caption" Class="pdk-muted">Most serious first.</MudText>
+            </div>
+        </div>
+        <ul class="pdk-attention-list">
+            @if (Status.IsDegraded)
+            {
+                <li class="pdk-attention-item" data-tone="error">
+                    <span class="pdk-list-icon pdk-tone-error"><MudIcon Icon="@Icons.Material.Outlined.Storage" Size="Size.Small" /></span>
+                    <span class="pdk-list-main">
+                        <span class="pdk-attention-title">Running on the last-known-good config</span>
+                        <span class="pdk-list-sub">The config database can't be used, so changes are refused until it is back. @Status.Problem</span>
                     </span>
-                </span>
-            </div>
-        }
+                </li>
+            }
+            @foreach (var item in Snapshot.Attention)
+            {
+                <li class="pdk-attention-item" data-tone="@item.Tone.Css()">
+                    <span class="pdk-list-icon pdk-tone-@item.Tone.Css()">
+                        <MudIcon Icon="@(item.Tone == Tone.Error ? Icons.Material.Outlined.ErrorOutline : Icons.Material.Outlined.WarningAmber)" Size="Size.Small" />
+                    </span>
+                    <span class="pdk-list-main">
+                        <span class="pdk-attention-title">@item.Title</span>
+                        <span class="pdk-list-sub">@item.Detail</span>
+                    </span>
+                    <MudButton Href="@item.Href" Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" EndIcon="@Icons.Material.Rounded.ChevronRight">@item.Action</MudButton>
+                </li>
+            }
+        </ul>
     </MudPaper>
 }
 

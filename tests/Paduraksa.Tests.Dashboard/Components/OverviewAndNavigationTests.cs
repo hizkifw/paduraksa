@@ -38,7 +38,7 @@ public sealed class OverviewAndNavigationTests
     }
 
     [Fact]
-    public async Task TheOverview_SaysWhenNothingNeedsThePerson()
+    public async Task TheOverview_ShowsNoAttentionCardWhenNothingNeedsThePerson()
     {
         await using DashboardTestContext context = new();
         ConfigPages.SignIn(context, Role.Viewer).Document = new ConfigDocument();
@@ -46,8 +46,8 @@ public sealed class OverviewAndNavigationTests
 
         var page = context.Render<Home>();
 
-        await page.WaitForStateAsync(() => page.FindAll("[data-state=all-good]").Count == 1);
-        Assert.Contains("No hosts yet", page.Find("[data-section=hosts]").TextContent, StringComparison.Ordinal);
+        await page.WaitForStateAsync(() => page.Find("[data-section=hosts]").TextContent.Contains("No hosts yet", StringComparison.Ordinal));
+        Assert.Empty(page.FindAll("[data-section=attention]"));
         Assert.Empty(page.FindAll("[data-action=add-host]"));
     }
 

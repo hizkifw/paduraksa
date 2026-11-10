@@ -606,12 +606,6 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .pdk-page.mud-container {
     white-space: nowrap;
 }
 
-.pdk-all-good {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
 .pdk-card-head-padded {
     padding: 18px 20px 6px;
 }
