@@ -152,32 +152,14 @@ public sealed class CertificateTableBuilder
         return entry;
     }
 
-    /// <summary>
-    /// Cipher suites for TCP: AEAD only, ECDHE only (forward secrecy). TLS 1.3 suites are all AEAD; for
-    /// TLS 1.2 this drops the CBC/SHA-1 and static-RSA suites OpenSSL's default list still allows. Linux only:
-    /// <see cref="CipherSuitesPolicy"/> isn't supported on Windows, and Linux is what we ship, so other platforms keep
-    /// the OS defaults. QUIC doesn't get it: QUIC is TLS 1.3, whose suites are all AEAD already.
-    /// </summary>
-    private static readonly CipherSuitesPolicy? TcpCipherSuites = OperatingSystem.IsLinux()
-        ? new CipherSuitesPolicy(
-        [
-            TlsCipherSuite.TLS_AES_128_GCM_SHA256,
-            TlsCipherSuite.TLS_AES_256_GCM_SHA384,
-            TlsCipherSuite.TLS_CHACHA20_POLY1305_SHA256,
-            TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-            TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-            TlsCipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-            TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-            TlsCipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-            TlsCipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-        ])
-        : null;
-
     // ApplicationProtocols is ALWAYS set: both Kestrel transports write their own ALPN into a returned options object
     // whose list is null, which breaks the other transport when instances are shared.
+    // No CipherSuitesPolicy, on purpose: on Linux, SslStream caches the OpenSSL context (and resumes TLS sessions) only
+    // when it is null, so setting one rebuilds the context on every handshake, measured at ~1.5x the CPU per new
+    // connection (bench `handshake`). OpenSSL's defaults still negotiate AEAD + ECDHE with every current client; a host
+    // that must refuse TLS 1.2's older suites sets MinimumVersion = Tls13.
     private static SslServerAuthenticationOptions CreateTcpOptions(ServerCertificate certificate, TlsPolicy policy) => new()
     {
-        CipherSuitesPolicy = TcpCipherSuites,
         ServerCertificateContext = certificate.Context,
         ApplicationProtocols = policy.TcpAlpn == TcpAlpn.Http11Only
             ? [SslApplicationProtocol.Http11]
