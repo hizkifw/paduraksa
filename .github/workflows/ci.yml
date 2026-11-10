@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # A version tag publishes the image under its version too (see the publish job).
+    tags: ["v*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -86,3 +88,101 @@ jobs:
         env:
           Configuration: Release
         run: dotnet format --no-restore --verify-no-changes
+
+  # Builds the image for every platform the publish job pushes, into the Actions cache, and runs the container smoke test
+  # against the amd64 build. Runs next to build-test rather than after it, so the publish only waits for the slower of
+  # the two.
+  image:
+    name: Container image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-qemu-action@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build (amd64 and arm64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Load the amd64 image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: paduraksa:ci
+          cache-from: type=gha
+
+      - name: Set up .NET (from global.json)
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Container smoke test
+        env:
+          PADURAKSA_CONTAINER_TESTS: "1"
+          PADURAKSA_CONTAINER_IMAGE: paduraksa:ci
+        run: dotnet test --project tests/Paduraksa.Tests.Integration -c Release -- --filter-trait "Category=Container"
+
+  # Pushes to ghcr.io/<owner>/<repo> once the tests and the image both pass: `main` and `sha-<short>` for a push to
+  # main; the version, `<major>.<minor>` and `latest` for a `v*` tag (no `latest` for a pre-release). Everything comes
+  # from the image job's cache, so this only assembles and uploads.
+  publish:
+    name: Publish image
+    needs: [build-test, image]
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-qemu-action@v4
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push (amd64 and arm64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha
+          # SLSA provenance and an SBOM go up with the image as attestations.
+          provenance: mode=max
+          sbom: true

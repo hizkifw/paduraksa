@@ -13,6 +13,8 @@ namespace Paduraksa.Tests.Integration.Containers;
 /// grace period. It is slow (an image build and two 30-second health probes), so it is <b>off by default</b>: set
 /// <c>PADURAKSA_CONTAINER_TESTS=1</c> and filter on the trait if you want only this:
 /// <c>dotnet test --project tests/Paduraksa.Tests.Integration -- --filter-trait "Category=Container"</c>.
+/// <c>PADURAKSA_CONTAINER_IMAGE</c> names an image to test instead of building one (CI tests the image it publishes); it is
+/// left in place afterwards.
 /// </summary>
 [Trait("Category", "Container")]
 public sealed class ContainerSmokeTests
@@ -33,15 +35,19 @@ public sealed class ContainerSmokeTests
 
         var repository = RepositoryRoot();
         var suffix = $"{Environment.ProcessId}-{Environment.TickCount64}-{(dropCapabilities ? "caps" : "default")}";
-        var image = $"paduraksa-smoke:{suffix}";
+        var prebuilt = Environment.GetEnvironmentVariable("PADURAKSA_CONTAINER_IMAGE") is { Length: > 0 } named ? named : null;
+        var image = prebuilt ?? $"paduraksa-smoke:{suffix}";
         var container = $"paduraksa-smoke-{suffix}";
         var volume = $"paduraksa-smoke-{suffix}";
 
         try
         {
-            var (buildCode, buildOutput) = await DockerCli.RunAsync(
-                TimeSpan.FromMinutes(30), "build", "--tag", image, "--file", Path.Combine(repository, "Dockerfile"), repository);
-            Assert.True(buildCode == 0, $"docker build failed ({buildCode}):\n{buildOutput}");
+            if (prebuilt is null)
+            {
+                var (buildCode, buildOutput) = await DockerCli.RunAsync(
+                    TimeSpan.FromMinutes(30), "build", "--tag", image, "--file", Path.Combine(repository, "Dockerfile"), repository);
+                Assert.True(buildCode == 0, $"docker build failed ({buildCode}):\n{buildOutput}");
+            }
 
             List<string> run = ["run", "--detach", "--name", container];
             if (dropCapabilities)
@@ -118,18 +124,19 @@ public sealed class ContainerSmokeTests
         }
         finally
         {
-            await CleanupAsync(container, volume, image);
+            await CleanupAsync(container, volume, prebuilt is null ? image : null);
         }
     }
 
-    private static async Task CleanupAsync(string container, string volume, string image)
+    private static async Task CleanupAsync(string container, string volume, string? image)
     {
-        foreach (var arguments in new[]
+        List<string[]> steps = [["rm", "--force", container], ["volume", "rm", "--force", volume]];
+        if (image is not null)
         {
-            new[] { "rm", "--force", container },
-            new[] { "volume", "rm", "--force", volume },
-            new[] { "image", "rm", "--force", image },
-        })
+            steps.Add(["image", "rm", "--force", image]);
+        }
+
+        foreach (var arguments in steps)
         {
             try
             {

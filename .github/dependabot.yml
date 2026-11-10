@@ -22,3 +22,10 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+
+  # The Dockerfile pins its base images by digest, so a security patch in the .NET or Ubuntu base only reaches the
+  # image through these bumps.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
