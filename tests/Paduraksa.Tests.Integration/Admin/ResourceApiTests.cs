@@ -121,7 +121,12 @@ public sealed class ResourceApiTests(SharedAdminApi shared) : IClassFixture<Shar
     {
         var api = shared.Api;
 
-        using var huge = await api.SendAsync(HttpMethod.Post, "/api/v1/certificates", content: Upload(new byte[2 * 1024 * 1024]));
+        // Kestrel answers 413 from the Content-Length and closes; a client still writing the body would get a broken pipe
+        // instead of the answer, so this one waits for the go-ahead it never gets.
+        using var hugeRequest = api.Request(HttpMethod.Post, "/api/v1/certificates");
+        hugeRequest.Headers.ExpectContinue = true;
+        hugeRequest.Content = Upload(new byte[2 * 1024 * 1024]);
+        using var huge = await api.Client.SendAsync(hugeRequest, Ct);
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, huge.StatusCode);
         Assert.Equal(413, (await AdminApiHarness.ProblemAsync(huge, Ct)).Status);
 
