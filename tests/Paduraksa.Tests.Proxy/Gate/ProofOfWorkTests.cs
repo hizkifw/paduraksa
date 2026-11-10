@@ -466,6 +466,31 @@ public sealed class ProofOfWorkTests
         return bytes[..written];
     }
 
+    [Fact]
+    public async Task TheChallengePageIsWrittenFromTheTemplateForABrowser()
+    {
+        var challenge = Challenge((uint)Now.ToUnixTimeSeconds(), 10);
+        var response = new ProofOfWorkPage(10).Build(challenge, "/a?b=1&c=2");
+        var context = TestContexts.Create("app.test");
+        context.Request.Headers.Accept = "text/html,application/xhtml+xml";
+        var body = new MemoryStream();
+        context.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpResponseBodyFeature>(
+            new Microsoft.AspNetCore.Http.StreamResponseBodyFeature(body));
+
+        await ResponseWriter.WriteAsync(context, response);
+        await context.Response.BodyWriter.FlushAsync(TestContext.Current.CancellationToken);
+
+        var page = Encoding.UTF8.GetString(body.ToArray());
+        Assert.Equal(200, context.Response.StatusCode);
+        Assert.Equal("text/html; charset=utf-8", context.Response.ContentType);
+        Assert.Contains("name=\"challenge\"", page, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{challenge}\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"return\"", page, StringComparison.Ordinal);
+        Assert.Contains("value=\"/a?b=1&amp;c=2\"", page, StringComparison.Ordinal);
+        Assert.Contains("id=\"difficulty\" type=\"hidden\" value=\"10\"", page, StringComparison.Ordinal);
+        Assert.Contains($"script-src '{Hash(ProofOfWorkPage.ScriptText)}'", context.Response.Headers["Content-Security-Policy"].ToString(), StringComparison.Ordinal);
+    }
+
     private static string Hash(string content) => "sha256-" + Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
 
     private static HttpRequest Request(string cookie)

@@ -84,6 +84,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         Assert.True(probe.RegistrationBytes == 0, $"the OnCompleted and OnStarting registrations allocated {probe.RegistrationBytes} B over {probe.Requests} requests");
         Assert.True(probe.RecordingBytes == 0, $"the access-log callback allocated {probe.RecordingBytes} B over {probe.Requests} requests");
         Assert.True(probe.ReapplyBytes == 0, $"the reapply callback allocated {probe.ReapplyBytes} B over {probe.Requests} requests");
+        Assert.True(probe.ResponseStartBytes == 0, $"the response-start hook allocated {probe.ResponseStartBytes} B over {probe.Requests} requests on the successful path");
         await WaitForEntriesAsync(server.AccessLog, Measured);
         Assert.Equal(0, server.AccessLog.Dropped);
     }
@@ -130,6 +131,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         private long _registrationBytes;
         private long _recordingBytes;
         private long _reapplyBytes;
+        private long _responseStartBytes;
 
         public bool Enabled
         {
@@ -145,12 +147,15 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
 
         public long ReapplyBytes => Volatile.Read(ref _reapplyBytes);
 
+        public long ResponseStartBytes => Volatile.Read(ref _responseStartBytes);
+
         public void Reset()
         {
             Volatile.Write(ref _requests, 0);
             Volatile.Write(ref _registrationBytes, 0);
             Volatile.Write(ref _recordingBytes, 0);
             Volatile.Write(ref _reapplyBytes, 0);
+            Volatile.Write(ref _responseStartBytes, 0);
         }
 
         public Task Invoke(HttpContext context, RequestDelegate next)
@@ -183,10 +188,18 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             GateResponseHeaders.Reapply(context);
             var reapply = GC.GetAllocatedBytesForCurrentThread() - before;
 
+            // The response-start hook's successful path: the error feature is unset, so it returns a completed task.
+            // The real callback runs from Kestrel at response start; this probe calls the same entry point with the
+            // request's real context before anything has failed.
+            before = GC.GetAllocatedBytesForCurrentThread();
+            _ = ProxyHostingExtensions.OnResponseStarting(context);
+            var responseStart = GC.GetAllocatedBytesForCurrentThread() - before;
+
             Interlocked.Increment(ref _requests);
             Interlocked.Add(ref _registrationBytes, registration);
             Interlocked.Add(ref _recordingBytes, recording);
             Interlocked.Add(ref _reapplyBytes, reapply);
+            Interlocked.Add(ref _responseStartBytes, responseStart);
             return next(context);
         }
     }

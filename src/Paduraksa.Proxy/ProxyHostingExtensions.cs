@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Yarp;
 
@@ -124,12 +125,14 @@ public static class ProxyHostingExtensions
     }
 
     /// <summary>
-    /// Registers a response-start hook that puts the gate's per-host response headers back after a YARP error, and calls
-    /// the rest of the pipeline. A body error clears the response and a missing destination bypasses it, neither running
-    /// the response transforms again (<see cref="GateResponseHeaders.Reapply"/>); on a successful forward the transforms
-    /// already applied the headers, so applying them again, as the old post-forward step did for every bodyless response
-    /// such as a 204 or a 304, is wasted work. The hook checks <see cref="IForwarderErrorFeature"/> first. The callback is
-    /// static with the context as its state, and Kestrel creates the per-connection hook stack once.
+    /// Registers a response-start hook that puts the gate's per-host response headers back after a YARP error, writes the
+    /// built-in page for the error, and calls the rest of the pipeline. A body error clears the response and a missing
+    /// destination bypasses it, neither running the response transforms again (<see cref="GateResponseHeaders.Reapply"/>);
+    /// on a successful forward the transforms already applied the headers, so applying them again, as the old
+    /// post-forward step did for every bodyless response such as a 204 or a 304, is wasted work. The hook checks
+    /// <see cref="IForwarderErrorFeature"/> first. The callback is static with the context as its state, and Kestrel
+    /// creates the per-connection hook stack once; see <see cref="UpstreamErrors"/> for why the error body can be written
+    /// there and why the successful path stays free.
     /// </summary>
     private static Task ReapplyGateHeaders(HttpContext context, RequestDelegate next)
     {
@@ -146,19 +149,23 @@ public static class ProxyHostingExtensions
             return;
         }
 
-        context.Response.OnStarting(static started =>
-        {
-            var http = (HttpContext)started;
-            // Every YARP path that answers without the transforms sets the feature before the response starts: no healthy
-            // destination (503), a failed request or timeout (502/504), a request-body error (400/408/502/504), a malformed
-            // response (502), a body error (502) and a failed upgrade (502).
-            if (http.Features.Get<IForwarderErrorFeature>() is not null)
-            {
-                GateResponseHeaders.Reapply(http);
-            }
+        context.Response.OnStarting(OnResponseStarting, context);
+    }
 
+    /// <summary>The response-start callback; internal so the allocation test can measure the successful path through it.</summary>
+    internal static Task OnResponseStarting(object state)
+    {
+        var http = (HttpContext)state;
+        // Every YARP path that answers without the transforms sets the feature before the response starts: no healthy
+        // destination (503), a failed request or timeout (502/504), a request-body error (400/408/502/504), a malformed
+        // response (502), a body error (502) and a failed upgrade (502).
+        if (http.Features.Get<IForwarderErrorFeature>() is null)
+        {
             return Task.CompletedTask;
-        }, context);
+        }
+
+        GateResponseHeaders.Reapply(http);
+        return UpstreamErrors.WriteAsync(http);
     }
 
     /// <summary>
