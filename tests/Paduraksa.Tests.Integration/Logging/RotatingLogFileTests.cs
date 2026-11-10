@@ -229,9 +229,10 @@ public sealed class RotatingLogFileTests : IDisposable
         SeedRotated(4);
         using var writer = Start(Clock(), maxTotalSize: 10);
 
-        WaitUntil(() => Rotated().Count < 4, "retention by total size");
+        // The sweep deletes the oldest files one at a time, so a count that dropped doesn't mean the sweep is done.
+        WaitUntil(() => RotatedTotalSize() <= 10, "retention by total size");
 
-        Assert.True(Rotated().Sum(file => new FileInfo(file).Length) <= 10);
+        Assert.True(Rotated().Count < 4);
     }
 
     [Fact]
@@ -406,6 +407,14 @@ public sealed class RotatingLogFileTests : IDisposable
         System.IO.Directory.Exists(Directory)
             ? [.. System.IO.Directory.EnumerateFiles(Directory).Where(path => LogFileNames.TryParseRotated(Path.GetFileName(path), out _, out _, out _))]
             : [];
+
+    private long RotatedTotalSize() =>
+        Rotated().Sum(static path =>
+        {
+            // The sweep may delete a file between the listing and this read.
+            var file = new FileInfo(path);
+            return file.Exists ? file.Length : 0;
+        });
 
     /// <summary>Five rotated, compressed files from five days ago and one day ago, then a gap for the retention tests.</summary>
     private void SeedRotated(int count)
