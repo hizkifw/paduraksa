@@ -121,14 +121,28 @@ public static class ProxyHostingExtensions
     }
 
     /// <summary>
-    /// Runs the forward, then puts the gate's per-host response headers back if the response can still change. This is
-    /// for YARP's body-error path, which clears the response and answers a bare 502 without running the response
-    /// transforms again (<see cref="GateResponseHeaders.Reapply"/>).
+    /// Registers a response-start hook that puts the gate's per-host response headers back after a YARP error, and calls
+    /// the rest of the pipeline. A body error clears the response and a missing destination bypasses it, neither running
+    /// the response transforms again (<see cref="GateResponseHeaders.Reapply"/>); on a successful forward the transforms
+    /// already applied the headers, so applying them again, as the old post-forward step did for every bodyless response
+    /// such as a 204 or a 304, is wasted work. The hook checks <see cref="IForwarderErrorFeature"/> first. The callback is
+    /// static with the context as its state, and Kestrel creates the per-connection hook stack once.
     /// </summary>
-    private static async Task ReapplyGateHeaders(HttpContext context, RequestDelegate next)
+    private static Task ReapplyGateHeaders(HttpContext context, RequestDelegate next)
     {
-        await next(context);
-        GateResponseHeaders.Reapply(context);
+        context.Response.OnStarting(static started =>
+        {
+            var http = (HttpContext)started;
+            // Every YARP path that answers without the transforms sets the feature before the response starts: no healthy
+            // destination (503), a failed request or timeout (502/504), a malformed response (502) and a body error (502).
+            if (http.Features.Get<IForwarderErrorFeature>() is not null)
+            {
+                GateResponseHeaders.Reapply(http);
+            }
+
+            return Task.CompletedTask;
+        }, context);
+        return next(context);
     }
 
     /// <summary>

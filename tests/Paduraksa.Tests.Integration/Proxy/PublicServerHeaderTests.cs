@@ -34,12 +34,14 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
     private EdgeUpstream? _upstream;
     private WebSocketUpstream? _webSockets;
     private AbortingUpstream? _aborting;
+    private NoContentUpstream? _noContent;
 
     public async ValueTask InitializeAsync()
     {
         _upstream = await EdgeUpstream.StartAsync();
         _webSockets = await WebSocketUpstream.StartAsync();
         _aborting = await AbortingUpstream.StartAsync();
+        _noContent = await NoContentUpstream.StartAsync();
     }
 
     private EdgeUpstream Upstream => _upstream!;
@@ -47,6 +49,8 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
     private WebSocketUpstream WebSockets => _webSockets!;
 
     private AbortingUpstream Aborting => _aborting!;
+
+    private NoContentUpstream NoContent => _noContent!;
 
     public async ValueTask DisposeAsync()
     {
@@ -65,6 +69,11 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
             await _aborting.DisposeAsync();
         }
 
+        if (_noContent is not null)
+        {
+            await _noContent.DisposeAsync();
+        }
+
         _certificates.Dispose();
     }
 
@@ -76,6 +85,7 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
             new UpstreamSpec { Id = TestIds.Upstream("echo"), Destinations = [new(TestIds.Destination("echo-1"), Upstream.Address)] },
             new UpstreamSpec { Id = TestIds.Upstream("ws"), Destinations = [new(TestIds.Destination("ws-1"), WebSockets.Address)] },
             new UpstreamSpec { Id = TestIds.Upstream("abort"), Destinations = [new(TestIds.Destination("abort-1"), Aborting.Address)] },
+            new UpstreamSpec { Id = TestIds.Upstream("empty"), Destinations = [new(TestIds.Destination("empty-1"), NoContent.Address)] },
             new UpstreamSpec { Id = TestIds.Upstream("down"), Destinations = [new(TestIds.Destination("down-1"), "http://127.0.0.1:1/")] },
         ],
         Hosts =
@@ -107,6 +117,7 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
                 Policies = [new IpAllowListPolicySpec(["10.0.0.0/8"])],
             },
             Forward("abort", "abort.test", upstream: "abort") with { Hsts = new HostHstsSpec { Enabled = true } },
+            Forward("empty", "empty.test", upstream: "empty") with { Hsts = new HostHstsSpec { Enabled = true }, ServerHeader = CustomHeader("edge/empty") },
             Forward("down-named", "down-named.test", upstream: "down"),
             Forward("down-custom", "down-custom.test", upstream: "down") with { ServerHeader = CustomHeader("edge/down") },
             Forward("down-upstream", "down-upstream.test", upstream: "down") with { ServerHeader = new HostServerHeaderSpec { Mode = ServerHeaderMode.Upstream } },
@@ -138,7 +149,7 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
             _certificates.Create(
                 "named.test",
                 "named.test", "custom.test", "upstream.test", "remove.test", "api.test", "soon.test", "old.test", "deny.test", "abort.test",
-                "down-named.test", "down-custom.test", "down-upstream.test", "down-remove.test",
+                "empty.test", "down-named.test", "down-custom.test", "down-upstream.test", "down-remove.test",
                 "ws-named.test", "ws-custom.test", "ws-upstream.test", "ws-remove.test"));
         var result = await host.Shared.SnapshotPublisher.PublishAsync(Compile(host, model), TestContext.Current.CancellationToken);
         Assert.True(result.Succeeded, string.Join("; ", result.Errors));
@@ -309,6 +320,23 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ABodylessUpstreamResponseCarriesEachGateHeaderExactlyOnce()
+    {
+        // A 204 never starts a response body, so Kestrel fires the response-start hooks at the end of the request, after
+        // the response transforms already ran. The reapply hook must not run there a second time, and the upstream's own
+        // HSTS and Server values must not survive next to ours.
+        await using var host = await StartedAsync(App());
+        using var client = EdgeClient.Create(out _);
+        using var request = EdgeClient.Request(host, "https", "empty.test");
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(["edge/empty"], response.Headers.GetValues(Header));
+        Assert.Equal(["max-age=31536000"], response.Headers.GetValues("Strict-Transport-Security"));
+        Assert.Single(response.Headers.GetValues("X-Request-Id"));
+    }
+
+    [Fact]
     public async Task EachModeHoldsOnAWebSocketUpgrade()
     {
         await using var host = await StartedAsync(App());
@@ -394,6 +422,50 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
             await host.StartAsync(TestContext.Current.CancellationToken);
             var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
             return new AbortingUpstream(host, address + "/");
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await _host.StopAsync(CancellationToken.None);
+            _host.Dispose();
+        }
+    }
+
+    /// <summary>A loopback upstream that answers 204 with its own <c>Server</c>, HSTS and <c>Alt-Svc</c> headers.</summary>
+    private sealed class NoContentUpstream : IAsyncDisposable
+    {
+        private readonly IHost _host;
+
+        private NoContentUpstream(IHost host, string address)
+        {
+            _host = host;
+            Address = address;
+        }
+
+        public string Address { get; }
+
+        public static async Task<NoContentUpstream> StartAsync()
+        {
+            var host = new HostBuilder()
+                .ConfigureLogging(static logging => logging.ClearProviders())
+                .ConfigureWebHost(web => web
+                    .UseKestrel(static kestrel =>
+                    {
+                        kestrel.Listen(IPAddress.Loopback, 0);
+                        kestrel.AddServerHeader = false;
+                    })
+                    .Configure(static app => app.Run(static context =>
+                    {
+                        context.Response.StatusCode = StatusCodes.Status204NoContent;
+                        context.Response.Headers["Server"] = EdgeUpstream.UpstreamServer;
+                        context.Response.Headers.StrictTransportSecurity = EdgeUpstream.UpstreamHsts;
+                        context.Response.Headers.AltSvc = EdgeUpstream.UpstreamAltSvc;
+                        return Task.CompletedTask;
+                    })))
+                .Build();
+            await host.StartAsync(TestContext.Current.CancellationToken);
+            var address = Assert.Single(host.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses);
+            return new NoContentUpstream(host, address + "/");
         }
 
         public async ValueTask DisposeAsync()
