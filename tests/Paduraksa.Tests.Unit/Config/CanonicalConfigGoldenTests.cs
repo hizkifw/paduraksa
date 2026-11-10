@@ -32,6 +32,7 @@ public sealed class CanonicalConfigGoldenTests
                     AccessLog = true,
                     RequestIdPropagation = RequestIdPropagation.UpstreamAndResponse,
                     ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Paduraksa },
+                    ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 16, TokenLifetimeHours = 168 },
                 },
                 UnknownHost: UnknownHostBehaviour.MisdirectedRequest,
                 TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareProxy, [], UseTrueClientIp: true)),
@@ -50,6 +51,7 @@ public sealed class CanonicalConfigGoldenTests
                         AccessLog = false,
                         RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
                         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
+                        ProofOfWork = new ProofOfWorkSettings { Enabled = false, Difficulty = 20, TokenLifetimeHours = 24 },
                     },
                     Notes: "the LAN preset"),
             ],
@@ -76,16 +78,21 @@ public sealed class CanonicalConfigGoldenTests
                         AccessLog = true,
                         RequestIdPropagation = RequestIdPropagation.ResponseOnly,
                         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Upstream, Value = "kept but unused" },
+                        ProofOfWork = new ProofOfWorkSettings { Difficulty = 18, TokenLifetimeHours = 720 },
                     },
                     Routes:
                     [
                         new RouteConfig(RootRoute, AppUpstream, Order: 10),
-                        new RouteConfig(ApiRoute, AppUpstream, Path: "/api", Settings: new RouteSettings { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) }),
+                        new RouteConfig(ApiRoute, AppUpstream, Path: "/api", Settings: new RouteSettings
+                        {
+                            IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]),
+                            ProofOfWork = new ProofOfWorkSettings { Enabled = true },
+                        }),
                     ],
                     Tags: ["media"]),
             ]);
 
-        AssertPinned(document, "959A7B0F3AA47A9AD1625FB6159D30FF186EE5152118853FD203DBEAB878AC50");
+        AssertPinned(document, "632F612921EDE34C03C4B8111EC6E5A5519C98B99843DACCFEF01EEB09F54F66");
     }
 
     [Fact]
@@ -113,6 +120,7 @@ public sealed class CanonicalConfigGoldenTests
                         Tls = new TlsSettings(),
                         Hsts = new HstsSettings(),
                         ServerHeader = new ServerHeaderSettings(),
+                        ProofOfWork = new ProofOfWorkSettings(),
                     },
                 },
             ],

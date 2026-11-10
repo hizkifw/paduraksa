@@ -96,6 +96,14 @@ internal static class ConfigSamples
                 Mode = Coin() ? (ServerHeaderMode)random.Next(4) : null,
                 Value = "edge/1.0",
             }),
+            ProofOfWork = Maybe(() => new ProofOfWorkSettings
+            {
+                // Random documents must not change the gate's answer (the compiled-behaviour test reads them as plain
+                // requests): the switch stays off, while the values still exercise the canonical form and the validator.
+                Enabled = false,
+                Difficulty = Coin() ? random.Next(ProofOfWorkLimits.MinDifficulty, ProofOfWorkLimits.MaxDifficulty + 1) : null,
+                TokenLifetimeHours = Coin() ? random.Next(ProofOfWorkLimits.MinTokenLifetimeHours, ProofOfWorkLimits.MaxTokenLifetimeHours + 1) : null,
+            }),
         };
 
         ProfileConfig[] profiles =
@@ -156,7 +164,13 @@ internal static class ConfigSamples
                                 Order: random.Next(3) * 10,
                                 Match: (RouteMatchKind)random.Next(2),
                                 Path: j == 0 ? "/" : $"/p{j}",
-                                Settings: new RouteSettings { IpAllowList = Maybe(AllowList) })),
+                                Settings: new RouteSettings
+                                {
+                                    IpAllowList = Maybe(AllowList),
+                                    // As on the host: off, so a generated document can't turn the gate on for the
+                                    // compiled-behaviour reference. Enabled route overrides have their own tests.
+                                    ProofOfWork = Maybe(() => new ProofOfWorkSettings { Enabled = false }),
+                                })),
                         ],
                     Redirect: kind == HostKind.Redirect ? new RedirectConfig("https://example.com", 308, PreservePath: Coin()) : null,
                     Respond: kind == HostKind.Respond ? new RespondConfig(200 + random.Next(300), "\"quoted\"\n", "text/html") : null,
@@ -209,6 +223,7 @@ internal static class ConfigSamples
             // A layer that sets nothing is no layer (canonical JSON writes no key for it).
             Hsts = settings.Hsts ?? (random.Next(2) == 0 ? new HstsSettings() : null),
             ServerHeader = settings.ServerHeader ?? (random.Next(2) == 0 ? new ServerHeaderSettings() : null),
+            ProofOfWork = settings.ProofOfWork ?? (random.Next(2) == 0 ? new ProofOfWorkSettings() : null),
         };
 
         return document with

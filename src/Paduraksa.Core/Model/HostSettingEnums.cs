@@ -71,3 +71,25 @@ public static class RequestIdPropagationExtensions
     public static bool SendsResponse(this RequestIdPropagation propagation) =>
         propagation is RequestIdPropagation.UpstreamAndResponse or RequestIdPropagation.ResponseOnly;
 }
+
+/// <summary>The bounds of the proof-of-work settings, shared by the validator, the compiler and the proxy.</summary>
+public static class ProofOfWorkLimits
+{
+    /// <summary>Lowest difficulty: 8 leading zero bits, a few milliseconds.</summary>
+    public const int MinDifficulty = 8;
+
+    /// <summary>Highest difficulty: 28 leading zero bits, minutes of work on one core.</summary>
+    public const int MaxDifficulty = 28;
+
+    /// <summary>The built-in difficulty: 16 leading zero bits, well under a second on an ordinary laptop.</summary>
+    public const int DefaultDifficulty = 16;
+
+    /// <summary>Shortest token lifetime: an hour.</summary>
+    public const int MinTokenLifetimeHours = 1;
+
+    /// <summary>Longest token lifetime: 30 days.</summary>
+    public const int MaxTokenLifetimeHours = 720;
+
+    /// <summary>The built-in token lifetime: seven days.</summary>
+    public const int DefaultTokenLifetimeHours = 168;
+}

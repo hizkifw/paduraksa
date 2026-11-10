@@ -6,7 +6,7 @@ namespace Paduraksa.Contracts.Config;
 /// <summary>
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
-/// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>) merge field by field; list-valued settings
+/// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>) merge field by field; list-valued settings
 /// (<see cref="IpAllowList"/>) replace as a whole.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
@@ -39,6 +39,9 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below. Built-in default: <c>Paduraksa</c>, with no version.</summary>
     public ServerHeaderSettings? ServerHeader { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: off.</summary>
+    public ProofOfWorkSettings? ProofOfWork { get; init; }
 }
 
 /// <summary>
@@ -60,6 +63,12 @@ public sealed record RouteSettings
 {
     /// <summary>Replaces the host's allow list for this route as a whole.</summary>
     public IpAllowListSettings? IpAllowList { get; init; }
+
+    /// <summary>
+    /// The route-level subset of <see cref="ProofOfWorkSettings"/>: only <see cref="ProofOfWorkSettings.Enabled"/> is
+    /// accepted here. It overrides the host's resolved switch either way, so one path can be exempt or protected.
+    /// </summary>
+    public ProofOfWorkSettings? ProofOfWork { get; init; }
 }
 
 /// <summary>TLS settings; each field inherits on its own. A layer that sets none is the same as no layer.</summary>
@@ -134,4 +143,24 @@ public sealed record ServerHeaderSettings : ISettingsLayer
 
     [JsonIgnore]
     public bool SetsNothing => Mode is null && Value is null;
+}
+
+/// <summary>
+/// The browser check: a visitor without a valid token gets a small page that solves a SHA-256 proof of work, then a
+/// signed, expiring cookie bound to this host and client address lets it through. Each field inherits on its own.
+/// </summary>
+public sealed record ProofOfWorkSettings : ISettingsLayer
+{
+    /// <summary>Challenge visitors. Built-in default: off.</summary>
+    public bool? Enabled { get; init; }
+
+    /// <summary>Leading zero bits of SHA-256 a solution needs, 8 to 28. Built-in default: 16, well under a second on an
+    /// ordinary laptop.</summary>
+    public int? Difficulty { get; init; }
+
+    /// <summary>How long the cookie lasts, in hours, 1 to 720. Built-in default: 168 (seven days).</summary>
+    public int? TokenLifetimeHours { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => Enabled is null && Difficulty is null && TokenLifetimeHours is null;
 }

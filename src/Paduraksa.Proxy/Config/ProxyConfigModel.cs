@@ -139,6 +139,21 @@ public sealed record HostServerHeaderSpec
     public string? Value { get; init; }
 }
 
+/// <summary>The proof-of-work settings resolved across the layers; a route may only override <see cref="Enabled"/>.</summary>
+public sealed record HostProofOfWorkSpec
+{
+    /// <summary>Off, with the built-in values in place.</summary>
+    public static HostProofOfWorkSpec Off { get; } = new();
+
+    public bool Enabled { get; init; }
+
+    /// <summary>Leading zero bits of SHA-256, 8 to 28 (the compiler checks it).</summary>
+    public int Difficulty { get; init; } = ProofOfWorkLimits.DefaultDifficulty;
+
+    /// <summary>How long a token lasts, in hours, 1 to 720 (the compiler checks it).</summary>
+    public int TokenLifetimeHours { get; init; } = ProofOfWorkLimits.DefaultTokenLifetimeHours;
+}
+
 /// <summary>A host. Disabled hosts are validated but left out of the snapshot.</summary>
 public sealed record HostSpec
 {
@@ -191,6 +206,9 @@ public sealed record HostSpec
 
     public HostServerHeaderSpec ServerHeader { get; init; } = HostServerHeaderSpec.Default;
 
+    /// <summary>The host's proof-of-work switch and parameters; each route's own switch may override it.</summary>
+    public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
+
     /// <summary>Proxy hosts only; ordered by <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];
 
@@ -219,6 +237,12 @@ public sealed record RouteSpec
 
     /// <summary>The <see cref="UpstreamSpec"/> to proxy to.</summary>
     public required UpstreamId Upstream { get; init; }
+
+    /// <summary>This route's effective proof of work: the host's values with the route's own switch, when it sets one.</summary>
+    public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
+
+    /// <summary>True when the route's own layer decided <see cref="ProofOfWork"/>'s switch.</summary>
+    public bool ProofOfWorkRouteOverride { get; init; }
 
     public IReadOnlyList<PolicySpec> Policies { get; init; } = [];
 }

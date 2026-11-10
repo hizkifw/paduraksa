@@ -388,6 +388,45 @@ public sealed class ProxyConfigMappingTests
         Assert.Equal("/tls/trust", warning.Member);
     }
 
+    [Fact]
+    public void ProofOfWorkResolvesPerHostAndARouteOverridesOnlyTheSwitch()
+    {
+        HostSettings on = new() { ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 20, TokenLifetimeHours = 24 } };
+        var document = Document(on, null, null);
+        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var host = Assert.Single(mapped.Model.Hosts);
+        Assert.Equal(new HostProofOfWorkSpec { Enabled = true, Difficulty = 20, TokenLifetimeHours = 24 }, host.ProofOfWork);
+        Assert.All(host.Routes, route => Assert.Equal(host.ProofOfWork, route.ProofOfWork));
+        Assert.All(host.Routes, route => Assert.False(route.ProofOfWorkRouteOverride));
+
+        // The route's own switch wins either way, and the host's values stay.
+        var exempt = MapOnlyHost(on,
+            new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = false } },
+            new RouteSettings());
+        Assert.Equal(new HostProofOfWorkSpec { Enabled = false, Difficulty = 20, TokenLifetimeHours = 24 }, exempt.Routes[0].ProofOfWork);
+        Assert.True(exempt.Routes[0].ProofOfWorkRouteOverride);
+        Assert.Equal(exempt.ProofOfWork, exempt.Routes[1].ProofOfWork);
+        Assert.False(exempt.Routes[1].ProofOfWorkRouteOverride);
+
+        var protectedRoute = MapOnlyHost(null,
+            new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = true } },
+            new RouteSettings());
+        Assert.False(protectedRoute.ProofOfWork.Enabled);
+        Assert.True(protectedRoute.Routes[0].ProofOfWork.Enabled);
+        Assert.True(protectedRoute.Routes[0].ProofOfWorkRouteOverride);
+        Assert.False(protectedRoute.Routes[1].ProofOfWork.Enabled);
+
+        // The cookie cannot be Secure over plain HTTP, so a host that doesn't force the redirect warns.
+        var warning = Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.ProofOfWorkInsecureCookie);
+        Assert.Equal(CompileErrorSource.Host(AppHost), warning.Source);
+        Assert.DoesNotContain(
+            ProxyConfigMapping.Map(Document(on with { ForceHttps = true }, null, null), Revision, CertificateInventory.Empty).Warnings,
+            w => w.Code == ConfigWarningCodes.ProofOfWorkInsecureCookie);
+        Assert.DoesNotContain(
+            ProxyConfigMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty).Warnings,
+            w => w.Code == ConfigWarningCodes.ProofOfWorkInsecureCookie);
+    }
+
     // One proxy host with two routes ("/" and "/b") under a profile-less, default-less document.
     private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second)
     {

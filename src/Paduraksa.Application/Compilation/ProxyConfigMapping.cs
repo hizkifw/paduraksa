@@ -222,7 +222,21 @@ public static class ProxyConfigMapping
                 Order = route.Order,
                 Upstream = route.UpstreamId,
                 Policies = uniform ? [] : AllowListPolicy(routeLists[j]),
+                ProofOfWork = HostSettingsLayers.ResolveRouteProofOfWork(effective, route.Settings),
+                ProofOfWorkRouteOverride = HostSettingsLayers.RouteOverridesProofOfWork(route.Settings),
             };
+        }
+
+        // A plain-HTTP cookie cannot be Secure. A host that forces the redirect never serves a page over plain HTTP, so
+        // only the rest are worth a warning.
+        if (host is { Kind: HostKind.Proxy, Enabled: true } && !effective.ForceHttps
+            && (effective.ProofOfWork.Enabled || routes.Any(static route => route.ProofOfWork.Enabled)))
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                string.Empty,
+                ConfigWarningCodes.ProofOfWorkInsecureCookie,
+                "the proof-of-work gate is on, but this host answers plain HTTP without forcing HTTPS, so its cookie cannot be Secure; turn on forceHttps or serve the host over HTTPS only"));
         }
 
         var binding = host.Certificate;
@@ -259,6 +273,7 @@ public static class ProxyConfigMapping
             AccessLog = effective.AccessLog,
             RequestIdPropagation = effective.RequestIdPropagation,
             ServerHeader = effective.ServerHeader,
+            ProofOfWork = effective.ProofOfWork,
             Routes = routes,
             Policies = hostChain,
             Redirect = host.Redirect is { } redirect

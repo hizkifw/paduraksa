@@ -574,6 +574,10 @@ public static class ConfigValidator
             }
 
             CheckIpAllowList(route.Settings?.IpAllowList, $"{path}/settings/ipAllowList");
+            if (route.Settings?.ProofOfWork is { } proofOfWork)
+            {
+                CheckProofOfWork(proofOfWork, $"{path}/settings/proofOfWork", route: true);
+            }
         }
 
         private void CheckHostSettings(HostSettings? settings, string path)
@@ -619,6 +623,48 @@ public static class ConfigValidator
                 if (serverHeader is { Mode: ServerHeaderMode.Custom, Value: { Length: > 0 } value } && !ServerHeader.IsValidValue(value))
                 {
                     Add($"{path}/serverHeader/value", ServerHeaderValueInvalid, InvalidServerHeaderValue);
+                }
+            }
+
+            if (settings.ProofOfWork is { } proofOfWork)
+            {
+                CheckProofOfWork(proofOfWork, $"{path}/proofOfWork", route: false);
+            }
+        }
+
+        /// <summary>
+        /// The proof-of-work values, judged where a layer sets them. A route's layer carries only the switch: the
+        /// difficulty and lifetime belong to the host's resolved settings, so an override there could only be ignored.
+        /// </summary>
+        private void CheckProofOfWork(ProofOfWorkSettings settings, string path, bool route)
+        {
+            if (settings.Difficulty is { } difficulty)
+            {
+                if (route)
+                {
+                    Add($"{path}/difficulty", ProofOfWorkRouteDifficultyUnexpected, "a route can only override the proof-of-work switch (enabled); set the difficulty on the host");
+                }
+                else if (difficulty is < ProofOfWorkLimits.MinDifficulty or > ProofOfWorkLimits.MaxDifficulty)
+                {
+                    Add(
+                        $"{path}/difficulty",
+                        ProofOfWorkDifficultyInvalid,
+                        $"the difficulty is leading zero bits of SHA-256 and must be {ProofOfWorkLimits.MinDifficulty}-{ProofOfWorkLimits.MaxDifficulty}, got {difficulty}");
+                }
+            }
+
+            if (settings.TokenLifetimeHours is { } hours)
+            {
+                if (route)
+                {
+                    Add($"{path}/tokenLifetimeHours", ProofOfWorkRouteTokenLifetimeUnexpected, "a route can only override the proof-of-work switch (enabled); set the token lifetime on the host");
+                }
+                else if (hours is < ProofOfWorkLimits.MinTokenLifetimeHours or > ProofOfWorkLimits.MaxTokenLifetimeHours)
+                {
+                    Add(
+                        $"{path}/tokenLifetimeHours",
+                        ProofOfWorkTokenLifetimeInvalid,
+                        $"the token lifetime must be {ProofOfWorkLimits.MinTokenLifetimeHours}-{ProofOfWorkLimits.MaxTokenLifetimeHours} hours, got {hours}");
                 }
             }
         }

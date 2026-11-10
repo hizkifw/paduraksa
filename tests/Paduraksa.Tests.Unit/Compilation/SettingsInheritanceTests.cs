@@ -139,6 +139,30 @@ public sealed class SettingsInheritanceTests
             BuiltIn: null,
             First: "edge/1.0",
             Second: "edge/2.0"),
+        new(
+            "proofOfWork.enabled",
+            static s => s.ProofOfWork?.Enabled?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = bool.Parse(v) } },
+            static h => h.ProofOfWork.Enabled ? "true" : "false",
+            BuiltIn: "false",
+            First: "true",
+            Second: "false"),
+        new(
+            "proofOfWork.difficulty",
+            static s => s.ProofOfWork?.Difficulty?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { ProofOfWork = new ProofOfWorkSettings { Difficulty = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.ProofOfWork.Difficulty.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "16",
+            First: "20",
+            Second: "12"),
+        new(
+            "proofOfWork.tokenLifetimeHours",
+            static s => s.ProofOfWork?.TokenLifetimeHours?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { ProofOfWork = new ProofOfWorkSettings { TokenLifetimeHours = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.ProofOfWork.TokenLifetimeHours.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "168",
+            First: "24",
+            Second: "720"),
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
@@ -362,6 +386,7 @@ public sealed class SettingsInheritanceTests
         new("tls", Defaults: ["tls.minimumVersion"], Profile: ["tls.tcpAlpn"], Host: ["tls.http3"]),
         new("hsts", Defaults: ["hsts.enabled"], Profile: ["hsts.maxAge"], Host: ["hsts.includeSubDomains", "hsts.preload"]),
         new("serverHeader", Defaults: [], Profile: ["serverHeader.value"], Host: ["serverHeader.mode"]),
+        new("proofOfWork", Defaults: ["proofOfWork.enabled"], Profile: ["proofOfWork.difficulty"], Host: ["proofOfWork.tokenLifetimeHours"]),
     ];
 
     /// <summary>

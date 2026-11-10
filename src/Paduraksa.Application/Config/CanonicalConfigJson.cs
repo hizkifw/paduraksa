@@ -321,7 +321,11 @@ public static class CanonicalConfigJson
 
     private static RouteConfig Canonical(RouteConfig route) => route with
     {
-        Settings = (route.Settings ?? new()) with { IpAllowList = Canonical(route.Settings?.IpAllowList) },
+        Settings = (route.Settings ?? new()) with
+        {
+            IpAllowList = Canonical(route.Settings?.IpAllowList),
+            ProofOfWork = DropIfNothingSet(route.Settings?.ProofOfWork),
+        },
     };
 
     private static HostSettings Canonical(HostSettings? settings)
@@ -333,6 +337,7 @@ public static class CanonicalConfigJson
             IpAllowList = Canonical(settings.IpAllowList),
             Hsts = DropIfNothingSet(settings.Hsts),
             ServerHeader = DropIfNothingSet(settings.ServerHeader),
+            ProofOfWork = DropIfNothingSet(settings.ProofOfWork),
         };
     }
 

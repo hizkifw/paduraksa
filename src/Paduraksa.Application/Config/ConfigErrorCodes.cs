@@ -29,6 +29,10 @@ public static class ConfigErrorCodes
     public const string HstsPreloadMaxAgeTooShort = "hsts.preload.maxAgeTooShort";
     public const string ServerHeaderValueRequired = "serverHeader.value.required";
     public const string ServerHeaderValueInvalid = "serverHeader.value.invalid";
+    public const string ProofOfWorkDifficultyInvalid = "proofOfWork.difficulty.invalid";
+    public const string ProofOfWorkTokenLifetimeInvalid = "proofOfWork.tokenLifetimeHours.invalid";
+    public const string ProofOfWorkRouteDifficultyUnexpected = "proofOfWork.route.difficultyUnexpected";
+    public const string ProofOfWorkRouteTokenLifetimeUnexpected = "proofOfWork.route.tokenLifetimeHoursUnexpected";
     public const string TrustedProxiesProxiesRequired = "trustedProxies.proxies.required";
     public const string TrustedProxiesProxiesUnexpected = "trustedProxies.proxies.unexpected";
     public const string TrustedProxiesHeaderInvalid = "trustedProxies.header.invalid";

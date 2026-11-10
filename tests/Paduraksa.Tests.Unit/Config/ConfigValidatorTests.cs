@@ -866,6 +866,49 @@ public sealed class ConfigValidatorTests
         Assert.Contains("inherited from the global defaults", error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ChecksProofOfWorkInEveryLayerAndRefusesRouteParameters()
+    {
+        var document = Valid();
+        HostSettings valid = new() { ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = ProofOfWorkLimits.MinDifficulty, TokenLifetimeHours = 24 } };
+        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = valid } }));
+        Assert.Empty(ConfigValidator.Validate(document with { Profiles = [document.Profiles[0] with { Settings = valid }] }));
+        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = valid }) }));
+
+        HostSettings lowDifficulty = new() { ProofOfWork = new ProofOfWorkSettings { Difficulty = ProofOfWorkLimits.MinDifficulty - 1 } };
+        HostSettings highDifficulty = new() { ProofOfWork = new ProofOfWorkSettings { Difficulty = ProofOfWorkLimits.MaxDifficulty + 1 } };
+        HostSettings shortLifetime = new() { ProofOfWork = new ProofOfWorkSettings { TokenLifetimeHours = ProofOfWorkLimits.MinTokenLifetimeHours - 1 } };
+        HostSettings longLifetime = new() { ProofOfWork = new ProofOfWorkSettings { TokenLifetimeHours = ProofOfWorkLimits.MaxTokenLifetimeHours + 1 } };
+        AssertErrors(
+            document with { Settings = document.Settings with { Defaults = lowDifficulty } },
+            ("/settings/defaults/proofOfWork/difficulty", ProofOfWorkDifficultyInvalid));
+        AssertErrors(
+            document with { Profiles = [document.Profiles[0] with { Settings = highDifficulty }] },
+            ("/profiles/0/settings/proofOfWork/difficulty", ProofOfWorkDifficultyInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = shortLifetime }) },
+            ($"{Proxy}/settings/proofOfWork/tokenLifetimeHours", ProofOfWorkTokenLifetimeInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = longLifetime }) },
+            ($"{Proxy}/settings/proofOfWork/tokenLifetimeHours", ProofOfWorkTokenLifetimeInvalid));
+
+        // A route overrides only the switch: the difficulty and lifetime are the host's.
+        var route = new RouteConfig(RootRoute, AppUpstream, Settings: new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = true } });
+        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Routes = [route] }) }));
+        AssertErrors(
+            document with
+            {
+                Hosts = MapHost(document, AppHost, h => h with { Routes = [route with { Settings = new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Difficulty = 16 } } }] }),
+            },
+            ($"{Proxy}/routes/0/settings/proofOfWork/difficulty", ProofOfWorkRouteDifficultyUnexpected));
+        AssertErrors(
+            document with
+            {
+                Hosts = MapHost(document, AppHost, h => h with { Routes = [route with { Settings = new RouteSettings { ProofOfWork = new ProofOfWorkSettings { TokenLifetimeHours = 24 } } }] }),
+            },
+            ($"{Proxy}/routes/0/settings/proofOfWork/tokenLifetimeHours", ProofOfWorkRouteTokenLifetimeUnexpected));
+    }
+
     /// <summary>Validates <paramref name="document"/> as written and expects exactly these errors, in order.</summary>
     private static void AssertErrors(ConfigDocument document, params (string Path, string Code)[] expected)
     {

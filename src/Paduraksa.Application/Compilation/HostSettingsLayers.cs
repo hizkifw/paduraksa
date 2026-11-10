@@ -17,7 +17,7 @@ namespace Paduraksa.Application.Compilation;
 /// below, then its validator rules, its dashboard field and the tests.</para>
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
-/// <see cref="HostSettings.ServerHeader"/>) merge field by field and stay absent when neither layer sets a field of
+/// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>) merge field by field and stay absent when neither layer sets a field of
 /// theirs. The IP allow list replaces as a whole, and an empty one means no restriction (that is how a layer lifts an
 /// inherited list). Everything else is a plain override.</para>
 /// </remarks>
@@ -36,6 +36,9 @@ public static class HostSettingsLayers
     private const bool BuiltInAccessLog = true;
     private const RequestIdPropagation BuiltInRequestIdPropagation = RequestIdPropagation.UpstreamAndResponse;
     private const ServerHeaderMode BuiltInServerHeaderMode = ServerHeaderMode.Paduraksa;
+    private const bool BuiltInProofOfWorkEnabled = false;
+    private const int BuiltInProofOfWorkDifficulty = ProofOfWorkLimits.DefaultDifficulty;
+    private const int BuiltInProofOfWorkTokenLifetimeHours = ProofOfWorkLimits.DefaultTokenLifetimeHours;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -47,6 +50,12 @@ public static class HostSettingsLayers
         AccessLog = BuiltInAccessLog,
         RequestIdPropagation = BuiltInRequestIdPropagation,
         ServerHeader = new ServerHeaderSettings { Mode = BuiltInServerHeaderMode },
+        ProofOfWork = new ProofOfWorkSettings
+        {
+            Enabled = BuiltInProofOfWorkEnabled,
+            Difficulty = BuiltInProofOfWorkDifficulty,
+            TokenLifetimeHours = BuiltInProofOfWorkTokenLifetimeHours,
+        },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -71,6 +80,7 @@ public static class HostSettingsLayers
             AccessLog = upper.AccessLog ?? lower.AccessLog,
             RequestIdPropagation = upper.RequestIdPropagation ?? lower.RequestIdPropagation,
             ServerHeader = Merge(lower.ServerHeader, upper.ServerHeader),
+            ProofOfWork = Merge(lower.ProofOfWork, upper.ProofOfWork),
         };
     }
 
@@ -141,6 +151,25 @@ public static class HostSettingsLayers
         return merged is { Mode: null, Value: null } ? null : merged;
     }
 
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static ProofOfWorkSettings? Merge(ProofOfWorkSettings? lower, ProofOfWorkSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        ProofOfWorkSettings merged = new()
+        {
+            Enabled = upper.Enabled ?? lower?.Enabled,
+            Difficulty = upper.Difficulty ?? lower?.Difficulty,
+            TokenLifetimeHours = upper.TokenLifetimeHours ?? lower?.TokenLifetimeHours,
+        };
+
+        return merged is { Enabled: null, Difficulty: null, TokenLifetimeHours: null } ? null : merged;
+    }
+
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
     /// host); null layers are skipped, and the built-in defaults sit underneath them all.</summary>
     internal static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers) => Concrete(MergeAll(layers));
@@ -148,6 +177,13 @@ public static class HostSettingsLayers
     /// <summary>The effective allow list of a route: its own when set, else the host's.</summary>
     internal static IpAllowListSettings? ResolveRoute(EffectiveHostSettings host, RouteSettings? route) =>
         route?.IpAllowList is { } own ? Restriction(own) : host.IpAllowList;
+
+    /// <summary>The effective proof of work of a route: its own switch over the host's resolved values.</summary>
+    internal static HostProofOfWorkSpec ResolveRouteProofOfWork(EffectiveHostSettings host, RouteSettings? route) =>
+        route?.ProofOfWork?.Enabled is { } enabled ? host.ProofOfWork with { Enabled = enabled } : host.ProofOfWork;
+
+    /// <summary>Whether the route's own layer decides its proof-of-work switch.</summary>
+    internal static bool RouteOverridesProofOfWork(RouteSettings? route) => route?.ProofOfWork?.Enabled is not null;
 
     /// <summary>Whether two effective allow lists restrict the same way (both null, or the same addresses in the same
     /// order and the same denial).</summary>
@@ -197,6 +233,7 @@ public static class HostSettingsLayers
         var tls = settings.Tls ?? new TlsSettings();
         var hsts = settings.Hsts ?? new HstsSettings();
         var server = settings.ServerHeader ?? new ServerHeaderSettings();
+        var proofOfWork = settings.ProofOfWork ?? new ProofOfWorkSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -221,6 +258,12 @@ public static class HostSettingsLayers
 
                 // No built-in value: only the Custom mode sends one, and the validator requires it there.
                 Value = server.Value,
+            },
+            new HostProofOfWorkSpec
+            {
+                Enabled = proofOfWork.Enabled ?? BuiltInProofOfWorkEnabled,
+                Difficulty = proofOfWork.Difficulty ?? BuiltInProofOfWorkDifficulty,
+                TokenLifetimeHours = proofOfWork.TokenLifetimeHours ?? BuiltInProofOfWorkTokenLifetimeHours,
             });
     }
 
@@ -250,6 +293,7 @@ public enum SettingsLayer
 /// <param name="AccessLog">Write a line per request to the access log (built-in default: on).</param>
 /// <param name="RequestIdPropagation">Where the request ID is sent (built-in default: upstream and response).</param>
 /// <param name="ServerHeader">Concrete <c>Server</c> header settings.</param>
+/// <param name="ProofOfWork">Concrete proof-of-work settings.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -257,4 +301,5 @@ internal sealed record EffectiveHostSettings(
     HostHstsSpec Hsts,
     bool AccessLog,
     RequestIdPropagation RequestIdPropagation,
-    HostServerHeaderSpec ServerHeader);
+    HostServerHeaderSpec ServerHeader,
+    HostProofOfWorkSpec ProofOfWork);

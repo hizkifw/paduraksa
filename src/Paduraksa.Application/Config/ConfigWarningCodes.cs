@@ -27,4 +27,8 @@ public static class ConfigWarningCodes
 
     /// <summary>An upstream with HTTPS destinations accepts any certificate (<c>tls.trust: any</c>).</summary>
     public const string UpstreamTlsUnverified = "upstream.tls.unverified";
+
+    /// <summary>The proof-of-work gate is on for a host that also answers plain HTTP without forcing HTTPS, where its
+    /// cookie cannot be marked <c>Secure</c>.</summary>
+    public const string ProofOfWorkInsecureCookie = "proofOfWork.insecureCookie";
 }

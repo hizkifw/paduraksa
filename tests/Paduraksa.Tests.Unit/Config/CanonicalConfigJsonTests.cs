@@ -78,7 +78,7 @@ public sealed class CanonicalConfigJsonTests
     public void NewHostSettingKeysFollowTheRecordsOrder()
     {
         // A new field goes at the end of the record, so the keys a stored document writes keep their order: HSTS, the
-        // access log, the request ID's destination, then the Server header.
+        // access log, the request ID's destination, the Server header, then proof of work.
         ConfigDocument document = new(
             Hosts:
             [
@@ -91,6 +91,7 @@ public sealed class CanonicalConfigJsonTests
                         AccessLog = false,
                         RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
                         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Remove },
+                        ProofOfWork = new ProofOfWorkSettings { Enabled = true },
                     },
                     Routes: [new RouteConfig(RootRoute, AppUpstream)]),
             ]);
@@ -101,7 +102,8 @@ public sealed class CanonicalConfigJsonTests
         var accessLog = json.IndexOf("\"accessLog\":", StringComparison.Ordinal);
         var propagation = json.IndexOf("\"requestIdPropagation\":", StringComparison.Ordinal);
         var serverHeader = json.IndexOf("\"serverHeader\":", StringComparison.Ordinal);
-        Assert.True(hsts > 0 && accessLog > hsts && propagation > accessLog && serverHeader > propagation, json);
+        var proofOfWork = json.IndexOf("\"proofOfWork\":", StringComparison.Ordinal);
+        Assert.True(hsts > 0 && accessLog > hsts && propagation > accessLog && serverHeader > propagation && proofOfWork > serverHeader, json);
     }
 
     [Fact]
@@ -300,6 +302,39 @@ public sealed class CanonicalConfigJsonTests
 
         Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(custom));
         Assert.Equal(CanonicalConfigJson.Serialize(custom), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(custom))));
+    }
+
+    [Fact]
+    public void ANullProofOfWorkLayerAddsNoKeyAndItsValuesChangeTheHash()
+    {
+        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
+        Assert.DoesNotContain("proofofwork", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
+
+        var emptyLayer = without with
+        {
+            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, ProofOfWork = new ProofOfWorkSettings() } }],
+        };
+        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
+
+        var enabled = without with
+        {
+            Hosts =
+            [
+                without.Hosts[0] with
+                {
+                    Settings = new HostSettings { ForceHttps = true, ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 20, TokenLifetimeHours = 24 } },
+                    Routes =
+                    [
+                        new RouteConfig(RootRoute, AppUpstream, Settings: new RouteSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = false } }),
+                    ],
+                },
+            ],
+        };
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(enabled));
+        Assert.Contains("\"proofOfWork\":{\"enabled\":true,\"difficulty\":20,\"tokenLifetimeHours\":24}", json, StringComparison.Ordinal);
+        Assert.Contains("\"proofOfWork\":{\"enabled\":false}", json, StringComparison.Ordinal);
+        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(enabled));
+        Assert.Equal(CanonicalConfigJson.Serialize(enabled), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(enabled))));
     }
 
     [Fact]
