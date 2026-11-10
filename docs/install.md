@@ -217,6 +217,21 @@ docker compose up -d
 Read PLAN §8.3 before rotating: the order (new key stored first, then rotate, then retire the old one) is what makes a
 crash safe.
 
+### HTTPS upstreams
+
+An `https://` destination is verified like a browser would: a chain to the system's trusted roots, issued for the name the
+client asked for. Homelab gear with a self-signed certificate (a NAS, a router, Proxmox) fails that, and the error log shows
+`The remote certificate is invalid ... RemoteCertificateNameMismatch, RemoteCertificateChainErrors` with a 502 to the client.
+Set the upstream's **HTTPS certificate trust** (Advanced, in the upstream's form):
+
+- **Pinned fingerprint**: accepts exactly that certificate. Get its SHA-256 fingerprint with
+  `openssl s_client -connect nas.lan:8443 </dev/null | openssl x509 -noout -fingerprint -sha256` and paste it (colons are
+  fine). When the device renews its certificate, add the new fingerprint.
+- **Any certificate**: no verification. Traffic is still encrypted, but anyone on the path can read and change it; the
+  config review warns about it.
+
+If the upstream speaks plain HTTP too, an `http://` destination needs none of this.
+
 ### Health
 
 The image has its own `HEALTHCHECK` (`paduraksa doctor --liveness` → the admin `/healthz` over loopback, 30 s
