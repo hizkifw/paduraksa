@@ -31,8 +31,8 @@ runtimes that do not.
 
    If you prefer to keep the compose file elsewhere, set `build.context` to your checkout (and `dockerfile` to its
    `Dockerfile`), or build the image once with `docker build -t paduraksa:local .` in the repository root and replace
-   the `build:` block with `image: paduraksa:local`. A published release image (`ghcr.io/...`, M11) is a drop-in
-   replacement for either.
+   the `build:` block with `image: paduraksa:local`. The image CI publishes, `ghcr.io/hizkifw/paduraksa:main` (built from every
+   commit on `main` that passes CI, for amd64 and arm64), is a drop-in replacement for either.
 
    **A bind-mounted data directory** (instead of the named volume) must be owned by the container's uid 10001:
 
@@ -41,9 +41,10 @@ runtimes that do not.
    # compose: - ./data:/data
    ```
 
-   **Ports and capabilities.** The default bridge network works because Docker sets the unprivileged-port floor to 0. If
-   you harden the container with `cap_drop: [ALL]`, add `cap_add: [NET_BIND_SERVICE]` back, or exec of the setcap'd
-   apphost fails with EPERM. In Kubernetes "restricted", add
+   **Ports and capabilities.** The default bridge network works because Docker sets the unprivileged-port floor to 0. The
+   compose file runs the container hardened: a read-only root filesystem with a tmpfs `/tmp`, `no-new-privileges`, and
+   `cap_drop: [ALL]` with `cap_add: [NET_BIND_SERVICE]` back. Keep that one capability if you change it, or exec of the
+   setcap'd apphost fails with EPERM. In Kubernetes "restricted", add
    `securityContext.capabilities.add: ["NET_BIND_SERVICE"]`, or set the pod sysctl
    `net.ipv4.ip_unprivileged_port_start=0`.
 
@@ -185,7 +186,7 @@ cd deploy
 docker compose up -d --build
 ```
 
-For a **published image** (replace the `build:` block with `image: ghcr.io/...` first):
+For a **published image** (replace the `build:` block with `image: ghcr.io/hizkifw/paduraksa:main` first):
 
 ```sh
 docker compose pull

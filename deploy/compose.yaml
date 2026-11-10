@@ -7,8 +7,9 @@
 # serves H1/H2 over 443/tcp.
 services:
   paduraksa:
-    # Built from this checkout: run `docker compose up -d --build` in deploy/, with the repository one directory up. Once
-    # a release image is published (M11), replace these two lines with `image: ghcr.io/paduraksa/paduraksa:latest`.
+    # Built from this checkout: run `docker compose up -d --build` in deploy/, with the repository one directory up. To run
+    # the image CI publishes instead, replace these two lines with `image: ghcr.io/hizkifw/paduraksa:main` (a release
+    # tag such as `:0.1` once there is one).
     build:
       context: ..
       dockerfile: Dockerfile
@@ -33,13 +34,19 @@ services:
       #   sudo install -d -o 10001 -g 10001 -m 0750 ./data
       # - ./data:/data
 
-    # Capabilities. The image's apphost carries cap_net_bind_service (setcap) for runtimes without Docker's
-    # net.ipv4.ip_unprivileged_port_start=0 sysctl. If you harden with `cap_drop: [ALL]`, you MUST add it back:
-    #   cap_drop: [ALL]
-    #   cap_add: [NET_BIND_SERVICE]
-    # or exec of /app/paduraksa fails with EPERM. Kubernetes "restricted" needs the same:
+    # Hardening. Paduraksa writes only to /data (and /tmp), so the root filesystem is read-only. Every capability is
+    # dropped except NET_BIND_SERVICE: the apphost carries it as a file capability for runtimes without Docker's
+    # net.ipv4.ip_unprivileged_port_start=0 sysctl, and without it in the bounding set exec of /app/paduraksa fails with
+    # EPERM. Kubernetes "restricted" needs the same:
     #   securityContext: { capabilities: { add: ["NET_BIND_SERVICE"] } }
     # alternatively set net.ipv4.ip_unprivileged_port_start=0 in the pod's sysctls.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
 
     # Master key (PLAN §8.3). Recommended for anything reachable: with PADURAKSA_MASTER_KEY_FILE pointing at a Docker
     # secret, the key never sits in the data directory, so a copy of the volume is not a copy of all your keys.
