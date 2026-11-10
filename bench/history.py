@@ -483,6 +483,9 @@ def throughput_svg(latest: dict) -> str:
             (proxy, by_key[(proxy, scenario, None)]["rps"])
             for proxy in ordered({r["proxy"] for r in latest.get("results", []) if r.get("scenario") == scenario and r.get("rate") is None})
         ]
+        # Best first, so a panel reads as a ranking; Paduraksa keeps its accent colour wherever it lands. The stable
+        # sort keeps the fixed proxy order for ties.
+        bars.sort(key=lambda bar: -bar[1])
         if bars:
             panels.append({"key": scenario, "title": scenario, "bars": bars})
     if not panels:
@@ -510,7 +513,8 @@ def p99_svg(latest: dict) -> str:
     panels = []
     for (scenario, rate) in sorted(groups, key=lambda key: (SCENARIO_ORDER.index(key[0]) if key[0] in SCENARIO_ORDER else 99, key[1])):
         values = groups[(scenario, rate)]
-        bars = [(proxy, values[proxy]) for proxy in ordered(values)]
+        # Best (lowest) first, like the throughput panels.
+        bars = sorted(((proxy, values[proxy]) for proxy in ordered(values)), key=lambda bar: bar[1])
         if bars:
             panels.append({"key": f"{scenario} at {rate:,} req/s", "title": f"{scenario} at {rate:,} req/s", "bars": bars})
     if not panels:
