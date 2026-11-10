@@ -993,26 +993,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     color: var(--mud-palette-success);
 }
 
-.pdk-log-live {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: currentColor;
-    animation: pdk-log-pulse 1.6s var(--pdk-ease-out) infinite;
-}
-
-@keyframes pdk-log-pulse {
-    0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
-    70% { box-shadow: 0 0 0 6px transparent; }
-    100% { box-shadow: 0 0 0 0 transparent; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .pdk-log-live {
-        animation: none;
-    }
-}
-
 /* The drawer body is a grid built for forms. The log viewer is one column that has to fill it: the pane scrolls, the body doesn't,
    so there is no empty area between the last line and the download. */
 .pdk-drawer-body:has(> .pdk-log-viewer) {
@@ -1611,6 +1591,17 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     grid-template-columns: minmax(0, 1fr);
     grid-auto-columns: auto;
     grid-auto-flow: column;
+}
+
+/* Every small icon button is a 36px round target, the size the form rows and drawer heads already use: MudBlazor's own is 26px,
+   too small to hit reliably. Not inside a field (a clear button would push the text) and not a switch's thumb. */
+.mud-icon-button.mud-icon-button-size-small:not(.mud-switch-base):not(.mud-input-control *) {
+    display: inline-grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 50%;
 }
 
 /* The rows' buttons line up with the fields; a switch's thumb is an icon button too, and stays in its track. A 36px circle, centred on

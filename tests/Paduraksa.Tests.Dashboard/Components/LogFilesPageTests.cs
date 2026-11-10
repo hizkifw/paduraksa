@@ -201,7 +201,6 @@ public sealed class LogFilesPageTests
 
         var follow = drawer.Find("button[data-action=follow]");
         Assert.Equal("false", follow.GetAttribute("aria-pressed"));
-        Assert.Empty(drawer.FindAll(".pdk-log-live"));
 
         await drawer.Find("input[data-field=filter]").InputAsync(new() { Value = "boom" });
         await drawer.WaitForStateAsync(() => store.Reads.Exists(read => read.Filter == "boom"));
@@ -211,7 +210,6 @@ public sealed class LogFilesPageTests
 
         await follow.ClickAsync(new());
         Assert.Equal("true", drawer.Find("button[data-action=follow]").GetAttribute("aria-pressed"));
-        Assert.Single(drawer.FindAll(".pdk-log-live"));
         drawer.WaitForAssertion(() => context.JSInterop.VerifyInvoke("paduraksa.logPane.watch"));
         drawer.WaitForAssertion(() => context.JSInterop.VerifyInvoke("paduraksa.logPane.toEnd"));
 
@@ -222,7 +220,6 @@ public sealed class LogFilesPageTests
 
         await drawer.Find("button[data-action=follow]").ClickAsync(new());
         Assert.Equal("false", drawer.Find("button[data-action=follow]").GetAttribute("aria-pressed"));
-        Assert.Empty(drawer.FindAll(".pdk-log-live"));
 
         await Task.Delay(150, Xunit.TestContext.Current.CancellationToken);
         var settled = store.Reads.Count;
@@ -302,7 +299,6 @@ public sealed class LogFilesPageTests
 
         await drawer.WaitForStateAsync(() => drawer.FindAll("[data-section=tail-error]").Count == 1);
         Assert.Equal("false", drawer.Find("button[data-action=follow]").GetAttribute("aria-pressed"));
-        Assert.Empty(drawer.FindAll(".pdk-log-live"));
     }
 
     [Fact]

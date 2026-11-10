@@ -29,10 +29,6 @@
                         title="@(_follow ? "Stop following new lines" : "Follow new lines")" disabled="@_failed" @onclick="ToggleFollow">
                     <MudIcon Icon="@(_follow ? Icons.Material.Rounded.Pause : Icons.Material.Rounded.PlayArrow)" Size="Size.Small" />
                     <span>Follow</span>
-                    @if (_follow)
-                    {
-                        <span class="pdk-log-live" aria-hidden="true"></span>
-                    }
                 </button>
                 <button type="button" class="@($"pdk-log-wrap pdk-log-icon-toggle{(_wrap ? " is-on" : null)}")" aria-pressed="@(_wrap ? "true" : "false")"
                         aria-label="Wrap lines" title="Wrap lines" data-action="wrap" @onclick="() => _wrap = !_wrap">
