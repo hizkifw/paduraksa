@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 
 using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Model;
 
 namespace Paduraksa.Application.Config;
 
@@ -14,9 +15,9 @@ namespace Paduraksa.Application.Config;
 /// </summary>
 /// <remarks>
 /// <para><b>Canonical order.</b> Profiles, upstreams and hosts by ID; destinations by ID (order means nothing to load
-/// balancing). Routes by a <i>stable</i> sort on <see cref="RouteConfig.Order"/>: routes with equal orders keep their
-/// listed order, because that order decides which one matches (first match wins), so the canonical list reads top
-/// to bottom the way requests are matched. Sets (host names, tags, IP allow-list addresses, trusted proxies) are sorted
+/// balancing). Routes by the order their host evaluates them in (<see cref="RouteOrderKey"/>): exact routes first, then
+/// the longest prefix, then <see cref="RouteConfig.Order"/>, then the listed order. The canonical list reads top to
+/// bottom the way requests are matched. Sets (host names, tags, IP allow-list addresses, trusted proxies) are sorted
 /// ordinally without duplicates.</para>
 /// <para><b>Canonical spelling.</b> Host names normalised (<see cref="ConfigNormalization.TryNormalizeHostName"/>).
 /// Addresses and CIDRs in the form the parser prints (<c>2001:DB8::/32</c> → <c>2001:db8::/32</c>, a full-length prefix
@@ -313,11 +314,31 @@ public static class CanonicalConfigJson
         Names = SortedSet(host.Names, ConfigNormalization.CanonicalHostName),
         Certificate = host.Certificate ?? new(),
         Settings = Canonical(host.Settings),
-        Routes = [.. NonNull(host.Routes).OrderBy(r => r.Order).Select(Canonical)], // stable: ties keep the listed order
+        Routes = CanonicalRoutes(host.Routes),
         Redirect = host.Redirect is { } redirect ? redirect with { Target = Trim(redirect.Target) } : null,
         Tags = SortedSet(host.Tags, ConfigNormalization.NormalizeTag),
         Notes = ConfigNormalization.NormalizeNotes(host.Notes),
     };
+
+    private static RouteConfig[] CanonicalRoutes(IReadOnlyList<RouteConfig>? routes)
+    {
+        var items = NonNull(routes).ToArray();
+        var order = new int[items.Length];
+        for (var i = 0; i < order.Length; i++)
+        {
+            order[i] = i;
+        }
+
+        Array.Sort(order, (a, b) => RouteOrderKey.For(items[a].Match, items[a].Path, items[a].Order, a)
+            .CompareTo(RouteOrderKey.For(items[b].Match, items[b].Path, items[b].Order, b)));
+        var canonical = new RouteConfig[items.Length];
+        for (var i = 0; i < items.Length; i++)
+        {
+            canonical[i] = Canonical(items[order[i]]);
+        }
+
+        return canonical;
+    }
 
     private static RouteConfig Canonical(RouteConfig route) => route with
     {

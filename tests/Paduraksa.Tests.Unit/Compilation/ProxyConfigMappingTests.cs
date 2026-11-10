@@ -82,10 +82,10 @@ public sealed class ProxyConfigMappingTests
                     ForceHttps = true,
                     Certificate = Id<CertificateId>(2),
                     Tls = lanTls,
-                    // Canonical (evaluation) order. The routes' lists differ, so each route carries its own.
+                    // Canonical (evaluation) order: the exact route first, then the longest prefix, then the root.
+                    // The routes' lists differ, so each route carries its own.
                     Routes =
                     [
-                        new RouteSpec { Id = ApiRoute, Path = "/api", Upstream = Id<UpstreamId>(2), Policies = [] },
                         new RouteSpec
                         {
                             Id = Id<RouteId>(3),
@@ -94,6 +94,7 @@ public sealed class ProxyConfigMappingTests
                             Upstream = AppUpstream,
                             Policies = [new IpAllowListPolicySpec(["192.168.1.0/24"], DropDenied: true)],
                         },
+                        new RouteSpec { Id = ApiRoute, Path = "/api", Upstream = Id<UpstreamId>(2), Policies = [] },
                         new RouteSpec { Id = RootRoute, Order = 10, Upstream = AppUpstream, Policies = [new IpAllowListPolicySpec(["192.168.0.0/16"])] },
                     ],
                     Policies = [],
@@ -427,13 +428,14 @@ public sealed class ProxyConfigMappingTests
             w => w.Code == ConfigWarningCodes.ProofOfWorkInsecureCookie);
     }
 
-    // One proxy host with two routes ("/" and "/b") under a profile-less, default-less document.
+    // One proxy host with two equally specific routes ("/a" and "/b") under a profile-less, default-less document,
+    // so their listed order is the evaluation order and each index is the route the caller passed.
     private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second)
     {
         var document = Document(null, null, host);
         var config = document.Hosts[0] with
         {
-            Routes = [new RouteConfig(RootRoute, AppUpstream, Settings: first), new RouteConfig(ApiRoute, AppUpstream, Path: "/b", Settings: second)],
+            Routes = [new RouteConfig(RootRoute, AppUpstream, Path: "/a", Settings: first), new RouteConfig(ApiRoute, AppUpstream, Path: "/b", Settings: second)],
         };
         return Assert.Single(ProxyConfigMapping.Map(document with { Hosts = [config] }, Revision, CertificateInventory.Empty).Model.Hosts);
     }

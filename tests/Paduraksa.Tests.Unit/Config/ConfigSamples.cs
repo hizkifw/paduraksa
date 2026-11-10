@@ -248,7 +248,8 @@ internal static class ConfigSamples
             {
                 Names = WithDuplicates([.. h.Names.Select(n => random.Next(2) == 0 ? $" {n.ToUpperInvariant()}. " : n)]),
                 Settings = Settings(h.Settings),
-                // Routes keep their listed order: among equal orders it decides which one matches.
+                // Routes keep their listed order: canonicalisation only reorders routes that differ in kind, path
+                // length or Order, and this list order is the final tiebreaker.
                 Routes = [.. h.Routes.Select(r => r with { Settings = r.Settings with { IpAllowList = AllowList(r.Settings.IpAllowList) } })],
                 Tags = WithDuplicates([.. h.Tags.Select(t => $" {t.ToUpperInvariant()}")]),
                 Notes = h.Notes ?? string.Empty,

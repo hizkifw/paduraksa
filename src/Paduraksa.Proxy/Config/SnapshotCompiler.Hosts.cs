@@ -271,14 +271,17 @@ public static partial class SnapshotCompiler
             errors.Add(new(where, "a proxy host can't have a redirect or respond setting"));
         }
 
-        // Stable sort by Order: equal orders keep the listed order.
+        // The evaluation order, fixed here so matching stays a scan: exact first, then the longest prefix, then Order,
+        // then as listed. The listed order is the last tiebreaker, never the rule.
+        var keys = new RouteOrderKey[specs.Count];
         var order = new int[specs.Count];
         for (var i = 0; i < order.Length; i++)
         {
+            keys[i] = RouteOrderKey.For(specs[i].Match, specs[i].Path, specs[i].Order, i);
             order[i] = i;
         }
 
-        Array.Sort(order, (a, b) => specs[a].Order != specs[b].Order ? specs[a].Order.CompareTo(specs[b].Order) : a.CompareTo(b));
+        Array.Sort(order, (a, b) => keys[a].CompareTo(keys[b]));
 
         var routes = new CompiledRoute[specs.Count];
         for (var i = 0; i < order.Length; i++)
@@ -341,6 +344,8 @@ public static partial class SnapshotCompiler
 
             var slot = routeIdBySlot.Count;
             routeIdBySlot.Add(spec.Id);
+            // YARP never matches on order: each route's internal path is unique and the gate sets the endpoint
+            // itself. The compiled route order above is the only evaluation order, so these routes carry no Order.
             yarpRoutes.Add(new RouteConfig
             {
                 RouteId = routeId,

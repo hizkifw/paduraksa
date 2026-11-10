@@ -18,7 +18,8 @@ public sealed class CompiledHost
 
     public required HostKind Kind { get; init; }
 
-    /// <summary>Proxy hosts: ordered, first match wins. Empty for the other kinds.</summary>
+    /// <summary>Proxy hosts: the routes in the order they are tried (most specific first); the first match wins.
+    /// Empty for the other kinds.</summary>
     public required CompiledRoute[] Routes { get; init; }
 
     /// <summary>

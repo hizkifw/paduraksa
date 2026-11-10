@@ -11,11 +11,12 @@ namespace Paduraksa.Application.Config;
 /// the dashboard's review sheet, <c>dryRun</c> responses and revision summaries.</summary>
 /// <remarks>
 /// Both documents are canonicalised first, so re-spelling and reordering sets are no change, and every path indexes the
-/// canonical document. Routes are the exception among lists: their order is config (first match wins), so when the
-/// routes a host keeps change their relative order, the host lists its <c>routes</c> field. Fields are compared on
-/// their canonical JSON, so a new field of the model is diffed without touching this class. Order: the document
-/// (<c>apiVersion</c>), the settings, then profiles, upstreams (each followed by its destinations) and hosts (each
-/// followed by its routes), each group by ID. Any document can be compared, valid or not.
+/// canonical document. Routes are the exception among lists: their canonical order is the order the host evaluates them
+/// in (exact first, then the longest prefix, then <c>Order</c>, then as listed), so when the routes a host keeps change
+/// that relative order, the host lists its <c>routes</c> field. Fields are compared on their canonical JSON, so a new
+/// field of the model is diffed without touching this class. Order: the document (<c>apiVersion</c>), the settings, then
+/// profiles, upstreams (each followed by its destinations) and hosts (each followed by its routes), each group by ID.
+/// Any document can be compared, valid or not.
 /// </remarks>
 public static class ConfigDiff
 {

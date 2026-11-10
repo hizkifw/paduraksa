@@ -39,7 +39,7 @@ public sealed class SimulatorParityTests : IDisposable
     [
         "app.test", "APP.test:8080", "x.app.test", "a.b.app.test", "secure.test", "old.test", "soon.test", "strict.test", "h1.test",
         "noh3.test", "plain.test", "locked.test", "unknown.test", "admin.test", "[::1]", "full.test", "localhost", "app.localhost",
-        "127.0.0.1", "127.0.0.1:8443", "pow.test", "open.test", string.Empty,
+        "127.0.0.1", "127.0.0.1:8443", "pow.test", "open.test", "shadow.test", string.Empty,
     ];
 
     private static readonly string[] Paths = ["/", "/api/x", "/health", "/health/x", "/blocked", "/drop", "/API/../api", "/%2Fapi", "/nothing", "/a;b/api", "/protect"];
@@ -249,6 +249,21 @@ public sealed class SimulatorParityTests : IDisposable
         Assert.Contains("admin route", route.Summary, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ACatchAllListedFirstStillTracesTheMoreSpecificRoute()
+    {
+        using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
+        Wire wire = new("shadow.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/api/x", Lan);
+
+        Assert.Equal(1, await fixture.CompareAsync(wire));
+        var run = fixture.Simulate(wire);
+
+        Assert.Equal((GateOutcomeAction.Respond, GateReason.RoutePolicy, 451), (run.Outcome.Action, run.Outcome.Reason, run.Outcome.StatusCode));
+        var step = Assert.Single(run.Steps, s => s.Kind == GateStepKind.RouteMatch);
+        Assert.Equal(TestIds.Route("shadow-api"), step.Route);
+        Assert.Equal("/api", Assert.Single(step.Facts, fact => fact.Name == "routePath").Value);
+    }
+
     private static ProxyConfigModel Model(DefaultsSpec defaults) => new()
     {
         Upstreams = [Upstream("web", "http://127.0.0.1:1/"), Upstream("api", "http://127.0.0.1:2/", "http://127.0.0.1:3/")],
@@ -317,6 +332,17 @@ public sealed class SimulatorParityTests : IDisposable
                 [
                     Route("open-protect", "web", "/protect") with { ProofOfWork = Spec, ProofOfWorkRouteOverride = true },
                     Route("open-root", "web"),
+                ],
+            },
+            new HostSpec
+            {
+                // The catch-all is listed first: the more specific route must still win, and its policy must run.
+                Id = TestIds.Host("shadow"),
+                Names = ["shadow.test"],
+                Routes =
+                [
+                    Route("shadow-root", "web"),
+                    Route("shadow-api", "api", "/api") with { Policies = [new DenyPolicySpec(451, "legal\n")] },
                 ],
             },
             new HostSpec { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, ForceHttps = true },

@@ -59,4 +59,28 @@ public sealed class PathMatchingEndToEndTests(TestUpstream upstream) : IClassFix
 
         Assert.Equal(200, status);
     }
+
+    [Fact]
+    public async Task ACatchAllListedFirstDoesNotShadowTheMoreSpecificRoute()
+    {
+        var config = Config with
+        {
+            Hosts =
+            [
+                ProxyHost(
+                    "guard",
+                    "guard.test",
+                    Route("guard-root", "ua"),
+                    Route("guard-admin", "ua", "/admin") with { Policies = [new DenyPolicySpec(403, "denied\n")] }),
+            ],
+        };
+        await using var server = await ProxyTestServer.StartAsync(config);
+
+        var (adminStatus, adminBody, _) = await RawHttp.GetAsync(server.BaseAddress, "guard.test", "/admin/x", TestContext.Current.CancellationToken);
+        Assert.Equal(403, adminStatus);
+        Assert.Equal("denied\n", adminBody);
+
+        var (rootStatus, _, _) = await RawHttp.GetAsync(server.BaseAddress, "guard.test", "/x", TestContext.Current.CancellationToken);
+        Assert.Equal(200, rootStatus);
+    }
 }

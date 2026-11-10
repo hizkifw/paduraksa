@@ -34,21 +34,22 @@ public sealed class RouteMatchingTests
         Assert.Equal(expected, Route(RouteMatchKind.Exact, route).Matches(path));
 
     [Fact]
-    public void FirstMatchingRouteWinsInOrder()
+    public void TheFirstRouteInTheEvaluationOrderWins()
     {
-        var api = Route(RouteMatchKind.Prefix, "/api");
         var exact = Route(RouteMatchKind.Exact, "/api/health");
+        var api = Route(RouteMatchKind.Prefix, "/api");
         var root = Route(RouteMatchKind.Prefix, "/");
         CompiledHost host = new()
         {
             Index = 0,
             Id = TestIds.Host("h"),
             Kind = HostKind.Proxy,
-            Routes = [api, exact, root],
+            Routes = [exact, api, root],
             Policies = [],
         };
 
-        Assert.Same(api, host.Match("/api/health"));
+        Assert.Same(exact, host.Match("/api/health"));
+        Assert.Same(api, host.Match("/api/other"));
         Assert.Same(root, host.Match("/other"));
         Assert.Null(new CompiledHost { Index = 0, Id = TestIds.Host("e"), Kind = HostKind.Proxy, Routes = [api], Policies = [] }.Match("/other"));
     }

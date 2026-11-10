@@ -58,7 +58,7 @@ public sealed class SnapshotCompilerTests
         Assert.Same(site, snapshot.Hosts.Find("example.com"));
         Assert.Null(snapshot.Hosts.Find("off.test"));
 
-        // Ordered by Order, then as listed: the /api route (Order 0) comes before the root (Order 10).
+        // Evaluation order: the /api route (longer prefix) comes before the root, whatever their Order.
         var siteApi = TestIds.Route("site-api");
         var siteRoot = TestIds.Route("site-root");
         Assert.Equal([siteApi, siteRoot], site.Routes.Select(r => r.Id));

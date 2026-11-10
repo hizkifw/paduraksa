@@ -138,7 +138,8 @@ public sealed class CompiledBehaviourTests : IDisposable
 
     /// <summary>
     /// The intended behaviour, read straight off the document: TLS checks, then a host-wide block for clients no route
-    /// (or, without routes, the host) admits, the HTTPS redirect, fixed answers, the first matching route and its list.
+    /// (or, without routes, the host) admits, the HTTPS redirect, fixed answers, the first matching route in evaluation
+    /// order and its list.
     /// </summary>
     private static class Reference
     {
@@ -154,7 +155,16 @@ public sealed class CompiledBehaviourTests : IDisposable
             }
 
             var hostList = Restricting(host.Settings.IpAllowList ?? profile?.IpAllowList ?? defaults.IpAllowList);
-            RouteConfig[] routes = [.. host.Routes.OrderBy(r => r.Order)];
+            RouteConfig[] routes =
+            [
+                .. host.Routes
+                    .Select((route, listed) => (Route: route, Listed: listed))
+                    .OrderBy(r => r.Route.Match == RouteMatchKind.Exact ? 0 : 1)
+                    .ThenByDescending(r => r.Route.Path.Length)
+                    .ThenBy(r => r.Route.Order)
+                    .ThenBy(r => r.Listed)
+                    .Select(r => r.Route),
+            ];
             IpAllowListSettings?[] routeLists = [.. routes.Select(r => r.Settings.IpAllowList is { } own ? Restricting(own) : hostList)];
 
             (bool Restricts, IEnumerable<string> Addresses, bool Drop) guard = routes.Length == 0

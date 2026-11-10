@@ -166,31 +166,34 @@ public sealed class ConfigDiffTests
     }
 
     [Fact]
-    public void ReorderingTiedRoutesIsAHostChange()
+    public void ReorderingRoutesOfEqualSpecificityIsAHostChange()
     {
-        RouteConfig api = new(ApiRoute, AppUpstream, Path: "/api");
-        RouteConfig root = new(RootRoute, AppUpstream);
+        RouteConfig a = new(ApiRoute, AppUpstream, Path: "/a");
+        RouteConfig b = new(RootRoute, AppUpstream, Path: "/b");
         RouteConfig extra = new(Id<RouteId>(3), AppUpstream, Path: "/extra");
         static ConfigDocument Document(params RouteConfig[] routes) =>
             new(ConfigDocument.V1, Hosts: [new HostConfig(AppHost, ["a.example.com"], Tags: ["x"], Routes: routes)]);
 
+        // Equal kind, path length and Order: the listed order is the last tiebreaker, so swapping them is a change.
         Assert.Equal(
             [new HostChange(ConfigChangeKind.Modified, AppHost, "/hosts/0", ["/hosts/0/routes"])],
-            ConfigDiff.Compare(Document(api, root), Document(root, api)),
+            ConfigDiff.Compare(Document(a, b), Document(b, a)),
             ChangeComparer.Instance);
 
-        // Adding or removing a route alone keeps the others' relative order: no host change.
+        // Different specificity: the canonical order is the evaluation order, so the listing is no change.
+        RouteConfig api = new(ApiRoute, AppUpstream, Path: "/api");
+        RouteConfig root = new(RootRoute, AppUpstream);
+        Assert.Empty(ConfigDiff.Compare(Document(api, root), Document(root, api)));
+
+        // Adding a longer route puts it first in the canonical list.
         Assert.Equal(
-            [new RouteChange(ConfigChangeKind.Added, AppHost, extra.Id, "/hosts/0/routes/1", [])],
+            [new RouteChange(ConfigChangeKind.Added, AppHost, extra.Id, "/hosts/0/routes/0", [])],
             ConfigDiff.Compare(Document(api, root), Document(api, extra, root)),
             ChangeComparer.Instance);
 
-        // A new order that moves a route past another: the route's order and the host's route order both change.
+        // Order no longer moves a route past a different path; it is only the route's own field.
         Assert.Equal(
-            [
-                new HostChange(ConfigChangeKind.Modified, AppHost, "/hosts/0", ["/hosts/0/routes"]),
-                new RouteChange(ConfigChangeKind.Modified, AppHost, ApiRoute, "/hosts/0/routes/1", ["/hosts/0/routes/1/order"]),
-            ],
+            [new RouteChange(ConfigChangeKind.Modified, AppHost, ApiRoute, "/hosts/0/routes/0", ["/hosts/0/routes/0/order"])],
             ConfigDiff.Compare(Document(api, root), Document(api with { Order = 5 }, root)),
             ChangeComparer.Instance);
     }

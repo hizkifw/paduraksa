@@ -209,7 +209,8 @@ public sealed record HostSpec
     /// <summary>The host's proof-of-work switch and parameters; each route's own switch may override it.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 
-    /// <summary>Proxy hosts only; ordered by <see cref="RouteSpec.Order"/>, then as listed.</summary>
+    /// <summary>Proxy hosts only; listed in the order the host evaluates them: exact first, then the longest prefix,
+    /// then <see cref="RouteSpec.Order"/>, then as listed.</summary>
     public IReadOnlyList<RouteSpec> Routes { get; init; } = [];
 
     /// <summary>Host-level chain; runs before each route's own policies.</summary>
@@ -232,7 +233,8 @@ public sealed record RouteSpec
     /// <summary>Starts with <c>/</c>; no query or fragment.</summary>
     public string Path { get; init; } = "/";
 
-    /// <summary>Lower runs first; equal orders keep their listed order.</summary>
+    /// <summary>A specificity tiebreaker between routes of equal match kind and path length; equal orders keep the
+    /// listed order.</summary>
     public int Order { get; init; }
 
     /// <summary>The <see cref="UpstreamSpec"/> to proxy to.</summary>

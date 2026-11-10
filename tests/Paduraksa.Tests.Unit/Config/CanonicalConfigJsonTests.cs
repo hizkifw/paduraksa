@@ -153,32 +153,58 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
-    public void SortsObjectsByIdAndRoutesStablyByOrder()
+    public void SortsObjectsByIdAndRoutesByEvaluationOrder()
     {
-        static RouteConfig Route(int id, int order) => new(Id<RouteId>(id), AppUpstream, order);
+        static RouteConfig Route(int id, int order, string path = "/", RouteMatchKind match = RouteMatchKind.Prefix) =>
+            new(Id<RouteId>(id), AppUpstream, order, match, path);
         ConfigDocument document = new(Hosts:
         [
             new HostConfig(Id<HostId>(9), ["b.example.com"]),
-            new HostConfig(Id<HostId>(4), ["a.example.com"], Routes: [Route(5, 10), Route(3, 0), Route(1, 10), Route(2, 0)]),
+            new HostConfig(
+                Id<HostId>(4),
+                ["a.example.com"],
+                Routes:
+                [
+                    Route(5, 10),                              // /, Order 10
+                    Route(3, 10, "/api/v1"),                    // the longest prefix
+                    Route(1, 10, "/api", RouteMatchKind.Exact), // exact first, whatever its length
+                    Route(2, 0, "/a"),                          // /a before / at equal Order
+                    Route(4, 0),                                // /, Order 0, before route 5
+                ]),
         ]);
 
         var canonical = CanonicalConfigJson.Canonicalize(document);
 
         Assert.Equal([Id<HostId>(4), Id<HostId>(9)], canonical.Hosts.Select(h => h.Id));
-        Assert.Equal([Id<RouteId>(3), Id<RouteId>(2), Id<RouteId>(5), Id<RouteId>(1)], canonical.Hosts[0].Routes.Select(r => r.Id));
+        Assert.Equal([Id<RouteId>(1), Id<RouteId>(3), Id<RouteId>(2), Id<RouteId>(4), Id<RouteId>(5)], canonical.Hosts[0].Routes.Select(r => r.Id));
     }
 
     [Fact]
-    public void ListedOrderOfTiedRoutesIsConfig()
+    public void RoutesOfDifferentSpecificityOrderBySpecificityNotByListing()
     {
-        // A newer /api listed before an older catch-all: /api matches first. Swapping them is a different config.
+        // A newer /api listed before an older catch-all, or the other way round: both are evaluated api first.
         RouteConfig api = new(Id<RouteId>(2), AppUpstream, Path: "/api");
         RouteConfig root = new(Id<RouteId>(1), AppUpstream);
         static ConfigDocument Document(params RouteConfig[] routes) =>
             new(ConfigDocument.V1, Hosts: [new HostConfig(AppHost, ["a.example.com"], Routes: routes)]);
 
         Assert.Equal([api.Id, root.Id], CanonicalConfigJson.Canonicalize(Document(api, root)).Hosts[0].Routes.Select(r => r.Id));
-        Assert.NotEqual(CanonicalConfigJson.Serialize(Document(api, root)), CanonicalConfigJson.Serialize(Document(root, api)));
+        Assert.Equal([api.Id, root.Id], CanonicalConfigJson.Canonicalize(Document(root, api)).Hosts[0].Routes.Select(r => r.Id));
+        Assert.Equal(CanonicalConfigJson.Serialize(Document(api, root)), CanonicalConfigJson.Serialize(Document(root, api)));
+    }
+
+    [Fact]
+    public void ListedOrderOfEqualSpecificityIsConfig()
+    {
+        // Same kind, path length and Order: nothing else distinguishes them, so the listed order is kept and counts.
+        RouteConfig a = new(Id<RouteId>(1), AppUpstream, Path: "/a");
+        RouteConfig b = new(Id<RouteId>(2), AppUpstream, Path: "/b");
+        static ConfigDocument Document(params RouteConfig[] routes) =>
+            new(ConfigDocument.V1, Hosts: [new HostConfig(AppHost, ["a.example.com"], Routes: routes)]);
+
+        Assert.Equal([a.Id, b.Id], CanonicalConfigJson.Canonicalize(Document(a, b)).Hosts[0].Routes.Select(r => r.Id));
+        Assert.Equal([b.Id, a.Id], CanonicalConfigJson.Canonicalize(Document(b, a)).Hosts[0].Routes.Select(r => r.Id));
+        Assert.NotEqual(CanonicalConfigJson.Serialize(Document(a, b)), CanonicalConfigJson.Serialize(Document(b, a)));
     }
 
     [Theory]

@@ -11,8 +11,9 @@ namespace Paduraksa.Contracts.Config;
 /// </summary>
 /// <remarks>
 /// <para>Routes and destinations are entries of their own, listed right after their parent and only when the parent
-/// exists on both sides. Route order is config (first match wins): when the routes a host keeps come in a different
-/// relative order, the host lists its <c>routes</c> field.</para>
+/// exists on both sides. Route order is config as the last tiebreaker (same match kind, path length and
+/// <c>Order</c>): the canonical order is the one the host evaluates, so when the routes a host keeps come in a
+/// different relative order, the host lists its <c>routes</c> field.</para>
 /// <para>Version changes alone aren't changes: the version is concurrency metadata, not config.</para>
 /// </remarks>
 /// <param name="Kind">What happened to the object.</param>

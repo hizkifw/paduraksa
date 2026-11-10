@@ -16,9 +16,9 @@ namespace Paduraksa.Contracts.Config;
 /// <param name="ProfileId">The profile layer, between the global defaults and this host; null = none.</param>
 /// <param name="Certificate">Which certificate this host's names are served with; null = <see cref="CertificateBindingMode.Auto"/>.</param>
 /// <param name="Settings">The host layer of settings; unset fields inherit.</param>
-/// <param name="Routes">Proxy hosts only (at least one). Matched by ascending <see cref="RouteConfig.Order"/>, first
-/// match wins; routes with equal orders keep their listed order (nginx-location style), so the list order is part of
-/// the config. Canonical order: a stable sort by order, which is the evaluation order.</param>
+/// <param name="Routes">Proxy hosts only (at least one). The most specific path wins, whatever the list order: exact
+/// routes before prefixes, then a longer prefix before a shorter one, then <see cref="RouteConfig.Order"/>, then the
+/// listed order. Canonical order: that evaluation order.</param>
 /// <param name="Redirect">Redirect hosts only (required).</param>
 /// <param name="Respond">Respond hosts only (required).</param>
 /// <param name="Tags">Free-form labels for filtering; a set. Canonical form: trimmed, lowercase, sorted, no
@@ -74,7 +74,8 @@ public enum CertificateBindingMode
 /// <summary>One route of a proxy host.</summary>
 /// <param name="Id">Identity; unique across all hosts.</param>
 /// <param name="UpstreamId">The upstream to proxy to.</param>
-/// <param name="Order">Lower runs first; equal orders keep their listed order.</param>
+/// <param name="Order">A specificity tiebreaker: lower runs first between routes of equal match kind and path length;
+/// equal orders keep their listed order.</param>
 /// <param name="Match">How <paramref name="Path"/> matches.</param>
 /// <param name="Path">Starts with <c>/</c>; decoded and canonical (no <c>\</c>, <c>//</c>, <c>;</c>, dot segments,
 /// percent-encoding, query or fragment). Matching ignores case, but the path keeps the case it was written in; two
