@@ -1,16 +1,14 @@
-using System.Net;
-using System.Security.Cryptography;
-using System.Text;
-
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
+
+using Paduraksa.Proxy.Pages;
 
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>
-/// The challenge page, pre-split into byte segments around the per-request challenge and return target, one template per
-/// token lifetime and difficulty. The inline script and style are hashed once at type initialization for the page's CSP;
-/// there are no external resources at all, and the whole page is ASCII.
+/// The challenge page, built on the shared <see cref="HtmlPageTemplate"/>: the layout, style and script are pre-split
+/// into byte segments once, and a request writes only the challenge, the return target and the difficulty into it. The
+/// inline style and script are hashed once for the page's CSP; there are no external resources at all, and the whole
+/// page is ASCII.
 /// </summary>
 /// <remarks>
 /// The script's SHA-256 is written in the script itself (pure JS) because <c>crypto.subtle</c> is unavailable on a
@@ -19,9 +17,8 @@ namespace Paduraksa.Proxy.Gate;
 /// </remarks>
 internal sealed class ProofOfWorkPage
 {
-    // Colours are the brand's (the dashboard's favicon), so the gate reads as Paduraksa's own page.
-    private const string Style = """
-        :root{color-scheme:light dark;--bg:#f5f5f3;--fg:#111110;--muted:#5d5c58;--track:#e2e1dc}@media (prefers-color-scheme:dark){:root{--bg:#111110;--fg:#e7e5e0;--muted:#9a988f;--track:#2b2b29}}html{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg)}main{display:flex;flex-direction:column;align-items:center;gap:.6rem;max-width:22rem;padding:2rem;text-align:center}svg{width:44px;height:44px;margin-bottom:.4rem}h1{font-size:1.05rem;font-weight:600;margin:0}p{margin:0;font-size:.9rem;color:var(--muted)}.bar{width:9rem;height:3px;margin-top:.6rem;border-radius:3px;background:var(--track);overflow:hidden}.bar::after{content:"";display:block;width:40%;height:100%;border-radius:3px;background:var(--fg);animation:slide 1.1s ease-in-out infinite}@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(250%)}}@media (prefers-reduced-motion:reduce){.bar::after{animation:none;width:100%;opacity:.35}}#progress:empty{display:none}footer{position:fixed;bottom:1.25rem;left:0;right:0;text-align:center;font-size:.75rem}footer a{color:var(--muted);text-decoration:none}footer a:hover{text-decoration:underline}
+    private const string Body = """
+        <h1>Checking your browser</h1><noscript><p>Enable JavaScript to continue.</p></noscript><div class="bar" aria-hidden="true"></div><p id="progress" role="status" aria-live="polite"></p><form id="pow" method="post" action="/.well-known/paduraksa/pow" hidden><input id="challenge" name="challenge" type="hidden" value="{challenge}"><input id="solution" name="solution" type="hidden" value=""><input id="return" name="return" type="hidden" value="{return}"><input id="difficulty" type="hidden" value="{difficulty}"></form>
         """;
 
     private const string Script = """
@@ -63,72 +60,29 @@ internal sealed class ProofOfWorkPage
         })();
         """;
 
-    private static readonly PrecomputedHeader[] Headers =
-    [
-        new("Content-Security-Policy", new StringValues(
-            $"default-src 'none'; script-src '{Hash(Script)}'; style-src '{Hash(Style)}'; worker-src blob:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")),
-        new("Referrer-Policy", new StringValues("no-referrer")),
-        new("X-Content-Type-Options", new StringValues("nosniff")),
-    ];
+    private static readonly HtmlPageTemplate Template = HtmlPageTemplate.Create(
+        "Checking your browser", Body, Script, "worker-src blob:", allowForm: true, slots: ["challenge", "return", "difficulty"]);
 
-    private readonly byte[] _head;
-    private readonly byte[] _middle;
-    private readonly byte[] _tail;
+    private readonly string _difficulty;
 
     public ProofOfWorkPage(int difficulty)
     {
-        string head = string.Concat(
-            "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
-            "<title>Checking your browser</title><style>", Style, "</style></head><body><main>",
-            "<svg viewBox=\"0 0 32 32\" role=\"img\" aria-label=\"Paduraksa\"><path fill=\"currentColor\" d=\"M4 27V19h2v-5h2V9h2V5h4v22zM28 27V19h-2v-5h-2V9h-2V5h-4v22z\"/>",
-            "<rect fill=\"currentColor\" opacity=\"0.45\" x=\"2\" y=\"28\" width=\"28\" height=\"2\" rx=\"1\"/></svg>",
-            "<h1>Checking your browser</h1>",
-            "<noscript><p>Enable JavaScript to continue.</p></noscript>",
-            "<div class=\"bar\" aria-hidden=\"true\"></div>",
-            "<p id=\"progress\" role=\"status\" aria-live=\"polite\"></p>",
-            "<form id=\"pow\" method=\"post\" action=\"/.well-known/paduraksa/pow\" hidden>",
-            "<input id=\"challenge\" name=\"challenge\" type=\"hidden\" value=\"");
-        string middle = string.Concat(
-            "\"><input id=\"solution\" name=\"solution\" type=\"hidden\" value=\"\">",
-            "<input id=\"return\" name=\"return\" type=\"hidden\" value=\"");
-        string tail = string.Concat(
-            "\"><input id=\"difficulty\" type=\"hidden\" value=\"",
-            difficulty.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            "\"></form><script>", Script, "</script></main>",
-            "<footer><a href=\"https://github.com/hizkifw/paduraksa\">Protected by Paduraksa</a></footer></body></html>\n");
-        _head = Encoding.ASCII.GetBytes(head);
-        _middle = Encoding.ASCII.GetBytes(middle);
-        _tail = Encoding.ASCII.GetBytes(tail);
+        _difficulty = difficulty.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     /// <summary>The fixed headers the page carries: a strict CSP with the inline script's and style's hashes.</summary>
-    public static PrecomputedHeader[] SecurityHeaders => Headers;
+    public static PrecomputedHeader[] SecurityHeaders => Template.SecurityHeaders;
 
     /// <summary>The page's CSP value, for a test that recomputes the hashes from what the page really contains.</summary>
-    internal static string ContentSecurityPolicy => Headers[0].Value.ToString();
+    internal static string ContentSecurityPolicy => Template.ContentSecurityPolicy;
 
     internal static string ScriptText => Script;
 
-    internal static string StyleText => Style;
+    internal static string StyleText => HtmlPageTemplate.StyleText;
 
     /// <summary>Builds the page for one challenge and return target (the original path and query).</summary>
     public PrecomputedResponse Build(ReadOnlySpan<char> challenge, string returnTarget)
     {
-        var challengeBytes = Encoding.ASCII.GetBytes(challenge.ToString());
-        var returnBytes = Encoding.UTF8.GetBytes(WebUtility.HtmlEncode(returnTarget));
-        var body = new byte[_head.Length + challengeBytes.Length + _middle.Length + returnBytes.Length + _tail.Length];
-        var position = 0;
-        _head.CopyTo(body, position);
-        position += _head.Length;
-        challengeBytes.CopyTo(body, position);
-        position += challengeBytes.Length;
-        _middle.CopyTo(body, position);
-        position += _middle.Length;
-        returnBytes.CopyTo(body, position);
-        position += returnBytes.Length;
-        _tail.CopyTo(body, position);
-        return PrecomputedResponse.Create(StatusCodes.Status200OK, body, "text/html; charset=utf-8", "no-store", Headers);
+        return PrecomputedResponse.Page(StatusCodes.Status200OK, Template, challenge.ToString(), returnTarget, _difficulty);
     }
-
-    private static string Hash(string content) => "sha256-" + Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
 }
