@@ -126,7 +126,7 @@
                               ValueChanged="@(value => Update(WithRobots(robots => robots with { CustomText = string.IsNullOrEmpty(value) ? null : value }), "/robots/customText"))"
                               Label="Text" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="8" ReadOnly="@ReadOnly"
                               Class="pdk-mono-input" Error="@(E("/robots/customText") is not null)" ErrorText="@E("/robots/customText")"
-                              data-field="robots-custom-text" />
+                              data-field="robots-custom-text" data-paste="decode-url" />
             </SettingRow>
         }
         else if (EffectiveRobotsMode == RobotsMode.BlockAiCrawlers)

@@ -266,6 +266,36 @@
         },
     });
 
+    // A multi-line text that starts like a URL scheme ("User-agent: *" reads as the scheme "user-agent:") is put on the iOS
+    // clipboard as a URL too, and Safari pastes that form: lowercased and percent-encoded, every newline a %0A. A field that
+    // opts in (data-paste="decode-url") gets the text back. Only a paste with an encoded line break and no real one is
+    // touched, so ordinary text, and a single URL someone means to paste, go in as they are.
+    document.addEventListener("paste", (event) => {
+        const field = event.target;
+        if (!(field instanceof HTMLTextAreaElement) || !field.closest("[data-paste='decode-url']") || !event.clipboardData) {
+            return;
+        }
+
+        const pasted = event.clipboardData.getData("text/plain");
+        if (!/%0[ad]/i.test(pasted) || /[\r\n]/.test(pasted)) {
+            return;
+        }
+
+        let decoded;
+        try {
+            decoded = decodeURIComponent(pasted);
+        } catch {
+            return;
+        }
+
+        event.preventDefault();
+        // insertText keeps the undo history and raises the input event the field's binding listens to.
+        if (!document.execCommand("insertText", false, decoded)) {
+            field.setRangeText(decoded, field.selectionStart, field.selectionEnd, "end");
+            field.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+    }, { capture: true });
+
     window.paduraksa = Object.freeze({
         drawers,
         logPane,
