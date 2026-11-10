@@ -56,7 +56,8 @@ dotnet test
 ```
 
 The checks CI runs, the data directory, database migrations and the repository layout are in
-[docs/development.md](docs/development.md). The design is in [docs/PLAN.md](docs/PLAN.md).
+[docs/development.md](docs/development.md). The design is in [docs/PLAN.md](docs/PLAN.md). Performance against nginx,
+Caddy, HAProxy, Traefik, Envoy and a bare YARP reference is in [bench/RESULTS.md](bench/RESULTS.md).
 
 ## License
 
