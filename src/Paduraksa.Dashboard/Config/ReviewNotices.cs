@@ -10,8 +10,15 @@ namespace Paduraksa.Dashboard.Config;
 /// </summary>
 public static class ReviewNotices
 {
-    /// <summary>The warnings for a change from <paramref name="before"/> to <paramref name="after"/>.</summary>
-    public static IReadOnlyList<string> Of(ConfigDocument before, ConfigDocument after, IReadOnlyList<ConfigChange> changes, IReadOnlyList<ConfigWarning> warnings)
+    /// <summary>
+    /// The warnings for a change from <paramref name="before"/> to <paramref name="after"/>. The compiler warns about the whole
+    /// document, so of its <paramref name="warnings"/> only those the change brings, or that are about an object it touches, are
+    /// shown: a host's edit must not repeat an untouched upstream's standing warning (<paramref name="beforeWarnings"/>, those of
+    /// <paramref name="before"/>).
+    /// </summary>
+    public static IReadOnlyList<string> Of(
+        ConfigDocument before, ConfigDocument after, IReadOnlyList<ConfigChange> changes, IReadOnlyList<ConfigWarning> warnings,
+        IReadOnlyList<ConfigWarning>? beforeWarnings = null)
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(after);
@@ -65,12 +72,63 @@ public static class ReviewNotices
             }
         }
 
+        HashSet<string> touched = [.. changes.Select(ObjectOf)];
+        HashSet<(string, string, string)> standing = [.. (beforeWarnings ?? []).Select(w => Key(w, before))];
         foreach (var warning in warnings)
         {
+            // A whole-document change touches everything; otherwise a standing warning on an untouched object stays out.
+            if (!touched.Contains("*") && standing.Contains(Key(warning, after)) && !touched.Contains(ObjectOf(warning.Path, after)))
+            {
+                continue;
+            }
+
             notices.Add($"{ChangeView.Locate(warning.Path, after)}: {Sentence(warning.Message)}");
         }
 
         return notices;
+    }
+
+    /// <summary>
+    /// A warning by what it says and about which object, not by its path: an object's index can differ between the two documents
+    /// (one added or removed before it), its ID can't.
+    /// </summary>
+    private static (string Object, string Code, string Message) Key(ConfigWarning warning, ConfigDocument document) =>
+        (ObjectOf(warning.Path, document), warning.Code, warning.Message);
+
+    private static string ObjectOf(ConfigChange change) => change switch
+    {
+        HostChange host => $"host:{host.HostId}",
+        RouteChange route => $"host:{route.HostId}",
+        UpstreamChange upstream => $"upstream:{upstream.UpstreamId}",
+        DestinationChange destination => $"upstream:{destination.UpstreamId}",
+        ProfileChange profile => $"profile:{profile.ProfileId}",
+        RateLimitPolicyChange policy => $"rateLimit:{policy.RateLimitPolicyId}",
+        SettingsChange => "settings",
+        _ => "*",
+    };
+
+    /// <summary>The object a document path is about: <c>/hosts/2/routes/0</c> is the host at index 2, by its ID.</summary>
+    private static string ObjectOf(string path, ConfigDocument document)
+    {
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return "document";
+        }
+
+        if (segments.Length < 2 || !int.TryParse(segments[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var index))
+        {
+            return segments[0] is "settings" or "defaults" ? "settings" : segments[0];
+        }
+
+        return segments[0] switch
+        {
+            "hosts" when index < document.Hosts.Count => $"host:{document.Hosts[index].Id}",
+            "upstreams" when index < document.Upstreams.Count => $"upstream:{document.Upstreams[index].Id}",
+            "profiles" when index < document.Profiles.Count => $"profile:{document.Profiles[index].Id}",
+            "rateLimitPolicies" when index < document.RateLimitPolicies.Count => $"rateLimit:{document.RateLimitPolicies[index].Id}",
+            _ => path,
+        };
     }
 
     /// <summary>

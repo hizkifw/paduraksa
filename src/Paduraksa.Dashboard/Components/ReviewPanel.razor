@@ -297,7 +297,7 @@
             _ => Phase.Failed,
         };
         _conflict = result.Conflict;
-        _notices = _phase is Phase.Ready or Phase.Invalid ? ReviewNotices.Of(_before, _after, result.Changes, result.Warnings) : [];
+        _notices = _phase is Phase.Ready or Phase.Invalid ? ReviewNotices.Of(_before, _after, result.Changes, result.Warnings, Config.LiveWarnings) : [];
         if (result.Status == ConfigCommandStatus.Invalid && result.Errors.Count > 0)
         {
             await (objectCommand ? Request.OnInvalid : Request.OnInvalidDocument).InvokeAsync(result.Errors);
