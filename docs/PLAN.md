@@ -240,7 +240,7 @@ SQLite settings: WAL, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout`. A
 | `Host` (`host_`) | `Kind` (Proxy, Redirect, Respond, Admin), `Enabled`, `ProfileId?`, `Settings: HostSettings` (overrides), `CertificateBinding` (Auto / specific `CertificateId` / None), `Tags`, `Notes`, concurrency token |
 | `HostName` (`hn_`) | Host FK, `Name`, unique index `COLLATE NOCASE`. Normalized on write: trimmed, lowercased, IDN → punycode (`IdnMapping`), ≤ 253 chars, labels ≤ 63, wildcard only as the leftmost `*.` label, no trailing dot. |
 | `Route` (`rte_`) | Host FK, `Order`, `Match` (path prefix/exact/regex, methods, headers), `UpstreamId`, per-route `Settings` overrides, transforms. Equivalent to NPM "custom locations". |
-| `Upstream` (`ups_`) | LB policy, health check config, HTTP version, TLS-to-upstream (SNI, verify, custom CA, optional **client cert** `CertificateId` for mTLS), timeouts, affinity, **connection/DNS refresh**: `PooledConnectionLifetime` (default 60 s, so a restarted container with a new IP is picked up quickly), `PooledConnectionIdleTimeout`, connect timeout. A destination that fails to connect is passively marked unhealthy, which forces new connections (and so a fresh DNS lookup) on retry. |
+| `Upstream` (`ups_`) | LB policy, health check config, HTTP version, **Host header** (`Original`, the default: the client's; `Destination`: the destination's address; `Custom`: a fixed name, e.g. a hosted service that answers only to its own), TLS-to-upstream (SNI, verify, custom CA, optional **client cert** `CertificateId` for mTLS), timeouts, affinity, **connection/DNS refresh**: `PooledConnectionLifetime` (default 60 s, so a restarted container with a new IP is picked up quickly), `PooledConnectionIdleTimeout`, connect timeout. A destination that fails to connect is passively marked unhealthy, which forces new connections (and so a fresh DNS lookup) on retry. |
 | `Destination` (`dst_`) | Upstream FK, address, weight, enabled |
 | `AccessList` (`acl_`) | CIDR allow/deny, basic-auth users (PBKDF2/Argon2 hashes) |
 | `RuleSet` (`rset_`) / `Rule` (`rule_`) | Path/UA/header/method/country deny rules, ordered |
@@ -615,6 +615,10 @@ E. YARP (endpoint already set by the gate → affinity → load balancing → pa
        IPv4 dotted quad, also for IPv4-mapped peers; IPv6 without brackets); left out if unknown
      X-Forwarded-Proto = the trusted request scheme from stage C (the same one the redirect uses)
      X-Forwarded-Host = Host / :authority as received, port included
+     Host = the client's Host / :authority (YARP's default would send the destination's address; fixed after M6,
+       so name-based upstreams, absolute URLs and trusted-domain checks work). On an HTTPS upstream it is also the
+       SNI and the name the upstream's certificate is checked against. Planned with the upstream TLS settings: the
+       upstream's Host header mode (Original / Destination / Custom, §5.1), with SNI following it unless set apart.
      Forwarded, X-Forwarded-Prefix, X-Forwarded-Port = removed (only a client could have set them)
      every cf-* header (case-insensitive: CF-Connecting-IP, CF-Visitor, Cf-Access-Jwt-Assertion,
        Cf-Access-Authenticated-User-Email, cf-ipcity, ...) and True-Client-IP = removed unless
