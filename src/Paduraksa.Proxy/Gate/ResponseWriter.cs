@@ -13,7 +13,12 @@ namespace Paduraksa.Proxy.Gate;
 internal static class ResponseWriter
 {
     /// <summary>Sets the status and headers. Synchronous and allocation-free unless the <c>Location</c> is per request.</summary>
-    public static void ApplyHeaders(HttpContext context, PrecomputedResponse response)
+    public static void ApplyHeaders(HttpContext context, PrecomputedResponse response) =>
+        ApplyHeaders(context, response, retryAfter: null);
+
+    /// <summary>Sets the status, headers and, for a refusal that names one, the precomputed <c>Retry-After</c>.
+    /// Synchronous and allocation-free unless the <c>Location</c> is per request.</summary>
+    public static void ApplyHeaders(HttpContext context, PrecomputedResponse response, string? retryAfter)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(response);
@@ -21,6 +26,11 @@ internal static class ResponseWriter
         var http = context.Response;
         http.StatusCode = response.StatusCode;
         var headers = http.Headers;
+        if (retryAfter is not null)
+        {
+            headers.RetryAfter = retryAfter;
+        }
+
         if (response.ContentType.Count > 0)
         {
             headers.ContentType = response.ContentType;
@@ -53,9 +63,14 @@ internal static class ResponseWriter
     }
 
     /// <summary>Sets the headers and writes the body (none for <c>HEAD</c>). Completes synchronously in the common case.</summary>
-    public static Task WriteAsync(HttpContext context, PrecomputedResponse response)
+    public static Task WriteAsync(HttpContext context, PrecomputedResponse response) =>
+        WriteAsync(context, response, retryAfter: null);
+
+    /// <summary>Sets the headers (and <paramref name="retryAfter"/>, when it has one) and writes the body (none for
+    /// <c>HEAD</c>). Completes synchronously in the common case.</summary>
+    public static Task WriteAsync(HttpContext context, PrecomputedResponse response, string? retryAfter)
     {
-        ApplyHeaders(context, response);
+        ApplyHeaders(context, response, retryAfter);
         if (response.Body.Length == 0 || HttpMethods.IsHead(context.Request.Method))
         {
             return Task.CompletedTask;

@@ -3,6 +3,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
 
@@ -51,6 +52,13 @@ public sealed class RuntimeSnapshot
 
     /// <summary>Slot → YARP endpoint, captured at publish step 6c. Empty until <see cref="Bind"/>.</summary>
     public required Endpoint[] YarpEndpoints { get; init; }
+
+    /// <summary>
+    /// The (policy, host) pairs the compiled routes use, with their slot, parameters and stable identity. The publisher
+    /// publishes them into the slot registry before this snapshot goes live and retires the pairs it no longer has; a
+    /// candidate that never goes live (a dry run, a superseded publish) leaves the live set alone.
+    /// </summary>
+    public RateLimitRegistration[] RateLimitRegistrations { get; init; } = [];
 
     public required DefaultHostBehaviour Default { get; init; }
 
@@ -138,6 +146,7 @@ public sealed class RuntimeSnapshot
             Yarp = Yarp,
             RouteIdBySlot = RouteIdBySlot,
             YarpEndpoints = endpoints,
+            RateLimitRegistrations = RateLimitRegistrations,
             Default = Default,
             DefaultResponseHeaders = DefaultResponseHeaders,
             NoRoute = NoRoute,

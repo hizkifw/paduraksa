@@ -16,6 +16,8 @@ namespace Paduraksa.Application.Compilation;
 /// JSON pointer of the object it is about in the document as given (<see cref="CompileErrorPaths"/>). An inherited value
 /// is reported where it is used: a bad address in a profile's allow list, say, at each host or route whose chain carries
 /// it, since the compiler only sees the resolved settings. The same message at the same path is reported once.
+/// <para>The publish flag reaches <see cref="SnapshotCompilerOptions.RateLimitsWillBePublished"/>, so a draft, a dry run
+/// or a simulation can't allocate a rate-limit slot for a pair no publish would ever retire.</para>
 /// </remarks>
 public sealed class ConfigCompiler : IConfigCompiler
 {
@@ -27,7 +29,10 @@ public sealed class ConfigCompiler : IConfigCompiler
         _options = options;
     }
 
-    public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory)
+    public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory) =>
+        Compile(document, revision, inventory, publish: true);
+
+    public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory, bool publish)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(inventory);
@@ -46,7 +51,9 @@ public sealed class ConfigCompiler : IConfigCompiler
         }
 
         // The inventory's resolver (usable certificates only) replaces whatever the options carry.
-        var result = SnapshotCompiler.Compile(mapped.Model, _options with { Certificates = inventory.Resolver });
+        var result = SnapshotCompiler.Compile(
+            mapped.Model,
+            _options with { Certificates = inventory.Resolver, RateLimitsWillBePublished = publish });
         CompileErrorPaths paths = new(document);
         if (result.Snapshot is { } snapshot && mapped.Errors.Count == 0)
         {

@@ -2,6 +2,7 @@ using System.Net;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
@@ -107,6 +108,7 @@ public static partial class SnapshotCompiler
             Options = options;
             Defaults = model.Defaults ?? new DefaultsSpec();
             AltSvc = new AltSvcHeader(options.PublicHttpsPort, options.AdvertiseHttp3);
+            RateLimitPolicies = CompileRateLimitPolicies(model.RateLimitPolicies ?? []);
         }
 
         public ProxyConfigModel Model { get; }
@@ -144,6 +146,13 @@ public static partial class SnapshotCompiler
         public List<RouteConfig> YarpRoutes { get; } = [];
 
         public List<RouteId> RouteIdBySlot { get; } = [];
+
+        public List<RateLimitRegistration> RateLimitRegistrations { get; } = [];
+
+        public RateLimitRuntime RateLimits => Options.RateLimits ?? RateLimitRuntime.Default;
+
+        /// <summary>The named policies by ID (first one wins on a duplicate, which is invalid anyway).</summary>
+        public Dictionary<RateLimitPolicyId, RateLimitPolicySpec> RateLimitPolicies { get; }
 
         public bool AdminHost { get; set; }
 
@@ -189,6 +198,7 @@ public static partial class SnapshotCompiler
             HostsByIndex = Hosts.ToArray(),
             Yarp = new YarpConfig(YarpRoutes.ToArray(), BuildClusters()),
             RouteIdBySlot = RouteIdBySlot.ToArray(),
+            RateLimitRegistrations = RateLimitRegistrations.ToArray(),
             YarpEndpoints = [],
             Default = Defaults.UnknownHost switch
             {

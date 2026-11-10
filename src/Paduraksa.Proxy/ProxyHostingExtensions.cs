@@ -41,8 +41,11 @@ public static class ProxyHostingExtensions
     /// <param name="adminInternal">The admin app's internal listener; null in a test app that can't compile an admin host.</param>
     /// <param name="proofOfWork">The process's proof-of-work key, clock and counters; null: a fresh, keyless runtime (a
     /// protected route then fails closed). The snapshot compiler must carry the same instance.</param>
+    /// <param name="rateLimits">The process's rate-limit table, slots and counters; null: a fresh runtime. The snapshot
+    /// compiler and the publisher must carry the same instance.</param>
     public static IServiceCollection AddPaduraksaProxy(
-        this IServiceCollection services, SnapshotPublisher publisher, AdminInternalListener? adminInternal = null, ProofOfWorkRuntime? proofOfWork = null)
+        this IServiceCollection services, SnapshotPublisher publisher, AdminInternalListener? adminInternal = null, ProofOfWorkRuntime? proofOfWork = null,
+        RateLimitRuntime? rateLimits = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(publisher);
@@ -91,7 +94,7 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton<IClientAddressSource>(static provider => provider.GetRequiredService<TrustedProxyClientAddressSource>());
         services.TryAddSingleton<GateMiddleware>();
         services.TryAddSingleton<IUpstreamHealth>(static provider => new YarpUpstreamHealth(provider.GetRequiredService<IProxyStateLookup>()));
-        services.AddPaduraksaRateLimiting();
+        services.AddPaduraksaRateLimiting(rateLimits);
         return services;
     }
 

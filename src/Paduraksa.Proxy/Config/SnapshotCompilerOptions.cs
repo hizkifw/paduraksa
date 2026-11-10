@@ -1,5 +1,6 @@
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Config;
@@ -52,4 +53,19 @@ public sealed record SnapshotCompilerOptions
     /// The same instance is what the public app's verify endpoint uses, so the policy and the endpoint always agree.
     /// </summary>
     public ProofOfWorkRuntime? ProofOfWork { get; init; }
+
+    /// <summary>
+    /// The process's rate-limit table and slot registry; null: <see cref="RateLimitRuntime.Default"/>, a table of its
+    /// own (a test that doesn't hand the server's in still rate limits, just in a table nothing else reads). The public
+    /// app and the publisher must carry the same instance for the live set to be the one the sweeper walks.
+    /// </summary>
+    public RateLimitRuntime? RateLimits { get; init; }
+
+    /// <summary>
+    /// True for a candidate that a publisher will make live; false for a dry run, a draft or a simulation, which must
+    /// leave the process's slot registry exactly as it found it. A non-published compile only looks a pair's slot up:
+    /// a pair that has none yet compiles with slot 0, a placeholder the simulator reports as a new policy and the gate
+    /// never sees (such a snapshot is never published).
+    /// </summary>
+    public bool RateLimitsWillBePublished { get; init; } = true;
 }

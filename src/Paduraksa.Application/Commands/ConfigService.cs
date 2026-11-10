@@ -289,7 +289,7 @@ public sealed partial class ConfigService : IDisposable
             var revisionId = command.DryRun ? ConfigRevisionId.Empty : _revisions.NextId();
             var inventory = await (simulation ? _simulationCertificates : _certificates)
                 .LoadAsync(context, candidate, cancellationToken).ConfigureAwait(false);
-            var compilation = _compiler.Compile(candidate, revisionId, inventory);
+            var compilation = _compiler.Compile(candidate, revisionId, inventory, publish: !command.DryRun && !simulation);
             if (compilation.Snapshot is not { } snapshot)
             {
                 var compileErrors = compilation.Errors.Count > 0
@@ -416,7 +416,7 @@ public sealed partial class ConfigService : IDisposable
             return live;
         }
 
-        var compilation = _compiler.Compile(current, ConfigRevisionId.Empty, inventory);
+        var compilation = _compiler.Compile(current, ConfigRevisionId.Empty, inventory, publish: false);
         return compilation.Snapshot ?? RuntimeSnapshot.Bootstrap;
     }
 

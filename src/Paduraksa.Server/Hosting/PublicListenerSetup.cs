@@ -1,6 +1,7 @@
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Server.Configuration;
@@ -15,7 +16,7 @@ namespace Paduraksa.Server.Hosting;
 /// </summary>
 internal sealed class PublicListenerSetup
 {
-    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots, bool adminInternal, ProofOfWorkRuntime? proofOfWork = null)
+    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots, bool adminInternal, ProofOfWorkRuntime? proofOfWork = null, RateLimitRuntime? rateLimits = null)
     {
         ArgumentNullException.ThrowIfNull(listen);
         ArgumentNullException.ThrowIfNull(snapshots);
@@ -31,6 +32,7 @@ internal sealed class PublicListenerSetup
             AdvertiseHttp3 = Http3,
             AdminUpstream = adminInternal,
             ProofOfWork = proofOfWork,
+            RateLimits = rateLimits,
         };
     }
 

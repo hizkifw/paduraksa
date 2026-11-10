@@ -58,6 +58,29 @@ public sealed class RateLimitPolicySlotsTests
     }
 
     [Fact]
+    public void ReclaimRevivesARetiredSlotOnlyInsideItsGracePeriod()
+    {
+        RateLimitPolicySlots slots = new(new RateLimitTable(64), TimeSpan.FromMilliseconds(100));
+        var slot = slots.GetOrAdd("pair", nowMs: 0);
+        Assert.True(slots.TryGetSlot("pair", out var found));
+        Assert.Equal(slot, found);
+
+        Assert.True(slots.Retire("pair", nowMs: 0));
+        Assert.False(slots.TryGetSlot("pair", out _));
+
+        // A late publish puts the pair back on its slot while the slot is still inside its grace period.
+        Assert.True(slots.Reclaim("pair", slot, nowMs: 50));
+        Assert.True(slots.IsLive(slot));
+        Assert.True(slots.TryGetSlot("pair", out found));
+        Assert.Equal(slot, found);
+
+        // Past the grace period the slot may already be someone else's, so a reclaim is refused.
+        Assert.True(slots.Retire("pair", nowMs: 0));
+        Assert.False(slots.Reclaim("pair", slot, nowMs: 100));
+        Assert.False(slots.IsLive(slot));
+    }
+
+    [Fact]
     public void AReusedSlotDoesNotCarryTheOldPolicysBuckets()
     {
         RateLimitTable table = new(1_024);

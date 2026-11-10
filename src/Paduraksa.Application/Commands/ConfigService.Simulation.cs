@@ -87,7 +87,7 @@ public sealed partial class ConfigService
             inventory = await _simulationCertificates.LoadAsync(null, document, cancellationToken).ConfigureAwait(false);
         }
 
-        return new SimulationCompilation(_compiler.Compile(document, revision, inventory), degraded);
+        return new SimulationCompilation(_compiler.Compile(document, revision, inventory, publish: false), degraded);
     }
 
     /// <summary>
@@ -155,7 +155,7 @@ public sealed partial class ConfigService
     private async Task<Execution> UnchangedCandidateAsync(ConfigDbContext context, ConfigDocument current, StoredRevision? latest, CancellationToken cancellationToken)
     {
         var inventory = await _simulationCertificates.LoadAsync(context, current, cancellationToken).ConfigureAwait(false);
-        var compilation = _compiler.Compile(current, latest?.Info.Id ?? ConfigRevisionId.Empty, inventory);
+        var compilation = _compiler.Compile(current, latest?.Info.Id ?? ConfigRevisionId.Empty, inventory, publish: false);
         return compilation.Snapshot is { } snapshot
             ? new Execution(new ConfigCommandResult(ConfigCommandStatus.Unchanged, Warnings: compilation.Warnings), Candidate: snapshot)
             : new Execution(new ConfigCommandResult(

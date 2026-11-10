@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
@@ -25,14 +26,25 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
     [InlineData(false, "app.test", "/blocked", HttpStatusCode.Forbidden)]
     [InlineData(false, "soon.test", "/", HttpStatusCode.ServiceUnavailable)]
     [InlineData(false, "unknown.test", "/", HttpStatusCode.NotFound)]
+    [InlineData(false, "limited.test", "/", HttpStatusCode.OK)]
+    [InlineData(false, "limited.test", "/limited", HttpStatusCode.TooManyRequests)]
     [InlineData(true, "app.test", "/api/items", HttpStatusCode.OK)]
     [InlineData(true, "app.test", "/blocked", HttpStatusCode.Forbidden)]
     [InlineData(true, "unknown.test", "/", HttpStatusCode.NotFound)]
     public async Task GateDecisionAllocatesNothingOnKestrel(bool h2c, string host, string path, HttpStatusCode expected)
     {
+        RateLimitPolicyId openPolicy = TestIds.RateLimitPolicy("open");
+        RateLimitPolicyId tightPolicy = TestIds.RateLimitPolicy("tight");
         ProxyConfigModel model = new()
         {
             Upstreams = [Upstream("web", upstream.Address("a"))],
+            RateLimitPolicies =
+            [
+                // Enough tokens for the whole measured run, so the allowed path stays allowed.
+                new RateLimitPolicySpec { Id = openPolicy, Name = "open", Parameters = new RateLimitParameters(RateLimitParameters.MaxTokensPerSecond, 1_000_000) },
+                // One token and a slow refill: the first request takes it, and every measured one is refused.
+                new RateLimitPolicySpec { Id = tightPolicy, Name = "tight", Parameters = new RateLimitParameters(1.0 / 60, 1) },
+            ],
             Hosts =
             [
                 new HostSpec
@@ -48,6 +60,16 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
                     ],
                 },
                 new HostSpec { Id = TestIds.Host("soon"), Names = ["soon.test"], Kind = HostKind.Respond, Respond = new RespondSpec { StatusCode = 503, Body = "soon" } },
+                new HostSpec
+                {
+                    Id = TestIds.Host("limited"),
+                    Names = ["limited.test"],
+                    Routes =
+                    [
+                        Route("limited-open", "web") with { RateLimit = openPolicy, RateLimitRouteOverride = true },
+                        Route("limited-tight", "web", "/limited") with { RateLimit = tightPolicy, RateLimitRouteOverride = true },
+                    ],
+                },
             ],
         };
         // h2c: one connection, a few concurrent streams. Kestrel pools streams that end gracefully, so after warm-up
@@ -56,6 +78,13 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
             model,
             new() { MeasureGate = true, Protocols = h2c ? HttpProtocols.Http2 : HttpProtocols.Http1 });
         using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+
+        if (expected == HttpStatusCode.TooManyRequests)
+        {
+            // The bucket starts full: spend its one token before the warm-up, so every measured request is refused.
+            using var spend = await client.SendAsync(server.Request(host, path), TestContext.Current.CancellationToken);
+            await spend.Content.LoadIntoBufferAsync(TestContext.Current.CancellationToken);
+        }
 
         await SendAsync(server, client, host, path, expected, Warmup);
         server.GateStats!.Reset();

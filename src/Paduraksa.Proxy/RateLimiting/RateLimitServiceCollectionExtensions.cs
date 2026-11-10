@@ -8,8 +8,9 @@ using Microsoft.Extensions.Hosting;
 namespace Paduraksa.Proxy.RateLimiting;
 
 /// <summary>
-/// Registers the rate-limit engine's process-lifetime state: the bucket table, the policy slot registry and the sweeper
-/// (PLAN §6.3). Nothing calls <see cref="RateLimitTable.TryAcquire"/> yet; the gate's rate-limit policy will.
+/// Registers the rate-limit engine's process-lifetime state: the bucket table, the policy slot registry, the counters and
+/// the sweeper (PLAN §6.3). The gate's rate-limit policies take tokens from the same table the compiler assigned slots
+/// in.
 /// </summary>
 public static class RateLimitServiceCollectionExtensions
 {
@@ -17,12 +18,23 @@ public static class RateLimitServiceCollectionExtensions
     /// <see cref="RateLimitTable.MaximumCapacity"/>; absent means <see cref="RateLimitTable.DefaultCapacity"/>.</summary>
     public const string TableSizeKey = "Paduraksa:RateLimiting:TableSize";
 
-    public static IServiceCollection AddPaduraksaRateLimiting(this IServiceCollection services)
+    /// <summary>The process's runtime, built from <paramref name="configuration"/> (the configured table size). The core
+    /// host builds one and hands it to the publisher, the compiler and the public app, so all three share it.</summary>
+    public static RateLimitRuntime CreateRuntime(IConfiguration? configuration = null) =>
+        new(new RateLimitTable(ConfiguredTableSize(configuration)));
+
+    /// <summary>
+    /// Registers the runtime (the one given, or a fresh one from the container's configuration), its table, slots and
+    /// counters as singletons, and the sweeper as a hosted service.
+    /// </summary>
+    public static IServiceCollection AddPaduraksaRateLimiting(this IServiceCollection services, RateLimitRuntime? runtime = null)
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton(static provider => new RateLimitTable(ConfiguredTableSize(provider.GetService<IConfiguration>())));
-        services.TryAddSingleton(static provider => new RateLimitPolicySlots(provider.GetRequiredService<RateLimitTable>()));
+        services.TryAddSingleton(provider => runtime ?? CreateRuntime(provider.GetService<IConfiguration>()));
+        services.TryAddSingleton(static provider => provider.GetRequiredService<RateLimitRuntime>().Table);
+        services.TryAddSingleton(static provider => provider.GetRequiredService<RateLimitRuntime>().Slots);
+        services.TryAddSingleton(static provider => provider.GetRequiredService<RateLimitRuntime>().Stats);
         services.TryAddSingleton<RateLimitSweeper>();
         services.AddHostedService(static provider => provider.GetRequiredService<RateLimitSweeper>());
         return services;

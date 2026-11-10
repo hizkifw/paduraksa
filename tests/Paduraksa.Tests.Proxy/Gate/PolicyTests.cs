@@ -12,8 +12,9 @@ public sealed class PolicyTests
 {
     private static readonly PrecomputedResponse Forbidden = PrecomputedResponse.Text(403, "no\n");
 
+    /// <summary>The verdict struct stays 24 bytes: two references and the action, with no boxed value.</summary>
     [Fact]
-    public void DecisionIsSixteenBytes() => Assert.Equal(16, Unsafe.SizeOf<PolicyDecision>());
+    public void DecisionIsThreeMachineWords() => Assert.Equal(24, Unsafe.SizeOf<PolicyDecision>());
 
     [Fact]
     public void AnUninitialisedGateDecisionAborts()

@@ -14,9 +14,17 @@ public interface IConfigCompiler
 {
     /// <summary>Compiles <paramref name="document"/>, labelled with <paramref name="revision"/>, against <paramref name="inventory"/>.</summary>
     ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory);
+
+    /// <summary>
+    /// <see cref="Compile(ConfigDocument, ConfigRevisionId, CertificateInventory)"/>, saying whether the candidate will
+    /// be published. A draft, a dry run or a simulation passes false: such a compile must leave process-lifetime state
+    /// (a rate-limit slot, say) exactly as it found it. Implementations that hold no such state can ignore it.
+    /// </summary>
+    ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory, bool publish) =>
+        Compile(document, revision, inventory);
 }
 
-/// <summary>Outcome of <see cref="IConfigCompiler.Compile"/>: an unbound candidate, or every error found.</summary>
+/// <summary>Outcome of <see cref="IConfigCompiler.Compile(ConfigDocument, ConfigRevisionId, CertificateInventory)"/>: an unbound candidate, or every error found.</summary>
 /// <param name="Snapshot">The candidate, or <see langword="null"/> when <paramref name="Errors"/> is not empty.</param>
 /// <param name="Errors">Errors with JSON-pointer paths into the document where the compiler can tell.</param>
 /// <param name="Warnings">Hosts without certificate coverage, bindings to unusable certificates: things that compile but

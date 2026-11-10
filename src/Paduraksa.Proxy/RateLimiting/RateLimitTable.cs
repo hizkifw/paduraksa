@@ -91,17 +91,7 @@ public sealed class RateLimitTable
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="slot"/> is 0, which is "no policy".</exception>
     public bool TryAcquire(ushort slot, ulong partitionHash, in RateLimitParameters parameters, long nowMs, out int retryAfterSeconds)
     {
-        if (slot == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(slot), slot, "Slot 0 is 'no policy' and never owns a bucket.");
-        }
-
-        if (parameters.BurstUnits <= 0)
-        {
-            // default(RateLimitParameters) is "no policy": stored, it would hold garbage tokens and divide by its zero rate
-            // later, so a caller that skipped the slot's parameters fails here instead.
-            throw new ArgumentException("The parameters are default: look the slot's parameters up first.", nameof(parameters));
-        }
+        Validate(slot, parameters);
 
         var hash = partitionHash & (ulong)PartitionMask;
         var key = ((long)slot << KeySlotShift) | (long)hash;
@@ -169,6 +159,43 @@ public sealed class RateLimitTable
         return true;
     }
 
+    /// <summary>
+    /// What a request would get, without taking a token or writing anything: the request simulator's read. True when the
+    /// request would be allowed, and <paramref name="tokensLeft"/> is then the whole tokens its bucket would hold
+    /// afterwards; false when it would be refused, and <paramref name="retryAfterSeconds"/> is its wait (at least 1).
+    /// A key that isn't in the table yet reads as a full bucket, which is what a take would create.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="slot"/> is 0, which is "no policy".</exception>
+    public bool TryPeek(ushort slot, ulong partitionHash, in RateLimitParameters parameters, long nowMs, out int tokensLeft, out int retryAfterSeconds)
+    {
+        Validate(slot, parameters);
+
+        var hash = partitionHash & (ulong)PartitionMask;
+        var key = ((long)slot << KeySlotShift) | (long)hash;
+        var start = (int)(hash & (ulong)_mask);
+
+        for (var i = 0; i < ProbeLength; i++)
+        {
+            var index = (start + i) & _mask;
+            var observed = Volatile.Read(ref _keys[index]);
+            if (observed == key)
+            {
+                return Peek(index, parameters, nowMs, out tokensLeft, out retryAfterSeconds);
+            }
+
+            if (observed == 0)
+            {
+                // A take would claim this entry and start it full.
+                break;
+            }
+        }
+
+        // Either an empty entry or a full probe window: a take claims (or evicts for) this key and starts it full.
+        tokensLeft = Math.Max(0, parameters.Burst - 1);
+        retryAfterSeconds = 0;
+        return true;
+    }
+
     /// <summary>Every bucket of one policy slot, for the registry to reuse the slot without handing out old buckets.</summary>
     internal int ClearSlot(ushort slot)
     {
@@ -224,6 +251,21 @@ public sealed class RateLimitTable
 
     internal static long TokensOf(long state) => state & TokenMask;
 
+    private static void Validate(ushort slot, in RateLimitParameters parameters)
+    {
+        if (slot == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(slot), slot, "Slot 0 is 'no policy' and never owns a bucket.");
+        }
+
+        if (parameters.BurstUnits <= 0)
+        {
+            // default(RateLimitParameters) is "no policy": stored, it would hold garbage tokens and divide by its zero rate
+            // later, so a caller that skipped the slot's parameters fails here instead.
+            throw new ArgumentException("The parameters are default: look the slot's parameters up first.", nameof(parameters));
+        }
+    }
+
     private bool TryTake(int index, in RateLimitParameters parameters, long nowMs, out int retryAfterSeconds)
     {
         var burstUnits = parameters.BurstUnits;
@@ -251,6 +293,32 @@ public sealed class RateLimitTable
                 return true;
             }
         }
+    }
+
+    /// <summary>
+    /// <see cref="TryTake"/>'s arithmetic without its CAS: the same refill, the same clamp to the burst, the same answer a
+    /// request would get, and nothing written. It may read a state a concurrent take is replacing; a simulation needs an
+    /// answer, not a guarantee.
+    /// </summary>
+    private bool Peek(int index, in RateLimitParameters parameters, long nowMs, out int tokensLeft, out int retryAfterSeconds)
+    {
+        var observed = Volatile.Read(ref _states[index]);
+        var stored = TimeOf(observed);
+        var diff = nowMs - stored;
+        var elapsed = diff < 0 ? 0 : diff & MaxTimeMs;
+        var available = RateLimitParameters.Clamp(TokensOf(observed), parameters.RefillUnits(elapsed), parameters.BurstUnits);
+
+        if (available < RateLimitParameters.TokenUnit)
+        {
+            tokensLeft = 0;
+            retryAfterSeconds = parameters.RetryAfterSeconds(RateLimitParameters.TokenUnit - available);
+            return false;
+        }
+
+        // What the bucket would hold after the token this request would take.
+        tokensLeft = (int)((available - RateLimitParameters.TokenUnit) / RateLimitParameters.TokenUnit);
+        retryAfterSeconds = 0;
+        return true;
     }
 
     private void StartFull(int index, long burstUnits, long nowMs) =>

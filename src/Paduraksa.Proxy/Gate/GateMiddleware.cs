@@ -31,14 +31,17 @@ internal enum GateAction : byte
     VerifyProofOfWork,
 }
 
-/// <summary>The gate's synchronous verdict: 16 bytes, returned by value. <c>default</c> is <see cref="Abort"/>.</summary>
-internal readonly record struct GateDecision(GateAction Action, PrecomputedResponse? Response)
+/// <summary>The gate's synchronous verdict, 24 bytes: the action, the answer and its precomputed <c>Retry-After</c>.
+/// Returned by value; <c>default</c> is <see cref="Abort"/>.</summary>
+internal readonly record struct GateDecision(GateAction Action, PrecomputedResponse? Response, string? RetryAfter = null)
 {
     public static GateDecision Forward => new(GateAction.Forward, null);
 
     public static GateDecision Abort => default;
 
     public static GateDecision Respond(PrecomputedResponse response) => new(GateAction.Respond, response);
+
+    public static GateDecision Respond(PrecomputedResponse response, string? retryAfter) => new(GateAction.Respond, response, retryAfter);
 
     public static GateDecision VerifyProofOfWork => new(GateAction.VerifyProofOfWork, null);
 }
@@ -263,7 +266,7 @@ public sealed class GateMiddleware
             case GateAction.Forward:
                 return next(context);
             case GateAction.Respond:
-                return ResponseWriter.WriteAsync(context, decision.Response!);
+                return ResponseWriter.WriteAsync(context, decision.Response!, decision.RetryAfter);
             default:
                 // Nothing is sent: the access log says so rather than inventing the 200 a response would have had.
                 if (context.Features.Get<IGateFeature>()?.State is { } aborted)
@@ -290,7 +293,7 @@ public sealed class GateMiddleware
                 case PolicyAction.Continue:
                     continue;
                 case PolicyAction.Respond:
-                    decision = GateDecision.Respond(verdict.Response!);
+                    decision = GateDecision.Respond(verdict.Response!, verdict.RetryAfter);
                     return true;
                 default:
                     decision = GateDecision.Abort;

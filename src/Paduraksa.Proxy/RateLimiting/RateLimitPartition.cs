@@ -42,14 +42,15 @@ public sealed class RateLimitPartition
     public ulong ForIp(IpKey client) => Hash128(IpDomain, client.MaskTo(32, 64).Value);
 
     /// <summary>The key for a client on one path: the address as <see cref="ForIp"/>, plus the canonical path the gate
-    /// matched on, so <c>/api</c> and <c>//API;</c> are the same partition.</summary>
+    /// matched on, so <c>/api</c> and <c>//API;</c> are the same partition. Case is folded (ASCII), because route
+    /// matching ignores it: otherwise <c>/API</c> would spend a separate budget from <c>/api</c>.</summary>
     public ulong ForIpAndPath(IpKey client, ReadOnlySpan<char> path)
     {
         var hash = Start(IpAndPathDomain);
         var address = client.MaskTo(32, 64).Value;
         hash = Step(hash, (ulong)address);
         hash = Step(hash, (ulong)(address >> 64));
-        return AppendText(hash, path);
+        return AppendPath(hash, path);
     }
 
     /// <summary>The key for one header value (a cookie, an API key), as written in the request. Every empty value is the
@@ -68,6 +69,18 @@ public sealed class RateLimitPartition
         for (var i = 0; i < text.Length; i++)
         {
             hash = Step(hash, text[i]);
+        }
+
+        return Avalanche(hash);
+    }
+
+    /// <summary>Like <see cref="AppendText"/>, with ASCII case folded: the gate matches paths ignoring case.</summary>
+    private static ulong AppendPath(ulong hash, ReadOnlySpan<char> path)
+    {
+        for (var i = 0; i < path.Length; i++)
+        {
+            var c = path[i];
+            hash = Step(hash, c is >= 'A' and <= 'Z' ? (char)(c | 0x20) : c);
         }
 
         return Avalanche(hash);

@@ -52,10 +52,23 @@ public static partial class SnapshotCompiler
             }
 
             var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors);
+
+            // One policy object per (policy, host) pair, shared by every route that resolves to it: that pair owns the
+            // buckets. A disabled host serves nothing and a Redirect/Respond host has no routes, so neither registers a
+            // pair (the setting is validated, and inert for those kinds).
+            Dictionary<RateLimitPolicyId, RateLimitPolicy>? rateLimitCache = spec.Enabled && spec.Kind is HostKind.Proxy or HostKind.Admin ? [] : null;
+            RateLimitPolicy? hostRateLimit = null;
+            if (rateLimitCache is not null && spec.RateLimit.EffectivePolicyId is { } hostPolicyId)
+            {
+                hostRateLimit = CompileRateLimitPolicy(this, spec, hostPolicyId, routeOverride: false, where, rateLimitCache);
+            }
+
             var routes = spec.Kind switch
             {
-                HostKind.Admin => CompileAdminRoute(spec, Options.AdminUpstream, RouteIdBySlot, YarpRoutes, where, Errors),
-                HostKind.Proxy => CompileRoutes(spec, Clusters, RouteIds, YarpRouteIds, YarpRoutes, RouteIdBySlot, where, Errors, Options.ProofOfWork),
+                HostKind.Admin => CompileAdminRoute(spec, Options.AdminUpstream, RouteIdBySlot, YarpRoutes, where, Errors, hostRateLimit),
+                HostKind.Proxy => CompileRoutes(
+                    spec, Clusters, RouteIds, YarpRouteIds, YarpRoutes, RouteIdBySlot, where, Errors, Options.ProofOfWork,
+                    this, rateLimitCache, hostRateLimit, spec.RateLimit.EffectivePolicyId),
                 _ => RejectRoutes(spec, where, Errors),
             };
             var fixedResponse = CompileFixedResponse(spec, where, Errors);
@@ -191,7 +204,8 @@ public static partial class SnapshotCompiler
     /// <see cref="YarpConfig.AdminClusterId"/> cluster. It has no user route ID, so its slot's <see cref="RouteId"/> is empty.
     /// </summary>
     private static CompiledRoute[] CompileAdminRoute(
-        HostSpec host, bool available, List<RouteId> routeIdBySlot, List<RouteConfig> yarpRoutes, CompileErrorSource where, List<CompileError> errors)
+        HostSpec host, bool available, List<RouteId> routeIdBySlot, List<RouteConfig> yarpRoutes, CompileErrorSource where, List<CompileError> errors,
+        RateLimitPolicy? rateLimit)
     {
         if (host.Routes is { Count: > 0 })
         {
@@ -220,7 +234,7 @@ public static partial class SnapshotCompiler
                     MatchKind = RouteMatchKind.Prefix,
                     Path = "/",
                     Slot = -1,
-                    Policies = [],
+                    Policies = rateLimit is null ? [] : [rateLimit],
                     Admin = true,
                 },
             ];
@@ -243,7 +257,7 @@ public static partial class SnapshotCompiler
                 MatchKind = RouteMatchKind.Prefix,
                 Path = "/",
                 Slot = slot,
-                Policies = [],
+                Policies = rateLimit is null ? [] : [rateLimit],
                 Admin = true,
             },
         ];
@@ -258,7 +272,11 @@ public static partial class SnapshotCompiler
         List<RouteId> routeIdBySlot,
         CompileErrorSource where,
         List<CompileError> errors,
-        ProofOfWorkRuntime? proofOfWork)
+        ProofOfWorkRuntime? proofOfWork,
+        CompileContext context,
+        Dictionary<RateLimitPolicyId, RateLimitPolicy>? rateLimits,
+        RateLimitPolicy? hostRateLimit,
+        RateLimitPolicyId? hostRateLimitId)
     {
         var specs = host.Routes ?? [];
         if (specs.Count == 0)
@@ -334,6 +352,21 @@ public static partial class SnapshotCompiler
 
             // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
             var own = CompilePolicies(spec.Policies ?? [], routeWhere, errors);
+
+            // After the access policies and before proof of work: a client already over its budget gets the 429, not a
+            // challenge page. A route that resolves to the host's policy shares its pair's buckets; another policy gets
+            // its own pair for the same host.
+            if (rateLimits is not null && spec.RateLimit is { } routePolicyId)
+            {
+                var routePolicy = routePolicyId == hostRateLimitId && hostRateLimit is not null
+                    ? hostRateLimit
+                    : CompileRateLimitPolicy(context, host, routePolicyId, spec.RateLimitRouteOverride, routeWhere, rateLimits);
+                if (routePolicy is not null)
+                {
+                    own = [.. own, routePolicy];
+                }
+            }
+
             var routeProofOfWork = spec.ProofOfWorkRouteOverride ? spec.ProofOfWork : host.ProofOfWork;
             if (routeProofOfWork.Enabled)
             {

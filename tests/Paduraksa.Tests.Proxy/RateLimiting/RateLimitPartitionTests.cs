@@ -51,6 +51,7 @@ public sealed class RateLimitPartitionTests
         RateLimitPartition partition = new(1);
 
         Assert.NotEqual(partition.ForIpAndPath(Client, "/api"), partition.ForIpAndPath(Client, "/api/v1"));
+        Assert.Equal(partition.ForIpAndPath(Client, "/api"), partition.ForIpAndPath(Client, "/API"));
         Assert.NotEqual(partition.ForHeader("a/b"), partition.ForHeader("a"));
         Assert.NotEqual(partition.ForHeader(string.Empty), partition.ForHeader("a"));
     }

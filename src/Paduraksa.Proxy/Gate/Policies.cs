@@ -15,38 +15,49 @@ public enum PolicyAction : byte
     Drop,
 }
 
-/// <summary>A policy's verdict: 16 bytes (a reference plus the action), returned by value.</summary>
+/// <summary>A policy's verdict, 24 bytes: two references and the action. The second reference is the precomputed
+/// <c>Retry-After</c> a rate-limit refusal carries; it is a value type, so the hot path boxes nothing.</summary>
 public readonly struct PolicyDecision : IEquatable<PolicyDecision>
 {
-    private PolicyDecision(PolicyAction action, PrecomputedResponse? response)
+    private PolicyDecision(PolicyAction action, PrecomputedResponse? response, string? retryAfter)
     {
         Action = action;
         Response = response;
+        RetryAfter = retryAfter;
     }
 
     public PrecomputedResponse? Response { get; }
 
     public PolicyAction Action { get; }
 
+    /// <summary>
+    /// For a 429 answer: the precomputed <c>Retry-After</c> value (see <see cref="Gate.RateLimitPolicy"/>). Null
+    /// for any other answer. The string is precomputed by the policy, so the refusal path stays allocation-free.
+    /// </summary>
+    public string? RetryAfter { get; }
+
     public static PolicyDecision Continue => default;
 
-    public static PolicyDecision Drop => new(PolicyAction.Drop, null);
+    public static PolicyDecision Drop => new(PolicyAction.Drop, null, null);
 
-    public static PolicyDecision Respond(PrecomputedResponse response)
+    public static PolicyDecision Respond(PrecomputedResponse response) => Respond(response, null);
+
+    public static PolicyDecision Respond(PrecomputedResponse response, string? retryAfter)
     {
         ArgumentNullException.ThrowIfNull(response);
-        return new(PolicyAction.Respond, response);
+        return new(PolicyAction.Respond, response, retryAfter);
     }
 
     public static bool operator ==(PolicyDecision left, PolicyDecision right) => left.Equals(right);
 
     public static bool operator !=(PolicyDecision left, PolicyDecision right) => !left.Equals(right);
 
-    public bool Equals(PolicyDecision other) => Action == other.Action && ReferenceEquals(Response, other.Response);
+    public bool Equals(PolicyDecision other) =>
+        Action == other.Action && ReferenceEquals(Response, other.Response) && string.Equals(RetryAfter, other.RetryAfter, StringComparison.Ordinal);
 
     public override bool Equals(object? obj) => obj is PolicyDecision other && Equals(other);
 
-    public override int GetHashCode() => HashCode.Combine(Action, Response);
+    public override int GetHashCode() => HashCode.Combine(Action, Response, RetryAfter);
 }
 
 /// <summary>What a policy sees: the request and the gate's per-request state. Passed by <c>in</c>.</summary>

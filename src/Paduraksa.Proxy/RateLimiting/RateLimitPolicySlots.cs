@@ -17,6 +17,11 @@ namespace Paduraksa.Proxy.RateLimiting;
 /// (<see cref="IsLive"/>) and <see cref="Parameters"/> are lock-free reads, which is what the sweeper walks the table
 /// with: a sweep that runs across a publish sees either side of it, which only delays or brings a clear forward by one
 /// pass.</para>
+/// <para><b>Reclaim at a publish.</b> A publish can land out of order: an older candidate that removes a pair may swap
+/// after a newer one re-added it, retiring a slot the live snapshot still uses. <see cref="Reclaim"/> puts such a pair
+/// back (mapping and live flag) while the slot is still retired inside its grace period. If the slot was rented to
+/// another identity in the meantime, the reclaim is refused: the pair keeps its bucket only until the next compile gives
+/// it a fresh slot, rather than silently sharing another policy's tokens.</para>
 /// </remarks>
 public sealed class RateLimitPolicySlots
 {
@@ -74,6 +79,66 @@ public sealed class RateLimitPolicySlots
             _byIdentity.Add(identity, slot);
             Volatile.Write(ref _live[slot], 1);
             return slot;
+        }
+    }
+
+    /// <summary>The identity's slot without allocating one: how a compile that will never be published looks a pair up.</summary>
+    public bool TryGetSlot(string identity, out ushort slot)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+
+        lock (_gate)
+        {
+            return _byIdentity.TryGetValue(identity, out slot);
+        }
+    }
+
+    /// <summary>
+    /// Re-asserts at a publish that <paramref name="identity"/> owns <paramref name="slot"/>, undoing a retirement an
+    /// older publish slipped in between the compile and this swap. True when the pair is live again (or already was);
+    /// false when the slot has meanwhile been rented to another identity, in which case the pair must not share its
+    /// buckets and starts on a fresh slot at the next compile.
+    /// </summary>
+    /// <remarks>
+    /// It only revives a slot that is still unrented: still in the retired list. The grace period would normally
+    /// guarantee that for a minute, but a late publish may arrive after it, and an unrented slot is safe to take back
+    /// whenever. A live slot the registry doesn't map to this identity belongs to someone else.
+    /// </remarks>
+    public bool Reclaim(string identity, ushort slot, long nowMs)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        if (slot == 0 || slot > MaxSlots)
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            if (_byIdentity.TryGetValue(identity, out var existing))
+            {
+                if (existing != slot)
+                {
+                    return false;
+                }
+
+                Volatile.Write(ref _live[slot], 1);
+                return true;
+            }
+
+            if (Volatile.Read(ref _live[slot]) != 0)
+            {
+                return false;
+            }
+
+            // The grace period is the window this is safe for: the slot may be rented once it has passed.
+            if (_reusableAfterMs[slot] <= nowMs || !_retired.Remove(slot))
+            {
+                return false;
+            }
+
+            _byIdentity.Add(identity, slot);
+            Volatile.Write(ref _live[slot], 1);
+            return true;
         }
     }
 

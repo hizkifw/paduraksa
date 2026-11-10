@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
 
 using Yarp.ReverseProxy.Configuration;
@@ -83,6 +84,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     private readonly ILogger _logger;
     private readonly TimeProvider _timeProvider;
     private readonly SnapshotPublisherOptions _options;
+    private readonly RateLimitRuntime? _rateLimits;
     private Pending? _queued;
     private bool _workerRunning;
     private Attachment? _attachment;
@@ -91,13 +93,19 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     // What YARP is known to run; null when unknown (after a timeout). Equal content skips the YARP round trip.
     private YarpConfig? _yarpApplied = YarpConfig.Empty;
 
-    public SnapshotPublisher(SnapshotStore store, ILoggerFactory? loggerFactory = null, TimeProvider? timeProvider = null, SnapshotPublisherOptions? options = null)
+    public SnapshotPublisher(
+        SnapshotStore store,
+        ILoggerFactory? loggerFactory = null,
+        TimeProvider? timeProvider = null,
+        SnapshotPublisherOptions? options = null,
+        RateLimitRuntime? rateLimits = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Store = store;
         _logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<SnapshotPublisher>();
         _timeProvider = timeProvider ?? TimeProvider.System;
         _options = options ?? new SnapshotPublisherOptions();
+        _rateLimits = rateLimits;
     }
 
     public SnapshotStore Store { get; }
@@ -454,6 +462,16 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     private PublishResult Swap(RuntimeSnapshot candidate, Endpoint[] endpoints)
     {
         var generation = Store.Current.Generation + 1;
+
+        // Before the swap: the live set of rate-limit pairs is this snapshot's, and a pair it dropped is retired so the
+        // sweeper clears its buckets. A request that is in flight on the old snapshot keeps using its old pair's slot,
+        // which the grace period keeps out of another policy's hands.
+        var conflicts = _rateLimits?.Publish(candidate.RateLimitRegistrations) ?? 0;
+        if (conflicts > 0)
+        {
+            LogRateLimitSlotReused(_logger, conflicts, candidate.RevisionLabel);
+        }
+
         Store.Publish(candidate.Bind(generation, endpoints));
         LogPublished(_logger, generation, candidate.RevisionLabel, candidate.HostsByIndex.Length, candidate.RouteIdBySlot.Length);
         return PublishResult.Published(generation);
@@ -518,6 +536,9 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "YARP's endpoints don't match the snapshot for revision {Revision}: {Problem}")]
     private static partial void LogEndpointsMismatch(ILogger logger, string revision, string problem);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Publishing revision {Revision}: {Count} rate-limit pair(s) could not reclaim their slot because another policy now holds it; they start on a fresh slot at the next compile and are not swept as if retired.")]
+    private static partial void LogRateLimitSlotReused(ILogger logger, int count, string revision);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Publishing the snapshot for revision {Revision} failed")]
     private static partial void LogPublishFailed(ILogger logger, string revision, Exception exception);

@@ -15,6 +15,7 @@ using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
@@ -56,6 +57,7 @@ internal sealed class SharedServices : IAsyncDisposable
         AdminInternal = Get<AdminInternalListener>();
         ProofOfWork = Get<ProofOfWorkRuntime>();
         ProofOfWorkKey = Get<ProofOfWorkKeyStartup>();
+        RateLimits = Get<RateLimitRuntime>();
         LogFiles = Get<ServerLogFiles>();
         LogStore = Get<ILogFileStore>();
         Catalog = Get<ICertificateCatalog>();
@@ -144,6 +146,9 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>Opens the proof-of-work key at startup, before the public listener binds (see <see cref="ProofOfWorkKeyStartup"/>).</summary>
     public ProofOfWorkKeyStartup ProofOfWorkKey { get; }
+
+    /// <summary>The rate-limit engine's table, slots and counters; the compiler, the publisher and the public app share it.</summary>
+    public RateLimitRuntime RateLimits { get; }
 
     /// <summary>
     /// The process's log files: the error log's writer and provider, and the access log's writer, which the access log's
@@ -245,10 +250,13 @@ internal sealed class SharedServices : IAsyncDisposable
             RoleLoggerFactory coreLoggers = new(loggerFactory, HostRole.Core);
             // The proof-of-work gate's key is opened into this at startup; until then a protected route fails closed.
             var proofOfWork = builder.Add(new ProofOfWorkRuntime(timeProvider, coreLoggers.CreateLogger("Paduraksa.Proxy.ProofOfWork")));
+            // The rate-limit table, slots and counters: the compiler assigns pairs slots in this registry, the publisher
+            // makes a live snapshot's pairs the live parameters, and every compiled policy takes from this table.
+            var rateLimits = builder.Add(RateLimitServiceCollectionExtensions.CreateRuntime(configuration));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
             var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
-            var publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider));
+            var publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider, rateLimits: rateLimits));
             var placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
             var certificates = builder.Add(new PlaceholderCertificates(placeholder));
             AdminInternalListener adminInternal;
@@ -263,7 +271,7 @@ internal sealed class SharedServices : IAsyncDisposable
                 throw;
             }
 
-            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork));
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 

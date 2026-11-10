@@ -143,6 +143,80 @@ public sealed class RateLimitTableTests
         });
     }
 
+    [Fact]
+    public void PeekingAnAbsentBucketReportsAFullOneAndCreatesNothing()
+    {
+        RateLimitTable table = new(64);
+        RateLimitParameters tenPerSecond = new(10, 10);
+
+        Assert.True(table.TryPeek(Slot, Hash, tenPerSecond, nowMs: 0, out var tokensLeft, out var retryAfter));
+        Assert.Equal(9, tokensLeft);
+        Assert.Equal(0, retryAfter);
+
+        // Still absent: the first take creates it full, exactly as if nothing had peeked.
+        Assert.Equal(10, Take(table, tenPerSecond, nowMs: 0));
+    }
+
+    [Fact]
+    public void PeekingReportsWhatATakeWouldLeaveAndDoesNotTakeIt()
+    {
+        RateLimitTable table = new(64);
+        RateLimitParameters twoPerBurst = new(1, 2);
+
+        Assert.Equal(2, Take(table, twoPerBurst, nowMs: 0));
+        Assert.False(table.TryPeek(Slot, Hash, twoPerBurst, nowMs: 0, out var tokensLeft, out var retryAfter));
+        Assert.Equal(0, tokensLeft);
+        Assert.Equal(1, retryAfter);
+
+        // One second later a whole token is there: the peek would allow and leave none, and it took nothing.
+        Assert.True(table.TryPeek(Slot, Hash, twoPerBurst, nowMs: 1_000, out tokensLeft, out retryAfter));
+        Assert.Equal(0, tokensLeft);
+        Assert.Equal(0, retryAfter);
+        Assert.True(table.TryAcquire(Slot, Hash, twoPerBurst, nowMs: 1_000, out _));
+        Assert.False(table.TryAcquire(Slot, Hash, twoPerBurst, nowMs: 1_000, out _));
+    }
+
+    [Fact]
+    public void PeekingDoesNotMoveTheStoredTime()
+    {
+        RateLimitTable table = new(64);
+        RateLimitParameters onePerSecond = new(1, 1);
+
+        Assert.True(table.TryAcquire(Slot, Hash, onePerSecond, nowMs: 0, out _));
+
+        // A peek at 999 must not store 999: the bucket refills from the take's time, not the peek's.
+        Assert.False(table.TryPeek(Slot, Hash, onePerSecond, nowMs: 999, out _, out var retryAfter));
+        Assert.Equal(1, retryAfter);
+        Assert.True(table.TryAcquire(Slot, Hash, onePerSecond, nowMs: 1_000, out _));
+    }
+
+    [Fact]
+    public void PeekingClampsALoweredBurstLikeATakeWould()
+    {
+        RateLimitTable table = new(64);
+        RateLimitParameters generous = new(1, 10);
+        RateLimitParameters lowered = new(1, 3);
+
+        // One token spent of ten: nine are left, but the lowered burst only has room for three.
+        Assert.True(table.TryAcquire(Slot, Hash, generous, nowMs: 0, out _));
+        Assert.Equal(3, Take(table, lowered, nowMs: 0));
+        Assert.False(table.TryPeek(Slot, Hash, lowered, nowMs: 0, out _, out _));
+    }
+
+    [Fact]
+    public void PeekingSlotZeroOrDefaultParametersIsRefusedLikeATake()
+    {
+        RateLimitTable table = new(64);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            _ = table.TryPeek(0, Hash, new(1, 1), nowMs: 0, out _, out _);
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            _ = table.TryPeek(Slot, Hash, default, nowMs: 0, out _, out _);
+        });
+    }
+
     private static int Take(RateLimitTable table, in RateLimitParameters parameters, long nowMs)
     {
         var taken = 0;
