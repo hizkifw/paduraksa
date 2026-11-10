@@ -1,0 +1,34 @@
+# Traefik's file provider: one proxied host on both entry points, HTTP/1.1 keep-alive to the upstream (Traefik pools
+# by default; the raised cap matches nginx's and Caddy's), and the timeouts the other proxies use. X-Forwarded-For,
+# -Proto, -Host, -Port and X-Real-Ip are Traefik's defaults. The throwaway certificate is dynamic configuration.
+tls:
+  certificates:
+    - certFile: /certs/cert.pem
+      keyFile: /certs/key.pem
+
+http:
+  serversTransports:
+    bench:
+      maxIdleConnsPerHost: 256
+      forwardingTimeouts:
+        dialTimeout: 60s
+        responseHeaderTimeout: 0s
+        idleConnTimeout: 120s
+
+  routers:
+    bench-web:
+      rule: Host(`bench.test`)
+      entryPoints: [web]
+      service: bench
+    bench-websecure:
+      rule: Host(`bench.test`)
+      entryPoints: [websecure]
+      service: bench
+      tls: {}
+
+  services:
+    bench:
+      loadBalancer:
+        serversTransport: bench
+        servers:
+          - url: http://127.0.0.1:18080

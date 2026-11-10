@@ -1,0 +1,22 @@
+# Traefik as the reverse proxy under test. The file provider only (no Docker provider), no dashboard/API, no access
+# log, loopback only. Traefik has no built-in static response, so respond.test is not configured and the `answered`
+# scenario is skipped for it (bench/README.md).
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":18085"
+  websecure:
+    address: ":18447"
+    http:
+      tls: {}
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: false
+
+log:
+  level: ERROR
