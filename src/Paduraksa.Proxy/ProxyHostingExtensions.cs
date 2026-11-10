@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Yarp;
 
 using Yarp.ReverseProxy;
@@ -85,6 +86,7 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton<IClientAddressSource>(static provider => provider.GetRequiredService<TrustedProxyClientAddressSource>());
         services.TryAddSingleton<GateMiddleware>();
         services.TryAddSingleton<IUpstreamHealth>(static provider => new YarpUpstreamHealth(provider.GetRequiredService<IProxyStateLookup>()));
+        services.AddPaduraksaRateLimiting();
         return services;
     }
 
