@@ -306,8 +306,8 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
     public async Task AFailedBodyKeepsTheGatesHeadersOnThe502()
     {
         // The upstream sends status and headers, then dies before the first body byte. YARP clears the response and
-        // answers 502 without running the response transforms again; the proxy's post-forward step puts the host's
-        // headers back.
+        // answers 502 without running the response transforms again; the response-start hook sees YARP's error and puts
+        // the host's headers back.
         await using var host = await StartedAsync(App());
         using var client = EdgeClient.Create(out _);
         using var request = EdgeClient.Request(host, "https", "abort.test");
@@ -320,7 +320,7 @@ public sealed class PublicServerHeaderTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ABodylessUpstreamResponseCarriesEachGateHeaderExactlyOnce()
+    public async Task ABodylessUpstreamResponseCarriesTheGatesHeadersNotTheUpstreams()
     {
         // A 204 never starts a response body, so Kestrel fires the response-start hooks at the end of the request, after
         // the response transforms already ran. The reapply hook must not run there a second time, and the upstream's own

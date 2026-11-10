@@ -2,6 +2,7 @@ using System.Net;
 
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Proxy;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
@@ -58,7 +59,8 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
     /// The whole access-log path on a real keep-alive connection: the completion registration, the callback's recording
     /// and the reapply hook's header work. Each is measured on the request thread, per request, the same way the gate's
     /// decision is; the callbacks themselves run after the response, so the probe runs the same static entry points the
-    /// callbacks call, with the state, ring and headers the request really has.
+    /// callbacks call, with the state, ring and headers the request really has. Its registrations come on top of the
+    /// pipeline's own, so each measured request writes two identical lines: the test counts no lines on purpose.
     /// </summary>
     [Fact]
     public async Task TheCompletionAndReapplyCallbacksAllocateNothingOnKestrel()
@@ -79,7 +81,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         probe.Enabled = false;
 
         Assert.True(probe.Requests >= Measured, $"only {probe.Requests} requests measured");
-        Assert.True(probe.RegistrationBytes == 0, $"OnCompleted registration allocated {probe.RegistrationBytes} B over {probe.Requests} requests");
+        Assert.True(probe.RegistrationBytes == 0, $"the OnCompleted and OnStarting registrations allocated {probe.RegistrationBytes} B over {probe.Requests} requests");
         Assert.True(probe.RecordingBytes == 0, $"the access-log callback allocated {probe.RecordingBytes} B over {probe.Requests} requests");
         Assert.True(probe.ReapplyBytes == 0, $"the reapply callback allocated {probe.ReapplyBytes} B over {probe.Requests} requests");
         await WaitForEntriesAsync(server.AccessLog, Measured);
@@ -168,6 +170,10 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             var before = GC.GetAllocatedBytesForCurrentThread();
             AccessLogMiddleware.RegisterCompletion(context);
             var registration = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            before = GC.GetAllocatedBytesForCurrentThread();
+            ProxyHostingExtensions.RegisterReapply(context);
+            registration += GC.GetAllocatedBytesForCurrentThread() - before;
 
             before = GC.GetAllocatedBytesForCurrentThread();
             AccessLogMiddleware.Record(context, ring, started);

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Gate;
@@ -31,7 +32,8 @@ namespace Paduraksa.Proxy.Logging;
 /// that covers the whole forward, and is <c>-</c> when nothing was forwarded. A forward that ends without a response
 /// (YARP's own 502, say) is measured up to the failure here, and still names the destination YARP had chosen.</para>
 /// <para><b>Status.</b> What the client got, as Kestrel has settled it by the time the callback runs: an unhandled
-/// exception before anything went out is 500, a connection that ended without a response is 499. A request the gate
+/// exception before anything went out is 500, a connection that ended without a response is 499, and a request body
+/// Kestrel rejected is the 4xx it answers with. A request the gate
 /// dropped without a response is <see cref="AccessLogEntry.NoResponse"/>, written as <c>-</c>: the connection was
 /// aborted, so no status was sent and none is invented.</para>
 /// <para><b>CF-Ray</b> is written only when the peer is a trusted Cloudflare edge or tunnel
@@ -70,14 +72,25 @@ public sealed class AccessLogMiddleware
 
     /// <summary>
     /// Kestrel runs this after the response finished, with the final status settled (500 for an unhandled exception, 499
-    /// for a connection that ended without a response), and before it disposes the context.
+    /// for a connection that ended without a response; a rejected request body is settled here), and before it disposes
+    /// the context.
     /// </summary>
     private static Task RecordCompleted(object completed)
     {
         var context = (HttpContext)completed;
         if (context.Features.Get<IGateFeature>()?.State is { AccessLogRing: { } ring } state)
         {
+            // A request body Kestrel rejected (malformed, too slow) gets its 4xx only after this callback, from the
+            // exception it kept; without this the line would say the 200 the untouched response still reports.
+            if (!context.Response.HasStarted && context.Features.Get<IBadRequestExceptionFeature>()?.Error is BadHttpRequestException rejected)
+            {
+                context.Response.StatusCode = rejected.StatusCode;
+            }
+
             Record(context, ring, state.RequestStartedTimestamp);
+            // Request-scoped: the gate skips its reset only for a request a stage above it already started.
+            state.AccessLogRing = null;
+            state.RequestStartedTimestamp = 0;
         }
 
         return Task.CompletedTask;

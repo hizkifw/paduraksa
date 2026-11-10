@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Sockets;
+using System.Text;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
@@ -78,6 +80,41 @@ public sealed class AccessLogPipelineTests(TestUpstream upstream) : IClassFixtur
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
         var entry = Assert.Single(await ReadEntriesAsync(server.AccessLog, 1));
         Assert.Equal(500, entry.StatusCode);
+    }
+
+    /// <summary>
+    /// A body Kestrel rejects mid-read is answered 400 by Kestrel itself, after the completion callback; the line says the
+    /// same, not the 200 the response object still reports.
+    /// </summary>
+    [Fact]
+    public async Task ARejectedRequestBodyIsLoggedWithKestrelsStatus()
+    {
+        var options = new ProxyTestServerOptions
+        {
+            AfterGate = static async (context, next) =>
+            {
+                if (context.Request.Path.StartsWithSegments("/upload"))
+                {
+                    await context.Request.Body.CopyToAsync(Stream.Null, context.RequestAborted);
+                    return;
+                }
+
+                await next(context);
+            },
+        };
+        await using var server = await ProxyTestServer.StartAsync(Model(), options);
+        var ct = TestContext.Current.CancellationToken;
+
+        using TcpClient tcp = new();
+        await tcp.ConnectAsync(server.BaseAddress.Host, server.BaseAddress.Port, ct);
+        var stream = tcp.GetStream();
+        await stream.WriteAsync(Encoding.ASCII.GetBytes("POST /upload HTTP/1.1\r\nHost: app.test\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n"), ct);
+        var buffer = new byte[256];
+        var read = await stream.ReadAsync(buffer, ct);
+
+        Assert.StartsWith("HTTP/1.1 400", Encoding.ASCII.GetString(buffer, 0, read), StringComparison.Ordinal);
+        var entry = Assert.Single(await ReadEntriesAsync(server.AccessLog, 1));
+        Assert.Equal(400, entry.StatusCode);
     }
 
     /// <summary>A request the gate dropped sent nothing, so the line has no status at all (written as <c>-</c>).</summary>

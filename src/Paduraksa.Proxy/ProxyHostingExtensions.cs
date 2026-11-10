@@ -130,11 +130,25 @@ public static class ProxyHostingExtensions
     /// </summary>
     private static Task ReapplyGateHeaders(HttpContext context, RequestDelegate next)
     {
+        RegisterReapply(context);
+        return next(context);
+    }
+
+    /// <summary>Registers the reapply hook; internal so the allocation test can measure the registration on Kestrel.</summary>
+    internal static void RegisterReapply(HttpContext context)
+    {
+        // Kestrel throws for a hook registered after the response started, and then there is nothing to put back anyway.
+        if (context.Response.HasStarted)
+        {
+            return;
+        }
+
         context.Response.OnStarting(static started =>
         {
             var http = (HttpContext)started;
             // Every YARP path that answers without the transforms sets the feature before the response starts: no healthy
-            // destination (503), a failed request or timeout (502/504), a malformed response (502) and a body error (502).
+            // destination (503), a failed request or timeout (502/504), a request-body error (400/408/502/504), a malformed
+            // response (502), a body error (502) and a failed upgrade (502).
             if (http.Features.Get<IForwarderErrorFeature>() is not null)
             {
                 GateResponseHeaders.Reapply(http);
@@ -142,7 +156,6 @@ public static class ProxyHostingExtensions
 
             return Task.CompletedTask;
         }, context);
-        return next(context);
     }
 
     /// <summary>
