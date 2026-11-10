@@ -174,6 +174,24 @@
                         </TitleContent>
                         <ChildContent>
                             <div class="pdk-field-grid">
+                                <MudSelect T="UpstreamTlsTrust" Value="Model.TlsTrust" ValueChanged="@(value => Set(() => Model.TlsTrust = value, "/tls/trust"))" Label="HTTPS certificate trust"
+                                           HelperText="Only for https:// destinations" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite" data-field="tls-trust"
+                                           Error="@(E("/tls/trust") is not null)" ErrorText="@E("/tls/trust")">
+                                    <MudSelectItem T="UpstreamTlsTrust" Value="UpstreamTlsTrust.System">System trust store</MudSelectItem>
+                                    <MudSelectItem T="UpstreamTlsTrust" Value="UpstreamTlsTrust.Pinned">Pinned fingerprint (self-signed)</MudSelectItem>
+                                    <MudSelectItem T="UpstreamTlsTrust" Value="UpstreamTlsTrust.Any">Any certificate (not verified)</MudSelectItem>
+                                </MudSelect>
+                                @if (Model.TlsTrust == UpstreamTlsTrust.Pinned)
+                                {
+                                    <MudTextField T="string" Value="Model.PinnedSha256" ValueChanged="@(value => Set(() => Model.PinnedSha256 = value, "/tls/pinnedSha256"))"
+                                                  Label="SHA-256 fingerprints, one per line" Lines="2" Sizing="InputSizing.Auto" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
+                                                  HelperText="openssl s_client -connect host:port </dev/null | openssl x509 -noout -fingerprint -sha256" Class="pdk-span-2 pdk-mono" data-field="tls-pins"
+                                                  Error="@(PinError is not null)" ErrorText="@PinError" />
+                                }
+                                else if (Model.TlsTrust == UpstreamTlsTrust.Any)
+                                {
+                                    <MudAlert Severity="Severity.Warning" Dense="true" Class="pdk-span-2">Anyone between Paduraksa and this upstream can read and change the traffic. Pin the certificate instead if you can.</MudAlert>
+                                }
                                 <MudNumericField T="int?" Value="Model.MaxConnectionsPerServer" ValueChanged="@(value => Set(() => Model.MaxConnectionsPerServer = value, "/maxConnectionsPerServer"))"
                                                  Label="Connections per destination" Placeholder="No limit" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                                  Error="@(E("/maxConnectionsPerServer") is not null)" ErrorText="@E("/maxConnectionsPerServer")" />
@@ -247,6 +265,12 @@
 </DrawerShell>
 
 @code {
+    // A refused fingerprint is reported at its index; the one text field shows the first of them.
+    private string? PinError => E("/tls/pinnedSha256")
+        ?? ((Attempted || Touched.Contains("/tls/pinnedSha256"))
+            ? FieldErrors.Where(e => e.Key.StartsWith("/tls/pinnedSha256/", StringComparison.Ordinal)).Select(e => e.Value).FirstOrDefault()
+            : null);
+
     private readonly Dictionary<DestinationEntry, UpstreamProbeResult> _probes = [];
     private readonly HashSet<DestinationEntry> _checking = [];
 

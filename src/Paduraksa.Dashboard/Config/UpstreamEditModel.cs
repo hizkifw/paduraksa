@@ -48,6 +48,11 @@ public sealed class UpstreamEditModel
 
     public int? MaxConnectionsPerServer { get; set; }
 
+    public UpstreamTlsTrust TlsTrust { get; set; }
+
+    /// <summary>One fingerprint per line, as pasted.</summary>
+    public string PinnedSha256 { get; set; } = string.Empty;
+
     public string? Notes { get; set; }
 
     /// <summary>A form for a new upstream with one empty destination.</summary>
@@ -84,6 +89,8 @@ public sealed class UpstreamEditModel
         model.HealthIntervalSeconds = (int)(upstream.ActiveHealth?.Interval ?? ActiveHealthConfig.DefaultInterval).TotalSeconds;
         model.HealthTimeoutSeconds = (int)(upstream.ActiveHealth?.Timeout ?? ActiveHealthConfig.DefaultTimeout).TotalSeconds;
         model.MaxConnectionsPerServer = upstream.MaxConnectionsPerServer;
+        model.TlsTrust = upstream.Tls?.Trust ?? UpstreamTlsTrust.System;
+        model.PinnedSha256 = string.Join('\n', upstream.Tls?.PinnedSha256 ?? []);
         model.Notes = upstream.Notes;
         model.Destinations.AddRange(upstream.Destinations.Select(d => new DestinationEntry(d.Id) { Address = d.Address, Enabled = d.Enabled }));
         return model;
@@ -107,7 +114,15 @@ public sealed class UpstreamEditModel
                 TimeSpan.FromSeconds(HealthTimeoutSeconds))
             : null,
         MaxConnectionsPerServer,
-        string.IsNullOrWhiteSpace(Notes) ? null : Notes);
+        string.IsNullOrWhiteSpace(Notes) ? null : Notes,
+        TlsConfig());
+
+    // System trust with nothing pinned is the default, so it stays out of the document.
+    private UpstreamTlsConfig? TlsConfig()
+    {
+        string[] pins = [.. PinnedSha256.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+        return TlsTrust == UpstreamTlsTrust.System && pins.Length == 0 ? null : new UpstreamTlsConfig(TlsTrust, pins.Length == 0 ? null : pins);
+    }
 }
 
 /// <summary>A destination in the upstream form.</summary>
