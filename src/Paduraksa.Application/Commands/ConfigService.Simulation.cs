@@ -171,6 +171,7 @@ public sealed partial class ConfigService
             ReplaceConfigCommand c when c.Document is not null => (c.Document, string.Empty),
             UpsertHostCommand { Host: { } host } => (new ConfigDocument(Hosts: [host]), "/hosts/0"),
             UpsertUpstreamCommand { Upstream: { } upstream } => (new ConfigDocument(Upstreams: [upstream]), "/upstreams/0"),
+            UpsertRateLimitPolicyCommand { Policy: { } policy } => (new ConfigDocument(RateLimitPolicies: [policy]), "/rateLimitPolicies/0"),
             UpsertProfileCommand { Profile: { } profile } => (new ConfigDocument(Profiles: [profile]), "/profiles/0"),
             UpdateSettingsCommand { Settings: { } settings } => (new ConfigDocument(Settings: settings), "/settings"),
             _ => null,

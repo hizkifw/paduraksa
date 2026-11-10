@@ -15,6 +15,8 @@ internal sealed class TouchedObjects
 
     public HashSet<UpstreamId> Upstreams { get; } = [];
 
+    public HashSet<RateLimitPolicyId> RateLimitPolicies { get; } = [];
+
     public HashSet<HostId> Hosts { get; } = [];
 
     public static TouchedObjects From(IReadOnlyList<ConfigChange> changes)
@@ -33,6 +35,9 @@ internal sealed class TouchedObjects
                     break;
                 case DestinationChange d:
                     touched.Upstreams.Add(d.UpstreamId);
+                    break;
+                case RateLimitPolicyChange p:
+                    touched.RateLimitPolicies.Add(p.RateLimitPolicyId);
                     break;
                 case HostChange h:
                     touched.Hosts.Add(h.HostId);

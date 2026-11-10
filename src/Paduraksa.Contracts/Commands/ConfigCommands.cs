@@ -23,6 +23,8 @@ namespace Paduraksa.Contracts.Commands;
 [JsonDerivedType(typeof(DeleteHostCommand), "deleteHost")]
 [JsonDerivedType(typeof(UpsertUpstreamCommand), "upsertUpstream")]
 [JsonDerivedType(typeof(DeleteUpstreamCommand), "deleteUpstream")]
+[JsonDerivedType(typeof(UpsertRateLimitPolicyCommand), "upsertRateLimitPolicy")]
+[JsonDerivedType(typeof(DeleteRateLimitPolicyCommand), "deleteRateLimitPolicy")]
 [JsonDerivedType(typeof(UpsertProfileCommand), "upsertProfile")]
 [JsonDerivedType(typeof(DeleteProfileCommand), "deleteProfile")]
 [JsonDerivedType(typeof(UpdateSettingsCommand), "updateSettings")]
@@ -61,6 +63,15 @@ public sealed record UpsertUpstreamCommand(UpstreamConfig Upstream) : ConfigComm
 /// <param name="UpstreamId">The upstream.</param>
 /// <param name="Version">The version the caller saw.</param>
 public sealed record DeleteUpstreamCommand(UpstreamId UpstreamId, long Version) : ConfigCommand;
+
+/// <summary>Creates a rate-limit policy (<see cref="RateLimitPolicyConfig.Version"/> 0) or replaces one.</summary>
+/// <param name="Policy">The policy as it should be. Its <see cref="RateLimitPolicyConfig.Version"/> is the version edited.</param>
+public sealed record UpsertRateLimitPolicyCommand(RateLimitPolicyConfig Policy) : ConfigCommand;
+
+/// <summary>Deletes a rate-limit policy; no host or route may still name it.</summary>
+/// <param name="RateLimitPolicyId">The policy.</param>
+/// <param name="Version">The version the caller saw.</param>
+public sealed record DeleteRateLimitPolicyCommand(RateLimitPolicyId RateLimitPolicyId, long Version) : ConfigCommand;
 
 /// <summary>Creates a profile (<see cref="ProfileConfig.Version"/> 0) or replaces one.</summary>
 /// <param name="Profile">The profile as it should be. Its <see cref="ProfileConfig.Version"/> is the version edited.</param>

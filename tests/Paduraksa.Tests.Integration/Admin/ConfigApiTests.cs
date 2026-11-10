@@ -182,6 +182,55 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
     }
 
     [Fact]
+    public async Task RateLimitPoliciesAreManagedAndOneInUseCannotBeDeleted()
+    {
+        var api = shared.Api;
+        var upstream = ConfigTestSupport.Upstream("u-rates", "http://127.0.0.1:9");
+        using var createdUpstream = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/upstreams", upstream, AdminJsonContext.Default.UpstreamConfig);
+        Assert.Equal(HttpStatusCode.Created, createdUpstream.StatusCode);
+
+        RateLimitPolicyConfig policy = new(RateLimitPolicyId.New(), "api-budget", Requests: 30, Per: RateLimitPeriod.Second, Burst: 60);
+        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/rateLimitPolicies", policy, AdminJsonContext.Default.RateLimitPolicyConfig);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal($"/api/v1/rateLimitPolicies/{policy.Id}", created.Headers.Location!.ToString());
+        var version = AdminApiHarness.ETag(created)!;
+
+        using var read = await api.GetAsync($"/api/v1/rateLimitPolicies/{policy.Id}");
+        var stored = await AdminApiHarness.ReadAsync(read, AdminJsonContext.Default.RateLimitPolicyConfig, Ct);
+        Assert.Equal(30, stored.Requests);
+        Assert.Equal(version, AdminApiHarness.ETag(read));
+        using var list = await api.GetAsync("/api/v1/rateLimitPolicies");
+        Assert.Contains(await AdminApiHarness.ReadAsync(list, AdminJsonContext.Default.IReadOnlyListRateLimitPolicyConfig, Ct), p => p.Id == policy.Id);
+
+        using var replaced = await api.SendJsonAsync(
+            HttpMethod.Put, $"/api/v1/rateLimitPolicies/{policy.Id}", stored with { Burst = 10 }, AdminJsonContext.Default.RateLimitPolicyConfig, ifMatch: version);
+        Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
+        var latest = AdminApiHarness.ETag(replaced)!;
+
+        HostConfig host = ConfigTestSupport.ProxyHost("h-rates", "h-rates.test", "u-rates") with
+        {
+            Settings = new HostSettings { RateLimit = new RateLimitSettings { PolicyId = policy.Id } },
+        };
+        using var hostCreated = await PostHostAsync(api, host);
+        Assert.Equal(HttpStatusCode.Created, hostCreated.StatusCode);
+
+        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/rateLimitPolicies/{policy.Id}", ifMatch: latest);
+        var problem = await AdminApiHarness.ProblemAsync(inUse, Ct);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, inUse.StatusCode);
+        Assert.NotEmpty(problem.RelatedErrors!);
+
+        using var hostGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/hosts/{host.Id}", ifMatch: AdminApiHarness.ETag(hostCreated));
+        Assert.Equal(HttpStatusCode.NoContent, hostGone.StatusCode);
+        using var policyGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/rateLimitPolicies/{policy.Id}", ifMatch: latest);
+        Assert.Equal(HttpStatusCode.NoContent, policyGone.StatusCode);
+        using var gone = await api.GetAsync($"/api/v1/rateLimitPolicies/{policy.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+
+        using var upstreamGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: AdminApiHarness.ETag(createdUpstream));
+        Assert.Equal(HttpStatusCode.NoContent, upstreamGone.StatusCode);
+    }
+
+    [Fact]
     public async Task SettingsNeedTheirVersion()
     {
         var api = shared.Api;

@@ -90,6 +90,23 @@ public sealed class ConfigDiffTests
     }
 
     [Fact]
+    public void ListsRateLimitPolicyChanges()
+    {
+        var document = Valid();
+        var edited = document.RateLimitPolicies[0] with { Requests = 120 };
+        RateLimitPolicyConfig added = new(Id<RateLimitPolicyId>(2), "burst");
+        var changed = document with { RateLimitPolicies = [edited, added] };
+
+        Assert.Equal(
+            [
+                new RateLimitPolicyChange(ConfigChangeKind.Modified, ApiPolicy, "/rateLimitPolicies/0", ["/rateLimitPolicies/0/requests"]),
+                new RateLimitPolicyChange(ConfigChangeKind.Added, added.Id, "/rateLimitPolicies/1", []),
+            ],
+            ConfigDiff.Compare(document, changed),
+            ChangeComparer.Instance);
+    }
+
+    [Fact]
     public void ListsChildrenUnderTheirParent()
     {
         var document = Valid();

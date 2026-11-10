@@ -32,6 +32,7 @@ internal static class TypedIdRouting
         ArgumentNullException.ThrowIfNull(options);
         Add<HostId>(options);
         Add<UpstreamId>(options);
+        Add<RateLimitPolicyId>(options);
         Add<ProfileId>(options);
         Add<RouteId>(options);
         Add<CertificateId>(options);

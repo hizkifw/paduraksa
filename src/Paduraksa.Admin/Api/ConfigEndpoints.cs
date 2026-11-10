@@ -69,6 +69,21 @@ internal static class ConfigEndpoints
             .WithDescription("Refused (422, relatedErrors) while a route still uses it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
+        var rateLimits = api.MapGroup("/rateLimitPolicies").WithTags("Rate limits");
+        rateLimits.MapGet("/", ListRateLimitPoliciesAsync).WithName("ListRateLimitPolicies").WithSummary("List rate-limit policies")
+            .Produces<IReadOnlyList<RateLimitPolicyConfig>>().RequirePermission(Permission.ConfigRead);
+        rateLimits.MapGet("/{id:RateLimitPolicyId}", GetRateLimitPolicyAsync).WithName("GetRateLimitPolicy").WithSummary("Get a rate-limit policy")
+            .Produces<RateLimitPolicyConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
+        rateLimits.MapPost("/", CreateRateLimitPolicyAsync).WithName("CreateRateLimitPolicy").WithSummary("Create a rate-limit policy")
+            .Accepts<RateLimitPolicyConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        rateLimits.MapPut("/{id:RateLimitPolicyId}", ReplaceRateLimitPolicyAsync).WithName("ReplaceRateLimitPolicy").WithSummary("Replace a rate-limit policy")
+            .Accepts<RateLimitPolicyConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        rateLimits.MapDelete("/{id:RateLimitPolicyId}", DeleteRateLimitPolicyAsync).WithName("DeleteRateLimitPolicy").WithSummary("Delete a rate-limit policy")
+            .WithDescription("Refused (422, relatedErrors) while a host or route still names it.")
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+
         var profiles = api.MapGroup("/profiles").WithTags("Profiles");
         profiles.MapGet("/", ListProfilesAsync).WithName("ListProfiles").WithSummary("List profiles")
             .Produces<IReadOnlyList<ProfileConfig>>().RequirePermission(Permission.ConfigRead);
@@ -260,6 +275,38 @@ internal static class ConfigEndpoints
 
     private static Task<IResult> DeleteUpstreamAsync(HttpContext http, UpstreamId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         DeleteAsync(http, caller, config, version => new DeleteUpstreamCommand(id, version), ct);
+
+    private static async Task<IResult> ListRateLimitPoliciesAsync(HttpContext http, ConfigService config, CancellationToken ct)
+    {
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        TagWithRevision(http, current);
+        return EndpointSupport.Json(current.Document.RateLimitPolicies, AdminJsonContext.Default.IReadOnlyListRateLimitPolicyConfig);
+    }
+
+    private static async Task<IResult> GetRateLimitPolicyAsync(HttpContext http, RateLimitPolicyId id, ConfigService config, CancellationToken ct)
+    {
+        var policy = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.RateLimitPolicies.FirstOrDefault(p => p.Id == id);
+        if (policy is null)
+        {
+            return NoSuchObject("rate-limit policy");
+        }
+
+        http.Response.Headers.ETag = Preconditions.VersionTag(policy.Version);
+        return EndpointSupport.Json(policy, AdminJsonContext.Default.RateLimitPolicyConfig);
+    }
+
+    private static Task<IResult> CreateRateLimitPolicyAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.RateLimitPolicyConfig,
+            (policy, _, _) => (policy with { Version = 0 }, null), (policy, dry, message) => new UpsertRateLimitPolicyCommand(policy) { DryRun = dry, Message = message },
+            policy => EndpointSupport.Path("rateLimitPolicies", policy.Id), ct);
+
+    private static Task<IResult> ReplaceRateLimitPolicyAsync(HttpContext http, RateLimitPolicyId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.RateLimitPolicyConfig,
+            (policy, version, _) => policy.Id == id ? (policy with { Version = version }, null) : (policy, IdMismatch()),
+            (policy, dry, message) => new UpsertRateLimitPolicyCommand(policy) { DryRun = dry, Message = message }, null, ct);
+
+    private static Task<IResult> DeleteRateLimitPolicyAsync(HttpContext http, RateLimitPolicyId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        DeleteAsync(http, caller, config, version => new DeleteRateLimitPolicyCommand(id, version), ct);
 
     private static async Task<IResult> ListProfilesAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {

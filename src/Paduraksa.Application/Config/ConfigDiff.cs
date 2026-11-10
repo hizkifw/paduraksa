@@ -15,8 +15,8 @@ namespace Paduraksa.Application.Config;
 /// in (exact first, then the longest prefix, then <c>Order</c>, then as listed), so when the routes a host keeps change
 /// that relative order, the host lists its <c>routes</c> field. Fields are compared on their canonical JSON, so a new
 /// field of the model is diffed without touching this class. Order: the document (<c>apiVersion</c>), the settings, then
-/// profiles, upstreams (each followed by its destinations) and hosts (each followed by its routes), each group by ID.
-/// Any document can be compared, valid or not.
+/// profiles, upstreams (each followed by its destinations), rate-limit policies and hosts (each followed by its routes),
+/// each group by ID. Any document can be compared, valid or not.
 /// </remarks>
 public static class ConfigDiff
 {
@@ -77,6 +77,16 @@ public static class ConfigDiff
                 $"{oldPath}/destinations"),
             changes,
             skip: "destinations");
+
+        Objects(
+            old.RateLimitPolicies,
+            @new.RateLimitPolicies,
+            p => p.Id,
+            "/rateLimitPolicies",
+            json.RateLimitPolicyConfig,
+            (kind, id, path, fields) => new RateLimitPolicyChange(kind, id, path, fields),
+            children: null,
+            changes);
 
         Objects(
             old.Hosts,
