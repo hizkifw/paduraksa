@@ -98,6 +98,24 @@ public sealed class PublicProofOfWorkTests
         Assert.Equal("text/html", otherResponse.Content.Headers.ContentType?.MediaType);
         Assert.Contains("name=\"challenge\"", await otherResponse.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
 
+        // A body over 2 KiB is refused without reading it, and a challenge that doesn't check out is a plain 403.
+        using var oversized = new HttpRequestMessage(HttpMethod.Post, new Uri(endpoint, "/.well-known/paduraksa/pow"))
+        {
+            Content = new ByteArrayContent(new byte[3000]),
+        };
+        oversized.Content.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
+        using var tooLarge = await client.SendAsync(oversized, Ct);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, tooLarge.StatusCode);
+
+        using var forged = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["challenge"] = challenge[..^1] + (challenge[^1] == 'A' ? 'B' : 'A'),
+            ["solution"] = solution,
+            ["return"] = "/",
+        });
+        using var forgedResponse = await client.PostAsync(new Uri(endpoint, "/.well-known/paduraksa/pow"), forged, Ct);
+        Assert.Equal(HttpStatusCode.Forbidden, forgedResponse.StatusCode);
+
         // A GET on the verify path is not the endpoint: it answers 405 on a host where the gate is on.
         using var wrongMethod = BrowserGet(endpoint, "/.well-known/paduraksa/pow");
         using var wrongMethodResponse = await client.SendAsync(wrongMethod, Ct);
