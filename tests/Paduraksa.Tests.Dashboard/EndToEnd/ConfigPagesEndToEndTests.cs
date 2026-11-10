@@ -124,6 +124,7 @@ public sealed class ConfigPagesEndToEndTests
         await Expect(row).ToContainTextAsync("app");
         await Expect(row).ToContainTextAsync("http://127.0.0.1:18080");
         await Expect(page.Locator(".mud-snackbar", new() { HasText = "Live as #1" })).ToBeVisibleAsync();
+        await PlaywrightBrowser.ScreenshotAsync(page, "toast-live", fullPage: false);
         await PlaywrightBrowser.ScreenshotAsync(page, "hosts");
 
         await OpenFromNavigationAsync(page, "Upstreams");
@@ -164,6 +165,7 @@ public sealed class ConfigPagesEndToEndTests
         await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Undo" })).ToHaveCountAsync(1);
         await page.Locator(".mud-snackbar", new() { HasText = "Live as #2" }).GetByRole(AriaRole.Button, new() { Name = "Undo" }).ClickAsync();
         await Expect(page.GetByText(new Regex("^Undone: #3"))).ToBeVisibleAsync(new() { Timeout = 15_000 });
+        await PlaywrightBrowser.ScreenshotAsync(page, "toast-undone", fullPage: false);
         await Expect(page.Locator(".pdk-hosts-table")).Not.ToContainTextAsync(ExtraName, new() { Timeout = 15_000 });
 
         // The switch in the list goes through review too: switching the host off is reviewed, then cancelled.

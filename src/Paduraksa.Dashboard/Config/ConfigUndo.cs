@@ -37,8 +37,8 @@ public sealed class ConfigUndo(IDashboardConfig config, DashboardCaller caller, 
         _offered = snackbar.Add(message, Severity.Success, options =>
         {
             options.Action = "Undo";
-            options.ActionColor = Color.Inherit;
-            options.ActionVariant = Variant.Outlined;
+            options.ActionColor = Color.Primary;
+            options.ActionVariant = Variant.Text;
             options.VisibleStateDuration = UndoVisibleMilliseconds;
             options.OnClick = shown =>
             {

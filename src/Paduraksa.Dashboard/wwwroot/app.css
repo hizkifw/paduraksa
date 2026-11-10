@@ -2366,6 +2366,76 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     overflow-wrap: anywhere;
 }
 
+/* A toast is one of the dashboard's cards: the surface, a hairline border and the card radius. Only its icon says how it
+   went, so a stack of them doesn't shout. (Two classes, to win over MudBlazor's per-severity outline colours.) */
+.mud-snackbar-location-bottom-right .mud-snackbar {
+    /* Icon top left, actions top right, text between them growing downwards: a long message never pulls either corner
+       towards the middle. The icon and the close button are the same 32px box, 8px from their corners. */
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: 8px;
+    padding: 8px;
+    color: var(--mud-palette-text-primary);
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    box-shadow: 0 14px 36px -16px rgba(0, 0, 0, 0.55);
+}
+
+.mud-snackbar.mud-alert-outlined-success .mud-snackbar-icon { color: var(--mud-palette-success); }
+.mud-snackbar.mud-alert-outlined-info .mud-snackbar-icon { color: var(--mud-palette-info); }
+.mud-snackbar.mud-alert-outlined-warning .mud-snackbar-icon { color: var(--mud-palette-warning); }
+.mud-snackbar.mud-alert-outlined-error .mud-snackbar-icon { color: var(--mud-palette-error); }
+.mud-snackbar.mud-alert-outlined-normal .mud-snackbar-icon { color: var(--mud-palette-text-secondary); }
+
+.mud-snackbar-location-bottom-right .mud-snackbar-icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+}
+
+.mud-snackbar-location-bottom-right .mud-snackbar-icon .mud-icon-root,
+.mud-snackbar-location-bottom-right .mud-snackbar-close-button .mud-icon-root {
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+}
+
+/* (32px - one 20px line) / 2: the first line sits on the icons' centre line. */
+.mud-snackbar-location-bottom-right .mud-snackbar .mud-snackbar-content-message {
+    padding: 6px 0;
+}
+
+.mud-snackbar-location-bottom-right .mud-snackbar .mud-snackbar-content-action {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+}
+
+.mud-snackbar .mud-snackbar-content-action .mud-snackbar-action-button {
+    height: 32px;
+    min-width: 0;
+    padding: 0 10px;
+    font-weight: 600;
+}
+
+/* MudBlazor puts a utility margin (!important) on the close button; the action group's gap spaces it instead. */
+.mud-snackbar .mud-snackbar-content-action .mud-snackbar-close-button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin: 0 !important;
+    padding: 0;
+    color: var(--mud-palette-text-secondary);
+}
+
 @media (max-width: 600px) {
     .mud-snackbar-location-bottom-right {
         right: 8px;
