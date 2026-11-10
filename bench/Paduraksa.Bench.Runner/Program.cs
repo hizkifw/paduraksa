@@ -46,6 +46,9 @@ var upstreamId = UpstreamId.New();
 CertificateBinding placeholderCertificate = new() { Mode = CertificateBindingMode.Specific, CertificateId = PlaceholderCertificates.Id };
 ConfigDocument document = new(
     Settings: new GlobalSettings(
+        // Access logs off, like every other proxy under test: the default is on, and logging every request would put
+        // the writer's work into Paduraksa's measurement and into the host it shares with the benchmark's other work.
+        Defaults: new HostSettings { AccessLog = false },
         TrustedProxies: Get("cloudflare-tunnel", "false") == "true"
             ? new TrustedProxySettings(TrustedProxyMode.CloudflareTunnel, ["127.0.0.1", "::1"])
             : new TrustedProxySettings()),

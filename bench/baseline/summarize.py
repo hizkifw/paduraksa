@@ -1,9 +1,10 @@
-"""Summarises a bench/run-baseline.sh run as Markdown tables.
+"""Summarises a bench/run-baseline.sh run as Markdown tables and summary.json.
 
 Usage: python3 -I bench/baseline/summarize.py bench/results/<run>-baseline
 
-Reads raw/<run>.json (oha), raw/<run>.meta.json (time window, proxy CPU time, upstream TCP states) and, for
-Paduraksa, the runner's per-second METRICS lines in paduraksa*.log (one per runner process).
+Reads raw/<run>.json (oha), raw/<run>.meta.json (time window, proxy CPU time, upstream TCP states), env.txt and, for
+Paduraksa, the runner's per-second METRICS lines in paduraksa*.log (one per runner process). Writes summary.json next
+to env.txt for bench/history.py; the Markdown goes to stdout for run-baseline.sh to tee into summary.md.
 """
 
 import json
@@ -12,19 +13,33 @@ import statistics
 import sys
 from pathlib import Path
 
-PROXIES = ["paduraksa", "nginx", "caddy"]
-NAMES = {"paduraksa": "Paduraksa", "nginx": "nginx", "caddy": "Caddy"}
+PROXIES = ["paduraksa", "nginx", "caddy", "haproxy", "traefik", "envoy", "yarp"]
+NAMES = {
+    "paduraksa": "Paduraksa",
+    "nginx": "nginx",
+    "caddy": "Caddy",
+    "haproxy": "HAProxy",
+    "traefik": "Traefik",
+    "envoy": "Envoy",
+    "yarp": "YARP",
+}
 SCENARIOS = [
     ("h1", "HTTP/1.1 plain, proxied"),
     ("h1-tls", "HTTPS HTTP/1.1, proxied"),
     ("h2-tls", "HTTPS HTTP/2, proxied"),
     ("browser", "HTTPS HTTP/2, browser-like headers, proxied"),
+    ("body-64k", "HTTP/1.1 plain, 64 KiB body, proxied"),
+    ("handshake", "HTTPS HTTP/1.1, new connection per request (TLS handshake), proxied"),
     ("answered", "HTTP/1.1 plain, answered by the proxy"),
     ("cf", "HTTP/1.1 plain, proxied, trusted Cloudflare Tunnel headers"),
 ]
 LABELS = dict(SCENARIOS)
+# A proxy that has no built-in static response can't run `answered`; it's a declared skip, not missing data.
+UNAVAILABLE = {("traefik", "answered")}
 RATE_RUN = re.compile(r"^(?P<proxy>[a-z]+)\.(?P<scenario>[a-z0-9-]+)\.q(?P<rate>\d+)\.r(?P<repeat>\d+)$")
 METRICS = re.compile(r"^METRICS (.*)$")
+
+MISSING = "—"
 
 
 def load(raw: Path, name: str):
@@ -112,11 +127,11 @@ def runtime(samples, result):
 
 
 def ms(seconds) -> str:
-    return "-" if seconds is None else f"{seconds * 1000:.2f}"
+    return MISSING if seconds is None else f"{seconds * 1000:.2f}"
 
 
 def num(value, digits=0) -> str:
-    return "-" if value is None else f"{value:,.{digits}f}"
+    return MISSING if value is None else f"{value:,.{digits}f}"
 
 
 def cpu(result):
@@ -127,6 +142,97 @@ def cpu(result):
     # The CPU window also spans oha's container start and stop (~1 s, the proxy idle), so "busy" uses oha's own
     # sending time; it slightly overstates load by whatever the idle proxy burned meanwhile.
     return meta["cpu_us"] / result["requests"], meta["cpu_us"] / 1e6 / result["seconds"]
+
+
+def env_values(out: Path) -> dict[str, str]:
+    text = (out / "env.txt").read_text()
+    values = {}
+    for line in text.splitlines():
+        key, separator, value = line.partition(": ")
+        if separator:
+            values[key] = value
+    return values
+
+
+def env_dirty(text: str) -> bool:
+    """Newer env.txt files carry an explicit `dirty:` line; older ones only have the indented status block."""
+    for line in text.splitlines():
+        if line.startswith("dirty: "):
+            return line.removeprefix("dirty: ").strip() == "true"
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("git status --porcelain"):
+            continue
+        for follow in lines[index + 1:]:
+            if not follow.startswith(" "):
+                break
+            if follow.strip():
+                return True
+        break
+    return False
+
+
+def summary_json(out: Path, proxies, runs, rate_runs) -> dict:
+    text = (out / "env.txt").read_text()
+    values = env_values(out)
+    machine = values.get("cpu", "")
+    cpus = re.search(r"^(\d+) logical", values.get("cpus", ""))
+    sets = re.search(r"proxy=(\S+) upstream=(\S+) load=(\S+)", values.get("cpu sets", ""))
+    results = []
+    for proxy in proxies:
+        for scenario, _ in SCENARIOS:
+            result = runs.get((proxy, scenario))
+            if result is None:
+                continue
+            per_request, busy = cpu(result)
+            results.append({
+                "proxy": proxy,
+                "scenario": scenario,
+                "rate": None,
+                "rps": round(result["rps"], 4),
+                "p50_ms": None if result["p50"] is None else round(result["p50"] * 1000, 4),
+                "p99_ms": None if result["p99"] is None else round(result["p99"] * 1000, 4),
+                "p999_ms": None if result["p999"] is None else round(result["p999"] * 1000, 4),
+                "cpu_us_per_req": None if per_request is None else round(per_request, 4),
+                "busy_cpus": None if busy is None else round(busy, 4),
+                "errors": result["failed"],
+            })
+    order = {key: index for index, (key, _) in enumerate(SCENARIOS)}
+    for (scenario, rate, proxy) in sorted(
+            rate_runs, key=lambda key: (order.get(key[0], 99), key[1], PROXIES.index(key[2]))):
+        results_for_rate = rate_runs[(scenario, rate, proxy)]
+
+        def median(field):
+            values_for_field = [r[field] for r in results_for_rate if r[field] is not None]
+            return statistics.median(values_for_field) if values_for_field else None
+
+        per_requests = [cpu(r)[0] for r in results_for_rate if cpu(r)[0] is not None]
+        busy_values = [cpu(r)[1] for r in results_for_rate if cpu(r)[1] is not None]
+        results.append({
+            "proxy": proxy,
+            "scenario": scenario,
+            "rate": rate,
+            "rps": round(median("rps"), 4),
+            "p50_ms": None if median("p50") is None else round(median("p50") * 1000, 4),
+            "p99_ms": None if median("p99") is None else round(median("p99") * 1000, 4),
+            "p999_ms": None if median("p999") is None else round(median("p999") * 1000, 4),
+            "cpu_us_per_req": None if not per_requests else round(statistics.median(per_requests), 4),
+            "busy_cpus": None if not busy_values else round(statistics.median(busy_values), 4),
+            "errors": sum(r["failed"] for r in results_for_rate),
+        })
+
+    return {
+        "date": values.get("date"),
+        "commit": values.get("commit"),
+        "dirty": env_dirty(text),
+        "machine": {"cpu": machine, "logical_cpus": int(cpus.group(1)) if cpus else None},
+        "cpu_sets": {
+            "proxy": sets.group(1) if sets else None,
+            "upstream": sets.group(2) if sets else None,
+            "load": sets.group(3) if sets else None,
+        },
+        "results": results,
+    }
 
 
 def main() -> None:
@@ -143,14 +249,16 @@ def main() -> None:
     if scenarios:
         emit("### Throughput at fixed concurrency (successful requests/s)")
         emit("")
-        ratios = [p for p in ("nginx", "caddy") if p in proxies] if "paduraksa" in proxies else []
-        emit("| Scenario | " + " | ".join(NAMES[p] for p in proxies) + "".join(f" | Paduraksa ÷ {NAMES[p]}" for p in ratios) + " |")
+        ratios = ["nginx"] if "paduraksa" in proxies and "nginx" in proxies else []
+        emit("| Scenario | " + " | ".join(NAMES[p] for p in proxies)
+             + "".join(f" | Paduraksa ÷ {NAMES[p]}" for p in ratios) + " |")
         emit("|---|" + "---:|" * (len(proxies) + len(ratios)))
         for key, label in scenarios:
-            cells = [num(runs[(p, key)]["rps"]) if runs[(p, key)] else "-" for p in proxies]
+            cells = [num(runs[(p, key)]["rps"]) if runs[(p, key)] else MISSING for p in proxies]
             for other in ratios:
                 mine, theirs = runs[("paduraksa", key)], runs[(other, key)]
-                cells.append(f"{mine['rps'] / theirs['rps']:.2f}" if mine and theirs and theirs["rps"] else "-")
+                cells.append(f"{mine['rps'] / theirs['rps']:.2f}"
+                             if mine and theirs and theirs["rps"] else MISSING)
             emit(f"| {label} | " + " | ".join(cells) + " |")
         upstream = load(raw, "upstream.h1")
         if upstream is not None:
@@ -166,7 +274,7 @@ def main() -> None:
             cells = []
             for p in proxies:
                 per_request, busy = cpu(runs[(p, key)])
-                cells.append("-" if per_request is None else f"{per_request:.1f} ({busy:.2f})")
+                cells.append(MISSING if per_request is None else f"{per_request:.1f} ({busy:.2f})")
             emit(f"| {label} | " + " | ".join(cells) + " |")
 
         emit("")
@@ -183,6 +291,9 @@ def main() -> None:
                 if r is not None:
                     emit(f"| {label} | {NAMES[p]} | {num(r['rps'])} | {ms(r['p50'])} | {ms(r['p90'])} | {ms(r['p99'])} "
                          f"| {ms(r['p999'])} | {r['failed']} |")
+                elif (p, key) in UNAVAILABLE:
+                    emit(f"| {label} | {NAMES[p]} | {MISSING} | {MISSING} | {MISSING} | {MISSING} "
+                         f"| {MISSING} | {MISSING} |")
 
     rate_runs = {}
     for path in sorted(raw.glob("*.json")):
@@ -213,7 +324,7 @@ def main() -> None:
             cpus = [cpu(r)[0] for r in results if cpu(r)[0] is not None]
             emit(f"| {LABELS.get(scenario, scenario)} | {num(rate)} | {NAMES[proxy]} | {num(med('rps'))} | {ms(med('p50'))} "
                  f"| {ms(med('p90'))} | {ms(med('p95'))} | {p99} | {ms(med('p999'))} "
-                 f"| {num(statistics.median(cpus), 1) if cpus else '-'} | {sum(r['failed'] for r in results)} |")
+                 f"| {num(statistics.median(cpus), 1) if cpus else MISSING} | {sum(r['failed'] for r in results)} |")
 
     paduraksa_runs = [(k, runs[("paduraksa", k)]) for k, _ in SCENARIOS if runs.get(("paduraksa", k))]
     paduraksa_runs += [(f"{s} at {num(rate)} req/s (run {i + 1})", r)
@@ -247,6 +358,7 @@ def main() -> None:
         for p, r in h1:
             emit(f"| {NAMES[p]} | {r['meta']['upstream_established']} | {r['meta']['upstream_time_wait']} |")
 
+    (out / "summary.json").write_text(json.dumps(summary_json(out, proxies, runs, rate_runs), indent=2) + "\n")
     print("\n".join(lines))
 
 

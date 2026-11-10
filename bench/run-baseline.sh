@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# S7 baseline (PLAN §13): Paduraksa vs nginx vs Caddy as reverse proxies in front of the same upstream, on one box.
-# See bench/README.md for the method and caveats.
+# S7 baseline (PLAN §13): Paduraksa vs nginx, Caddy, HAProxy, Traefik, Envoy and a bare YARP app as reverse proxies in
+# front of the same upstream, on one box. See bench/README.md for the method and caveats.
 #
-#   bench/run-baseline.sh                                  # everything, ~10 minutes
+#   PROFILE=quick bench/run-baseline.sh                      # short harness iteration, never recorded
+#   bench/run-baseline.sh                                    # full profile, all proxies and scenarios
 #   PROXIES=paduraksa SCENARIOS=h1 RATES=30000 bench/run-baseline.sh
-#   RATES="" bench/run-baseline.sh                         # no fixed-rate runs
+#   RATES="" bench/run-baseline.sh                           # no fixed-rate runs
 #   REPEATS=3 RATE_DURATION=30s RATES=30000 bench/run-baseline.sh
+#   RECORD=1 bench/run-baseline.sh                           # append to the history and regenerate RESULTS.md
 #
 # Needs: Docker (host networking), the .NET SDK from global.json, curl, openssl, python3, taskset, ss, git, getconf,
 # sha256sum.
@@ -13,30 +15,72 @@
 #   raw/<run>.json       oha's output for every measured run
 #   raw/<run>.meta.json  the run's time window, the proxy's CPU time, and upstream TCP states at its end
 #   paduraksa*.log       the runner's logs (one per runner process), with their per-second METRICS lines
+#   yarp.log             the bare YARP reference app's log
 #   env.txt              machine, versions, image digests, CPU sets, git state, TLS parameters
 #   summary.md           the tables (bench/baseline/summarize.py)
+#   summary.json         the same numbers for bench/history.py
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CONF="$ROOT/bench/baseline"
 
-DURATION=${DURATION:-10s}
-WARMUP=${WARMUP:-5s}
+PROFILE=${PROFILE:-full}
+RECORD=${RECORD:-0}
+
+# Quick is for iterating on the harness, not for numbers: short runs, one rate, and it can never enter the history.
+# Explicit variables still win over either profile.
+case "$PROFILE" in
+    full)
+        profile_duration=10s
+        profile_warmup=5s
+        profile_proxy_warmup=10s
+        profile_rates="10000 30000"
+        profile_repeats=1
+        profile_handshake_conns=16
+        ;;
+    quick)
+        profile_duration=3s
+        profile_warmup=2s
+        profile_proxy_warmup=2s
+        profile_rates="10000"
+        profile_repeats=1
+        profile_handshake_conns=8
+        ;;
+    *)
+        echo "unknown PROFILE '$PROFILE' (use full or quick)" >&2
+        exit 2
+        ;;
+esac
+
+if [[ "$RECORD" != 0 && "$RECORD" != 1 ]]; then
+    echo "RECORD must be 0 or 1" >&2
+    exit 2
+fi
+if [[ "$PROFILE" == quick && "$RECORD" == 1 ]]; then
+    echo "PROFILE=quick runs can't be recorded; use the full profile" >&2
+    exit 2
+fi
+
+DURATION=${DURATION:-$profile_duration}
+WARMUP=${WARMUP:-$profile_warmup}
 # Once per proxy before its first scenario: .NET's tiered JIT and PGO need ~5-10 s of load to reach steady state
 # (a 5 s run straight after start measured about half the steady-state throughput). Every proxy gets the same.
-PROXY_WARMUP=${PROXY_WARMUP:-10s}
+PROXY_WARMUP=${PROXY_WARMUP:-$profile_proxy_warmup}
 CONNS=${CONNS:-64}
 # HTTP/2: connections x streams per connection = CONNS in flight.
 H2_CONNS=${H2_CONNS:-16}
 H2_STREAMS=${H2_STREAMS:-4}
+# Every handshake request is a TLS handshake, which costs far more than a request on a warm connection; 64 in flight
+# would mostly measure the load generator's own handshake work on the shared box.
+HANDSHAKE_CONNS=${HANDSHAKE_CONNS:-$profile_handshake_conns}
 # Fixed-rate points for h1 and h2-tls; RATES="" disables them. Each is warmed up at its own rate first.
-RATES=${RATES-10000 30000}
+RATES=${RATES-$profile_rates}
 RATE_DURATION=${RATE_DURATION:-$DURATION}
-RATE_WARMUP=${RATE_WARMUP:-5s}
-REPEATS=${REPEATS:-1}
+RATE_WARMUP=${RATE_WARMUP:-$WARMUP}
+REPEATS=${REPEATS:-$profile_repeats}
 # `cf` is Paduraksa only: a second runner process with loopback as a trusted Cloudflare Tunnel.
-SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser answered cf}
-PROXIES=${PROXIES:-paduraksa nginx caddy}
+SCENARIOS=${SCENARIOS:-h1 h1-tls h2-tls browser body-64k handshake answered cf}
+PROXIES=${PROXIES:-paduraksa nginx caddy haproxy traefik envoy yarp}
 # Set to a directory to also keep oha's per-request SQLite database for every fixed-rate run (large; not committed).
 OHA_DB_DIR=${OHA_DB_DIR:-}
 
@@ -52,25 +96,33 @@ UPSTREAM_CPUS=${UPSTREAM_CPUS:-12-19}
 
 NGINX_IMAGE=${NGINX_IMAGE:-nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de}
 CADDY_IMAGE=${CADDY_IMAGE:-caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f}
+HAPROXY_IMAGE=${HAPROXY_IMAGE:-haproxy:3.2-alpine@sha256:1c3568e520453cc8ba98c39501febcf450429c80e6cc27ecad779961d76e597c}
+TRAEFIK_IMAGE=${TRAEFIK_IMAGE:-traefik:v3.7.17@sha256:f4bb143d1135a579b630ed491e17ec50f6f7c9c6a30585ff3d385471d2a86f5a}
+ENVOY_IMAGE=${ENVOY_IMAGE:-envoyproxy/envoy:v1.40.2@sha256:8de97e654644827d62afdbf7e1d3dc9fee01a8690d410dd1c63a30dc6b6cecbb}
 OHA_IMAGE=${OHA_IMAGE:-ghcr.io/hatoo/oha:1.16.0@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f}
 
 UPSTREAM_PORT=18080
+ADMIN_PORT=18943
 OUT=${OUT:-$ROOT/bench/results/$(date +%Y-%m-%d-%H%M)-baseline}
 RAW="$OUT/raw"
 PREFIX=paduraksa-bench
 WORK=$(mktemp -d)
 RUNNER_PID=""
+YARP_PID=""
 
 cleanup() {
-    local status=$?
-    if [[ -n "$RUNNER_PID" ]] && kill -0 "$RUNNER_PID" 2>/dev/null; then
-        kill -TERM "$RUNNER_PID" 2>/dev/null || true
-        wait "$RUNNER_PID" 2>/dev/null || true
-    fi
+    local status=$? pid
+    for pid in "$RUNNER_PID" "$YARP_PID"; do
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            kill -TERM "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+        fi
+    done
     if [[ -d "$OUT" ]]; then
-        cp "$WORK"/paduraksa*.log "$OUT/" 2>/dev/null || true
+        cp "$WORK"/*.log "$OUT/" 2>/dev/null || true
     fi
-    docker rm -f "$PREFIX-oha" "$PREFIX-upstream" "$PREFIX-nginx" "$PREFIX-caddy" >/dev/null 2>&1 || true
+    docker rm -f "$PREFIX-oha" "$PREFIX-upstream" "$PREFIX-nginx" "$PREFIX-caddy" "$PREFIX-haproxy" \
+        "$PREFIX-traefik" "$PREFIX-envoy" >/dev/null 2>&1 || true
     rm -rf "$WORK"
     exit "$status"
 }
@@ -79,8 +131,77 @@ trap 'exit 130' INT TERM
 
 log() { printf '\n== %s\n' "$*" >&2; }
 
+# "10s", "2m" or a bare number of seconds, for the duration estimate and the profile.
+duration_seconds() {
+    case "$1" in
+        *m) echo $(( ${1%m} * 60 )) ;;
+        *s) echo "${1%s}" ;;
+        *) echo "$1" ;;
+    esac
+}
+
+format_seconds() {
+    local seconds=$1
+    if ((seconds >= 3600)); then
+        printf '%dh%02dm' $((seconds / 3600)) $(((seconds % 3600) / 60))
+    elif ((seconds >= 60)); then
+        printf '%dm%02ds' $((seconds / 60)) $((seconds % 60))
+    else
+        printf '%ds' "$seconds"
+    fi
+}
+
+expand_cpus() {
+    local part
+    for part in ${1//,/ }; do
+        if [[ "$part" == *-* ]]; then
+            seq "${part%-*}" "${part#*-}"
+        else
+            echo "$part"
+        fi
+    done
+}
+
+check_cpu_set() {
+    local name=$1 set=$2 max=$(($(nproc) - 1)) cpu
+    if [[ ! "$set" =~ ^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$ ]]; then
+        echo "$name='$set' is not a CPU list" >&2
+        return 1
+    fi
+    for cpu in $(expand_cpus "$set"); do
+        if ((cpu > max)); then
+            echo "$name=$set needs CPU $cpu, but this machine has $(nproc) logical CPUs (0-$max)." \
+                "Override $name (and the other *_CPUS) on other hardware." >&2
+            return 1
+        fi
+    done
+}
+
+port_in_use() { [[ -n "$(ss -Hltn "sport = :$1")" ]]; }
+
+known_proxy() {
+    case "$1" in
+        paduraksa|nginx|caddy|haproxy|traefik|envoy|yarp) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+answers_locally() { [[ "$1" != traefik ]]; }
+
+ports_for() {
+    case "$1" in
+        paduraksa) echo "18081 18443" ;;
+        nginx) echo "18082 18444" ;;
+        caddy) echo "18083 18445" ;;
+        haproxy) echo "18084 18446" ;;
+        traefik) echo "18085 18447" ;;
+        envoy) echo "18086 18448" ;;
+        yarp) echo "18087 18449" ;;
+    esac
+}
+
 preflight() {
-    local missing=()
+    local missing=() proxy http https port ports=()
     for tool in docker dotnet curl openssl python3 taskset ss git getconf sha256sum; do
         command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
     done
@@ -93,26 +214,97 @@ preflight() {
         echo "$OUT already exists; remove it or set OUT" >&2
         return 1
     fi
+
+    for proxy in $PROXIES; do
+        if ! known_proxy "$proxy"; then
+            echo "unknown proxy '$proxy' (known: paduraksa nginx caddy haproxy traefik envoy yarp)" >&2
+            return 1
+        fi
+    done
+
+    check_cpu_set PROXY_CPUS "$PROXY_CPUS"
+    check_cpu_set LOAD_CPUS "$LOAD_CPUS"
+    check_cpu_set UPSTREAM_CPUS "$UPSTREAM_CPUS"
+
+    ports=("$UPSTREAM_PORT")
+    for proxy in $PROXIES; do
+        read -r http https < <(ports_for "$proxy")
+        ports+=("$http" "$https")
+        if [[ "$proxy" == paduraksa ]]; then
+            ports+=("$ADMIN_PORT")
+        fi
+    done
+    for port in "${ports[@]}"; do
+        if port_in_use "$port"; then
+            echo "port $port is already in use; a container or process from an earlier run is still around." \
+                "Check 'docker ps' (its name starts with $PREFIX-) or free the port; a new run won't clobber it." >&2
+            return 1
+        fi
+    done
 }
 
-ports_for() {
-    case "$1" in
-        paduraksa) echo "18081 18443" ;;
-        nginx) echo "18082 18444" ;;
-        caddy) echo "18083 18445" ;;
-    esac
+# Rough wall time from the profile, scenarios, proxies and rates. Includes ~1 s of container overhead per oha call
+# and 5 s per proxy for start and stop; the real number is usually a little higher.
+estimate_seconds() {
+    local proxy total=0 calls=0 base fixed rate_count=0 rate
+    local warmup duration rate_warmup rate_duration
+    warmup=$(duration_seconds "$WARMUP")
+    duration=$(duration_seconds "$DURATION")
+    rate_warmup=$(duration_seconds "$RATE_WARMUP")
+    rate_duration=$(duration_seconds "$RATE_DURATION")
+    base=$((warmup + duration))
+    fixed=$((rate_warmup + REPEATS * rate_duration))
+    for rate in $RATES; do
+        rate_count=$((rate_count + 1))
+    done
+
+    if [[ "${UPSTREAM_DIRECT:-1}" != 0 ]]; then
+        total=$((total + base))
+        calls=$((calls + 2))
+    fi
+    for proxy in $PROXIES; do
+        total=$((total + 2 * $(duration_seconds "$PROXY_WARMUP")))
+        calls=$((calls + 2))
+        if wants h1; then
+            total=$((total + base + rate_count * fixed))
+            calls=$((calls + 2 + rate_count * (1 + REPEATS)))
+        fi
+        if wants h2-tls; then
+            total=$((total + base + rate_count * fixed))
+            calls=$((calls + 2 + rate_count * (1 + REPEATS)))
+        fi
+        if wants h1-tls; then total=$((total + base)); calls=$((calls + 2)); fi
+        if wants browser; then total=$((total + base)); calls=$((calls + 2)); fi
+        if wants body-64k; then total=$((total + base)); calls=$((calls + 2)); fi
+        if wants handshake; then total=$((total + base)); calls=$((calls + 2)); fi
+        if answers_locally "$proxy" && wants answered; then total=$((total + base)); calls=$((calls + 2)); fi
+        if [[ "$proxy" == paduraksa ]] && wants cf; then
+            total=$((total + $(duration_seconds "$PROXY_WARMUP") + duration))
+            calls=$((calls + 2))
+        fi
+    done
+    echo $((total + calls + 5 * $(wc -w <<<"$PROXIES")))
 }
 
 now_ms() { date +%s%3N; }
 
 # CPU time (user + system, microseconds) the proxy under test has used so far.
 CLK_TCK=$(getconf CLK_TCK)
+proxy_pid() {
+    case "$1" in
+        paduraksa) echo "$RUNNER_PID" ;;
+        yarp) echo "$YARP_PID" ;;
+        *) echo "" ;;
+    esac
+}
+
 proxy_cpu_us() {
-    local proxy=$1
-    if [[ "$proxy" == paduraksa ]]; then
+    local proxy=$1 pid
+    pid=$(proxy_pid "$proxy")
+    if [[ -n "$pid" ]]; then
         # /proc/<pid>/stat fields 14 and 15 (utime, stime) in clock ticks, for the whole process. The command name
         # (field 2) has no spaces here ("dotnet"), so plain field splitting works.
-        awk -v tck="$CLK_TCK" '{ printf "%d\n", ($14 + $15) * 1000000 / tck }' "/proc/$RUNNER_PID/stat"
+        awk -v tck="$CLK_TCK" '{ printf "%d\n", ($14 + $15) * 1000000 / tck }' "/proc/$pid/stat"
     else
         local id
         id=$(docker inspect -f '{{.Id}}' "$PREFIX-$proxy")
@@ -137,13 +329,20 @@ wait_ready() {
     return 1
 }
 
-# Checks that a proxy forwards, answers, and speaks H2 over TLS; records the TLS parameters.
+# Checks that a proxy forwards, answers (when it can), speaks H2 over TLS, and serves the fixed 64 KiB body; records
+# the TLS parameters.
 check_proxy() {
-    local proxy=$1 http=$2 https=$3 body version tls
+    local proxy=$1 http=$2 https=$3 body version tls size
     body=$(curl -sf -H "Host: bench.test" "http://127.0.0.1:$http/")
     [[ "$body" == "upstream ok" ]] || { echo "unexpected proxied body: $body" >&2; return 1; }
-    body=$(curl -sf -H "Host: respond.test" "http://127.0.0.1:$http/")
-    [[ "$body" == "ok" ]] || { echo "unexpected answered body: $body" >&2; return 1; }
+    if answers_locally "$proxy"; then
+        body=$(curl -sf -H "Host: respond.test" "http://127.0.0.1:$http/")
+        [[ "$body" == "ok" ]] || { echo "unexpected answered body: $body" >&2; return 1; }
+    fi
+    if wants body-64k; then
+        size=$(curl -sf -H "Host: bench.test" "http://127.0.0.1:$http/64k" | wc -c)
+        ((size == 65536)) || { echo "expected a 64 KiB body, got $size bytes" >&2; return 1; }
+    fi
     version=$(curl -sfk --http2 -o /dev/null -w '%{http_version}' --resolve "bench.test:$https:127.0.0.1" "https://bench.test:$https/")
     [[ "$version" == "2" ]] || { echo "HTTPS did not negotiate H2 ($version)" >&2; return 1; }
     tls=$(openssl s_client -connect "127.0.0.1:$https" -servername bench.test -alpn h2 </dev/null 2>/dev/null \
@@ -257,7 +456,21 @@ run_scenarios() {
         measure "$proxy" "$proxy.browser" -z "$DURATION" "${h2[@]}" "${BROWSER_HEADERS[@]}" --rand-regex-url "$browser_url"
     fi
 
-    if wants answered; then
+    if wants body-64k; then
+        log "$proxy: body-64k (plain HTTP/1.1, a 64 KiB upstream body, c=$CONNS)"
+        local body_url="http://bench.test:$http/64k"
+        oha "" -z "$WARMUP" "${h1[@]}" "$body_url"
+        measure "$proxy" "$proxy.body-64k" -z "$DURATION" "${h1[@]}" "$body_url"
+    fi
+
+    if wants handshake; then
+        log "$proxy: handshake (HTTPS HTTP/1.1, a new connection per request, c=$HANDSHAKE_CONNS)"
+        local handshake=("${tls[@]}" --http-version 1.1 --disable-keepalive -c "$HANDSHAKE_CONNS")
+        oha "" -z "$WARMUP" "${handshake[@]}" "$tls_url"
+        measure "$proxy" "$proxy.handshake" -z "$DURATION" "${handshake[@]}" "$tls_url"
+    fi
+
+    if wants answered && answers_locally "$proxy"; then
         log "$proxy: answered (plain HTTP/1.1, the proxy answers itself, c=$CONNS)"
         local answered_url="http://respond.test:$http/"
         local answered=(--connect-to "respond.test:$http:127.0.0.1:$http" -c "$CONNS")
@@ -275,7 +488,7 @@ start_paduraksa() {
     read -r http https < <(ports_for paduraksa)
     # DOTNET_* GC settings in the environment (DOTNET_GCDynamicAdaptationMode, DOTNET_GCHeapCount, ...) pass through.
     taskset -c "$PROXY_CPUS" dotnet "$ROOT/bench/Paduraksa.Bench.Runner/bin/Release/net10.0/Paduraksa.Bench.Runner.dll" \
-        --upstream "http://127.0.0.1:$UPSTREAM_PORT" --http "$http" --https "$https" --admin 18943 "$@" \
+        --upstream "http://127.0.0.1:$UPSTREAM_PORT" --http "$http" --https "$https" --admin "$ADMIN_PORT" "$@" \
         >"$WORK/$RUNNER_LOG.log" 2>&1 &
     RUNNER_PID=$!
     wait_ready bench.test "$http"
@@ -287,6 +500,24 @@ stop_paduraksa() {
     RUNNER_PID=""
     cp "$WORK/$RUNNER_LOG.log" "$OUT/$RUNNER_LOG.log"
     grep -v '^METRICS ' "$WORK/$RUNNER_LOG.log" >&2 || true
+}
+
+start_yarp() {
+    local http https
+    read -r http https < <(ports_for yarp)
+    taskset -c "$PROXY_CPUS" dotnet "$ROOT/bench/Paduraksa.Bench.Yarp/bin/Release/net10.0/Paduraksa.Bench.Yarp.dll" \
+        --upstream "http://127.0.0.1:$UPSTREAM_PORT" --cert "$WORK/certs/cert.pem" --key "$WORK/certs/key.pem" \
+        --http "$http" --https "$https" >"$WORK/yarp.log" 2>&1 &
+    YARP_PID=$!
+    wait_ready bench.test "$http"
+}
+
+stop_yarp() {
+    kill -TERM "$YARP_PID"
+    wait "$YARP_PID" || true
+    YARP_PID=""
+    cp "$WORK/yarp.log" "$OUT/yarp.log"
+    tail -n 20 "$WORK/yarp.log" >&2 || true
 }
 
 # The `cf` scenario: plain HTTP/1.1 through a runner that trusts loopback as cloudflared, with the client address in
@@ -323,18 +554,44 @@ start_caddy() {
     wait_ready bench.test "$(ports_for caddy | cut -d' ' -f1)"
 }
 
+# HAProxy wants the certificate and its key in one PEM file.
+start_haproxy() {
+    start_container haproxy -v "$CONF/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro" "$HAPROXY_IMAGE"
+    wait_ready bench.test "$(ports_for haproxy | cut -d' ' -f1)"
+}
+
+start_traefik() {
+    start_container traefik -e GOMAXPROCS=4 \
+        -v "$CONF/traefik.yml:/etc/traefik/traefik.yml:ro" \
+        -v "$CONF/traefik-dynamic.yml:/etc/traefik/dynamic.yml:ro" \
+        "$TRAEFIK_IMAGE" --configFile=/etc/traefik/traefik.yml
+    wait_ready bench.test "$(ports_for traefik | cut -d' ' -f1)"
+}
+
+start_envoy() {
+    start_container envoy -v "$CONF/envoy.yaml:/etc/envoy/envoy.yaml:ro" \
+        "$ENVOY_IMAGE" -c /etc/envoy/envoy.yaml --concurrency 4 --log-level warn
+    wait_ready bench.test "$(ports_for envoy | cut -d' ' -f1)"
+}
+
 stop_container() {
     docker logs "$PREFIX-$1" 2>&1 | tail -n 20 >&2 || true
     docker rm -f "$PREFIX-$1" >/dev/null
 }
 
 record_environment() {
+    local status
+    # The harness's own output is untracked or modified while a run is in progress; it says nothing about the code
+    # being measured, so it is excluded from the dirty check (otherwise every recorded run would look dirty).
+    status=$(git -C "$ROOT" status --porcelain | grep -v '^.. bench/results/' || true)
     {
         echo "date: $(date -u +%FT%TZ)"
         echo "commit: $(git -C "$ROOT" rev-parse HEAD)"
-        echo "git status --porcelain (empty = clean):"
-        git -C "$ROOT" status --porcelain | sed 's/^/  /'
+        echo "git status --porcelain (empty = clean; bench/results/ excluded):"
+        printf '%s\n' "$status" | sed '/^$/d; s/^/  /'
+        echo "dirty: $([[ -n "$status" ]] && echo true || echo false)"
         echo "git diff HEAD sha256: $(git -C "$ROOT" diff HEAD --binary | sha256sum | cut -d' ' -f1)"
+        echo "profile: $PROFILE (record=$RECORD)"
         echo "cpu: $(lscpu | sed -n 's/^Model name: *//p')"
         echo "cpus: $(nproc) logical ($(lscpu | sed -n 's/^Core(s) per socket: *//p') cores, $(lscpu | sed -n 's/^Thread(s) per core: *//p') threads/core)"
         echo "memory: $(free -g | awk '/^Mem:/ {print $2 " GiB"}')"
@@ -347,9 +604,13 @@ record_environment() {
         echo "DOTNET_ GC environment: $(env | grep '^DOTNET_GC' | paste -sd ' ' || true)"
         echo "nginx: $NGINX_IMAGE ($(docker run --rm --entrypoint nginx "$NGINX_IMAGE" -v 2>&1))"
         echo "caddy: $CADDY_IMAGE ($(docker run --rm "$CADDY_IMAGE" caddy version | cut -d' ' -f1))"
+        echo "haproxy: $HAPROXY_IMAGE ($(docker run --rm --entrypoint haproxy "$HAPROXY_IMAGE" -v 2>&1 | sed -n '1s/^HAProxy version \([^ ]*\).*/\1/p'))"
+        echo "traefik: $TRAEFIK_IMAGE ($(docker run --rm --entrypoint traefik "$TRAEFIK_IMAGE" version 2>&1 | sed -n 's/^Version: *//p'))"
+        echo "envoy: $ENVOY_IMAGE ($(docker run --rm --entrypoint envoy "$ENVOY_IMAGE" --version 2>&1 | sed -n 's/^envoy  version: //p'))"
+        echo "yarp: Yarp.ReverseProxy $(sed -n 's/.*"Yarp.ReverseProxy" Version="\([^"]*\)".*/\1/p' "$ROOT/Directory.Packages.props")"
         echo "oha: $OHA_IMAGE ($(docker run --rm "$OHA_IMAGE" --version))"
         echo "cpu sets: proxy=$PROXY_CPUS upstream=$UPSTREAM_CPUS load=$LOAD_CPUS (oha worker threads: $LOAD_THREADS)"
-        echo "runs: $DURATION (warm-up: $PROXY_WARMUP h1 + $PROXY_WARMUP h2 per proxy, $WARMUP per scenario), c=$CONNS (h1), ${H2_CONNS}x$H2_STREAMS (h2)"
+        echo "runs: $DURATION (warm-up: $PROXY_WARMUP per proxy, $WARMUP per scenario), c=$CONNS (h1/body-64k), ${H2_CONNS}x$H2_STREAMS (h2), c=$HANDSHAKE_CONNS (handshake)"
         echo "fixed rates: ${RATES:-none} (${REPEATS}x $RATE_DURATION each, $RATE_WARMUP warm-up per rate)"
         echo "scenarios: $SCENARIOS; proxies: $PROXIES"
     } >"$OUT/env.txt"
@@ -359,26 +620,34 @@ main() {
     preflight
     mkdir -p "$RAW"
 
-    for image in "$NGINX_IMAGE" "$CADDY_IMAGE" "$OHA_IMAGE"; do
+    log "Profile $PROFILE: $PROXIES x [$SCENARIOS], estimated wall time ~$(format_seconds "$(estimate_seconds)")"
+
+    for image in "$NGINX_IMAGE" "$CADDY_IMAGE" "$HAPROXY_IMAGE" "$TRAEFIK_IMAGE" "$ENVOY_IMAGE" "$OHA_IMAGE"; do
         docker image inspect "$image" >/dev/null 2>&1 || docker pull -q "$image" >/dev/null
     done
 
-    log "Building the Paduraksa runner (Release)"
+    log "Building the Paduraksa runner and the bare YARP reference (Release)"
     dotnet build "$ROOT/bench/Paduraksa.Bench.Runner" -c Release -nologo -v quiet >&2
+    dotnet build "$ROOT/bench/Paduraksa.Bench.Yarp" -c Release -nologo -v quiet >&2
 
-    # One throwaway ECDSA P-256 certificate for nginx and Caddy (Paduraksa serves its own P-256 placeholder).
+    # One throwaway ECDSA P-256 certificate for every proxy that isn't Paduraksa (Paduraksa serves its own P-256
+    # placeholder).
     mkdir -p "$WORK/certs"
     openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 2 -subj "/CN=bench.test" \
         -addext "subjectAltName=DNS:bench.test,DNS:respond.test,DNS:localhost,IP:127.0.0.1" \
         -keyout "$WORK/certs/key.pem" -out "$WORK/certs/cert.pem" 2>/dev/null
     chmod 644 "$WORK/certs/key.pem"
+    cat "$WORK/certs/cert.pem" "$WORK/certs/key.pem" >"$WORK/certs/haproxy.pem"
+    # The 64 KiB body body-64k streams. The upstream config mounts it read-only.
+    python3 -I -c 'import sys; sys.stdout.write("x" * 65536)' >"$WORK/64k.txt"
 
     record_environment
 
     log "Starting the upstream (nginx, CPUs $UPSTREAM_CPUS)"
     docker rm -f "$PREFIX-upstream" >/dev/null 2>&1 || true
     docker run -d --name "$PREFIX-upstream" --network host --cpuset-cpus "$UPSTREAM_CPUS" --ulimit nofile=65536:65536 \
-        -v "$CONF/upstream.nginx.conf:/etc/nginx/nginx.conf:ro" "$NGINX_IMAGE" >/dev/null
+        -v "$CONF/upstream.nginx.conf:/etc/nginx/nginx.conf:ro" -v "$WORK/64k.txt:/srv/64k.txt:ro" \
+        "$NGINX_IMAGE" >/dev/null
     wait_ready upstream "$UPSTREAM_PORT"
 
     # The upstream alone, for the ceiling the proxies are measured against (UPSTREAM_DIRECT=0 skips it).
@@ -400,16 +669,24 @@ main() {
         oha "" -z "$PROXY_WARMUP" --insecure --connect-to "bench.test:$https:127.0.0.1:$https" --http2 -c "$H2_CONNS" \
             -p "$H2_STREAMS" "https://bench.test:$https/"
         run_scenarios "$proxy" "$http" "$https"
-        if [[ "$proxy" == paduraksa ]]; then
-            stop_paduraksa
-            if wants cf; then run_cloudflare; fi
-        else
-            stop_container "$proxy"
-        fi
+        case "$proxy" in
+            paduraksa)
+                stop_paduraksa
+                if wants cf; then run_cloudflare; fi
+                ;;
+            yarp) stop_yarp ;;
+            *) stop_container "$proxy" ;;
+        esac
     done
 
     cat "$OUT/env.txt" >&2
     python3 -I "$CONF/summarize.py" "$OUT" | tee "$OUT/summary.md"
+
+    if [[ "$RECORD" == 1 ]]; then
+        log "Recording the run in bench/results/history.jsonl and regenerating bench/RESULTS.md"
+        python3 -I "$ROOT/bench/history.py" append "$OUT"
+        python3 -I "$ROOT/bench/history.py" report
+    fi
 }
 
 main "$@"
