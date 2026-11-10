@@ -18,6 +18,7 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 
@@ -76,8 +77,13 @@ internal sealed class ProxyTestServer : IAsyncDisposable
     {
         options ??= ProxyTestServerOptions.Default;
         var compilerOptions = options.CompilerOptions;
+        if (options.RateLimits is { } rateLimits && (compilerOptions is null || compilerOptions.RateLimits is null))
+        {
+            compilerOptions = (compilerOptions ?? SnapshotCompilerOptions.Default) with { RateLimits = rateLimits };
+        }
+
         var protocols = options.Protocols;
-        var publisher = options.Publisher ?? new SnapshotPublisher(new SnapshotStore(), options: options.PublisherOptions);
+        var publisher = options.Publisher ?? new SnapshotPublisher(new SnapshotStore(), options: options.PublisherOptions, rateLimits: options.RateLimits);
         var initialPublish = initial is null ? null : publisher.PublishAsync(TestSnapshots.Compile(initial, compilerOptions));
         var stats = options.MeasureGate ? new GateStats() : null;
 
@@ -97,7 +103,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                 })
                 .ConfigureServices(s =>
                 {
-                    s.AddPaduraksaProxy(publisher, proofOfWork: options.ProofOfWork);
+                    s.AddPaduraksaProxy(publisher, proofOfWork: options.ProofOfWork, rateLimits: options.RateLimits);
                     s.Configure<TransportFailureRateHealthPolicyOptions>(o =>
                     {
                         o.MinimalTotalCountThreshold = 2;
@@ -232,6 +238,9 @@ internal sealed record ProxyTestServerOptions
 
     /// <summary>The proof-of-work runtime the gate's verify endpoint uses; keep it the same one the compiler options carry.</summary>
     public ProofOfWorkRuntime? ProofOfWork { get; init; }
+
+    /// <summary>The rate-limit runtime the compiler, the publisher and the public app share; null: each picks its own.</summary>
+    public RateLimitRuntime? RateLimits { get; init; }
 }
 
 /// <summary>
