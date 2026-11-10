@@ -369,18 +369,36 @@ public sealed class GateMiddleware
     }
 
     /// <summary>
+    /// Acquires the pooled state at the top of the public pipeline and resets it for this request. The access log calls
+    /// this before the gate so the request's start timestamp covers the whole pipeline; the gate's own
+    /// <see cref="AcquireState"/> then reuses the state as it is.
+    /// </summary>
+    internal static GateRequestState BeginRequest(HttpContext context) => Acquire(context, reset: true);
+
+    /// <summary>
+    /// The gate's acquisition: reset only when no earlier stage did, so calling <see cref="Decide"/> twice for one
+    /// request (a test, the simulator) still starts from a clean state when the access log isn't above the gate.
+    /// </summary>
+    private static GateRequestState AcquireState(HttpContext context) => Acquire(context, reset: false);
+
+    /// <summary>
     /// The pooled per-request state. Kestrel keeps <see cref="IPersistentStateFeature"/> on the H1
     /// connection or the pooled H2/H3 stream, so this allocates only for a new connection or stream; without the
     /// feature (non-Kestrel servers) it allocates per request.
     /// </summary>
-    private static GateRequestState AcquireState(HttpContext context)
+    private static GateRequestState Acquire(HttpContext context, bool reset)
     {
         GateRequestState state;
         var persistent = context.Features.Get<IPersistentStateFeature>()?.State;
         if (persistent is not null && persistent.TryGetValue(StateKey, out var cached) && cached is GateRequestState reused)
         {
             state = reused;
-            state.Reset();
+            // A non-zero start means BeginRequest already reset it for this request; the gate must not wipe the
+            // decisions, the ID and the timestamp that are already this request's.
+            if (reset || state.RequestStartedTimestamp == 0)
+            {
+                state.Reset();
+            }
         }
         else
         {

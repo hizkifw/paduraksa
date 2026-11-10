@@ -61,6 +61,12 @@ public sealed class GateRequestState : IGateFeature
     public bool HasClientRequestId => _requestIdFromClient;
 
     /// <summary>
+    /// Whether <see cref="InitRequestId"/> ran: without the gate in the pipeline (a test app's <c>WithoutGate</c>) there is
+    /// no ID to log, and materialising one here would invent an ID no response ever carried.
+    /// </summary>
+    internal bool HasRequestId { get; private set; }
+
+    /// <summary>
     /// True when the gate dropped the request: the connection or stream is aborted and <b>no response is sent</b>, so the
     /// access log records no status.
     /// </summary>
@@ -81,6 +87,20 @@ public sealed class GateRequestState : IGateFeature
 
     internal string? UpstreamAddress { get; set; }
 
+    /// <summary>
+    /// When the request entered the public pipeline, as a <see cref="System.Diagnostics.Stopwatch"/> timestamp, set by the
+    /// access log at the top so the entry's total covers the whole request. Non-zero marks the state as this request's
+    /// already; the gate then reuses it without resetting it again (see <see cref="GateMiddleware.BeginRequest"/>).
+    /// </summary>
+    internal long RequestStartedTimestamp { get; set; }
+
+    /// <summary>
+    /// The ring the completion callback writes to. The callback is static and its only state is the
+    /// <see cref="Microsoft.AspNetCore.Http.HttpContext"/>, so the ring comes from this pooled state rather than from a
+    /// closure or a per-request object.
+    /// </summary>
+    internal AccessLogRing? AccessLogRing { get; set; }
+
     /// <summary>Clears every field at the start of a request.</summary>
     internal void Reset()
     {
@@ -90,12 +110,15 @@ public sealed class GateRequestState : IGateFeature
         ClientIp = default;
         IsHttps = false;
         Aborted = false;
+        HasRequestId = false;
         _requestId = null;
         _requestIdFromClient = false;
         _requestIdCounter = 0;
         UpstreamStartedTimestamp = 0;
         UpstreamTicks = -1;
         UpstreamAddress = null;
+        RequestStartedTimestamp = 0;
+        AccessLogRing = null;
     }
 
     /// <summary>
@@ -107,6 +130,7 @@ public sealed class GateRequestState : IGateFeature
     {
         _requestId = null;
         _requestIdFromClient = false;
+        HasRequestId = true;
         if (peerTrusted)
         {
             var candidate = request.Headers[RequestIds.HeaderName];

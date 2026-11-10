@@ -107,6 +107,19 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                 })
                 .Configure(app =>
                 {
+                    if (stats is not null && !options.WithoutGate)
+                    {
+                        app.Use((context, next) =>
+                        {
+                            // The access log acquires the pooled state, so a new connection or stream has to be told
+                            // apart before that runs; otherwise the gate's first-request features are counted as its
+                            // per-request bytes.
+                            var persistent = context.Features.Get<IPersistentStateFeature>()?.State;
+                            context.Items[GateStats.FreshKey] = persistent is null || persistent.Count == 0;
+                            return next(context);
+                        });
+                    }
+
                     // The public pipeline, in its order: the access log wraps everything, the gate decides.
                     app.Use(app.ApplicationServices.GetRequiredService<AccessLogMiddleware>().InvokeAsync);
                     var gate = app.ApplicationServices.GetRequiredService<GateMiddleware>();
@@ -120,9 +133,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                         {
                             app.Use((context, next) =>
                             {
-                                // Only the gate uses this dictionary: empty means a new connection (H1) or a new
-                                // stream (H2), where the gate creates its pooled state once. Those are counted apart.
-                                var fresh = context.Features.Get<IPersistentStateFeature>()?.State.Count == 0;
+                                var fresh = context.Items[GateStats.FreshKey] is true;
                                 var before = GC.GetAllocatedBytesForCurrentThread();
                                 var decision = gate.Decide(context);
                                 stats.Record(GC.GetAllocatedBytesForCurrentThread() - before, fresh);
@@ -229,6 +240,9 @@ internal sealed record ProxyTestServerOptions
 /// </summary>
 internal sealed class GateStats
 {
+    /// <summary>The request item the measure-mode middleware sets before the access log acquires the pooled state.</summary>
+    internal static readonly object FreshKey = new();
+
     private long _requests;
     private long _fresh;
     private long _bytes;

@@ -11,26 +11,29 @@ namespace Paduraksa.Proxy.Logging;
 
 /// <summary>
 /// The public pipeline's outermost middleware: it times the request, lets everything else run, and writes one
-/// <see cref="AccessLogEntry"/> into the ring on the way out - in a <c>finally</c>, so a gate refusal (403, 421, the 404
-/// for an unknown host), the HTTPS redirect, a Redirect/Respond answer, a YARP forward and an exception all get a line.
+/// <see cref="AccessLogEntry"/> into the ring when the response completes - so a gate refusal (403, 421, the 404 for an
+/// unknown host), the HTTPS redirect, a Redirect/Respond answer, a YARP forward and an exception all get a line.
 /// </summary>
 /// <remarks>
 /// <para><b>0 B.</b> It reads strings the request already holds (method, path, query, host, protocol, headers), the client
 /// address text the gate cached per connection (<see cref="GateRequestState.FormattedClientAddress"/>), the request ID the
-/// gate already materialised for its headers, and YARP's destination address; it writes a struct into the ring. No
-/// closures, no <c>OnCompleted</c> registration, no timer. A request whose host turned the access log off costs a few
-/// reads and nothing else.</para>
+/// gate already materialised for its headers, and YARP's destination address; it writes a struct into the ring. The
+/// completion callback is a static method whose state is the <see cref="HttpContext"/>, so it captures no closure, and
+/// Kestrel creates its per-connection callback stack once and reuses it. The ring and the start timestamp ride on the
+/// gate's pooled state (<see cref="GateRequestState"/>). A request whose host turned the access log off costs a few reads
+/// and nothing else.</para>
 /// <para><b>Bytes.</b> Kestrel doesn't expose the bytes it wrote; without wrapping the response body there is no 0 B way to
 /// count them. So the entry carries the response's <c>Content-Length</c> when it declares one, and -1 (written as
 /// <c>-</c>) otherwise: a chunked or streamed response shows <c>-</c>, not a number nobody can read cheaply.</para>
-/// <para><b>Durations.</b> The total is <see cref="Stopwatch"/> from entry to exit. The upstream leg is measured by YARP's
-/// own transforms (<see cref="Yarp.AccessLogTransform"/>), which is the cheapest source that covers the whole forward, and
-/// is <c>-</c> when nothing was forwarded. A forward that ends without a response (YARP's own 502, say) is measured up to
-/// the failure here, and still names the destination YARP had chosen.</para>
-/// <para><b>Status.</b> What the client got. A request that ended in an unhandled exception before anything went out is
-/// 500 (Kestrel's answer, set here before the exception continues on its way), and a request the gate dropped without a
-/// response is <see cref="AccessLogEntry.NoResponse"/>, written as <c>-</c>: the connection was aborted, so no status was
-/// sent and none is invented.</para>
+/// <para><b>Durations.</b> The total is <see cref="Stopwatch"/> from the top of the public pipeline to the end of the
+/// response (Kestrel runs the completion callback after the response finished, before it disposes the context). The
+/// upstream leg is measured by YARP's own transforms (<see cref="Yarp.AccessLogTransform"/>), which is the cheapest source
+/// that covers the whole forward, and is <c>-</c> when nothing was forwarded. A forward that ends without a response
+/// (YARP's own 502, say) is measured up to the failure here, and still names the destination YARP had chosen.</para>
+/// <para><b>Status.</b> What the client got, as Kestrel has settled it by the time the callback runs: an unhandled
+/// exception before anything went out is 500, a connection that ended without a response is 499. A request the gate
+/// dropped without a response is <see cref="AccessLogEntry.NoResponse"/>, written as <c>-</c>: the connection was
+/// aborted, so no status was sent and none is invented.</para>
 /// <para><b>CF-Ray</b> is written only when the peer is a trusted Cloudflare edge or tunnel
 /// (<see cref="ClientIpResolution.CloudflareHeadersTrusted"/>): from anyone else the header is theirs to forge, and it is
 /// stripped before forwarding.</para>
@@ -46,26 +49,38 @@ public sealed class AccessLogMiddleware
     }
 
     /// <summary>For <c>app.Use(accessLog.InvokeAsync)</c>, before the gate.</summary>
-    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+    public Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(next);
 
-        var started = Stopwatch.GetTimestamp();
-        try
+        var state = GateMiddleware.BeginRequest(context);
+        state.AccessLogRing = _ring;
+        state.RequestStartedTimestamp = Stopwatch.GetTimestamp();
+        RegisterCompletion(context);
+        return next(context);
+    }
+
+    /// <summary>
+    /// Registers the completion callback, whose only state is the context. Internal so the allocation test can drive it
+    /// on a real Kestrel response.
+    /// </summary>
+    internal static void RegisterCompletion(HttpContext context) =>
+        context.Response.OnCompleted(static completed => RecordCompleted(completed), context);
+
+    /// <summary>
+    /// Kestrel runs this after the response finished, with the final status settled (500 for an unhandled exception, 499
+    /// for a connection that ended without a response), and before it disposes the context.
+    /// </summary>
+    private static Task RecordCompleted(object completed)
+    {
+        var context = (HttpContext)completed;
+        if (context.Features.Get<IGateFeature>()?.State is { AccessLogRing: { } ring } state)
         {
-            await next(context);
+            Record(context, ring, state.RequestStartedTimestamp);
         }
-        catch (Exception) when (!context.Response.HasStarted)
-        {
-            // Nothing was sent yet, so the client's answer is still open: Kestrel would send 500, and the log says the same.
-            context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-            throw;
-        }
-        finally
-        {
-            Record(context, _ring, started);
-        }
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -115,7 +130,7 @@ public sealed class AccessLogMiddleware
             TotalTicks = Stopwatch.GetElapsedTime(started).Ticks,
             UpstreamTicks = upstreamTicks,
             UpstreamAddress = upstreamAddress,
-            RequestId = state?.RequestIdText(),
+            RequestId = state is { HasRequestId: true } ? state.RequestIdText() : null,
             CloudflareRay = state is not null && state.ClientIp.CloudflareHeadersTrusted ? FirstOf(request.Headers[CloudflareHeaders.Ray]) : null,
             Referer = FirstOf(referer),
             UserAgent = FirstOf(userAgent),

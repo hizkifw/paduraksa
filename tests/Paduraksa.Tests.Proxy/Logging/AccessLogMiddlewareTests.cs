@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Net;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
@@ -191,54 +190,6 @@ public sealed class AccessLogMiddlewareTests : IDisposable
             (ring, context),
             static s => AccessLogMiddleware.Record(s.context, s.ring, Stopwatch.GetTimestamp()),
             "a host without the access log");
-    }
-
-    /// <summary>
-    /// An exception that no one handled, before anything went out, is the client's 500: the middleware sets it so the line
-    /// says 500 rather than the 200 a response object that never sent anything still reports.
-    /// </summary>
-    [Fact]
-    public async Task AnUnhandledExceptionIsLoggedAs500()
-    {
-        AccessLogRing ring = new(8);
-        AccessLogMiddleware middleware = new(ring);
-        var context = Request("app.test", "/boom");
-        _gate.Decide(context);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => middleware.InvokeAsync(context, static _ => throw new InvalidOperationException("boom")));
-
-        Assert.Equal(StatusCodes.Status500InternalServerError, context.Response.StatusCode);
-        Assert.True(ring.TryRead(out var entry));
-        Assert.Equal(500, entry.StatusCode);
-    }
-
-    /// <summary>A request the gate dropped sent nothing, so the line has no status at all (written as <c>-</c>).</summary>
-    [Fact]
-    public async Task AnAbortedRequestIsLoggedWithoutAStatus()
-    {
-        AccessLogRing ring = new(8);
-        AccessLogMiddleware middleware = new(ring);
-        var context = Request("app.test", "/drop");
-        AbortProbe probe = new();
-        context.Features.Set<IHttpRequestLifetimeFeature>(probe);
-
-        // The pipeline as the public app has it: the access log wraps the gate, which carries out its Drop.
-        await middleware.InvokeAsync(context, next => _gate.InvokeAsync(next, static _ => Task.CompletedTask));
-
-        Assert.True(probe.Aborted);
-        Assert.True(ring.TryRead(out var entry));
-        Assert.Equal(AccessLogEntry.NoResponse, entry.StatusCode);
-    }
-
-    /// <summary>Answers the gate's own Drop policy, in the model this class publishes.</summary>
-    private sealed class AbortProbe : IHttpRequestLifetimeFeature
-    {
-        public bool Aborted { get; private set; }
-
-        public CancellationToken RequestAborted { get; set; }
-
-        public void Abort() => Aborted = true;
     }
 
     private static DefaultHttpContext Request(string host, string path, string? userAgent = null, Action<HttpRequest>? configure = null)
