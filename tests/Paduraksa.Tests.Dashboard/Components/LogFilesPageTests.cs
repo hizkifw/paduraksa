@@ -107,6 +107,89 @@ public sealed class LogFilesPageTests
     }
 
     [Fact]
+    public async Task TheToolbarHoldsTheFilterTheCountAndTheWrapToggle()
+    {
+        await using DashboardTestContext context = new();
+        var store = SignIn(context, Role.Owner);
+        var drawer = await Open(context, store, "error.log", ["warn: one"]);
+
+        Assert.Single(drawer.FindAll("input[data-field=filter]"));
+        Assert.Single(drawer.FindAll("[data-field=count]"));
+        var wrap = drawer.Find("button[data-action=wrap]");
+        Assert.Equal("false", wrap.GetAttribute("aria-pressed"));
+        Assert.Equal("Wrap lines", wrap.GetAttribute("aria-label"));
+
+        await wrap.ClickAsync(new());
+        Assert.Equal("true", drawer.Find("button[data-action=wrap]").GetAttribute("aria-pressed"));
+        Assert.Contains("pdk-log-wrapped", drawer.Find("[data-section=tail]").ClassList);
+
+        var select = drawer.FindComponent<MudSelect<int>>();
+        await select.InvokeAsync(() => select.Instance.ValueChanged.InvokeAsync(500));
+        await drawer.WaitForStateAsync(() => store.Reads.Exists(read => read.MaxLines == 500));
+    }
+
+    [Fact]
+    public async Task EachLineIsItsOwnElementAndIsEncodedAsText()
+    {
+        await using DashboardTestContext context = new();
+        var store = SignIn(context, Role.Owner);
+        const string Access = "2026-01-31T12:34:56.789Z 198.51.100.7 \"app.example\" \"GET /a HTTP/2\" 503 512 1.234 0.987";
+        const string Hostile = "<img src=x onerror=alert(1)>";
+        var drawer = await Open(context, store, "access.log", [Access, Hostile]);
+
+        var lines = drawer.FindAll(".pdk-log-line");
+        Assert.Equal(2, lines.Count);
+        Assert.Equal(Access, lines[0].TextContent);
+        Assert.Equal("2026-01-31T12:34:56.789Z", lines[0].QuerySelector(".pdk-log-time")!.TextContent);
+        Assert.Equal("503", lines[0].QuerySelector(".pdk-log-status-error")!.TextContent);
+        Assert.Equal(Hostile, lines[1].TextContent);
+        Assert.Empty(drawer.FindAll("img"));
+        Assert.Contains("&lt;img", drawer.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A4xxStatusIsMarkedWarningAndA5xxError()
+    {
+        await using DashboardTestContext context = new();
+        var store = SignIn(context, Role.Owner);
+        var drawer = await Open(context, store, "access.log",
+            [
+                "2026-01-31T12:34:56.789Z 198.51.100.7 \"app.example\" \"GET /a HTTP/2\" 404 512 1.234 0.987",
+                "2026-01-31T12:34:57.789Z 198.51.100.7 \"app.example\" \"GET /b HTTP/2\" 500 512 1.234 0.987",
+            ]);
+
+        var statuses = drawer.FindAll(".pdk-log-line > span");
+        Assert.Contains(statuses, status => status.ClassList.Contains("pdk-log-status-warning") && status.TextContent == "404");
+        Assert.Contains(statuses, status => status.ClassList.Contains("pdk-log-status-error") && status.TextContent == "500");
+    }
+
+    [Fact]
+    public async Task AnEmptyFileSaysSoInsteadOfShowingAnEmptyPane()
+    {
+        await using DashboardTestContext context = new();
+        var store = SignIn(context, Role.Owner);
+        var drawer = await Open(context, store, "error.log", []);
+
+        Assert.Contains("The file is empty.", drawer.Markup, StringComparison.Ordinal);
+        Assert.Empty(drawer.FindAll("[data-section=tail]"));
+    }
+
+    [Fact]
+    public async Task AnUnreadableFileIsReportedAndNoTailIsShown()
+    {
+        await using DashboardTestContext context = new();
+        var store = SignIn(context, Role.Owner);
+        var file = new LogFileSummary("rotated-away.log", "error", 128, DateTimeOffset.UtcNow, false);
+        store.Files.Add(file);
+
+        var drawer = context.Render<LogFileDrawer>(parameters => parameters.Add(drawer => drawer.File, file));
+        await drawer.WaitForStateAsync(() => drawer.FindAll("[data-section=tail-error]").Count == 1);
+
+        Assert.Contains("couldn't be read", drawer.Find("[data-section=tail-error]").TextContent, StringComparison.Ordinal);
+        Assert.Empty(drawer.FindAll("[data-section=tail]"));
+    }
+
+    [Fact]
     public async Task ARoleWithoutThePermissionIsToldWhyAndNothingIsRead()
     {
         await using DashboardTestContext context = new();
@@ -134,6 +217,16 @@ public sealed class LogFilesPageTests
         await page.FindAll("button").First(button => button.TextContent.Contains("Try again", StringComparison.Ordinal)).ClickAsync(new());
 
         Assert.Contains("error.log", page.Markup, StringComparison.Ordinal);
+    }
+
+    private static async Task<IRenderedComponent<LogFileDrawer>> Open(DashboardTestContext context, FakeLogFiles store, string name, string[] lines)
+    {
+        var file = new LogFileSummary(name, name.StartsWith("access", StringComparison.Ordinal) ? "access" : "error", 128, DateTimeOffset.UtcNow, false);
+        store.Files.Add(file);
+        store.Lines[name] = [.. lines];
+        var drawer = context.Render<LogFileDrawer>(parameters => parameters.Add(drawer => drawer.File, file));
+        await drawer.WaitForStateAsync(() => drawer.FindAll("[data-section=tail], .pdk-empty").Count > 0);
+        return drawer;
     }
 
     private static FakeLogFiles SignIn(DashboardTestContext context, Role role)

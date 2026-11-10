@@ -890,22 +890,113 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     white-space: nowrap;
 }
 
-.pdk-log-filter {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 130px;
-    gap: 12px;
-    align-items: start;
-    margin-bottom: 12px;
+/* One row: the filter grows, the count keeps its width and the small toggles keep their size; on a narrow screen it wraps in that
+   order, with the filter on a line of its own. */
+.pdk-log-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
 }
 
-.pdk-log-tail {
-    max-height: 58vh;
+.pdk-log-search {
+    flex: 1 1 220px;
+    min-width: 0;
+}
+
+.pdk-log-count {
+    flex: 0 0 128px;
+}
+
+/* The fields are the same height (MudBlazor's outlined field is 40px) so the row reads as one line, and a control that wraps keeps
+   its own margins out of the alignment. */
+.pdk-log-toolbar .mud-input-control {
     margin: 0;
-    padding: 12px 14px;
-    overflow: auto;
+}
+
+.pdk-log-toolbar .mud-input.mud-input-outlined {
+    height: 40px;
+}
+
+.pdk-log-icon-toggle {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--mud-palette-text-secondary);
+    cursor: pointer;
+    transition: background 140ms var(--pdk-ease-out), border-color 140ms var(--pdk-ease-out), color 140ms var(--pdk-ease-out);
+}
+
+.pdk-log-icon-toggle:hover {
+    border-color: var(--mud-palette-lines-inputs);
+    background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+    color: var(--mud-palette-text-primary);
+}
+
+.pdk-log-icon-toggle:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+.pdk-log-icon-toggle.is-on {
+    border-color: color-mix(in srgb, var(--mud-palette-primary) 45%, transparent);
+    background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent);
+    color: var(--mud-palette-primary);
+}
+
+/* The drawer body is a grid built for forms. The log viewer is one column that has to fill it: the pane scrolls, the body doesn't,
+   so there is no empty area between the last line and the download. */
+.pdk-drawer-body:has(> .pdk-log-viewer) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 16px;
+}
+
+.pdk-log-viewer {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+}
+
+.pdk-log-viewer > .pdk-row-skeleton, .pdk-log-viewer > .pdk-empty, .pdk-log-viewer > .mud-alert {
+    flex: 0 0 auto;
+}
+
+.pdk-log-pane {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
     border: 1px solid var(--mud-palette-lines-default);
     border-radius: 8px;
     background: var(--mud-palette-background-gray);
+}
+
+.pdk-log-stage {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.pdk-log-lines {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    padding: 10px 0;
+    overflow: auto;
+    outline: none;
     font-family: var(--pdk-mono);
     font-size: 0.75rem;
     line-height: 1.55;
@@ -914,13 +1005,53 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     tab-size: 4;
 }
 
+.pdk-log-lines:focus-visible {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mud-palette-primary) 55%, transparent);
+}
+
+.pdk-log-line {
+    min-height: 1.55em;
+    padding: 0 14px;
+}
+
+.pdk-log-line:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 7%, transparent);
+}
+
+.pdk-log-wrapped {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.pdk-log-time {
+    color: var(--mud-palette-text-secondary);
+}
+
+.pdk-log-status-warning {
+    color: var(--mud-palette-warning);
+    font-weight: 600;
+}
+
+.pdk-log-status-error {
+    color: var(--mud-palette-error);
+    font-weight: 600;
+}
+
 .pdk-log-note {
-    margin-top: 8px;
+    margin: 0;
+    padding: 7px 14px;
+    border-top: 1px solid var(--mud-palette-lines-default);
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
 }
 
 @media (max-width: 600px) {
-    .pdk-log-filter {
-        grid-template-columns: minmax(0, 1fr);
+    .pdk-log-search {
+        flex-basis: 100%;
+    }
+
+    .pdk-log-count {
+        flex: 1 1 120px;
     }
 
     .pdk-logs-table .pdk-dt-cell[data-label] {

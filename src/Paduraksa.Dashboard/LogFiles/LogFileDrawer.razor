@@ -8,47 +8,65 @@
 <DrawerShell Title="@File.Name" Name="log-file" Icon="@Icons.Material.Outlined.Article"
             Subtitle="@($"Last written {RevisionText.Ago(File.LastModified, Time.GetUtcNow())}")">
     <ChildContent>
-        <div class="pdk-log-filter">
-            <MudTextField T="string" Value="_filter" ValueChanged="SetFilterAsync" Label="Only lines containing" Placeholder="e.g. 500 or example.com"
-                          Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" DebounceInterval="300" Clearable="true"
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Rounded.Search" Class="pdk-search" data-field="filter" />
-            <MudSelect T="int" Value="_count" ValueChanged="SetCountAsync" Label="Lines" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true"
-                       data-field="count">
-                <MudSelectItem T="int" Value="@LogFileStore.DefaultTailLines">Last @LogFileStore.DefaultTailLines</MudSelectItem>
-                <MudSelectItem T="int" Value="500">Last 500</MudSelectItem>
-                <MudSelectItem T="int" Value="1000">Last 1000</MudSelectItem>
-            </MudSelect>
-        </div>
-
-        @if (_failed)
-        {
-            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-4" data-section="tail-error">
-                The file couldn't be read; it may have been rotated away. Try the list again.
-            </MudAlert>
-        }
-        else if (_loading && _tail is null)
-        {
-            <div class="pdk-row-skeleton">
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="65%" />
-                <MudSkeleton SkeletonType="SkeletonType.Text" Width="72%" />
+        <div class="pdk-log-viewer">
+            <div class="pdk-log-toolbar">
+                <div class="pdk-log-search">
+                    <MudTextField T="string" Value="_filter" ValueChanged="SetFilterAsync" Label="Only lines containing" Placeholder="e.g. 500 or example.com"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" Immediate="true" DebounceInterval="300" Clearable="true"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Rounded.Search" Class="pdk-log-input" data-field="filter" />
+                </div>
+                <div class="pdk-log-count">
+                    <MudSelect T="int" Value="_count" ValueChanged="SetCountAsync" Label="Lines" Variant="Variant.Outlined" Margin="Margin.Dense"
+                               Class="pdk-log-input" data-field="count">
+                        <MudSelectItem T="int" Value="@LogFileStore.DefaultTailLines">Last @LogFileStore.DefaultTailLines</MudSelectItem>
+                        <MudSelectItem T="int" Value="500">Last 500</MudSelectItem>
+                        <MudSelectItem T="int" Value="1000">Last 1000</MudSelectItem>
+                    </MudSelect>
+                </div>
+                <button type="button" class="@($"pdk-log-wrap pdk-log-icon-toggle{(_wrap ? " is-on" : null)}")" aria-pressed="@(_wrap ? "true" : "false")"
+                        aria-label="Wrap lines" title="Wrap lines" data-action="wrap" @onclick="() => _wrap = !_wrap">
+                    <MudIcon Icon="@Icons.Material.Rounded.WrapText" Size="Size.Small" />
+                </button>
             </div>
-        }
-        else if (_tail is { Lines.Count: 0 })
-        {
-            <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Article" Title="Nothing to show"
-                        Description="@(_filter.Length > 0 ? "No line here contains that. Clear the filter to see the file's last lines." : "The file is empty.")" />
-        }
-        else if (_tail is { } tail)
-        {
-            <pre class="pdk-log-tail" data-section="tail" aria-label="@($"The last lines of {File.Name}")">@string.Join("\n", tail.Lines)</pre>
-            @if (tail.Truncated)
+
+            @if (_failed)
             {
-                <MudText Typo="Typo.caption" Class="pdk-muted pdk-log-note" data-section="tail-truncated">
-                    Only the last lines are shown. Download the file for all of it.
-                </MudText>
+                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" data-section="tail-error">
+                    The file couldn't be read; it may have been rotated away. Try the list again.
+                </MudAlert>
             }
-        }
+            else if (_loading && _tail is null)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="80%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="65%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="72%" />
+                </div>
+            }
+            else if (_tail is { Lines.Count: 0 })
+            {
+                <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Article" Title="Nothing to show"
+                            Description="@(_filter.Length > 0 ? "No line here contains that. Clear the filter to see the file's last lines." : "The file is empty.")" />
+            }
+            else if (_tail is { } tail)
+            {
+                <div class="pdk-log-pane">
+                    <div class="pdk-log-stage">
+                        <div class="@($"pdk-log-lines{(_wrap ? " pdk-log-wrapped" : null)}")" data-section="tail"
+                             aria-label="@($"The last lines of {File.Name}")" tabindex="0">
+                            @foreach (var line in tail.Lines)
+                            {
+                                <div class="pdk-log-line">@LogLine(line)</div>
+                            }
+                        </div>
+                    </div>
+                    @if (tail.Truncated)
+                    {
+                        <p class="pdk-log-note" data-section="tail-truncated">Only the last lines are shown. Download the file for all of it.</p>
+                    }
+                </div>
+            }
+        </div>
     </ChildContent>
 
     <Footer>
@@ -65,6 +83,7 @@
     private int _count = LogFileStore.DefaultTailLines;
     private bool _loading;
     private bool _failed;
+    private bool _wrap;
     private int _loads;
 
     [Parameter, EditorRequired]
@@ -116,5 +135,167 @@
                 _loading = false;
             }
         }
+    }
+
+    /// <summary>
+    /// One line as the markup shows it: its timestamp dimmed, and an HTTP status in the 4xx or 5xx range tinted. Built as a render
+    /// fragment so every part is a text node Blazor encodes; a line is arbitrary text and is never injected as HTML.
+    /// </summary>
+    private static RenderFragment LogLine(string line) => builder =>
+    {
+        var (timestamp, before, status, after) = Split(line);
+        if (timestamp is not null)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "pdk-log-time");
+            builder.AddContent(2, timestamp);
+            builder.CloseElement();
+        }
+
+        builder.AddContent(3, before);
+        if (status is not null)
+        {
+            builder.OpenElement(4, "span");
+            builder.AddAttribute(5, "class", status[0] == '5' ? "pdk-log-status-error" : "pdk-log-status-warning");
+            builder.AddContent(6, status);
+            builder.CloseElement();
+        }
+
+        builder.AddContent(7, after);
+    };
+
+    /// <summary>The line split around the parts worth a colour: the ISO time it starts with, and the first bare 4xx or 5xx token.</summary>
+    private static (string? Timestamp, string Before, string? Status, string After) Split(string line)
+    {
+        var time = TimestampLength(line);
+        var rest = line.AsSpan(time);
+        if (!TryFindStatus(rest, out var at, out var length))
+        {
+            return (time == 0 ? null : line[..time], line[time..], null, string.Empty);
+        }
+
+        return (time == 0 ? null : line[..time],
+                line[time..(time + at)],
+                rest.Slice(at, length).ToString(),
+                line[(time + at + length)..]);
+    }
+
+    /// <summary>
+    /// How many characters of an ISO-8601 timestamp the line starts with (nought when it doesn't): the writer's
+    /// <c>yyyy-MM-ddTHH:mm:ss.fffZ</c>, and any other offset form it may grow into.
+    /// </summary>
+    private static int TimestampLength(string line)
+    {
+        if (line.Length < 19
+            || !Digits(line, 0, 4) || line[4] != '-'
+            || !Digits(line, 5, 2) || line[7] != '-'
+            || !Digits(line, 8, 2) || line[10] != 'T'
+            || !Digits(line, 11, 2) || line[13] != ':'
+            || !Digits(line, 14, 2) || line[16] != ':'
+            || !Digits(line, 17, 2))
+        {
+            return 0;
+        }
+
+        var end = 19;
+        if (end + 1 < line.Length && line[end] == '.' && char.IsAsciiDigit(line[end + 1]))
+        {
+            end += 2;
+            while (end < line.Length && char.IsAsciiDigit(line[end]))
+            {
+                end++;
+            }
+        }
+
+        if (end < line.Length && line[end] is 'Z' or 'z')
+        {
+            return end + 1;
+        }
+
+        if (end + 5 < line.Length && line[end] is '+' or '-' && Digits(line, end + 1, 2) && line[end + 3] == ':' && Digits(line, end + 4, 2))
+        {
+            return end + 6;
+        }
+
+        return end;
+    }
+
+    /// <summary>
+    /// The first 4xx or 5xx status: a three-digit token of its own, outside the quoted fields (the request target and the headers
+    /// can hold any text). The access log writes the status before the byte count, so the first one is the response's.
+    /// </summary>
+    private static bool TryFindStatus(ReadOnlySpan<char> text, out int start, out int length)
+    {
+        start = 0;
+        length = 0;
+        var quoted = false;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (quoted)
+            {
+                if (text[i] == '\\')
+                {
+                    i++;
+                }
+                else if (text[i] == '"')
+                {
+                    quoted = false;
+                }
+
+                continue;
+            }
+
+            if (text[i] == '"')
+            {
+                quoted = true;
+                continue;
+            }
+
+            if (text[i] is not (' ' or '\t'))
+            {
+                continue;
+            }
+
+            var token = i + 1;
+            while (token < text.Length && text[token] is ' ' or '\t')
+            {
+                token++;
+            }
+
+            var end = token;
+            while (end < text.Length && text[end] is not (' ' or '\t'))
+            {
+                end++;
+            }
+
+            if (end - token == 3 && text[token] is >= '4' and <= '5' && char.IsAsciiDigit(text[token + 1]) && char.IsAsciiDigit(text[token + 2]))
+            {
+                start = token;
+                length = 3;
+                return true;
+            }
+
+            i = end - 1;
+        }
+
+        return false;
+    }
+
+    private static bool Digits(string text, int start, int count)
+    {
+        if (text.Length < start + count)
+        {
+            return false;
+        }
+
+        for (var i = start; i < start + count; i++)
+        {
+            if (!char.IsAsciiDigit(text[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
