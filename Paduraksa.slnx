@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/bench/">
     <Project Path="bench/Paduraksa.Bench.Runner/Paduraksa.Bench.Runner.csproj" />
+    <Project Path="bench/Paduraksa.Bench.Yarp/Paduraksa.Bench.Yarp.csproj" />
     <Project Path="bench/Paduraksa.Benchmarks/Paduraksa.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/src/">

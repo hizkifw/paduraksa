@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!--
+    Bare Kestrel + YARP reference for the end-to-end baseline (bench/run-baseline.sh): the same two hosts as the other
+    proxies, with no Paduraksa code at all. The gap between it and Paduraksa is Paduraksa's own cost (gate, routing,
+    policies); the gap between it and nginx is Kestrel + YARP. GC and PGO match Paduraksa.Bench.Runner.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <!-- This throwaway reference app loads the harness's TLS key itself; it isn't the vault and has no other option. -->
+    <PaduraksaKeyMaterialBoundary>true</PaduraksaKeyMaterialBoundary>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" />
+  </ItemGroup>
+</Project>
