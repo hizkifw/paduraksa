@@ -30,6 +30,7 @@ public sealed class HostSettingsFieldsTests
         AccessLog = false,
         RequestIdPropagation = RequestIdPropagation.UpstreamOnly,
         ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = "edge/1.0" },
+        ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 18, TokenLifetimeHours = 168 },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -222,6 +223,49 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/serverHeader/value",
             ShowsAtField = true,
         },
+
+        // Group key: the validator rules the difficulty and lifetime, not the switch.
+        new(
+            "proofOfWork.enabled",
+            "proof-of-work-enabled",
+            "/proofOfWork",
+            new HostSettings(),
+            (fields, _) => SetSelect<bool>(fields, "Browser check", true),
+            new HostSettings { ProofOfWork = new ProofOfWorkSettings { Enabled = true } },
+            (fields, _) => SetSelect<bool>(fields, "Browser check", null),
+            new HostSettings(),
+            "Inherit (on)")
+        {
+            GroupKey = true,
+        },
+        new(
+            "proofOfWork.difficulty",
+            "proof-of-work-difficulty",
+            "/proofOfWork/difficulty",
+            new HostSettings(),
+            (fields, _) => SetSelect<int>(fields, "Difficulty", 20),
+            new HostSettings { ProofOfWork = new ProofOfWorkSettings { Difficulty = 20 } },
+            (fields, _) => SetSelect<int>(fields, "Difficulty", null),
+            new HostSettings(),
+            "Inherit (18 bits")
+        {
+            ValidatorPath = "/proofOfWork/difficulty",
+            ShowsAtField = true,
+        },
+        new(
+            "proofOfWork.tokenLifetimeHours",
+            "proof-of-work-lifetime",
+            "/proofOfWork/tokenLifetimeHours",
+            new HostSettings(),
+            (fields, _) => SetLifetime(fields, TokenLifetimeChoice.OneDay),
+            new HostSettings { ProofOfWork = new ProofOfWorkSettings { TokenLifetimeHours = 24 } },
+            (fields, _) => SetLifetime(fields, TokenLifetimeChoice.Inherit),
+            new HostSettings(),
+            "Inherit (7 days)")
+        {
+            ValidatorPath = "/proofOfWork/tokenLifetimeHours",
+            ShowsAtField = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -376,6 +420,11 @@ public sealed class HostSettingsFieldsTests
     private static Task SetChoice(IRenderedComponent<HostSettingsFields> fields, HstsMaxAgeChoice choice) =>
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<HstsMaxAgeChoice>>()
             .Single(select => select.Instance.Label == "Remembered for")
+            .Instance.ValueChanged.InvokeAsync(choice));
+
+    private static Task SetLifetime(IRenderedComponent<HostSettingsFields> fields, TokenLifetimeChoice choice) =>
+        fields.InvokeAsync(() => fields.FindComponents<MudSelect<TokenLifetimeChoice>>()
+            .Single(select => select.Instance.Label == "Token lifetime")
             .Instance.ValueChanged.InvokeAsync(choice));
 
     private static Task Toggle(IRenderedComponent<HostSettingsFields> fields, string field, bool value) =>

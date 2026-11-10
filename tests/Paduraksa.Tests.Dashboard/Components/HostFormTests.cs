@@ -120,6 +120,25 @@ public sealed class HostFormTests
     }
 
     [Fact]
+    public async Task TheRouteBrowserCheckSwitch_OverridesTheHost_AndKeepsTheRoutesOtherSettings()
+    {
+        var route = RouteId.New();
+        RouteSettings settings = new() { IpAllowList = new IpAllowListSettings(["10.0.0.0/8"]) };
+        var stored = new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(route, App.Id, Settings: settings)]);
+        var model = HostEditModel.From(stored);
+        await using DashboardTestContext context = new();
+        var form = Render(context, model);
+
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<bool?>>()
+            .Single(select => select.Instance.Label == "Route browser check")
+            .Instance.ValueChanged.InvokeAsync(false));
+
+        var kept = Assert.Single(model.ToConfig().Routes);
+        Assert.Equal((route, false), (kept.Id, kept.Settings.ProofOfWork?.Enabled));
+        Assert.Same(settings.IpAllowList, kept.Settings.IpAllowList);
+    }
+
+    [Fact]
     public async Task ReadOnly_OffersNoWayToAddOrRemove()
     {
         var model = HostEditModel.From(new HostConfig(HostId.New(), ["a.example.com", "b.example.com"], Routes: [new RouteConfig(RouteId.New(), App.Id)]));

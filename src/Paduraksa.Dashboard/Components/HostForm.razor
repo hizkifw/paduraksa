@@ -104,6 +104,14 @@
                             {
                                 <MudIconButton Icon="@Icons.Material.Outlined.RemoveCircleOutline" Size="Size.Small" OnClick="() => RemoveRouteAsync(route)" aria-label="@($"Remove route {index + 1}")" />
                             }
+                            <MudSelect T="bool?" Value="route.ProofOfWorkEnabled" ValueChanged="@(value => SetAsync(() => route.ProofOfWorkEnabled = value, $"/routes/{index}/settings/proofOfWork/enabled"))"
+                                       Label="Route browser check" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="ReadOnly" Class="pdk-route-pow"
+                                       Error="@(E($"/routes/{index}/settings/proofOfWork/enabled") is not null)" ErrorText="@E($"/routes/{index}/settings/proofOfWork/enabled")"
+                                       data-field="@($"route-proof-of-work-{index}")">
+                                <MudSelectItem T="bool?" Value="null">Inherit</MudSelectItem>
+                                <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+                                <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+                            </MudSelect>
                         </div>
                     }
                     @if (E("/routes") is { } routesError)

@@ -116,6 +116,34 @@
         </SettingRow>
     }
 
+    <div class="pdk-setting-heading">
+        <span class="pdk-setting-heading-title">Browser check</span>
+        <span class="pdk-setting-heading-note">A visitor's browser solves a small proof of work once and keeps a signed cookie, so a plain scraper never gets in.</span>
+    </div>
+
+    <InheritSelect T="bool" Value="_current.ProofOfWork?.Enabled" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Enabled = value }), "/proofOfWork/enabled"))"
+                   Inherited="@Resolved.ProofOfWork!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                   Title="Browser check" Help="Ask a browser to solve a SHA-256 challenge before its first request goes through. It happens once per token lifetime."
+                   Label="Browser check" Field="proof-of-work-enabled" Error="@E("/proofOfWork/enabled")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+    </InheritSelect>
+
+    <InheritSelect T="int" Value="_current.ProofOfWork?.Difficulty" ValueChanged="@(value => Update(WithProofOfWork(pow => pow with { Difficulty = value }), "/proofOfWork/difficulty"))"
+                   Inherited="@Resolved.ProofOfWork!.Difficulty!.Value" Format="@(value => $"{value} bits ({SettingsSummary.DifficultyText(value)})")" InheritWord="@InheritWord"
+                   Title="Difficulty" Help="Leading zero bits a solution needs. Each extra bit doubles the work, for the visitor and for a bot."
+                   Label="Difficulty" Field="proof-of-work-difficulty" Error="@E("/proofOfWork/difficulty")" ReadOnly="@ReadOnly">
+        @for (var bits = 8; bits <= 28; bits++)
+        {
+            var value = bits;
+            <MudSelectItem T="int?" Value="value">@bits bits (@SettingsSummary.DifficultyText(bits))</MudSelectItem>
+        }
+    </InheritSelect>
+
+    <ProofOfWorkLifetimeField Value="_current.ProofOfWork" ValueChanged="@(value => Update(WithProofOfWork(_ => value ?? new ProofOfWorkSettings()), "/proofOfWork/tokenLifetimeHours"))"
+                              Inherited="@Resolved.ProofOfWork!.TokenLifetimeHours!.Value" InheritWord="@InheritWord"
+                              Error="@E("/proofOfWork/tokenLifetimeHours")" ReadOnly="@ReadOnly" />
+
     <AllowListField Value="_current.IpAllowList" ValueChanged="@(value => Update(_current with { IpAllowList = value }, "/ipAllowList"))"
                     Inherited="Inherited.IpAllowList" InheritedFrom="@InheritedFrom" Error="@FirstUnder("/ipAllowList")" ReadOnly="@ReadOnly" />
 </div>
@@ -214,6 +242,8 @@
     private HostSettings WithHsts(Func<HstsSettings, HstsSettings> change) => HostSettingsEdit.WithHsts(_current, change);
 
     private HostSettings WithServerHeader(Func<ServerHeaderSettings, ServerHeaderSettings> change) => HostSettingsEdit.WithServerHeader(_current, change);
+
+    private HostSettings WithProofOfWork(Func<ProofOfWorkSettings, ProofOfWorkSettings> change) => HostSettingsEdit.WithProofOfWork(_current, change);
 
     /// <summary>Hands the changed layer to the form, then says which field changed (so its errors show and it revalidates).</summary>
     private async Task Update(HostSettings settings, string path)

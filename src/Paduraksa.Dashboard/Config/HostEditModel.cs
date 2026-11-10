@@ -159,7 +159,7 @@ public sealed class TextEntry
     public string Value { get; set; } = string.Empty;
 }
 
-/// <summary>A route in the host form; its own settings (the route-level allow list) are kept as they were.</summary>
+/// <summary>A route in the host form; its own settings (the route-level allow list and browser-check switch) are edited here.</summary>
 public sealed class RouteEntry(RouteId id, RouteSettings? settings = null)
 {
     public RouteId Id { get; } = id;
@@ -172,7 +172,33 @@ public sealed class RouteEntry(RouteId id, RouteSettings? settings = null)
 
     public int Order { get; set; }
 
+    /// <summary>The route's own settings: what the form doesn't show is kept as it was, so saving never drops a field set elsewhere.</summary>
+    public RouteSettings Settings { get; set; } = settings ?? new();
+
+    /// <summary>Null inherits the host's proof-of-work switch; true or false overrides it for this route only.</summary>
+    public bool? ProofOfWorkEnabled
+    {
+        get => Settings.ProofOfWork?.Enabled;
+        set
+        {
+            var proofOfWork = Settings.ProofOfWork;
+            if (value is null)
+            {
+                // Only the switch was set here: collapse the record, or keep the values a stored document carries.
+                Settings = Settings with
+                {
+                    ProofOfWork = proofOfWork is null || (proofOfWork.Difficulty is null && proofOfWork.TokenLifetimeHours is null)
+                        ? null
+                        : proofOfWork with { Enabled = null },
+                };
+                return;
+            }
+
+            Settings = Settings with { ProofOfWork = (proofOfWork ?? new ProofOfWorkSettings()) with { Enabled = value } };
+        }
+    }
+
     /// <summary>The route as the command sends it. A route without an upstream is sent with an empty one, which validation reports.</summary>
     public RouteConfig ToConfig() =>
-        new(Id, UpstreamId ?? default, Order, Match, string.IsNullOrWhiteSpace(Path) ? "/" : Path.Trim(), settings);
+        new(Id, UpstreamId ?? default, Order, Match, string.IsNullOrWhiteSpace(Path) ? "/" : Path.Trim(), Settings);
 }

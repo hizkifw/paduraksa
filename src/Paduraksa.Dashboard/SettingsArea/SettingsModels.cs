@@ -39,6 +39,15 @@ public static class HostSettingsEdit
         return settings with { ServerHeader = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its proof-of-work record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithProofOfWork(HostSettings settings, Func<ProofOfWorkSettings, ProofOfWorkSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.ProofOfWork ?? new ProofOfWorkSettings());
+        return settings with { ProofOfWork = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary>
     /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
     /// <see cref="HostSettings"/> itself, so a new setting is counted without a hand-kept list. A preset-or-custom choice with no
@@ -86,6 +95,7 @@ public static class SettingsSummary
         static settings => settings.AccessLog is { } accessLog ? (accessLog ? "Access log on" : "Access log off") : null,
         static settings => settings.RequestIdPropagation is { } propagation ? $"Request ID: {PropagationText(propagation)}" : null,
         static settings => settings.ServerHeader is { } server ? ServerText(server) : null,
+        static settings => settings.ProofOfWork is { } proofOfWork ? ProofOfWorkText(proofOfWork) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases.</summary>
@@ -176,6 +186,128 @@ public static class SettingsSummary
 
         return string.IsNullOrEmpty(server.Value) ? null : $"Server header value: {server.Value}";
     }
+
+    /// <summary>How hard a solution is, in the words the field's options use.</summary>
+    public static string DifficultyText(int bits) => bits switch
+    {
+        <= 12 => "instant",
+        <= 16 => "well under a second",
+        <= 19 => "a second or two",
+        <= 22 => "a few seconds",
+        <= 25 => "up to a minute",
+        _ => "a minute or more",
+    };
+
+    /// <summary>A token lifetime in words: "1 hour", "1 day", "7 days".</summary>
+    public static string LifetimeText(int hours) => hours switch
+    {
+        1 => "1 hour",
+        24 => "1 day",
+        168 => "7 days",
+        720 => "30 days",
+        < 24 => $"{hours} hours",
+        _ when hours % 24 == 0 => $"{hours / 24} days",
+        _ => $"{hours} hours",
+    };
+
+    private static string? ProofOfWorkText(ProofOfWorkSettings proofOfWork)
+    {
+        if (proofOfWork is { Enabled: null, Difficulty: null, TokenLifetimeHours: null })
+        {
+            return null;
+        }
+
+        List<string> parts = [];
+        if (proofOfWork.Difficulty is { } difficulty)
+        {
+            parts.Add($"{difficulty} bits");
+        }
+
+        if (proofOfWork.TokenLifetimeHours is { } hours)
+        {
+            parts.Add(LifetimeText(hours));
+        }
+
+        var settings = parts.Count == 0 ? "the inherited settings" : string.Join(", ", parts);
+        return proofOfWork.Enabled switch
+        {
+            true => $"Browser check: {settings}",
+            false => "Browser check off",
+            _ => $"Browser check when on: {settings}",
+        };
+    }
+}
+
+/// <summary>The token lifetimes a proof-of-work form offers, plus a custom number of hours.</summary>
+public enum TokenLifetimeChoice
+{
+    /// <summary>The layer below's value.</summary>
+    Inherit,
+
+    OneHour,
+
+    SixHours,
+
+    TwelveHours,
+
+    /// <summary>A day.</summary>
+    OneDay,
+
+    /// <summary>A week: the built-in default.</summary>
+    SevenDays,
+
+    /// <summary>Thirty days, the longest Paduraksa accepts.</summary>
+    ThirtyDays,
+
+    /// <summary>Whatever number of hours the custom field holds.</summary>
+    Custom,
+}
+
+/// <summary>The hours behind each <see cref="TokenLifetimeChoice"/>, and the choice a stored number is.</summary>
+public static class TokenLifetimePresets
+{
+    public const int OneHour = 1;
+    public const int SixHours = 6;
+    public const int TwelveHours = 12;
+    public const int OneDay = 24;
+    public const int SevenDays = 168;
+    public const int ThirtyDays = 720;
+
+    /// <summary>The choice <paramref name="hours"/> is; null is <see cref="TokenLifetimeChoice.Inherit"/>.</summary>
+    public static TokenLifetimeChoice ChoiceOf(int? hours, out int? custom)
+    {
+        custom = null;
+        return hours switch
+        {
+            null => TokenLifetimeChoice.Inherit,
+            OneHour => TokenLifetimeChoice.OneHour,
+            SixHours => TokenLifetimeChoice.SixHours,
+            TwelveHours => TokenLifetimeChoice.TwelveHours,
+            OneDay => TokenLifetimeChoice.OneDay,
+            SevenDays => TokenLifetimeChoice.SevenDays,
+            ThirtyDays => TokenLifetimeChoice.ThirtyDays,
+            _ => Custom(hours.Value, out custom),
+        };
+
+        static TokenLifetimeChoice Custom(int value, out int? custom)
+        {
+            custom = value;
+            return TokenLifetimeChoice.Custom;
+        }
+    }
+
+    /// <summary>The hours a choice means; null for <see cref="TokenLifetimeChoice.Inherit"/>.</summary>
+    public static int? HoursOf(TokenLifetimeChoice choice, int? custom) => choice switch
+    {
+        TokenLifetimeChoice.OneHour => OneHour,
+        TokenLifetimeChoice.SixHours => SixHours,
+        TokenLifetimeChoice.TwelveHours => TwelveHours,
+        TokenLifetimeChoice.OneDay => OneDay,
+        TokenLifetimeChoice.SevenDays => SevenDays,
+        TokenLifetimeChoice.ThirtyDays => ThirtyDays,
+        TokenLifetimeChoice.Custom => custom,
+        _ => null,
+    };
 }
 
 /// <summary>The common <c>max-age</c> values a form offers, plus a custom number of seconds.</summary>

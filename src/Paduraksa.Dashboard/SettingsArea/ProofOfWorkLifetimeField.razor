@@ -1,0 +1,98 @@
+@* The proof-of-work token lifetime: the common hours values plus a custom number, which is the only form the config
+   holds. *@
+<div class="pdk-setting">
+    <div class="pdk-setting-text">
+        <span class="pdk-setting-title">Token lifetime</span>
+        <span class="pdk-setting-help">
+            How long a solved check is remembered in the browser cookie. A visitor solves again when it runs out.
+        </span>
+    </div>
+    <div class="pdk-setting-control">
+        <MudSelect T="TokenLifetimeChoice" Value="_choice" ValueChanged="SetChoiceAsync"
+                   Label="Token lifetime" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="@ReadOnly"
+                   Error="@(_choice != TokenLifetimeChoice.Custom && Error is not null)"
+                   ErrorText="@(_choice == TokenLifetimeChoice.Custom ? null : Error)"
+                   data-field="proof-of-work-lifetime">
+            <MudSelectItem T="TokenLifetimeChoice" Value="TokenLifetimeChoice.Inherit">
+                @InheritWord (@SettingsSummary.LifetimeText(Inherited))
+            </MudSelectItem>
+            <MudSelectItem T="TokenLifetimeChoice" Value="TokenLifetimeChoice.OneHour">1 hour</MudSelectItem>
+            <MudSelectItem T="TokenLifetimeChoice" Value="TokenLifetimeChoice.SixHours">6 hours</MudSelectItem>
+            <MudSelectItem T="TokenLifetimeChoice" Value="TokenLifetimeChoice.TwelveHours">12 hours</MudSelectItem>
+            <MudSelectItem T="TokenLifetimeChoice" Value="TokenLifetimeChoice.OneDay">1 day</MudSelectItem>
+            <MudSelectItem T="TokenLifetimeChoice" Value="TokenLifetimeChoice.SevenDays">7 days</MudSelectItem>
+            <MudSelectItem T="TokenLifetimeChoice" Value="TokenLifetimeChoice.ThirtyDays">30 days</MudSelectItem>
+            <MudSelectItem T="TokenLifetimeChoice" Value="TokenLifetimeChoice.Custom">Custom hours</MudSelectItem>
+        </MudSelect>
+        @if (_choice == TokenLifetimeChoice.Custom)
+        {
+            <MudNumericField T="int?" Value="_custom" ValueChanged="SetCustomAsync"
+                             Label="Hours" Min="1" Max="720" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly"
+                             HideSpinButtons="true" HelperText="1 to 720 hours (30 days)" Class="pdk-mono-input"
+                             Error="@(Error is not null)" ErrorText="@Error" data-field="proof-of-work-lifetime-custom" />
+        }
+    </div>
+</div>
+
+@code {
+    private TokenLifetimeChoice _choice;
+    private int? _custom;
+    private ProofOfWorkSettings? _current;
+    private ProofOfWorkSettings? _seen;
+    private bool _initialised;
+
+    /// <summary>The layer's proof-of-work record; its <c>TokenLifetimeHours</c> is the one this field edits, null inheriting.</summary>
+    [Parameter]
+    public ProofOfWorkSettings? Value { get; set; }
+
+    /// <summary>The record with its <c>TokenLifetimeHours</c> changed: the whole record, so the parent keeps the same instance.</summary>
+    [Parameter]
+    public EventCallback<ProofOfWorkSettings?> ValueChanged { get; set; }
+
+    /// <summary>The hours this layer would inherit, resolved.</summary>
+    [Parameter]
+    public int Inherited { get; set; } = TokenLifetimePresets.SevenDays;
+
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // The parent's record is the value: when it changes underneath us (a reload, an undo), the choice follows it again.
+        if (!_initialised || !ReferenceEquals(Value, _seen))
+        {
+            _current = Value;
+            _choice = TokenLifetimePresets.ChoiceOf(Value?.TokenLifetimeHours, out var custom);
+            _custom = custom;
+            _seen = Value;
+            _initialised = true;
+        }
+    }
+
+    private Task SetChoiceAsync(TokenLifetimeChoice choice)
+    {
+        _choice = choice;
+        return EmitAsync(TokenLifetimePresets.HoursOf(choice, _custom));
+    }
+
+    private Task SetCustomAsync(int? hours)
+    {
+        _custom = hours;
+        return EmitAsync(hours);
+    }
+
+    /// <summary>Hands back the whole record, so the parent stores this instance and the reference check above sees no change.</summary>
+    private Task EmitAsync(int? hours)
+    {
+        var next = (_current ?? new ProofOfWorkSettings()) with { TokenLifetimeHours = hours };
+        _current = next;
+        _seen = next;
+        return ValueChanged.InvokeAsync(next);
+    }
+}
