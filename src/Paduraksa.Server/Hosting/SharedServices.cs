@@ -279,7 +279,7 @@ internal sealed class SharedServices : IAsyncDisposable
             var rateLimits = builder.Add(RateLimitServiceCollectionExtensions.CreateRuntime(configuration));
             var accessLists = builder.Add(new AccessListRuntime(timeProvider));
             // Built here so its start time is the process's: the counters it reports begin at zero with them.
-            builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider));
+            builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider, accessLists));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
             var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));

@@ -24,6 +24,7 @@ else if (_current is { } current)
     var pow = current.ProofOfWork;
     var rejected = SecurityFigures.Rejected(pow);
     var requests = current.RateLimit.Allowed + current.RateLimit.Limited;
+    var lists = current.AccessLists;
 
     <p class="pdk-sec-since" data-part="since">Counted since Paduraksa started @RevisionText.Ago(current.Since, current.SampledAt).</p>
 
@@ -200,6 +201,19 @@ else if (_current is { } current)
                 <div title="Altered, or issued for another host or client address"><dt>Bad signature</dt><dd data-reason="bad-tag">@SecurityFigures.Count(pow.TokensRejected.BadTag)</dd></div>
                 <div title="Valid, but past its lifetime"><dt>Expired</dt><dd data-reason="expired">@SecurityFigures.Count(pow.TokensRejected.Expired)</dd></div>
                 <div title="Valid, but easier than the host's current difficulty"><dt>Too easy</dt><dd data-reason="too-easy">@SecurityFigures.Count(pow.TokensRejected.TooEasy)</dd></div>
+            </dl>
+        </MudPaper>
+
+        <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="access-lists">
+            <div class="pdk-card-head">
+                <MudText Typo="Typo.subtitle2" HtmlTag="h2">Access lists</MudText>
+            </div>
+            <dl class="pdk-sec-reasons">
+                <div title="Refused for their address: a 403, or dropped"><dt>Address refused</dt><dd data-reason="address-refused">@SecurityFigures.Count(lists.AddressRefused)</dd></div>
+                <div title="Answered 401: no credentials, or a wrong password"><dt>Wrong or missing password</dt><dd data-reason="unauthorized">@SecurityFigures.Count(lists.Unauthorized)</dd></div>
+                <div title="Checks run in full, right or wrong; a password accepted from the five-minute memory is not one"><dt>Passwords checked</dt><dd data-reason="checked">@SecurityFigures.Count(lists.Verifications)</dd></div>
+                <div title="Waited for a password check to come free"><dt>Queued</dt><dd data-reason="queued">@SecurityFigures.Count(lists.Queued)</dd></div>
+                <div title="Answered 429: the line for a check was full or this client already had its share of it, or the wait ran out"><dt>Refused, busy</dt><dd data-reason="busy">@SecurityFigures.Count(lists.QueueFull + lists.QueueTimeouts)</dd></div>
             </dl>
         </MudPaper>
     </div>

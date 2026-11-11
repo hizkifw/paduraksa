@@ -22,18 +22,21 @@ public sealed class SecurityOverviewService
     private readonly SnapshotStore _snapshots;
     private readonly ProofOfWorkStats _proofOfWork;
     private readonly RateLimitStats _rateLimit;
+    private readonly AccessListStats _accessLists;
     private readonly TimeProvider _time;
     private readonly DateTimeOffset _since;
 
-    public SecurityOverviewService(SnapshotStore snapshots, ProofOfWorkRuntime proofOfWork, RateLimitRuntime rateLimits, TimeProvider time)
+    public SecurityOverviewService(SnapshotStore snapshots, ProofOfWorkRuntime proofOfWork, RateLimitRuntime rateLimits, TimeProvider time, AccessListRuntime accessLists)
     {
         ArgumentNullException.ThrowIfNull(snapshots);
         ArgumentNullException.ThrowIfNull(proofOfWork);
         ArgumentNullException.ThrowIfNull(rateLimits);
         ArgumentNullException.ThrowIfNull(time);
+        ArgumentNullException.ThrowIfNull(accessLists);
         _snapshots = snapshots;
         _proofOfWork = proofOfWork.Stats;
         _rateLimit = rateLimits.Stats;
+        _accessLists = accessLists.Stats;
         _time = time;
         _since = time.GetUtcNow();
     }
@@ -46,12 +49,15 @@ public sealed class SecurityOverviewService
             pow.ChallengesServed, pow.Solved, pow.VerifyRejected, pow.BlockedNonBrowser,
             new TokenRejections(pow.Malformed, pow.BadTag, pow.Expired, pow.TooEasy));
         RateLimitCounters rateLimit = new(_rateLimit.Allowed, _rateLimit.Limited);
+        var lists = _accessLists;
+        AccessListCounters accessLists = new(
+            lists.AddressRefused, lists.Unauthorized, lists.CacheHits, lists.Verifications, lists.Queued, lists.QueueFull, lists.QueueTimeouts);
         var hosts = _snapshots.Current.HostsByIndex
             .Select(HostOf)
             .OrderBy(host => host.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(host => host.Id.ToString(), StringComparer.Ordinal)
             .ToArray();
-        return new SecurityOverview(_since, sampledAt, proofOfWork, rateLimit, hosts);
+        return new SecurityOverview(_since, sampledAt, proofOfWork, rateLimit, accessLists, hosts);
     }
 
     private static HostProtections HostOf(CompiledHost host)

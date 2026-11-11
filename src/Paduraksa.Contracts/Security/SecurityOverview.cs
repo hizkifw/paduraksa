@@ -10,12 +10,14 @@ namespace Paduraksa.Contracts.Security;
 /// <param name="SampledAt">When the counters were read.</param>
 /// <param name="ProofOfWork">The proof-of-work gate's counters.</param>
 /// <param name="RateLimit">The rate limiter's counters.</param>
+/// <param name="AccessLists">The access lists' counters.</param>
 /// <param name="Hosts">The enabled hosts, by name.</param>
 public sealed record SecurityOverview(
     DateTimeOffset Since,
     DateTimeOffset SampledAt,
     ProofOfWorkCounters ProofOfWork,
     RateLimitCounters RateLimit,
+    AccessListCounters AccessLists,
     IReadOnlyList<HostProtections> Hosts);
 
 /// <summary>The proof-of-work gate's counters.</summary>
@@ -37,6 +39,16 @@ public sealed record TokenRejections(long Malformed, long BadTag, long Expired, 
 /// <param name="Allowed">Requests a policy let through.</param>
 /// <param name="Limited">Requests a policy refused with 429.</param>
 public sealed record RateLimitCounters(long Allowed, long Limited);
+
+/// <summary>The access lists' counters.</summary>
+/// <param name="AddressRefused">Requests refused for their address (403, or dropped).</param>
+/// <param name="Unauthorized">Requests answered 401: no credentials, or wrong ones.</param>
+/// <param name="CacheHits">Passwords accepted from the five-minute memory, without a check.</param>
+/// <param name="Verifications">Password checks run.</param>
+/// <param name="Queued">Requests that waited for a password check to come free.</param>
+/// <param name="QueueFull">Requests refused with 429 at once: the line was full, or their client already had its share of it.</param>
+/// <param name="QueueTimeouts">Requests refused with 429 after waiting the maximum.</param>
+public sealed record AccessListCounters(long AddressRefused, long Unauthorized, long CacheHits, long Verifications, long Queued, long QueueFull, long QueueTimeouts);
 
 /// <summary>One enabled host's protections, from the live compiled config.</summary>
 /// <param name="Id">The host.</param>

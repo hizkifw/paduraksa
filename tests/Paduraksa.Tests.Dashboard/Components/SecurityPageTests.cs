@@ -9,6 +9,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
 using Paduraksa.Dashboard.Layout;
 using Paduraksa.Dashboard.Pages;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
@@ -91,6 +92,32 @@ public sealed class SecurityPageTests
         Assert.Equal("1", page.Find("[data-reason=expired]").TextContent);
         Assert.Equal("1", page.Find("[data-reason=too-easy]").TextContent);
         Assert.Contains("Counted since Paduraksa started", page.Find("[data-part=since]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheAccessListCountersAreListedWithRefusalsForBusyAddedUp()
+    {
+        await using DashboardTestContext context = new();
+        var shell = Start(context, Role.Operator);
+        var stats = shell.AccessLists.Stats;
+        stats.CountAddressRefused();
+        stats.CountUnauthorized();
+        stats.CountUnauthorized();
+        stats.CountVerification();
+        stats.CountVerification();
+        stats.CountVerification();
+        stats.CountQueued();
+        stats.CountQueueFull();
+        stats.CountQueueFull();
+        stats.CountQueueTimeout();
+
+        var page = context.Render<SecurityPage>();
+
+        Assert.Equal("1", page.Find("[data-section=access-lists] [data-reason=address-refused]").TextContent);
+        Assert.Equal("2", page.Find("[data-section=access-lists] [data-reason=unauthorized]").TextContent);
+        Assert.Equal("3", page.Find("[data-section=access-lists] [data-reason=checked]").TextContent);
+        Assert.Equal("1", page.Find("[data-section=access-lists] [data-reason=queued]").TextContent);
+        Assert.Equal("3", page.Find("[data-section=access-lists] [data-reason=busy]").TextContent);
     }
 
     [Fact]
@@ -279,7 +306,7 @@ public sealed class SecurityPageTests
     private static Shell Start(DashboardTestContext context, Role role)
     {
         Shell shell = new();
-        context.Services.AddSingleton(new SecurityOverviewService(shell.Store, shell.ProofOfWork, shell.RateLimits, shell.Time));
+        context.Services.AddSingleton(new SecurityOverviewService(shell.Store, shell.ProofOfWork, shell.RateLimits, shell.Time, shell.AccessLists));
         ConfigPages.SignIn(context, role, shell.Time);
         return shell;
     }
@@ -366,6 +393,8 @@ public sealed class SecurityPageTests
         public ProofOfWorkRuntime ProofOfWork { get; } = new();
 
         public RateLimitRuntime RateLimits { get; } = new(new RateLimitTable(64));
+
+        public AccessListRuntime AccessLists { get; } = new();
 
         public void Publish(ProxyConfigModel model)
         {

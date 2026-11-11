@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Paduraksa.Application.Security;
 using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
@@ -52,6 +53,27 @@ public sealed class SecurityOverviewServiceTests
         Assert.Equal(new(1, 1, 1, 1), overview.ProofOfWork.TokensRejected);
         Assert.Equal(new(3, 1), overview.RateLimit);
         Assert.Empty(overview.Hosts);
+    }
+
+    [Fact]
+    public void TheAccessListCountersAreReadAsTheyStand()
+    {
+        AccessListRuntime accessLists = new();
+        SecurityOverviewService service = new(new SnapshotStore(), new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), new FakeTime(DateTimeOffset.UnixEpoch), accessLists);
+        var stats = accessLists.Stats;
+        stats.CountAddressRefused();
+        stats.CountUnauthorized();
+        stats.CountUnauthorized();
+        stats.CountCacheHit();
+        stats.CountVerification();
+        stats.CountVerification();
+        stats.CountVerification();
+        stats.CountQueued();
+        stats.CountQueued();
+        stats.CountQueueFull();
+        stats.CountQueueTimeout();
+
+        Assert.Equal(new(1, 2, 1, 3, 2, 1, 1), service.Read().AccessLists);
     }
 
     [Fact]
@@ -294,7 +316,7 @@ public sealed class SecurityOverviewServiceTests
         ProofOfWorkRuntime proofOfWork = new();
         RateLimitRuntime rateLimits = new(new RateLimitTable(64));
         SnapshotStore store = new();
-        return (new SecurityOverviewService(store, proofOfWork, rateLimits, time ?? new FakeTime(DateTimeOffset.UnixEpoch)), proofOfWork, rateLimits, store);
+        return (new SecurityOverviewService(store, proofOfWork, rateLimits, time ?? new FakeTime(DateTimeOffset.UnixEpoch), new AccessListRuntime()), proofOfWork, rateLimits, store);
     }
 
     private static HostSpec Host(int n, string name) => new() { Id = Id<HostId>(n), Names = [name], Https = false, Routes = [new RouteSpec { Id = Id<RouteId>(1000 + n), Upstream = App }] };
