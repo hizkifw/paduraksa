@@ -4,6 +4,7 @@ using System.Text;
 
 using Microsoft.AspNetCore.Http;
 
+using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
@@ -86,33 +87,31 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
     string IRequestPolicy.Name => "accessList";
 
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict) =>
-        AccessListExplanation.Describe(_list, _stage, request.State.ClientAddress, request.State.AccessListOutcome, verdict);
+        AccessListExplanation.Describe(_list, _stage, request.State.ClientAddress, request.State.ClientCountry, request.State.AccessListOutcome, verdict);
 
     void IPolicyTraceFacts.AddFacts(in RequestView request, PolicyDecision verdict, List<GateFact> facts)
     {
         var outcome = request.State.AccessListOutcome;
         facts.Add(new("accessList", _list.Name));
         facts.Add(new("address", AccessListExplanation.Word(outcome.Address)));
+        if (_list.HasCountryRules)
+        {
+            facts.Add(new("country", request.State.ClientCountry.ToString()));
+            facts.Add(new("countryRule", AccessListExplanation.Word(_list.CountryVerdictOf(request.State.ClientCountry))));
+        }
+
         facts.Add(new("credentials", AccessListExplanation.Word(outcome.Credentials)));
         facts.Add(new("satisfy", _list.Satisfy == AccessListSatisfy.Any ? "any" : "all"));
     }
 
-    /// <summary>Whether the address rules alone refuse <paramref name="client"/>: a denied address always, and one outside
-    /// a non-empty allow list unless a password can still let it in (<c>satisfy: any</c> with users).</summary>
-    internal static bool AddressRefuses(CompiledAccessList list, IpKey client)
-    {
-        if (!list.Deny.IsEmpty && list.Deny.Contains(client))
-        {
-            return true;
-        }
+    /// <summary>Whether the address side alone refuses a request: a denied address or country always, and one outside a non-empty
+    /// allow list unless a password can still let it in (<c>satisfy: any</c> with users).</summary>
+    internal static bool AddressRefuses(CompiledAccessList list, IpKey client, CountryCode country) =>
+        Refuses(list, list.AddressVerdictOf(client, country));
 
-        if (list.Allow.IsEmpty || (list.HasUsers && list.Satisfy == AccessListSatisfy.Any))
-        {
-            return false;
-        }
-
-        return !list.Allow.Contains(client);
-    }
+    private static bool Refuses(CompiledAccessList list, AddressVerdict verdict) =>
+        verdict == AddressVerdict.Denied
+        || (verdict == AddressVerdict.NotInAllow && !(list.HasUsers && list.Satisfy == AccessListSatisfy.Any));
 
     private AccessListOutcome Run(in RequestView request)
     {
@@ -122,12 +121,10 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
 
         // A simulation moves no counter, as it takes no token and touches no cache.
         var stats = request.IsSimulation ? null : _runtime.Stats;
-        var denied = !list.Deny.IsEmpty && list.Deny.Contains(client);
-        var restrictsAddress = !list.Allow.IsEmpty;
-        var inAllow = restrictsAddress && list.Allow.Contains(client);
-        var ip = denied ? AddressVerdict.Denied : !restrictsAddress ? AddressVerdict.Unrestricted : inAllow ? AddressVerdict.Allowed : AddressVerdict.NotInAllow;
+        var ip = list.AddressVerdictOf(client, state.ClientCountry);
+        var inAllow = ip == AddressVerdict.Allowed;
 
-        if (AddressRefuses(list, client))
+        if (Refuses(list, ip))
         {
             stats?.CountAddressRefused();
             return new AccessListOutcome(list.OnAddressRefused, ip, CredentialVerdict.NotAsked);
@@ -364,9 +361,10 @@ public sealed class AccessListUnionPolicy : IRequestPolicy, IPolicyTraceFacts
     public PolicyDecision Evaluate(in RequestView request)
     {
         var client = request.State.ClientAddress;
+        var country = request.State.ClientCountry;
         foreach (var list in _lists)
         {
-            if (!AccessListPolicy.AddressRefuses(list, client))
+            if (!AccessListPolicy.AddressRefuses(list, client, country))
             {
                 return PolicyDecision.Continue;
             }
@@ -388,10 +386,12 @@ public sealed class AccessListUnionPolicy : IRequestPolicy, IPolicyTraceFacts
 
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict)
     {
-        var client = request.State.ClientAddress;
+        var country = request.State.ClientCountry;
+        var who = string.Create(CultureInfo.InvariantCulture, $"client {request.State.ClientAddress}")
+            + (Array.Exists(_lists, static list => list.HasCountryRules) ? $" ({Countries.NameOf(country)}, {country})" : string.Empty);
         var names = string.Join(", ", Array.ConvertAll(_lists, static list => $"'{list.Name}'"));
         return verdict.Action == PolicyAction.Continue
-            ? string.Create(CultureInfo.InvariantCulture, $"the host's routes use different access lists ({names}); client {client} passes the address rules of at least one, and its route decides")
-            : string.Create(CultureInfo.InvariantCulture, $"the host's routes use different access lists ({names}); client {client} is refused by the address rules of every one: {(verdict.Action == PolicyAction.Drop ? "dropped" : "answered " + verdict.Response!.StatusCode)}");
+            ? $"the host's routes use different access lists ({names}); {who} passes the address rules of at least one, and its route decides"
+            : $"the host's routes use different access lists ({names}); {who} is refused by the address rules of every one: {(verdict.Action == PolicyAction.Drop ? "dropped" : "answered " + verdict.Response!.StatusCode)}";
     }
 }

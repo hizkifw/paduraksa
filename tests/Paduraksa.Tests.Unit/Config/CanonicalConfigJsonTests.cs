@@ -227,6 +227,47 @@ public sealed class CanonicalConfigJsonTests
         Assert.Equal([expected], ip.Deny);
     }
 
+    [Fact]
+    public void WritesCountriesUpperCaseSortedAndOnce()
+    {
+        ConfigDocument document = new(
+            ConfigDocument.V1,
+            AccessLists: [new AccessListConfig(Id<AccessListId>(1), "list", Ip: new AccessListIp(Countries: new AccessListCountries([" nl", "DE", "de", "t1"], ["xx", "RU"])))]);
+
+        var canonical = CanonicalConfigJson.Canonicalize(document).AccessLists[0].Ip!.Countries!;
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document));
+
+        Assert.Equal(["DE", "NL", "T1"], canonical.Allow);
+        Assert.Equal(["RU", "XX"], canonical.Deny);
+        Assert.Contains("\"countries\":{\"allow\":[\"DE\",\"NL\",\"T1\"],\"deny\":[\"RU\",\"XX\"]}", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ACountryListThatSaysNothingIsNotPartOfTheDocument()
+    {
+        AccessListConfig Make(AccessListCountries? countries, bool drop = false) =>
+            new(Id<AccessListId>(1), "list", Ip: new AccessListIp(DropDenied: drop, Countries: countries));
+        string Json(AccessListConfig list) => Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(new ConfigDocument(ConfigDocument.V1, AccessLists: [list])));
+
+        Assert.Null(CanonicalConfigJson.Canonicalize(new ConfigDocument(ConfigDocument.V1, AccessLists: [Make(new AccessListCountries([], []))])).AccessLists[0].Ip);
+        Assert.DoesNotContain("countries", Json(Make(new AccessListCountries([], []), drop: true)), StringComparison.Ordinal);
+        Assert.DoesNotContain("countries", Json(Make(null, drop: true)), StringComparison.Ordinal);
+        Assert.Equal(Json(Make(null)), Json(Make(new AccessListCountries(null, null))));
+    }
+
+    [Fact]
+    public void CountriesRoundTripThroughTheirOwnBytes()
+    {
+        ConfigDocument document = new(
+            ConfigDocument.V1,
+            AccessLists: [new AccessListConfig(Id<AccessListId>(1), "list", Ip: new AccessListIp(["10.0.0.0/8"], Countries: new AccessListCountries(["DE"], ["T1", "XX"])))]);
+
+        var bytes = CanonicalConfigJson.Serialize(document);
+        var read = CanonicalConfigJson.Serialize(CanonicalConfigJson.Canonicalize(document));
+
+        Assert.Equal(bytes, read);
+    }
+
     [Theory]
     [InlineData(" X-Real-IP ", "x-real-ip")]
     [InlineData("X-Forwarded-For", null)]

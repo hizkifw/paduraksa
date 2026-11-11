@@ -1,5 +1,6 @@
 using System.Globalization;
 
+using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
@@ -9,16 +10,10 @@ namespace Paduraksa.Proxy.AccessLists;
 /// <summary>The simulator's sentence for an access-list verdict. Never echoes a password or the name a client typed.</summary>
 internal static class AccessListExplanation
 {
-    public static string Describe(CompiledAccessList list, AccessListStage stage, IpKey client, AccessListOutcome outcome, PolicyDecision verdict)
+    public static string Describe(
+        CompiledAccessList list, AccessListStage stage, IpKey client, CountryCode country, AccessListOutcome outcome, PolicyDecision verdict)
     {
-        var address = outcome.Address switch
-        {
-            AddressVerdict.Denied => string.Create(CultureInfo.InvariantCulture, $"client {client} is denied by {Matching(list.DenyEntries, client)}"),
-            AddressVerdict.Allowed => string.Create(CultureInfo.InvariantCulture, $"client {client} is in the allow list ({Matching(list.AllowEntries, client)})"),
-            AddressVerdict.NotInAllow => string.Create(CultureInfo.InvariantCulture, $"client {client} is not in the allow list ({list.AllowEntries.Length} entries)"),
-            _ => "no address rules",
-        };
-
+        var address = Address(list, client, country, outcome.Address);
         var credentials = outcome.Credentials switch
         {
             CredentialVerdict.Missing => "no credentials were sent",
@@ -34,7 +29,7 @@ internal static class AccessListExplanation
             _ => NotAsked(list, stage, outcome),
         };
 
-        var combined = list.HasUsers && (!list.Allow.IsEmpty || !list.Deny.IsEmpty)
+        var combined = list.HasUsers && list.HasAddressRules
             ? $" (satisfy {(list.Satisfy == AccessListSatisfy.All ? "address and password" : "address or password")})"
             : string.Empty;
         var answer = verdict.Action switch
@@ -45,6 +40,56 @@ internal static class AccessListExplanation
         };
         return $"access list '{list.Name}': {address}; {credentials}{combined}: {answer}";
     }
+
+    private static string Address(CompiledAccessList list, IpKey client, CountryCode country, AddressVerdict verdict)
+    {
+        List<string> parts = [];
+        switch (verdict)
+        {
+            case AddressVerdict.Denied:
+                if (!list.Deny.IsEmpty && list.Deny.Contains(client))
+                {
+                    parts.Add(string.Create(CultureInfo.InvariantCulture, $"client {client} is denied by {Matching(list.DenyEntries, client)}"));
+                }
+
+                if (list.CountryVerdictOf(country) == AddressVerdict.Denied)
+                {
+                    parts.Add($"{Describe(country)} is a denied country");
+                }
+
+                break;
+            case AddressVerdict.NotInAllow:
+                if (!list.Allow.IsEmpty && !list.Allow.Contains(client))
+                {
+                    parts.Add(string.Create(CultureInfo.InvariantCulture, $"client {client} is not in the allow list ({list.AllowEntries.Length} entries)"));
+                }
+
+                if (list.CountryVerdictOf(country) == AddressVerdict.NotInAllow)
+                {
+                    parts.Add($"{Describe(country)} is not in the allowed countries ({list.AllowCountries.Count})");
+                }
+
+                break;
+            case AddressVerdict.Allowed:
+                if (!list.Allow.IsEmpty)
+                {
+                    parts.Add(string.Create(CultureInfo.InvariantCulture, $"client {client} is in the allow list ({Matching(list.AllowEntries, client)})"));
+                }
+
+                if (!list.AllowCountries.IsEmpty)
+                {
+                    parts.Add($"{Describe(country)} is an allowed country");
+                }
+
+                break;
+            default:
+                return "no address rules";
+        }
+
+        return string.Join(" and ", parts);
+    }
+
+    private static string Describe(CountryCode country) => $"{Countries.NameOf(country)} ({country})";
 
     /// <summary>The stable wire name of an address verdict, for the trace's facts.</summary>
     public static string Word(AddressVerdict verdict) => verdict switch

@@ -31,12 +31,30 @@ public sealed record AccessListConfig(
     bool PassCredentialsUpstream = false);
 
 /// <summary>The address rules of an access list. Deny wins over allow; an empty allow list means any address that isn't
-/// denied, and a non-empty one means only those.</summary>
+/// denied, and a non-empty one means only those. The countries are part of the same rules: a request must pass every allow list
+/// that has entries and match no deny list.</summary>
 /// <param name="Allow">Addresses or CIDRs (<c>192.0.2.1</c>, <c>10.0.0.0/8</c>, <c>2001:db8::/32</c>); a set (canonical
 /// order: sorted, no duplicates).</param>
 /// <param name="Deny">Same shape. An address here is refused whatever else it sends.</param>
 /// <param name="DropDenied">Abort a refused connection instead of answering 403.</param>
-public sealed record AccessListIp(IReadOnlyList<string>? Allow = null, IReadOnlyList<string>? Deny = null, bool DropDenied = false)
+/// <param name="Countries">The country rules; null = none.</param>
+public sealed record AccessListIp(
+    IReadOnlyList<string>? Allow = null, IReadOnlyList<string>? Deny = null, bool DropDenied = false, AccessListCountries? Countries = null)
+{
+    public IReadOnlyList<string> Allow { get; init; } = Allow ?? [];
+
+    public IReadOnlyList<string> Deny { get; init; } = Deny ?? [];
+}
+
+/// <summary>The country rules of an access list. The country is the one Cloudflare reports in <c>CF-IPCountry</c>, so they only
+/// apply in a Cloudflare trusted-proxy mode; elsewhere every request's country is unknown (the config warns:
+/// <c>accessList.countries.noSource</c>). Codes are ISO 3166-1 alpha-2 (<c>DE</c>, upper case in a stored document) plus
+/// <c>T1</c> (Tor exit nodes) and <c>XX</c> (country unknown).</summary>
+/// <param name="Allow">A set (canonical order: sorted, no duplicates). Non-empty: only these countries pass, and a request with no
+/// known country is refused unless <c>XX</c> is here.</param>
+/// <param name="Deny">Same shape. A country here is refused whatever else the request sends (a password included). A code can't be
+/// in both lists.</param>
+public sealed record AccessListCountries(IReadOnlyList<string>? Allow = null, IReadOnlyList<string>? Deny = null)
 {
     public IReadOnlyList<string> Allow { get; init; } = Allow ?? [];
 

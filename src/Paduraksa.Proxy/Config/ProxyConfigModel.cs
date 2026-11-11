@@ -461,6 +461,11 @@ public sealed record AccessListSpec
 
     public bool DropDenied { get; init; }
 
+    /// <summary>Country codes (<c>DE</c>, <c>T1</c> for Tor, <c>XX</c> for unknown); the compiler reports one it doesn't know.</summary>
+    public IReadOnlyList<string> AllowCountries { get; init; } = [];
+
+    public IReadOnlyList<string> DenyCountries { get; init; } = [];
+
     public AccessListSatisfy Satisfy { get; init; }
 
     public bool PassCredentialsUpstream { get; init; }

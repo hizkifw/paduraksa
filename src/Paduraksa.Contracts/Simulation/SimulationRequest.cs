@@ -76,6 +76,9 @@ public sealed record SimulationTls(
 /// The listener must expect one: otherwise the connection is rejected, as the real one would be.</param>
 /// <param name="TransportIp">With <paramref name="ProxyProtocol"/> only: the socket's remote address (the load balancer; it must
 /// be one of the listener's trusted sources). Default: loopback.</param>
+/// <param name="Country">The country Cloudflare would report for the client (<c>CF-IPCountry</c>): a two-letter ISO 3166-1 code, <c>T1</c>
+/// for Tor or <c>XX</c> for unknown. Only a request that arrives through Cloudflare (<paramref name="Arrival"/>) carries it; to see
+/// the gate ignore one a client forged, send a <c>CF-IPCountry</c> header on another arrival. Default: no header, so the country is unknown.</param>
 /// <param name="Tls">The TLS context; <c>https</c> URLs only (a plain-HTTP listener speaks HTTP/1.1 and has no handshake).
 /// Default: SNI from the URL, HTTP/2, TLS 1.3.</param>
 public sealed record SimulationRequest(
@@ -87,7 +90,8 @@ public sealed record SimulationRequest(
     string? PeerIp = null,
     bool ProxyProtocol = false,
     string? TransportIp = null,
-    SimulationTls? Tls = null)
+    SimulationTls? Tls = null,
+    string? Country = null)
 {
     public IReadOnlyList<SimulationHeader> Headers { get; init; } = Headers ?? [];
 }

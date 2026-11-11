@@ -495,6 +495,12 @@ public static class GateSimulator
         {
             headers[name] = probe.ClientAddress.ToString();
         }
+
+        if (probe.Country is { } country && probe.Arrival is ProbeArrival.CloudflareProxy or ProbeArrival.CloudflareTunnel
+            && !headers.ContainsKey(CloudflareHeaders.IpCountry))
+        {
+            headers[CloudflareHeaders.IpCountry] = country;
+        }
     }
 
     /// <summary>Direct: the client. Behind a proxy: an address the snapshot trusts as that kind of proxy, else loopback.</summary>

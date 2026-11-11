@@ -94,7 +94,7 @@ public sealed class SecurityOverviewService
     }
 
     private static AccessListRef ListRefOf(CompiledAccessList list) =>
-        new(list.Id, list.Name, list.UserCount, list.Allow.RangeCount + list.Deny.RangeCount);
+        new(list.Id, list.Name, list.UserCount, list.Allow.RangeCount + list.Deny.RangeCount, list.AllowCountries.Count + list.DenyCountries.Count);
 
     private static RateLimitPolicyRef RefOf(RateLimitPolicy policy) => new(policy.PolicyId, policy.PolicyName);
 }

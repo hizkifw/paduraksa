@@ -105,4 +105,5 @@ public sealed record AccessListOverride(int Routes, AccessListRef? List = null);
 /// <param name="Name">Its name.</param>
 /// <param name="Users">How many users it asks a password of; 0 means addresses only.</param>
 /// <param name="AddressRanges">The address ranges its allow and deny entries cover, after merging overlaps.</param>
-public sealed record AccessListRef(AccessListId Id, string Name, int Users, int AddressRanges);
+/// <param name="Countries">The countries (and Tor or unknown) its allow and deny lists name.</param>
+public sealed record AccessListRef(AccessListId Id, string Name, int Users, int AddressRanges, int Countries = 0);

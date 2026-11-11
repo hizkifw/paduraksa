@@ -1,3 +1,4 @@
+using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Text;
 using Paduraksa.Proxy.AccessLists;
@@ -24,6 +25,8 @@ public static partial class SnapshotCompiler
             var where = CompileErrorSource.AccessList(spec.Id);
             var allow = CompileCidrs(spec.Allow ?? [], where, errors);
             var deny = CompileCidrs(spec.Deny ?? [], where, errors);
+            var allowCountries = CompileCountries(spec.AllowCountries, where, errors);
+            var denyCountries = CompileCountries(spec.DenyCountries, where, errors);
             if (!Enum.IsDefined(spec.Satisfy))
             {
                 errors.Add(new(where, $"unknown satisfy mode {spec.Satisfy}"));
@@ -66,6 +69,8 @@ public static partial class SnapshotCompiler
                 deny,
                 Networks(spec.Allow ?? []),
                 Networks(spec.Deny ?? []),
+                allowCountries,
+                denyCountries,
                 spec.DropDenied,
                 spec.Satisfy,
                 spec.PassCredentialsUpstream,
@@ -74,6 +79,24 @@ public static partial class SnapshotCompiler
         }
 
         return new AccessListBinding(lists, runtime);
+    }
+
+    private static CountrySet CompileCountries(IReadOnlyList<string>? codes, CompileErrorSource where, List<CompileError> errors)
+    {
+        List<CountryCode> parsed = [];
+        foreach (var code in codes ?? [])
+        {
+            if (Countries.TryParseRuleCode(code ?? string.Empty, out var country))
+            {
+                parsed.Add(country);
+            }
+            else
+            {
+                errors.Add(new(where, $"'{code}' isn't a country code"));
+            }
+        }
+
+        return CountrySet.Create(parsed);
     }
 
     private static bool TryBindUnion(AccessListUnionPolicySpec union, AccessListBinding binding, out CompiledAccessList[] lists)

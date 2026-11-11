@@ -5,6 +5,7 @@ using System.Text;
 
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Simulation;
+using Paduraksa.Core.Geo;
 using Paduraksa.Proxy.Simulation;
 
 namespace Paduraksa.Application.Simulation;
@@ -16,6 +17,7 @@ public static class SimulationErrorCodes
     public const string ClientIpInvalid = "simulation.request.clientIp";
     public const string PeerIpInvalid = "simulation.request.peerIp";
     public const string TransportIpInvalid = "simulation.request.transportIp";
+    public const string CountryInvalid = "simulation.request.country";
     public const string MethodInvalid = "simulation.request.method";
     public const string HeaderInvalid = "simulation.request.headers";
     public const string TlsInvalid = "simulation.request.tls";
@@ -65,6 +67,20 @@ internal static class SimulationRequests
         if (request.PeerIp is not null && request.Arrival == SimulationArrival.Direct && !request.ProxyProtocol)
         {
             errors.Add(new ConfigError("/peerIp", SimulationErrorCodes.Conflicting, "A direct request's peer is the client: drop peerIp, or say the request comes through a proxy or with PROXY protocol."));
+        }
+
+        string? country = null;
+        if (request.Country is { } named)
+        {
+            country = named.Trim().ToUpperInvariant();
+            if (!Countries.TryParseRuleCode(country, out _))
+            {
+                errors.Add(new ConfigError("/country", SimulationErrorCodes.CountryInvalid, $"'{named}' isn't a country code (two letters from ISO 3166-1, T1 for Tor or XX for unknown)."));
+            }
+            else if (request.Arrival is not (SimulationArrival.CloudflareProxy or SimulationArrival.CloudflareTunnel))
+            {
+                errors.Add(new ConfigError("/country", SimulationErrorCodes.Conflicting, "The country comes from Cloudflare: set arrival to cloudflareProxy or cloudflareTunnel, or send a CF-IPCountry header yourself to see it ignored."));
+            }
         }
 
         var method = string.IsNullOrWhiteSpace(request.Method) ? "GET" : request.Method.Trim();
@@ -169,6 +185,7 @@ internal static class SimulationRequests
                 SimulationArrival.CloudflareTunnel => ProbeArrival.CloudflareTunnel,
                 _ => ProbeArrival.Direct,
             },
+            Country = country,
             PeerAddress = peer,
             ProxyProtocol = request.ProxyProtocol,
             TransportAddress = transport,

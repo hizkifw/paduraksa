@@ -271,6 +271,18 @@ public static class ProxyConfigMapping
                 "an access list with users guards this host, which also answers plain HTTP without forcing HTTPS, so a password could be sent in the clear; turn on forceHttps"));
         }
 
+        // The country comes from Cloudflare's header, which only a Cloudflare mode trusts: anywhere else it is always unknown, so an
+        // allow list refuses everyone and a deny list nobody.
+        if (host is { Enabled: true } && proxyMode is not (TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel)
+            && UsedLists(effective, host).Any(id => accessLists.TryGetValue(id, out var list) && list.Ip?.Countries is { Allow.Count: > 0 } or { Deny.Count: > 0 }))
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/accessList",
+                ConfigWarningCodes.AccessListCountriesNoSource,
+                "an access list with country rules guards this host, but the country comes from Cloudflare and the trusted-proxy mode isn't Cloudflare, so every request's country is unknown"));
+        }
+
         // A plain-HTTP cookie cannot be Secure. A host that forces the redirect never serves a page over plain HTTP, so
         // only the rest are worth a warning.
         if (host is { Kind: HostKind.Proxy, Enabled: true } && !effective.ForceHttps
@@ -422,7 +434,8 @@ public static class ProxyConfigMapping
     /// allow list unless a password can still let the others in.</summary>
     private static bool RefusesByAddress(AccessListConfig list) =>
         list.Ip is { } ip
-        && (ip.Deny.Count > 0 || (ip.Allow.Count > 0 && !(list.BasicAuth is { Users.Count: > 0 } && list.Satisfy == AccessListSatisfy.Any)));
+        && (ip.Deny.Count > 0 || ip.Countries is { Deny.Count: > 0 }
+            || ((ip.Allow.Count > 0 || ip.Countries is { Allow.Count: > 0 }) && !(list.BasicAuth is { Users.Count: > 0 } && list.Satisfy == AccessListSatisfy.Any)));
 
     private static IEnumerable<AccessListId> UsedLists(EffectiveHostSettings effective, HostConfig host)
     {
@@ -476,6 +489,8 @@ public static class ProxyConfigMapping
             Allow = list.Ip?.Allow ?? [],
             Deny = list.Ip?.Deny ?? [],
             DropDenied = list.Ip?.DropDenied ?? false,
+            AllowCountries = list.Ip?.Countries?.Allow ?? [],
+            DenyCountries = list.Ip?.Countries?.Deny ?? [],
             Satisfy = list.Satisfy,
             PassCredentialsUpstream = list.PassCredentialsUpstream,
             Realm = list.BasicAuth?.Realm ?? list.Name,

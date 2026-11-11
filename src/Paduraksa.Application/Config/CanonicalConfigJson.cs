@@ -339,11 +339,14 @@ public static class CanonicalConfigJson
     {
         Name = ConfigNormalization.NormalizeName(list.Name),
         Notes = ConfigNormalization.NormalizeNotes(list.Notes),
-        Ip = list.Ip is { } ip && (ip.Allow.Count > 0 || ip.Deny.Count > 0 || ip.DropDenied)
+        Ip = list.Ip is { } ip && (ip.Allow.Count > 0 || ip.Deny.Count > 0 || ip.DropDenied || ip.Countries is { Allow.Count: > 0 } or { Deny.Count: > 0 })
             ? ip with
             {
                 Allow = SortedSet(ip.Allow, ConfigNormalization.CanonicalAddress),
                 Deny = SortedSet(ip.Deny, ConfigNormalization.CanonicalAddress),
+                Countries = ip.Countries is { Allow.Count: > 0 } or { Deny.Count: > 0 }
+                    ? new AccessListCountries(SortedSet(ip.Countries.Allow, ConfigNormalization.CanonicalCountry), SortedSet(ip.Countries.Deny, ConfigNormalization.CanonicalCountry))
+                    : null,
             }
             : null,
 

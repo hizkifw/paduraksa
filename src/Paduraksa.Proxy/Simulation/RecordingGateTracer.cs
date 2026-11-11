@@ -53,6 +53,13 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
         }
 
         facts.Add(new("cloudflareHeadersTrusted", Flag(client.CloudflareHeadersTrusted)));
+        if (context.Request.Headers[CloudflareHeaders.IpCountry] is { Count: > 0 } sent)
+        {
+            // The header as sent, and what the gate made of it: nothing, unless a trusted Cloudflare peer sent it.
+            facts.Add(new("countryHeader", sent.ToString()));
+            facts.Add(new("country", client.CloudflareHeadersTrusted ? client.Country.ToString() : "ignored"));
+        }
+
         facts.Add(new("schemeSource", TraceNames.Of(client.Scheme.Source)));
         facts.Add(new("scheme", isHttps ? "https" : "http"));
 

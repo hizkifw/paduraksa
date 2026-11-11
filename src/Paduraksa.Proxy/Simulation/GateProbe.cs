@@ -68,6 +68,11 @@ public sealed record GateProbe
 
     public ProbeArrival Arrival { get; init; }
 
+    /// <summary>The <c>CF-IPCountry</c> value Cloudflare would send for the client (<c>DE</c>, <c>T1</c>, <c>XX</c>), added to a request
+    /// that arrives through Cloudflare unless <see cref="Headers"/> already has one. Whether the gate believes it is its own decision:
+    /// from an untrusted peer it is ignored, which a probe can show by carrying the header itself on another arrival.</summary>
+    public string? Country { get; init; }
+
     /// <summary>The connection-level peer.</summary>
     public IPAddress? PeerAddress { get; init; }
 

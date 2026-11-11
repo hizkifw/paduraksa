@@ -55,4 +55,8 @@ public static class ConfigWarningCodes
     /// <summary>An access-list user whose credential the vault holds no password for (it was deleted since, say by a rollback to a
     /// revision from before): the user is listed but can't sign in until a password is set.</summary>
     public const string AccessListUserNoPassword = "accessList.user.noPassword";
+
+    /// <summary>An enabled host uses an access list with country rules while the trusted-proxy mode isn't a Cloudflare one, so every
+    /// request's country is unknown.</summary>
+    public const string AccessListCountriesNoSource = "accessList.countries.noSource";
 }

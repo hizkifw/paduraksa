@@ -685,6 +685,99 @@ public sealed class ProxyConfigMappingTests
 
     // One proxy host with two equally specific routes ("/a" and "/b") under a profile-less, default-less document,
     // so their listed order is the evaluation order and each index is the route the caller passed.
+    private static readonly AccessListConfig Germany = Lan with
+    {
+        Id = Id<AccessListId>(20),
+        Name = "germany",
+        Ip = new AccessListIp(Countries: new AccessListCountries(["DE", "NL"], ["RU", "T1"])),
+    };
+
+    [Fact]
+    public void AnAccessListMapsItsCountryRules()
+    {
+        var document = Document(null, null, new HostSettings { AccessList = Use(Germany) }) with { AccessLists = [Germany] };
+
+        var spec = Assert.Single(TestMapping.Map(document, Revision, CertificateInventory.Empty).Model.AccessLists);
+
+        Assert.Equal(["DE", "NL"], spec.AllowCountries);
+        Assert.Equal(["RU", "T1"], spec.DenyCountries);
+        Assert.Empty(spec.Allow);
+    }
+
+    [Theory]
+    [InlineData(TrustedProxyMode.Off, true)]
+    [InlineData(TrustedProxyMode.Generic, true)]
+    [InlineData(TrustedProxyMode.CloudflareProxy, false)]
+    [InlineData(TrustedProxyMode.CloudflareTunnel, false)]
+    public void CountryRulesWarnWhenNothingCanSupplyACountry(TrustedProxyMode mode, bool warns)
+    {
+        var document = Document(null, null, new HostSettings { AccessList = Use(Germany) }) with
+        {
+            AccessLists = [Germany],
+            Settings = new GlobalSettings(TrustedProxies: new TrustedProxySettings(mode, mode == TrustedProxyMode.CloudflareProxy ? [] : ["10.0.0.0/8"])),
+        };
+
+        var warnings = TestMapping.Map(document, Revision, CertificateInventory.Empty).Warnings.Where(w => w.Code == ConfigWarningCodes.AccessListCountriesNoSource).ToList();
+
+        Assert.Equal(warns ? 1 : 0, warnings.Count);
+        if (warns)
+        {
+            Assert.Equal("/settings/accessList", warnings[0].Member);
+        }
+    }
+
+    [Fact]
+    public void ARouteThatNamesACountryListWarnsToo()
+    {
+        var document = Document(null, null, null) with { AccessLists = [Germany] };
+        var host = document.Hosts[0] with { Routes = [new RouteConfig(RootRoute, AppUpstream, Settings: new RouteSettings { AccessList = Use(Germany) })] };
+
+        var mapped = TestMapping.Map(document with { Hosts = [host] }, Revision, CertificateInventory.Empty);
+
+        Assert.Contains(mapped.Warnings, w => w.Code == ConfigWarningCodes.AccessListCountriesNoSource);
+    }
+
+    [Fact]
+    public void NoWarningWithoutCountryRulesOrForADisabledHost()
+    {
+        var plain = Document(null, null, new HostSettings { AccessList = Use(Lan) }) with { AccessLists = [Lan] };
+        var disabled = Document(null, null, new HostSettings { AccessList = Use(Germany) }) with { AccessLists = [Germany] };
+        disabled = disabled with { Hosts = [disabled.Hosts[0] with { Enabled = false }] };
+        var off = Document(null, null, new HostSettings { AccessList = Off }) with { AccessLists = [Germany] };
+
+        foreach (var document in new[] { plain, disabled, off })
+        {
+            Assert.DoesNotContain(TestMapping.Map(document, Revision, CertificateInventory.Empty).Warnings, w => w.Code == ConfigWarningCodes.AccessListCountriesNoSource);
+        }
+    }
+
+    [Fact]
+    public void AnAllowedCountryRefusesTheRestByAddressWhenBothMustPass()
+    {
+        AccessListConfig list = Passwords with { Id = Id<AccessListId>(23), Ip = new AccessListIp(Countries: new AccessListCountries(["DE"], [])) };
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(list) }, new RouteSettings(), new RouteSettings(), list);
+
+        Assert.Equal(AddressOnly(list), Assert.Single(host.Policies));
+    }
+
+    [Fact]
+    public void AllowedCountriesAloneCantRefuseWhenAPasswordCanLetEveryoneElseIn()
+    {
+        AccessListConfig list = LanOrPassword with { Id = Id<AccessListId>(21), Ip = new AccessListIp(Countries: new AccessListCountries(["DE"], [])) };
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(list) }, new RouteSettings(), new RouteSettings(), list);
+
+        Assert.Empty(host.Policies);
+    }
+
+    [Fact]
+    public void ADeniedCountryRefusesByAddressWhateverTheSatisfyMode()
+    {
+        AccessListConfig list = LanOrPassword with { Id = Id<AccessListId>(22), Ip = new AccessListIp(Countries: new AccessListCountries([], ["RU"])) };
+        var host = MapOnlyHost(new HostSettings { AccessList = Use(list) }, new RouteSettings(), new RouteSettings(), list);
+
+        Assert.Equal(AddressOnly(list), Assert.Single(host.Policies));
+    }
+
     private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second, params AccessListConfig[] more)
     {
         var document = Document(null, null, host) with { AccessLists = [.. AllLists, .. more] };

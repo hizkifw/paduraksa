@@ -66,21 +66,29 @@ internal static class AccessListFixtures
         AccessListSatisfy satisfy = AccessListSatisfy.All,
         bool users = true,
         bool passUpstream = false,
-        string? realm = null) => new()
+        string? realm = null,
+        string[]? allowCountries = null,
+        string[]? denyCountries = null) => new()
         {
             Id = TestIds.AccessList(label),
             Name = label,
             Allow = allow ?? [],
             Deny = deny ?? [],
             DropDenied = drop,
+            AllowCountries = allowCountries ?? [],
+            DenyCountries = denyCountries ?? [],
             Satisfy = satisfy,
             PassCredentialsUpstream = passUpstream,
             Realm = realm ?? label,
             Users = users ? [new AccessListUserSpec("alice", Alice), new AccessListUserSpec("bob", Bob)] : [],
         };
 
-    public static ProxyConfigModel Model(AccessListSpec list, string host = "acl.test") => new()
+    /// <summary>Cloudflare's edge, a peer the built-in ranges trust, so a request through it carries its own client address and country.</summary>
+    public const string CloudflareEdge = "172.70.1.2";
+
+    public static ProxyConfigModel Model(AccessListSpec list, string host = "acl.test", bool cloudflare = false) => new()
     {
+        Defaults = new DefaultsSpec { TrustedProxies = cloudflare ? new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } : TrustedProxySpec.Off },
         Upstreams = [TestSnapshots.Upstream("web", "http://127.0.0.1:1")],
         AccessLists = [list],
         Hosts = [new HostSpec
@@ -108,6 +116,20 @@ internal static class AccessListFixtures
         if (authorization is not null)
         {
             context.Request.Headers.Authorization = authorization;
+        }
+
+        return context;
+    }
+
+    /// <summary>A request as Cloudflare's edge forwards it: the client in <c>CF-Connecting-IP</c> and its country in <c>CF-IPCountry</c>
+    /// (none when <paramref name="country"/> is null).</summary>
+    public static DefaultHttpContext ViaCloudflare(string client, string? country, string? authorization = null, string host = "acl.test", string peer = CloudflareEdge)
+    {
+        var context = Context(peer, authorization, host);
+        context.Request.Headers["CF-Connecting-IP"] = client;
+        if (country is not null)
+        {
+            context.Request.Headers["CF-IPCountry"] = country;
         }
 
         return context;

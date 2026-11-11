@@ -58,6 +58,59 @@ public sealed class AccessListValidationTests
         Assert.Empty(ConfigValidator.Validate(Valid() with { AccessLists = [new AccessListConfig(LanList, "lan", Ip: new AccessListIp(Deny: ["10.0.0.1"], DropDenied: true))] }));
     }
 
+    private static ConfigDocument WithCountries(string[] allow, string[] deny, bool drop = false) =>
+        Valid() with { AccessLists = [new AccessListConfig(LanList, "geo", Ip: new AccessListIp(DropDenied: drop, Countries: new AccessListCountries(allow, deny)))] };
+
+    [Fact]
+    public void CountriesInEitherCaseAndThePseudoCodesAreValid()
+    {
+        Assert.Empty(ConfigValidator.Validate(WithCountries(["DE", "nl", " fr "], ["RU", "t1", "XX"])));
+        Assert.Empty(ConfigValidator.Validate(WithCountries([], ["XK"], drop: true)));
+    }
+
+    [Fact]
+    public void ACountryNoOneHasAssignedIsRefusedWhereItIsWritten()
+    {
+        AssertErrors(
+            WithCountries(["DE", "ZZ", "Germany"], ["", "T2", "RU"]),
+            ($"{ListPath}/ip/countries/allow/1", AccessListCountryInvalid),
+            ($"{ListPath}/ip/countries/allow/2", AccessListCountryInvalid),
+            ($"{ListPath}/ip/countries/deny/0", AccessListCountryInvalid),
+            ($"{ListPath}/ip/countries/deny/1", AccessListCountryInvalid));
+    }
+
+    [Fact]
+    public void ACountryTwiceInOneListIsReportedAtItsSecondEntryInAnyCase()
+    {
+        AssertErrors(
+            WithCountries(["DE", "NL", "de"], ["T1", "T1"]),
+            ($"{ListPath}/ip/countries/allow/2", AccessListCountryDuplicate),
+            ($"{ListPath}/ip/countries/deny/1", AccessListCountryDuplicate));
+    }
+
+    [Fact]
+    public void ACountryCantBeBothAllowedAndDenied()
+    {
+        AssertErrors(
+            WithCountries(["DE", "XX"], ["xx", "de", "RU"]),
+            ($"{ListPath}/ip/countries/deny", AccessListCountryConflict),
+            ($"{ListPath}/ip/countries/deny", AccessListCountryConflict));
+    }
+
+    [Fact]
+    public void ACountryRuleGivesDroppingSomethingToRefuse()
+    {
+        Assert.Empty(ConfigValidator.Validate(WithCountries([], ["RU"], drop: true)));
+        Assert.Empty(ConfigValidator.Validate(WithCountries(["DE"], [], drop: true)));
+        AssertErrors(WithCountries([], [], drop: true), ($"{ListPath}/ip/dropDenied", AccessListDropDeniedWithoutAddresses));
+    }
+
+    [Fact]
+    public void ANullListOfCountriesIsTheEmptyOne()
+    {
+        Assert.Empty(ConfigValidator.Validate(Valid() with { AccessLists = [new AccessListConfig(LanList, "geo", Ip: new AccessListIp(Countries: new AccessListCountries(null, null)))] }));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

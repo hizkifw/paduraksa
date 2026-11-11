@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
+using Paduraksa.Core.Geo;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
@@ -26,6 +27,8 @@ public sealed class CompiledAccessList
         CidrSet deny,
         IpNetwork[] allowEntries,
         IpNetwork[] denyEntries,
+        CountrySet allowCountries,
+        CountrySet denyCountries,
         bool dropDenied,
         AccessListSatisfy satisfy,
         bool passCredentialsUpstream,
@@ -38,6 +41,8 @@ public sealed class CompiledAccessList
         Deny = deny;
         AllowEntries = allowEntries;
         DenyEntries = denyEntries;
+        AllowCountries = allowCountries;
+        DenyCountries = denyCountries;
         DropDenied = dropDenied;
         Satisfy = satisfy;
         PassCredentialsUpstream = passCredentialsUpstream;
@@ -65,6 +70,12 @@ public sealed class CompiledAccessList
 
     internal IpNetwork[] DenyEntries { get; }
 
+    /// <summary>The countries a request may come from when this isn't empty (<see cref="CountryCode.Unknown"/> is a member only if the
+    /// list names <c>XX</c>).</summary>
+    public CountrySet AllowCountries { get; }
+
+    public CountrySet DenyCountries { get; }
+
     public bool DropDenied { get; }
 
     public AccessListSatisfy Satisfy { get; }
@@ -76,6 +87,39 @@ public sealed class CompiledAccessList
     internal CompiledAccessListUser[] Users { get; }
 
     public bool HasUsers => Users.Length > 0;
+
+    /// <summary>What the address side (addresses and countries) says about a request, which is where a country rule sits: a
+    /// denied address or country wins; otherwise every allow list that has entries must contain the request, and a request
+    /// outside one is not in the allow list. 0 B.</summary>
+    internal AddressVerdict AddressVerdictOf(IpKey client, CountryCode country)
+    {
+        if ((!Deny.IsEmpty && Deny.Contains(client)) || (!DenyCountries.IsEmpty && DenyCountries.Contains(country)))
+        {
+            return AddressVerdict.Denied;
+        }
+
+        var restrictsIp = !Allow.IsEmpty;
+        var restrictsCountry = !AllowCountries.IsEmpty;
+        if (!restrictsIp && !restrictsCountry)
+        {
+            return AddressVerdict.Unrestricted;
+        }
+
+        return (!restrictsIp || Allow.Contains(client)) && (!restrictsCountry || AllowCountries.Contains(country))
+            ? AddressVerdict.Allowed
+            : AddressVerdict.NotInAllow;
+    }
+
+    /// <summary>The country rules' own verdict, for the trace.</summary>
+    internal AddressVerdict CountryVerdictOf(CountryCode country) =>
+        !DenyCountries.IsEmpty && DenyCountries.Contains(country) ? AddressVerdict.Denied
+        : AllowCountries.IsEmpty ? AddressVerdict.Unrestricted
+        : AllowCountries.Contains(country) ? AddressVerdict.Allowed
+        : AddressVerdict.NotInAllow;
+
+    public bool HasCountryRules => !AllowCountries.IsEmpty || !DenyCountries.IsEmpty;
+
+    public bool HasAddressRules => !Allow.IsEmpty || !Deny.IsEmpty || !AllowCountries.IsEmpty || !DenyCountries.IsEmpty;
 
     public int UserCount => Users.Length;
 

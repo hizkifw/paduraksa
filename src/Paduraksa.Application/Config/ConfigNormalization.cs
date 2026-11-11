@@ -46,6 +46,9 @@ internal static class ConfigNormalization
     public static string CanonicalHostName(string? name) =>
         TryNormalizeHostName(name, out var normalized, out _) ? normalized : (name ?? string.Empty).Trim();
 
+    /// <summary>A country code upper-case and trimmed (<c>de</c> becomes <c>DE</c>); validation reports one that isn't a known code.</summary>
+    public static string CanonicalCountry(string? value) => (value ?? string.Empty).Trim().ToUpperInvariant();
+
     /// <summary>
     /// An address or CIDR in the form the parser prints: lowercase, compressed IPv6, IPv4-mapped blocks as IPv4, and a
     /// full-length prefix as the bare address (<c>10.0.0.1/32</c> → <c>10.0.0.1</c>). Entries that don't parse are only

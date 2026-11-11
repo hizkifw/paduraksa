@@ -3,6 +3,7 @@ using System.Text;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
+using Paduraksa.Core.Geo;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Text;
@@ -964,9 +965,11 @@ public static class ConfigValidator
             {
                 CheckAddresses(ip.Allow ?? [], $"{path}/ip/allow");
                 CheckAddresses(ip.Deny ?? [], $"{path}/ip/deny");
-                if (ip.DropDenied && (ip.Allow ?? []).Count == 0 && (ip.Deny ?? []).Count == 0)
+                CheckCountries(ip.Countries, $"{path}/ip/countries");
+                if (ip.DropDenied && (ip.Allow ?? []).Count == 0 && (ip.Deny ?? []).Count == 0
+                    && (ip.Countries?.Allow ?? []).Count == 0 && (ip.Countries?.Deny ?? []).Count == 0)
                 {
-                    Add($"{path}/ip/dropDenied", AccessListDropDeniedWithoutAddresses, "an access list without addresses refuses none, so there is nothing to drop");
+                    Add($"{path}/ip/dropDenied", AccessListDropDeniedWithoutAddresses, "an access list without addresses or countries refuses none, so there is nothing to drop");
                 }
             }
 
@@ -1055,6 +1058,44 @@ public static class ConfigValidator
             var inherited = HostSettingsLayers.InheritedSuffix(
                 HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.AccessList?.AccessListId));
             Add($"{path}/accessListId", unknownCode, $"access list '{resolved.AccessListId}' doesn't exist{inherited}");
+        }
+
+        private void CheckCountries(AccessListCountries? countries, string path)
+        {
+            if (countries is null)
+            {
+                return;
+            }
+
+            var allowed = CheckCountryCodes(countries.Allow ?? [], $"{path}/allow");
+            var denied = CheckCountryCodes(countries.Deny ?? [], $"{path}/deny");
+            foreach (var code in denied)
+            {
+                if (allowed.Contains(code))
+                {
+                    Add($"{path}/deny", AccessListCountryConflict, $"{code} is in both the allowed and the denied countries");
+                }
+            }
+        }
+
+        // The codes that are known, upper-cased; a code twice (in either case) is reported once at its second entry.
+        private HashSet<string> CheckCountryCodes(IReadOnlyList<string> codes, string path)
+        {
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            for (var i = 0; i < codes.Count; i++)
+            {
+                var code = ConfigNormalization.CanonicalCountry(codes[i]);
+                if (!Countries.TryParseRuleCode(code, out _))
+                {
+                    Add($"{path}/{i}", AccessListCountryInvalid, $"'{codes[i]}' isn't a country code (two letters from ISO 3166-1, T1 for Tor or XX for unknown)");
+                }
+                else if (!seen.Add(code))
+                {
+                    Add($"{path}/{i}", AccessListCountryDuplicate, $"{code} is listed twice");
+                }
+            }
+
+            return seen;
         }
 
         private void CheckAddresses(IReadOnlyList<string> addresses, string path)

@@ -241,6 +241,49 @@ public sealed class SimulationContractTests
         Assert.Equal(path, Assert.Single(errors).Path);
     }
 
+    [Theory]
+    [InlineData(SimulationArrival.CloudflareProxy, "de", "DE")]
+    [InlineData(SimulationArrival.CloudflareTunnel, " T1 ", "T1")]
+    [InlineData(SimulationArrival.CloudflareProxy, "xx", "XX")]
+    public void ACloudflareArrivalCarriesTheCountryItsHeaderWouldHold(SimulationArrival arrival, string country, string expected)
+    {
+        var request = new SimulationRequest("https://app.example.com/", "192.0.2.9", Arrival: arrival, Country: country);
+
+        Assert.Equal(expected, Build(request).Country);
+        Assert.Equal(country, Deserialize<SimulationRequest>(JsonSerializer.Serialize(request, SimulationJsonContext.Default.SimulationRequest)).Country);
+        Assert.Contains("\"country\":", JsonSerializer.Serialize(request, SimulationJsonContext.Default.SimulationRequest), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoCountryIsNoHeader() =>
+        Assert.Null(Build(new SimulationRequest("https://app.example.com/", "192.0.2.9", Arrival: SimulationArrival.CloudflareProxy)).Country);
+
+    [Theory]
+    [InlineData("ZZ")]
+    [InlineData("Germany")]
+    [InlineData("")]
+    [InlineData("D")]
+    public void ACountryThatIsNoCodeIsRefused(string country)
+    {
+        Assert.False(SimulationRequests.TryBuild(
+            new SimulationRequest("https://app.example.com/", "192.0.2.9", Arrival: SimulationArrival.CloudflareProxy, Country: country), out _, out var errors));
+
+        var error = Assert.Single(errors);
+        Assert.Equal(("/country", SimulationErrorCodes.CountryInvalid), (error.Path, error.Code));
+    }
+
+    [Theory]
+    [InlineData(SimulationArrival.Direct)]
+    [InlineData(SimulationArrival.TrustedProxy)]
+    public void ACountryOnAnArrivalCloudflareDoesntTakeIsRefusedNotIgnored(SimulationArrival arrival)
+    {
+        Assert.False(SimulationRequests.TryBuild(new SimulationRequest("https://app.example.com/", "192.0.2.9", Arrival: arrival, Country: "DE"), out _, out var errors));
+
+        var error = Assert.Single(errors);
+        Assert.Equal(("/country", SimulationErrorCodes.Conflicting), (error.Path, error.Code));
+        Assert.Contains("CF-IPCountry", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ThePeerIsAllowedBehindAProxyOrWithProxyProtocol()
     {
@@ -331,7 +374,7 @@ public sealed class SimulationContractTests
         public bool Equals(SimulationRequest? x, SimulationRequest? y) =>
             x is not null && y is not null
             && x.Url == y.Url && x.ClientIp == y.ClientIp && x.Method == y.Method && x.Arrival == y.Arrival && x.PeerIp == y.PeerIp
-            && x.ProxyProtocol == y.ProxyProtocol && x.TransportIp == y.TransportIp && Equals(x.Tls, y.Tls);
+            && x.ProxyProtocol == y.ProxyProtocol && x.TransportIp == y.TransportIp && x.Country == y.Country && Equals(x.Tls, y.Tls);
 
         public int GetHashCode(SimulationRequest obj) => obj.Url.GetHashCode(StringComparison.Ordinal);
     }

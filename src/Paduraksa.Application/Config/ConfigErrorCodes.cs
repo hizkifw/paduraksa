@@ -24,6 +24,9 @@ public static class ConfigErrorCodes
 
     // Settings layers.
     public const string AccessListDropDeniedWithoutAddresses = "accessList.ip.dropDenied.withoutAddresses";
+    public const string AccessListCountryInvalid = "accessList.countries.code.invalid";
+    public const string AccessListCountryDuplicate = "accessList.countries.code.duplicate";
+    public const string AccessListCountryConflict = "accessList.countries.code.conflict";
     public const string AccessListRealmInvalid = "accessList.realm.invalid";
     public const string AccessListUsersTooMany = "accessList.users.tooMany";
     public const string AccessListUsernameInvalid = "accessList.user.username.invalid";
