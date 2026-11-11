@@ -92,6 +92,31 @@ public sealed class AuthProviderValidationTests
         AssertErrors(WithProvider(new ForwardAuthConfig("http://auth/", ResponseHeaders: [name])), ($"{ForwardPath}/responseHeaders/0", AuthProviderHeaderInvalid));
 
     [Theory]
+    [InlineData("Authorization")]
+    [InlineData("authorization")]
+    [InlineData("Cookie")]
+    [InlineData("Proxy-Authorization")]
+    [InlineData("Auth*")]
+    [InlineData("Coo*")]
+    [InlineData("Proxy-Auth*")]
+    public void AResponseHeaderThatIsTheClientsOwnCredentialIsRefusedWithItsOwnCodeSoItIsNeverRemovedFromTheHostsRequests(string name) =>
+        AssertErrors(WithProvider(new ForwardAuthConfig("http://auth/", ResponseHeaders: [name])), ($"{ForwardPath}/responseHeaders/0", AuthProviderHeaderCredential));
+
+    [Theory]
+    [InlineData("Authorization")]
+    [InlineData("Cookie")]
+    [InlineData("Proxy-Authorization")]
+    public void TheProviderIsStillToldTheClientsCredentialsAndNoPresetCopiesThemUpstream(string name)
+    {
+        Assert.Empty(ConfigValidator.Validate(WithProvider(new ForwardAuthConfig("http://auth/", RequestHeaders: [name]))));
+        foreach (var preset in Enum.GetValues<ForwardAuthPreset>())
+        {
+            Assert.DoesNotContain(ForwardAuthPresets.DefaultResponseHeaders(preset), listed => ForwardAuthHeaderNames.NamesClientCredential(listed));
+            Assert.Empty(ConfigValidator.Validate(WithProvider(new ForwardAuthConfig("http://auth/", preset))));
+        }
+    }
+
+    [Theory]
     [InlineData("Host")]
     [InlineData("Content-Length")]
     [InlineData("X-Forwarded-Host")]

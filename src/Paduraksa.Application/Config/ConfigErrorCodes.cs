@@ -52,6 +52,7 @@ public static class ConfigErrorCodes
     public const string AuthProviderCacheSecondsInvalid = "authProvider.cacheSeconds.invalid";
     public const string AuthProviderHeadersTooMany = "authProvider.headers.tooMany";
     public const string AuthProviderHeaderInvalid = "authProvider.header.invalid";
+    public const string AuthProviderHeaderCredential = "authProvider.header.credential";
     public const string AuthProviderSignInInvalid = "authProvider.signIn.invalid";
     public const string AuthProviderReturnParameterInvalid = "authProvider.signIn.returnParameter.invalid";
     public const string HstsMaxAgeInvalid = "hsts.maxAge.invalid";

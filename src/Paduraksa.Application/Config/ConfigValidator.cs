@@ -1420,9 +1420,10 @@ public static class ConfigValidator
 
             for (var i = 0; i < names.Count; i++)
             {
-                if (ForwardAuthHeaderNames.Problem((names[i] ?? string.Empty).Trim(), response) is { } problem)
+                var name = (names[i] ?? string.Empty).Trim();
+                if (ForwardAuthHeaderNames.Problem(name, response) is { } problem)
                 {
-                    Add($"{path}/{i}", AuthProviderHeaderInvalid, problem);
+                    Add($"{path}/{i}", response && ForwardAuthHeaderNames.NamesClientCredential(name) ? AuthProviderHeaderCredential : AuthProviderHeaderInvalid, problem);
                 }
             }
         }
