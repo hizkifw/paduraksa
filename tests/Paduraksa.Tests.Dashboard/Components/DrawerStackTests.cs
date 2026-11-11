@@ -374,6 +374,54 @@ public sealed class DrawerStackTests
         Assert.Equal(Assert.Single(applied.Document.Hosts).Settings.RateLimit?.PolicyId, chosen!.PolicyId);
     }
 
+    [Fact]
+    public async Task AnAccessListMadeFromTheHostDrawer_IsStagedAndSelected_AndAppliedWithTheHost()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        UpstreamConfig app = new(UpstreamId.New(), "app", Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);
+        config.Document = new ConfigDocument(Upstreams: [app]);
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "app.home.test");
+
+        // "New access list..." on the host's Access row stacks the list editor on the host's.
+        var picker = drawers.FindComponents<AccessListField>().Single(field => field.Instance.Field == "access-list");
+        var choosing = drawers.InvokeAsync(() => picker.Instance.OnNew.InvokeAsync());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=access-list] input[data-field=name]").Count == 1);
+        Assert.Equal(2, drawers.FindAll(".pdk-sheet").Count);
+        Assert.Equal("Back to New host", drawers.Find("[data-drawer=access-list] [data-drawer-action=back]").GetAttribute("aria-label"));
+        await TypeAsync(drawers, "[data-drawer=access-list] input[data-field=name]", "Office");
+        await TypeAsync(drawers, "[data-drawer=access-list] textarea[data-field=allowed]", "10.0.0.0/8");
+        await drawers.Find("form[data-drawer=access-list]").SubmitAsync();
+        await choosing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+
+        // Staged with the host, and the host's picker now names it; nothing is sent yet.
+        var hosted = drawers.FindComponent<HostForm>().Instance.Model;
+        var chosen = hosted.Settings.AccessList;
+        Assert.True(chosen?.Enabled);
+        Assert.NotNull(chosen?.AccessListId);
+        Assert.Single(drawers.FindAll("[data-staged='Office']"));
+        Assert.Contains("Office", drawers.Find("[data-field=access-list]").OuterHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(chosen!.AccessListId.ToString()!, drawers.Markup, StringComparison.Ordinal);
+        Assert.Empty(config.Executed);
+
+        // The host and the list go in one revision.
+        _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.Find("[data-review=apply]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
+
+        var applied = Assert.IsType<ReplaceConfigCommand>(config.Executed[^1]);
+        Assert.False(applied.DryRun);
+        var list = Assert.Single(applied.Document.AccessLists);
+        Assert.Equal("Office", list.Name);
+        Assert.Equal(["10.0.0.0/8"], list.Ip!.Allow);
+        Assert.Equal(Assert.Single(applied.Document.Hosts).Settings.AccessList?.AccessListId, chosen.AccessListId);
+    }
+
     /// <summary>What a level handed back; fails rather than waits forever when it is still open.</summary>
     private static Task<DrawerResult> Done(DrawerLevel level) => level.Result.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
 

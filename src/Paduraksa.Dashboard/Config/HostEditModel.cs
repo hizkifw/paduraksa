@@ -205,6 +205,13 @@ public sealed class RouteEntry(RouteId id, RouteSettings? settings = null)
         set => Settings = Settings with { RateLimit = value is { SetsNothing: true } ? null : value };
     }
 
+    /// <summary>Null inherits the host's access list; otherwise this route's own switch and list, over the host's.</summary>
+    public AccessListSettings? AccessList
+    {
+        get => Settings.AccessList;
+        set => Settings = Settings with { AccessList = value is { SetsNothing: true } ? null : value };
+    }
+
     /// <summary>The route as the command sends it. A route without an upstream is sent with an empty one, which validation reports.</summary>
     public RouteConfig ToConfig() =>
         new(Id, UpstreamId ?? default, Order, Match, string.IsNullOrWhiteSpace(Path) ? "/" : Path.Trim(), Settings);

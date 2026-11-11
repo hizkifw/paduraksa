@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// A host together with the objects made for it in its drawer: an upstream, profile or rate-limit policy created from the
+/// A host together with the objects made for it in its drawer: an upstream, profile, rate-limit policy or access list created from the
 /// host form is not applied on its own but staged into the host's draft, so the host and what it needs are reviewed and
 /// applied as one revision, and cancelling the host leaves nothing behind. Without staged objects the host goes as its
 /// own object command, as before.
@@ -18,19 +18,22 @@ public static class StagedChange
         ConfigDocument current,
         IReadOnlyList<UpstreamConfig> upstreams,
         IReadOnlyList<ProfileConfig> profiles,
-        IReadOnlyList<RateLimitPolicyConfig> rateLimits)
+        IReadOnlyList<RateLimitPolicyConfig> rateLimits,
+        IReadOnlyList<AccessListConfig> accessLists)
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(upstreams);
         ArgumentNullException.ThrowIfNull(profiles);
         ArgumentNullException.ThrowIfNull(rateLimits);
-        return upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0
+        ArgumentNullException.ThrowIfNull(accessLists);
+        return upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0 && accessLists.Count == 0
             ? current
             : current with
             {
                 Upstreams = [.. current.Upstreams, .. upstreams],
                 Profiles = [.. current.Profiles, .. profiles],
                 RateLimitPolicies = [.. current.RateLimitPolicies, .. rateLimits],
+                AccessLists = [.. current.AccessLists, .. accessLists],
             };
     }
 
@@ -63,6 +66,19 @@ public static class StagedChange
         ];
     }
 
+    /// <summary>The staged access lists the host or one of its routes still names.</summary>
+    public static IReadOnlyList<AccessListConfig> UsedAccessLists(HostConfig host, IReadOnlyList<AccessListConfig> staged)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(staged);
+        return
+        [
+            .. staged.Where(list =>
+                host.Settings.AccessList?.AccessListId == list.Id
+                || host.Routes.Any(route => route.Settings?.AccessList?.AccessListId == list.Id)),
+        ];
+    }
+
     /// <summary>
     /// <paramref name="head"/> with <paramref name="host"/> put in (in its place, or last when new) and the staged objects added: the
     /// document of the one revision a <c>ReplaceConfigCommand</c> based on <paramref name="head"/> makes.
@@ -72,19 +88,22 @@ public static class StagedChange
         HostConfig host,
         IReadOnlyList<UpstreamConfig> upstreams,
         IReadOnlyList<ProfileConfig> profiles,
-        IReadOnlyList<RateLimitPolicyConfig> rateLimits)
+        IReadOnlyList<RateLimitPolicyConfig> rateLimits,
+        IReadOnlyList<AccessListConfig> accessLists)
     {
         ArgumentNullException.ThrowIfNull(head);
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(upstreams);
         ArgumentNullException.ThrowIfNull(profiles);
         ArgumentNullException.ThrowIfNull(rateLimits);
+        ArgumentNullException.ThrowIfNull(accessLists);
         var exists = head.Hosts.Any(h => h.Id == host.Id);
         return head with
         {
             Upstreams = [.. head.Upstreams.Where(u => upstreams.All(s => s.Id != u.Id)), .. upstreams],
             Profiles = [.. head.Profiles.Where(p => profiles.All(s => s.Id != p.Id)), .. profiles],
             RateLimitPolicies = [.. head.RateLimitPolicies.Where(p => rateLimits.All(s => s.Id != p.Id)), .. rateLimits],
+            AccessLists = [.. head.AccessLists.Where(l => accessLists.All(s => s.Id != l.Id)), .. accessLists],
             Hosts = exists ? [.. head.Hosts.Select(h => h.Id == host.Id ? host : h)] : [.. head.Hosts, host],
         };
     }

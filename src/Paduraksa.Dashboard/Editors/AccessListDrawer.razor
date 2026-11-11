@@ -296,7 +296,7 @@
 
     private static string? PasswordHelp(AccessListUserEntry user) => user.Revealed && !string.IsNullOrEmpty(user.Password)
         ? "Copy it now: once the list is saved it can't be shown again."
-        : user.StoredHash is not null ? "Leave empty to keep the current password." : null;
+        : null;
 
     private static string RemoveLabel(AccessListUserEntry user) => string.IsNullOrEmpty(user.Username) ? "Remove user" : $"Remove {user.Username}";
 

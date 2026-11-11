@@ -102,7 +102,7 @@ public sealed class HostFormTests
     }
 
     [Fact]
-    public void Editing_KeepsTheStoredVersion_AndWhatTheFormDoesNotShow()
+    public void Editing_KeepsTheStoredVersion_AndTheRoutesOwnSettings()
     {
         var route = RouteId.New();
         RouteSettings routeSettings = new() { AccessList = new AccessListSettings { AccessListId = AccessListId.New() } };
@@ -129,11 +129,10 @@ public sealed class HostFormTests
         await using DashboardTestContext context = new();
         var popovers = context.Render<MudPopoverProvider>();
         var form = Render(context, model);
-        Assert.Empty(form.FindAll("[data-section='route-settings-0']"));
 
-        // The route's settings sit behind its menu.
-        await form.Find("[data-action='route-menu-0'] button").ClickAsync(new());
-        await popovers.Find("[data-action='route-settings']").ClickAsync(new());
+        // A route that sets its own access list shows its settings without the menu.
+        Assert.Single(form.FindAll("[data-section='route-settings-0']"));
+        Assert.NotNull(popovers);
         await form.InvokeAsync(() => form.FindComponents<MudSelect<bool?>>()
             .Single(select => select.Instance.Label == "Browser check on this route")
             .Instance.ValueChanged.InvokeAsync(false));
@@ -254,6 +253,39 @@ public sealed class HostFormTests
         await ChooseRateLimit(form, "inherit");
         Assert.Null(model.ToConfig().Routes[0].Settings.RateLimit);
     }
+
+    [Fact]
+    public async Task TheRouteAccessList_InheritsTheHostsList_AndOverridesItForOneRoute()
+    {
+        AccessListConfig office = new(AccessListId.New(), "Office", Ip: new AccessListIp(["10.0.0.0/8"]));
+        var model = HostEditModel.From(new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(RouteId.New(), App.Id)]));
+        await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
+        var form = context.Render<HostForm>(parameters => parameters
+            .Add(f => f.Model, model)
+            .Add(f => f.Upstreams, [App])
+            .Add(f => f.AccessLists, [office])
+            .Add(f => f.Defaults, new HostSettings { AccessList = new AccessListSettings { AccessListId = office.Id } })
+            .Add(f => f.Errors, new Dictionary<string, string>()));
+
+        await form.Find("[data-action='route-menu-0'] button").ClickAsync(new());
+        await popovers.Find("[data-action='route-settings']").ClickAsync(new());
+
+        // The route's inherit choice names the host's list; the route can turn it off or name the list itself.
+        var field = form.Find("[data-field='route-access-list-0']");
+        Assert.Contains("Inherit (Office)", field.OuterHtml, StringComparison.Ordinal);
+        await ChooseAccessList(form, "off");
+        Assert.Equal(new AccessListSettings { Enabled = false }, model.ToConfig().Routes[0].Settings.AccessList);
+        await ChooseAccessList(form, "p0");
+        Assert.Equal(new AccessListSettings { Enabled = true, AccessListId = office.Id }, model.ToConfig().Routes[0].Settings.AccessList);
+        await ChooseAccessList(form, "inherit");
+        Assert.Null(model.ToConfig().Routes[0].Settings.AccessList);
+    }
+
+    private static Task ChooseAccessList(IRenderedComponent<HostForm> form, string key) =>
+        form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Access list on this route")
+            .Instance.ValueChanged.InvokeAsync(key));
 
     private static Task ChooseRateLimit(IRenderedComponent<HostForm> form, string key) =>
         form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()

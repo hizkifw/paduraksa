@@ -66,14 +66,16 @@
         {
             <HostForm Model="Model" Upstreams="DraftDocument.Upstreams" Staged="StagedUpstreamIds" Profiles="DraftDocument.Profiles" StagedProfiles="StagedProfileIds"
                       RateLimits="DraftDocument.RateLimitPolicies" StagedRateLimits="StagedRateLimitIds"
+                      AccessLists="DraftDocument.AccessLists" StagedAccessLists="StagedAccessListIds"
                       Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" ProxyMode="DraftDocument.Settings.TrustedProxies.Mode" Errors="FieldErrors" ShowAll="Attempted" ReadOnly="!MayWrite"
                       OnChanged="Changed"
                       OnNewUpstream="@(MayWrite ? EventCallback.Factory.Create<RouteEntry>(this, NewUpstreamAsync) : default)"
                       OnEditUpstream="EventCallback.Factory.Create<UpstreamId>(this, EditUpstreamAsync)"
                       OnNewProfile="@(MayWrite ? EventCallback.Factory.Create(this, NewProfileAsync) : default)"
                       OnNewRateLimit="@(MayWrite ? EventCallback.Factory.Create<RouteEntry?>(this, NewRateLimitAsync) : default)"
+                      OnNewAccessList="@(MayWrite ? EventCallback.Factory.Create<RouteEntry?>(this, NewAccessListAsync) : default)"
                       OnNewCertificate="@(MayWrite && _mayWriteCertificates ? EventCallback.Factory.Create(this, NewCertificateAsync) : default)" />
-            @if (_staged.Count > 0 || _stagedProfiles.Count > 0 || _stagedRateLimits.Count > 0)
+            @if (_staged.Count > 0 || _stagedProfiles.Count > 0 || _stagedRateLimits.Count > 0 || _stagedAccessLists.Count > 0)
             {
                 <div class="pdk-staged" data-section="staged">
                     <div class="pdk-staged-head">
@@ -148,6 +150,28 @@
                                 }
                             </li>
                         }
+                        @foreach (var list in _stagedAccessLists)
+                        {
+                            var used = StagedChange.UsedAccessLists(Model.ToConfig(), _stagedAccessLists).Any(l => l.Id == list.Id);
+                            <li data-staged="@list.Name" data-used="@(used ? "true" : "false")" class="@(used ? null : "pdk-staged-unused")">
+                                <MudIcon Icon="@Icons.Material.Outlined.Lock" Size="Size.Small" />
+                                <span class="pdk-staged-name">@list.Name</span>
+                                <span class="pdk-staged-detail">access list</span>
+                                @if (!used)
+                                {
+                                    <StatusChip Text="Won't be created: no host or route uses it" Name="staged-unused" />
+                                }
+                                @if (_stagedAccessListErrors.ContainsKey(list.Id))
+                                {
+                                    <StatusChip Tone="Tone.Error" Dot="true" Text="Needs a fix" Name="staged-error" />
+                                }
+                                @if (MayWrite)
+                                {
+                                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => EditStagedAccessListAsync(list)"
+                                               data-action="edit-staged">Edit</MudButton>
+                                }
+                            </li>
+                        }
                     </ul>
                 </div>
             }
@@ -182,11 +206,13 @@
     private readonly List<UpstreamConfig> _staged = [];
     private readonly List<ProfileConfig> _stagedProfiles = [];
     private readonly List<RateLimitPolicyConfig> _stagedRateLimits = [];
+    private readonly List<AccessListConfig> _stagedAccessLists = [];
 
     // The dry run's errors about a staged object (relative to it), shown at its fields when it is opened again.
     private readonly Dictionary<UpstreamId, IReadOnlyDictionary<string, string>> _stagedUpstreamErrors = [];
     private readonly Dictionary<ProfileId, IReadOnlyDictionary<string, string>> _stagedProfileErrors = [];
     private readonly Dictionary<RateLimitPolicyId, IReadOnlyDictionary<string, string>> _stagedRateLimitErrors = [];
+    private readonly Dictionary<AccessListId, IReadOnlyDictionary<string, string>> _stagedAccessListErrors = [];
     private ConfigDocument? _reviewed;
     private IReadOnlyDictionary<string, string> _serverErrors = new Dictionary<string, string>();
     private bool _maySimulate;
@@ -204,13 +230,15 @@
         : "Every change is reviewed as a diff before it goes live, and can be undone.";
 
     /// <summary>The config as the form sees it: what is stored, and what was made in this drawer.</summary>
-    private ConfigDocument DraftDocument => StagedChange.Draft(_current?.Document ?? new ConfigDocument(), _staged, _stagedProfiles, _stagedRateLimits);
+    private ConfigDocument DraftDocument => StagedChange.Draft(_current?.Document ?? new ConfigDocument(), _staged, _stagedProfiles, _stagedRateLimits, _stagedAccessLists);
 
     private HashSet<UpstreamId> StagedUpstreamIds => [.. _staged.Select(u => u.Id)];
 
     private HashSet<ProfileId> StagedProfileIds => [.. _stagedProfiles.Select(p => p.Id)];
 
     private HashSet<RateLimitPolicyId> StagedRateLimitIds => [.. _stagedRateLimits.Select(p => p.Id)];
+
+    private HashSet<AccessListId> StagedAccessListIds => [.. _stagedAccessLists.Select(l => l.Id)];
 
     private string? SampleHost => Model?.Names.Select(n => n.Value.Trim()).FirstOrDefault(n => n.Length > 0 && !n.StartsWith('*'));
 
@@ -259,16 +287,18 @@
         _staged.Clear();
         _stagedProfiles.Clear();
         _stagedRateLimits.Clear();
+        _stagedAccessLists.Clear();
         _stagedUpstreamErrors.Clear();
         _stagedProfileErrors.Clear();
         _stagedRateLimitErrors.Clear();
+        _stagedAccessListErrors.Clear();
         return true;
     }
 
     protected override HostConfig ToConfig() => Model!.ToConfig();
 
     protected override string Fingerprint() =>
-        Model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(Upstreams: [.. _staged], Profiles: [.. _stagedProfiles], RateLimitPolicies: [.. _stagedRateLimits], Hosts: [ToConfig()]));
+        Model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(Upstreams: [.. _staged], Profiles: [.. _stagedProfiles], RateLimitPolicies: [.. _stagedRateLimits], AccessLists: [.. _stagedAccessLists], Hosts: [ToConfig()]));
 
     protected override void Validate()
     {
@@ -357,6 +387,34 @@
         Changed();
     }
 
+    /// <summary>
+    /// An access list made from the host form: staged with the host, and selected where the picker was. The route is null for
+    /// the host's own Access row.
+    /// </summary>
+    private async Task NewAccessListAsync(RouteEntry? route)
+    {
+        var result = await Drawers.OpenAsync<AccessListDrawer>(
+            new Dictionary<string, object?> { [nameof(AccessListDrawer.Stage)] = true, [nameof(AccessListDrawer.Draft)] = DraftDocument },
+            DrawerWidth.Medium);
+        if (result.As<AccessListConfig>() is not { } list || Model is null)
+        {
+            return;
+        }
+
+        _stagedAccessLists.Add(list);
+        var chosen = new AccessListSettings { Enabled = true, AccessListId = list.Id };
+        if (route is not null)
+        {
+            route.AccessList = chosen;
+        }
+        else
+        {
+            Model.Settings = Model.Settings with { AccessList = chosen };
+        }
+
+        Changed();
+    }
+
     private async Task NewCertificateAsync()
     {
         if (Model is null)
@@ -400,9 +458,10 @@
         var upstreams = StagedChange.UsedUpstreams(host, _staged);
         var profiles = StagedChange.UsedProfiles(host, _stagedProfiles);
         var rateLimits = StagedChange.UsedRateLimits(host, _stagedRateLimits);
+        var accessLists = StagedChange.UsedAccessLists(host, _stagedAccessLists);
         var name = ChangeView.HostTitle(host);
         ReviewRequest request;
-        if (upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0)
+        if (upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0 && accessLists.Count == 0)
         {
             request = new ReviewRequest(Model!.IsNew ? $"New host {name}" : $"Edit {name}", new UpsertHostCommand(host));
         }
@@ -429,11 +488,12 @@
                 return;
             }
 
-            var after = StagedChange.Apply(head.Document, host, upstreams, profiles, rateLimits);
+            var after = StagedChange.Apply(head.Document, host, upstreams, profiles, rateLimits, accessLists);
             var with = string.Join(" and ", [
                 .. upstreams.Select(u => $"upstream {u.Name}"),
                 .. profiles.Select(p => $"profile {p.Name}"),
                 .. rateLimits.Select(p => $"rate limit {p.Name}"),
+                .. accessLists.Select(l => $"access list {l.Name}"),
             ]);
             _reviewed = after;
             request = new ReviewRequest(Model!.IsNew ? $"New host {name}" : $"Edit {name}", new ReplaceConfigCommand(after, head.Revision?.Id)
@@ -492,6 +552,7 @@
         RouteStagedErrors(errors, document.Upstreams, _staged, upstream => upstream.Id, (id, found) => _stagedUpstreamErrors[id] = found, "upstreams");
         RouteStagedErrors(errors, document.Profiles, _stagedProfiles, profile => profile.Id, (id, found) => _stagedProfileErrors[id] = found, "profiles");
         RouteStagedErrors(errors, document.RateLimitPolicies, _stagedRateLimits, policy => policy.Id, (id, found) => _stagedRateLimitErrors[id] = found, "rateLimitPolicies");
+        RouteStagedErrors(errors, document.AccessLists, _stagedAccessLists, list => list.Id, (id, found) => _stagedAccessListErrors[id] = found, "accessLists");
     }
 
     // An upstream made in this drawer is still staged and is edited as such; any other is the config's own, edited and
@@ -562,6 +623,25 @@
         {
             _stagedRateLimits[index] = edited;
             _stagedRateLimitErrors.Remove(staged.Id);
+            Changed();
+        }
+    }
+
+    private async Task EditStagedAccessListAsync(AccessListConfig staged)
+    {
+        var result = await Drawers.OpenAsync<AccessListDrawer>(
+            new Dictionary<string, object?>
+            {
+                [nameof(AccessListDrawer.Stage)] = true,
+                [nameof(AccessListDrawer.Draft)] = DraftDocument,
+                [nameof(AccessListDrawer.Staged)] = staged,
+                [nameof(AccessListDrawer.Errors)] = _stagedAccessListErrors.GetValueOrDefault(staged.Id),
+            },
+            DrawerWidth.Medium);
+        if (result.As<AccessListConfig>() is { } edited && _stagedAccessLists.FindIndex(l => l.Id == staged.Id) is >= 0 and var index)
+        {
+            _stagedAccessLists[index] = edited;
+            _stagedAccessListErrors.Remove(staged.Id);
             Changed();
         }
     }

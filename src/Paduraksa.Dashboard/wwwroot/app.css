@@ -1700,6 +1700,11 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
         justify-content: space-between;
         padding-top: 0;
     }
+
+    .pdk-user-row + .pdk-user-row {
+        border-top: 1px solid var(--mud-palette-lines-default);
+        padding-top: 12px;
+    }
 }
 
 /* Requests and its period on one line: a number and the unit it is measured over, read as one sentence. */

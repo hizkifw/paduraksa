@@ -138,6 +138,12 @@
                                                 HelperText="Inherits the host's policy unless this route names one or turns it off."
                                                 Error="@(E($"/routes/{index}/settings/rateLimit/policyId") ?? E($"/routes/{index}/settings/rateLimit/enabled"))" ReadOnly="ReadOnly"
                                                 Field="@($"route-rate-limit-{index}")" />
+                                <AccessListField Value="route.AccessList" ValueChanged="@(value => SetAsync(() => route.AccessList = value, $"/routes/{index}/settings/accessList/accessListId"))"
+                                                 Inherited="HostAccessList" Lists="AccessLists" Staged="StagedAccessLists" Label="Access list on this route"
+                                                 OnNew="@(OnNewAccessList.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAccessList.InvokeAsync(route)) : default)"
+                                                 HelperText="Inherits the host's list unless this route names one or turns it off."
+                                                 Error="@(E($"/routes/{index}/settings/accessList/accessListId") ?? E($"/routes/{index}/settings/accessList/enabled"))" ReadOnly="ReadOnly"
+                                                 Field="@($"route-access-list-{index}")" />
                                 </div>
                             </div>
                         }
@@ -221,7 +227,9 @@
                             ShowAll="ShowAll" Touched="_touched" ReadOnly="ReadOnly" ShowForceHttps="@(Model.Kind != HostKind.Admin)" ProxyMode="ProxyMode"
                             ForceHttpsDisabled="@(Model.CertificateMode == CertificateBindingMode.None)" OnChanged="TouchAsync"
                             Policies="RateLimits" StagedRateLimits="StagedRateLimits"
-                            OnNewRateLimit="@(OnNewRateLimit.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRateLimit.InvokeAsync(null)) : default)">
+                            OnNewRateLimit="@(OnNewRateLimit.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRateLimit.InvokeAsync(null)) : default)"
+                            AccessLists="AccessLists" StagedAccessLists="StagedAccessLists"
+                            OnNewAccessList="@(OnNewAccessList.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAccessList.InvokeAsync(null)) : default)">
             <div class="pdk-setting">
                 <div class="pdk-setting-text">
                     <span class="pdk-setting-title">Profile</span>
@@ -295,6 +303,14 @@
     [Parameter]
     public IReadOnlySet<RateLimitPolicyId> StagedRateLimits { get; set; } = new HashSet<RateLimitPolicyId>();
 
+    /// <summary>The access lists a host or a route can pick: the config's, and those made in this drawer.</summary>
+    [Parameter]
+    public IReadOnlyList<AccessListConfig> AccessLists { get; set; } = [];
+
+    /// <summary>The access lists made in this drawer (marked "New").</summary>
+    [Parameter]
+    public IReadOnlySet<AccessListId> StagedAccessLists { get; set; } = new HashSet<AccessListId>();
+
     /// <summary>The inventory for the picker; null when the user may not read it.</summary>
     [Parameter]
     public IReadOnlyList<CertificateSummary>? Certificates { get; set; }
@@ -342,6 +358,10 @@
     [Parameter]
     public EventCallback<RouteEntry?> OnNewRateLimit { get; set; }
 
+    /// <summary>"New access list..." for the host (null) or one of its routes: the drawer makes one and selects it there.</summary>
+    [Parameter]
+    public EventCallback<RouteEntry?> OnNewAccessList { get; set; }
+
     private ProfileConfig? Profile => Model.ProfileId is { } id ? Profiles.FirstOrDefault(p => p.Id == id) : null;
 
     /// <summary>What the host's settings inherit: the profile's over the global defaults over the built-in ones.</summary>
@@ -350,6 +370,9 @@
     /// <summary>What a route inherits: the host's own layer over what the host itself inherits.</summary>
     private RateLimitSettings HostRateLimit =>
         HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).RateLimit ?? new RateLimitSettings();
+
+    private AccessListSettings HostAccessList =>
+        HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).AccessList ?? new AccessListSettings();
 
     private bool InheritedForceHttps => Inherited.ForceHttps == true;
 
@@ -480,5 +503,6 @@
         _routeSettingsOpen.Contains(route)
         || route.ProofOfWorkEnabled is not null
         || route.RateLimit is not null
+        || route.AccessList is not null
         || Errors.Keys.Any(key => key.StartsWith($"/routes/{index}/settings", StringComparison.Ordinal));
 }
