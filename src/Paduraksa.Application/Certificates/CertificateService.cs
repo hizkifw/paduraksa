@@ -342,7 +342,7 @@ public sealed partial class CertificateService
 
         var audit = Entry(origin, isNew ? "certificate.add" : "certificate.update", row.Id, AuditOutcome.Success) with
         {
-            Details = Json(w =>
+            Details = AuditDetails.Json(w =>
             {
                 w.WriteString("source", row.Source.ToName());
                 w.WriteString("status", row.Status.ToName());
@@ -393,7 +393,7 @@ public sealed partial class CertificateService
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var audit = Entry(origin, "certificate.add", id, AuditOutcome.Success) with
         {
-            Details = Json(w =>
+            Details = AuditDetails.Json(w =>
             {
                 w.WriteString("source", source.ToName());
                 w.WriteString("status", CertificateStatus.Pending.ToName());
@@ -444,7 +444,7 @@ public sealed partial class CertificateService
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var audit = Entry(origin, "certificate.update", id, AuditOutcome.Success) with
         {
-            Details = Json(w => w.WriteString("status", status.ToName())),
+            Details = AuditDetails.Json(w => w.WriteString("status", status.ToName())),
         };
         return new CertificateChangeOutcome(
             new CertificateChangeResult(CertificateChangeStatus.Committed, ToSummary(row, names, now)),
@@ -482,7 +482,7 @@ public sealed partial class CertificateService
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var audit = Entry(origin, "certificate.update", id, AuditOutcome.Success) with
         {
-            Details = Json(w => w.WriteString("fields", "label,notes")),
+            Details = AuditDetails.Json(w => w.WriteString("fields", "label,notes")),
         };
         return new CertificateChangeOutcome(new CertificateChangeResult(CertificateChangeStatus.Committed, ToSummary(row, names, now)), audit, Republish: false);
     }
@@ -578,7 +578,7 @@ public sealed partial class CertificateService
                 new CertificateChangeResult(CertificateChangeStatus.Invalid, Errors: users),
                 Entry(origin, "certificate.delete", id, AuditOutcome.Invalid) with
                 {
-                    Details = Json(w =>
+                    Details = AuditDetails.Json(w =>
                     {
                         w.WriteString("status", "invalid");
                         w.WriteStartArray("errors");
@@ -700,27 +700,14 @@ public sealed partial class CertificateService
     private static CertificateChangeOutcome Rejected(CommandOrigin origin, string action, CertificateId id, ConfigError error) =>
         new(
             new CertificateChangeResult(CertificateChangeStatus.Invalid, Errors: [error]),
-            Entry(origin, action, id, AuditOutcome.Invalid) with { Details = Json(w => w.WriteString("status", "invalid")) },
+            Entry(origin, action, id, AuditOutcome.Invalid) with { Details = AuditDetails.Json(w => w.WriteString("status", "invalid")) },
             Republish: false);
 
     private static CertificateChangeOutcome NotFound(CommandOrigin origin, string action, CertificateId id) =>
         new(
             new CertificateChangeResult(CertificateChangeStatus.NotFound),
-            Entry(origin, action, id, AuditOutcome.Conflict) with { Details = Json(w => w.WriteString("status", "notFound")) },
+            Entry(origin, action, id, AuditOutcome.Conflict) with { Details = AuditDetails.Json(w => w.WriteString("status", "notFound")) },
             Republish: false);
-
-    private static string Json(Action<Utf8JsonWriter> write)
-    {
-        using MemoryStream buffer = new();
-        using (Utf8JsonWriter writer = new(buffer))
-        {
-            writer.WriteStartObject();
-            write(writer);
-            writer.WriteEndObject();
-        }
-
-        return Encoding.UTF8.GetString(buffer.ToArray());
-    }
 
     /// <summary>What decides whether a change affects serving: the compiler's view of a certificate.</summary>
     private readonly record struct ServingFacts(bool Active, DateTimeOffset NotBefore, DateTimeOffset NotAfter, string Fingerprint, string Chain, string Names)

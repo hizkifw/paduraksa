@@ -36,8 +36,8 @@ namespace Paduraksa.Application.LastKnownGood;
 /// <para><b>Durability.</b> The file's data is flushed before the rename, but the directory isn't: .NET can't open a
 /// directory to fsync it. After a power loss right after a write, the rename may be lost, and the previous file (still
 /// complete and valid) is what's found. Safe, not durable; at worst a fallback one revision old.</para>
-/// <para><b>One process per data directory.</b> Only one server process may use a data directory at a time (the
-/// config database tolerates another writer, this file doesn't); nothing enforces it.</para>
+/// <para><b>One process per data directory.</b> Only one server process may use a data directory at a time, for the file and
+/// for the config database alike; nothing enforces it.</para>
 /// <para><b>Reads</b> refuse a target that is a symbolic link and never throw: any problem comes back as a reason.</para>
 /// </remarks>
 public sealed partial class LastKnownGoodFile : IAsyncDisposable

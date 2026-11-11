@@ -83,19 +83,6 @@ internal static class IssuanceMapping
         where TId : struct, ITypedId<TId> =>
         new(origin.Actor, origin.Channel, action, outcome) { Target = id.ToString(), ClientIp = origin.ClientIp };
 
-    public static string Json(Action<Utf8JsonWriter> write)
-    {
-        using MemoryStream buffer = new();
-        using (Utf8JsonWriter writer = new(buffer))
-        {
-            writer.WriteStartObject();
-            write(writer);
-            writer.WriteEndObject();
-        }
-
-        return Encoding.UTF8.GetString(buffer.ToArray());
-    }
-
     /// <summary>Text that came from outside (a CA's detail, a provider's message) as one printable line of at most <paramref name="max"/> characters.</summary>
     public static string Sanitize(string? text, int max = 512)
     {

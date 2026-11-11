@@ -40,7 +40,7 @@ public sealed class ConfigServiceStartupTests
         await using var lastGood = new LastKnownGoodFile(path);
         using var store = new SnapshotStore();
         await using var publisher = new SnapshotPublisher(store);
-        using var restarted = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, TestPermissions.AllowAll, lastKnownGood: lastGood);
+        using var restarted = TestConfigServices.Create(h.Db, publisher, lastKnownGood: lastGood);
 
         var status = await restarted.StartAsync(Ct);
         await restarted.StartupPublishFollowed;
@@ -58,13 +58,13 @@ public sealed class ConfigServiceStartupTests
         await using var h = await ConfigServiceHarness.CreateAsync();
         await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "a.example.com")));
         await h.Db.ExecuteAsync("UPDATE ConfigRevisions SET DocumentHash = zeroblob(32)");
-        var generation = h.Store.Current.Generation;
+        await using var restarted = Restart(h); // the harness's own service has written a last-known-good file of its own
 
-        var failure = await Assert.ThrowsAsync<ConfigStartupException>(() => h.Service.StartAsync(Ct));
+        var failure = await Assert.ThrowsAsync<ConfigStartupException>(() => restarted.Service.StartAsync(Ct));
 
         Assert.Contains("the latest config revision can't be read", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("there is no last-known-good file", failure.Message, StringComparison.Ordinal);
-        Assert.Equal(generation, h.Store.Current.Generation); // nothing published
+        Assert.Contains($"there is no {LastKnownGoodPath(h)}", failure.Message, StringComparison.Ordinal);
+        Assert.False(restarted.Store.HasPublished);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class ConfigServiceStartupTests
         {
             using var store = new SnapshotStore();
             await using var publisher = new SnapshotPublisher(store);
-            using var first = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, TestPermissions.AllowAll, lastKnownGood: writer);
+            using var first = TestConfigServices.Create(h.Db, publisher, lastKnownGood: writer);
             await first.StartAsync(Ct);
             await first.StartupPublishFollowed;
         }
@@ -87,7 +87,7 @@ public sealed class ConfigServiceStartupTests
         await using var lastGood = new LastKnownGoodFile(path);
         using var degradedStore = new SnapshotStore();
         await using var degradedPublisher = new SnapshotPublisher(degradedStore);
-        using var degraded = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), degradedPublisher, TestPermissions.AllowAll, lastKnownGood: lastGood);
+        using var degraded = TestConfigServices.Create(h.Db, degradedPublisher, lastKnownGood: lastGood);
 
         var status = await degraded.StartAsync(Ct);
         var refused = await degraded.ExecuteAsync(new UpsertHostCommand(RespondHost(HostId.New(), "b.example.com")), ConfigServiceHarness.Admin, Ct);
@@ -249,8 +249,7 @@ public sealed class ConfigServiceStartupTests
         var store = new SnapshotStore();
         var publisher = new SnapshotPublisher(store);
         var lastGood = new LastKnownGoodFile(LastKnownGoodPath(h), logs);
-        var service = new ConfigService(
-            h.Db.Factory, compiler ?? new ConfigServiceHarness.FakeCompiler(), publisher, TestPermissions.AllowAll, loggerFactory: logs, lastKnownGood: lastGood);
+        var service = TestConfigServices.Create(h.Db, publisher, compiler, lastKnownGood: lastGood, loggers: logs);
         return new Restarted(store, publisher, lastGood, service, logs);
     }
 

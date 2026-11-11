@@ -1,12 +1,16 @@
 using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Identity;
+using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
@@ -213,7 +217,13 @@ public sealed class ConfigServicePipelineTests
     {
         await using var db = await CreateAsync();
         using var store = new SnapshotStore();
+        var lastGood = db.Own(new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(db.DatabasePath)!, LastKnownGoodFile.FileName)));
+        TestConfigServices.NoCertificates noCertificates = new();
         await using var services = new ServiceCollection()
+            .AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance)
+            .AddSingleton(lastGood)
+            .AddSingleton<IServerCertificateSource>(noCertificates)
+            .AddSingleton<ICertificateCatalog>(noCertificates)
             .AddPaduraksaDbContextFactory<ConfigDbContext>(db.DatabasePath)
             .AddSingleton<IConfigCompiler>(new ConfigServiceHarness.FakeCompiler())
             .AddSingleton(store)

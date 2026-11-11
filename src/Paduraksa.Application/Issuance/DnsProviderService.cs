@@ -102,7 +102,7 @@ public sealed partial class DnsProviderService
                 await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                 var audit = IssuanceMapping.Entry(origin, "acme.dns_provider.create", row.Id, AuditOutcome.Success) with
                 {
-                    Details = IssuanceMapping.Json(w => w.WriteString("kind", row.Kind.ToName())),
+                    Details = AuditDetails.Json(w => w.WriteString("kind", row.Kind.ToName())),
                 };
                 return (new DnsProviderResult(IssuanceChangeStatus.Committed, IssuanceMapping.ToSummary(row)), audit);
             },
@@ -196,7 +196,7 @@ public sealed partial class DnsProviderService
         {
             var entry = IssuanceMapping.Entry(origin, "acme.dns_provider.test", id, result.Valid ? AuditOutcome.Success : AuditOutcome.Failed) with
             {
-                Details = IssuanceMapping.Json(w => w.WriteBoolean("valid", result.Valid)),
+                Details = AuditDetails.Json(w => w.WriteBoolean("valid", result.Valid)),
             };
             await _config.TryAppendAuditAsync(entry).ConfigureAwait(false);
         }

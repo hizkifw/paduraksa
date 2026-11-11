@@ -15,20 +15,59 @@ using Paduraksa.Proxy.Yarp;
 
 namespace Paduraksa.Application.Commands;
 
-public sealed partial class ConfigService
+/// <summary>
+/// The startup recompile and what stands behind it: brings the database up to date, loads the latest revision, compiles it and
+/// queues the publish, with the last-known-good file as the fallback when the database or its latest revision can't be used, and
+/// the republishes of the live config that no command asked for.
+/// </summary>
+/// <remarks>
+/// <para><b>Never awaits the publish.</b> A snapshot with YARP content can only go live once the public app attaches
+/// YARP, which starts after startup returns, so the publish is queued and followed in the background. The empty config needs
+/// no YARP and is live at once, and is never written to the last-known-good file, which only holds a revision.</para>
+/// <para><b>Restore.</b> A database without revisions next to a usable last-known-good file has lost its config: the
+/// file's document is committed as revision #1 through the replace path, audited, and startup goes on from there. A
+/// rejected or failed restore commit degrades the start on the last-known-good config (or the empty one).</para>
+/// <para><b>Degraded starts.</b> When the database can't be opened or migrated, or its latest revision can't be read or
+/// doesn't compile, the last-known-good document is compiled and published instead and the store's status says so.
+/// Commands are refused only while the store itself is unusable; when just the compile failed they are accepted, and the
+/// first one that goes live ends the degraded state. A failed or superseded startup publish falls back the same way, and a
+/// damaged last-known-good file never stops a start.</para>
+/// <para>With neither a usable database revision nor a usable last-known-good document there is nothing to serve: starting
+/// throws <see cref="ConfigStartupException"/>.</para>
+/// </remarks>
+internal sealed partial class ConfigRecovery
 {
-    /// <summary>Error code of a command refused because the config store is unavailable (a degraded start).</summary>
-    public const string StoreUnavailableCode = "config.store.unavailable";
+    private readonly IDbContextFactory<ConfigDbContext> _contexts;
+    private readonly IConfigCompiler _compiler;
+    private readonly CertificateInventoryLoader _certificates;
+    private readonly LastKnownGoodFile _lastKnownGood;
+    private readonly ConfigRevisionStore _revisions;
+    private readonly ConfigPipeline _pipeline;
+    private readonly ConfigPublishing _publishing;
+    private readonly SemaphoreSlim _writer;
+    private readonly ILogger _logger;
 
-    private ConfigStoreStatus _status = ConfigStoreStatus.NotStarted;
+    public ConfigRecovery(
+        IDbContextFactory<ConfigDbContext> contexts, IConfigCompiler compiler, CertificateInventoryLoader certificates,
+        LastKnownGoodFile lastKnownGood, ConfigRevisionStore revisions, ConfigPipeline pipeline, ConfigPublishing publishing,
+        SemaphoreSlim writer, ILoggerFactory loggerFactory)
+    {
+        _contexts = contexts;
+        _compiler = compiler;
+        _certificates = certificates;
+        _lastKnownGood = lastKnownGood;
+        _revisions = revisions;
+        _pipeline = pipeline;
+        _publishing = publishing;
+        _writer = writer;
+        _logger = loggerFactory.CreateLogger<ConfigRecovery>();
+    }
+
     private int _started;
     private Task _startupPublish = Task.CompletedTask;
 
     // The latest publish ticket when startup ended (null, or the restore's): a commit since replaces it.
     private PublishTicket? _startupTicket;
-
-    /// <summary>Where the running config came from and whether commands are accepted (see <see cref="StartAsync"/>).</summary>
-    public ConfigStoreStatus Status => Volatile.Read(ref _status);
 
     /// <summary>Completes once the startup publish has its outcome (and any fallback after a failed one has its own),
     /// logged and, on success, offered to the last-known-good file (tests: then <see cref="LastKnownGoodFile.FlushAsync"/>).
@@ -46,7 +85,7 @@ public sealed partial class ConfigService
     /// file's document is committed as revision #1 through the replace path, audited, and startup goes on from there. A
     /// rejected or failed restore commit degrades the start on the last-known-good config (or the empty one).</para>
     /// <para><b>Degraded starts.</b> When the database can't be opened or migrated, or its latest revision can't be read or
-    /// doesn't compile, the last-known-good document is compiled and published instead and <see cref="Status"/> says so.
+    /// doesn't compile, the last-known-good document is compiled and published instead and the status says so.
     /// Commands are refused only while the store itself is unusable; when just the compile failed they are accepted, and the
     /// first one that goes live ends the degraded state. A failed or superseded startup publish falls back the same way, and a
     /// damaged last-known-good file never stops a start.</para>
@@ -55,7 +94,7 @@ public sealed partial class ConfigService
     /// </remarks>
     public async Task<ConfigStoreStatus> StartAsync(CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_publishing.IsDisposed, nameof(ConfigService));
         if (Interlocked.Exchange(ref _started, 1) != 0)
         {
             throw new InvalidOperationException("The config service has already been started.");
@@ -65,8 +104,8 @@ public sealed partial class ConfigService
         try
         {
             var status = await StartExclusiveAsync(cancellationToken).ConfigureAwait(false);
-            _startupTicket = _latestPublish;
-            Volatile.Write(ref _status, status);
+            _startupTicket = _publishing.Latest;
+            _publishing.SetStatus(status);
             return status;
         }
         finally
@@ -107,7 +146,7 @@ public sealed partial class ConfigService
 
         ReportCertificateWarnings(compilation.Warnings);
 
-        var revision = database.Latest is null ? null : Ref(database.Latest.Info);
+        var revision = database.Latest is null ? null : ConfigHead.Ref(database.Latest.Info);
         if (lastGood is not null && revision is not null && lastGood.Revision.Seq > revision.Seq)
         {
             LogLastKnownGoodAhead(lastGood.Revision.Seq, lastGood.Revision.Id, revision.Seq);
@@ -116,15 +155,14 @@ public sealed partial class ConfigService
         var entry = database.Latest is null
             ? null
             : new LastKnownGoodEntry(revision!, database.Latest.Document, database.Latest.Info.DocumentHash);
-        _startupPublish = FollowStartupPublishAsync(StartPublish(snapshot, compilation), revisionId, entry, lastGood);
+        _startupPublish = FollowStartupPublishAsync(_publishing.Start(snapshot, compilation), revisionId, entry, lastGood);
         return new ConfigStoreStatus(ConfigSource.Database, revision);
     }
 
     /// <summary>
     /// The live revision still had the inline IP allow lists, which reading converted to access lists: stores the converted
     /// document as one revision (actor System, audited, saying what was converted), so the config that is running is the
-    /// config that is stored. Every host, profile and list counts as touched, so their versions move. Null when the converted document can't be stored (it doesn't validate or compile, or another process
-    /// committed first): startup then runs on the converted document in memory, and the next change writes it.
+    /// config that is stored. Every host, profile and list counts as touched, so their versions move. Null when the converted document can't be stored (it doesn't validate or compile): startup then runs on the converted document in memory, and the next change writes it.
     /// </summary>
     private async Task<ConfigStoreStatus?> WriteUpgradedAsync(DatabaseStart database, LastKnownGoodEntry? lastGood, CancellationToken cancellationToken)
     {
@@ -135,7 +173,7 @@ public sealed partial class ConfigService
             await using (context.ConfigureAwait(false))
             {
                 var document = database.Document!;
-                var changes = ConfigDiff.Compare(InitialDocument with { Settings = document.Settings with { Defaults = new HostSettings() } }, document);
+                var changes = ConfigDiff.Compare(ConfigHead.Initial with { Settings = document.Settings with { Defaults = new HostSettings() } }, document);
                 var stamped = ConfigVersions.Stamp(document, document, changes, latest.Info.Seq + 1);
                 if (ConfigValidator.Validate(stamped) is { Count: > 0 } errors)
                 {
@@ -159,13 +197,10 @@ public sealed partial class ConfigService
                     message = $"Converted the inline IP allow lists to {candidate.AccessLists.Count} access lists";
                 }
 
-                var execution = await CommitAsync(
-                        context, CommandOrigin.System, new Audited("config.upgrade", null), latest, candidate, changes, revisionId, compilation, message, version: null, cancellationToken)
+                var execution = await _pipeline.CommitAsync(
+                        context, CommandOrigin.System, new ConfigCommandPlanner.Audited("config.upgrade", null), candidate, changes, revisionId, compilation, message, version: null, cancellationToken)
                     .ConfigureAwait(false);
-                if (execution?.Publish is not { } ticket)
-                {
-                    return null;
-                }
+                var ticket = execution.Publish!;
 
                 LogUpgraded(ticket.Revision.Seq, ticket.Revision.Id, latest.Info.Seq, candidate.AccessLists.Count);
                 _startupPublish = FollowStartupPublishAsync(ticket.Task, ticket.Revision.Id, ticket.LastKnownGood, lastGood);
@@ -183,11 +218,6 @@ public sealed partial class ConfigService
     /// <summary>The last-known-good file's entry, or null with why. A damaged file is logged; it never throws.</summary>
     private (LastKnownGoodEntry? Entry, string? Problem) ReadLastKnownGood()
     {
-        if (_lastKnownGood is null)
-        {
-            return (null, "there is no last-known-good file");
-        }
-
         if (!_lastKnownGood.IsPresent)
         {
             return (null, $"there is no {_lastKnownGood.Path}");
@@ -214,7 +244,7 @@ public sealed partial class ConfigService
         string problem;
         try
         {
-            var execution = await ExecuteExclusiveAsync(command, CommandOrigin.System, cancellationToken).ConfigureAwait(false);
+            var execution = await _pipeline.ExecuteExclusiveAsync(command, CommandOrigin.System, cancellationToken).ConfigureAwait(false);
             if (execution.Publish is { } ticket)
             {
                 LogRestored(ticket.Revision.Seq, ticket.Revision.Id, source);
@@ -267,7 +297,7 @@ public sealed partial class ConfigService
                 ReportCertificateWarnings(fallback.Warnings);
 
                 // Already the file's content: nothing to write, and nothing else to fall back on.
-                _startupPublish = FollowStartupPublishAsync(StartPublish(snapshot, fallback), lastGood.Revision.Id, entry: null, fallback: null);
+                _startupPublish = FollowStartupPublishAsync(_publishing.Start(snapshot, fallback), lastGood.Revision.Id, entry: null, fallback: null);
                 return new ConfigStoreStatus(ConfigSource.LastKnownGood, lastGood.Revision, problem, acceptsCommands);
             }
 
@@ -275,11 +305,11 @@ public sealed partial class ConfigService
         }
 
         if (emptyIfUnusable
-            && (await CompileWithCurrentInventoryAsync(InitialDocument, ConfigRevisionId.Empty, cancellationToken).ConfigureAwait(false)) is { Snapshot: { } empty } emptyCompilation)
+            && (await CompileWithCurrentInventoryAsync(ConfigHead.Initial, ConfigRevisionId.Empty, cancellationToken).ConfigureAwait(false)) is { Snapshot: { } empty } emptyCompilation)
         {
             var emptyProblem = $"{problem}; the last-known-good config can't be used either ({unusable})";
             LogDegradedOnEmpty(emptyProblem);
-            _startupPublish = FollowStartupPublishAsync(StartPublish(empty, emptyCompilation), ConfigRevisionId.Empty, entry: null, fallback: null);
+            _startupPublish = FollowStartupPublishAsync(_publishing.Start(empty, emptyCompilation), ConfigRevisionId.Empty, entry: null, fallback: null);
             return new ConfigStoreStatus(ConfigSource.Database, null, emptyProblem, AcceptsCommands: true);
         }
 
@@ -314,7 +344,7 @@ public sealed partial class ConfigService
                 var latest = await ConfigRevisionStore.GetLatestAsync(context, cancellationToken).ConfigureAwait(false);
                 if (latest is null)
                 {
-                    return new DatabaseStart(null, InitialDocument, null);
+                    return new DatabaseStart(null, ConfigHead.Initial, null);
                 }
 
                 if (!CanonicalConfigJson.TryDeserialize(latest.Document.Span, out var document, out var error, out var upgraded))
@@ -352,7 +382,7 @@ public sealed partial class ConfigService
                 LogStartupPublished(label, result.Generation);
                 if (entry is not null)
                 {
-                    _lastKnownGood?.Offer(entry);
+                    _lastKnownGood.Offer(entry);
                 }
 
                 return;
@@ -382,7 +412,7 @@ public sealed partial class ConfigService
         await _writer.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (_disposed || !ReferenceEquals(_latestPublish, _startupTicket))
+            if (_publishing.IsDisposed || !ReferenceEquals(_publishing.Latest, _startupTicket))
             {
                 return;
             }
@@ -395,8 +425,8 @@ public sealed partial class ConfigService
             }
 
             LogDegradedAcceptingCommands(lastGood.Revision.Seq, lastGood.Revision.Id, problem);
-            Volatile.Write(ref _status, new ConfigStoreStatus(ConfigSource.LastKnownGood, lastGood.Revision, problem, AcceptsCommands: true));
-            publish = StartPublish(snapshot, compilation);
+            _publishing.SetStatus(new ConfigStoreStatus(ConfigSource.LastKnownGood, lastGood.Revision, problem, AcceptsCommands: true));
+            publish = _publishing.Start(snapshot, compilation);
         }
         finally
         {
@@ -406,31 +436,12 @@ public sealed partial class ConfigService
         await FollowStartupPublishAsync(publish, lastGood.Revision.Id, entry: null, fallback: null).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// A commit's publish succeeded: records its document as last-known-good in the background and ends a degraded start that
-    /// still accepted commands. Idempotent, since a superseded command may run it for the newer publish too.
-    /// </summary>
-    private void WentLive(PublishTicket ticket)
-    {
-        if (ticket.LastKnownGood is { } entry)
-        {
-            _lastKnownGood?.Offer(entry);
-        }
-
-        var status = Status;
-        if (ticket.FromDatabase && !ticket.Revision.Id.IsEmpty && status.IsDegraded && status.AcceptsCommands
-            && ReferenceEquals(Interlocked.CompareExchange(ref _status, new ConfigStoreStatus(ConfigSource.Database, ticket.Revision), status), status))
-        {
-            LogRecovered(ticket.Revision.Seq, ticket.Revision.Id);
-        }
-    }
-
     /// <summary>The live config compiled against the current inventory (see <see cref="CompileLiveAsync"/>).</summary>
     /// <param name="Compilation">A successful compilation.</param>
     /// <param name="Revision">The revision it is.</param>
     /// <param name="Entry">The last-known-good entry to record once live; null when it came from that file.</param>
     /// <param name="FromDatabase">It is the database's latest revision.</param>
-    private sealed record LiveCompile(ConfigCompilation Compilation, RevisionRef Revision, LastKnownGoodEntry? Entry, bool FromDatabase);
+    internal sealed record LiveCompile(ConfigCompilation Compilation, RevisionRef Revision, LastKnownGoodEntry? Entry, bool FromDatabase);
 
     /// <summary>
     /// Compiles the config that is live, against the inventory as <paramref name="context"/> sees it, for a republish no
@@ -438,15 +449,15 @@ public sealed partial class ConfigService
     /// last-known-good file or the database has no revision: then it is the last-known-good document, and never the empty
     /// config. Null (logged) when there is nothing to republish.
     /// </summary>
-    private async Task<LiveCompile?> CompileLiveAsync(ConfigDbContext context, CancellationToken cancellationToken)
+    internal async Task<LiveCompile?> CompileLiveAsync(ConfigDbContext context, CancellationToken cancellationToken)
     {
-        if (Status.Source != ConfigSource.LastKnownGood)
+        if (_publishing.Status.Source != ConfigSource.LastKnownGood)
         {
             StoredRevision? latest;
             ConfigDocument document;
             try
             {
-                (latest, document) = await LoadAsync(context, cancellationToken).ConfigureAwait(false);
+                (latest, document) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -464,7 +475,7 @@ public sealed partial class ConfigService
                     return null;
                 }
 
-                var revision = Ref(latest.Info);
+                var revision = ConfigHead.Ref(latest.Info);
                 return new LiveCompile(compilation, revision, new LastKnownGoodEntry(revision, latest.Document, latest.Info.DocumentHash), FromDatabase: true);
             }
         }
@@ -489,11 +500,11 @@ public sealed partial class ConfigService
     }
 
     /// <summary>Queues a <see cref="LiveCompile"/>'s publish (under the writer lock, like every publish).</summary>
-    private PublishTicket PublishLive(LiveCompile live)
+    internal PublishTicket PublishLive(LiveCompile live)
     {
         ReportCertificateWarnings(live.Compilation.Warnings);
-        PublishTicket ticket = new(live.Revision, StartPublish(live.Compilation.Snapshot!, live.Compilation), live.Entry, live.FromDatabase);
-        _latestPublish = ticket;
+        PublishTicket ticket = new(live.Revision, _publishing.Start(live.Compilation.Snapshot!, live.Compilation), live.Entry, live.FromDatabase);
+        _publishing.Latest = ticket;
         return ticket;
     }
 
@@ -502,7 +513,7 @@ public sealed partial class ConfigService
     /// inventory as it now is, under the writer lock, so it is ordered with every other publish (the publisher coalesces
     /// them). Failures are logged and audited like any publish that nobody waits for.
     /// </summary>
-    private async Task RepublishForValidityAsync()
+    internal async Task RepublishForValidityAsync()
     {
         try
         {
@@ -510,7 +521,7 @@ public sealed partial class ConfigService
             await _writer.WaitAsync().ConfigureAwait(false);
             try
             {
-                if (_disposed || Status is { AcceptsCommands: false })
+                if (_publishing.IsDisposed || _publishing.Status is { AcceptsCommands: false })
                 {
                     return;
                 }
@@ -531,7 +542,7 @@ public sealed partial class ConfigService
 
             if (ticket is not null)
             {
-                await AuditLatePublishAsync(ticket, CommandOrigin.System).ConfigureAwait(false);
+                await _publishing.AuditLateAsync(ticket, CommandOrigin.System).ConfigureAwait(false);
             }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -555,7 +566,7 @@ public sealed partial class ConfigService
             await _writer.WaitAsync(CancellationToken.None).ConfigureAwait(false);
             try
             {
-                if (_disposed || Status is { AcceptsCommands: false })
+                if (_publishing.IsDisposed || _publishing.Status is { AcceptsCommands: false })
                 {
                     return false;
                 }
@@ -579,7 +590,7 @@ public sealed partial class ConfigService
                 return false;
             }
 
-            _ = AuditLatePublishAsync(ticket, CommandOrigin.System);
+            _ = _publishing.AuditLateAsync(ticket, CommandOrigin.System);
             return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -588,15 +599,6 @@ public sealed partial class ConfigService
             return false;
         }
     }
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Not republishing: {Reason} ({Detail}). Nothing was published; the next commit or start compiles with the current certificates.")]
-    private partial void LogRepublishSkipped(string reason, string detail);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Republishing after the startup certificate recovery failed.")]
-    private partial void LogRecoveryRepublishFailed(Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Republishing after a certificate's validity changed failed.")]
-    private partial void LogValidityRepublishFailed(Exception exception);
 
     /// <summary>
     /// Compiles <paramref name="document"/> against the certificate inventory as it is now, for the startup paths: a
@@ -627,136 +629,56 @@ public sealed partial class ConfigService
     {
         if (warnings.Count > 0)
         {
-            LogCertificateWarnings(warnings.Count, string.Join("; ", warnings.Take(MaxAuditedCodes).Select(w => $"{w.Path}: {w.Message}")));
+            LogCertificateWarnings(warnings.Count, string.Join("; ", warnings.Take(ConfigAudit.MaxAuditedCodes).Select(w => $"{w.Path}: {w.Message}")));
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} certificate warning(s) in the config that is going live: {Warnings}")]
-    private partial void LogCertificateWarnings(int count, string warnings);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "The certificate inventory can't be read; compiling with the built-in certificates only. Hosts keep their config but lose certificates the vault would have served.")]
-    private partial void LogInventoryUnreadable(Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Restoring the last-known-good config into the empty database failed; the startup continues on the last-known-good file.")]
-    private partial void LogRestoreFailed(Exception exception);
-
-    /// <summary>A command refused because the store is unusable; not audited (the audit log lives in that store).</summary>
-    private ConfigCommandResult Unavailable(ConfigCommand command, ConfigStoreStatus status)
-    {
-        LogRefused(command.GetType().Name, status.Problem ?? "unknown");
-        return new ConfigCommandResult(
-            ConfigCommandStatus.Unavailable,
-            Errors:
-            [
-                new ConfigError(
-                    string.Empty,
-                    StoreUnavailableCode,
-                    $"The config store is unavailable, so changes are refused: {status.Problem}. Paduraksa is serving the last-known-good config"
-                    + $" ({status.Revision}); fix or restore the database and restart."),
-            ]);
-    }
-
     private static string Summarize(IReadOnlyList<ConfigError> errors) =>
-        errors.Count == 0 ? "no reason given" : string.Join("; ", errors.Take(MaxAuditedCodes).Select(e => $"{e.Path}: {e.Message}"));
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Migrated the config database ({Count} migration(s): {Migrations}).")]
-    private partial void LogMigrated(int count, IReadOnlyList<string> migrations);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "The config database can't be used.")]
-    private partial void LogDatabaseFailed(Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good file holds revision #{LastGoodSeq} ({LastGood}), newer than the database's latest (#{LatestSeq}): was the database replaced or restored? Serving the database's config, which is the source of truth; the file is replaced at the next publish.")]
-    private partial void LogLastKnownGoodAhead(long lastGoodSeq, ConfigRevisionId lastGood, long latestSeq);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good file is damaged and can't be a fallback: {Problem}. It is replaced at the next publish.")]
-    private partial void LogLastKnownGoodDamaged(string problem);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "UPGRADED: revision #{Seq} ({Revision}) was written from revision #{From}, with its {Lists} inline IP allow list(s) converted to access lists.")]
-    private partial void LogUpgraded(long seq, ConfigRevisionId revision, long from, int lists);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Revision #{Seq} ({Revision}) has inline IP allow lists, which this build reads as access lists, but the converted config wasn't stored: {Problem}. It is running as converted; the next change stores it.")]
-    private partial void LogUpgradeRefused(long seq, ConfigRevisionId revision, string problem);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Storing the access lists converted from revision #{Seq} ({Revision}) failed; it is running as converted, and the next change stores it.")]
-    private partial void LogUpgradeFailed(Exception exception, long seq, ConfigRevisionId revision);
-
-    [LoggerMessage(Level = LogLevel.Critical, Message = "RESTORED: the config database had no revisions; committed the {Source} config as revision #{Seq} ({Revision}).")]
-    private partial void LogRestored(long seq, ConfigRevisionId revision, string source);
-
-    [LoggerMessage(Level = LogLevel.Critical, Message = "DEGRADED: serving the last-known-good config (revision #{Seq}, {Revision}) because {Problem}. Config changes are refused until the database is fixed or restored and Paduraksa restarted.")]
-    private partial void LogDegraded(long seq, ConfigRevisionId revision, string problem);
-
-    [LoggerMessage(Level = LogLevel.Critical, Message = "DEGRADED: serving the last-known-good config (revision #{Seq}, {Revision}) because {Problem}. Config changes are accepted; the first one that goes live ends the degraded state.")]
-    private partial void LogDegradedAcceptingCommands(long seq, ConfigRevisionId revision, string problem);
-
-    [LoggerMessage(Level = LogLevel.Critical, Message = "DEGRADED: serving the empty config because {Problem}. Config changes are accepted; the first one that goes live ends the degraded state.")]
-    private partial void LogDegradedOnEmpty(string problem);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Can't fall back on the last-known-good config (revision #{Seq}, {Revision}) either: it doesn't compile ({Errors}).")]
-    private partial void LogLastKnownGoodUnusableAfterFailure(long seq, ConfigRevisionId revision, string errors);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "Published the startup snapshot (revision {Revision}, generation {Generation}).")]
-    private partial void LogStartupPublished(string revision, long generation);
-
-    [LoggerMessage(Level = LogLevel.Information, Message = "The startup snapshot (revision {Revision}) was superseded by a newer commit's before it went live.")]
-    private partial void LogStartupPublishSuperseded(string revision);
-
-    [LoggerMessage(Level = LogLevel.Critical, Message = "Publishing the startup snapshot (revision {Revision}) failed ({Status}): {Errors}")]
-    private partial void LogStartupPublishFailed(string revision, PublishStatus status, IReadOnlyList<string> errors);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Recovered from a degraded start: revision #{Seq} ({Revision}) from the database is live.")]
-    private partial void LogRecovered(long seq, ConfigRevisionId revision);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Refused {Command}: the config store is unavailable ({Problem}).")]
-    private partial void LogRefused(string command, string problem);
+        errors.Count == 0 ? "no reason given" : string.Join("; ", errors.Take(ConfigAudit.MaxAuditedCodes).Select(e => $"{e.Path}: {e.Message}"));
 
     /// <summary>The database at startup: the latest revision (null: none yet) and its canonical document, or why not.</summary>
     private sealed record DatabaseStart(StoredRevision? Latest, ConfigDocument? Document, string? Problem, bool Upgraded = false);
-}
 
-public enum ConfigSource
-{
-    /// <summary><see cref="ConfigService.StartAsync"/> hasn't run (a process that only writes, like the CLI).</summary>
-    NotStarted,
-
-    /// <summary>The database's latest revision (or the empty config, before the first commit).</summary>
-    Database,
-
-    /// <summary>The last-known-good file: a degraded start.</summary>
-    LastKnownGood,
-}
-
-/// <summary>The config store's state (<see cref="ConfigService.Status"/>).</summary>
-/// <param name="Source">Where the running config came from.</param>
-/// <param name="Revision">The revision startup published (null: the empty config, or not started), or the one whose
-/// publish ended a degraded start.</param>
-/// <param name="Problem">Why the start is degraded; null when it isn't.</param>
-/// <param name="AcceptsCommands">False while the store itself is unusable: commands get
-/// <see cref="ConfigCommandStatus.Unavailable"/>.</param>
-public sealed record ConfigStoreStatus(ConfigSource Source, RevisionRef? Revision, string? Problem = null, bool AcceptsCommands = true)
-{
-    /// <summary>Before <see cref="ConfigService.StartAsync"/>.</summary>
-    public static ConfigStoreStatus NotStarted { get; } = new(ConfigSource.NotStarted, null);
-
-    /// <summary>A degraded start: not serving the database's latest config (see <see cref="Problem"/>).</summary>
-    public bool IsDegraded => Problem is not null;
-}
-
-/// <summary>Startup found nothing to serve: neither the database's latest revision nor the last-known-good config can
-/// be used (see <see cref="ConfigService.StartAsync"/>).</summary>
-public sealed class ConfigStartupException : Exception
-{
-    public ConfigStartupException()
-    {
-    }
-
-    public ConfigStartupException(string message)
-        : base(message)
-    {
-    }
-
-    public ConfigStartupException(string message, Exception innerException)
-        : base(message, innerException)
-    {
-    }
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Not republishing: {Reason} ({Detail}). Nothing was published; the next commit or start compiles with the current certificates.")]
+    private partial void LogRepublishSkipped(string reason, string detail);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Republishing after the startup certificate recovery failed.")]
+    private partial void LogRecoveryRepublishFailed(Exception exception);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Republishing after a certificate's validity changed failed.")]
+    private partial void LogValidityRepublishFailed(Exception exception);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "{Count} certificate warning(s) in the config that is going live: {Warnings}")]
+    private partial void LogCertificateWarnings(int count, string warnings);
+    [LoggerMessage(Level = LogLevel.Error, Message = "The certificate inventory can't be read; compiling with the built-in certificates only. Hosts keep their config but lose certificates the vault would have served.")]
+    private partial void LogInventoryUnreadable(Exception exception);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Restoring the last-known-good config into the empty database failed; the startup continues on the last-known-good file.")]
+    private partial void LogRestoreFailed(Exception exception);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Migrated the config database ({Count} migration(s): {Migrations}).")]
+    private partial void LogMigrated(int count, IReadOnlyList<string> migrations);
+    [LoggerMessage(Level = LogLevel.Error, Message = "The config database can't be used.")]
+    private partial void LogDatabaseFailed(Exception exception);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good file holds revision #{LastGoodSeq} ({LastGood}), newer than the database's latest (#{LatestSeq}): was the database replaced or restored? Serving the database's config, which is the source of truth; the file is replaced at the next publish.")]
+    private partial void LogLastKnownGoodAhead(long lastGoodSeq, ConfigRevisionId lastGood, long latestSeq);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good file is damaged and can't be a fallback: {Problem}. It is replaced at the next publish.")]
+    private partial void LogLastKnownGoodDamaged(string problem);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "UPGRADED: revision #{Seq} ({Revision}) was written from revision #{From}, with its {Lists} inline IP allow list(s) converted to access lists.")]
+    private partial void LogUpgraded(long seq, ConfigRevisionId revision, long from, int lists);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Revision #{Seq} ({Revision}) has inline IP allow lists, which this build reads as access lists, but the converted config wasn't stored: {Problem}. It is running as converted; the next change stores it.")]
+    private partial void LogUpgradeRefused(long seq, ConfigRevisionId revision, string problem);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Storing the access lists converted from revision #{Seq} ({Revision}) failed; it is running as converted, and the next change stores it.")]
+    private partial void LogUpgradeFailed(Exception exception, long seq, ConfigRevisionId revision);
+    [LoggerMessage(Level = LogLevel.Critical, Message = "RESTORED: the config database had no revisions; committed the {Source} config as revision #{Seq} ({Revision}).")]
+    private partial void LogRestored(long seq, ConfigRevisionId revision, string source);
+    [LoggerMessage(Level = LogLevel.Critical, Message = "DEGRADED: serving the last-known-good config (revision #{Seq}, {Revision}) because {Problem}. Config changes are refused until the database is fixed or restored and Paduraksa restarted.")]
+    private partial void LogDegraded(long seq, ConfigRevisionId revision, string problem);
+    [LoggerMessage(Level = LogLevel.Critical, Message = "DEGRADED: serving the last-known-good config (revision #{Seq}, {Revision}) because {Problem}. Config changes are accepted; the first one that goes live ends the degraded state.")]
+    private partial void LogDegradedAcceptingCommands(long seq, ConfigRevisionId revision, string problem);
+    [LoggerMessage(Level = LogLevel.Critical, Message = "DEGRADED: serving the empty config because {Problem}. Config changes are accepted; the first one that goes live ends the degraded state.")]
+    private partial void LogDegradedOnEmpty(string problem);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Can't fall back on the last-known-good config (revision #{Seq}, {Revision}) either: it doesn't compile ({Errors}).")]
+    private partial void LogLastKnownGoodUnusableAfterFailure(long seq, ConfigRevisionId revision, string errors);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Published the startup snapshot (revision {Revision}, generation {Generation}).")]
+    private partial void LogStartupPublished(string revision, long generation);
+    [LoggerMessage(Level = LogLevel.Information, Message = "The startup snapshot (revision {Revision}) was superseded by a newer commit's before it went live.")]
+    private partial void LogStartupPublishSuperseded(string revision);
+    [LoggerMessage(Level = LogLevel.Critical, Message = "Publishing the startup snapshot (revision {Revision}) failed ({Status}): {Errors}")]
+    private partial void LogStartupPublishFailed(string revision, PublishStatus status, IReadOnlyList<string> errors);
 }

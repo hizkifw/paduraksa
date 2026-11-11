@@ -242,7 +242,7 @@ public sealed partial class RequestSimulator : IDisposable
                 Errors: [new ConfigError(string.Empty, SimulationErrorCodes.StoreUnreadable, $"The config store is unavailable: {unusable.Problem ?? "the process started degraded"}.")]));
         }
 
-        if (await _config.ReadRevisionAsync(id, cancellationToken).ConfigureAwait(false) is not { } stored)
+        if (await _config.Drafts.ReadRevisionAsync(id, cancellationToken).ConfigureAwait(false) is not { } stored)
         {
             return new Resolved(new SimulationResult(SimulationStatus.RevisionNotFound, source));
         }
@@ -256,7 +256,7 @@ public sealed partial class RequestSimulator : IDisposable
                 Errors: [stored.Problem ?? new ConfigError(string.Empty, SimulationErrorCodes.RevisionUnreadable, "The revision's document can't be read by this build.")]));
         }
 
-        var compiled = await _config.CompileForSimulationAsync(document, id, cancellationToken).ConfigureAwait(false);
+        var compiled = await _config.Drafts.CompileForSimulationAsync(document, id, cancellationToken).ConfigureAwait(false);
         var compilation = compiled.Compilation;
         List<string> notes = [$"Revision {stored.Revision}, compiled now against today's certificate inventory; it was not published."];
         if (compiled.InventoryUnreadable)
@@ -291,7 +291,7 @@ public sealed partial class RequestSimulator : IDisposable
     private async Task<Resolved> ResolveDraftAsync(ConfigCommand command, SimulationTargetKind kind, CommandOrigin origin, CancellationToken cancellationToken)
     {
         SimulationSource source = new(kind);
-        var plan = await _config.PlanDraftAsync(command, origin, cancellationToken).ConfigureAwait(false);
+        var plan = await _config.Drafts.PlanDraftAsync(command, origin, cancellationToken).ConfigureAwait(false);
         var result = plan.Result;
         switch (result.Status)
         {

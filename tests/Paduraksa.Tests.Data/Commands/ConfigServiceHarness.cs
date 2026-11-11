@@ -30,7 +30,7 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
     {
         Db = db;
         Publisher = new SnapshotPublisher(Store);
-        Service = new ConfigService(db.Factory, compiler ?? Compiler, Publisher, permissions ?? TestPermissions.AllowAll, TimeProvider.System, options: options);
+        Service = TestConfigServices.Create(db, Publisher, compiler ?? Compiler, permissions, options: options);
     }
 
     public TestConfigDatabase Db { get; }

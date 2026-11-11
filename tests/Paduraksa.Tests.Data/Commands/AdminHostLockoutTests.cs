@@ -282,7 +282,7 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
         await CreateAdminHostAsync();
         var admin = Assert.Single((await _h.CurrentAsync()).Hosts);
 
-        var draft = await _h.Service.PlanDraftAsync(
+        var draft = await _h.Service.Drafts.PlanDraftAsync(
             new DeleteHostCommand(admin.Id, admin.Version), Proxied, Ct);
 
         Assert.Equal(ConfigCommandStatus.DryRun, draft.Result.Status);

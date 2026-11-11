@@ -859,7 +859,7 @@ public sealed partial class AcmeIssuanceTests
         {
             using var store = new SnapshotStore();
             await using var publisher = new SnapshotPublisher(store);
-            using var first = new ConfigService(h.Config.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, h.Permissions, lastKnownGood: writer);
+            using var first = TestConfigServices.Create(h.Config.Db, publisher, permissions: h.Permissions, lastKnownGood: writer);
             await first.StartAsync(Ct);
             await first.StartupPublishFollowed;
         }
@@ -868,7 +868,7 @@ public sealed partial class AcmeIssuanceTests
         await using var lastGood = new LastKnownGoodFile(path);
         using var degradedStore = new SnapshotStore();
         await using var degradedPublisher = new SnapshotPublisher(degradedStore);
-        using var degraded = new ConfigService(h.Config.Db.Factory, new ConfigServiceHarness.FakeCompiler(), degradedPublisher, h.Permissions, lastKnownGood: lastGood);
+        using var degraded = TestConfigServices.Create(h.Config.Db, degradedPublisher, permissions: h.Permissions, lastKnownGood: lastGood);
         Assert.False((await degraded.StartAsync(Ct)).AcceptsCommands);
         using var clients = new AcmeClientProvider(h.Signer, null, null, () => h.Hook, h.Time);
         var issuance = new AcmeIssuanceService(

@@ -42,12 +42,12 @@ public static class ConfigServiceCollectionExtensions
             sp.GetRequiredService<SnapshotPublisher>(),
             sp.GetRequiredService<IPermissionEvaluator>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetService<ILoggerFactory>(),
+            sp.GetRequiredService<ILoggerFactory>(),
             sp.GetRequiredService<ConfigServiceOptions>(),
-            sp.GetService<LastKnownGoodFile>(),
-            sp.GetService<IServerCertificateSource>(),
+            sp.GetRequiredService<LastKnownGoodFile>(),
+            sp.GetRequiredService<IServerCertificateSource>(),
             sp.GetService<IBuiltInCertificates>(),
-            sp.GetService<ICertificateCatalog>()));
+            sp.GetRequiredService<ICertificateCatalog>()));
         services.TryAddSingleton(sp => new CertificateService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),

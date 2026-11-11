@@ -108,7 +108,7 @@ public sealed class IssuancePermissionTests
         {
             using var store = new SnapshotStore();
             await using var publisher = new SnapshotPublisher(store);
-            using var first = new ConfigService(h.Config.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, h.Permissions, lastKnownGood: writer);
+            using var first = TestConfigServices.Create(h.Config.Db, publisher, permissions: h.Permissions, lastKnownGood: writer);
             await first.StartAsync(Ct);
             await first.StartupPublishFollowed;
         }
@@ -117,7 +117,7 @@ public sealed class IssuancePermissionTests
         await using var lastGood = new LastKnownGoodFile(path);
         using var degradedStore = new SnapshotStore();
         await using var degradedPublisher = new SnapshotPublisher(degradedStore);
-        using var degraded = new ConfigService(h.Config.Db.Factory, new ConfigServiceHarness.FakeCompiler(), degradedPublisher, h.Permissions, lastKnownGood: lastGood);
+        using var degraded = TestConfigServices.Create(h.Config.Db, degradedPublisher, permissions: h.Permissions, lastKnownGood: lastGood);
         Assert.False((await degraded.StartAsync(Ct)).AcceptsCommands);
         var certificates = new CertificateService(
             h.Config.Db.Factory, degraded, h.Time, NullLogger<CertificateService>.Instance, new Evaluator(throws: true));

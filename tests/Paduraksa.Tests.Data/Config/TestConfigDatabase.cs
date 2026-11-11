@@ -16,6 +16,7 @@ internal sealed class TestConfigDatabase : IAsyncDisposable
 {
     private readonly string _directory = Directory.CreateTempSubdirectory("paduraksa-config-").FullName;
     private readonly ServiceProvider _services;
+    private readonly List<IAsyncDisposable> _owned = [];
 
     /// <param name="sqliteRetryWindow">
     /// Pins Microsoft.Data.Sqlite's own retry window (<c>Default Timeout</c>) instead of deriving it from
@@ -118,8 +119,21 @@ internal sealed class TestConfigDatabase : IAsyncDisposable
         return await command.ExecuteNonQueryAsync(Ct);
     }
 
+    /// <summary>Disposes <paramref name="owned"/> with the database, before its directory goes (a last-known-good file may still be writing).</summary>
+    public T Own<T>(T owned)
+        where T : IAsyncDisposable
+    {
+        _owned.Add(owned);
+        return owned;
+    }
+
     public async ValueTask DisposeAsync()
     {
+        foreach (var owned in _owned)
+        {
+            await owned.DisposeAsync();
+        }
+
         await _services.DisposeAsync();
         // Pooled connections keep the file open. Clear only this database's pool: ClearAllPools would also close
         // connections that tests running in parallel rely on (SqliteSetupTests checks physical-connection reuse).

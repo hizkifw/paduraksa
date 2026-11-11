@@ -609,7 +609,7 @@ public sealed partial class AcmeIssuanceService
                 await context.SaveChangesAsync(token).ConfigureAwait(false);
                 var audit = IssuanceMapping.Entry(origin, "acme.order.failed", stored.Id, AuditOutcome.Failed) with
                 {
-                    Details = IssuanceMapping.Json(w =>
+                    Details = AuditDetails.Json(w =>
                     {
                         w.WriteString("certificate", row.CertificateId.ToString());
                         w.WriteString("kind", kind.ToString());

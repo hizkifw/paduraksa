@@ -183,21 +183,8 @@ internal sealed partial class IdentityAudit(TimeProvider time, ILoggerFactory lo
         {
             Target = target,
             ClientIp = origin.ClientIp,
-            Details = details is null ? null : Json(details),
+            Details = details is null ? null : AuditDetails.Json(details),
         };
-
-    public static string Json(Action<Utf8JsonWriter> write)
-    {
-        using MemoryStream buffer = new();
-        using (Utf8JsonWriter writer = new(buffer))
-        {
-            writer.WriteStartObject();
-            write(writer);
-            writer.WriteEndObject();
-        }
-
-        return Encoding.UTF8.GetString(buffer.ToArray());
-    }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't write the audit event {Action} ({Outcome}); the outcome stands.")]
     private partial void LogAuditFailed(Exception exception, string action, AuditOutcome outcome);

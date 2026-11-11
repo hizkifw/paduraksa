@@ -123,7 +123,7 @@ public sealed partial class AcmeAccountService
                     await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
                     var audit = IssuanceMapping.Entry(origin, "acme.account.create", id, AuditOutcome.Success) with
                     {
-                        Details = IssuanceMapping.Json(w =>
+                        Details = AuditDetails.Json(w =>
                         {
                             w.WriteString("directory", row.DirectoryUrl);
                             w.WriteString("algorithm", row.KeyAlgorithm.ToName());

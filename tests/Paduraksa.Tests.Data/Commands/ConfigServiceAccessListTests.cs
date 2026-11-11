@@ -203,7 +203,7 @@ public sealed class ConfigServiceAccessListTests : IAsyncLifetime
         // The stored config is the new shape now, so the next start finds nothing to convert.
         using Paduraksa.Proxy.Snapshot.SnapshotStore store = new();
         await using Paduraksa.Proxy.Yarp.SnapshotPublisher publisher = new(store);
-        using ConfigService restarted = new(_h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, TestPermissions.AllowAll);
+        using var restarted = TestConfigServices.Create(_h.Db, publisher);
         await restarted.StartAsync(Ct);
         Assert.Equal(2, (await _h.RevisionsAsync()).Count);
     }

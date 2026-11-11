@@ -566,7 +566,7 @@ public sealed partial class AcmeIssuanceService
                 await context.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
                 var audit = IssuanceMapping.Entry(attempt.Origin, "acme.order.issued", stored.Id, AuditOutcome.Success) with
                 {
-                    Details = IssuanceMapping.Json(w =>
+                    Details = AuditDetails.Json(w =>
                     {
                         w.WriteString("certificate", row.CertificateId.ToString());
                         w.WriteString("fingerprint", info.Sha256Fingerprint);

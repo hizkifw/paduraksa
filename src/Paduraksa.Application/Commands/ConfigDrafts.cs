@@ -1,4 +1,6 @@
 using System.Text.Json;
+
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Certificates;
@@ -14,14 +16,30 @@ using Paduraksa.Proxy.Snapshot;
 namespace Paduraksa.Application.Commands;
 
 /// <summary>
-/// What the request simulator needs from the config service: configs to compile without publishing them.
-/// None of it takes the writer's lock, audits, stores or publishes anything, and none of it asks the vault for a key
+/// What the request simulator needs from the config writer: configs to compile without publishing them. None of it takes the
+/// writer's lock, audits, stores or publishes anything, and none of it asks the vault for a key
 /// (<see cref="SimulationCertificateSource"/>).
 /// </summary>
-public sealed partial class ConfigService
+internal sealed partial class ConfigDrafts
 {
-    /// <summary>Error code of a stored revision that fails its integrity check.</summary>
-    internal const string CorruptRevisionCode = "revision.corrupt";
+    private readonly IDbContextFactory<ConfigDbContext> _contexts;
+    private readonly IConfigCompiler _compiler;
+    private readonly CertificateInventoryLoader _simulationCertificates;
+    private readonly ConfigPipeline _pipeline;
+    private readonly ConfigPublishing _publishing;
+    private readonly ILogger _logger;
+
+    public ConfigDrafts(
+        IDbContextFactory<ConfigDbContext> contexts, IConfigCompiler compiler, CertificateInventoryLoader simulationCertificates,
+        ConfigPipeline pipeline, ConfigPublishing publishing, ILoggerFactory loggerFactory)
+    {
+        _contexts = contexts;
+        _compiler = compiler;
+        _simulationCertificates = simulationCertificates;
+        _pipeline = pipeline;
+        _publishing = publishing;
+        _logger = loggerFactory.CreateLogger<ConfigDrafts>();
+    }
 
     /// <summary>
     /// A stored revision's document, or null when there is no such revision. A document this build can't read is
@@ -29,7 +47,7 @@ public sealed partial class ConfigService
     /// </summary>
     internal async Task<StoredDocument?> ReadRevisionAsync(ConfigRevisionId id, CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_publishing.IsDisposed, nameof(ConfigService));
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
@@ -46,7 +64,7 @@ public sealed partial class ConfigService
                     null,
                     new ConfigError(
                         string.Empty,
-                        CorruptRevisionCode,
+                        ConfigService.CorruptRevisionCode,
                         "The revision fails its integrity check, so it can't be read. The details are in the server log under this response's trace ID."));
             }
 
@@ -55,7 +73,7 @@ public sealed partial class ConfigService
                 return null;
             }
 
-            var revision = Ref(stored.Info);
+            var revision = ConfigHead.Ref(stored.Info);
             return CanonicalConfigJson.TryDeserialize(stored.Document.Span, out var document, out var error)
                 ? new StoredDocument(revision, CanonicalConfigJson.Canonicalize(document), null)
                 : new StoredDocument(revision, null, error);
@@ -69,7 +87,7 @@ public sealed partial class ConfigService
     internal async Task<SimulationCompilation> CompileForSimulationAsync(ConfigDocument document, ConfigRevisionId revision, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(document);
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_publishing.IsDisposed, nameof(ConfigService));
         var degraded = false;
         CertificateInventory inventory;
         try
@@ -103,15 +121,15 @@ public sealed partial class ConfigService
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(origin);
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        ObjectDisposedException.ThrowIf(_publishing.IsDisposed, nameof(ConfigService));
 
         var dryRun = command with { DryRun = true };
 
         // Status is read without the writer's lock: planning writes nothing, so a start that finishes while this runs only
         // means the draft is planned against the store as it becomes usable, and a store that turns unusable fails below.
-        if (Status is { AcceptsCommands: false } unusable)
+        if (_publishing.Status is { AcceptsCommands: false } unusable)
         {
-            return new DraftPlan(Unavailable(dryRun, unusable), null);
+            return new DraftPlan(_publishing.Unavailable(dryRun, unusable), null);
         }
 
         // What reading checks and a hand-built payload skips: a null element would be a NullReferenceException in the diff.
@@ -121,16 +139,15 @@ public sealed partial class ConfigService
         }
 
         var message = string.IsNullOrWhiteSpace(dryRun.Message) ? null : dryRun.Message.Trim();
-        if (MessageProblem(message) is { } problem)
+        if (ConfigCommandPlanner.MessageProblem(message) is { } problem)
         {
-            return new DraftPlan(new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [new ConfigError(string.Empty, MessageInvalidCode, problem)]), null);
+            return new DraftPlan(new ConfigCommandResult(ConfigCommandStatus.Invalid, Errors: [new ConfigError(string.Empty, ConfigService.MessageInvalidCode, problem)]), null);
         }
 
-        // A dry run never commits, so the head can't move under it (that is a commit's retry): one attempt.
         try
         {
-            var execution = await AttemptAsync(dryRun, origin, Describe(dryRun), message, cancellationToken, simulation: true).ConfigureAwait(false);
-            return new DraftPlan(execution!.Value.Result, execution.Value.Candidate);
+            var execution = await _pipeline.AttemptAsync(dryRun, origin, ConfigCommandPlanner.Describe(dryRun), message, cancellationToken, simulation: true).ConfigureAwait(false);
+            return new DraftPlan(execution.Result, execution.Candidate);
         }
         catch (Exception ex) when (ex is RevisionIntegrityException or JsonException)
         {
@@ -144,23 +161,11 @@ public sealed partial class ConfigService
                     [
                         new ConfigError(
                             string.Empty,
-                            CorruptRevisionCode,
+                            ConfigService.CorruptRevisionCode,
                             "The latest config revision can't be read. The details are in the server log under this response's trace ID."),
                     ]),
                 null);
         }
-    }
-
-    /// <summary>A draft that changes nothing, compiled as the head its attempt planned on.</summary>
-    private async Task<Execution> UnchangedCandidateAsync(ConfigDbContext context, ConfigDocument current, StoredRevision? latest, CancellationToken cancellationToken)
-    {
-        var inventory = await _simulationCertificates.LoadAsync(context, current, cancellationToken).ConfigureAwait(false);
-        var compilation = _compiler.Compile(current, latest?.Info.Id ?? ConfigRevisionId.Empty, inventory, publish: false);
-        return compilation.Snapshot is { } snapshot
-            ? new Execution(new ConfigCommandResult(ConfigCommandStatus.Unchanged, Warnings: compilation.Warnings), Candidate: snapshot)
-            : new Execution(new ConfigCommandResult(
-                ConfigCommandStatus.Invalid,
-                Errors: compilation.Errors.Count > 0 ? compilation.Errors : [new ConfigError(string.Empty, ConfigErrorCodes.CompileFailed, "the config didn't compile")]));
     }
 
     /// <summary>The checks reading applies, for the document or object a command carries; null: it passes.</summary>
@@ -202,4 +207,7 @@ public sealed partial class ConfigService
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The latest config revision can't be read; a draft can't be planned on it.")]
     private partial void LogLatestRevisionCorrupt(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The certificate inventory can't be read; compiling with the built-in certificates only. Hosts keep their config but lose certificates the vault would have served.")]
+    private partial void LogInventoryUnreadable(Exception exception);
 }

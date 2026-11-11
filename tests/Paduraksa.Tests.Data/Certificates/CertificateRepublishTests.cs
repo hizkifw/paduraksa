@@ -201,7 +201,7 @@ public sealed class CertificateRepublishTests
                     : null;
             }
 
-            Service = new ConfigService(h.Db.Factory, compiler, _publisher, TestPermissions.AllowAll, lastKnownGood: LastGood);
+            Service = TestConfigServices.Create(h.Db, _publisher, compiler: compiler, lastKnownGood: LastGood);
             Certificates = new CertificateService(h.Db.Factory, Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll);
         }
 
@@ -237,8 +237,8 @@ public sealed class CertificateRepublishTests
             Time = new ManualTimeProvider(Start);
             Store = new SnapshotStore();
             _publisher = new SnapshotPublisher(Store);
-            Service = new ConfigService(
-                db.Factory, new ConfigCompiler(SnapshotCompilerOptions.Default), _publisher, TestPermissions.AllowAll, Time, certificateSource: new Source(_contexts));
+            Service = TestConfigServices.Create(
+                db, _publisher, new ConfigCompiler(SnapshotCompilerOptions.Default), time: Time, certificateSource: new Source(_contexts));
             Certificates = new CertificateService(db.Factory, Service, Time, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll);
         }
 
