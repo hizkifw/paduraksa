@@ -468,6 +468,43 @@ public sealed class ProxyConfigMappingTests
             w => w.Code == ConfigWarningCodes.ProofOfWorkInsecureCookie);
     }
 
+    [Fact]
+    public void CloudflareSettingsReachTheHostAndWarnWhereTheyCanEnforceNothing()
+    {
+        HostSettings locked = new() { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true } };
+        static GlobalSettings Mode(TrustedProxyMode mode, HostSettings? defaults = null) =>
+            new(Defaults: defaults, TrustedProxies: new TrustedProxySettings(mode, mode == TrustedProxyMode.CloudflareTunnel ? ["127.0.0.1"] : []));
+
+        // Inherited from the defaults, carried by the host.
+        var document = Document(null, null, null);
+        var mapped = ProxyConfigMapping.Map(document with { Settings = Mode(TrustedProxyMode.CloudflareProxy, locked) }, Revision, CertificateInventory.Empty);
+        var host = Assert.Single(mapped.Model.Hosts);
+        Assert.Equal(new HostCloudflareSpec { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true }, host.Cloudflare);
+        Assert.DoesNotContain(mapped.Warnings, w => w.Code.StartsWith("cloudflare.", StringComparison.Ordinal));
+
+        // The same settings under a mode that never trusts Cloudflare enforce nothing, and the host says so.
+        foreach (var mode in new[] { TrustedProxyMode.Off, TrustedProxyMode.Generic })
+        {
+            var inert = ProxyConfigMapping.Map(document with { Settings = Mode(mode, locked) }, Revision, CertificateInventory.Empty);
+            var warning = Assert.Single(inert.Warnings, w => w.Code == ConfigWarningCodes.CloudflareNeedsMode);
+            Assert.Equal(CompileErrorSource.Host(AppHost), warning.Source);
+            Assert.Equal("/settings/cloudflare", warning.Member);
+        }
+
+        // Nothing set, nothing said.
+        Assert.DoesNotContain(
+            ProxyConfigMapping.Map(document with { Settings = Mode(TrustedProxyMode.Off) }, Revision, CertificateInventory.Empty).Warnings,
+            w => w.Code.StartsWith("cloudflare.", StringComparison.Ordinal));
+
+        // Authenticated Origin Pulls on a host with no HTTPS can only ever refuse.
+        var plain = document with
+        {
+            Settings = Mode(TrustedProxyMode.CloudflareTunnel, locked),
+            Hosts = [document.Hosts[0] with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } }],
+        };
+        Assert.Contains(ProxyConfigMapping.Map(plain, Revision, CertificateInventory.Empty).Warnings, w => w.Code == ConfigWarningCodes.CloudflareAopNeedsHttps);
+    }
+
     // One proxy host with two equally specific routes ("/a" and "/b") under a profile-less, default-less document,
     // so their listed order is the evaluation order and each index is the route the caller passed.
     private static HostSpec MapOnlyHost(HostSettings? host, RouteSettings first, RouteSettings second)

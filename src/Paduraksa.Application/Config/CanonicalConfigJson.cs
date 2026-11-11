@@ -373,6 +373,7 @@ public static class CanonicalConfigJson
             ProofOfWork = DropIfNothingSet(settings.ProofOfWork),
             RateLimit = DropIfNothingSet(settings.RateLimit),
             Robots = DropIfNothingSet(settings.Robots),
+            Cloudflare = DropIfNothingSet(settings.Cloudflare),
         };
     }
 

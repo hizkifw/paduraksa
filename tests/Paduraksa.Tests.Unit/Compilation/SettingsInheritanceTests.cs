@@ -196,6 +196,22 @@ public sealed class SettingsInheritanceTests
             BuiltIn: null,
             First: "User-agent: *\nDisallow: /",
             Second: "User-agent: *\nAllow: /\n"),
+        new(
+            "cloudflare.originLockdown",
+            static s => s.Cloudflare?.OriginLockdown?.ToString(),
+            static v => new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = Enum.Parse<OriginLockdownMode>(v) } },
+            static h => h.Cloudflare.OriginLockdown.ToString(),
+            BuiltIn: "Off",
+            First: "Forbid",
+            Second: "Drop"),
+        new(
+            "cloudflare.authenticatedOriginPulls",
+            static s => s.Cloudflare?.AuthenticatedOriginPulls?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { Cloudflare = new CloudflareSettings { AuthenticatedOriginPulls = bool.Parse(v) } },
+            static h => h.Cloudflare.AuthenticatedOriginPulls ? "true" : "false",
+            BuiltIn: "false",
+            First: "true",
+            Second: "false"),
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
@@ -427,6 +443,7 @@ public sealed class SettingsInheritanceTests
         new("proofOfWork", Defaults: ["proofOfWork.enabled"], Profile: ["proofOfWork.difficulty"], Host: ["proofOfWork.tokenLifetimeHours"]),
         new("rateLimit", Defaults: ["rateLimit.enabled"], Profile: [], Host: ["rateLimit.policyId"]),
         new("robots", Defaults: ["robots.customText"], Profile: ["robots.mode"], Host: []),
+        new("cloudflare", Defaults: ["cloudflare.originLockdown"], Profile: [], Host: ["cloudflare.authenticatedOriginPulls"]),
     ];
 
     /// <summary>

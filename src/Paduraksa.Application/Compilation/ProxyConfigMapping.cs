@@ -70,7 +70,7 @@ public static class ProxyConfigMapping
         {
             var host = canonical.Hosts[i];
             var profile = host.ProfileId is { } id ? profiles.GetValueOrDefault(id) : null;
-            hosts[i] = MapHost(host, HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings), inventory, errors, warnings);
+            hosts[i] = MapHost(host, HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings), settings.TrustedProxies.Mode, inventory, errors, warnings);
         }
 
         ProxyConfigModel model = new()
@@ -200,7 +200,7 @@ public static class ProxyConfigMapping
         inventory.TryGet(id, out var entry) ? entry.UnusableReason ?? "it isn't loaded" : "the inventory has no such certificate";
 
     private static HostSpec MapHost(
-        HostConfig host, EffectiveHostSettings effective, CertificateInventory inventory, List<CompileError> errors, List<MappedWarning> warnings)
+        HostConfig host, EffectiveHostSettings effective, TrustedProxyMode proxyMode, CertificateInventory inventory, List<CompileError> errors, List<MappedWarning> warnings)
     {
         var where = CompileErrorSource.Host(host.Id);
         if (host.Kind == HostKind.Admin && host.Settings.ForceHttps is false)
@@ -211,6 +211,8 @@ public static class ProxyConfigMapping
                 ConfigWarningCodes.AdminForceHttpsIgnored,
                 "an admin host is always served over HTTPS and redirects plain HTTP; forceHttps: false is ignored"));
         }
+
+        AddCloudflareWarnings(host, effective.Cloudflare, proxyMode, where, warnings);
 
         IpAllowListSettings?[] routeLists = [.. host.Routes.Select(r => HostSettingsLayers.ResolveRoute(effective, r.Settings))];
         var uniform = routeLists.All(list => HostSettingsLayers.SameRestriction(list, routeLists[0]));
@@ -287,6 +289,7 @@ public static class ProxyConfigMapping
             ProofOfWork = effective.ProofOfWork,
             RateLimit = effective.RateLimit,
             Robots = effective.Robots,
+            Cloudflare = effective.Cloudflare,
             Routes = routes,
             Policies = hostChain,
             Redirect = host.Redirect is { } redirect
@@ -294,6 +297,37 @@ public static class ProxyConfigMapping
                 : null,
             Respond = respond,
         };
+    }
+
+    /// <summary>The two Cloudflare settings that look set but enforce nothing, or can only refuse: said at the host that
+    /// would carry them, wherever the layer that set them is.</summary>
+    private static void AddCloudflareWarnings(
+        HostConfig host, HostCloudflareSpec cloudflare, TrustedProxyMode proxyMode, CompileErrorSource where, List<MappedWarning> warnings)
+    {
+        var lockdown = cloudflare.OriginLockdown != OriginLockdownMode.Off;
+        if (!host.Enabled || !(lockdown || cloudflare.AuthenticatedOriginPulls))
+        {
+            return;
+        }
+
+        if (proxyMode is not (TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel))
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/cloudflare",
+                ConfigWarningCodes.CloudflareNeedsMode,
+                "origin lockdown and Authenticated Origin Pulls do nothing while the trusted-proxy mode is neither Cloudflare proxy nor Cloudflare Tunnel"));
+            return;
+        }
+
+        if (cloudflare.AuthenticatedOriginPulls && host.Certificate.Mode == CertificateBindingMode.None)
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/cloudflare/authenticatedOriginPulls",
+                ConfigWarningCodes.CloudflareAopNeedsHttps,
+                "Authenticated Origin Pulls needs a certificate: without HTTPS the host can't see Cloudflare's client certificate, so it refuses every request"));
+        }
     }
 
     /// <summary>The union of route lists, or null when one of them restricts nothing. Denied requests are dropped only

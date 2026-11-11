@@ -399,6 +399,39 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void ANullCloudflareLayerAddsNoKeyAndItsValuesChangeTheHash()
+    {
+        ConfigDocument without = new(Hosts: [new HostConfig(AppHost, ["app.example.com"], Settings: new HostSettings { ForceHttps = true })]);
+        Assert.DoesNotContain("cloudflare", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(without)), StringComparison.OrdinalIgnoreCase);
+
+        var emptyLayer = without with
+        {
+            Hosts = [without.Hosts[0] with { Settings = new HostSettings { ForceHttps = true, Cloudflare = new CloudflareSettings() } }],
+        };
+        Assert.Equal(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(emptyLayer));
+
+        var locked = without with
+        {
+            Hosts =
+            [
+                without.Hosts[0] with
+                {
+                    Settings = new HostSettings
+                    {
+                        ForceHttps = true,
+                        Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Drop, AuthenticatedOriginPulls = true },
+                    },
+                },
+            ],
+        };
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(locked));
+
+        Assert.Contains("\"cloudflare\":{\"originLockdown\":\"drop\",\"authenticatedOriginPulls\":true}", json, StringComparison.Ordinal);
+        Assert.NotEqual(CanonicalConfigJson.Serialize(without), CanonicalConfigJson.Serialize(locked));
+        Assert.Equal(CanonicalConfigJson.Serialize(locked), CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(CanonicalConfigJson.Serialize(locked))));
+    }
+
+    [Fact]
     public void NormalisesSetsAndBlankValues()
     {
         ConfigDocument document = new(

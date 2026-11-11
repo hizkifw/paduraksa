@@ -45,6 +45,7 @@ namespace Paduraksa.Contracts.Config;
         typeof(ConfigEnumConverter<RateLimitPeriod>),
         typeof(ConfigEnumConverter<RateLimitKey>),
         typeof(ConfigEnumConverter<RobotsMode>),
+        typeof(ConfigEnumConverter<OriginLockdownMode>),
     ])]
 [JsonSerializable(typeof(ConfigDocument))]
 [JsonSerializable(typeof(RateLimitPolicyConfig))]

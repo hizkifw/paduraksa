@@ -34,6 +34,7 @@ public sealed class SharedEnumWireTests
         Assert.Equal(
             [
                 typeof(HostKind),
+                typeof(OriginLockdownMode),
                 typeof(RateLimitKey),
                 typeof(RateLimitPeriod),
                 typeof(RequestIdPropagation),
@@ -95,6 +96,7 @@ public sealed class SharedEnumWireTests
             "\"tcpAlpn\":\"http11Only\"",
             "\"mode\":\"upstream\"",
             "\"robots\":{\"mode\":\"blockAiCrawlers\"",
+            "\"cloudflare\":{\"originLockdown\":\"forbid\"",
             "\"requestIdPropagation\":\"responseOnly\"",
             "\"trust\":\"any\"",
             "\"per\":\"hour\"",
@@ -116,6 +118,7 @@ public sealed class SharedEnumWireTests
                 RequestIdPropagation = RequestIdPropagation.ResponseOnly,
                 ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Upstream },
                 Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers },
+                Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid },
             },
             UnknownHost: UnknownHostBehaviour.Close,
             TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareTunnel, ["10.0.0.0/8"])),

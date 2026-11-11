@@ -7,7 +7,7 @@ namespace Paduraksa.Contracts.Config;
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
 /// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>,
-/// <see cref="Robots"/>) merge field by field; list-valued settings
+/// <see cref="Robots"/>, <see cref="Cloudflare"/>) merge field by field; list-valued settings
 /// (<see cref="IpAllowList"/>) replace as a whole.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
@@ -49,6 +49,9 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below. Built-in default: pass through to the upstream.</summary>
     public RobotsSettings? Robots { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: no lockdown, no Authenticated Origin Pulls.</summary>
+    public CloudflareSettings? Cloudflare { get; init; }
 }
 
 /// <summary>
@@ -215,4 +218,29 @@ public sealed record RobotsSettings : ISettingsLayer
 
     [JsonIgnore]
     public bool SetsNothing => Mode is null && CustomText is null;
+}
+
+/// <summary>
+/// Keeping the host reachable through Cloudflare only. Both fields do nothing unless the global trusted-proxy mode is
+/// <c>CloudflareProxy</c> or <c>CloudflareTunnel</c> (the config warns when they are set without it). Each field inherits on
+/// its own.
+/// </summary>
+public sealed record CloudflareSettings : ISettingsLayer
+{
+    /// <summary>
+    /// Refuse a request whose connection peer isn't Cloudflare's edge (<c>CloudflareProxy</c>) or the configured
+    /// <c>cloudflared</c> address (<c>CloudflareTunnel</c>), before anything else the host does. Built-in default: off. When
+    /// every host in the config has it on, such a peer is dropped before the TLS handshake whichever mode is chosen.
+    /// </summary>
+    public OriginLockdownMode? OriginLockdown { get; init; }
+
+    /// <summary>
+    /// Require Cloudflare's client certificate (Authenticated Origin Pulls) on the TLS handshake, checked against
+    /// Cloudflare's origin-pull CA. Built-in default: off. Cloudflare doesn't connect to origins over HTTP/3, so a host with
+    /// this on is not served over it, and it needs the setting turned on in the zone's Cloudflare dashboard too.
+    /// </summary>
+    public bool? AuthenticatedOriginPulls { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => OriginLockdown is null && AuthenticatedOriginPulls is null;
 }

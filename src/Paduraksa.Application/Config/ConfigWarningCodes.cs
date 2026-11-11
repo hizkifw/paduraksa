@@ -31,4 +31,12 @@ public static class ConfigWarningCodes
     /// <summary>The proof-of-work gate is on for a host that also answers plain HTTP without forcing HTTPS, where its
     /// cookie cannot be marked <c>Secure</c>.</summary>
     public const string ProofOfWorkInsecureCookie = "proofOfWork.insecureCookie";
+
+    /// <summary>A host sets origin lockdown or Authenticated Origin Pulls while the trusted-proxy mode is neither
+    /// <c>CloudflareProxy</c> nor <c>CloudflareTunnel</c>: nothing is enforced.</summary>
+    public const string CloudflareNeedsMode = "cloudflare.needsMode";
+
+    /// <summary>A host requires Authenticated Origin Pulls but isn't served over HTTPS, so it can never present the
+    /// certificate and every request is refused.</summary>
+    public const string CloudflareAopNeedsHttps = "cloudflare.aop.needsHttps";
 }

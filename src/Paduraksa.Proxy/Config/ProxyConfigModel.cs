@@ -170,6 +170,20 @@ public sealed record HostRobotsSpec
     public string? CustomText { get; init; }
 }
 
+/// <summary>
+/// Keeping a host reachable through Cloudflare only, resolved across the layers. Both fields need the global trusted-proxy
+/// mode to be a Cloudflare one to have an effect (the compiler ignores them otherwise).
+/// </summary>
+public sealed record HostCloudflareSpec
+{
+    /// <summary>No lockdown, no Authenticated Origin Pulls.</summary>
+    public static HostCloudflareSpec Off { get; } = new();
+
+    public OriginLockdownMode OriginLockdown { get; init; } = OriginLockdownMode.Off;
+
+    public bool AuthenticatedOriginPulls { get; init; }
+}
+
 /// <summary>The rate-limit settings resolved across the layers; a route may override the switch and the policy.</summary>
 public sealed record HostRateLimitSpec
 {
@@ -265,6 +279,9 @@ public sealed record HostSpec
 
     /// <summary>What the host answers at <c>/robots.txt</c>.</summary>
     public HostRobotsSpec Robots { get; init; } = HostRobotsSpec.Passthrough;
+
+    /// <summary>Origin lockdown and Authenticated Origin Pulls; inert unless the trusted-proxy mode is a Cloudflare one.</summary>
+    public HostCloudflareSpec Cloudflare { get; init; } = HostCloudflareSpec.Off;
 
     /// <summary>Proxy hosts only; listed in the order the host evaluates them: exact first, then the longest prefix,
     /// then <see cref="RouteSpec.Order"/>, then as listed.</summary>

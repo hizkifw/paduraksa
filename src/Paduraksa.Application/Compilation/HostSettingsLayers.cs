@@ -18,7 +18,7 @@ namespace Paduraksa.Application.Compilation;
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>,
-/// <see cref="HostSettings.Robots"/>) merge field by field and stay absent when neither layer sets a field of
+/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>) merge field by field and stay absent when neither layer sets a field of
 /// theirs. The IP allow list replaces as a whole, and an empty one means no restriction (that is how a layer lifts an
 /// inherited list). Everything else is a plain override.</para>
 /// </remarks>
@@ -42,6 +42,8 @@ public static class HostSettingsLayers
     private const int BuiltInProofOfWorkTokenLifetimeHours = ProofOfWorkLimits.DefaultTokenLifetimeHours;
     private const bool BuiltInRateLimitEnabled = true;
     private const RobotsMode BuiltInRobotsMode = RobotsMode.Passthrough;
+    private const OriginLockdownMode BuiltInOriginLockdown = OriginLockdownMode.Off;
+    private const bool BuiltInAuthenticatedOriginPulls = false;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -61,6 +63,7 @@ public static class HostSettingsLayers
         },
         RateLimit = new RateLimitSettings { Enabled = BuiltInRateLimitEnabled },
         Robots = new RobotsSettings { Mode = BuiltInRobotsMode },
+        Cloudflare = new CloudflareSettings { OriginLockdown = BuiltInOriginLockdown, AuthenticatedOriginPulls = BuiltInAuthenticatedOriginPulls },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -88,6 +91,7 @@ public static class HostSettingsLayers
             ProofOfWork = Merge(lower.ProofOfWork, upper.ProofOfWork),
             RateLimit = Merge(lower.RateLimit, upper.RateLimit),
             Robots = Merge(lower.Robots, upper.Robots),
+            Cloudflare = Merge(lower.Cloudflare, upper.Cloudflare),
         };
     }
 
@@ -213,6 +217,24 @@ public static class HostSettingsLayers
         return merged is { Mode: null, CustomText: null } ? null : merged;
     }
 
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static CloudflareSettings? Merge(CloudflareSettings? lower, CloudflareSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        CloudflareSettings merged = new()
+        {
+            OriginLockdown = upper.OriginLockdown ?? lower?.OriginLockdown,
+            AuthenticatedOriginPulls = upper.AuthenticatedOriginPulls ?? lower?.AuthenticatedOriginPulls,
+        };
+
+        return merged is { OriginLockdown: null, AuthenticatedOriginPulls: null } ? null : merged;
+    }
+
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
     /// host); null layers are skipped, and the built-in defaults sit underneath them all.</summary>
     internal static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers) => Concrete(MergeAll(layers));
@@ -301,6 +323,7 @@ public static class HostSettingsLayers
         var proofOfWork = settings.ProofOfWork ?? new ProofOfWorkSettings();
         var rateLimit = settings.RateLimit ?? new RateLimitSettings();
         var robots = settings.Robots ?? new RobotsSettings();
+        var cloudflare = settings.Cloudflare ?? new CloudflareSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -344,6 +367,11 @@ public static class HostSettingsLayers
 
                 // No built-in text: only the Custom mode serves one, and the validator requires it there.
                 CustomText = robots.CustomText,
+            },
+            new HostCloudflareSpec
+            {
+                OriginLockdown = cloudflare.OriginLockdown ?? BuiltInOriginLockdown,
+                AuthenticatedOriginPulls = cloudflare.AuthenticatedOriginPulls ?? BuiltInAuthenticatedOriginPulls,
             });
     }
 
@@ -376,6 +404,7 @@ public enum SettingsLayer
 /// <param name="ProofOfWork">Concrete proof-of-work settings.</param>
 /// <param name="RateLimit">The policy in force, with the switch as it resolved.</param>
 /// <param name="Robots">What the host answers at <c>/robots.txt</c>.</param>
+/// <param name="Cloudflare">Origin lockdown and Authenticated Origin Pulls.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -386,4 +415,5 @@ internal sealed record EffectiveHostSettings(
     HostServerHeaderSpec ServerHeader,
     HostProofOfWorkSpec ProofOfWork,
     HostRateLimitSpec RateLimit,
-    HostRobotsSpec Robots);
+    HostRobotsSpec Robots,
+    HostCloudflareSpec Cloudflare);
