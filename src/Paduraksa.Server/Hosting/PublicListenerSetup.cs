@@ -1,3 +1,5 @@
+using System.Security.Cryptography.X509Certificates;
+
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
@@ -16,7 +18,14 @@ namespace Paduraksa.Server.Hosting;
 /// </summary>
 internal sealed class PublicListenerSetup
 {
-    public PublicListenerSetup(PaduraksaListenOptions listen, SnapshotStore snapshots, bool adminInternal, ProofOfWorkRuntime? proofOfWork = null, RateLimitRuntime? rateLimits = null)
+    public PublicListenerSetup(
+        PaduraksaListenOptions listen,
+        SnapshotStore snapshots,
+        bool adminInternal,
+        ProofOfWorkRuntime? proofOfWork = null,
+        RateLimitRuntime? rateLimits = null,
+        CloudflareEdgeRangeSource? edgeRanges = null,
+        X509Certificate2Collection? originPullCa = null)
     {
         ArgumentNullException.ThrowIfNull(listen);
         ArgumentNullException.ThrowIfNull(snapshots);
@@ -33,6 +42,8 @@ internal sealed class PublicListenerSetup
             AdminUpstream = adminInternal,
             ProofOfWork = proofOfWork,
             RateLimits = rateLimits,
+            CloudflareRanges = edgeRanges,
+            OriginPullCa = originPullCa,
         };
     }
 

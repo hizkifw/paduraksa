@@ -51,8 +51,9 @@ public static class GateSimulator
     /// modelled, and any connection is let through.</param>
     /// <param name="proofOfWork">The process's proof-of-work key, clock and counters; the live one for a live simulation.
     /// Null: a keyless runtime, so a protected route reports the 503 it would give.</param>
+    /// <param name="now">The time the trace's ages are read against (how old the Cloudflare edge ranges are); null: the ages aren't stated.</param>
     public static GateSimulation Run(
-        RuntimeSnapshot snapshot, GateProbe probe, AcmeChallengeStore? challenges = null, ListenerFacts? listeners = null, ProofOfWorkRuntime? proofOfWork = null)
+        RuntimeSnapshot snapshot, GateProbe probe, AcmeChallengeStore? challenges = null, ListenerFacts? listeners = null, ProofOfWorkRuntime? proofOfWork = null, DateTimeOffset? now = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(probe);
@@ -97,7 +98,7 @@ public static class GateSimulator
         }
 
         var context = BuildContext(bound, probe, peer, negotiated, tlsVersion, certificateAsked, path, hostHeader);
-        var decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, proofOfWork ?? ProofOfWorkRuntime.Unavailable, new RecordingGateTracer(steps));
+        var decision = GateMiddleware.Decide(context, bound, SimulationClientAddressSource.Instance, challenges, proofOfWork ?? ProofOfWorkRuntime.Unavailable, new RecordingGateTracer(steps, now));
         var outcome = OutcomeOf(decision, context, steps);
         var upstream = outcome.Action == GateOutcomeAction.Forward && context.Features.Get<IGateFeature>()?.State.Route is { } route
             ? route.Admin

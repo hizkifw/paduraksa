@@ -65,7 +65,8 @@ public static class ConfigServiceCollectionExtensions
             sp.GetService<AcmeChallengeStore>(),
             sp.GetService<ListenerFacts>(),
             sp.GetService<ProofOfWorkRuntime>(),
-            (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<RequestSimulator>()));
+            (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<RequestSimulator>(),
+            time: sp.GetService<TimeProvider>()));
         services.TryAddSingleton(sp => new RevisionQueryService(sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>()));
         services.TryAddSingleton(sp => new AuditQueryService(sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>()));
         return services;

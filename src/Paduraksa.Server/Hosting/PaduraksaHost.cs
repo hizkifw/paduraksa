@@ -360,6 +360,13 @@ internal sealed partial class PaduraksaHost : IAsyncDisposable
             options.Acme.TrustedRootsFile = Path.GetFullPath(trustedRoots, contentRootPath);
         }
 
+        if (options.Cloudflare is { OriginPullCaFile: { Length: > 0 } originPullCa }
+            && originPullCa.AsSpan().IndexOfAny(Path.GetInvalidPathChars()) < 0
+            && !Path.IsPathFullyQualified(originPullCa))
+        {
+            options.Cloudflare.OriginPullCaFile = Path.GetFullPath(originPullCa, contentRootPath);
+        }
+
         var result = new PaduraksaOptionsValidator(allowEphemeralPorts).Validate(Microsoft.Extensions.Options.Options.DefaultName, options);
         if (result.Failed)
         {

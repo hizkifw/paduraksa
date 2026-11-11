@@ -1,4 +1,5 @@
 using Paduraksa.Admin.Auth;
+using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 
@@ -32,6 +33,9 @@ internal sealed class PaduraksaOptions
 
     /// <summary>ACME issuance and renewal: the scheduler, its timing and which CAs are trusted.</summary>
     public PaduraksaAcmeOptions Acme { get; set; } = new();
+
+    /// <summary>Cloudflare: the edge-range refresh job and the origin-pull CA.</summary>
+    public PaduraksaCloudflareOptions Cloudflare { get; set; } = new();
 
     /// <summary>The access log: the hot path's ring size, and what the formatter writes.</summary>
     public PaduraksaAccessLogOptions AccessLog { get; set; } = new();
@@ -172,6 +176,60 @@ internal sealed class PaduraksaAcmeOptions
     /// second to 10 minutes, a query 0.1 to 30 seconds, <c>UnreachableRounds</c> 1 to 20 and at most 8 resolvers. See <c>DnsPropagationSettings</c>.
     /// </summary>
     public DnsPropagationSettings DnsPropagation { get; set; } = new();
+}
+
+/// <summary>
+/// Cloudflare settings (<c>Paduraksa:Cloudflare</c>): which hosts trust Cloudflare is config, but where the process gets
+/// Cloudflare's published data is a deployment fact.
+/// </summary>
+internal sealed class PaduraksaCloudflareOptions
+{
+    /// <summary>The job that keeps Cloudflare's edge ranges current (<c>Paduraksa:Cloudflare:RangeRefresh</c>).</summary>
+    public PaduraksaRangeRefreshOptions RangeRefresh { get; set; } = new();
+
+    /// <summary>
+    /// A PEM file (at most 1 MiB) of the certificate authority that signs Cloudflare's Authenticated Origin Pulls client
+    /// certificate, replacing the one shipped with this build (whose copy expires 2029-11-01). Public certificates only. A
+    /// relative path resolves against the content root. Empty means the shipped one.
+    /// </summary>
+    public string? OriginPullCaFile { get; set; }
+}
+
+/// <summary>
+/// <c>Paduraksa:Cloudflare:RangeRefresh</c>: fetch Cloudflare's published edge ranges daily, so the trusted list isn't the one
+/// this build shipped with. The URLs are Cloudflare's own; they can be pointed elsewhere for a test or a mirror. The checks a
+/// list must pass, and what happens when a refresh fails, are fixed (see <c>CloudflareRangeRefresher</c>).
+/// </summary>
+internal sealed class PaduraksaRangeRefreshOptions
+{
+    private static readonly CloudflareRangeRefreshOptions Defaults = new();
+
+    /// <summary>Run the job. On by default; off keeps the list this build shipped with (or the last one stored). Not reloadable.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>The JSON endpoint: an <c>https</c> URL (an <c>http</c> one only for a loopback host).</summary>
+    public Uri ApiUrl { get; set; } = Defaults.ApiUrl;
+
+    /// <summary>The plain-text IPv4 list the job falls back to.</summary>
+    public Uri TextV4Url { get; set; } = Defaults.TextV4Url;
+
+    /// <summary>The plain-text IPv6 list the job falls back to.</summary>
+    public Uri TextV6Url { get; set; } = Defaults.TextV6Url;
+
+    /// <summary>How long after startup the first fetch waits (0 to 1 hour).</summary>
+    public TimeSpan StartDelay { get; set; } = Defaults.StartDelay;
+
+    /// <summary>The time between fetches (1 minute to 7 days), with up to an hour of jitter added.</summary>
+    public TimeSpan Interval { get; set; } = Defaults.Interval;
+
+    internal CloudflareRangeRefreshOptions ToOptions() => new()
+    {
+        ApiUrl = ApiUrl,
+        TextV4Url = TextV4Url,
+        TextV6Url = TextV6Url,
+        StartDelay = StartDelay,
+        Interval = Interval,
+    };
 }
 
 /// <summary>

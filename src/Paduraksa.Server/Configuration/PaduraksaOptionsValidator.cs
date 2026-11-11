@@ -106,6 +106,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
 
         ValidateCertificates(options, failures);
         ValidateAcme(options, failures);
+        ValidateCloudflare(options, failures);
         ValidateLogs(options.Logs, failures);
         ValidateAccessLog(options, failures);
 
@@ -196,6 +197,50 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
                 failures.Add($"{key}:TrustedRootsFile '{acme.TrustedRootsFile}' can't be read: {ex.Message}");
+            }
+        }
+    }
+
+    private static void ValidateCloudflare(PaduraksaOptions options, List<string> failures)
+    {
+        var key = $"{PaduraksaOptions.SectionName}:Cloudflare";
+        var cloudflare = options.Cloudflare;
+        if (cloudflare?.RangeRefresh is not { } refresh)
+        {
+            failures.Add($"{key}:RangeRefresh must not be null.");
+            return;
+        }
+
+        foreach (var (name, url) in new[] { ("ApiUrl", refresh.ApiUrl), ("TextV4Url", refresh.TextV4Url), ("TextV6Url", refresh.TextV6Url) })
+        {
+            // https always; http only to this machine, which is how a test serves a fake Cloudflare.
+            if (url is null || !url.IsAbsoluteUri || !(url.Scheme == Uri.UriSchemeHttps || (url.Scheme == Uri.UriSchemeHttp && url.IsLoopback)))
+            {
+                failures.Add($"{key}:RangeRefresh:{name} must be an absolute https URL (http only for a loopback host).");
+            }
+        }
+
+        Bound(refresh.StartDelay, TimeSpan.Zero, TimeSpan.FromHours(1), $"{key}:RangeRefresh:StartDelay", failures);
+        Bound(refresh.Interval, TimeSpan.FromMinutes(1), TimeSpan.FromDays(7), $"{key}:RangeRefresh:Interval", failures);
+
+        if (!string.IsNullOrWhiteSpace(cloudflare.OriginPullCaFile))
+        {
+            // Cheap checks only; the file is parsed once, where it is used.
+            try
+            {
+                FileInfo file = new(cloudflare.OriginPullCaFile);
+                if (!file.Exists)
+                {
+                    failures.Add($"{key}:OriginPullCaFile '{cloudflare.OriginPullCaFile}' does not exist.");
+                }
+                else if (file.Length > MaxTrustedRootsFileBytes)
+                {
+                    failures.Add($"{key}:OriginPullCaFile '{cloudflare.OriginPullCaFile}' is {file.Length} bytes; at most {MaxTrustedRootsFileBytes} are accepted.");
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                failures.Add($"{key}:OriginPullCaFile '{cloudflare.OriginPullCaFile}' can't be read: {ex.Message}");
             }
         }
     }

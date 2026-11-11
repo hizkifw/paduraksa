@@ -524,9 +524,11 @@ public sealed partial class ConfigService
     /// <summary>
     /// Recompiles the live config against the current inventory and queues its publish without waiting, for a startup step
     /// that changed the inventory before the web apps serve (<see cref="CertificateRecovery"/>): the publish completes while
-    /// the public app starts, so the first snapshot includes what changed.
+    /// the public app starts, so the first snapshot includes what changed. True when a publish was queued; false when nothing
+    /// was (the store can't take commands, the live config can't be compiled, or the attempt failed, which is logged), so a
+    /// caller that must see its change go live can try again.
     /// </summary>
-    public async Task RepublishLiveAsync()
+    public async Task<bool> RepublishLiveAsync()
     {
         try
         {
@@ -536,7 +538,7 @@ public sealed partial class ConfigService
             {
                 if (_disposed || Status is { AcceptsCommands: false })
                 {
-                    return;
+                    return false;
                 }
 
                 var context = await _contexts.CreateDbContextAsync(CancellationToken.None).ConfigureAwait(false);
@@ -553,14 +555,18 @@ public sealed partial class ConfigService
                 _writer.Release();
             }
 
-            if (ticket is not null)
+            if (ticket is null)
             {
-                _ = AuditLatePublishAsync(ticket, CommandOrigin.System);
+                return false;
             }
+
+            _ = AuditLatePublishAsync(ticket, CommandOrigin.System);
+            return true;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             LogRecoveryRepublishFailed(ex);
+            return false;
         }
     }
 

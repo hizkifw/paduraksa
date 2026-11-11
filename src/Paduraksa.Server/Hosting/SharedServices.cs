@@ -1,9 +1,12 @@
+using System.Security.Cryptography.X509Certificates;
+
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using Paduraksa.Admin.Certificates;
 using Paduraksa.Application.Certificates;
+using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
@@ -16,8 +19,10 @@ using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Configuration;
 using Paduraksa.Server.Logging;
@@ -59,6 +64,9 @@ internal sealed class SharedServices : IAsyncDisposable
         ProofOfWork = Get<ProofOfWorkRuntime>();
         ProofOfWorkKey = Get<ProofOfWorkKeyStartup>();
         RateLimits = Get<RateLimitRuntime>();
+        EdgeRanges = Get<CloudflareEdgeRangeSource>();
+        RangeReport = Get<CloudflareRangeReport>();
+        RangeRefresher = _registrations.FirstOrDefault(static r => r.Key == typeof(CloudflareRangeRefresher)).Value as CloudflareRangeRefresher;
         LogFiles = Get<ServerLogFiles>();
         LogStore = Get<ILogFileStore>();
         Catalog = Get<ICertificateCatalog>();
@@ -147,6 +155,16 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>Opens the proof-of-work key at startup, before the public listener binds (see <see cref="ProofOfWorkKeyStartup"/>).</summary>
     public ProofOfWorkKeyStartup ProofOfWorkKey { get; }
+
+    /// <summary>Cloudflare's edge ranges in force: what the compiler reads, the refresh job replaces and the report describes.</summary>
+    public CloudflareEdgeRangeSource EdgeRanges { get; }
+
+    /// <summary>What the dashboard says about the edge ranges (public facts).</summary>
+    public CloudflareRangeReport RangeReport { get; }
+
+    /// <summary>The job that keeps the edge ranges current; null when <c>Paduraksa:Cloudflare:RangeRefresh:Enabled</c> is off. A
+    /// hosted service of the core host (see <see cref="CoreHost"/>).</summary>
+    public CloudflareRangeRefresher? RangeRefresher { get; }
 
     /// <summary>The rate-limit engine's table, slots and counters; the compiler, the publisher and the public app share it.</summary>
     public RateLimitRuntime RateLimits { get; }
@@ -274,7 +292,17 @@ internal sealed class SharedServices : IAsyncDisposable
                 throw;
             }
 
-            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits));
+            // Cloudflare's edge ranges: the list the compiler reads at every compile. A stored one (the last refresh) is in force from
+            // the first compile, so a restart doesn't fall back to the built-in list; the refresh job (below) keeps it current.
+            var edgeRanges = builder.Add(new CloudflareEdgeRangeSource(timeProvider));
+            CloudflareRangeFile rangeFile = new(Path.Combine(options.DataDirectory, CloudflareRangeFile.FileName), coreLoggers.CreateLogger<CloudflareRangeFile>());
+            if (rangeFile.Load() is { } storedRanges)
+            {
+                edgeRanges.Replace(storedRanges);
+            }
+
+            var originPullCa = LoadOriginPullCa(options.Cloudflare.OriginPullCaFile);
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 
@@ -296,6 +324,23 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.AddOwnedElsewhere(vault.Catalog);
             var configStore = ConfigStore.AddTo(
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, coreLoggers);
+
+            // After the config store, which it asks to compile the live config again when Cloudflare's ranges change: disposed
+            // before it. The core host runs it (CoreHost) only when it is enabled.
+            builder.Add(new CloudflareRangeReport(edgeRanges));
+            if (options.Cloudflare.RangeRefresh.Enabled)
+            {
+                var rangeClient = builder.Own(CreateRangeClient());
+                builder.Add(new CloudflareRangeRefresher(
+                    edgeRanges,
+                    rangeFile,
+                    rangeClient,
+                    options.Cloudflare.RangeRefresh.ToOptions(),
+                    snapshots,
+                    configStore.Config.RepublishLiveAsync,
+                    timeProvider,
+                    coreLoggers.CreateLogger<CloudflareRangeRefresher>()));
+            }
 
             // After the config store and the vault: disposed before them (the services call both), and the scheduler is a hosted service of the core host.
             IssuanceStore.AddTo(builder, options, configStore, vault, challenges, health, timeProvider, coreLoggers);
@@ -351,6 +396,40 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>Disposes every shared instance exactly once (idempotent, thread-safe).</summary>
     public ValueTask DisposeAsync() =>
         Interlocked.Exchange(ref _disposed, 1) != 0 ? ValueTask.CompletedTask : DisposeAllAsync(_owned);
+
+    /// <summary>The origin-pull CA the operator supplies in place of the shipped one; null: the shipped one. A file that can't be
+    /// read as certificates stops the start with the file named, like the ACME trust file.</summary>
+    private static X509Certificate2Collection? LoadOriginPullCa(string? file)
+    {
+        if (string.IsNullOrWhiteSpace(file))
+        {
+            return null;
+        }
+
+        try
+        {
+            return OriginPullCa.FromPem(File.ReadAllText(file));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or FormatException)
+        {
+            throw new OptionsValidationException(
+                PaduraksaOptions.SectionName,
+                typeof(PaduraksaOptions),
+                [$"{PaduraksaOptions.SectionName}:Cloudflare:OriginPullCaFile '{file}' can't be read as certificates: {ex.Message}"]);
+        }
+    }
+
+    /// <summary>The refresh job's client: no redirects (a list is fetched from the URL asked for, nowhere else) and its own timeouts.</summary>
+    private static HttpClient CreateRangeClient() => new(new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        ConnectTimeout = TimeSpan.FromSeconds(10),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+    })
+    {
+        // Each request has its own timeout (CloudflareRangeRefreshOptions.RequestTimeout); this one only ends a stuck handler.
+        Timeout = TimeSpan.FromMinutes(1),
+    };
 
     private T Get<T>()
         where T : class =>

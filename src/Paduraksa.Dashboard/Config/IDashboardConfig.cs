@@ -26,6 +26,9 @@ public interface IDashboardConfig
     /// <summary>The live snapshot's warnings (hosts without certificate coverage, bindings that went bad); paths index the live document.</summary>
     IReadOnlyList<ConfigWarning> LiveWarnings { get; }
 
+    /// <summary>The list of Cloudflare's edge ranges the proxy trusts in <c>CloudflareProxy</c> mode, and how its refresh is going.</summary>
+    CloudflareRangeStatus CloudflareRanges { get; }
+
     Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Runs a command (a dry run when it says so) for <paramref name="origin"/>.</summary>

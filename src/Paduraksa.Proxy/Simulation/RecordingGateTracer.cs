@@ -16,7 +16,7 @@ namespace Paduraksa.Proxy.Simulation;
 /// The simulator's tracer: writes each step the gate reports as a <see cref="GateStep"/>. It only reads; the
 /// gate's decision is the same one production makes with <see cref="NoGateTracer"/>. Cold path: allocates freely.
 /// </summary>
-internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
+internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffset? now = null) : IGateTracer
 {
     public static bool IsSimulation => true;
 
@@ -45,6 +45,11 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
         {
             facts.Add(new("header", header));
             facts.Add(new("headerValue", context.Request.Headers[header].ToString()));
+        }
+
+        if (snapshot.EdgeRanges is { } edge)
+        {
+            facts.Add(new("edgeRanges", DescribeEdgeRanges(edge, now)));
         }
 
         facts.Add(new("cloudflareHeadersTrusted", Flag(client.CloudflareHeadersTrusted)));
@@ -401,6 +406,25 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             facts,
             null,
             route.Id));
+    }
+
+    private static string DescribeEdgeRanges(EdgeRangeList edge, DateTimeOffset? now)
+    {
+        var which = edge.Origin switch
+        {
+            EdgeRangeOrigin.BuiltIn => "built-in list",
+            EdgeRangeOrigin.Fetched => "fetched list",
+            _ => "configured set",
+        };
+        if (edge.Origin == EdgeRangeOrigin.Configured)
+        {
+            return which;
+        }
+
+        var text = $"{which}, {edge.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)} ranges, fetched {edge.FetchedAt.UtcDateTime.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)}";
+        return now is { } at
+            ? $"{text} ({Math.Max(0, (int)(at - edge.FetchedAt).TotalDays).ToString(System.Globalization.CultureInfo.InvariantCulture)} days ago)"
+            : text;
     }
 
     /// <summary>The connection's peer as the gate resolves it: the PROXY protocol source when the connection has one, else the socket.</summary>

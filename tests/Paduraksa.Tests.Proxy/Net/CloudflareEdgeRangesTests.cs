@@ -1,6 +1,9 @@
+using System.Net;
+
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Simulation;
 
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -150,7 +153,7 @@ public sealed class CloudflareEdgeRangesTests
         source.RecordFailure("HTTP 500");
         var failing = source.Status();
         Assert.True(failing.Failing);
-        Assert.Contains("last 3 refreshes failed (HTTP 500)", failing.Warning, StringComparison.Ordinal);
+        Assert.Contains("refreshes keep failing (HTTP 500)", failing.Warning, StringComparison.Ordinal);
 
         // A good refresh clears it.
         source.Replace(Valid());
@@ -203,6 +206,32 @@ public sealed class CloudflareEdgeRangesTests
         ProxyConfigModel model = new() { Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = mode, Proxies = mode == TrustedProxyMode.Off ? [] : ["10.0.0.0/8"] } } };
 
         Assert.Null(Compile(model, new SnapshotCompilerOptions { CloudflareRanges = new CloudflareEdgeRangeSource() }).EdgeRanges);
+    }
+
+    [Fact]
+    public void TheSimulatorSaysWhichListIsInUseAndHowOldItIsOnlyWhereTheEdgeIsTrusted()
+    {
+        var source = new CloudflareEdgeRangeSource(new Clock(Now));
+        var options = new SnapshotCompilerOptions { CloudflareRanges = source };
+        var model = new ProxyConfigModel { Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } } };
+        var probe = new GateProbe { Host = "any.test", ClientAddress = IPAddress.Parse("198.51.100.7") };
+
+        static string Fact(GateSimulation run) =>
+            Assert.Single(Assert.Single(run.Steps, s => s.Kind == GateStepKind.ClientAddress).Facts, f => f.Name == "edgeRanges").Value;
+
+        Assert.Equal(
+            "built-in list, 22 ranges, fetched 2026-11-06 (5 days ago)",
+            Fact(GateSimulator.Run(Bound(model, options: options), probe, now: Now)));
+
+        source.Replace(Valid("192.0.2.0/24"));
+        Assert.Equal(
+            "fetched list, 8 ranges, fetched 2026-11-11 (0 days ago)",
+            Fact(GateSimulator.Run(Bound(model, options: options), probe, now: Now)));
+
+        // Without a clock the age isn't stated; with the mode off the step doesn't mention the list at all.
+        Assert.Equal("fetched list, 8 ranges, fetched 2026-11-11", Fact(GateSimulator.Run(Bound(model, options: options), probe)));
+        var off = GateSimulator.Run(Bound(new ProxyConfigModel(), options: options), probe, now: Now);
+        Assert.DoesNotContain(Assert.Single(off.Steps, s => s.Kind == GateStepKind.ClientAddress).Facts, f => f.Name == "edgeRanges");
     }
 
     private sealed class Clock(DateTimeOffset now) : TimeProvider

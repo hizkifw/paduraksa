@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Certificates;
+using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Revisions;
@@ -22,11 +23,14 @@ internal sealed partial class DashboardConfig(
     CertificateService certificates,
     RequestSimulator simulator,
     UserService users,
+    CloudflareRangeReport cloudflareRanges,
     ILogger<DashboardConfig> logger) : IDashboardConfig
 {
     public ConfigStoreStatus Status => config.Status;
 
     public IReadOnlyList<ConfigWarning> LiveWarnings => config.Warnings;
+
+    public CloudflareRangeStatus CloudflareRanges => cloudflareRanges.Current;
 
     public Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default) => config.GetCurrentAsync(cancellationToken);
 

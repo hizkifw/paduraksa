@@ -28,8 +28,16 @@ public static class OriginPullCa
         using var stream = typeof(OriginPullCa).Assembly.GetManifestResourceStream(ResourceName)
             ?? throw new InvalidOperationException($"The embedded resource {ResourceName} is missing.");
         using StreamReader reader = new(stream, System.Text.Encoding.ASCII);
-        var text = reader.ReadToEnd();
+        return FromPem(reader.ReadToEnd());
+    }
 
+    /// <summary>The certificates of a PEM text (anything outside the <c>BEGIN</c>/<c>END</c> lines is ignored, comments
+    /// included). For a replacement the operator supplies; public data only.</summary>
+    /// <exception cref="FormatException">The text holds no certificate, or one that isn't valid.</exception>
+    public static X509Certificate2Collection FromPem(string pem)
+    {
+        ArgumentNullException.ThrowIfNull(pem);
+        var text = pem;
         X509Certificate2Collection roots = [];
         var from = 0;
         while (text.IndexOf(Begin, from, StringComparison.Ordinal) is var start and >= 0)
@@ -41,10 +49,18 @@ public static class OriginPullCa
                 break;
             }
 
-            roots.Add(X509CertificateLoader.LoadCertificate(Convert.FromBase64String(text.AsSpan(body, end - body).ToString())));
+            try
+            {
+                roots.Add(X509CertificateLoader.LoadCertificate(Convert.FromBase64String(text.AsSpan(body, end - body).ToString())));
+            }
+            catch (Exception ex) when (ex is System.Security.Cryptography.CryptographicException or FormatException)
+            {
+                throw new FormatException("A certificate in the text isn't valid.", ex);
+            }
+
             from = end + End.Length;
         }
 
-        return roots.Count > 0 ? roots : throw new InvalidOperationException($"The embedded resource {ResourceName} holds no certificate.");
+        return roots.Count > 0 ? roots : throw new FormatException("The text holds no certificate.");
     }
 }

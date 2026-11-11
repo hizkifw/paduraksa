@@ -48,6 +48,8 @@ internal sealed class FakeDashboardConfig : IDashboardConfig
 
     public IReadOnlyList<ConfigWarning> LiveWarnings { get; set; } = [];
 
+    public CloudflareRangeStatus CloudflareRanges { get; set; } = new(CloudflareRangeSource.BuiltIn, new DateTimeOffset(2026, 11, 6, 0, 0, 0, TimeSpan.Zero), 22, 0, null);
+
     public Task<CurrentConfig> GetCurrentAsync(CancellationToken cancellationToken = default) => Task.FromResult(new CurrentConfig(Document, Revision));
 
     public Task<ConfigCommandResult> ExecuteAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken = default)

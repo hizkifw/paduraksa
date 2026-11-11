@@ -63,6 +63,7 @@ public sealed partial class RequestSimulator : IDisposable
     private readonly ListenerFacts? _listeners;
     private readonly ProofOfWorkRuntime? _proofOfWork;
     private readonly ILogger _logger;
+    private readonly TimeProvider _time;
 
     /// <param name="config">Where drafts and revisions come from.</param>
     /// <param name="store">The live snapshot.</param>
@@ -76,6 +77,7 @@ public sealed partial class RequestSimulator : IDisposable
     /// challenge or 503 the real gate would, without touching counters; null: a keyless runtime.</param>
     /// <param name="busyWait">How long a draft or revision waits for a compile slot; default <see cref="BusyWait"/>.</param>
     /// <param name="logger">Where a failure to read the store is logged; null: nowhere (a test that only checks the answer).</param>
+    /// <param name="time">The clock the trace's ages (the Cloudflare edge ranges') are read against; null: the system's.</param>
     internal RequestSimulator(
         ConfigService config,
         SnapshotStore store,
@@ -85,7 +87,8 @@ public sealed partial class RequestSimulator : IDisposable
         ListenerFacts? listeners = null,
         ProofOfWorkRuntime? proofOfWork = null,
         ILogger<RequestSimulator>? logger = null,
-        TimeSpan? busyWait = null)
+        TimeSpan? busyWait = null,
+        TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(store);
@@ -98,6 +101,7 @@ public sealed partial class RequestSimulator : IDisposable
         _proofOfWork = proofOfWork;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RequestSimulator>.Instance;
         _busyWait = busyWait ?? BusyWait;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -154,7 +158,7 @@ public sealed partial class RequestSimulator : IDisposable
             return failure;
         }
 
-        var run = GateSimulator.Run(resolved.Snapshot!, probe!, _challenges, _listeners, _proofOfWork);
+        var run = GateSimulator.Run(resolved.Snapshot!, probe!, _challenges, _listeners, _proofOfWork, now: _time.GetUtcNow());
         List<string> notes = [.. resolved.Notes];
         var upstream = run.Upstream is null ? null : DescribeUpstream(run.Upstream, resolved.Source.Kind != SimulationTargetKind.Live, notes);
         List<SimulationStep> trace = new(run.Steps.Count);

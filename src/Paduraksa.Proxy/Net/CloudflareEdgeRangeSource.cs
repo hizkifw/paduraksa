@@ -131,10 +131,12 @@ public sealed record EdgeRangeStatus(EdgeRangeList List, TimeSpan Age, int Conse
 
             var which = List.Origin == EdgeRangeOrigin.BuiltIn ? "built-in list" : "stored list";
             var age = string.Create(CultureInfo.InvariantCulture, $"{(int)Age.TotalDays} days old");
-            var failing = Failing
-                ? string.Create(CultureInfo.InvariantCulture, $"; the last {ConsecutiveFailures} refreshes failed ({LastFailure})")
-                : string.Empty;
+
+            // No count: the text is part of a compile's warning, which is only compiled again when it changes.
+            var failing = Failing ? $"; refreshes keep failing ({Cut(LastFailure)})" : string.Empty;
             return $"Cloudflare's edge ranges are the {which}, {age}{failing}. A new Cloudflare range would be treated as an untrusted peer";
         }
     }
+
+    private static string Cut(string? text) => text is null ? "no reason" : text.Length <= 160 ? text : string.Concat(text.AsSpan(0, 160), "...");
 }
