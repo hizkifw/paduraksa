@@ -37,6 +37,7 @@ internal static class SecurityFigures
         || host.RateLimit.Policy is not null || host.RateLimit.Overrides.Count > 0
         || host.Robots != RobotsMode.Passthrough || host.AccessList.List is not null || host.AccessList.Overrides.Count > 0
         || host.RuleSet is { Set: not null } || host.RuleSet is { Overrides.Count: > 0 }
+        || host.AuthProvider is { Provider: not null } || host.AuthProvider is { Overrides.Count: > 0 }
         || host.OriginLockdown != OriginLockdownMode.Off || host.AuthenticatedOriginPulls;
 
     /// <summary>The hosts with something on first, then those with nothing, each by name.</summary>
@@ -62,6 +63,16 @@ internal static class SecurityFigures
     /// <summary>A set's regex matches that timed out, said only once there are some: it should never happen, so it is worth a line.</summary>
     public static string? TimeoutText(RuleSetRef set) =>
         set.Timeouts > 0 ? $"{Count(set.Timeouts)} regex {(set.Timeouts == 1 ? "timeout" : "timeouts")}" : null;
+
+    /// <summary>What a provider has decided, in a few words: "1,204 allowed, 12 refused", or that it hasn't been asked yet.</summary>
+    public static string DecidedText(AuthProviderRef provider) =>
+        provider.Allowed + provider.Refused == 0
+            ? "not asked yet"
+            : provider.Refused == 0 ? $"{Count(provider.Allowed)} allowed" : $"{Count(provider.Allowed)} allowed, {Count(provider.Refused)} refused";
+
+    /// <summary>A provider's failed calls, said only once there are some: they refuse requests, so they are worth a line.</summary>
+    public static string? FailureText(AuthProviderRef provider) =>
+        provider.Failures > 0 ? $"{Count(provider.Failures)} failed {(provider.Failures == 1 ? "call" : "calls")}" : null;
 
     public static string LockdownText(OriginLockdownMode mode) => mode switch
     {

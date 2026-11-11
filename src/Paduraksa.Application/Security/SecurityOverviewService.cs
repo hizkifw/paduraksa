@@ -2,6 +2,7 @@ using Paduraksa.Contracts.Security;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
@@ -53,12 +54,50 @@ public sealed class SecurityOverviewService
         var lists = _accessLists;
         AccessListCounters accessLists = new(
             lists.AddressRefused, lists.Unauthorized, lists.CacheHits, lists.Verifications, lists.Queued, lists.QueueFull, lists.QueueTimeouts);
-        var hosts = _snapshots.Current.HostsByIndex
+        var current = _snapshots.Current;
+        var hosts = current.HostsByIndex
             .Select(HostOf)
             .OrderBy(host => host.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(host => host.Id.ToString(), StringComparer.Ordinal)
             .ToArray();
-        return new SecurityOverview(_since, sampledAt, proofOfWork, rateLimit, accessLists, hosts);
+        return new SecurityOverview(_since, sampledAt, proofOfWork, rateLimit, accessLists, hosts, ForwardAuthOf(current));
+    }
+
+    // Each provider the live config applies counts once, however many hosts and routes ask it.
+    private static SignInCounters ForwardAuthOf(RuntimeSnapshot snapshot)
+    {
+        Dictionary<AuthProviderId, CompiledAuthProvider> providers = [];
+        foreach (var host in snapshot.HostsByIndex)
+        {
+            if (host.AuthProvider is { } hostProvider)
+            {
+                providers.TryAdd(hostProvider.Id, hostProvider);
+            }
+
+            foreach (var route in host.Routes)
+            {
+                if (route.AuthProvider is { } routeProvider)
+                {
+                    providers.TryAdd(routeProvider.Id, routeProvider);
+                }
+            }
+        }
+
+        long allowed = 0, denied = 0, redirected = 0, cacheHits = 0, calls = 0, errors = 0, timeouts = 0, busy = 0;
+        foreach (var provider in providers.Values)
+        {
+            var counters = provider.Counters;
+            allowed += counters.Allowed;
+            denied += counters.Denied;
+            redirected += counters.Redirected;
+            cacheHits += counters.CacheHits;
+            calls += counters.Calls;
+            errors += counters.Errors;
+            timeouts += counters.Timeouts;
+            busy += counters.Busy;
+        }
+
+        return new SignInCounters(allowed, denied, redirected, cacheHits, calls, errors, timeouts, busy);
     }
 
     private static HostProtections HostOf(CompiledHost host)
@@ -90,6 +129,13 @@ public sealed class SecurityOverviewService
             .Select(group => new RuleSetOverride(group.Count(), group.First().RuleSet is { } set ? SetRefOf(set) : null))
             .OrderBy(use => use.Set?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        var hostProvider = host.AuthProvider;
+        var providerOverrides = host.Routes
+            .Where(route => route.AuthProvider?.Id != hostProvider?.Id)
+            .GroupBy(route => route.AuthProvider?.Id)
+            .Select(group => new AuthProviderOverride(group.Count(), group.First().AuthProvider is { } provider ? ProviderRefOf(provider) : null))
+            .OrderBy(use => use.Provider?.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         return new HostProtections(
             host.Id,
             host.Names.Count > 0 ? host.Names[0] : string.Empty,
@@ -99,7 +145,14 @@ public sealed class SecurityOverviewService
             new AccessListProtection(listOverrides, hostList is null ? null : ListRefOf(hostList)),
             host.OriginLockdown,
             host.AuthenticatedOriginPulls,
-            new RuleSetProtection(setOverrides, hostSet is null ? null : SetRefOf(hostSet)));
+            new RuleSetProtection(setOverrides, hostSet is null ? null : SetRefOf(hostSet)),
+            new AuthProviderProtection(providerOverrides, hostProvider is null ? null : ProviderRefOf(hostProvider)));
+    }
+
+    private static AuthProviderRef ProviderRefOf(CompiledAuthProvider provider)
+    {
+        var counters = provider.Counters;
+        return new(provider.Id, provider.Name, provider.Spec.Url, counters.Allowed, counters.Denied + counters.Redirected, counters.Errors + counters.Timeouts + counters.Busy);
     }
 
     private static AccessListRef ListRefOf(CompiledAccessList list) =>

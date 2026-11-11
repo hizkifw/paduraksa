@@ -63,6 +63,7 @@ else if (_current is { } current)
                         <span role="columnheader">robots.txt</span>
                         <span role="columnheader">Access list</span>
                         <span role="columnheader">Rules</span>
+                        <span role="columnheader">Sign-in</span>
                         <span role="columnheader">Cloudflare</span>
                     </div>
                     @foreach (var host in SecurityFigures.Ordered(current.Hosts))
@@ -200,6 +201,41 @@ else if (_current is { } current)
                                     </div>
                                 }
                             </div>
+                            <div role="cell" class="pdk-dt-cell" data-label="Sign-in" data-cell="sign-in">
+                                @if (host.AuthProvider is not { Provider: not null } && host.AuthProvider is not { Overrides.Count: > 0 })
+                                {
+                                    <span class="pdk-muted">None</span>
+                                }
+                                else
+                                {
+                                    <div class="pdk-dt-stack">
+                                        @if (host.AuthProvider?.Provider is { } provider)
+                                        {
+                                            <a class="pdk-row-link" href="@DashboardRoutes.AuthProvider(provider.Id)">@provider.Name</a>
+                                            <span class="pdk-dt-note" title="Requests this provider let through and refused, across every host that asks it">@SecurityFigures.DecidedText(provider)</span>
+                                            @if (SecurityFigures.FailureText(provider) is { } failed)
+                                            {
+                                                <span class="pdk-dt-note" data-part="sign-in-failures" title="Calls that failed, timed out or were refused for being too many: the requests got a 502, 503 or 504">@failed</span>
+                                            }
+                                        }
+
+                                        @foreach (var use in host.AuthProvider!.Overrides)
+                                        {
+                                            <span class="pdk-dt-note">
+                                                @if (use.Provider is { } other)
+                                                {
+                                                    <a class="pdk-row-link" href="@DashboardRoutes.AuthProvider(other.Id)">@other.Name</a>
+                                                    <text> on @SecurityFigures.Routes(use.Routes)</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>Off on @SecurityFigures.Routes(use.Routes)</text>
+                                                }
+                                            </span>
+                                        }
+                                    </div>
+                                }
+                            </div>
                             <div role="cell" class="pdk-dt-cell" data-label="Cloudflare" data-cell="cloudflare">
                                 @if (host.OriginLockdown == OriginLockdownMode.Off && !host.AuthenticatedOriginPulls)
                                 {
@@ -252,6 +288,22 @@ else if (_current is { } current)
                 <div title="Answered 429: the line for a check was full or this client already had its share of it, or the wait ran out"><dt>Refused, busy</dt><dd data-reason="busy">@SecurityFigures.Count(lists.QueueFull + lists.QueueTimeouts)</dd></div>
             </dl>
         </MudPaper>
+
+        @if (current.ForwardAuth is { } signIn)
+        {
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="sign-in">
+                <div class="pdk-card-head">
+                    <MudText Typo="Typo.subtitle2" HtmlTag="h2">Sign-in</MudText>
+                </div>
+                <dl class="pdk-sec-reasons">
+                    <div title="Let through by an auth provider: from its answer, or from the allow it gave a moment ago"><dt>Allowed</dt><dd data-reason="sign-in-allowed">@SecurityFigures.Count(signIn.Allowed)</dd></div>
+                    <div title="Refused with the provider's 401 or 403, or sent to a sign-in page"><dt>Refused or sent to sign in</dt><dd data-reason="sign-in-refused">@SecurityFigures.Count(signIn.Denied + signIn.Redirected)</dd></div>
+                    <div title="Allows answered from the decision cache, with no call to the provider"><dt>Answered from memory</dt><dd data-reason="sign-in-cache-hits">@SecurityFigures.Count(signIn.CacheHits)</dd></div>
+                    <div title="Calls made to the providers' endpoints"><dt>Calls made</dt><dd data-reason="sign-in-calls">@SecurityFigures.Count(signIn.Calls)</dd></div>
+                    <div title="A call that failed or answered something the proxy won't act on (502), ran out of time (504), or found too many already running (503): the request was refused"><dt>Errors and timeouts</dt><dd data-reason="sign-in-errors">@SecurityFigures.Count(signIn.Errors + signIn.Timeouts + signIn.Busy)</dd></div>
+                </dl>
+            </MudPaper>
+        }
     </div>
 }
 

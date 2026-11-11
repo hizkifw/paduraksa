@@ -12,13 +12,15 @@ namespace Paduraksa.Contracts.Security;
 /// <param name="RateLimit">The rate limiter's counters.</param>
 /// <param name="AccessLists">The access lists' counters.</param>
 /// <param name="Hosts">The enabled hosts, by name.</param>
+/// <param name="ForwardAuth">The auth providers' counters, summed; absent when the response comes from an older server.</param>
 public sealed record SecurityOverview(
     DateTimeOffset Since,
     DateTimeOffset SampledAt,
     ProofOfWorkCounters ProofOfWork,
     RateLimitCounters RateLimit,
     AccessListCounters AccessLists,
-    IReadOnlyList<HostProtections> Hosts);
+    IReadOnlyList<HostProtections> Hosts,
+    SignInCounters? ForwardAuth = null);
 
 /// <summary>The proof-of-work gate's counters.</summary>
 /// <param name="ChallengesServed">Challenge pages sent to browsers without a valid token.</param>
@@ -50,6 +52,17 @@ public sealed record RateLimitCounters(long Allowed, long Limited);
 /// <param name="QueueTimeouts">Requests refused with 429 after waiting the maximum.</param>
 public sealed record AccessListCounters(long AddressRefused, long Unauthorized, long CacheHits, long Verifications, long Queued, long QueueFull, long QueueTimeouts);
 
+/// <summary>The auth providers' counters, summed over every provider the live config names.</summary>
+/// <param name="Allowed">Requests a provider let through, from its answer or from its decision cache.</param>
+/// <param name="Denied">Requests a provider refused (a relayed 401, 403 or 407).</param>
+/// <param name="Redirected">Requests sent to a sign-in page.</param>
+/// <param name="CacheHits">Allows answered from the decision cache, with no call.</param>
+/// <param name="Calls">Calls made to the providers' endpoints.</param>
+/// <param name="Errors">Calls that failed or got an answer the proxy refuses to act on (502).</param>
+/// <param name="Timeouts">Calls that ran out of time (504).</param>
+/// <param name="Busy">Requests refused with 503 because too many calls were already running.</param>
+public sealed record SignInCounters(long Allowed, long Denied, long Redirected, long CacheHits, long Calls, long Errors, long Timeouts, long Busy);
+
 /// <summary>One enabled host's protections, from the live compiled config.</summary>
 /// <param name="Id">The host.</param>
 /// <param name="Name">Its first name.</param>
@@ -60,6 +73,7 @@ public sealed record AccessListCounters(long AddressRefused, long Unauthorized, 
 /// <param name="OriginLockdown">What the host does with a peer that isn't Cloudflare's; off unless the client-address mode is a Cloudflare one.</param>
 /// <param name="AuthenticatedOriginPulls">Whether the host's handshake requires Cloudflare's client certificate (the same condition).</param>
 /// <param name="RuleSet">The rule set that applies to the host, and the routes that differ from it; absent when the response comes from an older server.</param>
+/// <param name="AuthProvider">The auth provider that asks who a request is, and the routes that differ from it; absent when the response comes from an older server.</param>
 public sealed record HostProtections(
     HostId Id,
     string Name,
@@ -69,7 +83,8 @@ public sealed record HostProtections(
     AccessListProtection AccessList,
     OriginLockdownMode OriginLockdown = OriginLockdownMode.Off,
     bool AuthenticatedOriginPulls = false,
-    RuleSetProtection? RuleSet = null);
+    RuleSetProtection? RuleSet = null,
+    AuthProviderProtection? AuthProvider = null);
 
 /// <summary>A host's proof-of-work setting.</summary>
 /// <param name="Enabled">The host's own switch.</param>
@@ -130,3 +145,22 @@ public sealed record RuleSetOverride(int Routes, RuleSetRef? Set = null);
 /// <param name="Allowed">Requests an allow rule took out of the set's later rules.</param>
 /// <param name="Timeouts">Regex matches that ran past their timeout and were decided by the rule's action (a deny or drop counts as a match, an allow as none); 0 in a healthy proxy.</param>
 public sealed record RuleSetRef(RuleSetId Id, string Name, int Rules, bool BuiltIn, long Denied, long Dropped, long Allowed, long Timeouts = 0);
+
+/// <summary>A host's auth-provider setting.</summary>
+/// <param name="Overrides">The routes that differ from the host's provider, grouped by what asks them instead.</param>
+/// <param name="Provider">The provider the host names; absent when it names none.</param>
+public sealed record AuthProviderProtection(IReadOnlyList<AuthProviderOverride> Overrides, AuthProviderRef? Provider = null);
+
+/// <summary>Routes that ask another auth provider, or none.</summary>
+/// <param name="Routes">How many routes.</param>
+/// <param name="Provider">The provider those routes ask; absent when they ask none.</param>
+public sealed record AuthProviderOverride(int Routes, AuthProviderRef? Provider = null);
+
+/// <summary>A named auth provider with what it has decided since the process started, across every host and route that asks it.</summary>
+/// <param name="Id">The provider.</param>
+/// <param name="Name">Its name.</param>
+/// <param name="Endpoint">Its endpoint.</param>
+/// <param name="Allowed">Requests it let through, from its answer or its decision cache.</param>
+/// <param name="Refused">Requests it refused or sent to a sign-in page.</param>
+/// <param name="Failures">Calls that failed, timed out or were refused for being too many.</param>
+public sealed record AuthProviderRef(AuthProviderId Id, string Name, string Endpoint, long Allowed, long Refused, long Failures);

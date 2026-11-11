@@ -7,6 +7,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
 
@@ -431,11 +432,86 @@ public sealed class SecurityOverviewServiceTests
         Hosts = hosts,
     };
 
-    private static void Publish(SnapshotStore store, ProxyConfigModel model, RuleSetRuntime? ruleSets = null)
+    [Fact]
+    public void TheHostsAuthProviderIsReportedWithWhatItDecidedAndTheRoutesThatDifferAreGroupedByWhatAsksThemInstead()
+    {
+        var (service, _, _, store) = Start();
+        ForwardAuthRuntime runtime = new();
+        var sso = Id<AuthProviderId>(1);
+        var other = Id<AuthProviderId>(2);
+        AuthProviderSpec[] providers =
+        [
+            new() { Id = sso, Name = "sso", Url = "http://authelia:9091/api/authz/forward-auth" },
+            new() { Id = other, Name = "other", Url = "http://other:9091/" },
+        ];
+        var model = Model(Host(1, "app.test") with
+        {
+            AuthProvider = new HostAuthProviderSpec { Enabled = true, AuthProviderId = sso },
+            Routes =
+            [
+                Route(1, "/") with { AuthProvider = sso },
+                Route(2, "/api") with { AuthProvider = other },
+                Route(3, "/oauth2") with { AuthProvider = null },
+                Route(4, "/health") with { AuthProvider = null },
+            ],
+        }) with
+        { AuthProviders = providers };
+        var counters = runtime.CountersFor(sso);
+        counters.CountAllowed();
+        counters.CountAllowed();
+        counters.CountAllowed();
+        counters.CountCacheHit();
+        counters.CountDenied();
+        counters.CountRedirected();
+        counters.CountError();
+        counters.CountTimeout();
+        counters.CountBusy();
+        counters.CountCall();
+        runtime.CountersFor(other).CountDenied();
+        Publish(store, model, forwardAuth: runtime);
+
+        var overview = service.Read();
+        var host = Assert.Single(overview.Hosts);
+
+        Assert.Equal(new AuthProviderRef(sso, "sso", "http://authelia:9091/api/authz/forward-auth", Allowed: 3, Refused: 2, Failures: 3), host.AuthProvider!.Provider);
+        Assert.Equal(2, host.AuthProvider.Overrides.Count);
+
+        // By name, the routes with none first.
+        Assert.Equal(new AuthProviderOverride(2, null), host.AuthProvider.Overrides[0]);
+        Assert.Equal(new AuthProviderOverride(1, new AuthProviderRef(other, "other", "http://other:9091/", Allowed: 0, Refused: 1, Failures: 0)), host.AuthProvider.Overrides[1]);
+
+        // The overview's own figures count each provider once, however many hosts and routes ask it.
+        Assert.Equal(new SignInCounters(Allowed: 3, Denied: 2, Redirected: 1, CacheHits: 1, Calls: 1, Errors: 1, Timeouts: 1, Busy: 1), overview.ForwardAuth);
+    }
+
+    [Fact]
+    public void AHostWithNoAuthProviderHasNoneAndARouteThatInheritsItsProviderIsNotAnOverride()
+    {
+        var (service, _, _, store) = Start();
+        var sso = Id<AuthProviderId>(1);
+        Publish(store, Model(Host(1, "plain.test"), Host(2, "guarded.test") with
+        {
+            AuthProvider = new HostAuthProviderSpec { Enabled = true, AuthProviderId = sso },
+            Routes = [Route(7, "/") with { AuthProvider = sso }],
+        }) with
+        { AuthProviders = [new AuthProviderSpec { Id = sso, Name = "sso", Url = "http://auth:9091/" }] });
+
+        var overview = service.Read();
+
+        var plain = overview.Hosts.Single(host => host.Name == "plain.test");
+        Assert.Null(plain.AuthProvider!.Provider);
+        Assert.Empty(plain.AuthProvider.Overrides);
+        var guarded = overview.Hosts.Single(host => host.Name == "guarded.test");
+        Assert.Equal("sso", guarded.AuthProvider!.Provider!.Name);
+        Assert.Empty(guarded.AuthProvider.Overrides);
+        Assert.Equal(new SignInCounters(0, 0, 0, 0, 0, 0, 0, 0), overview.ForwardAuth);
+    }
+
+    private static void Publish(SnapshotStore store, ProxyConfigModel model, RuleSetRuntime? ruleSets = null, ForwardAuthRuntime? forwardAuth = null)
     {
         var result = SnapshotCompiler.Compile(
             model,
-            new SnapshotCompilerOptions { RateLimits = new RateLimitRuntime(new RateLimitTable(64)), ProofOfWork = new ProofOfWorkRuntime(), RuleSets = ruleSets });
+            new SnapshotCompilerOptions { RateLimits = new RateLimitRuntime(new RateLimitTable(64)), ProofOfWork = new ProofOfWorkRuntime(), RuleSets = ruleSets, ForwardAuth = forwardAuth });
         Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
         var snapshot = result.Snapshot!;
         store.Publish(snapshot.Bind(1, [.. snapshot.RouteIdBySlot.Select(_ => new Endpoint(null, null, "route"))]));

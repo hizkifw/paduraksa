@@ -11,6 +11,7 @@ using Paduraksa.Dashboard.Layout;
 using Paduraksa.Dashboard.Pages;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
@@ -31,6 +32,7 @@ public sealed class SecurityPageTests
     private static readonly AccessListId Office = AccessListId.New();
     private static readonly AccessListId Lan = AccessListId.New();
     private static readonly RuleSetId Scanners = RuleSetId.New();
+    private static readonly AuthProviderId Sso = AuthProviderId.New();
 
     [Fact]
     public async Task TheTilesShowTheCountersAndTheirRatesFromTwoSamples()
@@ -219,6 +221,63 @@ public sealed class SecurityPageTests
     }
 
     [Fact]
+    public async Task TheSignInColumnNamesTheProviderWhatItDecidedAndTheRoutesThatAskNone()
+    {
+        await using DashboardTestContext context = new();
+        var shell = Start(context, Role.Operator);
+        shell.Publish(Hosts());
+        var counters = shell.ForwardAuth.CountersFor(Sso);
+        for (var i = 0; i < 1204; i++)
+        {
+            counters.CountAllowed();
+        }
+
+        counters.CountDenied();
+        counters.CountRedirected();
+        counters.CountTimeout();
+
+        var page = context.Render<SecurityPage>();
+
+        var app = page.Find("[data-host='app.test']");
+        var cell = app.QuerySelector("[data-cell=sign-in]")!;
+        Assert.Equal("sso", cell.QuerySelector(".pdk-dt-stack > a")!.TextContent);
+        Assert.Equal(DashboardRoutes.AuthProvider(Sso), cell.QuerySelector(".pdk-dt-stack > a")!.GetAttribute("href"));
+        Assert.Contains("1,204 allowed, 2 refused", cell.TextContent, StringComparison.Ordinal);
+        Assert.Equal("1 failed call", cell.QuerySelector("[data-part=sign-in-failures]")!.TextContent);
+        Assert.Contains("Off on 1 route", cell.TextContent, StringComparison.Ordinal);
+        Assert.Empty(page.Find("[data-host='blog.test']").QuerySelectorAll("[data-part=sign-in-failures]"));
+        Assert.Equal("None", page.Find("[data-host='blog.test'] [data-cell=sign-in]").TextContent.Trim());
+    }
+
+    [Fact]
+    public async Task TheSignInCardCountsWhatTheProvidersDecidedAndRefusedForWantOfAnAnswer()
+    {
+        await using DashboardTestContext context = new();
+        var shell = Start(context, Role.Operator);
+        shell.Publish(Hosts());
+        var counters = shell.ForwardAuth.CountersFor(Sso);
+        counters.CountAllowed();
+        counters.CountAllowed();
+        counters.CountCacheHit();
+        counters.CountDenied();
+        counters.CountRedirected();
+        counters.CountCall();
+        counters.CountCall();
+        counters.CountError();
+        counters.CountTimeout();
+        counters.CountBusy();
+
+        var page = context.Render<SecurityPage>();
+
+        var card = page.Find("[data-section=sign-in]");
+        Assert.Equal("2", card.QuerySelector("[data-reason=sign-in-allowed]")!.TextContent);
+        Assert.Equal("2", card.QuerySelector("[data-reason=sign-in-refused]")!.TextContent);
+        Assert.Equal("1", card.QuerySelector("[data-reason=sign-in-cache-hits]")!.TextContent);
+        Assert.Equal("2", card.QuerySelector("[data-reason=sign-in-calls]")!.TextContent);
+        Assert.Equal("3", card.QuerySelector("[data-reason=sign-in-errors]")!.TextContent);
+    }
+
+    [Fact]
     public async Task AHostWithNothingOnShowsMutedNoneInEveryCell()
     {
         await using DashboardTestContext context = new();
@@ -228,7 +287,7 @@ public sealed class SecurityPageTests
         var page = context.Render<SecurityPage>();
 
         var cells = page.Find("[data-host='files.test']").QuerySelectorAll(".pdk-dt-cell");
-        Assert.Equal(6, cells.Length);
+        Assert.Equal(7, cells.Length);
         Assert.All(cells, cell =>
         {
             Assert.Equal("None", cell.TextContent.Trim());
@@ -369,6 +428,7 @@ public sealed class SecurityPageTests
                 new RuleSetSpec { Id = Scanners, Name = "scanners", Rules = [new RuleSpec { Action = RuleAction.Deny, UserAgentContains = ["sqlmap"] }] },
                 new RuleSetSpec { Id = Contracts.Config.RuleSetPresets.EmptyUserAgent.Id, Name = "Block empty user agent", Rules = [new RuleSpec { Action = RuleAction.Deny, UserAgentEmpty = true }] },
             ],
+            AuthProviders = [new AuthProviderSpec { Id = Sso, Name = "sso", Url = "http://authelia:9091/api/authz/forward-auth" }],
             AccessLists =
             [
                 new AccessListSpec
@@ -407,9 +467,10 @@ public sealed class SecurityPageTests
                     Robots = new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers },
                     AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Office },
                     RuleSet = new HostRuleSetSpec { Enabled = true, RuleSetId = Scanners },
+                    AuthProvider = new HostAuthProviderSpec { Enabled = true, AuthProviderId = Sso },
                     Routes =
                     [
-                        Route("/") with { AccessList = Office, RuleSet = Scanners, RateLimit = Standard, ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = 18 } },
+                        Route("/") with { AccessList = Office, RuleSet = Scanners, AuthProvider = Sso, RateLimit = Standard, ProofOfWork = new HostProofOfWorkSpec { Enabled = true, Difficulty = 18 } },
                         Route("/api") with
                         {
                             AccessList = Lan,
@@ -438,9 +499,11 @@ public sealed class SecurityPageTests
 
         public RuleSetRuntime RuleSets { get; } = new();
 
+        public ForwardAuthRuntime ForwardAuth { get; } = new();
+
         public void Publish(ProxyConfigModel model)
         {
-            var result = SnapshotCompiler.Compile(model, new SnapshotCompilerOptions { RateLimits = RateLimits, ProofOfWork = ProofOfWork, RuleSets = RuleSets });
+            var result = SnapshotCompiler.Compile(model, new SnapshotCompilerOptions { RateLimits = RateLimits, ProofOfWork = ProofOfWork, RuleSets = RuleSets, ForwardAuth = ForwardAuth });
             Assert.True(result.Succeeded, string.Join(Environment.NewLine, result.Errors));
             var snapshot = result.Snapshot!;
             Store.Publish(snapshot.Bind(1, [.. snapshot.RouteIdBySlot.Select(_ => new Endpoint(null, null, "route"))]));
