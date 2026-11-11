@@ -3,6 +3,9 @@
     <ProjectReference Include="../../src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="CsCheck" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- The header-echo upstream and the readable test IDs, shared with the other end-to-end test project. -->
     <Compile Include="../Shared/HeaderEchoUpstreamHost.cs" Link="Shared/HeaderEchoUpstreamHost.cs" />
     <Compile Include="../Shared/FakeAuthServer.cs" Link="Shared/FakeAuthServer.cs" />
@@ -10,6 +13,7 @@
     <Compile Include="../Shared/ZeroStream.cs" Link="Shared/ZeroStream.cs" />
     <Compile Include="../Shared/TestIds.cs" Link="Shared/TestIds.cs" />
     <Compile Include="../Shared/TestAccessLists.cs" Link="Shared/TestAccessLists.cs" />
+    <Compile Include="../Shared/Property.cs" Link="Shared/Property.cs" />
   </ItemGroup>
   <Import Project="../Shared/TestPasswords.props" />
 </Project>
