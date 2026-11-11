@@ -61,7 +61,7 @@ public sealed partial class CertificateService
         TimeProvider timeProvider,
         ILogger<CertificateService> logger,
         IPermissionEvaluator permissions,
-        IBuiltInCertificates? builtIns = null)
+        IBuiltInCertificates? builtIns)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);

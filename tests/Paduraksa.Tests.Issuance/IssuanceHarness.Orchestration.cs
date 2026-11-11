@@ -1,13 +1,12 @@
 using Microsoft.Extensions.Logging;
-
 using Paduraksa.Application.Certificates;
+using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Tests.Shared;
-
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Issuance;
@@ -51,21 +50,29 @@ internal sealed partial class IssuanceHarness
         Time,
         Loggers.CreateLogger<AcmeIssuanceService>(),
         Permissions,
-        catalog: Vault,
-        propagation: Propagation,
-        random: () => Random);
+        Vault,
+        Propagation,
+        () => Random);
 
     /// <summary>The permission check the services made here are given; the default allows everything.</summary>
     public Paduraksa.Application.Identity.IPermissionEvaluator Permissions { get; set; } = TestPermissions.AllowAll;
 
     public AcmeAccountService NewAccounts() => new(
-        _config.Db.Factory, _config.Service, NewClients(), Signer, null, Time, Loggers.CreateLogger<AcmeAccountService>(), Permissions);
+        _config.Db.Factory, _config.Service, NewClients(), Signer, null, Time, Loggers.CreateLogger<AcmeAccountService>(), Permissions, Secrets);
 
     public DnsProviderService NewDnsProviders() => new(
         _config.Db.Factory, _config.Service, Secrets, Dns, Time, Loggers.CreateLogger<DnsProviderService>(), Permissions);
 
+    /// <summary>The signal of a process whose listeners are bound already.</summary>
+    public static IProcessReadiness AlreadyReady { get; } = new Ready();
+
     public AcmeRenewalScheduler NewScheduler(AcmeIssuanceService issuance) =>
-        new(issuance, Options, Time, Loggers.CreateLogger<AcmeRenewalScheduler>());
+        new(issuance, Options, Time, Loggers.CreateLogger<AcmeRenewalScheduler>(), AlreadyReady);
+
+    private sealed class Ready : IProcessReadiness
+    {
+        public Task WaitUntilReadyAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
     public async Task<AcmeOrderSummary> OrderAsync(CertificateId id) => (await Issuance.GetOrderAsync(id, Ct))!;
 
@@ -74,7 +81,7 @@ internal sealed partial class IssuanceHarness
     partial void InitializeOrchestration()
     {
         Vault = new FakeCertificateIssuance(Time);
-        Certificates = new CertificateService(_config.Db.Factory, _config.Service, Time, Loggers.CreateLogger<CertificateService>(), Permissions);
+        Certificates = new CertificateService(_config.Db.Factory, _config.Service, Time, Loggers.CreateLogger<CertificateService>(), Permissions, null);
         Issuance = NewIssuance();
         Scheduler = NewScheduler(Issuance);
     }

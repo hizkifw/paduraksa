@@ -83,7 +83,7 @@ public sealed class PermissionTests
     {
         await using var config = await ConfigServiceHarness.CreateAsync();
         await using var h = Over(config.Db);
-        var certificates = new CertificateService(config.Db.Factory, config.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: h.Permissions);
+        var certificates = new CertificateService(config.Db.Factory, config.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: h.Permissions, null);
         var viewer = await h.CreateUserAsync("viewer");
         var operatorUser = await h.CreateUserAsync("operator1", Role.Operator);
         var id = CertificateId.New();

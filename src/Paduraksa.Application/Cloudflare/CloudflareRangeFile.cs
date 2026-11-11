@@ -16,7 +16,7 @@ namespace Paduraksa.Application.Cloudflare;
 /// same checks as a fetched list (<see cref="EdgeRangeList.TryCreate"/>), so a damaged or edited file is ignored with a log line
 /// and the built-in list holds until the next fetch. A symbolic link at the target is never followed.
 /// </remarks>
-public sealed partial class CloudflareRangeFile(string path, ILogger? logger = null)
+public sealed partial class CloudflareRangeFile(string path, ILogger logger)
 {
     /// <summary>The file name inside the data directory.</summary>
     public const string FileName = "cloudflare-ranges.json";
@@ -24,7 +24,7 @@ public sealed partial class CloudflareRangeFile(string path, ILogger? logger = n
     private const string Format = "paduraksa.dev/cloudflare-ranges/v1";
     private const int MaxFileLength = 64 * 1024;
 
-    private readonly ILogger _logger = logger ?? NullLogger.Instance;
+    private readonly ILogger _logger = logger;
 
     public string Path { get; } = System.IO.Path.GetFullPath(path);
 

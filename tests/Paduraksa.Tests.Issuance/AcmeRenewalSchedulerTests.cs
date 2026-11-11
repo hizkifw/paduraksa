@@ -339,7 +339,8 @@ public sealed class AcmeRenewalSchedulerTests
             h.Issuance,
             h.Options with { SchedulerStartDelay = TimeSpan.FromDays(60), SchedulerPollInterval = TimeSpan.FromDays(60) },
             TimeProvider.System,
-            h.Loggers.CreateLogger<AcmeRenewalScheduler>());
+            h.Loggers.CreateLogger<AcmeRenewalScheduler>(),
+            IssuanceHarness.AlreadyReady);
 
         await scheduler.StartAsync(Ct);
         await Task.Delay(TimeSpan.FromMilliseconds(200), Ct);
@@ -361,7 +362,8 @@ public sealed class AcmeRenewalSchedulerTests
             h.Issuance,
             h.Options with { SchedulerStartDelay = TimeSpan.FromHours(1) },
             TimeProvider.System,
-            h.Loggers.CreateLogger<AcmeRenewalScheduler>());
+            h.Loggers.CreateLogger<AcmeRenewalScheduler>(),
+            IssuanceHarness.AlreadyReady);
         await scheduler.StartAsync(Ct);
 
         // Idle (in its start delay): the grace is not waited for.

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Core.Model;
@@ -19,7 +20,7 @@ public sealed class AuditChainVerifierTests : IAsyncLifetime
     {
         _db = await CreateAsync();
         var clock = new ManualTimeProvider(Now);
-        var log = new AuditLog(clock);
+        var log = new AuditLog(clock, NullLogger<AuditLog>.Instance);
         ConfigRevisionId revision;
         await using (var context = _db.NewContext())
         {

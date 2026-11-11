@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
@@ -37,7 +38,7 @@ public sealed class ConfigServiceStartupTests
         await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "a.example.com")));
         var latest = (await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "b.example.com")))).Revision!;
         var path = Path.Combine(Path.GetDirectoryName(h.Db.DatabasePath)!, LastKnownGoodFile.FileName);
-        await using var lastGood = new LastKnownGoodFile(path);
+        await using var lastGood = new LastKnownGoodFile(path, NullLoggerFactory.Instance);
         using var store = new SnapshotStore();
         await using var publisher = new SnapshotPublisher(store);
         using var restarted = TestConfigServices.Create(h.Db, publisher, lastKnownGood: lastGood);
@@ -73,7 +74,7 @@ public sealed class ConfigServiceStartupTests
         await using var h = await ConfigServiceHarness.CreateAsync();
         var revision = (await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "a.example.com")))).Revision!;
         var path = Path.Combine(Path.GetDirectoryName(h.Db.DatabasePath)!, LastKnownGoodFile.FileName);
-        await using (var writer = new LastKnownGoodFile(path))
+        await using (var writer = new LastKnownGoodFile(path, NullLoggerFactory.Instance))
         {
             using var store = new SnapshotStore();
             await using var publisher = new SnapshotPublisher(store);
@@ -84,7 +85,7 @@ public sealed class ConfigServiceStartupTests
 
         await h.Db.ExecuteAsync("UPDATE ConfigRevisions SET DocumentHash = zeroblob(32)");
         var audited = await h.CountAsync("AuditEvents");
-        await using var lastGood = new LastKnownGoodFile(path);
+        await using var lastGood = new LastKnownGoodFile(path, NullLoggerFactory.Instance);
         using var degradedStore = new SnapshotStore();
         await using var degradedPublisher = new SnapshotPublisher(degradedStore);
         using var degraded = TestConfigServices.Create(h.Db, degradedPublisher, lastKnownGood: lastGood);
@@ -238,7 +239,7 @@ public sealed class ConfigServiceStartupTests
     private static async Task WriteLastKnownGoodAsync(ConfigServiceHarness h, RevisionRef revision, ConfigDocument document)
     {
         var bytes = Application.Config.CanonicalConfigJson.Serialize(document);
-        await using var file = new LastKnownGoodFile(LastKnownGoodPath(h));
+        await using var file = new LastKnownGoodFile(LastKnownGoodPath(h), NullLoggerFactory.Instance);
         file.Offer(new LastKnownGoodEntry(revision, bytes, System.Security.Cryptography.SHA256.HashData(bytes)));
     }
 

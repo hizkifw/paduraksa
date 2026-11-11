@@ -1,7 +1,7 @@
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-
+using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
@@ -9,7 +9,6 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Config;
-
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 namespace Paduraksa.Tests.Unit.Certificates;
@@ -292,7 +291,7 @@ public sealed class CertificateInventoryTests : IDisposable
 
     private async Task<ConfigCompilation> CompileAsync(ConfigDocument document)
     {
-        CertificateInventoryLoader loader = new(_source, _builtIns, _clock);
+        CertificateInventoryLoader loader = new(_source, _builtIns, _clock, NullLogger.Instance);
         var inventory = await loader.LoadAsync(null, document, TestContext.Current.CancellationToken);
         return new ConfigCompiler(SnapshotCompilerOptions.Default).Compile(document, Revision, inventory);
     }

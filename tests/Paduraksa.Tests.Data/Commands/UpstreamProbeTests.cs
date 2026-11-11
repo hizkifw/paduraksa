@@ -3,6 +3,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Probes;
@@ -24,7 +25,7 @@ public sealed class UpstreamProbeTests
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).CheckAsync($"http://127.0.0.1:{port}/app", ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h).CheckAsync($"http://127.0.0.1:{port}/app", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamProbeOutcome.Reachable, result.Outcome);
         Assert.True(result.Reachable);
@@ -41,7 +42,7 @@ public sealed class UpstreamProbeTests
             port = ((IPEndPoint)listener.LocalEndpoint).Port;
         }
 
-        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).CheckAsync($"http://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h).CheckAsync($"http://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal((UpstreamProbeOutcome.Unreachable, null), (result.Outcome, result.Message));
     }
@@ -55,7 +56,7 @@ public sealed class UpstreamProbeTests
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
 
-        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).CheckAsync(address, ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h).CheckAsync(address, ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamProbeOutcome.Invalid, result.Outcome);
         Assert.NotNull(result.Message);
@@ -66,7 +67,7 @@ public sealed class UpstreamProbeTests
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
 
-        var result = await new UpstreamProbe(h.Service, new Nobody()).CheckAsync("http://127.0.0.1:1", ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h, new Nobody()).CheckAsync("http://127.0.0.1:1", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamProbeOutcome.Denied, result.Outcome);
         Assert.Equal(1L, await h.Db.ScalarAsync("SELECT count(*) FROM AuditEvents WHERE Action = 'upstream.probe' AND Outcome = 'denied'"));
@@ -87,7 +88,7 @@ public sealed class UpstreamProbeTests
             await tls.AuthenticateAsServerAsync(certificate);
         }, Ct);
 
-        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).FetchCertificateAsync($"https://127.0.0.1:{port}/", ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h).FetchCertificateAsync($"https://127.0.0.1:{port}/", ConfigServiceHarness.Admin, Ct);
         await server;
 
         Assert.Equal(UpstreamCertificateOutcome.Fetched, result.Outcome);
@@ -123,7 +124,7 @@ public sealed class UpstreamProbeTests
                     Ct);
             }
         }, Ct);
-        var probe = new UpstreamProbe(h.Service, TestPermissions.AllowAll);
+        var probe = Probe(h);
 
         var bare = await probe.FetchCertificateAsync($"https://127.0.0.1:{port}/", ConfigServiceHarness.Admin, Ct);
         var forName = await probe.FetchCertificateAsync($"https://127.0.0.1:{port}/", "app.example.test", ConfigServiceHarness.Admin, Ct);
@@ -141,7 +142,7 @@ public sealed class UpstreamProbeTests
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
 
-        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).FetchCertificateAsync("https://127.0.0.1:1", serverName, ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h).FetchCertificateAsync("https://127.0.0.1:1", serverName, ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamCertificateOutcome.Invalid, result.Outcome);
     }
@@ -160,7 +161,7 @@ public sealed class UpstreamProbeTests
             await client.GetStream().WriteAsync("HTTP/1.1 400 Bad Request\r\n\r\n"u8.ToArray(), Ct);
         }, Ct);
 
-        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).FetchCertificateAsync($"https://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h).FetchCertificateAsync($"https://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
         await server;
 
         Assert.Equal(UpstreamCertificateOutcome.NoTls, result.Outcome);
@@ -174,7 +175,7 @@ public sealed class UpstreamProbeTests
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
 
-        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).FetchCertificateAsync(address, ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h).FetchCertificateAsync(address, ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamCertificateOutcome.Invalid, result.Outcome);
     }
@@ -184,7 +185,7 @@ public sealed class UpstreamProbeTests
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
 
-        var result = await new UpstreamProbe(h.Service, new Nobody()).FetchCertificateAsync("https://127.0.0.1:1", ConfigServiceHarness.Admin, Ct);
+        var result = await Probe(h, new Nobody()).FetchCertificateAsync("https://127.0.0.1:1", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamCertificateOutcome.Denied, result.Outcome);
         Assert.Equal(1L, await h.Db.ScalarAsync("SELECT count(*) FROM AuditEvents WHERE Action = 'upstream.certificate' AND Outcome = 'denied'"));
@@ -201,6 +202,9 @@ public sealed class UpstreamProbeTests
         return request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
 #pragma warning restore RS0030
     }
+
+    private static UpstreamProbe Probe(ConfigServiceHarness h, IPermissionEvaluator? permissions = null) =>
+        new(h.Service, permissions ?? TestPermissions.AllowAll, TimeProvider.System, NullLogger<UpstreamProbe>.Instance);
 
     private sealed class Nobody : IPermissionEvaluator
     {

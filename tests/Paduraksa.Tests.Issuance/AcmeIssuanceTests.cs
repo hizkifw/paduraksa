@@ -855,7 +855,7 @@ public sealed partial class AcmeIssuanceTests
 
         // A restart that finds the latest revision damaged starts on the last-known-good file and refuses changes.
         var path = Path.Combine(Path.GetDirectoryName(h.Config.Db.DatabasePath)!, LastKnownGoodFile.FileName);
-        await using (var writer = new LastKnownGoodFile(path))
+        await using (var writer = new LastKnownGoodFile(path, NullLoggerFactory.Instance))
         {
             using var store = new SnapshotStore();
             await using var publisher = new SnapshotPublisher(store);
@@ -865,16 +865,16 @@ public sealed partial class AcmeIssuanceTests
         }
 
         await h.Config.Db.ExecuteAsync("UPDATE ConfigRevisions SET DocumentHash = zeroblob(32)");
-        await using var lastGood = new LastKnownGoodFile(path);
+        await using var lastGood = new LastKnownGoodFile(path, NullLoggerFactory.Instance);
         using var degradedStore = new SnapshotStore();
         await using var degradedPublisher = new SnapshotPublisher(degradedStore);
         using var degraded = TestConfigServices.Create(h.Config.Db, degradedPublisher, permissions: h.Permissions, lastKnownGood: lastGood);
         Assert.False((await degraded.StartAsync(Ct)).AcceptsCommands);
-        using var clients = new AcmeClientProvider(h.Signer, null, null, () => h.Hook, h.Time);
+        using var clients = new AcmeClientProvider(h.Signer, null, new AcmeClientOptions(), () => h.Hook, h.Time, h.Loggers);
         var issuance = new AcmeIssuanceService(
             h.Config.Db.Factory,
             degraded,
-            new CertificateService(h.Config.Db.Factory, degraded, h.Time, NullLogger<CertificateService>.Instance, h.Permissions),
+            new CertificateService(h.Config.Db.Factory, degraded, h.Time, NullLogger<CertificateService>.Instance, h.Permissions, null),
             clients,
             h.Vault,
             h.Challenges,
@@ -882,7 +882,10 @@ public sealed partial class AcmeIssuanceTests
             h.Options,
             h.Time,
             NullLogger<AcmeIssuanceService>.Instance,
-            h.Permissions);
+            h.Permissions,
+            h.Vault,
+            h.Propagation,
+            () => 0.5);
         h.Time.Now += TimeSpan.FromDays(80);
         var requests = h.Server.Requests.Count;
 

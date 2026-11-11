@@ -61,11 +61,12 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
 
     /// <param name="path">The file's full path (normally <c>&lt;data dir&gt;/last-good.json</c>).</param>
     /// <param name="loggerFactory">For write failures.</param>
-    public LastKnownGoodFile(string path, ILoggerFactory? loggerFactory = null)
+    public LastKnownGoodFile(string path, ILoggerFactory loggerFactory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
         Path = System.IO.Path.GetFullPath(path);
-        _logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<LastKnownGoodFile>();
+        _logger = loggerFactory.CreateLogger<LastKnownGoodFile>();
     }
 
     /// <summary>The file's full path.</summary>

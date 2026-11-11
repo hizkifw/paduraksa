@@ -100,13 +100,15 @@ public sealed class AcmePebbleTests(PebbleFixture pebble) : IClassFixture<Pebble
                 // The image's config asks for a 5 s Retry-After on an order still processing, which finalization sometimes is
                 // when it's fetched: the bound must let the client wait that out.
                 new AcmeClientOptions { PollInterval = TimeSpan.FromMilliseconds(200), MinPollDelay = TimeSpan.FromMilliseconds(100), MaxPollDelay = TimeSpan.FromSeconds(10) },
-                PebbleFixture.CreateHandler);
-            Accounts = new AcmeAccountService(config.Db.Factory, config.Service, _clients, Signer, null, TimeProvider.System, NullLogger<AcmeAccountService>.Instance, TestPermissions.AllowAll);
+                PebbleFixture.CreateHandler,
+                TimeProvider.System,
+                NullLoggerFactory.Instance);
+            Accounts = new AcmeAccountService(config.Db.Factory, config.Service, _clients, Signer, null, TimeProvider.System, NullLogger<AcmeAccountService>.Instance, TestPermissions.AllowAll, Secrets);
             DnsProviders = new DnsProviderService(config.Db.Factory, config.Service, Secrets, Dns, TimeProvider.System, NullLogger<DnsProviderService>.Instance, TestPermissions.AllowAll);
             Issuance = new AcmeIssuanceService(
                 config.Db.Factory,
                 config.Service,
-                new CertificateService(config.Db.Factory, config.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll),
+                new CertificateService(config.Db.Factory, config.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll, null),
                 _clients,
                 _vault,
                 Challenges,
@@ -114,7 +116,10 @@ public sealed class AcmePebbleTests(PebbleFixture pebble) : IClassFixture<Pebble
                 new AcmeIssuanceOptions { DnsPropagationDelay = TimeSpan.Zero },
                 TimeProvider.System,
                 NullLogger<AcmeIssuanceService>.Instance,
-                TestPermissions.AllowAll);
+                TestPermissions.AllowAll,
+                new TestConfigServices.NoCertificates(),
+                null,
+                Random.Shared.NextDouble);
         }
 
         public TrackingSigner Signer { get; }

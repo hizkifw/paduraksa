@@ -54,7 +54,7 @@ internal sealed class AnyCertificate : IDisposable
         [
             .. named.Where(id => !Missing.Contains(id))
                 .Select(id => new InventoryCertificate(id, [], now.AddDays(-1), now.AddDays(1), _certificate, null)),
-        ]);
+        ], null, null);
     }
 
     public void Dispose() => _leaf.Dispose();

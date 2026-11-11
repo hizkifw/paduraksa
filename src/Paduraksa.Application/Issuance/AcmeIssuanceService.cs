@@ -68,7 +68,7 @@ public sealed partial class AcmeIssuanceService
     private readonly CertificateService _certificates;
     private readonly IAcmeClientProvider _clients;
     private readonly ICertificateIssuance _vault;
-    private readonly ICertificateCatalog? _catalog;
+    private readonly ICertificateCatalog _catalog;
     private readonly IAcmeChallengeStore _challenges;
     private readonly IDnsProviderFactory? _dns;
     private readonly IDnsPropagationCheck? _propagation;
@@ -90,9 +90,9 @@ public sealed partial class AcmeIssuanceService
         TimeProvider time,
         ILogger<AcmeIssuanceService> logger,
         IPermissionEvaluator permissions,
-        ICertificateCatalog? catalog = null,
-        IDnsPropagationCheck? propagation = null,
-        Func<double>? random = null)
+        ICertificateCatalog catalog,
+        IDnsPropagationCheck? propagation,
+        Func<double> random)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -104,6 +104,8 @@ public sealed partial class AcmeIssuanceService
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(random);
         _contexts = contexts;
         _config = config;
         _certificates = certificates;
@@ -115,7 +117,7 @@ public sealed partial class AcmeIssuanceService
         _propagation = propagation;
         _options = options;
         _time = time;
-        _random = random ?? Random.Shared.NextDouble;
+        _random = random;
         _permissions = permissions;
         _logger = logger;
     }

@@ -159,7 +159,7 @@ public sealed class CertificateRepublishTests
         var lost = new RevisionRef(ConfigRevisionId.New(), 3);
         var document = new ConfigDocument(Hosts: [RespondHost(HostId.New(), "same.example.com"), RespondHost(HostId.New(), "same.example.com")]); // the restore is refused
         var bytes = Application.Config.CanonicalConfigJson.Serialize(document);
-        await using (var file = new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(h.Db.DatabasePath)!, LastKnownGoodFile.FileName)))
+        await using (var file = new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(h.Db.DatabasePath)!, LastKnownGoodFile.FileName), NullLoggerFactory.Instance))
         {
             file.Offer(new LastKnownGoodEntry(lost, bytes, SHA256.HashData(bytes)));
         }
@@ -192,7 +192,7 @@ public sealed class CertificateRepublishTests
         {
             Store = new SnapshotStore();
             _publisher = new SnapshotPublisher(Store);
-            LastGood = new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(h.Db.DatabasePath)!, LastKnownGoodFile.FileName));
+            LastGood = new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(h.Db.DatabasePath)!, LastKnownGoodFile.FileName), NullLoggerFactory.Instance);
             ConfigServiceHarness.FakeCompiler compiler = new();
             if (fail)
             {
@@ -202,7 +202,7 @@ public sealed class CertificateRepublishTests
             }
 
             Service = TestConfigServices.Create(h.Db, _publisher, compiler: compiler, lastKnownGood: LastGood);
-            Certificates = new CertificateService(h.Db.Factory, Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll);
+            Certificates = new CertificateService(h.Db.Factory, Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll, null);
         }
 
         public SnapshotStore Store { get; }
@@ -239,7 +239,7 @@ public sealed class CertificateRepublishTests
             _publisher = new SnapshotPublisher(Store);
             Service = TestConfigServices.Create(
                 db, _publisher, new ConfigCompiler(SnapshotCompilerOptions.Default), time: Time, certificateSource: new Source(_contexts));
-            Certificates = new CertificateService(db.Factory, Service, Time, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll);
+            Certificates = new CertificateService(db.Factory, Service, Time, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll, null);
         }
 
         public TestConfigDatabase Db { get; }

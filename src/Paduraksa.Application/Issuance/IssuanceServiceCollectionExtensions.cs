@@ -19,13 +19,12 @@ namespace Paduraksa.Application.Issuance;
 public static class IssuanceServiceCollectionExtensions
 {
     /// <summary>Registers ACME issuance: the account and DNS provider services, the <see cref="AcmeIssuanceService"/>
-    /// and the <see cref="AcmeRenewalScheduler"/> hosted service, with the client provider that signs through the
-    /// vault. Used when registered: <see cref="IMacKeySource"/> (external account binding), <see
-    /// cref="IDnsProviderFactory"/> and <see cref="IDnsPropagationCheck"/> (DNS-01; both come from <see
-    /// cref="DnsProviderServiceCollectionExtensions.AddPaduraksaDnsProviders"/>, and without a factory a DNS-01
-    /// request fails as not supported), <see cref="ICertificateCatalog"/> (repairs an attach whose record a crash
-    /// lost), <see cref="AcmeIssuanceOptions"/> and <see cref="AcmeClientOptions"/>, and an <see
-    /// cref="IAcmeClientProvider"/> of your own.</summary>
+    /// and the <see cref="AcmeRenewalScheduler"/> hosted service. Needs the <see cref="IAcmeClientProvider"/>, the
+    /// <see cref="IPermissionEvaluator"/>, the vault's <see cref="ICertificateCatalog"/>, <see cref="ISecretStore"/> and
+    /// <see cref="IJwsSigner"/>, and the <see cref="IProcessReadiness"/> signal. Used when registered: <see cref="IMacKeySource"/>
+    /// (external account binding), <see cref="IDnsProviderFactory"/> and <see cref="IDnsPropagationCheck"/> (DNS-01; both come
+    /// from <see cref="DnsProviderServiceCollectionExtensions.AddPaduraksaDnsProviders"/>, and without a factory a DNS-01
+    /// request fails as not supported), <see cref="IBuiltInCertificates"/>.</summary>
     public static IServiceCollection AddPaduraksaIssuance(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -37,13 +36,6 @@ public static class IssuanceServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton(new AcmeIssuanceOptions());
-        services.TryAddSingleton<IAcmeClientProvider>(sp => new AcmeClientProvider(
-            sp.GetRequiredService<IJwsSigner>(),
-            sp.GetService<IMacKeySource>(),
-            sp.GetService<AcmeClientOptions>(),
-            handlerFactory: null,
-            sp.GetRequiredService<TimeProvider>(),
-            sp.GetService<ILoggerFactory>()));
         services.TryAddSingleton(sp => new AcmeAccountService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),
@@ -53,7 +45,7 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<TimeProvider>(),
             Logger<AcmeAccountService>(sp),
             sp.GetRequiredService<IPermissionEvaluator>(),
-            sp.GetService<ISecretStore>()));
+            sp.GetRequiredService<ISecretStore>()));
         services.TryAddSingleton(sp => new DnsProviderService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),
@@ -74,14 +66,15 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<TimeProvider>(),
             Logger<AcmeIssuanceService>(sp),
             sp.GetRequiredService<IPermissionEvaluator>(),
-            catalog: sp.GetService<ICertificateCatalog>(),
-            propagation: sp.GetService<IDnsPropagationCheck>()));
+            sp.GetRequiredService<ICertificateCatalog>(),
+            sp.GetService<IDnsPropagationCheck>(),
+            Random.Shared.NextDouble));
         services.AddSingleton(sp => new AcmeRenewalScheduler(
             sp.GetRequiredService<AcmeIssuanceService>(),
             sp.GetRequiredService<AcmeIssuanceOptions>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<AcmeRenewalScheduler>(sp),
-            sp.GetService<IProcessReadiness>()));
+            sp.GetRequiredService<IProcessReadiness>()));
         services.AddHostedService(sp => sp.GetRequiredService<AcmeRenewalScheduler>());
         return services;
     }

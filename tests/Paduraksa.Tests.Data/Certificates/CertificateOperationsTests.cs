@@ -23,7 +23,7 @@ public sealed class CertificateOperationsTests
         ConfigServiceHarness harness, IPermissionEvaluator? permissions = null)
     {
         var vault = new FakeVault();
-        var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions ?? TestPermissions.AllowAll);
+        var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions ?? TestPermissions.AllowAll, null);
         var operations = new CertificateOperations(certificates, vault, vault, vault, permissions ?? TestPermissions.AllowAll, TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         return (operations, certificates, vault);
     }
@@ -426,8 +426,7 @@ public sealed class CertificateOperationsTests
     {
         await using var harness = await ConfigServiceHarness.CreateAsync();
         var vault = new FakeVault();
-        var certificates = new CertificateService(
-            harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 0));
+        var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 0), null);
         // The operation-level authorizer lets the caller through, so it is the service's own check that refuses.
         var operations = new CertificateOperations(certificates, vault, vault, vault, TestPermissions.AllowAll, TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         var viewer = new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api);
@@ -448,8 +447,7 @@ public sealed class CertificateOperationsTests
         await using var harness = await ConfigServiceHarness.CreateAsync();
         var vault = new FakeVault { CreateFailure = new IOException("disk gone") };
         // The caller may register the pending row (one allowed check), and has lost the permission by the time the rollback runs.
-        var certificates = new CertificateService(
-            harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 1));
+        var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 1), null);
         var operations = new CertificateOperations(certificates, vault, vault, vault, TestPermissions.AllowAll, TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         var caller = new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api, System.Net.IPAddress.Loopback);
 

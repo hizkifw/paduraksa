@@ -486,7 +486,7 @@ public sealed partial class AcmeIssuanceService
     /// <summary>The vault's description of the certificate it holds under <paramref name="id"/> when its leaf is the one in <paramref name="pemChain"/> (this order's: the SHA-256 of the leaf's DER is the described fingerprint), else null.</summary>
     private async Task<CertificateInfo?> FindAttachedAsync(CertificateId id, string pemChain, CancellationToken cancellationToken)
     {
-        if (_catalog is null || await _catalog.DescribeAsync(id, cancellationToken).ConfigureAwait(false) is not { } held)
+        if (await _catalog.DescribeAsync(id, cancellationToken).ConfigureAwait(false) is not { } held)
         {
             return null;
         }

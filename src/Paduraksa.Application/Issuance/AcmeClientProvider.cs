@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Acme;
 using Paduraksa.Core.Vault;
@@ -22,33 +21,37 @@ public sealed class AcmeClientProvider : IAcmeClientProvider, IDisposable
     private readonly ConcurrentDictionary<string, Lazy<AcmeClient>> _clients = new(StringComparer.Ordinal);
     private readonly IJwsSigner _signer;
     private readonly IMacKeySource? _macKeys;
-    private readonly AcmeClientOptions? _options;
-    private readonly Func<HttpMessageHandler>? _handlerFactory;
+    private readonly AcmeClientOptions _options;
+    private readonly Func<HttpMessageHandler> _handlerFactory;
     private readonly TimeProvider _time;
     private readonly ILoggerFactory _loggers;
     private bool _disposed;
 
     /// <param name="signer">Signs account-key JWS and reports the public key (the vault).</param>
     /// <param name="macKeys">Opens EAB MAC keys; <see langword="null"/> if no account uses external account binding.</param>
-    /// <param name="options">The client's timeouts, polling bounds and allowed origins; its defaults if <see langword="null"/>.</param>
-    /// <param name="handlerFactory">The transport a client runs on (see <see cref="AcmeClient"/>); the client's own if <see langword="null"/>. It is not disposed here.</param>
+    /// <param name="options">The client's timeouts, polling bounds and allowed origins.</param>
+    /// <param name="handlerFactory">The transport a client runs on (see <see cref="AcmeClient"/>). It is not disposed here.</param>
     /// <param name="time">The clock for timeouts and polling delays.</param>
     /// <param name="loggers">Where the clients log.</param>
     public AcmeClientProvider(
         IJwsSigner signer,
-        IMacKeySource? macKeys = null,
-        AcmeClientOptions? options = null,
-        Func<HttpMessageHandler>? handlerFactory = null,
-        TimeProvider? time = null,
-        ILoggerFactory? loggers = null)
+        IMacKeySource? macKeys,
+        AcmeClientOptions options,
+        Func<HttpMessageHandler> handlerFactory,
+        TimeProvider time,
+        ILoggerFactory loggers)
     {
         ArgumentNullException.ThrowIfNull(signer);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(handlerFactory);
+        ArgumentNullException.ThrowIfNull(time);
+        ArgumentNullException.ThrowIfNull(loggers);
         _signer = signer;
         _macKeys = macKeys;
         _options = options;
         _handlerFactory = handlerFactory;
-        _time = time ?? TimeProvider.System;
-        _loggers = loggers ?? NullLoggerFactory.Instance;
+        _time = time;
+        _loggers = loggers;
     }
 
     /// <inheritdoc />
@@ -75,5 +78,5 @@ public sealed class AcmeClientProvider : IAcmeClientProvider, IDisposable
     }
 
     private AcmeClient Create(Uri directoryUrl) =>
-        new(directoryUrl, _signer, _macKeys, _options, _handlerFactory?.Invoke(), _time, _loggers.CreateLogger<AcmeClient>());
+        new(directoryUrl, _signer, _macKeys, _options, _handlerFactory(), _time, _loggers.CreateLogger<AcmeClient>());
 }

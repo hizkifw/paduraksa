@@ -34,7 +34,7 @@ public sealed partial class AcmeAccountService
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
     private readonly IPermissionEvaluator _permissions;
-    private readonly ISecretStore? _secrets;
+    private readonly ISecretStore _secrets;
 
     internal AcmeAccountService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -45,7 +45,7 @@ public sealed partial class AcmeAccountService
         TimeProvider time,
         ILogger<AcmeAccountService> logger,
         IPermissionEvaluator permissions,
-        ISecretStore? secrets = null)
+        ISecretStore secrets)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -54,6 +54,7 @@ public sealed partial class AcmeAccountService
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(secrets);
         _contexts = contexts;
         _config = config;
         _clients = clients;
@@ -183,8 +184,7 @@ public sealed partial class AcmeAccountService
         var hasKey = !eabHmacKey.IsEmpty;
         request = request with { EabSecretId = null };
         var problem = ValidateFields(request, hasKey)
-                      ?? (eabHmacKey.Length > MaxEabKeyLength ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.TextTooLong, $"the binding key is limited to {MaxEabKeyLength} bytes") : null)
-                      ?? (hasKey && _secrets is null ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.EabSecretMissing, "this server has no vault to keep a binding key in") : null);
+                      ?? (eabHmacKey.Length > MaxEabKeyLength ? new ConfigError("/eabHmacKey", IssuanceErrorCodes.TextTooLong, $"the binding key is limited to {MaxEabKeyLength} bytes") : null);
         if (problem is not null)
         {
             return new AcmeAccountResult(IssuanceChangeStatus.Invalid, Errors: [problem]);
@@ -195,7 +195,7 @@ public sealed partial class AcmeAccountService
             return await CreateAsync(request, origin, cancellationToken).ConfigureAwait(false);
         }
 
-        var secret = await _secrets!.PutAsync(
+        var secret = await _secrets.PutAsync(
             SecretKind.EabHmacKey,
             eabHmacKey,
             new SecretOptions(string.IsNullOrWhiteSpace(request.Label) ? "EAB key" : $"EAB key: {request.Label.Trim()}", MacAlgorithm.HmacSha256, null),
@@ -205,14 +205,14 @@ public sealed partial class AcmeAccountService
             var result = await CreateAsync(request with { EabSecretId = secret }, origin, cancellationToken).ConfigureAwait(false);
             if (result.Status != IssuanceChangeStatus.Committed)
             {
-                await SecretCleanup.TryDeleteAsync(_secrets!, secret, _logger, cancellationToken).ConfigureAwait(false);
+                await SecretCleanup.TryDeleteAsync(_secrets, secret, _logger, cancellationToken).ConfigureAwait(false);
             }
 
             return result;
         }
         catch
         {
-            await SecretCleanup.TryDeleteAsync(_secrets!, secret, _logger, cancellationToken).ConfigureAwait(false);
+            await SecretCleanup.TryDeleteAsync(_secrets, secret, _logger, cancellationToken).ConfigureAwait(false);
             throw;
         }
     }

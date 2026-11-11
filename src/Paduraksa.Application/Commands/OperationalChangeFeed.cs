@@ -20,7 +20,11 @@ public sealed class OperationalChangeFeed
     private readonly ILogger _logger;
     private ImmutableArray<Action<OperationalChange>> _handlers = [];
 
-    public OperationalChangeFeed(ILogger? logger = null) => _logger = logger ?? NullLogger.Instance;
+    public OperationalChangeFeed(ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        _logger = logger;
+    }
 
     /// <summary>Calls <paramref name="handler"/> for every change from now on; dispose the result to stop.</summary>
     public IDisposable Subscribe(Action<OperationalChange> handler)

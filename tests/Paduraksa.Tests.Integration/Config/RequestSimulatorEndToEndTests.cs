@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Simulation;
@@ -9,7 +10,9 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Identity;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Tls;
+using Paduraksa.Proxy.Yarp;
 using Paduraksa.Server.Hosting;
 using Paduraksa.Server.Placeholders;
 using Paduraksa.Tests.Integration.Hosting;
@@ -257,7 +260,7 @@ public sealed class RequestSimulatorEndToEndTests
 
         // The shipped hook allows everything; a replaced one decides per target and origin.
         Assert.Equal(SimulationStatus.Simulated, (await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, CommandOrigin.Cli, ct)).Status);
-        RequestSimulator guarded = new(host.Shared.Config, host.Shared.SnapshotStore, TestPermissions.Holding(Permission.Simulate));
+        using var guarded = Simulator(host, TestPermissions.Holding(Permission.Simulate));
 
         Assert.Equal(SimulationStatus.Simulated, (await guarded.SimulateAsync(SimulationTarget.Live, Request, Origin, ct)).Status);
         var denied = await guarded.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument()), Request, Origin, ct);
@@ -323,7 +326,7 @@ public sealed class RequestSimulatorEndToEndTests
         var ct = TestContext.Current.CancellationToken;
         await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        using RequestSimulator simulator = new(host.Shared.Config, host.Shared.SnapshotStore, TestPermissions.AllowAll, busyWait: TimeSpan.FromMilliseconds(50));
+        using var simulator = Simulator(host, TestPermissions.AllowAll, TimeSpan.FromMilliseconds(50));
         for (var i = 0; i < RequestSimulator.MaxConcurrentCompiles; i++)
         {
             await simulator.CompileSlots.WaitAsync(ct);
@@ -415,6 +418,19 @@ public sealed class RequestSimulatorEndToEndTests
         // Over a real socket the listener drops the header-less connection too.
         Assert.Equal(string.Empty, await EdgeClient.RawHttpAsync(host, Encoding.ASCII.GetBytes("GET / HTTP/1.1\r\nHost: app.test\r\nConnection: close\r\n\r\n")));
     }
+
+    /// <summary>A second simulator over the host's own pieces, with the permission check and the compile wait a test sets.</summary>
+    private static RequestSimulator Simulator(PaduraksaHost host, IPermissionEvaluator permissions, TimeSpan? busyWait = null) => new(
+        host.Shared.Config,
+        host.Shared.SnapshotStore,
+        permissions,
+        new DeferredUpstreamHealth(),
+        host.Shared.Challenges,
+        new ListenerFacts(null, null, false),
+        host.Shared.ProofOfWork,
+        NullLogger<RequestSimulator>.Instance,
+        busyWait ?? RequestSimulator.BusyWait,
+        TimeProvider.System);
 
     [Fact]
     public async Task TheServersIssuanceServicesRefuseAnOriginWithoutTheProvidersPermission()

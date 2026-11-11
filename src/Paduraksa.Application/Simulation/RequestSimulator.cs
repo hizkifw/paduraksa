@@ -58,42 +58,47 @@ public sealed partial class RequestSimulator : IDisposable
     private readonly TimeSpan _busyWait;
     private readonly ConfigService _config;
     private readonly SnapshotStore _store;
-    private readonly IUpstreamHealth? _health;
+    private readonly IUpstreamHealth _health;
     private readonly IPermissionEvaluator _permissions;
-    private readonly AcmeChallengeStore? _challenges;
-    private readonly ListenerFacts? _listeners;
-    private readonly ProofOfWorkRuntime? _proofOfWork;
+    private readonly AcmeChallengeStore _challenges;
+    private readonly ListenerFacts _listeners;
+    private readonly ProofOfWorkRuntime _proofOfWork;
     private readonly ILogger _logger;
     private readonly TimeProvider _time;
 
     /// <param name="config">Where drafts and revisions come from.</param>
     /// <param name="store">The live snapshot.</param>
     /// <param name="permissions">Who may simulate against which target (<see cref="OperationPermissions.ForSimulation"/>).</param>
-    /// <param name="health">The live proxy's destination health; null: unknown.</param>
+    /// <param name="health">The live proxy's destination health.</param>
     /// <param name="challenges">The live HTTP-01 answers. Challenges are process state, not config, so every target (a draft
-    /// or an old revision too) is asked against this one store, as the live gate is; null: no challenge is answered.</param>
-    /// <param name="listeners">What the public listeners do before a request exists (PROXY protocol, HTTP/3); null: not
-    /// modelled, any connection is let through.</param>
+    /// or an old revision too) is asked against this one store, as the live gate is.</param>
+    /// <param name="listeners">What the public listeners do before a request exists (PROXY protocol, HTTP/3).</param>
     /// <param name="proofOfWork">The live proof-of-work key, clock and counters: a simulated protected route reports the
-    /// challenge or 503 the real gate would, without touching counters; null: a keyless runtime.</param>
-    /// <param name="busyWait">How long a draft or revision waits for a compile slot; default <see cref="BusyWait"/>.</param>
-    /// <param name="logger">Where a failure to read the store is logged; null: nowhere (a test that only checks the answer).</param>
-    /// <param name="time">The clock the trace's ages (the Cloudflare edge ranges') are read against; null: the system's.</param>
+    /// challenge or 503 the real gate would, without touching counters.</param>
+    /// <param name="busyWait">How long a draft or revision waits for a compile slot (<see cref="BusyWait"/> in production).</param>
+    /// <param name="logger">Where a failure to read the store is logged.</param>
+    /// <param name="time">The clock the trace's ages (the Cloudflare edge ranges') are read against.</param>
     internal RequestSimulator(
         ConfigService config,
         SnapshotStore store,
         IPermissionEvaluator permissions,
-        IUpstreamHealth? health = null,
-        AcmeChallengeStore? challenges = null,
-        ListenerFacts? listeners = null,
-        ProofOfWorkRuntime? proofOfWork = null,
-        ILogger<RequestSimulator>? logger = null,
-        TimeSpan? busyWait = null,
-        TimeProvider? time = null)
+        IUpstreamHealth health,
+        AcmeChallengeStore challenges,
+        ListenerFacts listeners,
+        ProofOfWorkRuntime proofOfWork,
+        ILogger<RequestSimulator> logger,
+        TimeSpan busyWait,
+        TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(health);
+        ArgumentNullException.ThrowIfNull(challenges);
+        ArgumentNullException.ThrowIfNull(listeners);
+        ArgumentNullException.ThrowIfNull(proofOfWork);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(time);
         _config = config;
         _store = store;
         _health = health;
@@ -101,9 +106,9 @@ public sealed partial class RequestSimulator : IDisposable
         _challenges = challenges;
         _listeners = listeners;
         _proofOfWork = proofOfWork;
-        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RequestSimulator>.Instance;
-        _busyWait = busyWait ?? BusyWait;
-        _time = time ?? TimeProvider.System;
+        _logger = logger;
+        _busyWait = busyWait;
+        _time = time;
     }
 
     private async ValueTask<bool> MayAsync(SimulationTarget target, CommandOrigin origin, CancellationToken cancellationToken)
@@ -320,7 +325,7 @@ public sealed partial class RequestSimulator : IDisposable
 
     private SimulationUpstream DescribeUpstream(GateUpstream upstream, bool targetIsNotLive, List<string> notes)
     {
-        var live = _health?.Lookup(upstream.Id);
+        var live = _health.Lookup(upstream.Id);
         List<SimulationDestination> destinations = [];
         foreach (var destination in upstream.Destinations)
         {

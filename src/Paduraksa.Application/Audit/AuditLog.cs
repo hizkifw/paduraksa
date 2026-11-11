@@ -38,12 +38,13 @@ internal sealed partial class AuditLog
     /// of this log's own), so the two can't disagree.
     /// </param>
     /// <param name="logger">Warns when the clock is behind the latest stored event.</param>
-    public AuditLog(TimeProvider timeProvider, ILogger<AuditLog>? logger = null)
+    public AuditLog(TimeProvider timeProvider, ILogger<AuditLog> logger)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(logger);
         _timeProvider = timeProvider;
         _ids = new Int64OrderedIdGenerator(timeProvider);
-        _logger = logger ?? NullLogger<AuditLog>.Instance;
+        _logger = logger;
     }
 
     /// <summary>

@@ -35,7 +35,7 @@ public sealed class CertificateServiceTests
         harness.RunAsync(new UpsertHostCommand(Objects.RespondHost(HostId.New(), "seed.example.com")));
 
     private static (ConfigServiceHarness Harness, CertificateService Certificates) Create(ConfigServiceHarness harness) =>
-        (harness, new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll));
+        (harness, new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll, null));
 
     [Fact]
     public async Task RegisteringAddsTheCertificateAuditsItAndRepublishesWithoutARevision()

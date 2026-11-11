@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Config;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Contracts.Commands;
@@ -18,7 +19,7 @@ public sealed class LastKnownGoodFileTests : IDisposable
     [Fact]
     public async Task WritesTheEntryAndReadsItBack()
     {
-        await using var file = new LastKnownGoodFile(Target);
+        await using var file = new LastKnownGoodFile(Target, NullLoggerFactory.Instance);
         var entry = Entry(1, "a.example.com");
 
         file.Offer(entry);
@@ -39,7 +40,7 @@ public sealed class LastKnownGoodFileTests : IDisposable
     [Fact]
     public async Task KeepsTheNewestOfferAndIgnoresOlderOnes()
     {
-        await using var file = new LastKnownGoodFile(Target);
+        await using var file = new LastKnownGoodFile(Target, NullLoggerFactory.Instance);
 
         file.Offer(Entry(2, "b.example.com"));
         file.Offer(Entry(1, "a.example.com"));
@@ -58,7 +59,7 @@ public sealed class LastKnownGoodFileTests : IDisposable
         var victim = Path.Combine(_directory, "victim.txt");
         await File.WriteAllTextAsync(victim, "untouched", TestContext.Current.CancellationToken);
         File.CreateSymbolicLink(Target, victim);
-        await using var file = new LastKnownGoodFile(Target);
+        await using var file = new LastKnownGoodFile(Target, NullLoggerFactory.Instance);
 
         // Reading refuses the link ...
         Assert.False(file.TryRead(out _, out var problem));
@@ -76,7 +77,7 @@ public sealed class LastKnownGoodFileTests : IDisposable
     [Fact]
     public async Task RemovesLeftoverTempFilesWithoutWritingThroughLinks()
     {
-        await using var file = new LastKnownGoodFile(Target);
+        await using var file = new LastKnownGoodFile(Target, NullLoggerFactory.Instance);
         var victim = Path.Combine(_directory, "victim.txt");
         await File.WriteAllTextAsync(victim, "untouched", TestContext.Current.CancellationToken);
         File.CreateSymbolicLink(Target + ".planted.tmp", victim);
@@ -93,7 +94,7 @@ public sealed class LastKnownGoodFileTests : IDisposable
     [Fact]
     public async Task AFailedWriteKeepsThePreviousFile()
     {
-        await using var file = new LastKnownGoodFile(Target);
+        await using var file = new LastKnownGoodFile(Target, NullLoggerFactory.Instance);
         file.Offer(Entry(1, "a.example.com"));
         await file.FlushAsync();
 
@@ -123,7 +124,7 @@ public sealed class LastKnownGoodFileTests : IDisposable
     [InlineData("not an object")]
     public async Task RefusesAFileThatCantBeTrusted(string damage)
     {
-        await using var file = new LastKnownGoodFile(Target);
+        await using var file = new LastKnownGoodFile(Target, NullLoggerFactory.Instance);
         var text = Encoding.UTF8.GetString(LastKnownGoodFile.Render(Entry(1, "a.example.com")));
         switch (damage)
         {
@@ -160,7 +161,7 @@ public sealed class LastKnownGoodFileTests : IDisposable
     [Fact]
     public async Task IgnoresOffersOnceDisposed()
     {
-        var file = new LastKnownGoodFile(Target);
+        var file = new LastKnownGoodFile(Target, NullLoggerFactory.Instance);
         await file.DisposeAsync();
 
         file.Offer(Entry(1, "a.example.com"));

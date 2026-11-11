@@ -33,14 +33,16 @@ public sealed partial class UpstreamProbe
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
 
-    public UpstreamProbe(ConfigService config, IPermissionEvaluator permissions, TimeProvider? time = null, ILogger<UpstreamProbe>? logger = null)
+    public UpstreamProbe(ConfigService config, IPermissionEvaluator permissions, TimeProvider time, ILogger<UpstreamProbe> logger)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(time);
+        ArgumentNullException.ThrowIfNull(logger);
         _config = config;
         _permissions = permissions;
-        _time = time ?? TimeProvider.System;
-        _logger = logger ?? (ILogger)NullLogger.Instance;
+        _time = time;
+        _logger = logger;
     }
 
     /// <summary>

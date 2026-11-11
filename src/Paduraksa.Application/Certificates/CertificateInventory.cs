@@ -48,7 +48,7 @@ public sealed class CertificateInventory
     /// <param name="nextBoundary">When the validity of an active certificate next changes (see <see cref="NextBoundary"/>).</param>
     /// <param name="fallbackDefault">The certificate to serve as the default when the config names none (or its choice
     /// is unusable); ignored unless that certificate is usable. See <see cref="FallbackDefault"/>.</param>
-    public CertificateInventory(IReadOnlyList<InventoryCertificate> certificates, CertificateId? fallbackDefault = null, DateTimeOffset? nextBoundary = null)
+    public CertificateInventory(IReadOnlyList<InventoryCertificate> certificates, CertificateId? fallbackDefault, DateTimeOffset? nextBoundary)
     {
         ArgumentNullException.ThrowIfNull(certificates);
         _byId = new Dictionary<CertificateId, InventoryCertificate>(certificates.Count);
@@ -68,7 +68,7 @@ public sealed class CertificateInventory
     }
 
     /// <summary>No certificates.</summary>
-    public static CertificateInventory Empty { get; } = new([]);
+    public static CertificateInventory Empty { get; } = new([], null, null);
 
     /// <summary>Every certificate the process knows about, in no particular order.</summary>
     public IReadOnlyList<InventoryCertificate> Certificates { get; }

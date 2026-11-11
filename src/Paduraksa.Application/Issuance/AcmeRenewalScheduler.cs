@@ -26,7 +26,7 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
     private readonly AcmeIssuanceOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
-    private readonly IProcessReadiness? _readiness;
+    private readonly IProcessReadiness _readiness;
     private volatile bool _draining;
     private volatile bool _working;
 
@@ -44,8 +44,9 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
         AcmeIssuanceOptions options,
         TimeProvider time,
         ILogger<AcmeRenewalScheduler> logger,
-        IProcessReadiness? readiness = null)
+        IProcessReadiness readiness)
     {
+        ArgumentNullException.ThrowIfNull(readiness);
         ArgumentNullException.ThrowIfNull(issuance);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(time);
@@ -148,10 +149,7 @@ public sealed partial class AcmeRenewalScheduler : BackgroundService
             // The start delay is a heuristic; the listeners are a fact. An HTTP-01 validation that runs before the public
             // listener binds fails, and a permanent failure backs the certificate off for a long time, so wait for the
             // process to say it is ready (the core host starts before the web apps).
-            if (_readiness is { } readiness)
-            {
-                await readiness.WaitUntilReadyAsync(stoppingToken).ConfigureAwait(false);
-            }
+            await _readiness.WaitUntilReadyAsync(stoppingToken).ConfigureAwait(false);
 
             while (!stoppingToken.IsCancellationRequested && !_draining)
             {

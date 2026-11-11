@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Core.Model;
@@ -19,7 +20,7 @@ public sealed class AuditLogTests : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         _db = await CreateAsync();
-        _log = new AuditLog(_clock);
+        _log = new AuditLog(_clock, NullLogger<AuditLog>.Instance);
     }
 
     public async ValueTask DisposeAsync() => await _db.DisposeAsync();

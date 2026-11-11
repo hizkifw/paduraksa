@@ -104,7 +104,7 @@ public sealed class IssuancePermissionTests
     {
         await using var h = await IssuanceHarness.CreateAsync();
         var path = Path.Combine(Path.GetDirectoryName(h.Config.Db.DatabasePath)!, LastKnownGoodFile.FileName);
-        await using (var writer = new LastKnownGoodFile(path))
+        await using (var writer = new LastKnownGoodFile(path, NullLoggerFactory.Instance))
         {
             using var store = new SnapshotStore();
             await using var publisher = new SnapshotPublisher(store);
@@ -114,13 +114,12 @@ public sealed class IssuancePermissionTests
         }
 
         await h.Config.Db.ExecuteAsync("UPDATE ConfigRevisions SET DocumentHash = zeroblob(32)");
-        await using var lastGood = new LastKnownGoodFile(path);
+        await using var lastGood = new LastKnownGoodFile(path, NullLoggerFactory.Instance);
         using var degradedStore = new SnapshotStore();
         await using var degradedPublisher = new SnapshotPublisher(degradedStore);
         using var degraded = TestConfigServices.Create(h.Config.Db, degradedPublisher, permissions: h.Permissions, lastKnownGood: lastGood);
         Assert.False((await degraded.StartAsync(Ct)).AcceptsCommands);
-        var certificates = new CertificateService(
-            h.Config.Db.Factory, degraded, h.Time, NullLogger<CertificateService>.Instance, new Evaluator(throws: true));
+        var certificates = new CertificateService(h.Config.Db.Factory, degraded, h.Time, NullLogger<CertificateService>.Instance, new Evaluator(throws: true), null);
 
         var result = await certificates.DeleteAsync(CertificateId.New(), Stranger, Ct);
 

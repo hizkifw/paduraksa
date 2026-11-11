@@ -39,7 +39,7 @@ public sealed class CloudflareRangeRefresherTests : IDisposable
     {
         Directory.CreateDirectory(_directory);
         _source = new CloudflareEdgeRangeSource(_clock);
-        _file = new CloudflareRangeFile(Path.Combine(_directory, CloudflareRangeFile.FileName));
+        _file = new CloudflareRangeFile(Path.Combine(_directory, CloudflareRangeFile.FileName), NullLogger.Instance);
         PublishLive(TrustedProxyMode.CloudflareProxy);
     }
 
@@ -400,7 +400,7 @@ public sealed class CloudflareRangeRefresherTests : IDisposable
     public async Task AnUnwritableStoreDoesNotRejectTheList()
     {
         ServeJson();
-        var blocked = new CloudflareRangeFile(Path.Combine(_directory, "missing-dir", CloudflareRangeFile.FileName));
+        var blocked = new CloudflareRangeFile(Path.Combine(_directory, "missing-dir", CloudflareRangeFile.FileName), NullLogger.Instance);
         using CloudflareRangeRefresher refresher = new(
             _source, blocked, new HttpClient(_cloudflare), Options(), _store, () => Task.FromResult(true), _clock, NullLogger<CloudflareRangeRefresher>.Instance);
 

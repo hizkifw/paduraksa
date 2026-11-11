@@ -217,7 +217,7 @@ public sealed class ConfigServicePipelineTests
     {
         await using var db = await CreateAsync();
         using var store = new SnapshotStore();
-        var lastGood = db.Own(new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(db.DatabasePath)!, LastKnownGoodFile.FileName)));
+        var lastGood = db.Own(new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(db.DatabasePath)!, LastKnownGoodFile.FileName), NullLoggerFactory.Instance));
         TestConfigServices.NoCertificates noCertificates = new();
         await using var services = new ServiceCollection()
             .AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance)

@@ -41,7 +41,7 @@ internal static class TestConfigServices
             time ?? TimeProvider.System,
             loggers ?? NullLoggerFactory.Instance,
             options ?? new ConfigServiceOptions(),
-            lastKnownGood ?? db.Own(new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(db.DatabasePath)!, "unshared-" + LastKnownGoodFile.FileName))),
+            lastKnownGood ?? db.Own(new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(db.DatabasePath)!, "unshared-" + LastKnownGoodFile.FileName), NullLoggerFactory.Instance)),
             certificateSource ?? new NoCertificates(),
             builtIns,
             catalog ?? new NoCertificates());

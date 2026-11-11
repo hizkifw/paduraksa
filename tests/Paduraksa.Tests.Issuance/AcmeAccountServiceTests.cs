@@ -72,12 +72,13 @@ public sealed class AcmeAccountServiceTests
         var accounts = new AcmeAccountService(
             h.Config.Db.Factory,
             h.Config.Service,
-            new AcmeClientProvider(h.Signer, macKeys, new AcmeClientOptions { RequestTimeout = TimeSpan.FromDays(1) }, () => h.Hook, h.Time),
+            new AcmeClientProvider(h.Signer, macKeys, new AcmeClientOptions { RequestTimeout = TimeSpan.FromDays(1) }, () => h.Hook, h.Time, h.Loggers),
             h.Signer,
             macKeys,
             h.Time,
             NullLogger<AcmeAccountService>.Instance,
-            h.Permissions);
+            h.Permissions,
+            h.Secrets);
 
         var bound = await accounts.CreateAsync(Request() with { EabKid = "kid-1", EabSecretId = secret }, Admin, Ct);
 
@@ -96,13 +97,13 @@ public sealed class AcmeAccountServiceTests
     private static AcmeAccountService WithSecrets(IssuanceHarness h, IMacKeySource macKeys) => new(
         h.Config.Db.Factory,
         h.Config.Service,
-        new AcmeClientProvider(h.Signer, macKeys, new AcmeClientOptions { RequestTimeout = TimeSpan.FromDays(1) }, () => h.Hook, h.Time),
+        new AcmeClientProvider(h.Signer, macKeys, new AcmeClientOptions { RequestTimeout = TimeSpan.FromDays(1) }, () => h.Hook, h.Time, h.Loggers),
         h.Signer,
         macKeys,
         h.Time,
         NullLogger<AcmeAccountService>.Instance,
         h.Permissions,
-        secrets: h.Secrets);
+        h.Secrets);
 
     private sealed class AnyEabKeys(IMacKey key) : IMacKeySource
     {

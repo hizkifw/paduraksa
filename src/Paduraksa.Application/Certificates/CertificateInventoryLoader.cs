@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -32,7 +31,7 @@ internal sealed partial class CertificateInventoryLoader
     /// issued a moment ago must not wait for ours.</summary>
     public static readonly TimeSpan NotBeforeTolerance = TimeSpan.FromMinutes(5);
 
-    private readonly IServerCertificateSource? _source;
+    private readonly IServerCertificateSource _source;
     private readonly IBuiltInCertificates? _builtIns;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
@@ -40,19 +39,21 @@ internal sealed partial class CertificateInventoryLoader
     private readonly ICertificateCatalog? _catalog;
 
     public CertificateInventoryLoader(
-        IServerCertificateSource? source,
+        IServerCertificateSource source,
         IBuiltInCertificates? builtIns,
         TimeProvider timeProvider,
-        ILogger? logger = null)
+        ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(logger);
         _source = source;
         _builtIns = builtIns;
         _timeProvider = timeProvider;
-        _logger = logger ?? NullLogger.Instance;
+        _logger = logger;
     }
 
-    private CertificateInventoryLoader(ICertificateCatalog? catalog, IBuiltInCertificates? builtIns, TimeProvider timeProvider, ILogger? logger)
+    private CertificateInventoryLoader(ICertificateCatalog catalog, IBuiltInCertificates? builtIns, TimeProvider timeProvider, ILogger logger)
         : this(new SimulationCertificateSource(), builtIns, timeProvider, logger)
     {
         _simulation = true;
@@ -63,10 +64,9 @@ internal sealed partial class CertificateInventoryLoader
     /// A loader for configs that are only simulated: whether a certificate is usable is decided from what the
     /// vault <b>describes</b> (<paramref name="catalog"/>: public facts, no key opened), with the reasons the real loader
     /// gives; and what is served is a placeholder context (<see cref="SimulationCertificateSource"/>), never the vault's.
-    /// Without a catalog every certificate the table says is valid counts as usable: nothing can say otherwise.
     /// </summary>
     public static CertificateInventoryLoader ForSimulation(
-        ICertificateCatalog? catalog, IBuiltInCertificates? builtIns, TimeProvider timeProvider, ILogger? logger = null) =>
+        ICertificateCatalog catalog, IBuiltInCertificates? builtIns, TimeProvider timeProvider, ILogger logger) =>
         new(catalog, builtIns, timeProvider, logger);
 
     /// <summary>
@@ -135,7 +135,7 @@ internal sealed partial class CertificateInventoryLoader
                 }
                 else
                 {
-                    failed[id] = reason ?? (_source is null ? "no certificate source is configured" : NoUsableKeyAndChain);
+                    failed[id] = reason ?? NoUsableKeyAndChain;
                 }
             }
         }
@@ -165,12 +165,12 @@ internal sealed partial class CertificateInventoryLoader
             builtIn |= candidate.Id == id;
         }
 
-        if (!builtIn && _catalog is not null)
+        if (!builtIn)
         {
             VaultCertificate? held;
             try
             {
-                held = await _catalog.DescribeAsync(id, cancellationToken).ConfigureAwait(false);
+                held = await _catalog!.DescribeAsync(id, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -212,12 +212,6 @@ internal sealed partial class CertificateInventoryLoader
 
     private async Task<ServerCertificate?> LoadOneAsync(CertificateId id, CancellationToken cancellationToken)
     {
-        if (_source is null)
-        {
-            LogNotLoaded(id);
-            return null;
-        }
-
         try
         {
             if (await _source.LoadForServingAsync(id, cancellationToken).ConfigureAwait(false) is { } context)
