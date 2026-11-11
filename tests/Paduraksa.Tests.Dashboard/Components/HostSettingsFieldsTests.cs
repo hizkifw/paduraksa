@@ -24,6 +24,10 @@ public sealed class HostSettingsFieldsTests
 
     private static readonly AccessListId SampleList = AccessListId.New();
 
+    private static readonly RuleSetId SampleSet = RuleSetId.New();
+
+    private static readonly RuleSetConfig SampleSetConfig = new(SampleSet, "Scanners");
+
     private static readonly AccessListConfig SampleListConfig = new(SampleList, "Office", Ip: new AccessListIp(["10.0.0.0/8"]));
 
     private static readonly RateLimitPolicyConfig SamplePolicyConfig = new(
@@ -44,6 +48,7 @@ public sealed class HostSettingsFieldsTests
         Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true },
         AccessList = new AccessListSettings { AccessListId = SampleList },
         RequestLimits = new RequestLimitsSettings { MaxBodySize = 10 * 1024 * 1024, MaxHeaderCount = 30, MaxHeaderBytes = 16 * 1024, MaxUrlLength = 4 * 1024 },
+        RuleSet = new RuleSetSettings { RuleSetId = SampleSet },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -435,6 +440,34 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/requestLimits/maxUrlLength",
             ShowsAtField = true,
         },
+        new(
+            "ruleSet.enabled",
+            "rule-set",
+            "/ruleSet/enabled",
+            new HostSettings(),
+            (fields, _) => SetRuleSet(fields, "off"),
+            new HostSettings { RuleSet = new RuleSetSettings { Enabled = false } },
+            (fields, _) => SetRuleSet(fields, "inherit"),
+            new HostSettings(),
+            "Inherit (Scanners)")
+        {
+            ValidatorPath = "/ruleSet/enabled",
+            ShowsAtField = true,
+        },
+        new(
+            "ruleSet.ruleSetId",
+            "rule-set",
+            "/ruleSet/ruleSetId",
+            new HostSettings(),
+            (fields, _) => SetRuleSet(fields, "p0"),
+            new HostSettings { RuleSet = new RuleSetSettings { Enabled = true, RuleSetId = SampleSet } },
+            (fields, _) => SetRuleSet(fields, "inherit"),
+            new HostSettings(),
+            "Inherit (Scanners)")
+        {
+            ValidatorPath = "/ruleSet/ruleSetId",
+            ShowsAtField = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -732,7 +765,8 @@ public sealed class HostSettingsFieldsTests
             .Add(f => f.Errors, errors ?? new Dictionary<string, string>())
             .Add(f => f.ShowAll, true)
             .Add(f => f.Policies, [SamplePolicyConfig])
-            .Add(f => f.AccessLists, [SampleListConfig]));
+            .Add(f => f.AccessLists, [SampleListConfig])
+            .Add(f => f.RuleSets, [SampleSetConfig]));
 
     private static Task SetSelect<T>(IRenderedComponent<HostSettingsFields> fields, string label, T? value)
         where T : struct =>
@@ -750,6 +784,12 @@ public sealed class HostSettingsFieldsTests
     private static Task SetAccessList(IRenderedComponent<HostSettingsFields> fields, string key) =>
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>()
             .Single(select => select.Instance.Label == "Access list")
+            .Instance.ValueChanged.InvokeAsync(key));
+
+    /// <summary>Chooses the rule-set picker's inherit, none, or nth-set item by its key (the document's sets come before the presets).</summary>
+    private static Task SetRuleSet(IRenderedComponent<HostSettingsFields> fields, string key) =>
+        fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Rule set")
             .Instance.ValueChanged.InvokeAsync(key));
 
     private static async Task SetMaxAgeAsync(IRenderedComponent<HostSettingsFields> fields)

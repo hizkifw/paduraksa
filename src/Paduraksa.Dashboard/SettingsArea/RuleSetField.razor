@@ -1,0 +1,151 @@
+@using Paduraksa.Contracts.Config
+@using Paduraksa.Core.Model
+@* One picker for a layer's rule set: inherit what the layer below resolves, none, one of the sets by name, or a built-in preset.
+   The choices are the contract's RuleSetSettings exactly: no record inherits, Enabled false is none, and a set is Enabled true
+   with its ID. A set is never shown by ID. *@
+<RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
+           ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="New rule set..." OnNew="@OnNew"
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field">
+    <MudSelectItem T="string" Value="@InheritChoice">
+        <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
+    </MudSelectItem>
+    <MudSelectItem T="string" Value="@OffChoice">
+        <span class="pdk-picker-item"><span>No rule set</span><span class="pdk-picker-hint">every request goes on</span></span>
+    </MudSelectItem>
+    @if (Missing is not null)
+    {
+        <MudSelectItem T="string" Value="@MissingChoice">
+            <span class="pdk-picker-item"><span>A set that isn't here</span><span class="pdk-picker-hint">choose another, or none</span></span>
+        </MudSelectItem>
+    }
+    @for (var i = 0; i < Choices.Count; i++)
+    {
+        var index = i;
+        var set = Choices[index];
+        <MudSelectItem T="string" Value="@SetChoice(index)">
+            <span class="pdk-picker-item">
+                <span>@set.Name</span>
+                @if (Staged.Contains(set.Id))
+                {
+                    <span class="pdk-chip pdk-tone-primary">New</span>
+                }
+                else if (RuleSetPresets.IsPreset(set.Id))
+                {
+                    <span class="pdk-chip pdk-tone-default">Built-in</span>
+                }
+                <span class="pdk-picker-hint">@RuleSetText.Summary(set)</span>
+            </span>
+        </MudSelectItem>
+    }
+</RefPicker>
+
+@code {
+    private const string InheritChoice = "inherit";
+    private const string OffChoice = "off";
+    private const string MissingChoice = "missing";
+    private const string NewChoice = "new";
+
+    /// <summary>This layer's record; null inherits.</summary>
+    [Parameter]
+    public RuleSetSettings? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<RuleSetSettings?> ValueChanged { get; set; }
+
+    /// <summary>What the layer below resolves to, which the inherit choice names in words.</summary>
+    [Parameter, EditorRequired]
+    public RuleSetSettings Inherited { get; set; } = new();
+
+    /// <summary>The sets a choice can name: the document's, and those staged in a host's draft. The built-in presets follow them.</summary>
+    [Parameter]
+    public IReadOnlyList<RuleSetConfig> Sets { get; set; } = [];
+
+    /// <summary>The sets made in the host's drawer, marked "New".</summary>
+    [Parameter]
+    public IReadOnlySet<RuleSetId> Staged { get; set; } = new HashSet<RuleSetId>();
+
+    /// <summary>"New rule set...": the caller opens the editor and selects what it hands back.</summary>
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    /// <summary>The words of the inherit choice: "Inherit" or "Built-in default".</summary>
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter]
+    public string Label { get; set; } = "Rule set";
+
+    /// <summary>The <c>data-field</c> the tests and the browser select it by.</summary>
+    [Parameter]
+    public string Field { get; set; } = "rule-set";
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private IReadOnlyList<RuleSetConfig> Choices => [.. Sets, .. RuleSetPresets.All];
+
+    /// <summary>The set this layer names that the document doesn't have; it gets an option of its own so the select still says so.</summary>
+    private RuleSetId? Missing =>
+        Value?.RuleSetId is { IsEmpty: false } id && IndexOf(id) < 0 ? id : null;
+
+    private string Choice => Value switch
+    {
+        { Enabled: false } => OffChoice,
+        { RuleSetId: { IsEmpty: false } id } when IndexOf(id) >= 0 => SetChoice(IndexOf(id)),
+        { RuleSetId: { IsEmpty: false } } => MissingChoice,
+        _ => InheritChoice,
+    };
+
+    private string? ChoiceText(string? key) => key switch
+    {
+        InheritChoice => $"{InheritWord} ({RuleSetText.Inherited(Inherited, Choices)})",
+        OffChoice => "No rule set",
+        MissingChoice => "A set that isn't here",
+        _ when key is not null && key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Choices.Count => Choices[index].Name,
+        _ => string.Empty,
+    };
+
+    private int IndexOf(RuleSetId id)
+    {
+        var choices = Choices;
+        for (var i = 0; i < choices.Count; i++)
+        {
+            if (choices[i].Id == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string SetChoice(int index) => $"p{index}";
+
+    private async Task OnChoiceAsync(string key)
+    {
+        if (key == InheritChoice)
+        {
+            await ValueChanged.InvokeAsync(null);
+        }
+        else if (key == OffChoice)
+        {
+            await ValueChanged.InvokeAsync(new RuleSetSettings { Enabled = false });
+        }
+        else if (key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Choices.Count)
+        {
+            await ValueChanged.InvokeAsync(new RuleSetSettings { Enabled = true, RuleSetId = Choices[index].Id });
+        }
+    }
+}

@@ -66,6 +66,15 @@ public static class HostSettingsEdit
         return settings with { AccessList = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its rule-set record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithRuleSet(HostSettings settings, Func<RuleSetSettings, RuleSetSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.RuleSet ?? new RuleSetSettings());
+        return settings with { RuleSet = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary><paramref name="settings"/> with its robots.txt record changed, and no record at all when nothing is left set.</summary>
     public static HostSettings WithRobots(HostSettings settings, Func<RobotsSettings, RobotsSettings> change)
     {
@@ -141,6 +150,7 @@ public static class SettingsSummary
         static (settings, _) => settings.Cloudflare is { } cloudflare ? CloudflareText(cloudflare) : null,
         static (settings, document) => settings.AccessList is { } accessList ? AccessListSummary(accessList, document) : null,
         static (settings, _) => settings.RequestLimits is { } requestLimits ? RequestLimitsText(requestLimits) : null,
+        static (settings, document) => settings.RuleSet is { } ruleSet ? RuleSetSummary(ruleSet, document) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
@@ -373,6 +383,26 @@ public static class SettingsSummary
 
         var name = document?.AccessLists.FirstOrDefault(candidate => candidate.Id == id)?.Name;
         return $"Access list: {name ?? "a list"}";
+    }
+
+    private static string? RuleSetSummary(RuleSetSettings ruleSet, ConfigDocument? document)
+    {
+        if (ruleSet is { Enabled: null, RuleSetId: null })
+        {
+            return null;
+        }
+
+        if (ruleSet.Enabled == false)
+        {
+            return "Rules off";
+        }
+
+        if (ruleSet.RuleSetId is not { IsEmpty: false } id)
+        {
+            return "Rules: the inherited set";
+        }
+
+        return $"Rules: {RuleSetText.NameOf(id, document?.RuleSets ?? []) ?? "a set"}";
     }
 
     private static string? RateLimitText(RateLimitSettings rateLimit, ConfigDocument? document)

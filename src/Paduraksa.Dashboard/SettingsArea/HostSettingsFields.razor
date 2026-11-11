@@ -80,6 +80,12 @@
                          Error="@AccessListError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
     </SettingRow>
 
+    <SettingRow Title="Rules" Help="Refuse, drop or allow requests by path, method and user agent. Asked before a password, so a refused request costs no check.">
+        <RuleSetField Value="_current.RuleSet" ValueChanged="SetRuleSet" Inherited="@(Resolved.RuleSet ?? new RuleSetSettings())"
+                      Sets="RuleSets" Staged="StagedRuleSets" InheritWord="@InheritWord" OnNew="OnNewRuleSet"
+                      Error="@RuleSetError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+    </SettingRow>
+
     <SettingRow Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately.">
         <RateLimitField Value="_current.RateLimit" ValueChanged="SetRateLimit" Inherited="@(Resolved.RateLimit ?? new RateLimitSettings())"
                         Policies="Policies" Staged="StagedRateLimits" InheritWord="@InheritWord" OnNew="OnNewRateLimit"
@@ -321,6 +327,18 @@
     [Parameter]
     public EventCallback OnNewAccessList { get; set; }
 
+    /// <summary>The rule sets a host or a profile can pick, including those staged in a host's draft. The built-in presets are offered besides.</summary>
+    [Parameter]
+    public IReadOnlyList<RuleSetConfig> RuleSets { get; set; } = [];
+
+    /// <summary>The rule sets made in this host's drawer (marked "New").</summary>
+    [Parameter]
+    public IReadOnlySet<RuleSetId> StagedRuleSets { get; set; } = new HashSet<RuleSetId>();
+
+    /// <summary>"New rule set..." in the picker: the host's drawer makes one and selects it.</summary>
+    [Parameter]
+    public EventCallback OnNewRuleSet { get; set; }
+
     /// <summary>"New rate limit..." in the picker: the host's drawer makes one and selects it.</summary>
     [Parameter]
     public EventCallback OnNewRateLimit { get; set; }
@@ -360,6 +378,8 @@
     private string? RateLimitError => E("/rateLimit/policyId") ?? E("/rateLimit/enabled");
 
     private string? AccessListError => E("/accessList/accessListId") ?? E("/accessList/enabled");
+
+    private string? RuleSetError => E("/ruleSet/ruleSetId") ?? E("/ruleSet/enabled");
 
     /// <summary>The custom value shows for a custom mode, or when this layer or an error has one to show.</summary>
     private bool ServerValueVisible =>
@@ -409,6 +429,9 @@
 
     private Task SetAccessList(AccessListSettings? value) =>
         Update(HostSettingsEdit.WithAccessList(_current, _ => value ?? new AccessListSettings()), "/accessList/accessListId");
+
+    private Task SetRuleSet(RuleSetSettings? value) =>
+        Update(HostSettingsEdit.WithRuleSet(_current, _ => value ?? new RuleSetSettings()), "/ruleSet/ruleSetId");
 
     /// <summary>Hands the changed layer to the form, then says which field changed (so its errors show and it revalidates).</summary>
     private async Task Update(HostSettings settings, string path)

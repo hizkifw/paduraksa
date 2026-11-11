@@ -148,6 +148,12 @@
                                            Inherited="HostMaxBodySize" Presets="RequestLimitPresets.Body" AllowUnlimited="true" Label="Body size on this route"
                                            Error="@E($"/routes/{index}/settings/requestLimits/maxBodySize")" ReadOnly="ReadOnly"
                                            Field="@($"route-max-body-size-{index}")" />
+                                <RuleSetField Value="route.RuleSet" ValueChanged="@(value => SetAsync(() => route.RuleSet = value, $"/routes/{index}/settings/ruleSet/ruleSetId"))"
+                                              Inherited="HostRuleSet" Sets="RuleSets" Staged="StagedRuleSets" Label="Rules on this route"
+                                              OnNew="@(OnNewRuleSet.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRuleSet.InvokeAsync(route)) : default)"
+                                              HelperText="Inherits the host's rule set unless this route names one or turns it off."
+                                              Error="@(E($"/routes/{index}/settings/ruleSet/ruleSetId") ?? E($"/routes/{index}/settings/ruleSet/enabled"))" ReadOnly="ReadOnly"
+                                              Field="@($"route-rule-set-{index}")" />
                                 </div>
                             </div>
                         }
@@ -233,7 +239,9 @@
                             Policies="RateLimits" StagedRateLimits="StagedRateLimits"
                             OnNewRateLimit="@(OnNewRateLimit.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRateLimit.InvokeAsync(null)) : default)"
                             AccessLists="AccessLists" StagedAccessLists="StagedAccessLists"
-                            OnNewAccessList="@(OnNewAccessList.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAccessList.InvokeAsync(null)) : default)">
+                            OnNewAccessList="@(OnNewAccessList.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAccessList.InvokeAsync(null)) : default)"
+                            RuleSets="RuleSets" StagedRuleSets="StagedRuleSets"
+                            OnNewRuleSet="@(OnNewRuleSet.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRuleSet.InvokeAsync(null)) : default)">
             <div class="pdk-setting">
                 <div class="pdk-setting-text">
                     <span class="pdk-setting-title">Profile</span>
@@ -315,6 +323,14 @@
     [Parameter]
     public IReadOnlySet<AccessListId> StagedAccessLists { get; set; } = new HashSet<AccessListId>();
 
+    /// <summary>The rule sets a host or a route can pick: the config's, and those made in this drawer. The built-in presets are offered besides.</summary>
+    [Parameter]
+    public IReadOnlyList<RuleSetConfig> RuleSets { get; set; } = [];
+
+    /// <summary>The rule sets made in this drawer (marked "New").</summary>
+    [Parameter]
+    public IReadOnlySet<RuleSetId> StagedRuleSets { get; set; } = new HashSet<RuleSetId>();
+
     /// <summary>The inventory for the picker; null when the user may not read it.</summary>
     [Parameter]
     public IReadOnlyList<CertificateSummary>? Certificates { get; set; }
@@ -366,6 +382,10 @@
     [Parameter]
     public EventCallback<RouteEntry?> OnNewAccessList { get; set; }
 
+    /// <summary>"New rule set..." for the host (null) or one of its routes: the drawer makes one and selects it there.</summary>
+    [Parameter]
+    public EventCallback<RouteEntry?> OnNewRuleSet { get; set; }
+
     private ProfileConfig? Profile => Model.ProfileId is { } id ? Profiles.FirstOrDefault(p => p.Id == id) : null;
 
     /// <summary>What the host's settings inherit: the profile's over the global defaults over the built-in ones.</summary>
@@ -380,6 +400,9 @@
 
     private long HostMaxBodySize =>
         HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).RequestLimits?.MaxBodySize ?? RequestLimitBounds.DefaultMaxBodySize;
+
+    private RuleSetSettings HostRuleSet =>
+        HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).RuleSet ?? new RuleSetSettings();
 
     private bool InheritedForceHttps => Inherited.ForceHttps == true;
 
@@ -512,5 +535,6 @@
         || route.RateLimit is not null
         || route.AccessList is not null
         || route.MaxBodySize is not null
+        || route.RuleSet is not null
         || Errors.Keys.Any(key => key.StartsWith($"/routes/{index}/settings", StringComparison.Ordinal));
 }

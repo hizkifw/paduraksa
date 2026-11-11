@@ -223,6 +223,13 @@ public sealed class RouteEntry(RouteId id, RouteSettings? settings = null)
         }
     }
 
+    /// <summary>Null inherits the host's rule set; otherwise this route's own switch and set, over the host's.</summary>
+    public RuleSetSettings? RuleSet
+    {
+        get => Settings.RuleSet;
+        set => Settings = Settings with { RuleSet = value is { SetsNothing: true } ? null : value };
+    }
+
     /// <summary>The route as the command sends it. A route without an upstream is sent with an empty one, which validation reports.</summary>
     public RouteConfig ToConfig() =>
         new(Id, UpstreamId ?? default, Order, Match, string.IsNullOrWhiteSpace(Path) ? "/" : Path.Trim(), Settings);
