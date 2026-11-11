@@ -423,6 +423,86 @@ public sealed class DrawerStackTests
     }
 
     [Fact]
+    public async Task AnAuthProviderMadeFromTheHostDrawer_IsStagedAndSelected_AndAppliedWithTheHost()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        UpstreamConfig app = new(UpstreamId.New(), "app", Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);
+        config.Document = new ConfigDocument(Upstreams: [app]);
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "app.home.test");
+
+        // "New auth provider..." on the host's Access row stacks the provider editor on the host's.
+        var picker = drawers.FindComponents<AuthProviderField>().Single(field => field.Instance.Field == "auth-provider");
+        var choosing = drawers.InvokeAsync(() => picker.Instance.OnNew.InvokeAsync());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=auth-provider] input[data-field=name]").Count == 1);
+        Assert.Equal(2, drawers.FindAll(".pdk-sheet").Count);
+        Assert.Equal("Back to New host", drawers.Find("[data-drawer=auth-provider] [data-drawer-action=back]").GetAttribute("aria-label"));
+        await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=name]", "Authelia");
+        await drawers.InvokeAsync(() => drawers.FindComponents<MudSelect<ForwardAuthPreset>>().Single().Instance.ValueChanged.InvokeAsync(ForwardAuthPreset.Authelia));
+        await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=url]", "http://authelia:9091");
+        Assert.Contains("Use this provider", drawers.Find("[data-drawer=auth-provider] [data-action=stage]").TextContent, StringComparison.Ordinal);
+        await drawers.Find("form[data-drawer=auth-provider]").SubmitAsync();
+        await choosing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+
+        // Staged with the host, and the host's picker now names it; nothing is sent yet.
+        var hosted = drawers.FindComponent<HostForm>().Instance.Model;
+        var chosen = hosted.Settings.AuthProvider;
+        Assert.True(chosen?.Enabled);
+        Assert.NotNull(chosen?.AuthProviderId);
+        Assert.Single(drawers.FindAll("[data-staged='Authelia']"));
+        Assert.Contains("Authelia", drawers.Find("[data-field=auth-provider]").OuterHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(chosen!.AuthProviderId.ToString()!, drawers.Markup, StringComparison.Ordinal);
+        Assert.Empty(config.Executed);
+
+        // The host and the provider go in one revision.
+        _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        await drawers.Find("[data-review=apply]").ClickAsync(new());
+        await drawers.WaitForStateAsync(() => config.Executed.Count == 2);
+
+        var applied = Assert.IsType<ReplaceConfigCommand>(config.Executed[^1]);
+        Assert.False(applied.DryRun);
+        var provider = Assert.Single(applied.Document.AuthProviders);
+        Assert.Equal("Authelia", provider.Name);
+        Assert.Equal(new ForwardAuthConfig("http://authelia:9091", ForwardAuthPreset.Authelia), provider.ForwardAuth);
+        Assert.Equal(Assert.Single(applied.Document.Hosts).Settings.AuthProvider?.AuthProviderId, chosen.AuthProviderId);
+    }
+
+    [Fact]
+    public async Task AStagedAuthProviderNoHostOrRouteNamesIsLeftOutAndSaysSo()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        UpstreamConfig app = new(UpstreamId.New(), "app", Destinations: [new DestinationConfig(DestinationId.New(), "http://app:8080")]);
+        config.Document = new ConfigDocument(Upstreams: [app]);
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<Hosts>(parameters => parameters.Add(p => p.Key, DashboardRoutes.NewSegment));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=host] input[data-field=name-0]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=host] input[data-field=name-0]", "app.home.test");
+        var picker = drawers.FindComponents<AuthProviderField>().Single(field => field.Instance.Field == "auth-provider");
+        var choosing = drawers.InvokeAsync(() => picker.Instance.OnNew.InvokeAsync());
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=auth-provider] input[data-field=name]").Count == 1);
+        await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=name]", "Spare");
+        await TypeAsync(drawers, "[data-drawer=auth-provider] input[data-field=url]", "http://auth:9091");
+        await drawers.Find("form[data-drawer=auth-provider]").SubmitAsync();
+        await choosing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+
+        // The host picks no sign-in after all: the provider is no longer used, and the host goes alone.
+        await drawers.InvokeAsync(() => drawers.FindComponents<MudSelect<string>>().Single(select => select.Instance.Label == "Sign-in").Instance.ValueChanged.InvokeAsync("off"));
+
+        Assert.Equal("false", drawers.Find("[data-staged='Spare']").GetAttribute("data-used"));
+        Assert.Contains("Won't be created", drawers.Find("[data-staged='Spare']").TextContent, StringComparison.Ordinal);
+        _ = drawers.Find("form[data-drawer=host]").SubmitAsync();
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-review=apply]").Count == 1);
+        Assert.IsType<UpsertHostCommand>(config.Executed[0]);
+    }
+
+    [Fact]
     public async Task ARuleSetMadeFromTheHostDrawer_IsStagedAndSelected_AndAppliedWithTheHost()
     {
         await using DashboardTestContext context = new();

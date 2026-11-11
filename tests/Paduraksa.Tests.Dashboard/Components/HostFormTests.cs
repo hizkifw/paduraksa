@@ -155,6 +155,38 @@ public sealed class HostFormTests
     }
 
     [Fact]
+    public async Task ARouteThatNamesItsOwnAuthProviderShowsItsSettingsAndKeepsThemWhenAnotherIsChanged()
+    {
+        var provider = AuthProviderId.New();
+        var route = RouteId.New();
+        RouteSettings settings = new() { AuthProvider = new AuthProviderSettings { AuthProviderId = provider } };
+        var model = HostEditModel.From(new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(route, App.Id, Settings: settings)]));
+        await using DashboardTestContext context = new();
+        context.Render<MudPopoverProvider>();
+        var form = Render(context, model);
+
+        Assert.Single(form.FindAll("[data-section='route-settings-0']"));
+        Assert.Single(form.FindAll("[data-field='route-auth-provider-0']"));
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<bool?>>()
+            .Single(select => select.Instance.Label == "Browser check on this route")
+            .Instance.ValueChanged.InvokeAsync(true));
+
+        var kept = Assert.Single(model.ToConfig().Routes);
+        Assert.Same(settings.AuthProvider, kept.Settings.AuthProvider);
+        Assert.True(kept.Settings.ProofOfWork?.Enabled);
+
+        // Turning the route's sign-in off (the route that serves the provider's own pages) is a record of its own, and inheriting again leaves none.
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Sign-in on this route")
+            .Instance.ValueChanged.InvokeAsync("off"));
+        Assert.False(Assert.Single(model.ToConfig().Routes).Settings.AuthProvider?.Enabled);
+        await form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Sign-in on this route")
+            .Instance.ValueChanged.InvokeAsync("inherit"));
+        Assert.Null(Assert.Single(model.ToConfig().Routes).Settings.AuthProvider);
+    }
+
+    [Fact]
     public async Task ARouteThatNamesItsOwnRuleSetShowsItsSettingsAndKeepsThemWhenAnotherIsChanged()
     {
         var set = RuleSetId.New();

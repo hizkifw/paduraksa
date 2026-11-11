@@ -6,7 +6,7 @@ using Paduraksa.Core.Model;
 namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
-/// A host together with the objects made for it in its drawer: an upstream, profile, rate-limit policy, access list or rule set created from the
+/// A host together with the objects made for it in its drawer: an upstream, profile, rate-limit policy, access list, rule set or auth provider created from the
 /// host form is not applied on its own but staged into the host's draft, so the host and what it needs are reviewed and
 /// applied as one revision, and cancelling the host leaves nothing behind. Without staged objects the host goes as its
 /// own object command, as before.
@@ -20,7 +20,8 @@ public static class StagedChange
         IReadOnlyList<ProfileConfig> profiles,
         IReadOnlyList<RateLimitPolicyConfig> rateLimits,
         IReadOnlyList<AccessListConfig> accessLists,
-        IReadOnlyList<RuleSetConfig> ruleSets)
+        IReadOnlyList<RuleSetConfig> ruleSets,
+        IReadOnlyList<AuthProviderConfig> authProviders)
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(upstreams);
@@ -28,7 +29,8 @@ public static class StagedChange
         ArgumentNullException.ThrowIfNull(rateLimits);
         ArgumentNullException.ThrowIfNull(accessLists);
         ArgumentNullException.ThrowIfNull(ruleSets);
-        return upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0 && accessLists.Count == 0 && ruleSets.Count == 0
+        ArgumentNullException.ThrowIfNull(authProviders);
+        return upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0 && accessLists.Count == 0 && ruleSets.Count == 0 && authProviders.Count == 0
             ? current
             : current with
             {
@@ -37,6 +39,7 @@ public static class StagedChange
                 RateLimitPolicies = [.. current.RateLimitPolicies, .. rateLimits],
                 AccessLists = [.. current.AccessLists, .. accessLists],
                 RuleSets = [.. current.RuleSets, .. ruleSets],
+                AuthProviders = [.. current.AuthProviders, .. authProviders],
             };
     }
 
@@ -95,6 +98,19 @@ public static class StagedChange
         ];
     }
 
+    /// <summary>The staged auth providers the host or one of its routes still names.</summary>
+    public static IReadOnlyList<AuthProviderConfig> UsedAuthProviders(HostConfig host, IReadOnlyList<AuthProviderConfig> staged)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(staged);
+        return
+        [
+            .. staged.Where(provider =>
+                host.Settings.AuthProvider?.AuthProviderId == provider.Id
+                || host.Routes.Any(route => route.Settings?.AuthProvider?.AuthProviderId == provider.Id)),
+        ];
+    }
+
     /// <summary>
     /// <paramref name="head"/> with <paramref name="host"/> put in (in its place, or last when new) and the staged objects added: the
     /// document of the one revision a <c>ReplaceConfigCommand</c> based on <paramref name="head"/> makes.
@@ -106,7 +122,8 @@ public static class StagedChange
         IReadOnlyList<ProfileConfig> profiles,
         IReadOnlyList<RateLimitPolicyConfig> rateLimits,
         IReadOnlyList<AccessListConfig> accessLists,
-        IReadOnlyList<RuleSetConfig> ruleSets)
+        IReadOnlyList<RuleSetConfig> ruleSets,
+        IReadOnlyList<AuthProviderConfig> authProviders)
     {
         ArgumentNullException.ThrowIfNull(head);
         ArgumentNullException.ThrowIfNull(host);
@@ -115,6 +132,7 @@ public static class StagedChange
         ArgumentNullException.ThrowIfNull(rateLimits);
         ArgumentNullException.ThrowIfNull(accessLists);
         ArgumentNullException.ThrowIfNull(ruleSets);
+        ArgumentNullException.ThrowIfNull(authProviders);
         var exists = head.Hosts.Any(h => h.Id == host.Id);
         return head with
         {
@@ -123,6 +141,7 @@ public static class StagedChange
             RateLimitPolicies = [.. head.RateLimitPolicies.Where(p => rateLimits.All(s => s.Id != p.Id)), .. rateLimits],
             AccessLists = [.. head.AccessLists.Where(l => accessLists.All(s => s.Id != l.Id)), .. accessLists],
             RuleSets = [.. head.RuleSets.Where(r => ruleSets.All(s => s.Id != r.Id)), .. ruleSets],
+            AuthProviders = [.. head.AuthProviders.Where(p => authProviders.All(s => s.Id != p.Id)), .. authProviders],
             Hosts = exists ? [.. head.Hosts.Select(h => h.Id == host.Id ? host : h)] : [.. head.Hosts, host],
         };
     }

@@ -67,6 +67,7 @@
             <HostForm Model="Model" Upstreams="DraftDocument.Upstreams" Staged="StagedUpstreamIds" Profiles="DraftDocument.Profiles" StagedProfiles="StagedProfileIds"
                       RateLimits="DraftDocument.RateLimitPolicies" StagedRateLimits="StagedRateLimitIds"
                       AccessLists="DraftDocument.AccessLists" StagedAccessLists="StagedAccessListIds" RuleSets="DraftDocument.RuleSets" StagedRuleSets="StagedRuleSetIds"
+                      AuthProviders="DraftDocument.AuthProviders" StagedAuthProviders="StagedAuthProviderIds"
                       Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" ProxyMode="DraftDocument.Settings.TrustedProxies.Mode" Errors="FieldErrors" ShowAll="Attempted" ReadOnly="!MayWrite"
                       OnChanged="Changed"
                       OnNewUpstream="@(MayWrite ? EventCallback.Factory.Create<RouteEntry>(this, NewUpstreamAsync) : default)"
@@ -75,8 +76,9 @@
                       OnNewRateLimit="@(MayWrite ? EventCallback.Factory.Create<RouteEntry?>(this, NewRateLimitAsync) : default)"
                       OnNewAccessList="@(MayWrite ? EventCallback.Factory.Create<RouteEntry?>(this, NewAccessListAsync) : default)"
                       OnNewRuleSet="@(MayWrite ? EventCallback.Factory.Create<RouteEntry?>(this, NewRuleSetAsync) : default)"
+                      OnNewAuthProvider="@(MayWrite ? EventCallback.Factory.Create<RouteEntry?>(this, NewAuthProviderAsync) : default)"
                       OnNewCertificate="@(MayWrite && _mayWriteCertificates ? EventCallback.Factory.Create(this, NewCertificateAsync) : default)" />
-            @if (_staged.Count > 0 || _stagedProfiles.Count > 0 || _stagedRateLimits.Count > 0 || _stagedAccessLists.Count > 0 || _stagedRuleSets.Count > 0)
+            @if (_staged.Count > 0 || _stagedProfiles.Count > 0 || _stagedRateLimits.Count > 0 || _stagedAccessLists.Count > 0 || _stagedRuleSets.Count > 0 || _stagedAuthProviders.Count > 0)
             {
                 <div class="pdk-staged" data-section="staged">
                     <div class="pdk-staged-head">
@@ -195,6 +197,28 @@
                                 }
                             </li>
                         }
+                        @foreach (var provider in _stagedAuthProviders)
+                        {
+                            var used = StagedChange.UsedAuthProviders(Model.ToConfig(), _stagedAuthProviders).Any(p => p.Id == provider.Id);
+                            <li data-staged="@provider.Name" data-used="@(used ? "true" : "false")" class="@(used ? null : "pdk-staged-unused")">
+                                <MudIcon Icon="@Icons.Material.Outlined.VerifiedUser" Size="Size.Small" />
+                                <span class="pdk-staged-name">@provider.Name</span>
+                                <span class="pdk-staged-detail">auth provider</span>
+                                @if (!used)
+                                {
+                                    <StatusChip Text="Won't be created: no host or route uses it" Name="staged-unused" />
+                                }
+                                @if (_stagedAuthProviderErrors.ContainsKey(provider.Id))
+                                {
+                                    <StatusChip Tone="Tone.Error" Dot="true" Text="Needs a fix" Name="staged-error" />
+                                }
+                                @if (MayWrite)
+                                {
+                                    <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.Edit" OnClick="() => EditStagedAuthProviderAsync(provider)"
+                                               data-action="edit-staged">Edit</MudButton>
+                                }
+                            </li>
+                        }
                     </ul>
                 </div>
             }
@@ -231,6 +255,7 @@
     private readonly List<RateLimitPolicyConfig> _stagedRateLimits = [];
     private readonly List<AccessListConfig> _stagedAccessLists = [];
     private readonly List<RuleSetConfig> _stagedRuleSets = [];
+    private readonly List<AuthProviderConfig> _stagedAuthProviders = [];
 
     // The dry run's errors about a staged object (relative to it), shown at its fields when it is opened again.
     private readonly Dictionary<UpstreamId, IReadOnlyDictionary<string, string>> _stagedUpstreamErrors = [];
@@ -238,6 +263,7 @@
     private readonly Dictionary<RateLimitPolicyId, IReadOnlyDictionary<string, string>> _stagedRateLimitErrors = [];
     private readonly Dictionary<AccessListId, IReadOnlyDictionary<string, string>> _stagedAccessListErrors = [];
     private readonly Dictionary<RuleSetId, IReadOnlyDictionary<string, string>> _stagedRuleSetErrors = [];
+    private readonly Dictionary<AuthProviderId, IReadOnlyDictionary<string, string>> _stagedAuthProviderErrors = [];
     private ConfigDocument? _reviewed;
     private IReadOnlyDictionary<string, string> _serverErrors = new Dictionary<string, string>();
     private bool _maySimulate;
@@ -255,7 +281,7 @@
         : "Every change is reviewed as a diff before it goes live, and can be undone.";
 
     /// <summary>The config as the form sees it: what is stored, and what was made in this drawer.</summary>
-    private ConfigDocument DraftDocument => StagedChange.Draft(_current?.Document ?? new ConfigDocument(), _staged, _stagedProfiles, _stagedRateLimits, _stagedAccessLists, _stagedRuleSets);
+    private ConfigDocument DraftDocument => StagedChange.Draft(_current?.Document ?? new ConfigDocument(), _staged, _stagedProfiles, _stagedRateLimits, _stagedAccessLists, _stagedRuleSets, _stagedAuthProviders);
 
     private HashSet<UpstreamId> StagedUpstreamIds => [.. _staged.Select(u => u.Id)];
 
@@ -266,6 +292,8 @@
     private HashSet<AccessListId> StagedAccessListIds => [.. _stagedAccessLists.Select(l => l.Id)];
 
     private HashSet<RuleSetId> StagedRuleSetIds => [.. _stagedRuleSets.Select(r => r.Id)];
+
+    private HashSet<AuthProviderId> StagedAuthProviderIds => [.. _stagedAuthProviders.Select(p => p.Id)];
 
     private string? SampleHost => Model?.Names.Select(n => n.Value.Trim()).FirstOrDefault(n => n.Length > 0 && !n.StartsWith('*'));
 
@@ -316,18 +344,20 @@
         _stagedRateLimits.Clear();
         _stagedAccessLists.Clear();
         _stagedRuleSets.Clear();
+        _stagedAuthProviders.Clear();
         _stagedUpstreamErrors.Clear();
         _stagedProfileErrors.Clear();
         _stagedRateLimitErrors.Clear();
         _stagedAccessListErrors.Clear();
         _stagedRuleSetErrors.Clear();
+        _stagedAuthProviderErrors.Clear();
         return true;
     }
 
     protected override HostConfig ToConfig() => Model!.ToConfig();
 
     protected override string Fingerprint() =>
-        Model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(Upstreams: [.. _staged], Profiles: [.. _stagedProfiles], RateLimitPolicies: [.. _stagedRateLimits], AccessLists: [.. _stagedAccessLists], RuleSets: [.. _stagedRuleSets], Hosts: [ToConfig()]));
+        Model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(Upstreams: [.. _staged], Profiles: [.. _stagedProfiles], RateLimitPolicies: [.. _stagedRateLimits], AccessLists: [.. _stagedAccessLists], RuleSets: [.. _stagedRuleSets], AuthProviders: [.. _stagedAuthProviders], Hosts: [ToConfig()]));
 
     protected override void Validate()
     {
@@ -469,6 +499,31 @@
         Changed();
     }
 
+    /// <summary>An auth provider made from the host form: staged with the host, and selected where the picker was (the route is null for the host's own row).</summary>
+    private async Task NewAuthProviderAsync(RouteEntry? route)
+    {
+        var result = await Drawers.OpenAsync<AuthProviderDrawer>(
+            new Dictionary<string, object?> { [nameof(AuthProviderDrawer.Stage)] = true, [nameof(AuthProviderDrawer.Draft)] = DraftDocument },
+            DrawerWidth.Medium);
+        if (result.As<AuthProviderConfig>() is not { } provider || Model is null)
+        {
+            return;
+        }
+
+        _stagedAuthProviders.Add(provider);
+        var chosen = new AuthProviderSettings { Enabled = true, AuthProviderId = provider.Id };
+        if (route is not null)
+        {
+            route.AuthProvider = chosen;
+        }
+        else
+        {
+            Model.Settings = Model.Settings with { AuthProvider = chosen };
+        }
+
+        Changed();
+    }
+
     private async Task NewCertificateAsync()
     {
         if (Model is null)
@@ -514,9 +569,10 @@
         var rateLimits = StagedChange.UsedRateLimits(host, _stagedRateLimits);
         var accessLists = StagedChange.UsedAccessLists(host, _stagedAccessLists);
         var ruleSets = StagedChange.UsedRuleSets(host, _stagedRuleSets);
+        var authProviders = StagedChange.UsedAuthProviders(host, _stagedAuthProviders);
         var name = ChangeView.HostTitle(host);
         ReviewRequest request;
-        if (upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0 && accessLists.Count == 0 && ruleSets.Count == 0)
+        if (upstreams.Count == 0 && profiles.Count == 0 && rateLimits.Count == 0 && accessLists.Count == 0 && ruleSets.Count == 0 && authProviders.Count == 0)
         {
             request = new ReviewRequest(Model!.IsNew ? $"New host {name}" : $"Edit {name}", new UpsertHostCommand(host));
         }
@@ -543,13 +599,14 @@
                 return;
             }
 
-            var after = StagedChange.Apply(head.Document, host, upstreams, profiles, rateLimits, accessLists, ruleSets);
+            var after = StagedChange.Apply(head.Document, host, upstreams, profiles, rateLimits, accessLists, ruleSets, authProviders);
             var with = string.Join(" and ", [
                 .. upstreams.Select(u => $"upstream {u.Name}"),
                 .. profiles.Select(p => $"profile {p.Name}"),
                 .. rateLimits.Select(p => $"rate limit {p.Name}"),
                 .. accessLists.Select(l => $"access list {l.Name}"),
                 .. ruleSets.Select(r => $"rule set {r.Name}"),
+                .. authProviders.Select(p => $"auth provider {p.Name}"),
             ]);
             _reviewed = after;
             request = new ReviewRequest(Model!.IsNew ? $"New host {name}" : $"Edit {name}", new ReplaceConfigCommand(after, head.Revision?.Id)
@@ -610,6 +667,7 @@
         RouteStagedErrors(errors, document.RateLimitPolicies, _stagedRateLimits, policy => policy.Id, (id, found) => _stagedRateLimitErrors[id] = found, "rateLimitPolicies");
         RouteStagedErrors(errors, document.AccessLists, _stagedAccessLists, list => list.Id, (id, found) => _stagedAccessListErrors[id] = found, "accessLists");
         RouteStagedErrors(errors, document.RuleSets, _stagedRuleSets, set => set.Id, (id, found) => _stagedRuleSetErrors[id] = found, "ruleSets");
+        RouteStagedErrors(errors, document.AuthProviders, _stagedAuthProviders, provider => provider.Id, (id, found) => _stagedAuthProviderErrors[id] = found, "authProviders");
     }
 
     // An upstream made in this drawer is still staged and is edited as such; any other is the config's own, edited and
@@ -718,6 +776,25 @@
         {
             _stagedRuleSets[index] = edited;
             _stagedRuleSetErrors.Remove(staged.Id);
+            Changed();
+        }
+    }
+
+    private async Task EditStagedAuthProviderAsync(AuthProviderConfig staged)
+    {
+        var result = await Drawers.OpenAsync<AuthProviderDrawer>(
+            new Dictionary<string, object?>
+            {
+                [nameof(AuthProviderDrawer.Stage)] = true,
+                [nameof(AuthProviderDrawer.Draft)] = DraftDocument,
+                [nameof(AuthProviderDrawer.Staged)] = staged,
+                [nameof(AuthProviderDrawer.Errors)] = _stagedAuthProviderErrors.GetValueOrDefault(staged.Id),
+            },
+            DrawerWidth.Medium);
+        if (result.As<AuthProviderConfig>() is { } edited && _stagedAuthProviders.FindIndex(p => p.Id == staged.Id) is >= 0 and var index)
+        {
+            _stagedAuthProviders[index] = edited;
+            _stagedAuthProviderErrors.Remove(staged.Id);
             Changed();
         }
     }
