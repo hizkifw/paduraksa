@@ -108,6 +108,7 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         ValidateAcme(options, failures);
         ValidateCloudflare(options, failures);
         ValidateLogs(options.Logs, failures);
+        ValidateMetrics(options.Metrics, failures);
         ValidateAccessLog(options, failures);
 
         ValidateProxyProtocol("HttpProxyProtocol", listen.HttpProxyProtocol, failures);
@@ -327,6 +328,19 @@ internal sealed class PaduraksaOptionsValidator(bool allowEphemeralPorts = false
         {
             failures.Add($"{Key}:MaxTotalSize must be between {1024 * 1024} and {1024L * 1024 * 1024 * 1024} bytes, was {logs.MaxTotalSize}.");
         }
+    }
+
+    private static void ValidateMetrics(PaduraksaMetricsOptions? metrics, List<string> failures)
+    {
+        const string Key = PaduraksaOptions.SectionName + ":Metrics";
+        if (metrics is null)
+        {
+            failures.Add($"{Key} must not be null.");
+            return;
+        }
+
+        Bound(metrics.Retention, TimeSpan.FromHours(1), TimeSpan.FromDays(1825), $"{Key}:Retention", failures);
+        Bound(metrics.WriteInterval, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), $"{Key}:WriteInterval", failures);
     }
 
     /// <summary>The smallest rotation size accepted: below one line's worth of bytes, every line would rotate the file again (thrashing).</summary>

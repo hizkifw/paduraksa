@@ -5,6 +5,7 @@ using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
+using Paduraksa.Application.Metrics;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Vault;
@@ -83,7 +84,8 @@ internal static class ConfigStore
             .AddSingleton(proofOfWork)
             .AddPaduraksaConfigService()
             .AddPaduraksaCertificateOperations()
-            .AddPaduraksaCertificateRecovery();
+            .AddPaduraksaCertificateRecovery()
+            .AddPaduraksaMetricRollups();
         if (placeholderEnabled)
         {
             services.AddSingleton<IBuiltInCertificates>(placeholder);
@@ -111,7 +113,8 @@ internal static class ConfigStore
             builder.AddOwnedElsewhere<IBuiltInCertificates>(placeholder);
         }
 
-        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions);
+        var rollups = builder.AddOwnedElsewhere(container.GetRequiredService<MetricRollupStore>());
+        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions, rollups);
     }
 }
 
@@ -122,10 +125,12 @@ internal static class ConfigStore
 /// <param name="Operations">The certificate use cases that touch the vault.</param>
 /// <param name="Setup">First-run setup: whether an Owner exists, and the one-time setup token.</param>
 /// <param name="Permissions">The one answer to "may this origin do that".</param>
+/// <param name="MetricRollups">The one-minute metric rollups' store.</param>
 internal sealed record ConfigStoreServices(
     IDbContextFactory<ConfigDbContext> Contexts,
     ConfigService Config,
     CertificateService Certificates,
     CertificateOperations Operations,
     SetupService Setup,
-    IPermissionEvaluator Permissions);
+    IPermissionEvaluator Permissions,
+    MetricRollupStore MetricRollups);

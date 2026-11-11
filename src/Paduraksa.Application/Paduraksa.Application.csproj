@@ -7,6 +7,7 @@
     <ProjectReference Include="../Paduraksa.Acme/Paduraksa.Acme.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Data" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Issuance" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />

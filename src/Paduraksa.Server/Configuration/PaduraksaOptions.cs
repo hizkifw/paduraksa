@@ -46,6 +46,9 @@ internal sealed class PaduraksaOptions
     /// <summary>Log files: where the access and error logs live, how big they may get, and how much of them is kept.</summary>
     public PaduraksaLogOptions Logs { get; set; } = new();
 
+    /// <summary>Metrics: how long the one-minute rollups behind the dashboard's longer ranges are kept, and how often they are written.</summary>
+    public PaduraksaMetricsOptions Metrics { get; set; } = new();
+
     /// <summary>
     /// Total budget for the graceful stop of all three hosts together (public drain, then admin, then core).
     /// When it elapses, Kestrel aborts the remaining connections and the rest stops without waiting.
@@ -446,3 +449,19 @@ internal sealed class PaduraksaLogOptions
     internal string ResolvedDirectory { get; set; } = string.Empty;
 }
 
+
+/// <summary>
+/// Metrics (<c>Paduraksa:Metrics</c>): the counters themselves are always on and cost nothing to configure; these set what is kept
+/// of them. The sampler reads them every second into memory (an hour of ten-second buckets), and the rollup job writes each finished
+/// minute to the config database, where the overview's day, week and month ranges read it.
+/// </summary>
+internal sealed class PaduraksaMetricsOptions
+{
+    /// <summary>How long a minute is kept (default 14 days; 1 hour to 5 years). Older rows are deleted hourly.</summary>
+    public TimeSpan Retention { get; set; } = TimeSpan.FromDays(14);
+
+    /// <summary>How often finished minutes are written to the database (default 15 s; 1 s to 10 min). A restart loses the minute in progress and whatever was waiting.</summary>
+    public TimeSpan WriteInterval { get; set; } = TimeSpan.FromSeconds(15);
+
+    public Application.Metrics.MetricRollupOptions ToOptions() => new() { Retention = Retention, WriteInterval = WriteInterval };
+}

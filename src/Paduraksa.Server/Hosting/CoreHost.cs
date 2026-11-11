@@ -1,7 +1,9 @@
 using Paduraksa.Application.Cloudflare;
 using Paduraksa.Application.Hosting;
 using Paduraksa.Application.Issuance;
+using Paduraksa.Application.Metrics;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Server.Placeholders;
 
 namespace Paduraksa.Server.Hosting;
@@ -51,6 +53,11 @@ internal static class CoreHost
         builder.Services.AddHostedService(static services => services.GetRequiredService<AdminCertificateService>());
         // The access log's one reader: it formats the ring's entries into the sink, and flushes on shutdown.
         builder.Services.AddHostedService<AccessLogDrainService>();
+        // The metrics: the job writes the finished minutes to the config database (started after ConfigStartup has migrated it)
+        // and the sampler files them once a second. Hosted services stop in reverse order, so the sampler stops first and the job's
+        // last write carries what it filed.
+        builder.Services.AddHostedService(static services => services.GetRequiredService<MetricRollupJob>());
+        builder.Services.AddHostedService(static services => services.GetRequiredService<MetricSamplerService>());
         if (context.Options.Acme.Enabled)
         {
             // Last of the ones that start things up: the vault and the config store are ready. Its first look waits

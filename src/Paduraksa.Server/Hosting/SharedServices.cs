@@ -11,6 +11,7 @@ using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Logging;
+using Paduraksa.Application.Metrics;
 using Paduraksa.Application.Security;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
@@ -347,6 +348,18 @@ internal sealed class SharedServices : IAsyncDisposable
             builder.AddOwnedElsewhere(vault.PasswordCredentials);
             var configStore = ConfigStore.AddTo(
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, coreLoggers);
+
+            // The metrics read side: the sampler turns the counters into rings and finished minutes once a second, the rollup job
+            // persists the minutes (hosted services of the core host, below), and the meter, the service and the /metrics scrape read them.
+            // After the config store, whose database holds the rollups.
+            MetricRollupBacklog rollupQueue = new();
+            var sampler = builder.Add(new MetricSampler(metrics, timeProvider, rollupQueue));
+            var rollupStore = configStore.MetricRollups;
+            builder.Add(new MetricSamplerService(sampler, timeProvider, coreLoggers.CreateLogger<MetricSamplerService>()));
+            builder.Add(new MetricRollupJob(rollupQueue, rollupStore, options.Metrics.ToOptions(), timeProvider, coreLoggers.CreateLogger<MetricRollupJob>()));
+            var processCounters = builder.Add(ProcessCounters.Create(rateLimits.Stats, proofOfWork.Stats, accessLists.Stats));
+            builder.Add(new PaduraksaMeter(metrics, snapshots, processCounters));
+            builder.Add(new MetricsService(metrics, snapshots, sampler, rollupStore, processCounters, timeProvider));
 
             // After the config store, which it asks to compile the live config again when Cloudflare's ranges change: disposed
             // before it. The core host runs it (CoreHost) only when it is enabled.
