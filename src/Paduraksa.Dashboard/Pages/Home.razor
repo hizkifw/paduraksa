@@ -7,8 +7,9 @@
 @inject IDashboardConfig Config
 @inject TimeProvider Time
 @inject ILogger<Home> Logger
-@* The overview: first what needs the person and where to fix it, then the counts, the hosts with where their requests
-   go, and the latest changes. Read once and carried from the first render into the circuit. *@
+@* The overview: first what needs the person and where to fix it, then the live traffic, the counts, the hosts with where
+   their requests go, and the latest changes. All but the traffic is read once and carried from the first render into the circuit;
+   the traffic panel polls. *@
 
 <PageTitle>Overview · Paduraksa</PageTitle>
 
@@ -69,6 +70,11 @@
             }
         </ul>
     </MudPaper>
+}
+
+@if (_mayReadMetrics)
+{
+    <TrafficOverview />
 }
 
 <div class="pdk-stats">
@@ -183,7 +189,7 @@
     </div>
 }
 
-@if (!_mayReadConfig && !_mayReadCertificates && _checked)
+@if (!_mayReadConfig && !_mayReadCertificates && !_mayReadMetrics && _checked)
 {
     <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
         <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="Nothing to show for your role"
@@ -197,6 +203,7 @@
 
     private bool _mayReadConfig;
     private bool _mayReadCertificates;
+    private bool _mayReadMetrics;
     private bool _checked;
     private bool _failed;
 
@@ -227,6 +234,7 @@
 
         _mayReadConfig = user.Has(Permission.ConfigRead);
         _mayReadCertificates = user.Has(Permission.CertificatesRead);
+        _mayReadMetrics = user.Has(Permission.MetricsRead);
         _checked = true;
         if (Snapshot is not null && !force)
         {

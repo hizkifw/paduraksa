@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Dashboard;
+using Paduraksa.Dashboard.Components;
 using Paduraksa.Dashboard.Layout;
 using Paduraksa.Dashboard.Pages;
 using Paduraksa.Dashboard.Setup;
@@ -24,6 +25,7 @@ public sealed class OverviewAndNavigationTests
         config.Document = new ConfigDocument(Upstreams: [off], Hosts: [host]);
         config.LiveWarnings = [new ConfigWarning("/hosts/0", "certificate.auto.noCoverage", "no valid certificate covers media.home.test")];
         context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficOverview>();
 
         var page = context.Render<Home>();
 
@@ -43,6 +45,7 @@ public sealed class OverviewAndNavigationTests
         await using DashboardTestContext context = new();
         ConfigPages.SignIn(context, Role.Viewer).Document = new ConfigDocument();
         context.ComponentFactories.AddStub<SetupChecklist>();
+        context.ComponentFactories.AddStub<TrafficOverview>();
 
         var page = context.Render<Home>();
 

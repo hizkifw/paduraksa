@@ -1,0 +1,319 @@
+@implements IAsyncDisposable
+@using Paduraksa.Application.Metrics
+@using Paduraksa.Contracts.Metrics
+@using Paduraksa.Contracts.Config
+@using Paduraksa.Dashboard.Config
+@using Paduraksa.Dashboard.Pages
+@inject MetricsService Metrics
+@inject IDashboardConfig Config
+@inject TimeProvider Time
+@inject IJSRuntime JS
+@* The live traffic: the pace over the last half minute, two charts over the chosen range, the busiest hosts and the upstreams'
+   errors. The hour reads the sampler's memory every two seconds while the tab is visible; longer ranges read the one-minute
+   rollups, which only change once a minute, so they are read less often. *@
+
+<section class="pdk-traffic" data-section="traffic" aria-labelledby="pdk-traffic-title">
+    <div class="pdk-card-head">
+        <MudText Typo="Typo.h6" HtmlTag="h2" id="pdk-traffic-title">Traffic</MudText>
+        <div class="pdk-range" role="group" aria-label="Time range">
+            @foreach (var option in Ranges)
+            {
+                var selected = option == _range;
+                <button type="button" class="pdk-range-option" data-range="@option.ToString().ToLowerInvariant()" aria-pressed="@(selected ? "true" : "false")"
+                        @onclick="() => ChooseAsync(option)">@TrafficFigures.Label(option)</button>
+            }
+        </div>
+    </div>
+
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4" data-part="failed">
+            The traffic figures couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="() => LoadAsync()" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+    else if (_overview is null)
+    {
+        <div class="pdk-sec-tiles">
+            @for (var i = 0; i < 5; i++)
+            {
+                <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="84px" />
+            }
+        </div>
+    }
+    else
+    {
+        var now = _overview.Now;
+        <div class="pdk-sec-tiles" data-part="tiles">
+            <SecurityTile Name="requests" Label="Requests" Value="@TrafficFigures.PerSecond(now.RequestsPerSecond)" />
+            <SecurityTile Name="errors" Label="Errors" Value="@TrafficFigures.Percent(now.ErrorRate)" Detail="5xx answers" />
+            <SecurityTile Name="refused" Label="Refused" Value="@TrafficFigures.PerSecond(now.RefusedPerSecond)" Detail="by a policy or limit" />
+            <SecurityTile Name="latency" Label="Latency p50" Value="@TrafficFigures.Millis(now.Total.P50Ms)"
+                          Detail="@(now.Total.P99Ms > 0 ? $"p95 {TrafficFigures.Millis(now.Total.P95Ms)} · p99 {TrafficFigures.Millis(now.Total.P99Ms)}" : null)" />
+            <SecurityTile Name="upstream-latency" Label="Upstream p50" Value="@TrafficFigures.Millis(now.Upstream.P50Ms)"
+                          Detail="@(now.Upstream.P99Ms > 0 ? $"p95 {TrafficFigures.Millis(now.Upstream.P95Ms)} · p99 {TrafficFigures.Millis(now.Upstream.P99Ms)}" : null)" />
+        </div>
+
+        <div class="pdk-home-grid">
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="requests-chart">
+                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Requests per second</MudText>
+                @if (_overview.Series.Count < 2)
+                {
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.ShowChart" Title="No traffic in this range yet" />
+                }
+                else
+                {
+                    <TimeSeriesChart Name="requests" Times="@_times" Lines="@_requestLines" Format="@TrafficFigures.PerSecond" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
+                }
+            </MudPaper>
+            <MudPaper Class="pdk-card" Elevation="0" Outlined="true" data-section="latency-chart">
+                <MudText Typo="Typo.subtitle1" HtmlTag="h3">Latency</MudText>
+                @if (_overview.Series.Count < 2)
+                {
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.ShowChart" Title="No traffic in this range yet" />
+                }
+                else
+                {
+                    <TimeSeriesChart Name="latency" Times="@_times" Lines="@_latencyLines" Format="@TrafficFigures.Millis" TimeFormat="@TrafficFigures.TimeFormat(_overview.Range)" />
+                }
+            </MudPaper>
+        </div>
+
+        <div class="pdk-home-grid">
+            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="top-hosts">
+                <div class="pdk-card-head pdk-card-head-padded">
+                    <MudText Typo="Typo.subtitle1" HtmlTag="h3">Busiest hosts</MudText>
+                </div>
+                @if (_overview.Hosts.Count == 0)
+                {
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Language" Title="No requests in this range" />
+                }
+                else
+                {
+                    <div class="pdk-traffic-scroll">
+                    <table class="pdk-traffic-table">
+                        <thead>
+                            <tr><th scope="col">Host</th><th scope="col">Requests</th><th scope="col">Errors</th><th scope="col">p95</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var host in _overview.Hosts)
+                            {
+                                <tr data-host="@host.Name">
+                                    <th scope="row">
+                                        @if (host.Id.IsEmpty)
+                                        {
+                                            <span class="pdk-muted" title="Requests for a name no host has">@host.Name</span>
+                                        }
+                                        else
+                                        {
+                                            <a href="@DashboardRoutes.Host(host.Id)">@host.Name</a>
+                                        }
+                                    </th>
+                                    <td>@TrafficFigures.Count(host.Requests)</td>
+                                    <td class="@(host.ErrorRate > 0 ? "pdk-traffic-bad" : null)">@TrafficFigures.Percent(host.ErrorRate)</td>
+                                    <td>@TrafficFigures.Millis(host.P95Ms)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    </div>
+                }
+            </MudPaper>
+            <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="upstream-errors">
+                <div class="pdk-card-head pdk-card-head-padded">
+                    <MudText Typo="Typo.subtitle1" HtmlTag="h3">Upstream errors</MudText>
+                </div>
+                @if (_overview.Upstreams.Count == 0)
+                {
+                    <EmptyState Compact="true" Icon="@Icons.Material.Outlined.Hub" Title="Nothing was forwarded in this range" />
+                }
+                else
+                {
+                    <div class="pdk-traffic-scroll">
+                    <table class="pdk-traffic-table">
+                        <thead>
+                            <tr><th scope="col">Upstream</th><th scope="col">Forwarded</th><th scope="col">Failed</th><th scope="col">p95</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var upstream in _overview.Upstreams)
+                            {
+                                <tr data-upstream="@upstream.Id">
+                                    <th scope="row"><a href="@DashboardRoutes.Upstream(upstream.Id)">@UpstreamName(upstream.Id)</a></th>
+                                    <td>@TrafficFigures.Count(upstream.Requests)</td>
+                                    <td class="@(upstream.Errors > 0 ? "pdk-traffic-bad" : null)" title="@TrafficFigures.Percent(upstream.ErrorRate) of forwards">@TrafficFigures.Count(upstream.Errors)</td>
+                                    <td>@TrafficFigures.Millis(upstream.P95Ms)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    </div>
+                }
+            </MudPaper>
+        </div>
+    }
+</section>
+
+@code {
+    private static readonly MetricsRange[] Ranges = [MetricsRange.Hour, MetricsRange.Day, MetricsRange.Week, MetricsRange.Month];
+
+    private MetricsOverview? _overview;
+    private MetricsRange _range = MetricsRange.Hour;
+    private bool _failed;
+    private bool _visible = true;
+    private bool _started;
+    private DateTimeOffset[] _times = [];
+    private IReadOnlyList<TimeSeriesChart.ChartLine> _requestLines = [];
+    private IReadOnlyList<TimeSeriesChart.ChartLine> _latencyLines = [];
+    private Dictionary<UpstreamId, string> _upstreamNames = [];
+    private DotNetObjectReference<TrafficOverview>? _self;
+    private CancellationTokenSource? _stop;
+
+    /// <summary>How often the hour is read while the tab is visible. A test shortens it; the person never changes it.</summary>
+    [Parameter]
+    public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(2);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        try
+        {
+            _upstreamNames = (await Config.GetCurrentAsync()).Document.Upstreams.ToDictionary(upstream => upstream.Id, upstream => upstream.Name);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        {
+            // Without the config the table names an upstream by its ID.
+        }
+
+        await LoadAsync();
+        _started = true;
+        _stop = new CancellationTokenSource();
+        _ = PollAsync(_stop);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _started)
+        {
+            _self = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.watch", _self);
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone; nothing watches, and the panel polls until it is disposed.
+            }
+        }
+    }
+
+    /// <summary>The tab was hidden or shown: the polling pauses while it is hidden and reads at once when it is shown.</summary>
+    [JSInvokable]
+    public async Task PageVisibilityChangedAsync(bool visible)
+    {
+        await InvokeAsync(async () =>
+        {
+            _visible = visible;
+            if (visible)
+            {
+                await LoadAsync();
+            }
+        });
+    }
+
+    private async Task ChooseAsync(MetricsRange range)
+    {
+        if (range == _range)
+        {
+            return;
+        }
+
+        _range = range;
+        _overview = null;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _overview = await Metrics.ReadOverviewAsync(_range, _stop?.Token ?? CancellationToken.None);
+            _failed = false;
+            Shape(_overview);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _failed = true;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task PollAsync(CancellationTokenSource stop)
+    {
+        var token = stop.Token;
+        try
+        {
+            // The hour is read at the poll interval; the rollups change once a minute, so the longer ranges wait ten times as long.
+            using PeriodicTimer timer = new(PollInterval > TimeSpan.Zero ? PollInterval : TimeSpan.FromSeconds(2), Time);
+            var ticks = 0;
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                ticks++;
+                if (_visible && !_failed && (_range == MetricsRange.Hour || ticks % 10 == 0))
+                {
+                    await InvokeAsync(LoadAsync);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException or InvalidOperationException)
+        {
+            // The panel is gone.
+        }
+    }
+
+    private string UpstreamName(UpstreamId id) => _upstreamNames.TryGetValue(id, out var name) ? name : id.ToString();
+
+    private void Shape(MetricsOverview overview)
+    {
+        _times = [.. overview.Series.Select(point => point.Start)];
+        _requestLines =
+        [
+            new("Requests", "pdk-chart-a", [.. overview.Series.Select(point => point.RequestsPerSecond)], Area: true),
+            new("5xx", "pdk-chart-err", [.. overview.Series.Select(point => point.ErrorsPerSecond)]),
+        ];
+        _latencyLines =
+        [
+            new("p50", "pdk-chart-b", [.. overview.Series.Select(point => point.Total.P50Ms)]),
+            new("p95", "pdk-chart-c", [.. overview.Series.Select(point => point.Total.P95Ms)]),
+            new("p99", "pdk-chart-err", [.. overview.Series.Select(point => point.Total.P99Ms)]),
+            new("Upstream p95", "pdk-chart-up", [.. overview.Series.Select(point => point.Upstream.P95Ms)]),
+        ];
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_stop is { } stop)
+        {
+            await stop.CancelAsync();
+            stop.Dispose();
+        }
+
+        if (_self is not null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("paduraksa.pageVisibility.detach");
+            }
+            catch (Exception ex) when (ex is JSDisconnectedException or JSException or InvalidOperationException or TaskCanceledException or ObjectDisposedException)
+            {
+                // The circuit is gone.
+            }
+
+            _self.Dispose();
+        }
+    }
+}

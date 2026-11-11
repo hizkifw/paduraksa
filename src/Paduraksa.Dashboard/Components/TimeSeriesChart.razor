@@ -1,0 +1,172 @@
+@using System.Globalization
+@using System.Text
+@using Paduraksa.Dashboard.Config
+@* A line and area chart as inline SVG: no script and no dependency, so it renders on the server like everything else.
+   Every point has a transparent column over it with a native tooltip. *@
+<figure class="pdk-chart" data-chart="@Name" role="img" aria-label="@Summary">
+    <div class="pdk-chart-body">
+        <div class="pdk-chart-axis" aria-hidden="true">
+            <span>@Format(_max)</span>
+            <span>@Format(_max / 2)</span>
+            <span>@Format(0)</span>
+        </div>
+        <svg class="pdk-chart-plot" viewBox="0 0 @Width @Height" preserveAspectRatio="none" aria-hidden="true">
+            <line class="pdk-chart-grid" x1="0" x2="@Width" y1="0" y2="0" />
+            <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@(Height / 2)" y2="@(Height / 2)" />
+            <line class="pdk-chart-grid" x1="0" x2="@Width" y1="@Height" y2="@Height" />
+            @foreach (var line in Lines)
+            {
+                @if (line.Area)
+                {
+                    <path class="pdk-chart-area @line.Css" d="@AreaPath(line)" />
+                }
+
+                <polyline class="pdk-chart-line @line.Css" points="@Points(line)" vector-effect="non-scaling-stroke" />
+            }
+            @for (var i = 0; i < Times.Count; i++)
+            {
+                var index = i;
+                <rect class="pdk-chart-hit" x="@X(index - 0.5)" y="0" width="@ColumnWidth" height="@Height"><title>@Tooltip(index)</title></rect>
+            }
+        </svg>
+    </div>
+    <div class="pdk-chart-x" aria-hidden="true">
+        <span>@(Times.Count > 0 ? Times[0].ToUniversalTime().ToString(TimeFormat, CultureInfo.InvariantCulture) : string.Empty)</span>
+        <span>@(Times.Count > 0 ? Times[^1].ToUniversalTime().ToString(TimeFormat, CultureInfo.InvariantCulture) : string.Empty)</span>
+    </div>
+    <figcaption class="pdk-chart-legend">
+        @foreach (var line in Lines)
+        {
+            <span class="pdk-chart-key"><span class="pdk-chart-swatch @line.Css" aria-hidden="true"></span>@line.Name</span>
+        }
+    </figcaption>
+</figure>
+
+@code {
+    private const double Width = 600;
+    private const double Height = 140;
+
+    private double _max = 1;
+
+    /// <summary>One line of the chart.</summary>
+    /// <param name="Name">What the legend and the tooltip call it.</param>
+    /// <param name="Css">A <c>pdk-chart-*</c> class that sets its colour (and dash).</param>
+    /// <param name="Values">One value per time; the same length as <see cref="Times"/>.</param>
+    /// <param name="Area">Fill under the line.</param>
+    public sealed record ChartLine(string Name, string Css, IReadOnlyList<double> Values, bool Area = false);
+
+    [Parameter, EditorRequired]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DateTimeOffset> Times { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ChartLine> Lines { get; set; } = [];
+
+    /// <summary>Writes a value with its unit, for the axis and the tooltips.</summary>
+    [Parameter, EditorRequired]
+    public Func<double, string> Format { get; set; } = static value => value.ToString("0.##", CultureInfo.InvariantCulture);
+
+    /// <summary>The format of the two time labels under the plot (UTC).</summary>
+    [Parameter]
+    public string TimeFormat { get; set; } = "HH:mm";
+
+    private double ColumnWidth => Times.Count == 0 ? 0 : Width / Times.Count;
+
+    private string Summary
+    {
+        get
+        {
+            if (Times.Count == 0)
+            {
+                return $"{Name}: no data";
+            }
+
+            var peak = Lines.Count == 0 ? 0 : Lines.Max(line => line.Values.Count == 0 ? 0 : line.Values.Max());
+            return $"{Name}, {Times.Count} points from {RevisionText.Exact(Times[0])} to {RevisionText.Exact(Times[^1])}, highest {Format(peak)}";
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        var peak = 0.0;
+        foreach (var line in Lines)
+        {
+            foreach (var value in line.Values)
+            {
+                peak = Math.Max(peak, value);
+            }
+        }
+
+        _max = Nice(peak);
+    }
+
+    /// <summary>The top of the scale: the next 1, 2, 2.5 or 5 times a power of ten, so the axis reads in round numbers.</summary>
+    internal static double Nice(double peak)
+    {
+        if (peak <= 0 || double.IsNaN(peak) || double.IsInfinity(peak))
+        {
+            return 1;
+        }
+
+        var magnitude = Math.Pow(10, Math.Floor(Math.Log10(peak)));
+        foreach (var step in new[] { 1.0, 2.0, 2.5, 5.0, 10.0 })
+        {
+            if (peak <= step * magnitude)
+            {
+                return step * magnitude;
+            }
+        }
+
+        return 10 * magnitude;
+    }
+
+    private double X(double index) => Times.Count <= 1 ? 0 : Math.Clamp(index, 0, Times.Count - 1) * Width / (Times.Count - 1);
+
+    private double Y(double value) => Height - (Math.Clamp(value, 0, _max) / _max * Height);
+
+    private string Points(ChartLine line)
+    {
+        StringBuilder points = new();
+        for (var i = 0; i < line.Values.Count && i < Times.Count; i++)
+        {
+            points.Append(CultureInfo.InvariantCulture, $"{X(i):0.#},{Y(line.Values[i]):0.#} ");
+        }
+
+        return points.ToString().TrimEnd();
+    }
+
+    private string AreaPath(ChartLine line)
+    {
+        var count = Math.Min(line.Values.Count, Times.Count);
+        if (count == 0)
+        {
+            return string.Empty;
+        }
+
+        StringBuilder path = new();
+        path.Append(CultureInfo.InvariantCulture, $"M{X(0):0.#},{Height} ");
+        for (var i = 0; i < count; i++)
+        {
+            path.Append(CultureInfo.InvariantCulture, $"L{X(i):0.#},{Y(line.Values[i]):0.#} ");
+        }
+
+        path.Append(CultureInfo.InvariantCulture, $"L{X(count - 1):0.#},{Height} Z");
+        return path.ToString();
+    }
+
+    private string Tooltip(int index)
+    {
+        StringBuilder text = new(RevisionText.Exact(Times[index]));
+        foreach (var line in Lines)
+        {
+            if (index < line.Values.Count)
+            {
+                text.Append(CultureInfo.InvariantCulture, $"\n{line.Name}: {Format(line.Values[index])}");
+            }
+        }
+
+        return text.ToString();
+    }
+}
