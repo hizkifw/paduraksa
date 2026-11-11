@@ -611,7 +611,7 @@ public static partial class SnapshotCompiler
             return null;
         }
 
-        if (!ErrorPageStatuses.MaintenanceStatuses.Contains(maintenance.Status))
+        if (!ErrorPageStatuses.IsMaintenanceStatus(maintenance.Status))
         {
             errors.Add(new(where, $"a maintenance answer's status is one of {string.Join(", ", ErrorPageStatuses.MaintenanceStatuses)}, got {maintenance.Status}"));
             return null;

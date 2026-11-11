@@ -42,6 +42,9 @@ internal sealed class CustomErrorPage
     // The headers the built-in pages carry: the message pages' CSP is the brand style's hash, the same for every one of them.
     private static readonly PrecomputedHeader[] BrandHeaders = HtmlPageTemplate.Create("x", "<p>x</p>").SecurityHeaders;
 
+    // A document's own CSP in place of the brand page's, with the framing, referrer and sniffing headers every page carries.
+    private static readonly PrecomputedHeader[] DocumentHeaders = BuildDocumentHeaders();
+
     private readonly byte[][] _segments;
     private readonly ErrorPageVariable[] _variables;
 
@@ -78,7 +81,7 @@ internal sealed class CustomErrorPage
         if (spec.Mode == ErrorPageMode.Html)
         {
             builder.Document(spec.Html ?? string.Empty);
-            return builder.Build(spec, status, [new PrecomputedHeader("Content-Security-Policy", DocumentPolicy), .. BrandHeaders.Where(static h => h.Name != "Content-Security-Policy")]);
+            return builder.Build(spec, status, DocumentHeaders);
         }
 
         var heading = spec.Heading is { Length: > 0 } text ? text : $"{{status}} {{statusText}}";
@@ -100,6 +103,17 @@ internal sealed class CustomErrorPage
         builder.Raw("</code></p>");
         builder.Raw(HtmlPageTemplate.DocumentEnd);
         return builder.Build(spec, status, BrandHeaders);
+    }
+
+    private static PrecomputedHeader[] BuildDocumentHeaders()
+    {
+        var headers = new PrecomputedHeader[BrandHeaders.Length];
+        for (var i = 0; i < headers.Length; i++)
+        {
+            headers[i] = BrandHeaders[i].Name == "Content-Security-Policy" ? new PrecomputedHeader("Content-Security-Policy", DocumentPolicy) : BrandHeaders[i];
+        }
+
+        return headers;
     }
 
     /// <summary>Writes the page. <paramref name="cfRay"/> is empty unless Cloudflare's headers are trusted for the request.</summary>
@@ -262,7 +276,15 @@ public static class ErrorPagePreviews
     public static ErrorPagePreviewBytes Render(ErrorPageMode mode, string? heading, string? text, string? html, int status)
     {
         var page = CustomErrorPage.Compile(new ErrorPageSpec { Mode = mode, Heading = heading, Text = text, Html = html }, status);
-        var policy = page.SecurityHeaders.First(static header => header.Name == "Content-Security-Policy").Value.ToString();
+        var policy = string.Empty;
+        foreach (var header in page.SecurityHeaders)
+        {
+            if (header.Name == "Content-Security-Policy")
+            {
+                policy = header.Value.ToString();
+            }
+        }
+
         return new ErrorPagePreviewBytes(page.Render(SampleRequestId, SampleHost, SampleRay), policy);
     }
 }

@@ -28,6 +28,9 @@ public static class ErrorPageStatuses
     /// </summary>
     public static IReadOnlyList<int> MaintenanceStatuses { get; } = Array.AsReadOnly([503, 200, 500, 502, 504, 403, 404, 410]);
 
+    /// <summary>Whether <paramref name="status"/> is one of <see cref="MaintenanceStatuses"/>, without a LINQ call (the compiler asks it).</summary>
+    public static bool IsMaintenanceStatus(int status) => status is 503 or 200 or 500 or 502 or 504 or 403 or 404 or 410;
+
     /// <summary>The position of <paramref name="key"/> in <see cref="Keys"/>, or -1. Cheap enough for the error path.</summary>
     public static int IndexOf(int key) => key switch
     {
