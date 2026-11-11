@@ -9,6 +9,7 @@ using Paduraksa.Application.Identity;
 using Paduraksa.Application.Issuance;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Logging;
+using Paduraksa.Application.Security;
 using Paduraksa.Application.Simulation;
 using Paduraksa.Core.Acme;
 using Paduraksa.Core.Hosting;
@@ -253,6 +254,8 @@ internal sealed class SharedServices : IAsyncDisposable
             // The rate-limit table, slots and counters: the compiler assigns pairs slots in this registry, the publisher
             // makes a live snapshot's pairs the live parameters, and every compiled policy takes from this table.
             var rateLimits = builder.Add(RateLimitServiceCollectionExtensions.CreateRuntime(configuration));
+            // Built here so its start time is the process's: the counters it reports begin at zero with them.
+            builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
             var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));

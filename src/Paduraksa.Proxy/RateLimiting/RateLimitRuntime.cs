@@ -46,7 +46,7 @@ public sealed class RateLimitRuntime
 
     public RateLimitPolicySlots Slots { get; }
 
-    /// <summary>Process-lifetime counters, shared by every policy; the security page will read them.</summary>
+    /// <summary>Process-lifetime counters, shared by every policy; the security overview reads them.</summary>
     public RateLimitStats Stats { get; } = new();
 
     /// <summary>The pair's stable slot, assigning one on the compiler's cold path.</summary>

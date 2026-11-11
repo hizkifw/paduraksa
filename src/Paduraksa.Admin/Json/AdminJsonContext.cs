@@ -9,6 +9,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Contracts.Logging;
 using Paduraksa.Contracts.Revisions;
+using Paduraksa.Contracts.Security;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Json;
@@ -81,6 +82,7 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(IReadOnlyList<LogFileSummary>))]
 [JsonSerializable(typeof(LogFileTail))]
 [JsonSerializable(typeof(AuditVerification))]
+[JsonSerializable(typeof(SecurityOverview))]
 [JsonSerializable(typeof(CertificateSummary))]
 [JsonSerializable(typeof(IReadOnlyList<CertificateSummary>))]
 [JsonSerializable(typeof(CertificateDetail))]

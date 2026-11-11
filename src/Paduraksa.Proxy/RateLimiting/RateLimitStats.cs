@@ -1,7 +1,7 @@
 namespace Paduraksa.Proxy.RateLimiting;
 
 /// <summary>
-/// Process-lifetime rate-limit counters, lock-free and read through <see cref="Volatile"/>: the security page will show
+/// Process-lifetime rate-limit counters, lock-free and read through <see cref="Volatile"/>: the security overview reads
 /// them. A count is one <see cref="System.Threading.Interlocked.Increment(ref long)"/> on the request path and
 /// allocates nothing.
 /// </summary>

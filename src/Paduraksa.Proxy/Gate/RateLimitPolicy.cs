@@ -43,6 +43,7 @@ public sealed class RateLimitPolicy : IRequestPolicy
     private readonly RateLimitKey _key;
     private readonly string? _header;
     private readonly string _policyName;
+    private readonly RateLimitPolicyId _policyId;
     private readonly bool _routeOverride;
     private readonly ushort _slot;
     private readonly string[] _retryAfter;
@@ -61,6 +62,7 @@ public sealed class RateLimitPolicy : IRequestPolicy
         ArgumentNullException.ThrowIfNull(partition);
         ArgumentNullException.ThrowIfNull(stats);
         _policyName = policy.Name;
+        _policyId = policy.Id;
         _parameters = policy.Parameters;
         _key = policy.Key;
         _header = header;
@@ -78,6 +80,11 @@ public sealed class RateLimitPolicy : IRequestPolicy
             _retryAfter[seconds] = seconds.ToString(CultureInfo.InvariantCulture);
         }
     }
+
+    /// <summary>The named policy this pair applies, for the security overview.</summary>
+    public RateLimitPolicyId PolicyId => _policyId;
+
+    public string PolicyName => _policyName;
 
     public PolicyDecision Evaluate(in RequestView request)
     {

@@ -1,8 +1,8 @@
 namespace Paduraksa.Proxy.Gate;
 
 /// <summary>
-/// Process-lifetime proof-of-work counters, lock-free and read through <see cref="Volatile"/>: the security page will
-/// show them. Nothing here is on the decision's allocation path.
+/// Process-lifetime proof-of-work counters, lock-free and read through <see cref="Volatile"/>: the security overview reads them.
+/// Nothing here is on the decision's allocation path.
 /// </summary>
 public sealed class ProofOfWorkStats
 {

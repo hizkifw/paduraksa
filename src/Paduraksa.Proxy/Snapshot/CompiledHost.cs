@@ -18,6 +18,9 @@ public sealed class CompiledHost
 
     public required HostKind Kind { get; init; }
 
+    /// <summary>The names as configured (the first is the one to show); the host table is what matches requests.</summary>
+    public IReadOnlyList<string> Names { get; init; } = [];
+
     /// <summary>Proxy hosts: the routes in the order they are tried (most specific first); the first match wins.
     /// Empty for the other kinds.</summary>
     public required CompiledRoute[] Routes { get; init; }
@@ -73,6 +76,12 @@ public sealed class CompiledHost
     /// <summary>Where the request ID is sent upstream: the settings layers resolved it, built-in default upstream and
     /// response.</summary>
     public RequestIdPropagation RequestIdPropagation { get; init; } = RequestIdPropagation.UpstreamAndResponse;
+
+    /// <summary>
+    /// The host's own rate-limit policy (the one a route inherits), or null when it names none. A route's chain carries its
+    /// own instance of the same object when it inherits, so a different or missing one marks an override.
+    /// </summary>
+    public RateLimitPolicy? RateLimit { get; init; }
 
     /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
