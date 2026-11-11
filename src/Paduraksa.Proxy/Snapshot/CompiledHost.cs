@@ -116,6 +116,12 @@ public sealed class CompiledHost
     /// another or turns authentication off.</summary>
     public ForwardAuth.CompiledAuthProvider? AuthProvider { get; init; }
 
+    /// <summary>
+    /// Every provider the host's routes ask (the host's own and any a route names): the identity headers of each are removed from the client's request on
+    /// every route of the host, a route with sign-in off included, since only a provider's answer may set them. Empty when none asks.
+    /// </summary>
+    public ForwardAuth.CompiledAuthProvider[] IdentityProviders { get; init; } = [];
+
     /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

@@ -1,5 +1,6 @@
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.Snapshot;
 
 namespace Paduraksa.Proxy.ForwardAuth;
 
@@ -49,6 +50,19 @@ public sealed class CompiledAuthProvider
         }
 
         RequestHeaders = requests.ToArray();
+
+        // What the decision cache key hashes beyond the three credential headers it always hashes: every header the provider is told to read.
+        List<string> keyed = [];
+        foreach (var extra in spec.RequestHeaders)
+        {
+            if (!IsStandardCredential(extra) && !keyed.Exists(known => string.Equals(known, extra, StringComparison.OrdinalIgnoreCase)))
+            {
+                keyed.Add(extra);
+            }
+        }
+
+        KeyHeaders = keyed.ToArray();
+        (SignInAuthority, SignInPath) = SignInTarget(spec.SignInUrl);
     }
 
     public AuthProviderId Id { get; }
@@ -65,12 +79,26 @@ public sealed class CompiledAuthProvider
     /// <summary>The client headers sent to the endpoint: the standard set, then the provider's own additions.</summary>
     internal string[] RequestHeaders { get; }
 
-    /// <summary>Whether a header named <paramref name="name"/> is one the provider owns: its answer fills it and a client's own is removed.</summary>
+    /// <summary>The headers the provider is told to read that are not <c>Cookie</c>, <c>Authorization</c> or <c>Proxy-Authorization</c>: part of the
+    /// decision cache key and, with those three, what makes a request one that carries credentials.</summary>
+    internal string[] KeyHeaders { get; }
+
+    /// <summary>The host of an absolute sign-in URL (with its port, as <see cref="Uri.Authority"/> writes it); null for a path on the protected host or none.</summary>
+    internal string? SignInAuthority { get; }
+
+    /// <summary>The canonical path of the sign-in URL without a trailing separator, or null when none is configured.</summary>
+    internal string? SignInPath { get; }
+
+    /// <summary>
+    /// Whether a header named <paramref name="name"/> is one the provider owns: its answer fills it and a client's own is removed. <c>_</c> and
+    /// <c>-</c> are the same character here: a CGI or WSGI upstream folds both into one variable name, so <c>Remote_User</c> from a client would
+    /// otherwise be read as the provider's <c>Remote-User</c>.
+    /// </summary>
     internal bool Owns(string name)
     {
         foreach (var exact in _exact)
         {
-            if (string.Equals(exact, name, StringComparison.OrdinalIgnoreCase))
+            if (FoldedEquals(exact, name))
             {
                 return true;
             }
@@ -78,7 +106,7 @@ public sealed class CompiledAuthProvider
 
         foreach (var prefix in _prefixes)
         {
-            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            if (name.Length >= prefix.Length && FoldedEquals(prefix, name.AsSpan(0, prefix.Length)))
             {
                 return true;
             }
@@ -87,8 +115,83 @@ public sealed class CompiledAuthProvider
         return false;
     }
 
-    /// <summary>The names an upstream request must not carry from the client, exact ones; the prefixes are in <see cref="Prefixes"/>.</summary>
-    internal string[] ExactNames => _exact;
+    /// <summary>Whether a request for <paramref name="path"/> on <paramref name="host"/> is already a request for the provider's sign-in page.</summary>
+    internal bool IsSignInRequest(string? path, string host)
+    {
+        if (SignInPath is not { } signIn)
+        {
+            return false;
+        }
 
-    internal string[] Prefixes => _prefixes;
+        if (SignInAuthority is { } authority && !string.Equals(authority, host, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var span = path.AsSpan();
+        while (span.Length > 1 && span[^1] == '/')
+        {
+            span = span[..^1];
+        }
+
+        return RoutePath.MatchesCanonical(span, signIn);
+    }
+
+    private static bool IsStandardCredential(string name) =>
+        string.Equals(name, "Cookie", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "Authorization", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(name, "Proxy-Authorization", StringComparison.OrdinalIgnoreCase);
+
+    private static bool FoldedEquals(ReadOnlySpan<char> left, ReadOnlySpan<char> right)
+    {
+        if (left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Length; i++)
+        {
+            if (Fold(left[i]) != Fold(right[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static char Fold(char c) => c == '_' ? '-' : char.ToUpperInvariant(c);
+
+    private static (string? Authority, string? Path) SignInTarget(string? url)
+    {
+        if (string.IsNullOrEmpty(url))
+        {
+            return (null, null);
+        }
+
+        string? authority = null;
+        string path;
+        if (url[0] == '/')
+        {
+            var query = url.IndexOf('?', StringComparison.Ordinal);
+            path = query < 0 ? url : url[..query];
+        }
+        else if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            authority = uri.Authority;
+            path = uri.AbsolutePath;
+        }
+        else
+        {
+            return (null, null);
+        }
+
+        path = RoutePath.Canonicalize(path);
+        while (path.Length > 1 && path[^1] == '/')
+        {
+            path = path[..^1];
+        }
+
+        return (authority, path);
+    }
 }

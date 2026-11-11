@@ -55,20 +55,5 @@ public sealed class CompiledRoute
     public bool Admin { get; init; }
 
     /// <summary>Does this route take <paramref name="path"/> (a canonical view)? An empty path counts as <c>/</c>.</summary>
-    public bool Matches(ReadOnlySpan<char> path)
-    {
-        if (path.IsEmpty)
-        {
-            path = "/";
-        }
-
-        var route = Path;
-        if (MatchKind == RouteMatchKind.Exact)
-        {
-            return path.Equals(route, StringComparison.OrdinalIgnoreCase);
-        }
-
-        return path.StartsWith(route, StringComparison.OrdinalIgnoreCase)
-            && (path.Length == route.Length || route[^1] == '/' || path[route.Length] == '/');
-    }
+    public bool Matches(ReadOnlySpan<char> path) => RoutePath.Takes(MatchKind, Path, path);
 }

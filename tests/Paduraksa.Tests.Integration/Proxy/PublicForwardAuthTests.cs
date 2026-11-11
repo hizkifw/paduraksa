@@ -173,6 +173,45 @@ public sealed class PublicForwardAuthTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ARouteThatTurnsAuthenticationOffStillNeverPassesAForgedIdentityUpstream()
+    {
+        await using var host = await StartedAsync();
+
+        var (response, upstream) = await SendAsync(host, "app.test", "/oauth2/callback?code=1", request =>
+        {
+            request.Headers.TryAddWithoutValidation("Remote-User", "root");
+            request.Headers.TryAddWithoutValidation("remote_groups", "wheel");
+            request.Headers.TryAddWithoutValidation("X-Other", "kept");
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(upstream.ContainsKey("Remote-User"));
+        Assert.False(upstream.ContainsKey("Remote_Groups"));
+        Assert.False(upstream.ContainsKey("Remote-Groups"));
+        Assert.Equal("kept", upstream["X-Other"]);
+        Assert.Equal(0, Auth.CallCount);
+    }
+
+    [Fact]
+    public async Task AnUnderscoreCopyOfAnIdentityHeaderNeverReachesTheUpstreamOnAGuardedRoute()
+    {
+        await using var host = await StartedAsync();
+
+        var (response, upstream) = await SendAsync(host, "app.test", "/docs", request =>
+        {
+            request.Headers.TryAddWithoutValidation("Cookie", "session=alice");
+            request.Headers.TryAddWithoutValidation("Remote_User", "root");
+            request.Headers.TryAddWithoutValidation("REMOTE_GROUPS", "wheel");
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("alice", upstream["Remote-User"]);
+        Assert.False(upstream.ContainsKey("Remote_User"));
+        Assert.False(upstream.ContainsKey("Remote_Groups"));
+        Assert.Equal("admins,dev", upstream["Remote-Groups"]);
+    }
+
+    [Fact]
     public async Task ASignInUrlSendsABrowserToTheProvidersStartPageWithTheOriginalAddress()
     {
         await using var host = await StartedAsync(signIn: ("/oauth2/start", "rd"));

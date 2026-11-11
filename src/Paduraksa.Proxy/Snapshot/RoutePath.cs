@@ -1,5 +1,7 @@
 using System.Buffers;
 
+using Paduraksa.Core.Model;
+
 namespace Paduraksa.Proxy.Snapshot;
 
 /// <summary>
@@ -149,6 +151,24 @@ public static class RoutePath
         {
             ArrayPool<char>.Shared.Return(rented);
         }
+    }
+
+    /// <summary>Whether a route of kind <paramref name="kind"/> and path <paramref name="route"/> takes <paramref name="path"/>, both canonical views; ignores case.
+    /// An empty path counts as <c>/</c>.</summary>
+    public static bool Takes(RouteMatchKind kind, ReadOnlySpan<char> route, ReadOnlySpan<char> path)
+    {
+        if (path.IsEmpty)
+        {
+            path = "/";
+        }
+
+        if (kind == RouteMatchKind.Exact)
+        {
+            return path.Equals(route, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return path.StartsWith(route, StringComparison.OrdinalIgnoreCase)
+            && (path.Length == route.Length || route[^1] == '/' || path[route.Length] == '/');
     }
 
     /// <summary>Allocating convenience for cold paths (the compiler).</summary>

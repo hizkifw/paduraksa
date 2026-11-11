@@ -158,6 +158,7 @@ public static partial class SnapshotCompiler
                 AccessList = AccessListOf(spec.AccessList.Effective),
                 RuleSet = RuleSetOf(spec.RuleSet.Effective),
                 AuthProvider = spec.Kind == HostKind.Proxy ? AuthProviderOf(spec.AuthProvider.Effective) : null,
+                IdentityProviders = spec.Kind == HostKind.Proxy ? IdentityProvidersOf(AuthProviderOf(spec.AuthProvider.Effective), routes) : [],
                 HttpsRedirect = spec.ForceHttps ? HttpsRedirect : null,
                 Tls = tls,
                 Https = spec.Https,
@@ -449,6 +450,26 @@ public static partial class SnapshotCompiler
         }
 
         return routes;
+    }
+
+    /// <summary>The distinct providers the host and its routes ask, whose identity headers every route of the host must strip.</summary>
+    private static CompiledAuthProvider[] IdentityProvidersOf(CompiledAuthProvider? host, CompiledRoute[] routes)
+    {
+        List<CompiledAuthProvider> providers = [];
+        if (host is not null)
+        {
+            providers.Add(host);
+        }
+
+        foreach (var route in routes)
+        {
+            if (route.AuthProvider is { } provider && !providers.Contains(provider))
+            {
+                providers.Add(provider);
+            }
+        }
+
+        return [.. providers];
     }
 
     /// <summary>The compiler's backstop for the values the validator already judged: a limit outside its bounds would let the

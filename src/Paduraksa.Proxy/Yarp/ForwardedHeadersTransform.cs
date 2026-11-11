@@ -59,11 +59,15 @@ internal static class ForwardedHeadersTransform
             upstream.Remove(Microsoft.Net.Http.Headers.HeaderNames.Authorization);
         }
 
-        // The identity the auth provider vouches for: whatever the client sent under those names is removed first, so on a protected route
-        // an identity header can only ever come from the provider.
-        if (state is { ForwardAuthProvider: { } provider })
+        // The identity an auth provider vouches for: whatever the client sent under those names is removed first, on every route of a host that has a
+        // provider (also one with sign-in off, which no provider vouches for), so an identity header can only ever come from the provider.
+        if (state?.Host is { IdentityProviders: { Length: > 0 } providers })
         {
-            ApplyForwardAuth(upstream, provider, state.ForwardAuthHeaders);
+            ApplyForwardAuth(upstream, providers, state.ForwardAuthHeaders);
+        }
+        else if (state is { ForwardAuthProvider: { } answered })
+        {
+            ApplyForwardAuth(upstream, [answered], state.ForwardAuthHeaders);
         }
 
         upstream.Remove(ForwardingHeaders.XForwardedFor);
@@ -110,22 +114,15 @@ internal static class ForwardedHeadersTransform
         return ValueTask.CompletedTask;
     }
 
-    /// <summary>Removes the client's copies of the headers <paramref name="provider"/> owns (exact names, then every header with one of its
-    /// prefixes) and adds the provider's own.</summary>
-    internal static void ApplyForwardAuth(HttpRequestHeaders upstream, ForwardAuth.CompiledAuthProvider provider, ForwardAuth.ForwardAuthHeader[]? answered)
+    /// <summary>Removes the client's copies of the headers <paramref name="providers"/> own (exact names and prefixes, <c>_</c> and <c>-</c> alike) and
+    /// adds the ones the provider that answered returned.</summary>
+    internal static void ApplyForwardAuth(HttpRequestHeaders upstream, ForwardAuth.CompiledAuthProvider[] providers, ForwardAuth.ForwardAuthHeader[]? answered)
     {
-        foreach (var name in provider.ExactNames)
+        // Usually there is none: one scan of the names (struct enumerators, 0 B). Each removal restarts the scan, as the collection can't change
+        // under its enumerator.
+        while (FindOwned(upstream, providers) is { } name)
         {
             upstream.Remove(name);
-        }
-
-        if (provider.Prefixes.Length > 0)
-        {
-            // Each removal restarts the scan, as the collection can't change under its enumerator.
-            while (FindOwned(upstream, provider) is { } name)
-            {
-                upstream.Remove(name);
-            }
         }
 
         if (answered is null)
@@ -139,13 +136,16 @@ internal static class ForwardedHeadersTransform
         }
     }
 
-    private static string? FindOwned(HttpRequestHeaders headers, ForwardAuth.CompiledAuthProvider provider)
+    private static string? FindOwned(HttpRequestHeaders headers, ForwardAuth.CompiledAuthProvider[] providers)
     {
         foreach (var header in headers.NonValidated)
         {
-            if (provider.Owns(header.Key))
+            foreach (var provider in providers)
             {
-                return header.Key;
+                if (provider.Owns(header.Key))
+                {
+                    return header.Key;
+                }
             }
         }
 
