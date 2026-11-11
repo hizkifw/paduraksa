@@ -54,6 +54,34 @@ public static class InlineValidation
         return Relative(ConfigValidator.Validate(document), $"/rateLimitPolicies/{document.RateLimitPolicies.Count - 1}");
     }
 
+    /// <summary>
+    /// The errors of <paramref name="list"/> in <paramref name="current"/>, relative to it (<c>/name</c>,
+    /// <c>/basicAuth/users/0/username</c>). A typed password is checked as the server will check it, after hashing: a
+    /// placeholder verifier stands in for it here, so only an empty or too long one is an error and nothing is hashed in the
+    /// browser's circuit.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> ForAccessList(ConfigDocument current, AccessListConfig list)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(list);
+        var hashed = list with
+        {
+            BasicAuth = list.BasicAuth is { } auth
+                ? auth with { Users = [.. auth.Users.Select(PlaceholderHash)] }
+                : null,
+        };
+        var document = current with { AccessLists = [.. current.AccessLists.Where(l => l.Id != list.Id), hashed] };
+        return Relative(ConfigValidator.Validate(document), $"/accessLists/{document.AccessLists.Count - 1}");
+    }
+
+    // A verifier of the right shape, never a real one: the server hashes the password itself.
+    private const string PlaceholderVerifier = "$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE";
+
+    private static AccessListUserConfig PlaceholderHash(AccessListUserConfig user) =>
+        user.Password is { Length: > 0 } password && System.Text.Encoding.UTF8.GetByteCount(password) <= Paduraksa.Core.Security.PasswordHash.MaxPasswordBytes
+            ? user with { PasswordHash = PlaceholderVerifier, Password = null }
+            : user;
+
     /// <summary>The first message per path of <paramref name="errors"/> that point into <paramref name="prefix"/>, relative to it, as sentences.</summary>
     public static IReadOnlyDictionary<string, string> Relative(IEnumerable<ConfigError> errors, string prefix, ConfigDocument? document = null)
     {

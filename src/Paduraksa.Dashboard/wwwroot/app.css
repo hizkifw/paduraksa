@@ -872,6 +872,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-upstreams-table { --pdk-dt-cols: minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 1.4fr); }
 .pdk-profiles-table { --pdk-dt-cols: minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.2fr) 40px; }
 .pdk-rate-limits-table { --pdk-dt-cols: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 40px; }
+.pdk-access-lists-table { --pdk-dt-cols: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 40px; }
 .pdk-users-table { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) 80px; }
 .pdk-users-table.pdk-users-seen { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(90px, 0.7fr) 80px; }
 .pdk-tokens-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.8fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
@@ -1331,7 +1332,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     }
 
     .pdk-hosts-table .pdk-dt-cell[data-label="Destination"], .pdk-upstreams-table .pdk-dt-cell, .pdk-profiles-table .pdk-dt-cell[data-label],
-    .pdk-rate-limits-table .pdk-dt-cell[data-label] {
+    .pdk-rate-limits-table .pdk-dt-cell[data-label], .pdk-access-lists-table .pdk-dt-cell[data-label] {
         grid-column: 1 / -1;
     }
 
@@ -1360,7 +1361,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
         right: 8px;
     }
 
-    .pdk-rate-limits-table .pdk-dt-actions {
+    .pdk-rate-limits-table .pdk-dt-actions, .pdk-access-lists-table .pdk-dt-actions {
         position: absolute;
         top: 10px;
         right: 8px;
@@ -1664,6 +1665,41 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-field-grid-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin: 4px 0 8px 48px;
+}
+
+/* An access list's users: a name and its password side by side, the row's actions under them on a narrow screen. */
+.pdk-user-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pdk-user-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto;
+    gap: 4px 12px;
+    align-items: start;
+}
+
+.pdk-user-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-top: 4px;
+}
+
+@media (max-width: 640px) {
+    .pdk-user-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pdk-user-actions {
+        justify-content: space-between;
+        padding-top: 0;
+    }
 }
 
 /* Requests and its period on one line: a number and the unit it is measured over, read as one sentence. */

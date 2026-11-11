@@ -21,6 +21,7 @@ public enum ChangedObject
     Host,
     Route,
     RateLimitPolicy,
+    AccessList,
 }
 
 /// <summary>One field of a changed object, as the diff shows it: its label and its value before and after (null: not set).</summary>
@@ -126,6 +127,8 @@ public static class ChangeView
             DeleteProfileCommand c => current with { Profiles = [.. current.Profiles.Where(p => p.Id != c.ProfileId)] },
             UpsertRateLimitPolicyCommand c => current with { RateLimitPolicies = [.. current.RateLimitPolicies.Where(p => p.Id != c.Policy.Id), c.Policy] },
             DeleteRateLimitPolicyCommand c => current with { RateLimitPolicies = [.. current.RateLimitPolicies.Where(p => p.Id != c.RateLimitPolicyId)] },
+            UpsertAccessListCommand c => current with { AccessLists = [.. current.AccessLists.Where(l => l.Id != c.AccessList.Id), c.AccessList] },
+            DeleteAccessListCommand c => current with { AccessLists = [.. current.AccessLists.Where(l => l.Id != c.AccessListId)] },
             UpdateSettingsCommand c => current with { Settings = c.Settings },
             ReplaceConfigCommand c => c.Document,
             _ => null,
@@ -180,6 +183,10 @@ public static class ChangeView
                     break;
                 case "rateLimitPolicies" when index < document.RateLimitPolicies.Count:
                     parts.Add($"Rate limit {document.RateLimitPolicies[index].Name}");
+                    i = 2;
+                    break;
+                case "accessLists" when index < document.AccessLists.Count:
+                    parts.Add($"Access list {document.AccessLists[index].Name}");
                     i = 2;
                     break;
             }
@@ -264,6 +271,7 @@ public static class ChangeView
         DestinationChange c => c.DestinationId.ToString(),
         ProfileChange c => c.ProfileId.ToString(),
         RateLimitPolicyChange c => c.RateLimitPolicyId.ToString(),
+        AccessListChange c => c.AccessListId.ToString(),
         SettingsChange => "settings",
         _ => "document",
     };
@@ -295,6 +303,10 @@ public static class ChangeView
             RateLimitPolicyChange c => (ChangedObject.RateLimitPolicy, names.RateLimitPolicy(c.RateLimitPolicyId),
                 Node(before.RateLimitPolicies.FirstOrDefault(p => p.Id == c.RateLimitPolicyId), ConfigJsonContext.Default.RateLimitPolicyConfig),
                 Node(after.RateLimitPolicies.FirstOrDefault(p => p.Id == c.RateLimitPolicyId), ConfigJsonContext.Default.RateLimitPolicyConfig),
+                ["id", "version"]),
+            AccessListChange c => (ChangedObject.AccessList, names.AccessList(c.AccessListId),
+                Node(before.AccessLists.FirstOrDefault(l => l.Id == c.AccessListId), ConfigJsonContext.Default.AccessListConfig),
+                Node(after.AccessLists.FirstOrDefault(l => l.Id == c.AccessListId), ConfigJsonContext.Default.AccessListConfig),
                 ["id", "version"]),
             SettingsChange => (ChangedObject.Settings, "Global settings",
                 Node(before.Settings, ConfigJsonContext.Default.GlobalSettings),
@@ -400,6 +412,9 @@ public static class ChangeView
         public string Profile(ProfileId id) =>
             (after.Profiles.FirstOrDefault(p => p.Id == id) ?? before.Profiles.FirstOrDefault(p => p.Id == id))?.Name ?? id.ToString();
 
+        public string AccessList(AccessListId id) =>
+            (after.AccessLists.FirstOrDefault(l => l.Id == id) ?? before.AccessLists.FirstOrDefault(l => l.Id == id))?.Name ?? "a list that isn't here";
+
         public string RateLimitPolicy(RateLimitPolicyId id) =>
             (after.RateLimitPolicies.FirstOrDefault(p => p.Id == id) ?? before.RateLimitPolicies.FirstOrDefault(p => p.Id == id))?.Name ?? "a policy that isn't here";
 
@@ -412,6 +427,10 @@ public static class ChangeView
                     return null;
                 case JsonArray array:
                     return array.Count == 0 ? "none" : string.Join(", ", array.Select(item => Format(path, item) ?? "-"));
+                case JsonObject user when user.ContainsKey("username") && (user.ContainsKey("passwordHash") || user.ContainsKey("password")):
+                    // A user of an access list: the name, and that a password is being set. Neither the hash nor the typed
+                    // password is ever shown, in a review or in the history.
+                    return string.Concat(user["username"]?.ToString() ?? "-", user.ContainsKey("password") ? " (new password)" : string.Empty);
                 case JsonObject obj:
                     StringBuilder text = new();
                     foreach (var (key, item) in obj)
@@ -454,6 +473,11 @@ public static class ChangeView
             if (RateLimitPolicyId.TryParse(text, out var policy))
             {
                 return RateLimitPolicy(policy);
+            }
+
+            if (AccessListId.TryParse(text, out var list))
+            {
+                return AccessList(list);
             }
 
             return null;

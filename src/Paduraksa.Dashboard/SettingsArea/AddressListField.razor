@@ -1,0 +1,34 @@
+@* A list of IP addresses and networks in one box, one per line: what an access list allows or denies. The count under it says
+   how many entries the box holds, so a pasted list can be checked at a glance. *@
+<MudTextField T="string" Value="Text" ValueChanged="TextChanged" Immediate="true" DebounceInterval="250" Label="@Label" Placeholder="@Placeholder"
+              Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" Class="pdk-mono-input" ReadOnly="@ReadOnly"
+              HelperText="@(Count == 0 ? null : $"{Count} {(Count == 1 ? "entry" : "entries")}")"
+              Error="@(Error is not null)" ErrorText="@Error" data-field="@Field" spellcheck="false" autocomplete="off" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    [Parameter]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> TextChanged { get; set; }
+
+    /// <summary>How many entries <see cref="Text"/> holds.</summary>
+    [Parameter]
+    public int Count { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    /// <summary>The <c>data-field</c> the tests and the browser select it by.</summary>
+    [Parameter, EditorRequired]
+    public string Field { get; set; } = string.Empty;
+}

@@ -104,6 +104,47 @@ public sealed class ChangeListTests
     }
 
     [Fact]
+    public void AnAddedAccessList_ShowsItsUsersByNameAndNeverAPasswordOrAHash()
+    {
+        const string Hash = "$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE";
+        AccessListConfig list = new(
+            AccessListId.New(),
+            "Office",
+            Ip: new AccessListIp(["10.0.0.0/8"], ["10.9.0.0/16"], DropDenied: true),
+            BasicAuth: new AccessListBasicAuth("Staff", [new AccessListUserConfig("alice", Hash), new AccessListUserConfig("bob", Password: "correct horse")]),
+            Satisfy: AccessListSatisfy.Any);
+        ConfigDocument older = new();
+        ConfigDocument newer = new(AccessLists: [list]);
+
+        var group = Assert.Single(ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer)));
+
+        Assert.Equal(("Office", ChangedObject.AccessList, ConfigChangeKind.Added), (group.Head.Title, group.Head.What, group.Head.Kind));
+        Assert.Contains(group.Head.Fields, f => f.Label == "Addresses" && f.After!.Contains("10.0.0.0/8", StringComparison.Ordinal));
+        Assert.Contains(group.Head.Fields, f => f.Label == "Passwords" && f.After!.Contains("alice, bob (new password)", StringComparison.Ordinal));
+        var shown = string.Join('\n', group.Head.Fields.SelectMany(f => new[] { f.Label, f.Before, f.After }).OfType<string>());
+        Assert.DoesNotContain(Hash, shown, StringComparison.Ordinal);
+        Assert.DoesNotContain("correct horse", shown, StringComparison.Ordinal);
+        Assert.DoesNotContain(list.Id.ToString(), shown, StringComparison.Ordinal);
+        Assert.Equal(list.Id, Assert.Single(ChangeView.Apply(older, new UpsertAccessListCommand(list))!.AccessLists).Id);
+    }
+
+    [Fact]
+    public void AHostsAccessListChange_NamesTheList_NotItsId()
+    {
+        AccessListConfig list = new(AccessListId.New(), "Office", Ip: new AccessListIp(["10.0.0.0/8"]));
+        HostConfig before = new(HostId.New(), ["app.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200));
+        var after = before with { Settings = new HostSettings { AccessList = new AccessListSettings { AccessListId = list.Id } } };
+        ConfigDocument older = new(AccessLists: [list], Hosts: [before]);
+        ConfigDocument newer = older with { Hosts = [after] };
+
+        var group = Assert.Single(ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer)));
+
+        var field = Assert.Single(group.Head.Fields, f => f.Label == "Access list");
+        Assert.Equal(("", "Access list: Office"), (field.Before ?? string.Empty, field.After ?? string.Empty));
+        Assert.DoesNotContain(list.Id.ToString(), field.After!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NoChanges_IsAnEmptyState()
     {
         await using DashboardTestContext context = new();

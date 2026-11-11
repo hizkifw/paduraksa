@@ -103,6 +103,7 @@ public static class ReviewNotices
         DestinationChange destination => $"upstream:{destination.UpstreamId}",
         ProfileChange profile => $"profile:{profile.ProfileId}",
         RateLimitPolicyChange policy => $"rateLimit:{policy.RateLimitPolicyId}",
+        AccessListChange list => $"accessList:{list.AccessListId}",
         SettingsChange => "settings",
         _ => "*",
     };
@@ -127,6 +128,7 @@ public static class ReviewNotices
             "upstreams" when index < document.Upstreams.Count => $"upstream:{document.Upstreams[index].Id}",
             "profiles" when index < document.Profiles.Count => $"profile:{document.Profiles[index].Id}",
             "rateLimitPolicies" when index < document.RateLimitPolicies.Count => $"rateLimit:{document.RateLimitPolicies[index].Id}",
+            "accessLists" when index < document.AccessLists.Count => $"accessList:{document.AccessLists[index].Id}",
             _ => path,
         };
     }
@@ -150,6 +152,10 @@ public static class ReviewNotices
             ConfigErrorCodes.HostProfileUnknown => "That profile doesn't exist any more. Choose another one, or no profile.",
             ConfigErrorCodes.HostRateLimitUnknown or ConfigErrorCodes.RouteRateLimitUnknown =>
                 "That rate limit doesn't exist any more. Choose another one, or no limit.",
+            ConfigErrorCodes.HostAccessListUnknown or ConfigErrorCodes.RouteAccessListUnknown =>
+                "That access list doesn't exist any more. Choose another one, or none.",
+            ConfigErrorCodes.AccessListPasswordEmpty => "Give this user a password.",
+            ConfigErrorCodes.AccessListPasswordTooLong => "That password is too long. Use at most 256 bytes.",
             ConfigErrorCodes.IdEmpty when error.Path.EndsWith("/profileId", StringComparison.Ordinal) => "Choose a profile, or no profile.",
             _ => Sentence(error.Message),
         };

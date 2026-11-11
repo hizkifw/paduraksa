@@ -26,6 +26,8 @@ public static class DashboardRoutes
 
     public const string RateLimits = "/rate-limits";
 
+    public const string AccessLists = "/access-lists";
+
     public const string Certificates = "/certificates";
 
     public const string LocalCa = Certificates + "/local-ca";
@@ -57,6 +59,8 @@ public static class DashboardRoutes
 
     public const string NewRateLimit = RateLimits + "/" + NewSegment;
 
+    public const string NewAccessList = AccessLists + "/" + NewSegment;
+
     /// <summary>The page shown for an address the dashboard has no page at.</summary>
     public const string NotFound = "/not-found";
 
@@ -70,6 +74,9 @@ public static class DashboardRoutes
 
     /// <summary>A rate-limit policy: <c>/rate-limits/rlp_...</c>, the policies with its drawer open. The page parses the segment back into a <see cref="RateLimitPolicyId"/>.</summary>
     public static string RateLimit(RateLimitPolicyId id) => $"{RateLimits}/{id}";
+
+    /// <summary>An access list: <c>/access-lists/acl_...</c>, the lists with its drawer open. The page parses the segment back into an <see cref="AccessListId"/>.</summary>
+    public static string AccessList(AccessListId id) => $"{AccessLists}/{id}";
 
     public static string Certificate(CertificateId id) => $"{Certificates}/{id}";
 

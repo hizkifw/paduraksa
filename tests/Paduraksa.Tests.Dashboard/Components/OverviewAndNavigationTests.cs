@@ -56,6 +56,8 @@ public sealed class OverviewAndNavigationTests
     [InlineData("/security", "Security overview")]
     [InlineData("/rate-limits", "Rate limits")]
     [InlineData("/rate-limits/new", "Rate limits")]
+    [InlineData("/access-lists", "Access lists")]
+    [InlineData("/access-lists/acl_02wndAAHBC95f4Al8rNFlB", "Access lists")]
     [InlineData("/hosts/new", "Hosts")]
     [InlineData("/certificates/crt_02x5L6n2fuxI8jmEuqQF0v", "Certificates")]
     [InlineData("/certificates/acme", "ACME accounts")]
