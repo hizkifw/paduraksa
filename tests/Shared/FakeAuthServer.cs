@@ -65,6 +65,14 @@ internal sealed class FakeAuthServer : IAsyncDisposable
                 })
                 .Configure(app => app.Run(context =>
                 {
+                    // Every forward-auth call names the original method; a request without it is a stranger (a dev tool
+                    // probing new localhost ports was seen doing GET /) and must not count as a call.
+                    if (!context.Request.Headers.ContainsKey("X-Forwarded-Method"))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status404NotFound;
+                        return Task.CompletedTask;
+                    }
+
                     Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
                     foreach (var header in context.Request.Headers)
                     {
