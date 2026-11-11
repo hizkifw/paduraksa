@@ -173,6 +173,119 @@ public sealed class AuthProviderMappingTests
         });
     }
 
+    [Fact]
+    public void AProviderNamedAboveALayerThatSwitchesSignInOffIsWarnedAboutBecauseNothingAsksIt()
+    {
+        var offAbove = Map(Document(new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = false } }, null, new HostSettings { AuthProvider = Use(Sso) }));
+        var warning = Assert.Single(offAbove.Warnings, static w => w.Code == ConfigWarningCodes.AuthProviderNamedButOff);
+        Assert.Equal("/settings/authProvider", warning.Member);
+        Assert.Equal(CompileErrorSource.Host(AppHost), warning.Source);
+        // The merge is what it was: the provider is named and stays off.
+        Assert.Null(Assert.Single(offAbove.Model.Hosts).Routes[0].AuthProvider);
+
+        var viaProfile = Map(Document(new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = false } }, new HostSettings { AuthProvider = Use(Sso) }, null));
+        Assert.Single(viaProfile.Warnings, static w => w.Code == ConfigWarningCodes.AuthProviderNamedButOff);
+    }
+
+    [Fact]
+    public void AProviderKeptWhileOffByTheLayerThatNamesItOrAboveItIsNotWarnedAbout()
+    {
+        var sameLayer = Map(Document(null, null, new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = false, AuthProviderId = Sso } }));
+        var offAbove = Map(Document(null, new HostSettings { AuthProvider = Use(Sso) }, new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = false } }));
+        var on = Map(Document(new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = false } }, null, new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = true, AuthProviderId = Sso } }));
+        var nothing = Map(Document(null, null, null));
+
+        foreach (var mapped in new[] { sameLayer, offAbove, on, nothing })
+        {
+            Assert.DoesNotContain(mapped.Warnings, static w => w.Code == ConfigWarningCodes.AuthProviderNamedButOff);
+        }
+    }
+
+    [Fact]
+    public void ARouteThatNamesAProviderUnderAHostWithSignInOffIsWarnedAboutAndOneThatSwitchesItOnIsNot()
+    {
+        var document = Document(null, null, new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = false } });
+        var host = document.Hosts[0] with
+        {
+            Routes =
+            [
+                new RouteConfig(Id<RouteId>(100), AppUpstream, Path: "/named", Settings: new RouteSettings { AuthProvider = Use(Sso) }),
+                new RouteConfig(Id<RouteId>(101), AppUpstream, Path: "/on", Settings: new RouteSettings { AuthProvider = new AuthProviderSettings { Enabled = true, AuthProviderId = Sso } }),
+                new RouteConfig(Id<RouteId>(102), AppUpstream, Path: "/plain"),
+            ],
+        };
+
+        var mapped = Map(document with { Hosts = [host] });
+
+        var warning = Assert.Single(mapped.Warnings, static w => w.Code == ConfigWarningCodes.AuthProviderNamedButOff);
+        Assert.Equal(CompileErrorSource.Route(AppHost, Id<RouteId>(100)), warning.Source);
+        Assert.Equal("/settings/authProvider", warning.Member);
+    }
+
+    [Theory]
+    [InlineData("/oauth2", false, false)]
+    [InlineData("/oauth2/start", false, false)]
+    [InlineData("/oauth2", true, true)]
+    [InlineData("/", true, true)]
+    [InlineData("/elsewhere", false, true)]
+    public void ASignInPageOnTheHostNeedsARouteForItWithSignInOff(string path, bool guarded, bool warned)
+    {
+        var document = Map1(path, guarded);
+
+        Assert.Equal(warned, document.Warnings.Any(static w => w.Code == ConfigWarningCodes.AuthProviderSignInUnreachable));
+
+        static MappedConfig Map1(string path, bool guarded)
+        {
+            var doc = Document(new HostSettings { AuthProvider = Use(Sso) }, null, null) with
+            {
+                AuthProviders = [new AuthProviderConfig(Sso, "sso", ForwardAuth: new ForwardAuthConfig("http://oauth:4180", ForwardAuthPreset.OAuth2Proxy))],
+            };
+            var routes = new List<RouteConfig> { new(RootRoute, AppUpstream) };
+            if (path != "/")
+            {
+                routes.Add(new RouteConfig(Id<RouteId>(100), AppUpstream, Path: path, Settings: guarded ? null : new RouteSettings { AuthProvider = new AuthProviderSettings { Enabled = false } }));
+            }
+            else if (!guarded)
+            {
+                routes[0] = routes[0] with { Settings = new RouteSettings { AuthProvider = new AuthProviderSettings { Enabled = false } } };
+            }
+
+            return Map(doc with { Hosts = [doc.Hosts[0] with { Routes = routes }] });
+        }
+    }
+
+    [Fact]
+    public void ASignInPageTheMoreSpecificRouteGuardsIsWarnedAboutEvenWhenAShorterOneIsOpen()
+    {
+        var doc = Document(new HostSettings { AuthProvider = Use(Sso) }, null, null) with
+        {
+            AuthProviders = [new AuthProviderConfig(Sso, "sso", ForwardAuth: new ForwardAuthConfig("http://oauth:4180", ForwardAuthPreset.OAuth2Proxy))],
+        };
+        var host = doc.Hosts[0] with
+        {
+            Routes =
+            [
+                new RouteConfig(RootRoute, AppUpstream, Settings: new RouteSettings { AuthProvider = new AuthProviderSettings { Enabled = false } }),
+                new RouteConfig(Id<RouteId>(100), AppUpstream, Path: "/oauth2/start", Match: RouteMatchKind.Exact),
+            ],
+        };
+
+        Assert.Contains(Map(doc with { Hosts = [host] }).Warnings, static w => w.Code == ConfigWarningCodes.AuthProviderSignInUnreachable);
+    }
+
+    [Fact]
+    public void ASignInPageOnAnotherHostOrNoneNeedsNoRoute()
+    {
+        var absolute = Document(new HostSettings { AuthProvider = Use(Sso) }, null, null) with
+        {
+            AuthProviders = [new AuthProviderConfig(Sso, "sso", ForwardAuth: new ForwardAuthConfig("http://auth:9091", ForwardAuthPreset.Authentik, SignIn: new ForwardAuthSignInConfig("https://login.example.com/start")))],
+        };
+        var none = Document(new HostSettings { AuthProvider = Use(Sso) }, null, null);
+
+        Assert.DoesNotContain(Map(absolute).Warnings, static w => w.Code == ConfigWarningCodes.AuthProviderSignInUnreachable);
+        Assert.DoesNotContain(Map(none).Warnings, static w => w.Code == ConfigWarningCodes.AuthProviderSignInUnreachable);
+    }
+
     private static AuthProviderSpec MapProvider(ForwardAuthConfig forward) =>
         Assert.Single(Map(Document(null, null, null) with { AuthProviders = [new AuthProviderConfig(Sso, "sso", ForwardAuth: forward)] }).Model.AuthProviders);
 

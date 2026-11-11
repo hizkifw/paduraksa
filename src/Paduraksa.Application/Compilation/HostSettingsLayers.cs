@@ -327,6 +327,37 @@ public static class HostSettingsLayers
         return merged.SetsNothing ? null : merged;
     }
 
+    /// <summary>
+    /// Whether, in <paramref name="layers"/> (listed bottom to top), the switch of the auth provider ends up off and the layer that names the provider is
+    /// above the one that last set the switch. The merge leaves the switch where the lower layer put it, so the provider is named and never asked.
+    /// </summary>
+    internal static bool ProviderNamedAboveOffSwitch(params ReadOnlySpan<HostSettings?> layers)
+    {
+        var switchAt = -1;
+        var namedAt = -1;
+        var enabled = BuiltInAuthProviderEnabled;
+        for (var i = 0; i < layers.Length; i++)
+        {
+            if (layers[i]?.AuthProvider is not { } layer)
+            {
+                continue;
+            }
+
+            if (layer.Enabled is { } on)
+            {
+                switchAt = i;
+                enabled = on;
+            }
+
+            if (layer.AuthProviderId is { IsEmpty: false })
+            {
+                namedAt = i;
+            }
+        }
+
+        return !enabled && namedAt > switchAt;
+    }
+
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
     /// host); null layers are skipped, and the built-in defaults sit underneath them all.</summary>
     internal static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers) => Concrete(MergeAll(layers));

@@ -6,6 +6,7 @@ using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Proxy.Snapshot;
 
 using Yarp.ReverseProxy.LoadBalancing;
 
@@ -80,12 +81,15 @@ public static class ProxyConfigMapping
             accessLists.TryAdd(list.Id, list);
         }
 
+        var signIns = SignInPages(canonical);
         var hosts = new HostSpec[canonical.Hosts.Count];
         for (var i = 0; i < hosts.Length; i++)
         {
             var host = canonical.Hosts[i];
             var profile = host.ProfileId is { } id ? profiles.GetValueOrDefault(id) : null;
-            hosts[i] = MapHost(host, HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings), settings.TrustedProxies.Mode, inventory, accessLists, errors, warnings);
+            var effective = HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings);
+            hosts[i] = MapHost(host, effective, settings.TrustedProxies.Mode, inventory, accessLists, signIns, errors, warnings);
+            AddAuthProviderSwitchWarnings(host, effective, HostSettingsLayers.ProviderNamedAboveOffSwitch(settings.Defaults, profile, host.Settings), warnings);
         }
 
         ProxyConfigModel model = new()
@@ -223,6 +227,7 @@ public static class ProxyConfigMapping
         TrustedProxyMode proxyMode,
         CertificateInventory inventory,
         Dictionary<AccessListId, AccessListConfig> accessLists,
+        Dictionary<AuthProviderId, SignInPage> signIns,
         List<CompileError> errors,
         List<MappedWarning> warnings)
     {
@@ -267,7 +272,7 @@ public static class ProxyConfigMapping
             };
         }
 
-        AddAuthProviderWarnings(host, effective, routes, where, warnings);
+        AddAuthProviderWarnings(host, effective, routes, signIns, where, warnings);
 
         // A password over plain HTTP travels in the clear. A host that forces the redirect never asks for one there (the
         // route chain runs after the redirect), so only the rest are worth a warning.
@@ -503,7 +508,8 @@ public static class ProxyConfigMapping
     /// it on, and the admin must never wait on a provider that could lock the operator out), and that the session cookie it relies on travels in
     /// the clear when the host also answers plain HTTP without forcing HTTPS.
     /// </summary>
-    private static void AddAuthProviderWarnings(HostConfig host, EffectiveHostSettings effective, RouteSpec[] routes, CompileErrorSource where, List<MappedWarning> warnings)
+    private static void AddAuthProviderWarnings(
+        HostConfig host, EffectiveHostSettings effective, RouteSpec[] routes, Dictionary<AuthProviderId, SignInPage> signIns, CompileErrorSource where, List<MappedWarning> warnings)
     {
         if (!host.Enabled)
         {
@@ -533,6 +539,92 @@ public static class ProxyConfigMapping
                 string.Empty,
                 ConfigWarningCodes.AuthProviderInsecureSession,
                 "an auth provider guards this host, which also answers plain HTTP without forcing HTTPS, so a session cookie could be sent in the clear; turn on forceHttps"));
+        }
+
+        AddSignInPageWarnings(host, routes, signIns, where, warnings);
+    }
+
+    /// <summary>A provider whose sign-in page is a path on this host needs a route that takes the path with sign-in off: the first route to take it, in
+    /// the order requests are matched, decides, and a page behind the provider (or behind no route) is one a browser is refused at and sent to again.</summary>
+    private static void AddSignInPageWarnings(HostConfig host, RouteSpec[] routes, Dictionary<AuthProviderId, SignInPage> signIns, CompileErrorSource where, List<MappedWarning> warnings)
+    {
+        HashSet<AuthProviderId> checkedProviders = [];
+        foreach (var route in routes)
+        {
+            if (route.AuthProvider is not { } id || !checkedProviders.Add(id) || !signIns.TryGetValue(id, out var page))
+            {
+                continue;
+            }
+
+            var order = Enumerable.Range(0, routes.Length)
+                .OrderBy(i => RouteOrderKey.For(routes[i].Match, routes[i].Path, routes[i].Order, i))
+                .ToArray();
+            var taken = order.Select(i => routes[i]).FirstOrDefault(r => RoutePath.Takes(r.Match, RoutePath.Canonicalize(r.Path ?? string.Empty), page.Path));
+            if (taken is null || taken.AuthProvider is not null)
+            {
+                warnings.Add(new MappedWarning(
+                    where,
+                    string.Empty,
+                    ConfigWarningCodes.AuthProviderSignInUnreachable,
+                    $"the sign-in page {page.Path} of auth provider '{page.Name}' is on this host, but {(taken is null ? "no route takes it" : "the route that takes it is behind a provider too")}: "
+                    + "a browser would be refused there and sent there again; route the path with sign-in off"));
+            }
+        }
+    }
+
+    /// <summary>Where each provider's sign-in page is when it is a path on the protected host, by the provider's ID.</summary>
+    private static Dictionary<AuthProviderId, SignInPage> SignInPages(ConfigDocument document)
+    {
+        Dictionary<AuthProviderId, SignInPage> pages = [];
+        foreach (var provider in document.AuthProviders)
+        {
+            if (provider.ForwardAuth is { } forward && ForwardAuthPresets.Resolve(forward).SignInUrl is { Length: > 0 } url && url[0] == '/' && ForwardAuthUrls.SignInProblem(url) is null)
+            {
+                var query = url.IndexOf('?', StringComparison.Ordinal);
+                var path = RoutePath.Canonicalize(query < 0 ? url : url[..query]);
+                pages.TryAdd(provider.Id, new SignInPage(provider.Name, path.Length > 1 ? path.TrimEnd('/') : path));
+            }
+        }
+
+        return pages;
+    }
+
+    private readonly record struct SignInPage(string Name, string Path);
+
+    /// <summary>A provider named above a switch that is off stays unasked: it is the one way a provider named through the API can leave a host unprotected
+    /// without a word, so each such layer says so. A layer that names a provider below the layer that switches it off, or in the same one, means it.</summary>
+    private static void AddAuthProviderSwitchWarnings(HostConfig host, EffectiveHostSettings effective, bool hostNamedAboveOff, List<MappedWarning> warnings)
+    {
+        if (!host.Enabled || host.Kind != HostKind.Proxy)
+        {
+            return;
+        }
+
+        var where = CompileErrorSource.Host(host.Id);
+        if (hostNamedAboveOff)
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                "/settings/authProvider",
+                ConfigWarningCodes.AuthProviderNamedButOff,
+                "an auth provider is named here but a less specific layer (the defaults or the profile) switches sign-in off, so it is not asked; set enabled: true next to it"));
+        }
+
+        if (effective.AuthProvider.Enabled)
+        {
+            return;
+        }
+
+        foreach (var route in host.Routes)
+        {
+            if (route.Settings.AuthProvider is { AuthProviderId: { IsEmpty: false }, Enabled: null })
+            {
+                warnings.Add(new MappedWarning(
+                    CompileErrorSource.Route(host.Id, route.Id),
+                    "/settings/authProvider",
+                    ConfigWarningCodes.AuthProviderNamedButOff,
+                    "an auth provider is named on this route but the host has sign-in switched off, so it is not asked; set enabled: true next to it"));
+            }
         }
     }
 

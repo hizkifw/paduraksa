@@ -68,4 +68,12 @@ public static class ConfigWarningCodes
     /// <summary>An auth provider is set for an admin, redirect or respond host, which never asks one: the admin must not wait on a
     /// provider that could lock the operator out, and the other two have no route to ask it on.</summary>
     public const string AuthProviderIgnored = "authProvider.ignored";
+
+    /// <summary>A layer names an auth provider while a less specific layer (the defaults or a profile, for a host; the host, for a route) has
+    /// sign-in switched off: the switch stays off, so nothing asks the provider and the requests are let through unchecked.</summary>
+    public const string AuthProviderNamedButOff = "authProvider.namedButOff";
+
+    /// <summary>A provider's sign-in page is a path on the protected host that the host has no route for with sign-in off (the first route to take it
+    /// is behind a provider too, or none does): a browser sent there is refused again and sent there again.</summary>
+    public const string AuthProviderSignInUnreachable = "authProvider.signInUnreachable";
 }
