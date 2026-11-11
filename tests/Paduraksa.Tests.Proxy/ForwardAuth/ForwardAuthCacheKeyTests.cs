@@ -208,6 +208,74 @@ public sealed class ForwardAuthCacheKeyTests
         Assert.Equal(1, auth.CallCount);
     }
 
+    [Theory]
+    [InlineData("User-Agent", ForwardAuthCacheScope.Request)]
+    [InlineData("User-Agent", ForwardAuthCacheScope.Host)]
+    [InlineData("Accept", ForwardAuthCacheScope.Request)]
+    [InlineData("Accept", ForwardAuthCacheScope.Host)]
+    [InlineData("Accept-Language", ForwardAuthCacheScope.Host)]
+    [InlineData("X-Requested-With", ForwardAuthCacheScope.Host)]
+    public async Task AnAllowIsNotServedToARequestThatDiffersInAHeaderTheProviderIsSent(string header, ForwardAuthCacheScope scope)
+    {
+        await using var auth = await FakeAuthServer.StartAsync(Cancel);
+
+        // A provider that refuses scripted clients: what it decides on is what its call carries, so its allow can't stand in for another call.
+        auth.Handler = context =>
+        {
+            if (context.Request.Headers.UserAgent.ToString().Contains("bad-bot", StringComparison.Ordinal))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+
+            return AllowsSessionOk()(context);
+        };
+        var gate = GateFor(new ForwardAuthRuntime(), Model(Spec(auth.Address, b => b.Scope = scope)), out _);
+
+        DefaultHttpContext Request(string value)
+        {
+            var context = Context(cookie: "session=ok");
+            context.Request.Headers[header] = value;
+            return context;
+        }
+
+        Assert.Equal("pass", await RunAsync(gate, Request("friendly")));
+        Assert.Equal("pass", await RunAsync(gate, Request("friendly")));
+        Assert.Equal(1, auth.CallCount);
+
+        Assert.Equal(header == "User-Agent" ? "401" : "pass", await RunAsync(gate, Request("bad-bot")));
+        Assert.Equal(2, auth.CallCount);
+    }
+
+    [Fact]
+    public async Task AnAllowOverHttpsIsNotServedToTheSameRequestOverPlainHttp()
+    {
+        await using var auth = await FakeAuthServer.StartAsync(Cancel);
+
+        // The provider is told the scheme (X-Forwarded-Proto) and may refuse plain HTTP.
+        auth.Handler = context =>
+        {
+            if (context.Request.Headers["X-Forwarded-Proto"] == "http")
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+
+            return AllowsSessionOk()(context);
+        };
+        var gate = GateFor(new ForwardAuthRuntime(), Model(Spec(auth.Address, b => b.Scope = ForwardAuthCacheScope.Host)), out _);
+        static DefaultHttpContext Request(string scheme)
+        {
+            var context = Context(cookie: "session=ok");
+            context.Request.Scheme = scheme;
+            return context;
+        }
+
+        Assert.Equal("pass", await RunAsync(gate, Request("https")));
+        Assert.Equal("401", await RunAsync(gate, Request("http")));
+        Assert.Equal(2, auth.CallCount);
+    }
+
     [Fact]
     public void AnAbsentHeaderAndAnEmptyOneHaveDifferentKeys()
     {

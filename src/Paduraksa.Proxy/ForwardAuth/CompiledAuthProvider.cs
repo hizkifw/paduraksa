@@ -51,13 +51,14 @@ public sealed class CompiledAuthProvider
 
         RequestHeaders = requests.ToArray();
 
-        // What the decision cache key hashes beyond the three credential headers it always hashes: every header the provider is told to read.
+        // What the decision cache key hashes beyond the three credential headers it always hashes: every other header the provider's call carries, the standard
+        // hints (Accept, User-Agent...) and the provider's own additions alike. A call that carries a header is a call the provider may decide on.
         List<string> keyed = [];
-        foreach (var extra in spec.RequestHeaders)
+        foreach (var header in RequestHeaders)
         {
-            if (!IsStandardCredential(extra) && !keyed.Exists(known => string.Equals(known, extra, StringComparison.OrdinalIgnoreCase)))
+            if (!IsStandardCredential(header))
             {
-                keyed.Add(extra);
+                keyed.Add(header);
             }
         }
 
@@ -79,7 +80,7 @@ public sealed class CompiledAuthProvider
     /// <summary>The client headers sent to the endpoint: the standard set, then the provider's own additions.</summary>
     internal string[] RequestHeaders { get; }
 
-    /// <summary>The headers the provider is told to read that are not <c>Cookie</c>, <c>Authorization</c> or <c>Proxy-Authorization</c>: part of the
+    /// <summary>The headers the call carries that are not <c>Cookie</c>, <c>Authorization</c> or <c>Proxy-Authorization</c>: part of the
     /// decision cache key, which always hashes those three.</summary>
     internal string[] KeyHeaders { get; }
 

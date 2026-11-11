@@ -14,10 +14,11 @@ namespace Paduraksa.Proxy.ForwardAuth;
 
 /// <summary>
 /// The name a request's authentication state goes by in the decision cache: a keyed hash of everything the provider's answer may depend
-/// on that the call carries. The credentials are the whole <c>Cookie</c>, <c>Authorization</c> and <c>Proxy-Authorization</c> headers (a provider's session cookie
-/// has a name only the operator knows, and an answer may depend on more than one) and every other header the provider is told to read
-/// (<see cref="CompiledAuthProvider.KeyHeaders"/>: an API key it decides on), the client address (Authelia's rules match networks, and
-/// sessions can be bound to one), the host, and, at <see cref="ForwardAuthCacheScope.Request"/> grain, also the method and the request target. Each field is
+/// on that the call carries, so two requests that differ in anything the provider is sent never share an entry. The credentials are the whole <c>Cookie</c>,
+/// <c>Authorization</c> and <c>Proxy-Authorization</c> headers (a provider's session cookie
+/// has a name only the operator knows, and an answer may depend on more than one) and every other header the call carries
+/// (<see cref="CompiledAuthProvider.KeyHeaders"/>: an API key it decides on, and the <c>User-Agent</c> and <c>Accept</c> hints a rule may read), the client address (Authelia's rules match networks, and
+/// sessions can be bound to one), the scheme, the host, and, at <see cref="ForwardAuthCacheScope.Request"/> grain, also the method and the request target. Each field is
 /// length-prefixed, a header also by its number of lines (so an absent header and an empty one differ), so no two different requests frame to
 /// the same bytes. The grain is a property of the entry, not of the request: a <c>host</c>-scoped provider's allow is stored at host grain only when the
 /// provider vouched for an identity (it answered with an identity header), and at request grain otherwise, and a lookup probes both. What a request
@@ -43,7 +44,7 @@ internal static class ForwardAuthKey
         var authorization = request.Headers.Authorization;
         var proxyAuthorization = request.Headers.ProxyAuthorization;
 
-        var length = secret.Length + 1 + 16
+        var length = secret.Length + 2 + 16
             + Size(host) + Size(method) + Size(target) + Size(cookie) + Size(authorization) + Size(proxyAuthorization);
         foreach (var name in keyHeaders)
         {
@@ -57,6 +58,7 @@ internal static class ForwardAuthKey
             secret.CopyTo(buffer);
             var at = secret.Length;
             buffer[at++] = (byte)scope;
+            buffer[at++] = state.IsHttps ? (byte)1 : (byte)0;
             state.ClientAddress.WriteBytes(buffer.Slice(at, 16));
             at += 16;
             Write(buffer, ref at, host);
