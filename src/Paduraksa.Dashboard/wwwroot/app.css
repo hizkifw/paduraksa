@@ -880,8 +880,8 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-logs-table { --pdk-dt-cols: minmax(0, 2.2fr) minmax(110px, 0.9fr) minmax(70px, 0.5fr) 80px; }
 .pdk-security-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 0.8fr); }
 
-/* The security page: counters as compact tiles (label, right-aligned number, then what it is a share of and its live rate), and the
-   proof-of-work rejections as label and count pairs. */
+/* The security page: each counter tile reads top to bottom (label, the number with its live rate beside it, then what it is a
+   share of), the same at every width; the detail line keeps its height when empty so a row of tiles lines up. */
 .pdk-sec-since {
     margin: 0 0 12px;
     color: var(--mud-palette-text-secondary);
@@ -890,16 +890,15 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
 .pdk-sec-tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 16px;
     margin-bottom: 16px;
 }
 
 .pdk-sec-tile.mud-paper {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: baseline;
-    gap: 2px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     padding: 14px 16px;
     font-variant-numeric: tabular-nums;
 }
@@ -910,24 +909,30 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     font-weight: 600;
 }
 
-.pdk-sec-value {
-    grid-column: 2;
-    grid-row: 1;
-    font-size: 1.625rem;
-    font-weight: 650;
-    letter-spacing: -0.02em;
-    line-height: 1.2;
-    text-align: right;
+.pdk-sec-figure {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 2px 10px;
 }
 
-.pdk-sec-detail, .pdk-sec-rate {
-    min-height: 1.25em;
-    color: var(--mud-palette-text-secondary);
-    font-size: 0.75rem;
+.pdk-sec-value {
+    font-size: 1.75rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
 }
 
 .pdk-sec-rate {
-    text-align: right;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.pdk-sec-detail {
+    min-height: 1.4em;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
 }
 
 .pdk-sec-body {
@@ -1337,24 +1342,6 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 
     .pdk-security-table .pdk-dt-row {
         align-items: start;
-    }
-
-    /* A narrow tile gives the label its own line, so the number never squeezes it. */
-    .pdk-sec-label, .pdk-sec-value {
-        grid-column: 1 / -1;
-    }
-
-    .pdk-sec-value {
-        grid-row: 2;
-    }
-
-    .pdk-sec-detail {
-        grid-row: 3;
-    }
-
-    .pdk-sec-rate {
-        grid-row: 3;
-        grid-column: 2;
     }
 
     .pdk-dt-row {

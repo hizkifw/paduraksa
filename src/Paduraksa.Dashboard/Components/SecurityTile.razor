@@ -1,8 +1,10 @@
 <MudPaper Class="pdk-card pdk-sec-tile" Elevation="0" Outlined="true" data-tile="@Name">
     <span class="pdk-sec-label">@Label</span>
-    <span class="pdk-sec-value" data-part="value">@Value</span>
+    <div class="pdk-sec-figure">
+        <span class="pdk-sec-value" data-part="value">@Value</span>
+        <span class="pdk-sec-rate" data-part="rate">@Rate</span>
+    </div>
     <span class="pdk-sec-detail" data-part="detail">@Detail</span>
-    <span class="pdk-sec-rate" data-part="rate">@Rate</span>
 </MudPaper>
 
 @code {
