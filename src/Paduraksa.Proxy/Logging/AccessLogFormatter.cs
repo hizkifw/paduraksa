@@ -25,10 +25,11 @@ namespace Paduraksa.Proxy.Logging;
 /// slow upstream from a slow client, and it sorts and greps as one token. The upstream duration is YARP's request
 /// transform to its response transform, so it includes YARP's own destination choice and hand-off; <c>-</c> when the
 /// request never reached an upstream (the gate answered it) or the forwarder returned nothing.</para>
-/// <para><b>Escaping.</b> Inside a quoted field <c>"</c> becomes <c>\"</c>, <c>\</c> becomes <c>\\</c>, and a character
-/// below 0x20 or 0x7F becomes <c>\xNN</c>; nothing else changes, so non-ASCII text stays readable (the sink writes
-/// UTF-8). A line therefore can never be forged from a hostile path, user agent or referer: a CR or LF arrives escaped,
-/// and it can't end the line or start a new one.</para>
+/// <para><b>Escaping.</b> Inside a quoted field <c>"</c> becomes <c>\"</c>, <c>\</c> becomes <c>\\</c>, a control character
+/// (below 0x20, or 0x7F to 0x9F) becomes <c>\xNN</c>, and the Unicode line and paragraph separators U+2028 and U+2029 become
+/// <c>\u2028</c> and <c>\u2029</c>; nothing else changes, so non-ASCII text stays readable (the sink writes
+/// UTF-8). A line therefore can never be forged from a hostile path, user agent or referer: a CR, LF or NEL arrives escaped,
+/// and no reader that splits on a Unicode line end can end the line or start a new one.</para>
 /// <para><b>Caps.</b> Every text field has an output cap (<see cref="MaxPathLength"/>, <see cref="MaxQueryLength"/> and
 /// the others below). A field longer than its cap is cut at the cap and closed with <c>...</c> inside the quotes, so one
 /// pathological request can't produce a line a reader (or a log shipper's line limit) chokes on.
@@ -377,7 +378,7 @@ public static class AccessLogFormatter
                     Write(c);
                     written += 2;
                 }
-                else if (c < ' ' || c == '\x7F')
+                else if (c < ' ' || c is >= '\x7F' and <= '\x9F')
                 {
                     if (written + 4 > budget)
                     {
@@ -390,6 +391,19 @@ public static class AccessLogFormatter
                     Write(HexDigit(c >> 4));
                     Write(HexDigit(c & 0xF));
                     written += 4;
+                }
+                else if (c is '\u2028' or '\u2029')
+                {
+                    // Unicode's line and paragraph separators end a line for readers that split on them, as NEL (0x85) does.
+                    if (written + 6 > budget)
+                    {
+                        Write(TruncationMarker);
+                        break;
+                    }
+
+                    Write("\\u202");
+                    Write(c == '\u2028' ? '8' : '9');
+                    written += 6;
                 }
                 else
                 {

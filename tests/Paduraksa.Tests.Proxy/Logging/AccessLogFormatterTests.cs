@@ -65,6 +65,11 @@ public sealed class AccessLogFormatterTests
     [InlineData("\t", "\\x09")]
     [InlineData("\0", "\\x00")]
     [InlineData("\x7f", "\\x7f")]
+    [InlineData("\u0085", "\\x85")]
+    [InlineData("\u0080", "\\x80")]
+    [InlineData("\u009f", "\\x9f")]
+    [InlineData("\u2028", "\\u2028")]
+    [InlineData("\u2029", "\\u2029")]
     [InlineData("café ☕", "café ☕")]
     public void HostileAndUnusualCharactersCannotBreakTheLine(string input, string expected)
     {
