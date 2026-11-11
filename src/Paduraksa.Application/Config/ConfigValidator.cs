@@ -181,6 +181,10 @@ public static class ConfigValidator
         {
             CheckVersion(settings.Version, path);
             CheckHostSettings(settings.Defaults, $"{path}/defaults");
+
+            // The defaults' own Server header is compiled for the answers given before a host is known, whatever the hosts say: a custom mode that
+            // the defaults alone leave without a value can't be compiled, even when every host supplies one.
+            CheckServerHeader(HostSettingsLayers.Resolve(settings.Defaults).ServerHeader, settings.Defaults, null, null, $"{path}/defaults/serverHeader");
             CheckEnum(settings.UnknownHost, $"{path}/unknownHost");
             if (settings.DefaultCertificateId is { IsEmpty: true })
             {

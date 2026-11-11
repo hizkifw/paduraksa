@@ -682,16 +682,27 @@ public sealed class ConfigValidatorTests
         // The mode and the value may come from different layers: field by field, the resolved pair is what matters.
         var split = document with
         {
-            Settings = document.Settings with { Defaults = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } } },
+            Settings = document.Settings with { Defaults = new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "edge/1.0" } } },
             Hosts =
             [
                 .. document.Hosts.Select(h => h with
                 {
-                    Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "edge/1.0" } },
+                    Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } },
                 }),
             ],
         };
         Assert.Empty(ConfigValidator.Validate(split));
+
+        // The global defaults are compiled on their own too, so a custom mode they leave without a value is refused there, even when every host supplies one.
+        var defaultsWithoutValue = document with
+        {
+            Settings = document.Settings with { Defaults = new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom } } },
+            Hosts = [.. document.Hosts.Select(h => h with { Settings = new HostSettings { ServerHeader = new ServerHeaderSettings { Value = "edge/1.0" } } })],
+        };
+        AssertErrors(defaultsWithoutValue, ("/settings/defaults/serverHeader/value", ServerHeaderValueRequired));
+        AssertErrors(
+            new ConfigDocument(Settings: new GlobalSettings(Defaults: new HostSettings { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Custom, Value = string.Empty } })),
+            ("/settings/defaults/serverHeader/value", ServerHeaderValueRequired));
 
         // A value is ignored while the resolved mode isn't custom, so an unusual one isn't refused then.
         HostSettings ignored = new() { ServerHeader = new ServerHeaderSettings { Mode = ServerHeaderMode.Remove, Value = "bad\tvalue" } };
