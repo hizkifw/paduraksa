@@ -547,7 +547,7 @@ A. Connection (TCP: Kestrel ListenOptions.Use. QUIC has no such hook, so the sam
    • global IP deny (CIDR trie over UInt128) → abort before TLS. Normalise IPv4-mapped IPv6 first:
      on a dual-mode [::] listener TCP reports ::ffff:a.b.c.d while QUIC reports a.b.c.d
    • per-IP concurrent-connection cap (fixed-size table, CAS)
-   • compute ClientInfo once per connection (IP, country index) → connection feature
+   • compute ClientInfo once per connection (address, source) → connection feature; the country is per request (As built (M7): country rules)
    As built in M1: UseClientInfo on both TCP listeners (HTTPS: through PublicHttpsListenerOptions.
    ConfigureTcpConnection, before UseHttps); on QUIC, QuicClientInfoGate attaches ClientInfo.FromEndPoint
    to the connection in the handshake callback, and H3 requests see it (verified end to end in Docker).
@@ -620,7 +620,7 @@ C. Gate middleware (first in pipeline), in this order (as built in M1)
 
 D. Policy chains: one per host, one per route (IRequestPolicy[], sealed classes, evaluated in order;
    host policies run before a route is known, so State.Route is null for them)
-   AccessList (IP allow/deny, then basic auth; as built, the host chain only refuses by address) → Geo → RateLimit →
+   AccessList (IP and country allow/deny, then basic auth; as built, the host chain only refuses by address and country; geo is part of it) → RateLimit →
    RequestLimits → PathRules → UserAgentRules → Robots → Auth (forward-auth / OIDC) → ProofOfWork →
    [future: bot heuristics, header rules]
    each returns PolicyDecision { Continue | Respond(status, page) | Challenge | Drop } as a struct
@@ -721,7 +721,7 @@ the 16-byte token and challenge tags are checked; `Verify` itself only takes who
 |---|---|
 | IP allow/deny | `CidrSet` (M1): merged, sorted, disjoint `UInt128` ranges (IPv4-mapped), binary-searched, immutable. Chosen over a radix trie: membership needs no longest-prefix match, and the arrays are smaller and need fewer dependent loads (S3: 7.7 ns for 2,000 CIDRs). IPv6 rate keys are masked to /64 (`IpKey.MaskTo`). |
 | Access lists | A named object (`acl_`) with allow and deny `CidrSet`s, basic-auth users (each a username and a password credential in the vault, verified through its verifier and cache) and `satisfy` all or any; see **As built (M7): access lists** below. |
-| Geo blocking | Country DB (DB-IP Lite: CC-BY, no key; MaxMind GeoLite2 optional with a license key) compiled into sorted range arrays and binary-searched. Country is resolved **once per connection** (or per request when behind a trusted proxy). Policy = `ulong[4]` bitset of blocked countries. DB auto-update job. |
+| Geo blocking | **M7: `CF-IPCountry` only**, as country rules of an access list (**As built (M7): country rules** below): a two-letter code from a trusted Cloudflare peer, compiled per list into a bitset (676 letter pairs plus Tor and unknown), one bit test per request. **Not built: a local country database** (DB-IP Lite: CC-BY, no key; MaxMind GeoLite2 optional with a license key; compiled into sorted range arrays and binary-searched, an auto-update job); the seam it plugs into is in the gap list of that note. |
 | Rate limiting | Fixed-size open-addressed table (power of two, default 256 Ki entries ≈ 4 MiB). Each entry is two `long`s: a 64-bit **key fingerprint** (claimed with CAS, linear probing over at most 8 slots, else the oldest of those is evicted) and a packed **state** updated with a CAS loop. State layout: **bits 63-24 = last-refill time** in ms since process start (40 bits ≈ 34.8 years, so no wraparound handling needed); **bits 23-0 = tokens in 1/16 units** (unsigned 20.4 fixed point: max ≈ 1,048,575 tokens of burst, refill precision 1/16 token). The refill rate is a policy parameter in tokens/s, applied as `elapsedMs x rate x 16 / 1000` with saturation at burst. A background sweeper reads the **policy slot** from the high 16 bits of each key (the fingerprint itself can't be inverted, so the slot is stored alongside it). It looks up that policy's current full-refill window (burst / rate) and clears entries untouched for longer than that, or immediately if the slot no longer maps to a live policy. A 48-bit hash in a 256 Ki table makes false sharing between partition keys negligible (~2⁻³⁰ per probe). Bounded memory, so a flood of unique IPs can't exhaust RAM. Collisions only make limits slightly stricter. Policies per host or route: req/s + burst, keyed by IP / IP+path / header. Returns 429 + `Retry-After`. |
 | Request size limits | `IHttpMaxRequestBodySizeFeature` per host/route. Header count/size and URL length are checked cheaply in the gate. Global Kestrel limits act as the outer bound. |
 | Path deny rules | Exact/prefix in a trie. Glob compiled to a small matcher. Regex as an escape hatch: `RegexOptions.NonBacktracking` (ReDoS-safe) with a compile-time validation timeout. |
@@ -841,8 +841,7 @@ ASCII characters, no `:`, case-sensitive), `accessList.user.password.missing` (a
 `accessList.user.password.empty`, `.tooLong` and `.unhashed` (a plain password that reached the validator),
 `accessList.user.credentialId.duplicate` (each user has a credential of their own, across the whole document), `host.accessList.unknown` and `route.accessList.unknown`, with an address that doesn't parse reported as `address.invalid`
 at its entry (`/accessLists/0/ip/allow/2`). Canonical JSON orders lists by ID, users by name (ordinal) and CIDRs as the parser prints
-them, and a list with no rules writes none. The shape leaves room for a country allow/deny under `ip` (geo, next wave) beside
-`allow` and `deny` without touching anything else.
+them, and a list with no rules writes none. Country allow/deny lists sit under `ip` beside `allow` and `deny` (**As built (M7): country rules**).
 
 *Passwords.* A user is *written* with a plain `password` (create and update through the API and the dashboard) and *read* as
 `{ username, credentialId }`: the password lives in the vault (§8.2, **As built (M7): password credentials**), the document names its
@@ -989,6 +988,62 @@ circuit. The review and the history show a list's passwords as the realm and the
 'Combine' choice as "Address and password" / "Address or password", never a password, a credential ID or a wire value. The settings of a host, profile, the defaults and a route pick a list
 by name (inherit, none, or a list), with a staged "New access list..." entry exactly like the rate-limit picker.
 
+**As built (M7): country rules.** Geo in M7 is `CF-IPCountry` only. There is no local country database in this wave, so a country exists only
+behind Cloudflare (Proxy or Tunnel mode) and is unknown everywhere else.
+
+*Resolving.* `ClientIpResolver.Resolve` reads `CF-IPCountry` in the branch where it reads `CF-Connecting-IP`: a trusted peer in a
+Cloudflare mode (`ClientIpResolution.CloudflareHeadersTrusted`), and from no one else, so a client's forged header, a trusted generic proxy's
+pass-through and a peer outside the edge ranges all give an unknown country. The result is `ClientIpResolution.Country`, a `CountryCode`
+(`Paduraksa.Core.Geo`): a compact slot (0 unknown, 1 Tor, then the 676 letter pairs), so a request carries no string and the parse is 0 B. Two
+ASCII letters in either case are a country (assigned or not: an unassigned pair parses and matches no rule); `T1` is **Tor**, kept apart from
+unknown because "block Tor" is a common wish; `XX`, a repeated header, a missing one and anything that isn't two letters are **unknown**. The
+state exposes it as `GateRequestState.ClientCountry`. The unused `ClientInfo.CountryIndex` placeholder is gone: the country is per request,
+and `ClientInfo` is per connection.
+
+*The model.* `AccessListIp.Countries` is `{ allow, deny }`, codes being the ISO 3166-1 alpha-2 assignments (`Paduraksa.Core.Geo.Countries`,
+249 codes with their English names, ASCII), `XK` (Kosovo, which Cloudflare reports and ISO doesn't assign), `T1` (Tor) and `XX` (unknown).
+Canonical JSON writes codes upper-case, sorted, once, drops a list that says nothing and writes no `countries` at all for none, so a document
+without them keeps its bytes (the golden hash is unchanged). Validation: `accessList.countries.code.invalid` (not in the list, reported at the
+entry, `/accessLists/N/ip/countries/allow/M`), `.duplicate` (in either case) and `.conflict` (a code in both lists), and
+`accessList.ip.dropDenied.withoutAddresses` counts countries as something to refuse. Warning `accessList.countries.noSource` (at the host's
+`/settings/accessList`) when an enabled host uses a list with country rules while the trusted-proxy mode isn't `CloudflareProxy` or
+`CloudflareTunnel`: every country is then unknown, so an allow list refuses everyone and a deny list nobody. The compile reports a code it
+doesn't know too. A list compiles to two `CountrySet`s (678 bits in 11 words), and a check is one bit test.
+
+*Semantics.* The country is part of the **address side**. Deny wins: a denied address or country is refused whatever the request sends,
+a password included (and `dropDenied` aborts there). A non-empty allow list admits only its members, so **an unknown country is refused when
+the list has an allow list, unless `XX` is in it** (and Tor only if `T1` is). When a list has both an address allow list and a country allow
+list, a request must be in **both** (decided here: each non-empty allow list is a restriction, and the stricter reading fails closed; "this
+address, or that country" isn't expressible). `AddressVerdictOf` gives one verdict (denied, allowed, not in the allow list, unrestricted) that
+the policy, the host chain's address-only stage, the union of lists and `RefusesByAddress` (the compile-time "can the address alone refuse"
+decision) all use. `satisfy` then combines it with the password as before: `all` asks for the password of an allowed visitor and refuses the
+rest with 403; `any` lets an allowed visitor in without one and **asks the rest, a visitor from a country outside the allow list included, for a
+password**, which lets them in; a denied country is still refused. The drawer says so under "How they combine".
+
+*Gate and simulator.* 0 B on every path (`AccessListCountryTests` measures allowed, refused by country, unknown, Tor dropped, a forged header
+and the password paths through `GateMiddleware.Decide`). `AccessListPolicy`'s trace step adds the facts `country` (`DE`, `T1`, `XX`) and
+`countryRule` (`allowed`, `notInAllowList`, `denied`, `unrestricted`) when the list has country rules, and its sentence names the country and
+the rule: "Germany (DE) is an allowed country", "France (FR) is not in the allowed countries (2)", "Tor exit nodes (T1) is a denied country".
+`SimulationRequest.country` (a code, `T1` or `XX`) is added as `CF-IPCountry` to a request that arrives through Cloudflare
+(`GateProbe.Country`); on a direct or generic-proxy arrival it is refused (`simulation.request.country`/`.conflicting`) like any field that
+would change nothing, and a probe that carries the header itself on those arrivals shows the gate ignoring it (the client step says
+`country: ignored` beside `countryHeader`). `AccessListCountrySimulationTests` run the real gate and the simulator over every arrival
+(Cloudflare, a forged header, none), country (including lower case, garbage, `T1`, `XX`, missing) and satisfy mode.
+
+*Dashboard.* The access-list drawer has a Countries section with two pickers (`CountryPicker`: a search by name or code in an autocomplete,
+chips for what is held; "Germany (DE)", Tor exit nodes and Unknown country first, a country the other side holds isn't offered). Its copy says
+the country comes from Cloudflare, a one-line hint shows while the global mode isn't a Cloudflare one, and the list page's summary counts
+countries ("only 2 countries", "blocks 3 countries"). The security overview's list cell says "countries only" or "addresses and countries only"
+for a list with no users, and the simulator's Advanced panel takes a country for the Cloudflare arrivals. A browser test drives the picker
+and keeps screenshots at 1280 and 390 px.
+
+*Gaps.* (1) **No local country database.** A request not behind Cloudflare, or whose Cloudflare header is missing, is unknown. The seam
+for DB-IP Lite or GeoLite2: the country is produced in one place, `ClientIpResolver.Resolve`, and carried as `ClientIpResolution.Country`;
+a database would fill it when the header didn't (a lookup of the resolved client address in a snapshot-held, sorted `UInt128` range array
+with a `CountryCode` per range, binary-searched like `CidrSet`, built by a background job and compiled into the snapshot), so rules, gate,
+trace and dashboard stay as they are, and `accessList.countries.noSource` would stop applying. (2) The trusted-proxy mode is global, so a
+host can't use Cloudflare for countries while another doesn't. (3) The country isn't in the access log or the metrics yet. (4) When Cloudflare sends no `CF-IPCountry` (its setting for it is off), every visitor is unknown, so an allow list refuses everyone; the trace's `country: XX` is the only sign, and the config can't tell.
+
 **As built (M7): managed robots.txt.** `HostSettings.Robots` (`Mode`, `CustomText`; built-in passthrough) inherits
 through the layers and has no route override: a host has one file, and every route shares it. `CompiledHost.RobotsTxt`
 is the ready `PrecomputedResponse` (`text/plain; charset=utf-8`, `Cache-Control: max-age=3600`), or null for
@@ -1069,7 +1124,7 @@ Many homelabs sit behind Cloudflare's proxy (orange cloud) or a Cloudflare Tunne
 - **Anti-spoofing:** when the peer is **not** trusted, **every `cf-*` header** (Cloudflare adds more over time, and Cloudflare Access's `Cf-Access-Jwt-Assertion` / `Cf-Access-Authenticated-User-Email` carry identity) and `True-Client-IP` are ignored, and they're **stripped before forwarding upstream**. Upstreams always get a clean `X-Forwarded-For` / `X-Real-IP` built from the resolved client IP (§7.2 E).
 - **What the real IP feeds:** WAF IP allow/deny, geo, rate-limit keys, access lists, forward-auth headers, access logs, metrics. Connection-stage limits (§7.2 A) necessarily see the Cloudflare edge IP. They must therefore exempt trusted Cloudflare peers from per-IP connection caps, or every visitor would share a handful of edge IPs.
 - **Optional extras (per host or global):**
-  - **Geo from `CF-IPCountry`:** when the peer is trusted, use it instead of the local Geo DB lookup. It's free and accurate. `XX`/`T1` map to "unknown".
+  - **Geo from `CF-IPCountry`:** when the peer is trusted, use it instead of the local Geo DB lookup. It's free and accurate. `XX` maps to "unknown" and `T1` to a Tor pseudo-country rules can name (built in M7, the only country source of that wave: §7.3, **As built (M7): country rules**).
   - **`CF-Visitor` scheme:** the original scheme for the HTTP→HTTPS redirect decision when Cloudflare connects to the origin over plain HTTP ("Flexible" SSL, or `cloudflared` forwarding to port 80). This avoids redirect loops. Built in M1 (§7.2 C) and always on in the Cloudflare modes; Flexible is counted and logged once, and the dashboard (M5) will warn that it is insecure.
   - **Origin lockdown:** reject (or 403) requests on a Cloudflare-mode host whose peer isn't Cloudflare (or `cloudflared`), so the origin can't be reached by IP to bypass Cloudflare's WAF. It's enforced at the connection stage when *all* hosts on a listener require it.
   - **Authenticated Origin Pulls:** request a client certificate from Cloudflare and verify it against Cloudflare's origin-pull CA (shipped, replaceable) on the TCP listener (§7.2 B, per-SNI `ClientCertificateRequired`). This is the strong form of origin lockdown.
@@ -1105,7 +1160,7 @@ Admins test their rules before or after a change by asking what a request would 
 - **Target config:** the live snapshot, any stored revision, or a *draft*: a document or pending command compiled through the dry-run path (§6.1 steps 1-4) and never published. So "what would this change do to this request" is answerable before committing.
 - **Output:** the outcome (forward to upstream X / fixed answer / redirect / 421 / drop) plus the **trace**: client-IP resolution (which header and hop were trusted), host match (exact/wildcard/default), the TLS-policy check, the host's HSTS (sent, or why not: plain HTTP, an IP literal or loopback name, or off), each policy in order with its verdict and reason, the HTTPS redirect, route match (which route, and the matching view of the path), and the upstream (cluster and the destinations currently healthy; load balancing is random, so not which one).
 - **No cost on the hot path.** Gate steps report through a tracer passed as a **generic struct type parameter**. Production uses a no-op tracer, which the JIT removes entirely; the simulator uses a recording one. The 0 B allocation tests and the gate benchmarks guard it.
-- **Stateful and outbound policies (M7 on)** are simulated without side effects: a rate limit reports "would allow, N tokens left" without taking one; forward-auth reports "would call `<provider>`" (an explicit opt-in may make the real call); geo shows the country it resolved.
+- **Stateful and outbound policies (M7 on)** are simulated without side effects: a rate limit reports "would allow, N tokens left" without taking one; forward-auth reports "would call `<provider>`" (an explicit opt-in may make the real call); geo shows the country it resolved (the client step's `country` fact and the access-list step's, **As built (M7): country rules**).
 - **Parity tests:** for generated configs and requests, the simulator's outcome must equal the real gate's (the M2 `CompiledBehaviourTests` harness is the seed). Each policy added later (M7) must add its trace step and parity cases.
 - **Surfaces:** one Application function, `SimulateAsync(target, request)`. It is exposed as `POST /api/v1/simulate` (M4), as the MCP `simulate_request` tool (M10), and in the dashboard simulator page (M5). Access-log entries link into it with the request pre-filled (M9).
 
@@ -1712,7 +1767,7 @@ These are cheap now and expensive later. Fold them into the milestones that touc
 | 1 | License | **Decided: Apache-2.0** (`LICENSE`, `NOTICE`). Adoption matters more for infra tools; AGPL only pays off if closed forks are a real worry. |
 | 2 | UI kit | **MudBlazor**; revisit only if it gets in the way. |
 | 3 | Admin port default | **HTTPS 9443 with the internal CA** + root-CA download in the wizard + **plain-HTTP loopback-only fallback** (§3). Never plain HTTP on the LAN. |
-| 4 | Geo DB | **DB-IP Lite** by default (no account), MaxMind GeoLite2 optional with a license key. |
+| 4 | Geo DB | **DB-IP Lite** by default (no account), MaxMind GeoLite2 optional with a license key. **Not in M7**: countries come from `CF-IPCountry` only; the database is a gap with a named seam (§7.3, **As built (M7): country rules**). |
 | 5 | NPM importer | **After v0.1**: the data-model mapping is bigger than it looks. |
 | 6 | L4 streams | **After 1.0**. Keep the HTTP/YARP story clean first. |
 
