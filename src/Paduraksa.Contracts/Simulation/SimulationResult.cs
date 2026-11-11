@@ -117,6 +117,9 @@ public enum SimulationStepKind
     /// </summary>
     ResponseHeaders,
 
+    /// <summary>The host's origin lockdown: whether the connection's peer is Cloudflare's edge (or <c>cloudflared</c>).</summary>
+    OriginLockdown,
+
     /// <summary>The connection against the host's TLS settings (the 421 reasons).</summary>
     TlsPolicy,
 

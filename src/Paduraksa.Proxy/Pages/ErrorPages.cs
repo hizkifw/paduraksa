@@ -12,6 +12,9 @@ internal static class ErrorPages
     /// <summary>The IP access policy's built-in refusal; a custom deny body stays the operator's own text.</summary>
     public static HtmlPageTemplate AccessDenied { get; } = Page("403 Forbidden", "Your network address isn't allowed to open this site.");
 
+    /// <summary>A host that only takes connections from Cloudflare got one from another address.</summary>
+    public static HtmlPageTemplate OriginLockdown { get; } = Page("403 Forbidden", "This site only accepts connections that come through Cloudflare.");
+
     /// <summary>A host matched but no route took the path, or the host is unknown.</summary>
     public static HtmlPageTemplate NotFound { get; } = Page("404 Not Found", "Nothing on this site matches that address.");
 

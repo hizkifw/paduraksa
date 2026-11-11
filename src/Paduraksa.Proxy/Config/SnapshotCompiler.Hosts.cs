@@ -148,6 +148,7 @@ public static partial class SnapshotCompiler
                 RobotsTxt = robotsTxt,
                 RobotsMode = spec.Robots.Mode,
                 RateLimit = hostRateLimit,
+                OriginLockdown = CompileOriginLockdown(spec.Cloudflare, TrustedProxies.Mode, where, Errors),
                 HttpsRedirect = spec.ForceHttps ? HttpsRedirect : null,
                 Tls = tls,
                 Https = spec.Https,
@@ -202,6 +203,21 @@ public static partial class SnapshotCompiler
                 RemoveSlotsFrom(routes, YarpRoutes, RouteIdBySlot);
             }
         }
+    }
+
+    /// <summary>The lockdown the gate applies: the host's own setting when the trusted-proxy mode is a Cloudflare one, else
+    /// none, because only then is there a trusted peer to tell from the rest.</summary>
+    private static OriginLockdownMode CompileOriginLockdown(HostCloudflareSpec spec, TrustedProxyMode mode, CompileErrorSource where, List<CompileError> errors)
+    {
+        if (!Enum.IsDefined(spec.OriginLockdown))
+        {
+            errors.Add(new(where, $"unknown origin lockdown mode {spec.OriginLockdown}"));
+            return OriginLockdownMode.Off;
+        }
+
+        return mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel
+            ? spec.OriginLockdown
+            : OriginLockdownMode.Off;
     }
 
     /// <summary>

@@ -438,7 +438,8 @@ public sealed partial class ConfigService : IDisposable
         IReadOnlyList<ConfigWarning> warnings)
     {
         var admin = current.Hosts.FirstOrDefault(static h => h is { Kind: HostKind.Admin, Enabled: true });
-        if (admin is null || !ForwardsToAdmin(before, request))
+        var arrival = ArrivalOf(before, request);
+        if (admin is null || !ForwardsToAdmin(before, request, arrival))
         {
             return null;
         }
@@ -459,12 +460,12 @@ public sealed partial class ConfigService : IDisposable
             return Lockout(path, "the admin host's certificate doesn't cover its names");
         }
 
-        if (ForwardsToAdmin(after, request))
+        if (ForwardsToAdmin(after, request, arrival))
         {
             return null;
         }
 
-        var simulation = GateSimulator.Run(after, ProbeOf(request));
+        var simulation = GateSimulator.Run(after, ProbeOf(request, arrival));
         var why = simulation.Outcome.Action switch
         {
             GateOutcomeAction.Forward => "the host would forward somewhere other than the admin app",
@@ -475,14 +476,35 @@ public sealed partial class ConfigService : IDisposable
         return Lockout(path, why);
     }
 
-    private static bool ForwardsToAdmin(RuntimeSnapshot snapshot, AdminRequestFacts request)
+    /// <summary>
+    /// How the caller's request reached the public listener, as far as the live config says. A host locked down to
+    /// Cloudflare only ever answers a trusted peer, so a request that gets through it came the way Cloudflare does; without
+    /// the lockdown the probe models a direct client, which a later lockdown would then refuse, and the guard says so.
+    /// </summary>
+    private static ProbeArrival ArrivalOf(RuntimeSnapshot before, AdminRequestFacts request)
     {
-        var simulation = GateSimulator.Run(snapshot, ProbeOf(request));
+        if (before.Hosts.Find(request.Host) is not { OriginLockdown: not OriginLockdownMode.Off })
+        {
+            return ProbeArrival.Direct;
+        }
+
+        return before.TrustedProxies.Mode switch
+        {
+            TrustedProxyMode.CloudflareProxy => ProbeArrival.CloudflareProxy,
+            TrustedProxyMode.CloudflareTunnel => ProbeArrival.CloudflareTunnel,
+            _ => ProbeArrival.Direct,
+        };
+    }
+
+    private static bool ForwardsToAdmin(RuntimeSnapshot snapshot, AdminRequestFacts request, ProbeArrival arrival)
+    {
+        var simulation = GateSimulator.Run(snapshot, ProbeOf(request, arrival));
         return simulation.Outcome.Action == GateOutcomeAction.Forward && simulation.Upstream is { Admin: true };
     }
 
-    private static GateProbe ProbeOf(AdminRequestFacts request) => new()
+    private static GateProbe ProbeOf(AdminRequestFacts request, ProbeArrival arrival) => new()
     {
+        Arrival = arrival,
         Https = request.Https,
         Host = request.Host,
         Path = "/",

@@ -66,7 +66,9 @@ internal static partial class PublicApp
                             {
                                 Port = listen.Https,
                                 EnableHttp3 = listeners.Http3,
-                                ConfigureTcpConnection = https => https.UseClientInfo(listeners.HttpsProxyProtocol),
+                                ConfigureTcpConnection = https => https
+                                    .UseClientInfo(listeners.HttpsProxyProtocol)
+                                    .UseOriginLockdown(context.Shared.SnapshotStore, listeners.OriginLockdownCounters),
                             },
                             listeners.Selector);
                         if (http3 != listeners.Http3)

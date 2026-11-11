@@ -99,6 +99,11 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                         {
                             listen.UseClientInfo();
                         }
+
+                        if (options.OriginLockdown is { } lockdown)
+                        {
+                            listen.UseOriginLockdown(publisher.Store, lockdown);
+                        }
                     });
                 })
                 .ConfigureServices(s =>
@@ -223,6 +228,9 @@ internal sealed record ProxyTestServerOptions
 
     /// <summary>Installs the stage-A ClientInfo connection middleware, as the public listeners do.</summary>
     public bool ClientInfo { get; init; }
+
+    /// <summary>Installs the Cloudflare lockdown connection middleware after ClientInfo, counting into these counters.</summary>
+    public OriginLockdownCounters? OriginLockdown { get; init; }
 
     /// <summary>The listener's protocols; <see cref="HttpProtocols.Http2"/> means cleartext HTTP/2 only.</summary>
     public HttpProtocols Protocols { get; init; } = HttpProtocols.Http1;

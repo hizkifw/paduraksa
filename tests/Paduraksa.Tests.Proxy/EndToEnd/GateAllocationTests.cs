@@ -152,6 +152,34 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
+    /// <summary>
+    /// Origin lockdown is part of the 0 B decision, refusing and allowing alike: the verdict is a read of the peer's trust and
+    /// a constant answer. Loopback is the peer, standing in for a stranger or for Cloudflare's edge by the ranges.
+    /// </summary>
+    [Theory]
+    [InlineData("10.0.0.0/8", HttpStatusCode.Forbidden)]
+    [InlineData("127.0.0.0/8", HttpStatusCode.OK)]
+    public async Task OriginLockdownAllocatesNothingOnKestrel(string edge, HttpStatusCode expected)
+    {
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", upstream.Address("a"))],
+            Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } },
+            Hosts = [ProxyHost("app", "app.test", Route("app-root", "web")) with { Cloudflare = new HostCloudflareSpec { OriginLockdown = OriginLockdownMode.Forbid } }],
+        };
+        SnapshotCompilerOptions options = new() { CloudflareEdgeRanges = CidrSet.Parse([edge]) };
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, CompilerOptions = options, ClientInfo = true });
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+
+        await SendAsync(server, client, "app.test", "/", expected, Warmup);
+        server.GateStats!.Reset();
+        await SendAsync(server, client, "app.test", "/", expected, Measured);
+
+        Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
+    }
+
     private static async Task SendAsync(ProxyTestServer server, HttpClient client, string host, string path, HttpStatusCode expected, int count, Action<HttpRequestMessage>? configure = null)
     {
         var ct = TestContext.Current.CancellationToken;

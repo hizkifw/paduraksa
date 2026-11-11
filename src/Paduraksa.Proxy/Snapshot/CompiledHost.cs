@@ -83,6 +83,13 @@ public sealed class CompiledHost
     /// </summary>
     public RateLimitPolicy? RateLimit { get; init; }
 
+    /// <summary>
+    /// What the gate does with a request whose peer is neither Cloudflare's edge nor <c>cloudflared</c>, before anything
+    /// else of the host's chain. Off unless the global trusted-proxy mode is a Cloudflare one: the compiler resolves it, so
+    /// the gate never looks at the mode.
+    /// </summary>
+    public OriginLockdownMode OriginLockdown { get; init; } = OriginLockdownMode.Off;
+
     /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

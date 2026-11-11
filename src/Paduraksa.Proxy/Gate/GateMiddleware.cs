@@ -4,6 +4,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -154,6 +155,20 @@ public sealed class GateMiddleware
 
         state.Host = host;
         ApplyHeaders(context, host.ResponseHeaders, ResponseHeaderStage.AfterHostLookup, state, host, tracer);
+
+        // Before the TLS check and everything else of the host: a peer that isn't Cloudflare learns nothing from the host,
+        // not even a 421. The trust is the resolution's own (the policy's trusted peers, after PROXY protocol), not a
+        // second test of the address. Answered or aborted here, the verdict is a constant: 0 B.
+        if (host.OriginLockdown != OriginLockdownMode.Off)
+        {
+            var refused = !client.PeerTrusted;
+            tracer.OriginLockdown(context, host, refused);
+            if (refused)
+            {
+                return host.OriginLockdown == OriginLockdownMode.Drop ? GateDecision.Abort : GateDecision.Respond(OriginLockdownResponses.Forbidden);
+            }
+        }
+
         var connectionIsHttps = request.IsHttps;
         var mismatch = connectionIsHttps
             ? host.Https ? ConnectionTlsCheck.Check(context, host.Tls) : TlsMismatch.HostNotServedOverHttps

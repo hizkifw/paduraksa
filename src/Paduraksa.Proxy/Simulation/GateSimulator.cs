@@ -72,7 +72,7 @@ public static class GateSimulator
         List<GateStep> steps = [];
         var peer = probe.PeerAddress ?? DefaultPeer(bound.TrustedProxies, probe);
 
-        if (listeners is not null && Admit(listeners, probe, peer, steps) is { } refused)
+        if (listeners is not null && Admit(listeners, bound, probe, peer, steps) is { } refused)
         {
             return new GateSimulation(refused, steps, null);
         }
@@ -82,6 +82,11 @@ public static class GateSimulator
         if (probe.Https && Handshake(bound, probe, steps, out tlsVersion, out negotiated) is { } rejected)
         {
             return new GateSimulation(rejected, steps, null);
+        }
+
+        if (listeners is not null && probe.Https && probe.HttpVersion == ProbeHttpVersion.Http3 && QuicLockdown(bound, peer, steps) is { } dropped)
+        {
+            return new GateSimulation(dropped, steps, null);
         }
 
         if (CheckRequest(probe, negotiated, steps, out var path, out var hostHeader) is { } bad)
@@ -163,7 +168,7 @@ public static class GateSimulator
 
     /// <summary>The listener's say, before TLS or any byte of the request: PROXY protocol, and whether QUIC exists at all.
     /// Returns the rejection, or null to go on.</summary>
-    private static GateOutcome? Admit(ListenerFacts listeners, GateProbe probe, IPAddress peer, List<GateStep> steps)
+    private static GateOutcome? Admit(ListenerFacts listeners, RuntimeSnapshot snapshot, GateProbe probe, IPAddress peer, List<GateStep> steps)
     {
         var quic = probe.HttpVersion == ProbeHttpVersion.Http3;
         List<GateFact> facts = [new("transport", quic ? "quic" : "tcp")];
@@ -194,6 +199,14 @@ public static class GateSimulator
             };
         }
 
+        // After PROXY protocol, so the address is the one the gate will see, and over TLS only: the plain-HTTP listener leaves
+        // the decision to the gate, because an ACME validation may come from anywhere. QUIC is checked after its handshake's
+        // name selection instead, as the handshake callback does (see QuicLockdown).
+        if (refusal is null && probe.Https && !quic)
+        {
+            refusal = LockdownRefusal(snapshot, peer, facts);
+        }
+
         if (refusal is not null)
         {
             steps.Add(new GateStep(GateStepKind.Connection, GateStepVerdict.Stopped, refusal, facts));
@@ -202,6 +215,42 @@ public static class GateSimulator
 
         steps.Add(new GateStep(GateStepKind.Connection, GateStepVerdict.Passed, "the listener lets the connection through", facts));
         return null;
+    }
+
+    /// <summary>Why the connection stage drops <paramref name="peer"/> before TLS, or null: every host is locked down and the
+    /// peer isn't a trusted one. Adds what it looked at to <paramref name="facts"/>.</summary>
+    private static string? LockdownRefusal(RuntimeSnapshot snapshot, IPAddress peer, List<GateFact> facts)
+    {
+        if (!snapshot.LockdownAtConnection)
+        {
+            return null;
+        }
+
+        var trusted = snapshot.TrustedProxies.IsTrustedPeer(IpKey.FromIPAddress(peer));
+        facts.Add(new("lockdownAtConnection", "yes"));
+        facts.Add(new("peerTrusted", trusted ? "yes" : "no"));
+        if (trusted)
+        {
+            return null;
+        }
+
+        var what = snapshot.TrustedProxies.Mode == TrustedProxyMode.CloudflareTunnel ? "the configured cloudflared address" : "a trusted Cloudflare peer";
+        return $"every host is locked down to Cloudflare and {peer} is not {what}: the connection is dropped before TLS";
+    }
+
+    /// <summary>The QUIC handshake callback selects the options for the name first (an unknown name or a host without HTTP/3
+    /// is rejected there) and only then runs the connection gate, so the lockdown of an untrusted peer comes after the
+    /// handshake step, not before it.</summary>
+    private static GateOutcome? QuicLockdown(RuntimeSnapshot snapshot, IPAddress peer, List<GateStep> steps)
+    {
+        List<GateFact> facts = [new("transport", "quic")];
+        if (LockdownRefusal(snapshot, peer, facts) is not { } refusal)
+        {
+            return null;
+        }
+
+        steps.Add(new GateStep(GateStepKind.Connection, GateStepVerdict.Stopped, refusal, facts));
+        return new GateOutcome(GateOutcomeAction.Abort, GateReason.ConnectionRejected);
     }
 
     /// <summary>What Kestrel does before the gate runs: select the certificate entry for the SNI and settle the TLS
@@ -503,6 +552,7 @@ public static class GateSimulator
                     GateStepKind.Request => GateReason.RejectedByServer,
                     GateStepKind.AcmeChallenge => GateReason.AcmeChallenge,
                     GateStepKind.HostMatch => GateReason.DefaultHost,
+                    GateStepKind.OriginLockdown => GateReason.OriginLockdown,
                     GateStepKind.TlsPolicy => GateReason.MisdirectedConnection,
                     GateStepKind.HostPolicy => GateReason.HostPolicy,
                     GateStepKind.HttpsRedirect => GateReason.HttpsRedirect,

@@ -23,17 +23,7 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
     public void ClientResolved(HttpContext context, RuntimeSnapshot snapshot, in ClientIpResolution client, bool isHttps)
     {
         var policy = snapshot.TrustedProxies;
-        IpKey peer = default;
-        var peerKind = "socket";
-        if (context.Features.Get<IClientInfoFeature>()?.ClientInfo is { } info)
-        {
-            peer = info.Address;
-            peerKind = info.IsFromProxyProtocol ? "PROXY protocol" : "socket";
-        }
-        else if (context.Connection.RemoteIpAddress is { } remote)
-        {
-            peer = IpKey.FromIPAddress(remote);
-        }
+        var peer = PeerOf(context, out var peerKind);
 
         var header = HeaderOf(client.Source, policy);
         if (header is null && client.IsFallback)
@@ -200,6 +190,26 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             HeaderOutcome.ExemptName => new(name, "not sent: an IP address or a loopback name must not be remembered"),
             _ => new(name, "not sent: HTTP/3 already is the transport"),
         };
+    }
+
+    public void OriginLockdown(HttpContext context, CompiledHost host, bool refused)
+    {
+        // The peer, not the client: the question is who is connected, whatever header they carry.
+        var peer = PeerOf(context, out _);
+        var mode = TraceNames.Of(host.OriginLockdown);
+        var answer = host.OriginLockdown == OriginLockdownMode.Drop ? "the connection is dropped" : "403";
+        List<GateFact> facts = [new("lockdown", mode), new("peerTrusted", Flag(!refused))];
+
+        // What a trusted peer is depends on the mode: Cloudflare's edge ranges, or the cloudflared address that was configured.
+        var tunnel = context.Features.Get<IGateFeature>()?.State.Snapshot?.TrustedProxies.Mode == TrustedProxyMode.CloudflareTunnel;
+        steps.Add(new GateStep(
+            GateStepKind.OriginLockdown,
+            refused ? GateStepVerdict.Stopped : GateStepVerdict.Passed,
+            refused
+                ? $"peer {peer} is not {(tunnel ? "the configured cloudflared address" : "a Cloudflare edge address")}: refused ({answer})"
+                : $"peer {peer} is {(tunnel ? "the configured cloudflared address" : "a trusted Cloudflare edge address")}: allowed",
+            facts,
+            host.Id));
     }
 
     public void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch)
@@ -373,6 +383,19 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps) : IGateTracer
             facts,
             null,
             route.Id));
+    }
+
+    /// <summary>The connection's peer as the gate resolves it: the PROXY protocol source when the connection has one, else the socket.</summary>
+    private static IpKey PeerOf(HttpContext context, out string kind)
+    {
+        kind = "socket";
+        if (context.Features.Get<IClientInfoFeature>()?.ClientInfo is { } info)
+        {
+            kind = info.IsFromProxyProtocol ? "PROXY protocol" : "socket";
+            return info.Address;
+        }
+
+        return context.Connection.RemoteIpAddress is { } remote ? IpKey.FromIPAddress(remote) : default;
     }
 
     private static string Flag(bool value) => value ? "yes" : "no";

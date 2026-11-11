@@ -54,6 +54,9 @@ public enum GateReason : byte
     /// <summary>The proof-of-work verify endpoint answered it.</summary>
     ProofOfWork,
 
+    /// <summary>The host only takes Cloudflare's connections and the peer isn't one (a 403, or no answer at all).</summary>
+    OriginLockdown,
+
     /// <summary>The route has no YARP endpoint (not possible for a bound snapshot).</summary>
     Unavailable,
 
@@ -88,6 +91,9 @@ public enum GateStepKind : byte
 
     /// <summary>The host's response headers, applied in one pass: sent, removed, or why not.</summary>
     ResponseHeaders,
+
+    /// <summary>The host's origin lockdown: is the peer Cloudflare's?</summary>
+    OriginLockdown,
 
     TlsPolicy,
     HostPolicy,

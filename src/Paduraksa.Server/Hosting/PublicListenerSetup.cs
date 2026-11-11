@@ -25,7 +25,7 @@ internal sealed class PublicListenerSetup
         Http3 = listen.Http3 && PublicListeners.IsHttp3Supported;
         HttpProxyProtocol = Create(listen.HttpProxyProtocol);
         HttpsProxyProtocol = Create(listen.HttpsProxyProtocol);
-        Selector = new TlsHandshakeSelector(snapshots, QuicClientInfoGate.Gate);
+        Selector = new TlsHandshakeSelector(snapshots, OriginLockdown.CreateQuicGate(snapshots, OriginLockdownCounters));
         CompilerOptions = new SnapshotCompilerOptions
         {
             PublicHttpsPort = listen.PublicHttpsPort,
@@ -48,6 +48,9 @@ internal sealed class PublicListenerSetup
 
     /// <summary>PROXY protocol on the HTTPS TCP listener (before TLS), or null.</summary>
     public ProxyProtocolOptions? HttpsProxyProtocol { get; }
+
+    /// <summary>Connections dropped before TLS because every host is locked down to Cloudflare, per transport.</summary>
+    public OriginLockdownCounters OriginLockdownCounters { get; } = new();
 
     /// <summary>Per-SNI certificate selection on TCP and QUIC, reading the live snapshot's certificate table.</summary>
     public TlsHandshakeSelector Selector { get; }

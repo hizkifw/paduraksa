@@ -47,6 +47,10 @@ internal interface IGateTracer
     /// behaviour answers).</summary>
     void HostLookup(StringValues hostHeader, CompiledHost? host, HostMatchKind match, DefaultHostBehaviour fallback);
 
+    /// <summary>A host with origin lockdown on checked the peer: <paramref name="refused"/> says it isn't a trusted Cloudflare
+    /// peer and the request stops here (a 403 or an abort, as the host says).</summary>
+    void OriginLockdown(HttpContext context, CompiledHost host, bool refused);
+
     /// <summary>The connection was checked against the host's TLS settings. <paramref name="https"/> false: plain HTTP,
     /// nothing was checked.</summary>
     void TlsCheck(HttpContext context, CompiledHost host, bool https, TlsMismatch mismatch);
@@ -101,6 +105,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void HostLookup(StringValues hostHeader, CompiledHost? host, HostMatchKind match, DefaultHostBehaviour fallback)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void OriginLockdown(HttpContext context, CompiledHost host, bool refused)
     {
     }
 

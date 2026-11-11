@@ -83,6 +83,12 @@ public sealed class RuntimeSnapshot
     /// <summary>Who may tell us the client IP: off, generic proxies, Cloudflare's edge or cloudflared.</summary>
     public TrustedProxyPolicy TrustedProxies { get; init; } = TrustedProxyPolicy.Off;
 
+    /// <summary>
+    /// Every host of the snapshot is locked down (and there is one), so an untrusted peer is dropped at the connection
+    /// stage, before TLS. Decided once at compile time; the connection middleware and the QUIC handshake gate read it.
+    /// </summary>
+    public bool LockdownAtConnection { get; init; }
+
     /// <summary>The Cloudflare edge ranges the policy was compiled with, for the simulator and the dashboard; null unless
     /// the mode is <c>CloudflareProxy</c>, the only one that trusts them.</summary>
     public EdgeRangeList? EdgeRanges { get; init; }
@@ -160,6 +166,7 @@ public sealed class RuntimeSnapshot
             Certificates = Certificates,
             TrustedProxies = TrustedProxies,
             EdgeRanges = EdgeRanges,
+            LockdownAtConnection = LockdownAtConnection,
             AccessLog = AccessLog,
             RequestIdPropagation = RequestIdPropagation,
         };

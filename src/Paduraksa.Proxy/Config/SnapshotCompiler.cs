@@ -212,10 +212,33 @@ public static partial class SnapshotCompiler
             Certificates = Certificates.Build(),
             TrustedProxies = TrustedProxies,
             EdgeRanges = EdgeRanges,
+            LockdownAtConnection = LocksDownEveryHost(),
             AccessLog = Defaults.AccessLog,
             RequestIdPropagation = Defaults.RequestIdPropagation,
             DefaultResponseHeaders = DefaultHeaders,
         };
+
+        /// <summary>
+        /// An untrusted peer can be dropped before TLS only when no host would have answered it: every host in the snapshot
+        /// is locked down. Then even the unknown-host answer is nothing a visitor is meant to see.
+        /// </summary>
+        private bool LocksDownEveryHost()
+        {
+            if (Hosts.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var host in Hosts)
+            {
+                if (host.OriginLockdown == OriginLockdownMode.Off)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
 
         private ClusterConfig[] BuildClusters()
         {

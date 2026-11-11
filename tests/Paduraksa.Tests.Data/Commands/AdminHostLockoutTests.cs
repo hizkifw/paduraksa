@@ -222,6 +222,41 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task LockingTheAdminHostDownToCloudflareIsRefusedThroughTheProxyBecauseADirectCallerWouldBeRefused()
+    {
+        await CreateAdminHostAsync();
+        var current = await _h.Service.GetCurrentAsync(Ct);
+        var settings = await _h.RunAsync(new UpdateSettingsCommand(current.Document.Settings with { TrustedProxies = new TrustedProxySettings(TrustedProxyMode.CloudflareProxy, []) }));
+        Assert.Equal(ConfigCommandStatus.Committed, settings.Status);
+        var admin = Assert.Single((await _h.CurrentAsync()).Hosts);
+        HostConfig locked = admin with { Settings = new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid } } };
+
+        // Nothing says this caller came through Cloudflare, so a lockdown would refuse them: the guard says so.
+        var refused = await _h.RunAsync(new UpsertHostCommand(locked), Proxied);
+
+        AssertLockout(refused, "/hosts/0");
+        Assert.Contains("403", Assert.Single(refused.Errors).Message, StringComparison.Ordinal);
+        Assert.Equal(ConfigCommandStatus.Committed, (await _h.RunAsync(new UpsertHostCommand(locked) { Force = true }, Proxied)).Status);
+    }
+
+    [Fact]
+    public async Task ADeletionIsStillGuardedWhenTheAdminHostIsLockedDownToCloudflare()
+    {
+        await CreateAdminHostAsync();
+        var current = await _h.Service.GetCurrentAsync(Ct);
+        await _h.RunAsync(new UpdateSettingsCommand(current.Document.Settings with { TrustedProxies = new TrustedProxySettings(TrustedProxyMode.CloudflareProxy, []) }));
+        var admin = Assert.Single((await _h.CurrentAsync()).Hosts);
+        var locked = await _h.RunAsync(new UpsertHostCommand(admin with { Settings = new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Drop } } }));
+        Assert.Equal(ConfigCommandStatus.Committed, locked.Status);
+
+        // A request that gets through a lockdown came the way Cloudflare does, so the guard models it so: without that, the
+        // probe would be refused before and after, never forward, and the guard would let this deletion through.
+        var refused = await _h.RunAsync(new DeleteHostCommand(admin.Id, Assert.Single((await _h.CurrentAsync()).Hosts).Version), Proxied);
+
+        AssertLockout(refused, "/hosts/0");
+    }
+
+    [Fact]
     public async Task APreExistingFailingProbeDoesNotBlockUnrelatedCommands()
     {
         // The current and candidate snapshots both fail the TLS probe (the compiler has no certificate here), so the caller
