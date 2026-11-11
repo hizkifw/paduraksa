@@ -575,6 +575,92 @@ namespace Paduraksa.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Data.Metrics.MetricRollupRow", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("BytesOut")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Errors")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Minute")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("NoResponse")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Refused")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Requests")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Status1xx")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Status2xx")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Status3xx")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Status4xx")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Status5xx")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Subject")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SubjectKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("TotalMicrosSum")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalP50")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalP95")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TotalP99")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpstreamMicrosSum")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("UpstreamP50")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("UpstreamP95")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("UpstreamP99")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("UpstreamTimed")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Minute");
+
+                    b.HasIndex("Subject", "SubjectKey", "Minute")
+                        .IsUnique();
+
+                    b.ToTable("MetricRollups", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_MetricRollups_Subject", "\"Subject\" IN (0, 1, 2)");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Data.Revisions.ConfigRevision", b =>
                 {
                     b.Property<byte[]>("Id")
