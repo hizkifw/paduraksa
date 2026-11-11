@@ -63,7 +63,7 @@ public sealed class ForwardAuthFailureTests
 
     [Theory]
     [InlineData("rémy")]
-    [InlineData("Ωmega 山田")]
+    [InlineData("\u03A9mega \u5C71\u7530")]
     [InlineData("tab\there")]
     [InlineData("emoji \U0001F600")]
     public async Task AnIdentityValueWithTextOutsideAsciiIsForwardedAsTheProviderSentItNotRefused(string value)

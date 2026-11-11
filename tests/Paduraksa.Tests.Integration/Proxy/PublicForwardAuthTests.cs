@@ -129,7 +129,7 @@ public sealed class PublicForwardAuthTests : IAsyncLifetime
         await using var host = await StartedAsync();
         Auth.Handler = context =>
         {
-            context.Response.Headers["Remote-User"] = "José Ωmega";
+            context.Response.Headers["Remote-User"] = "José \u03A9mega";
             context.Response.Headers["Remote-Groups"] = "admins";
             return Task.CompletedTask;
         };
@@ -140,7 +140,7 @@ public sealed class PublicForwardAuthTests : IAsyncLifetime
             var (response, upstream) = await SendAsync(host, "app.test", "/docs", request => request.Headers.TryAddWithoutValidation("Cookie", "session=alice"));
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("José Ωmega", upstream["Remote-User"]);
+            Assert.Equal("José \u03A9mega", upstream["Remote-User"]);
             Assert.Equal("admins", upstream["Remote-Groups"]);
         }
 

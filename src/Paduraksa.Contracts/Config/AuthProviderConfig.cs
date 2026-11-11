@@ -34,11 +34,13 @@ public sealed record AuthProviderConfig(
 /// <param name="TimeoutSeconds">How long to wait for the answer; null = <see cref="ForwardAuthLimits.DefaultTimeoutSeconds"/>. A timeout refuses the request (504).</param>
 /// <param name="CacheSeconds">How long an allow is remembered; null = <see cref="ForwardAuthLimits.DefaultCacheSeconds"/>, 0 = never. A session the provider has
 /// revoked still works for that long.</param>
-/// <param name="CacheScope">What a remembered allow covers; null = the preset's.</param>
+/// <param name="CacheScope">What a remembered allow covers; null = the preset's. <c>host</c> reuses an allow for every path only when the provider named
+/// someone (copied an identity header); an allow without one is remembered for its own method and path.</param>
 /// <param name="RequestHeaders">Client headers sent to the endpoint besides the standard ones (cookies, authorization, user agent, accept and the
 /// <c>X-Forwarded-*</c> set); null = none.</param>
 /// <param name="ResponseHeaders">The endpoint's response headers copied to the upstream when it allows a request, and removed from the client's own
-/// request first. A trailing <c>*</c> makes a name a prefix. Null = the preset's; an empty list = none.</param>
+/// request first. A trailing <c>*</c> makes a name a prefix. Null = the preset's; an empty list = none. <c>Authorization</c>, <c>Cookie</c> and
+/// <c>Proxy-Authorization</c> can't be listed: the client's own are forwarded as they were.</param>
 /// <param name="SignIn">Where a browser without a session is sent when the endpoint answers 401; null = the preset's. Without one the 401 is relayed as it is.</param>
 public sealed record ForwardAuthConfig(
     string Url,
