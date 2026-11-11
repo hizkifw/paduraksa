@@ -12,7 +12,7 @@ using static Paduraksa.Tests.Proxy.ForwardAuth.ForwardAuthFixtures;
 
 namespace Paduraksa.Tests.Proxy.ForwardAuth;
 
-/// <summary>What the decision cache may remember and for whom: nothing for a request with no credentials, and no allow for one request
+/// <summary>What the decision cache may remember and for whom: an allow that names no one only for the request it was given for, and no allow for one request
 /// that stands in for another that differs in anything the endpoint is sent to decide on.</summary>
 public sealed class ForwardAuthCacheKeyTests
 {
@@ -31,6 +31,24 @@ public sealed class ForwardAuthCacheKeyTests
         return Task.CompletedTask;
     };
 
+    // The same, but the session also gets an identity: what authentik and oauth2-proxy answer a signed-in user.
+    private static Func<HttpContext, Task> PublicPathOpenAndSessionIsAlice() => context =>
+    {
+        if (context.Request.Headers.Cookie.ToString().Contains("session=ok", StringComparison.Ordinal))
+        {
+            context.Response.Headers["Remote-User"] = "alice";
+            return Task.CompletedTask;
+        }
+
+        var uri = context.Request.Headers["X-Forwarded-Uri"].ToString();
+        if (!uri.StartsWith("/public", StringComparison.Ordinal))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        }
+
+        return Task.CompletedTask;
+    };
+
     private static Func<HttpContext, Task> AllowsApiKey(string key = "secret") => context =>
     {
         if (context.Request.Headers["X-Api-Key"] != key)
@@ -44,7 +62,7 @@ public sealed class ForwardAuthCacheKeyTests
     [Theory]
     [InlineData(ForwardAuthCacheScope.Host)]
     [InlineData(ForwardAuthCacheScope.Request)]
-    public async Task AnAllowForARequestWithNoCredentialsIsNeverRememberedSoItCantOpenAnotherPath(ForwardAuthCacheScope scope)
+    public async Task AnAllowThatNamesNoOneIsRememberedOnlyForThePathItWasGivenFor(ForwardAuthCacheScope scope)
     {
         await using var auth = await FakeAuthServer.StartAsync(Cancel);
         auth.Handler = PublicPathOpen();
@@ -53,16 +71,74 @@ public sealed class ForwardAuthCacheKeyTests
 
         Assert.Equal("401", await RunAsync(gate, Context(path: "/admin")));
         Assert.Equal("pass", await RunAsync(gate, Context(path: "/public")));
-        Assert.Equal(0, runtime.StateOf(Provider) is null ? 0 : runtime.StateOf(Provider)!.CachedAllows);
 
         // The same address, host and (no) credentials, another path: the endpoint is asked, and says no.
         Assert.Equal("401", await RunAsync(gate, Context(path: "/admin")));
         Assert.Equal(3, auth.CallCount);
 
-        // And the open path is asked every time too.
+        // The open path itself is remembered, at request grain: no call, and the other path is still asked.
         Assert.Equal("pass", await RunAsync(gate, Context(path: "/public")));
+        Assert.Equal(3, auth.CallCount);
+        Assert.Equal(1, runtime.CountersFor(Provider).CacheHits);
+        Assert.Equal("401", await RunAsync(gate, Context(path: "/admin")));
         Assert.Equal(4, auth.CallCount);
-        Assert.Equal(0, runtime.CountersFor(Provider).CacheHits);
+    }
+
+    [Theory]
+    [InlineData("session=anything")]
+    [InlineData("x=1")]
+    [InlineData("_ga=GA1.2.123456789.1700000000")]
+    public async Task AnyCookieAnAnonymousVisitorSendsDoesntTurnItsAllowIntoOneForTheWholeHost(string cookie)
+    {
+        await using var auth = await FakeAuthServer.StartAsync(Cancel);
+        auth.Handler = PublicPathOpen();
+        var gate = GateFor(new ForwardAuthRuntime(), Model(Spec(auth.Address, b => b.Scope = ForwardAuthCacheScope.Host)), out _);
+
+        // authentik's unauthenticated path lets a visitor with some cookie through, with no identity; it says nothing about /admin.
+        Assert.Equal("pass", await RunAsync(gate, Context(path: "/public", cookie: cookie)));
+        Assert.Equal("401", await RunAsync(gate, Context(path: "/admin", cookie: cookie)));
+        Assert.Equal(2, auth.CallCount);
+    }
+
+    [Fact]
+    public async Task AnyHeaderTheProviderReadsSentByAnAnonymousVisitorDoesntMakeItsAllowHostWideEither()
+    {
+        await using var auth = await FakeAuthServer.StartAsync(Cancel);
+        auth.Handler = PublicPathOpen();
+        var gate = GateFor(new ForwardAuthRuntime(), Model(Spec(auth.Address, b =>
+        {
+            b.Scope = ForwardAuthCacheScope.Host;
+            b.RequestHeaders = ["X-Api-Key"];
+        })), out _);
+
+        var open = Context(path: "/public");
+        open.Request.Headers["X-Api-Key"] = "junk";
+        Assert.Equal("pass", await RunAsync(gate, open));
+        var admin = Context(path: "/admin");
+        admin.Request.Headers["X-Api-Key"] = "junk";
+        Assert.Equal("401", await RunAsync(gate, admin));
+        Assert.Equal(2, auth.CallCount);
+
+        // And the open path is still remembered for that very request.
+        var again = Context(path: "/public");
+        again.Request.Headers["X-Api-Key"] = "junk";
+        Assert.Equal("pass", await RunAsync(gate, again));
+        Assert.Equal(2, auth.CallCount);
+    }
+
+    [Fact]
+    public async Task AnAllowThatNamesSomeoneIsStillRememberedAcrossPathsInHostScopeAndOneThatDoesntIsNot()
+    {
+        await using var auth = await FakeAuthServer.StartAsync(Cancel);
+        auth.Handler = PublicPathOpenAndSessionIsAlice();
+        var runtime = new ForwardAuthRuntime();
+        var gate = GateFor(runtime, Model(Spec(auth.Address, b => b.Scope = ForwardAuthCacheScope.Host)), out _);
+
+        Assert.Equal("pass", await RunAsync(gate, Context(path: "/public", cookie: "session=ok")));
+        Assert.Equal("pass", await RunAsync(gate, Context(path: "/admin", cookie: "session=ok")));
+        Assert.Equal("pass", await RunAsync(gate, Context(path: "/anything/else", cookie: "session=ok")));
+        Assert.Equal(1, auth.CallCount);
+        Assert.Equal(2, runtime.CountersFor(Provider).CacheHits);
     }
 
     [Fact]
@@ -75,20 +151,6 @@ public sealed class ForwardAuthCacheKeyTests
         var anonymous = Context(path: "/public", cookie: " ");
         Assert.Equal("pass", await RunAsync(gate, anonymous));
         Assert.Equal("401", await RunAsync(gate, Context(path: "/admin", cookie: " ")));
-    }
-
-    [Fact]
-    public async Task AnAllowForAVisitorWithACookieIsStillRememberedAcrossPathsInHostScope()
-    {
-        await using var auth = await FakeAuthServer.StartAsync(Cancel);
-        auth.Handler = PublicPathOpen();
-        var runtime = new ForwardAuthRuntime();
-        var gate = GateFor(runtime, Model(Spec(auth.Address, b => b.Scope = ForwardAuthCacheScope.Host)), out _);
-
-        Assert.Equal("pass", await RunAsync(gate, Context(path: "/public", cookie: "session=ok")));
-        Assert.Equal("pass", await RunAsync(gate, Context(path: "/admin", cookie: "session=ok")));
-        Assert.Equal(1, auth.CallCount);
-        Assert.Equal(1, runtime.CountersFor(Provider).CacheHits);
     }
 
     [Fact]
@@ -205,5 +267,30 @@ public sealed class ForwardAuthCacheKeyTests
 
         Assert.Equal(GateAction.AwaitPolicy, GateMiddleware.Decide(anonymous, snapshot, addresses, null, default(NoGateTracer)).Action);
         AllocAssert.Zero((snapshot, addresses, anonymous), static s => _ = GateMiddleware.Decide(s.anonymous, s.snapshot, s.addresses, null, default(NoGateTracer)), "a request with no credentials");
+    }
+
+    [Fact]
+    public async Task UnderHostScopeAHitAtHostGrainAndOneAtRequestGrainAllocateNothingAndTheMissesProbeBoth()
+    {
+        await using var auth = await FakeAuthServer.StartAsync(Cancel);
+        auth.Handler = PublicPathOpenAndSessionIsAlice();
+        var gate = GateFor(new ForwardAuthRuntime(), Model(Spec(auth.Address, b => b.Scope = ForwardAuthCacheScope.Host)), out var snapshot);
+
+        // One allow that names alice (stored at host grain) and one that names no one (stored at request grain).
+        Assert.Equal("pass", await RunAsync(gate, Context(path: "/docs", cookie: "session=ok")));
+        Assert.Equal("pass", await RunAsync(gate, Context(path: "/public", cookie: "x=1")));
+        IClientAddressSource addresses = new TrustedProxyClientAddressSource();
+        var hostGrain = Context(path: "/elsewhere", cookie: "session=ok");
+        var requestGrain = Context(path: "/public", cookie: "x=1");
+        var miss = Context(path: "/admin", cookie: "x=1");
+
+        Assert.Equal(GateAction.Forward, GateMiddleware.Decide(hostGrain, snapshot, addresses, null, default(NoGateTracer)).Action);
+        AllocAssert.Zero((snapshot, addresses, hostGrain), static s => _ = GateMiddleware.Decide(s.hostGrain, s.snapshot, s.addresses, null, default(NoGateTracer)), "a hit at host grain");
+
+        Assert.Equal(GateAction.Forward, GateMiddleware.Decide(requestGrain, snapshot, addresses, null, default(NoGateTracer)).Action);
+        AllocAssert.Zero((snapshot, addresses, requestGrain), static s => _ = GateMiddleware.Decide(s.requestGrain, s.snapshot, s.addresses, null, default(NoGateTracer)), "a hit at request grain under host scope");
+
+        Assert.Equal(GateAction.AwaitPolicy, GateMiddleware.Decide(miss, snapshot, addresses, null, default(NoGateTracer)).Action);
+        AllocAssert.Zero((snapshot, addresses, miss), static s => _ = GateMiddleware.Decide(s.miss, s.snapshot, s.addresses, null, default(NoGateTracer)), "a miss that probes both grains");
     }
 }

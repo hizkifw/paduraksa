@@ -80,7 +80,7 @@ public sealed class CompiledAuthProvider
     internal string[] RequestHeaders { get; }
 
     /// <summary>The headers the provider is told to read that are not <c>Cookie</c>, <c>Authorization</c> or <c>Proxy-Authorization</c>: part of the
-    /// decision cache key and, with those three, what makes a request one that carries credentials.</summary>
+    /// decision cache key, which always hashes those three.</summary>
     internal string[] KeyHeaders { get; }
 
     /// <summary>The host of an absolute sign-in URL (with its port, as <see cref="Uri.Authority"/> writes it); null for a path on the protected host or none.</summary>

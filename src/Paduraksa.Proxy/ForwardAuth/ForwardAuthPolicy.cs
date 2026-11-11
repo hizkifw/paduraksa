@@ -27,8 +27,9 @@ namespace Paduraksa.Proxy.ForwardAuth;
 /// route. A 401, 403 or 407 and a redirect are relayed to the client with their body and <c>Set-Cookie</c>; a 401 to a browser that asked for a page
 /// goes to the provider's sign-in URL when one is configured. Anything else, a failed or slow call and a call made while too many are
 /// running all refuse the request (502, 504, 503): the policy fails closed.</para>
-/// <para><b>What is remembered.</b> Only the allow of a request that carried credentials (<see cref="ForwardAuthKey.CarriesCredentials"/>): an allow for a
-/// visitor with none is the provider opening one path to everyone, and under <c>host</c> scope, which leaves the path out of the key, it would open every path.</para>
+/// <para><b>What is remembered.</b> An allow, at the grain the provider's scope says only when it vouched for an identity: under <c>host</c> scope, which leaves
+/// the method and path out of the key, an allow is stored that way only if at least one identity header was copied from it, and at request grain otherwise. An allow with no
+/// identity is the provider opening one path to whoever asks (and any visitor can send a cookie or a header the provider reads), so it must never stand in for another path.</para>
 /// <para><b>Allocation.</b> The cached allow, and every verdict that needs no call, allocates nothing (the key is hashed in a stack buffer). A
 /// call allocates what an outbound HTTP request does; that cost is accepted and is why allows are remembered.</para>
 /// </remarks>
@@ -117,13 +118,23 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
     private ForwardAuthAllowance? Peek(in RequestView request)
     {
         var state = _provider.State;
-        if (state.TtlTicks <= 0 || !ForwardAuthKey.CarriesCredentials(request.Http, _provider.KeyHeaders))
+        if (state.TtlTicks <= 0)
         {
             return null;
         }
 
-        var key = ForwardAuthKey.Compute(state.Runtime.CacheSecret, _provider.Spec.CacheScope, request.Http, request.State, _provider.KeyHeaders);
-        return state.Cache.TryGet(key, state.Runtime.Time.GetTimestamp(), out var allowance) ? allowance : null;
+        var now = state.Runtime.Time.GetTimestamp();
+
+        // Under host scope an entry is at host grain (the provider vouched for an identity) or at request grain (it didn't): the first is the likelier hit.
+        if (_provider.Spec.CacheScope == ForwardAuthCacheScope.Host
+            && state.Cache.TryGet(
+                ForwardAuthKey.Compute(state.Runtime.CacheSecret, ForwardAuthCacheScope.Host, request.Http, request.State, _provider.KeyHeaders), now, out var shared))
+        {
+            return shared;
+        }
+
+        var key = ForwardAuthKey.Compute(state.Runtime.CacheSecret, ForwardAuthCacheScope.Request, request.Http, request.State, _provider.KeyHeaders);
+        return state.Cache.TryGet(key, now, out var allowance) ? allowance : null;
     }
 
     async ValueTask<PolicyDecision> IDeferredPolicy.CompleteAsync(HttpContext http, GateRequestState state)
@@ -139,15 +150,12 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
 
         try
         {
-            ulong? key = providerState.TtlTicks > 0 && ForwardAuthKey.CarriesCredentials(http, provider.KeyHeaders)
-                ? ForwardAuthKey.Compute(providerState.Runtime.CacheSecret, provider.Spec.CacheScope, http, state, provider.KeyHeaders)
-                : null;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(http.RequestAborted);
             timeout.CancelAfter(provider.Spec.Timeout);
             counters.CountCall();
             using var message = BuildRequest(http, state);
             using var response = await providerState.Client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-            return await ConcludeAsync(response, http, state, key, timeout.Token).ConfigureAwait(false);
+            return await ConcludeAsync(response, http, state, timeout.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (http.RequestAborted.IsCancellationRequested)
         {
@@ -209,7 +217,7 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
             ? values[0] ?? string.Empty
             : string.Join(string.Equals(name, "Cookie", StringComparison.OrdinalIgnoreCase) ? "; " : ", ", values.ToArray());
 
-    private async ValueTask<PolicyDecision> ConcludeAsync(HttpResponseMessage response, HttpContext http, GateRequestState state, ulong? key, CancellationToken cancel)
+    private async ValueTask<PolicyDecision> ConcludeAsync(HttpResponseMessage response, HttpContext http, GateRequestState state, CancellationToken cancel)
     {
         var provider = _provider;
         var counters = provider.Counters;
@@ -227,8 +235,12 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
             state.ForwardAuthProvider = provider;
             state.ForwardAuthHeaders = copied;
             var providerState = provider.State;
-            if (key is { } cacheKey)
+            if (providerState.TtlTicks > 0)
             {
+                // Host grain only for an allow that names someone: the provider decides per identity there, and an answer with no identity header
+                // (an anonymous visitor on a path it leaves open) says nothing about any other path.
+                var grain = provider.Spec.CacheScope == ForwardAuthCacheScope.Host && copied.Length > 0 ? ForwardAuthCacheScope.Host : ForwardAuthCacheScope.Request;
+                var cacheKey = ForwardAuthKey.Compute(providerState.Runtime.CacheSecret, grain, http, state, provider.KeyHeaders);
                 var now = providerState.Runtime.Time.GetTimestamp();
                 providerState.Cache.Add(new ForwardAuthAllowance(cacheKey, now + providerState.TtlTicks, copied), now);
             }

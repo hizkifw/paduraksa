@@ -17,10 +17,12 @@ namespace Paduraksa.Proxy.ForwardAuth;
 /// on that the call carries. The credentials are the whole <c>Cookie</c>, <c>Authorization</c> and <c>Proxy-Authorization</c> headers (a provider's session cookie
 /// has a name only the operator knows, and an answer may depend on more than one) and every other header the provider is told to read
 /// (<see cref="CompiledAuthProvider.KeyHeaders"/>: an API key it decides on), the client address (Authelia's rules match networks, and
-/// sessions can be bound to one), the host, and for a provider that decides per path also the method and the request target. Each field is
+/// sessions can be bound to one), the host, and, at <see cref="ForwardAuthCacheScope.Request"/> grain, also the method and the request target. Each field is
 /// length-prefixed, a header also by its number of lines (so an absent header and an empty one differ), so no two different requests frame to
-/// the same bytes. A <c>host</c>-scoped key leaves the method and target out: it assumes the provider decides per identity, never per path, which
-/// is why an allow for a request with no credentials at all is never stored (<see cref="CarriesCredentials"/>). The key is the first 64 bits of SHA-256 over a per-process random
+/// the same bytes. The grain is a property of the entry, not of the request: a <c>host</c>-scoped provider's allow is stored at host grain only when the
+/// provider vouched for an identity (it answered with an identity header), and at request grain otherwise, and a lookup probes both. What a request
+/// carries says nothing about that (any cookie, any header the provider reads, can be sent by an anonymous visitor), so the key never decides it.
+/// The key is the first 64 bits of SHA-256 over a per-process random
 /// secret and the framed fields, as the vault's password verification cache names its entries: no key ever leaves the process, so there is
 /// nothing for an attacker to measure, the cache holds no credential, and no one can choose a request whose key collides with another's.
 /// </summary>
@@ -28,43 +30,8 @@ internal static class ForwardAuthKey
 {
     private const int StackLimit = 2048;
 
-    /// <summary>
-    /// Whether the request carries something to tell it from any other from the same address: a non-empty <c>Cookie</c>, <c>Authorization</c> or
-    /// <c>Proxy-Authorization</c>, or one of the headers the provider is told to read. An allow for a request that carries none is the provider
-    /// letting an anonymous visitor see one path, which says nothing about another, so it is never remembered.
-    /// </summary>
-    public static bool CarriesCredentials(HttpContext http, string[] keyHeaders)
-    {
-        var headers = http.Request.Headers;
-        if (HasValue(headers.Cookie) || HasValue(headers.Authorization) || HasValue(headers.ProxyAuthorization))
-        {
-            return true;
-        }
-
-        foreach (var name in keyHeaders)
-        {
-            if (HasValue(headers[name]))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool HasValue(StringValues values)
-    {
-        for (var i = 0; i < values.Count; i++)
-        {
-            if (!string.IsNullOrWhiteSpace(values[i]))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
+    /// <summary>The key of a request at one grain: <see cref="ForwardAuthCacheScope.Host"/> leaves the method and the target out,
+    /// <see cref="ForwardAuthCacheScope.Request"/> keeps them.</summary>
     public static ulong Compute(ReadOnlySpan<byte> secret, ForwardAuthCacheScope scope, HttpContext http, GateRequestState state, string[] keyHeaders)
     {
         var request = http.Request;
