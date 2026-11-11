@@ -138,7 +138,7 @@ public static class ClientIpResolver
 
     // One value or none: a repeated header is not what Cloudflare sends.
     private static CountryCode CountryOf(IHeaderDictionary headers) =>
-        headers[CloudflareHeaders.IpCountry] is { Count: 1 } values && values[0] is { } text ? CountryCode.Parse(text) : CountryCode.Unknown;
+        headers[CloudflareHeaders.IpCountry] is { Count: 1 } values && values[0] is { } text ? CountryCode.Parse(TrimOws(text)) : CountryCode.Unknown;
 
     private static ClientIpResolution ResolveCloudflare(IpKey peer, ClientIpSource peerSource, IHeaderDictionary headers, TrustedProxyPolicy policy)
     {

@@ -430,8 +430,8 @@ public static class ProxyConfigMapping
         return (hostChain, routeChains);
     }
 
-    /// <summary>Whether the address rules alone can turn a request away before a route is known: a deny entry always, an
-    /// allow list unless a password can still let the others in.</summary>
+    /// <summary>Whether the address rules alone can turn a request away before a route is known: a denied address or country
+    /// always, an address or country allow list unless a password can still let the others in.</summary>
     private static bool RefusesByAddress(AccessListConfig list) =>
         list.Ip is { } ip
         && (ip.Deny.Count > 0 || ip.Countries is { Deny.Count: > 0 }

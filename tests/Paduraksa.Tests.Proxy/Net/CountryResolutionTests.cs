@@ -40,7 +40,7 @@ public sealed class CountryResolutionTests
     [InlineData("D", "XX")]
     [InlineData("DEU", "XX")]
     [InlineData("1A", "XX")]
-    [InlineData(" DE", "XX")]
+    [InlineData(" DE ", "DE")]
     [InlineData("DE,FR", "XX")]
     public void ATrustedCloudflarePeerSuppliesTheCountry(string value, string expected)
     {

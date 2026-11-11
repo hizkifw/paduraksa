@@ -129,7 +129,7 @@ public sealed class AccessListCountriesTests
     [InlineData("germ", new[] { "DE" })]
     [InlineData("GERMANY", new[] { "DE" })]
     [InlineData("(de)", new[] { "DE" })]
-    [InlineData("tor", new[] { "T1" })]
+    [InlineData("tor", new[] { "T1", "IO", "GQ", "TF" })] // Tor first, then names that contain it (British Indian Ocean Territory, Equatorial Guinea, ...)
     [InlineData("unknown", new[] { "XX" })]
     [InlineData("zzzz", new string[0])]
     public async Task TheSearchMatchesNamesAndCodes(string text, string[] expected)
@@ -139,8 +139,7 @@ public sealed class AccessListCountriesTests
         {
             var found = await SearchAsync(drawers, "Allowed countries", text);
 
-            Assert.Equal(expected, found.Where(code => expected.Contains(code)).ToArray());
-            Assert.True(expected.Length == 0 ? found.Count == 0 : found.Count >= expected.Length);
+            Assert.Equal(expected, found.ToArray());
         }
     }
 

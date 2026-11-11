@@ -104,6 +104,17 @@ public sealed class AccessListCountrySimulationTests
     }
 
     [Fact]
+    public void AHeaderTheOperatorSendsWinsOverTheProbesCountry()
+    {
+        var (snapshot, _) = Build(AccessListSatisfy.All);
+        var probe = Probe("cloudflare", "DE") with { Headers = [new ProbeHeader("CF-IPCountry", "RU")] };
+
+        var client = Assert.Single(GateSimulator.Run(snapshot, probe).Steps, s => s.Kind == GateStepKind.ClientAddress);
+
+        Assert.Equal("RU", Fact(client, "country"));
+    }
+
+    [Fact]
     public void AListWithoutCountryRulesAddsNoCountryFacts()
     {
         var snapshot = TestSnapshotsFor(List("plain", ["192.0.2.0/24"], users: false));
