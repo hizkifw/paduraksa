@@ -324,7 +324,7 @@ For comparison, the header refactor left adding a header setting at six files: t
 compiled operation (`ResponseHeaders`/`CompileResponseHeaders`), the matrix rows, the end-to-end test and these notes.
 
 **What the layers mean** (§6.4): built-in defaults → global defaults → profile → host, then a route's own subset on top of
-the host. Nested records (`Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `AccessList`) merge field by field,
+the host. Nested records (`Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`) merge field by field,
 and a layer lifts an inherited rate limit or access list with `enabled: false`; everything else is a plain override. A nested
 record that sets none of its fields is no record at all, so canonical JSON writes no key for it and a stored revision keeps
 its bytes (and its hash): `ISettingsLayer.SetsNothing`, which each record states, is the one rule that decides it.
@@ -609,6 +609,9 @@ C. Gate middleware (first in pipeline), in this order (as built in M1)
      ::1), decided by a span check on the Host header's name. Ours replaces an upstream's own header; with HSTS off,
      the upstream's passes through untouched.
    • HOST policy chain (D), so it also guards the redirect and fixed answers (blocked → 403, not 301)
+   • the host's request limits (as built in M7, §7.3): the request target over its limit is 414, more header lines or bytes
+     than it takes is 431, answered here, after the host chain (a client it refuses learns nothing from sizes) and before
+     the redirect (which would echo the target). The host's body limit was put on the request when the host was found
    • HTTP→HTTPS redirect answered here from precomputed bytes
    • a managed robots.txt (GET/HEAD only) answered here from precomputed bytes, so an allow list still refused above and a
      plain-HTTP request still redirected first; before the fixed answer below and before route matching, so a
@@ -616,12 +619,14 @@ C. Gate middleware (first in pipeline), in this order (as built in M1)
    • Redirect and Respond hosts answered here from precomputed bytes
    • resolve route (per-host list, most specific first, on the canonical matching view of the path; §6.2) → 404 if none
    • ROUTE policy chain (D): the route's own policies only
+   • the declared body (as built in M7): a `Content-Length` over the route's (else the host's) limit is 413, after the route's
+     own chain and before anything reads the body
    • HttpContext.SetEndpoint(YARP Endpoint from the same snapshot) so the later UseRouting skips matching
 
 D. Policy chains: one per host, one per route (IRequestPolicy[], sealed classes, evaluated in order;
    host policies run before a route is known, so State.Route is null for them)
    AccessList (IP and country allow/deny, then basic auth; as built, the host chain only refuses by address and country; geo is part of it) → RateLimit →
-   RequestLimits → PathRules → UserAgentRules → Robots → Auth (forward-auth / OIDC) → ProofOfWork →
+   [RequestLimits: as built, not a policy; the gate checks it, see below] → PathRules → UserAgentRules → Robots → Auth (forward-auth / OIDC) → ProofOfWork →
    [future: bot heuristics, header rules]
    each returns PolicyDecision { Continue | Respond(status, page) | Challenge | Drop } as a struct
 
@@ -723,7 +728,7 @@ the 16-byte token and challenge tags are checked; `Verify` itself only takes who
 | Access lists | A named object (`acl_`) with allow and deny `CidrSet`s, basic-auth users (each a username and a password credential in the vault, verified through its verifier and cache) and `satisfy` all or any; see **As built (M7): access lists** below. |
 | Geo blocking | **M7: `CF-IPCountry` only**, as country rules of an access list (**As built (M7): country rules** below): a two-letter code from a trusted Cloudflare peer, compiled per list into a bitset (676 letter pairs plus Tor and unknown), one bit test per request. **Not built: a local country database** (DB-IP Lite: CC-BY, no key; MaxMind GeoLite2 optional with a license key; compiled into sorted range arrays and binary-searched, an auto-update job); the seam it plugs into is in the gap list of that note. |
 | Rate limiting | Fixed-size open-addressed table (power of two, default 256 Ki entries ≈ 4 MiB). Each entry is two `long`s: a 64-bit **key fingerprint** (claimed with CAS, linear probing over at most 8 slots, else the oldest of those is evicted) and a packed **state** updated with a CAS loop. State layout: **bits 63-24 = last-refill time** in ms since process start (40 bits ≈ 34.8 years, so no wraparound handling needed); **bits 23-0 = tokens in 1/16 units** (unsigned 20.4 fixed point: max ≈ 1,048,575 tokens of burst, refill precision 1/16 token). The refill rate is a policy parameter in tokens/s, applied as `elapsedMs x rate x 16 / 1000` with saturation at burst. A background sweeper reads the **policy slot** from the high 16 bits of each key (the fingerprint itself can't be inverted, so the slot is stored alongside it). It looks up that policy's current full-refill window (burst / rate) and clears entries untouched for longer than that, or immediately if the slot no longer maps to a live policy. A 48-bit hash in a 256 Ki table makes false sharing between partition keys negligible (~2⁻³⁰ per probe). Bounded memory, so a flood of unique IPs can't exhaust RAM. Collisions only make limits slightly stricter. Policies per host or route: req/s + burst, keyed by IP / IP+path / header. Returns 429 + `Retry-After`. |
-| Request size limits | `IHttpMaxRequestBodySizeFeature` per host/route. Header count/size and URL length are checked cheaply in the gate. Global Kestrel limits act as the outer bound. |
+| Request size limits | `IHttpMaxRequestBodySizeFeature` per host/route. Header count/size and URL length are checked cheaply in the gate. Global Kestrel limits act as the outer bound. Built in M7: **As built (M7): request limits** below. |
 | Path deny rules | Exact/prefix in a trie. Glob compiled to a small matcher. Regex as an escape hatch: `RegexOptions.NonBacktracking` (ReDoS-safe) with a compile-time validation timeout. |
 | User-agent deny | `SearchValues<string>` (vectorised multi-substring, case-insensitive), plus presets ("AI crawlers", "known scanners", "empty UA"). |
 | Proof of work | A route policy: a browser without a valid `paduraksa_pow` cookie gets a small challenge page whose pure-JS SHA-256 workers find a counter with `Difficulty` leading zero bits; the verify endpoint returns an HMAC-signed, host- and client-bound cookie. `IMacKey`, no server-side table, 0 B on the valid-token path. |
@@ -1067,7 +1072,7 @@ script (`default-src 'none'`, the style hash, no script on a page without one, `
 a form, `frame-ancestors 'none'`), with `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`. The
 proof-of-work challenge page now uses it too, with the challenge, return target and difficulty as slots, so a challenge
 request no longer builds a per-request body array. `ErrorPages` holds the built-in set: 403 (IP access, no JavaScript,
-failed check), 404, 413, 421, 429, 502, 503 (no healthy destination, and the proof-of-work key unavailable) and 504,
+failed check), 404, 413 (also a body over a host's limit), 414, 421, 429, 431, 502, 503 (no healthy destination, and the proof-of-work key unavailable) and 504,
 each with a muted status line, an h1, one sentence and the request ID in monospace, all ASCII and with no script or
 external resource. A request whose `Accept` includes `text/html` gets the page; anything else gets the same plain text
 as before, `HEAD` gets headers only, and `Cache-Control: no-store` and `Retry-After` are unchanged. YARP's upstream
@@ -1076,6 +1081,83 @@ after the forwarder, only does work when `IForwarderErrorFeature` is set, and ad
 allocation to the successful path. **Stays in M8:** custom pages per status, global/profile/host; variables beyond the
 request ID (status, host, `CF-Ray`); the dashboard preview; maintenance mode; and replacing an upstream's own error
 bodies.
+
+**As built (M7): request limits.** `HostSettings.RequestLimits` (`maxBodySize`, `maxHeaderCount`, `maxHeaderBytes`,
+`maxUrlLength`) merges field by field through defaults, profile and host, and `RouteSettings.RequestLimits` overrides the
+**body size only** (a route is not known when the headers and the target are judged; the validator refuses the other three on
+a route, `requestLimits.route.*Unexpected`). Sizes are bytes in the document and typed with a unit in the dashboard.
+`maxBodySize` 0 is "no limit", said outright; otherwise 1 byte to 1 TiB. The other bounds, in `RequestLimitBounds` (Core), are
+what the validator (`requestLimits.<field>.invalid`), the compiler's backstop, the dashboard and the listeners share:
+
+| Field | Built-in | Bounds |
+|---|---|---|
+| `maxBodySize` | 100 MiB | 0 (none), or 1 B to 1 TiB |
+| `maxHeaderCount` | 100 | 8 to 128 lines |
+| `maxHeaderBytes` | 32 KiB | 1 KiB to 64 KiB |
+| `maxUrlLength` | 8 KiB | 256 B to 16 KiB |
+
+*The built-ins.* The header and target limits are Kestrel's old defaults, so a host that sets none behaves as before. The body
+is the one change: the public listener had no limit at all (the owner's call until this setting existed); 100 MiB is three
+times Kestrel's own 30 MB, which breaks photo, document and package uploads, while no limit lets one request fill a disk. A
+host that wants no limit sets 0 (in the global defaults for all of them), and one that takes bigger uploads on one path sets
+its route.
+
+*Kestrel's outer bound.* Kestrel's defaults are 8 KiB for the request line, 32 KiB for the headers together, 100 header lines,
+32 KiB for one field on HTTP/2 and HTTP/3 and 30 MB for a body (the listeners set that to null). They would refuse what a host
+with a higher limit admits, so `RequestLimitsGate.ConfigureTransport` sets the outer bound from the same constants, each with
+4 KiB of headroom so the gate answers before the transport can: a request line of 16 KiB of target plus the method and protocol
+(a method token has no length of its own), headers of 64 KiB plus the longest target plus headroom (Kestrel sums names and values,
+and HTTP/2 and HTTP/3 count the pseudo-headers, so the target counts twice), a single field as large as all of them (one big cookie
+over HTTP/2 must not be reset by the server when HTTP/1.1 takes it), and 128 lines. The hosts' built-ins sit below it, so raising
+the bound costs a default host nothing but the scan it already pays. The body limit stays null in Kestrel; the gate puts the host's
+on every request.
+
+*Where the gate checks.* Body limit: put on the request (`IHttpMaxRequestBodySizeFeature`, before anything reads the body) when
+the host is found, so even an answer that leaves the body unread (a redirect, a refusal) can't make the server drain past the
+limit, and again when the matched route has its own. Target and headers: after the host's policy chain, before the HTTPS
+redirect. Declared body: after the route's chain (a rate limit or a challenge answers first) and before the endpoint is set. All
+three answer from precomputed pages (`ErrorPages`: 413, 414, 431, HTML for a browser, text otherwise) with the host's response
+headers like any gate answer. The target is the raw request target in UTF-8 wire bytes; the headers are counted as lines (a header
+sent twice is two) and bytes of names plus values. A body without a declared length (chunked, or HTTP/2 and HTTP/3 without one) is
+Kestrel's to cut off at the limit: it throws mid-read, which YARP reports as 413 to the client when the upstream hasn't answered yet
+(what the tests see: their upstream answers after reading the body); a response that has already started can't change its status, so
+the client sees a reset stream (Kestrel's behaviour, not exercised here). Checked: HTTP/1.1 and HTTP/2 in `RequestLimitsEndToEndTests` (and
+through `PaduraksaHost` in `PublicRequestLimitsTests`: under the limit forwards, over it is refused, and the upstream never
+receives the refused body, or more than the limit of a cut-off one), HTTP/3 in the Docker QUIC run (`PublicHttp3Tests.RequestLimitsHoldOverHttp3`).
+
+*Kestrel's quirks, found by the tests.* On HTTP/1.1 a chunked body counts its chunk framing against the limit, so a chunked
+upload of exactly the limit is refused. When the gate or Kestrel answers while the client is still sending, the server closes the
+connection with data unread, and a client may see the reset before the 413: a client that sends `Expect: 100-continue` gets the
+refusal first, since Kestrel sends the final status instead of `100`. A cut-off body logs a Warning from YARP's forwarder (the
+whole `BadHttpRequestException`), once per refused upload.
+
+*0 B.* The checks allocate nothing on every path, on Kestrel (`GateAllocationTests.RequestLimitsAllocateNothingOnKestrel`:
+allowed, with a body, and each refusal, on HTTP/1.1 and HTTP/2) and on `DefaultHttpContext` (`RequestLimitsGateTests.TheChecksAllocateNothing`).
+Enumerating Kestrel's request headers through `IHeaderDictionary` boxes the enumerator, so the scan copies them into an array with
+`ICollection.CopyTo`, which can't be a `stackalloc` (it holds strings). The arrays come from a small pool of slots taken with
+`Interlocked.Exchange` and returned cleared: stocked by the first requests, then allocation-free whichever thread runs the gate (a
+`[ThreadStatic]` array cost 4 KB on every new thread's first request, which the allocation tests caught). Kestrel also keeps `Content-Length` as a number and writes a new string for
+it on every copy (32 B on every request with a body), so the check takes the header out for the copy, counts it by hand (14 bytes
+of name and its digits) and puts it back in a `finally`. No bytes are summed once the target or the line count has decided.
+
+*Simulator.* `GateStepKind.RequestLimits` (contract `requestLimits`, "Request limits"), reported twice: the target and headers
+("35 headers, limit 30: 431", with the sizes and the answer as facts) and, for a request that has a body (a declared length, or
+`Transfer-Encoding`), the body ("body 12 MiB declared, limit 10 MiB: 413", with where the limit comes from, host or route; a
+chunked body says the server cuts it off). A simulated request declares a body with a `Content-Length` header, which must be one
+number (`simulation.request.headers`). `GateReason.RequestLimits` is the outcome's reason (a fixed answer). `SimulatorParityTests`
+sweeps every limit on both sides and both routes.
+
+*Dashboard.* A **Request limits** section in the host settings (global defaults, profiles, hosts) with four rows, and "Body
+size on this route" in a route's settings. `SizeField` is the reusable size control: inherit (naming the layer below's size),
+"No limit" where 0 means that, presets, or a number with a unit (KiB, MiB, GiB) and the bytes that follow; a size no unit holds
+exactly (an API value of 1500 bytes) shows in KiB with decimals. `CountField` is the header lines' (empty inherits). The summary
+phrase reads "Request limits: body up to 10 MiB, 30 header lines, ...".
+
+*Not built.* The body limit isn't put on a request that is answered before a host is found (an ACME challenge, an unknown host's
+default answer), where the server drains its unread body up to Kestrel's own limit, which is none. A per-route header or target limit (judged before a route is known). A counter or security-overview column for
+refused requests (the overview's host table is already six columns wide; the access log shows the 413, 414 and 431). A
+limit on an upgraded (WebSocket) connection, which Kestrel doesn't apply a body limit to. The proof-of-work verify endpoint
+keeps its own 2 KiB.
 
 ### 7.4 Observability (no locks on the hot path)
 - **Counters:** `long[]` indexed by `metricSlot * K + metric` (stable slots, §6.3; never the snapshot's host index), striped per core (cache-line padded) to avoid contention. Summed only when read.
@@ -1164,7 +1246,7 @@ Admins test their rules before or after a change by asking what a request would 
 - **Parity tests:** for generated configs and requests, the simulator's outcome must equal the real gate's (the M2 `CompiledBehaviourTests` harness is the seed). Each policy added later (M7) must add its trace step and parity cases.
 - **Surfaces:** one Application function, `SimulateAsync(target, request)`. It is exposed as `POST /api/v1/simulate` (M4), as the MCP `simulate_request` tool (M10), and in the dashboard simulator page (M5). Access-log entries link into it with the request pre-filled (M9).
 
-**As built (M4, simulator core).** The tracer is `IGateTracer`, passed as a struct type parameter to the one decision body, `GateMiddleware.Decide<TTracer>(context, snapshot, clientAddresses, challenges, tracer)`; production's `Decide(context)` passes `NoGateTracer` (empty methods, so the JIT drops them), and the Kestrel 0 B tests plus a direct `Decide<NoGateTracer>` allocation test guard it. The gate reports client resolution (peer, source, trusted header, scheme source), the ACME hook, the host match (`HostTable.Find(..., out HostMatchKind)`), the TLS-policy check (`ConnectionTlsCheck.Check` names the 421 reason; `Satisfies` is `Check == None`), each policy by scope and index, the HTTPS redirect, fixed hosts, the route match with the canonical path, and the upstream hand-over. `Paduraksa.Proxy.Simulation.GateSimulator.Run(snapshot, probe, challenges, listeners)` runs the real `Decide` with the recording tracer, after the stand-ins for what the server does first, in the server's order: the listener's admission (`ProxyProtocolAdmission.Check`, the connection middleware's own decision, from `ListenerFacts`: a PROXY header the listener doesn't expect, a missing one, an untrusted socket, or no HTTP/3 listener is `ConnectionRejected`); the TLS handshake (`TlsHandshakeSelector.Select` over the snapshot's certificate table, which the listeners call too, plus the entry's own TLS-version and ALPN options: unknown SNI, HTTP/3 off, a TLS 1.2 client to a TLS 1.3-only name, the h2 to http/1.1 fallback); and Kestrel's request checks (`RejectedByServer`, 400: on HTTP/1.1 anything but exactly one valid `Host`; on HTTP/2 and HTTP/3 `:authority` is the host and a `Host` header is ignored; the path is percent-decoded except `%2F`/`%5C`, escapes that aren't UTF-8 stay as written, and dot segments are removed, all checked against the real server over sockets in `SimulatorSocketParityTests`). A snapshot not bound to YARP gets placeholder endpoints. Client resolution is `TrustedProxyClientAddressSource.ResolveCore` with no counters and no log line, so a simulation changes no counter. `RequestSimulator.SimulateAsync(target, request, origin)` (Application) takes live, `RevisionSimulationTarget`, `DraftDocumentSimulationTarget` (a `ReplaceConfigCommand` on the current head, retried once on a commit in between) or `DraftCommandSimulationTarget`; drafts go through `ConfigService.PlanDraftAsync`, which is `AttemptAsync` as a dry run that hands back its compiled candidate, so validation, certificate rules and compile errors are the real command's and are returned as `Invalid` with the dry run's errors, while a stale version or missing object is `DraftRejected`; a command that changes nothing simulates the head it planned on. The same checks that reading applies (`apiVersion`, null list elements) run on any payload first. A corrupt head, a degraded store or an unreadable database is `Unavailable` with a reason, never an exception. Nothing is audited, stored or published. Request limits are Kestrel's defaults (8 KiB request line, 32 KiB and 100 headers, a token method of at most 32 characters, no control characters in the query, no backslash in the authority), counted as Kestrel counts them: the request line, URL and header names and values in UTF-8 wire bytes, so a character above ASCII costs more than one (and the simulator is conservative where a header could be sent as Latin-1). A field that would change nothing (`transportIp` without PROXY protocol, `peerIp` on a direct request, `tls` on a plain-HTTP URL) is refused, not ignored. At most 4 drafts or revisions compile at once (`RequestSimulator.MaxConcurrentCompiles`); one that waits more than 2 s is `Unavailable`; the live target takes no slot. Authorization: `ISimulationAuthorizer` is asked for every target (see §10). Parity: `SimulatorParityTests` (Proxy: every outcome, 421 variants, all trusted-proxy modes and header shapes, PROXY protocol, ACME answered and fall-through), `SimulatedBehaviourTests` (Unit: 300 generated documents against the `GateHarness`), `SimulatorSocketParityTests` (real sockets) and end-to-end tests through a real host.
+**As built (M4, simulator core).** The tracer is `IGateTracer`, passed as a struct type parameter to the one decision body, `GateMiddleware.Decide<TTracer>(context, snapshot, clientAddresses, challenges, tracer)`; production's `Decide(context)` passes `NoGateTracer` (empty methods, so the JIT drops them), and the Kestrel 0 B tests plus a direct `Decide<NoGateTracer>` allocation test guard it. The gate reports client resolution (peer, source, trusted header, scheme source), the ACME hook, the host match (`HostTable.Find(..., out HostMatchKind)`), the TLS-policy check (`ConnectionTlsCheck.Check` names the 421 reason; `Satisfies` is `Check == None`), each policy by scope and index, the HTTPS redirect, fixed hosts, the route match with the canonical path, and the upstream hand-over. `Paduraksa.Proxy.Simulation.GateSimulator.Run(snapshot, probe, challenges, listeners)` runs the real `Decide` with the recording tracer, after the stand-ins for what the server does first, in the server's order: the listener's admission (`ProxyProtocolAdmission.Check`, the connection middleware's own decision, from `ListenerFacts`: a PROXY header the listener doesn't expect, a missing one, an untrusted socket, or no HTTP/3 listener is `ConnectionRejected`); the TLS handshake (`TlsHandshakeSelector.Select` over the snapshot's certificate table, which the listeners call too, plus the entry's own TLS-version and ALPN options: unknown SNI, HTTP/3 off, a TLS 1.2 client to a TLS 1.3-only name, the h2 to http/1.1 fallback); and Kestrel's request checks (`RejectedByServer`, 400: on HTTP/1.1 anything but exactly one valid `Host`; on HTTP/2 and HTTP/3 `:authority` is the host and a `Host` header is ignored; the path is percent-decoded except `%2F`/`%5C`, escapes that aren't UTF-8 stay as written, and dot segments are removed, all checked against the real server over sockets in `SimulatorSocketParityTests`). A snapshot not bound to YARP gets placeholder endpoints. Client resolution is `TrustedProxyClientAddressSource.ResolveCore` with no counters and no log line, so a simulation changes no counter. `RequestSimulator.SimulateAsync(target, request, origin)` (Application) takes live, `RevisionSimulationTarget`, `DraftDocumentSimulationTarget` (a `ReplaceConfigCommand` on the current head, retried once on a commit in between) or `DraftCommandSimulationTarget`; drafts go through `ConfigService.PlanDraftAsync`, which is `AttemptAsync` as a dry run that hands back its compiled candidate, so validation, certificate rules and compile errors are the real command's and are returned as `Invalid` with the dry run's errors, while a stale version or missing object is `DraftRejected`; a command that changes nothing simulates the head it planned on. The same checks that reading applies (`apiVersion`, null list elements) run on any payload first. A corrupt head, a degraded store or an unreadable database is `Unavailable` with a reason, never an exception. Nothing is audited, stored or published. Request limits are the public listeners' outer bounds (20 KiB of request line, 84 KiB and 128 headers, a token method of at most 32 characters, no control characters in the query, no backslash in the authority; the host's own limits are the gate's, traced as the **Request limits** step), counted as Kestrel counts them: the request line, URL and header names and values in UTF-8 wire bytes, so a character above ASCII costs more than one (and the simulator is conservative where a header could be sent as Latin-1). A field that would change nothing (`transportIp` without PROXY protocol, `peerIp` on a direct request, `tls` on a plain-HTTP URL) is refused, not ignored. At most 4 drafts or revisions compile at once (`RequestSimulator.MaxConcurrentCompiles`); one that waits more than 2 s is `Unavailable`; the live target takes no slot. Authorization: `ISimulationAuthorizer` is asked for every target (see §10). Parity: `SimulatorParityTests` (Proxy: every outcome, 421 variants, all trusted-proxy modes and header shapes, PROXY protocol, ACME answered and fall-through), `SimulatedBehaviourTests` (Unit: 300 generated documents against the `GateHarness`), `SimulatorSocketParityTests` (real sockets) and end-to-end tests through a real host.
 
 **Stateful policies must not mutate when simulated (M7 rule).** (The access-list policy follows it: its step is described in §7.3.) The simulator calls `Evaluate` on the live policy instances. `RequestView.IsSimulation` is true on that path and a constant `false` in production (a static abstract member of the tracer type, folded away by the JIT). A policy with state peeks: a rate limit reports "would allow, N tokens left" without taking one, a challenge issues no nonce, forward-auth starts no call unless the request opts in. Built-in policies are stateless today, so this is the seam plus the rule; each M7 policy adds its `Name`/`Explain` trace hooks and a parity case that checks it left its state alone.
 
