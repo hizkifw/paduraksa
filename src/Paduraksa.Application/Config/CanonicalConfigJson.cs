@@ -165,6 +165,7 @@ public static class CanonicalConfigJson
             RateLimitPolicies = [.. NonNull(document.RateLimitPolicies).OrderBy(p => p.Id).Select(Canonical)],
             AccessLists = [.. NonNull(document.AccessLists).OrderBy(l => l.Id).Select(Canonical)],
             RuleSets = [.. NonNull(document.RuleSets).OrderBy(r => r.Id).Select(Canonical)],
+            AuthProviders = [.. NonNull(document.AuthProviders).OrderBy(p => p.Id).Select(Canonical)],
             Hosts = [.. NonNull(document.Hosts).OrderBy(h => h.Id).Select(Canonical)],
         };
     }
@@ -181,9 +182,9 @@ public static class CanonicalConfigJson
         }
 
         if (document.Settings?.TrustedProxies is null || document.Profiles is null || document.Upstreams is null || document.Hosts is null
-            || document.RateLimitPolicies is null || document.AccessLists is null || document.RuleSets is null)
+            || document.RateLimitPolicies is null || document.AccessLists is null || document.RuleSets is null || document.AuthProviders is null)
         {
-            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams, rate-limit policies, access lists, rule sets and hosts (empty lists, not null).");
+            return new ConfigError(string.Empty, InvalidJsonCode, "The document needs its settings, trusted proxies, profiles, upstreams, rate-limit policies, access lists, rule sets, auth providers and hosts (empty lists, not null).");
         }
 
         try
@@ -252,6 +253,14 @@ public static class CanonicalConfigJson
                 Check(match?.Methods, $"$.ruleSets[{i}].rules[{j}].match.methods");
                 Check(match?.UserAgent?.Contains, $"$.ruleSets[{i}].rules[{j}].match.userAgent.contains");
             }
+        }
+
+        Check(document.AuthProviders, "$.authProviders");
+        for (var i = 0; i < document.AuthProviders.Count; i++)
+        {
+            var forward = document.AuthProviders[i].ForwardAuth;
+            Check(forward?.RequestHeaders, $"$.authProviders[{i}].forwardAuth.requestHeaders");
+            Check(forward?.ResponseHeaders, $"$.authProviders[{i}].forwardAuth.responseHeaders");
         }
 
         Check(document.Hosts, "$.hosts");
@@ -398,6 +407,31 @@ public static class CanonicalConfigJson
         };
     }
 
+    // Header names are sets: trimmed and unique ignoring case, sorted. A response list that is empty stays empty (it says "none", where
+    // null says "the preset's"); a request list with nothing in it is no list.
+    private static AuthProviderConfig Canonical(AuthProviderConfig provider) => provider with
+    {
+        Name = ConfigNormalization.NormalizeName(provider.Name),
+        Notes = ConfigNormalization.NormalizeNotes(provider.Notes),
+        ForwardAuth = provider.ForwardAuth is null ? null : Canonical(provider.ForwardAuth),
+    };
+
+    private static ForwardAuthConfig Canonical(ForwardAuthConfig forward)
+    {
+        var requests = NonNull(forward.RequestHeaders).Select(Trim).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        return forward with
+        {
+            Url = (forward.Url ?? string.Empty).Trim(),
+            // A preset of Custom is the same as none.
+            Preset = forward.Preset is ForwardAuthPreset.Custom ? null : forward.Preset,
+            RequestHeaders = requests.Length > 0 ? requests : null,
+            ResponseHeaders = forward.ResponseHeaders is null
+                ? null
+                : [.. forward.ResponseHeaders.Select(Trim).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase)],
+            SignIn = forward.SignIn is null ? null : forward.SignIn with { Url = (forward.SignIn.Url ?? string.Empty).Trim(), ReturnParameter = forward.SignIn.ReturnParameter?.Trim() },
+        };
+    }
+
     private static HostConfig Canonical(HostConfig host) => host with
     {
         Names = SortedSet(host.Names, ConfigNormalization.CanonicalHostName),
@@ -438,6 +472,7 @@ public static class CanonicalConfigJson
             AccessList = DropIfNothingSet(route.Settings?.AccessList),
             RequestLimits = DropIfNothingSet(route.Settings?.RequestLimits),
             RuleSet = DropIfNothingSet(route.Settings?.RuleSet),
+            AuthProvider = DropIfNothingSet(route.Settings?.AuthProvider),
         },
     };
 
@@ -456,6 +491,7 @@ public static class CanonicalConfigJson
             AccessList = DropIfNothingSet(settings.AccessList),
             RequestLimits = DropIfNothingSet(settings.RequestLimits),
             RuleSet = DropIfNothingSet(settings.RuleSet),
+            AuthProvider = DropIfNothingSet(settings.AuthProvider),
         };
     }
 

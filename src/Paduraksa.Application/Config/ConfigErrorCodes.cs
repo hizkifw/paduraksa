@@ -46,6 +46,14 @@ public static class ConfigErrorCodes
     public const string RulePathRegexInvalid = "ruleSet.rule.path.regex.invalid";
     public const string RuleMethodsInvalid = "ruleSet.rule.methods.invalid";
     public const string RuleUserAgentInvalid = "ruleSet.rule.userAgent.invalid";
+    public const string AuthProviderForwardAuthRequired = "authProvider.forwardAuth.required";
+    public const string AuthProviderUrlInvalid = "authProvider.url.invalid";
+    public const string AuthProviderTimeoutInvalid = "authProvider.timeoutSeconds.invalid";
+    public const string AuthProviderCacheSecondsInvalid = "authProvider.cacheSeconds.invalid";
+    public const string AuthProviderHeadersTooMany = "authProvider.headers.tooMany";
+    public const string AuthProviderHeaderInvalid = "authProvider.header.invalid";
+    public const string AuthProviderSignInInvalid = "authProvider.signIn.invalid";
+    public const string AuthProviderReturnParameterInvalid = "authProvider.signIn.returnParameter.invalid";
     public const string HstsMaxAgeInvalid = "hsts.maxAge.invalid";
     public const string HstsPreloadNeedsIncludeSubDomains = "hsts.preload.needsIncludeSubDomains";
     public const string HstsPreloadMaxAgeTooShort = "hsts.preload.maxAgeTooShort";
@@ -100,6 +108,7 @@ public static class ConfigErrorCodes
     public const string HostRateLimitUnknown = "host.rateLimit.unknown";
     public const string HostAccessListUnknown = "host.accessList.unknown";
     public const string HostRuleSetUnknown = "host.ruleSet.unknown";
+    public const string HostAuthProviderUnknown = "host.authProvider.unknown";
     public const string HostCertificateIdRequired = "host.certificate.idRequired";
     public const string HostCertificateIdUnexpected = "host.certificate.idUnexpected";
     public const string HostCertificateNoneWithForceHttps = "host.certificate.noneWithForceHttps";
@@ -134,4 +143,5 @@ public static class ConfigErrorCodes
     public const string RouteRateLimitUnknown = "route.rateLimit.unknown";
     public const string RouteAccessListUnknown = "route.accessList.unknown";
     public const string RouteRuleSetUnknown = "route.ruleSet.unknown";
+    public const string RouteAuthProviderUnknown = "route.authProvider.unknown";
 }

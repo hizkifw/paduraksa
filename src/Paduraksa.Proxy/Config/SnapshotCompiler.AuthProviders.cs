@@ -40,15 +40,9 @@ public static partial class SnapshotCompiler
     /// <summary>The backstop for the values the validator already judged: a provider whose endpoint or header lists are wrong never reaches the gate.</summary>
     private static void CheckAuthProvider(AuthProviderSpec spec, CompileErrorSource where, List<CompileError> errors)
     {
-        var url = spec.Url ?? string.Empty;
-        if (url.Length > ForwardAuthLimits.MaxUrlLength
-            || !Uri.TryCreate(url, UriKind.Absolute, out var uri)
-            || uri.Scheme is not ("http" or "https")
-            || uri.UserInfo.Length > 0
-            || uri.Fragment.Length > 0
-            || uri.HostNameType == UriHostNameType.Unknown)
+        if (ForwardAuthUrls.EndpointProblem(spec.Url) is { } endpointProblem)
         {
-            errors.Add(new(where, "the endpoint must be an absolute http or https URL with no credentials or fragment"));
+            errors.Add(new(where, endpointProblem));
         }
 
         if (spec.Timeout <= TimeSpan.Zero || spec.Timeout > TimeSpan.FromSeconds(ForwardAuthLimits.MaxTimeoutSeconds))
@@ -72,17 +66,17 @@ public static partial class SnapshotCompiler
         {
             errors.Add(new(where, "a sign-in URL and its return parameter go together"));
         }
-        else if (spec.SignInUrl is { } signIn
-            && (signIn.Length is 0 or > ForwardAuthLimits.MaxUrlLength || signIn.AsSpan().ContainsAnyExcept(System.Buffers.SearchValues.Create("!#$%&'()*+,-./0123456789:;=?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz~%"))
-                || (!signIn.StartsWith('/') && !(Uri.TryCreate(signIn, UriKind.Absolute, out var signInUri) && signInUri.Scheme is "http" or "https"))
-                || signIn.StartsWith("//", StringComparison.Ordinal)))
+        else if (spec.SignInUrl is not null)
         {
-            errors.Add(new(where, "the sign-in URL must be a path on the host or an absolute http or https URL"));
-        }
-        else if (spec.SignInReturnParameter is { } parameter && (parameter.Length is 0 or > ForwardAuthLimits.MaxHeaderNameLength
-            || parameter.AsSpan().ContainsAnyExcept(System.Buffers.SearchValues.Create("-._~0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))))
-        {
-            errors.Add(new(where, "the return parameter must be letters, digits and -._~"));
+            if (ForwardAuthUrls.SignInProblem(spec.SignInUrl) is { } signInProblem)
+            {
+                errors.Add(new(where, signInProblem));
+            }
+
+            if (ForwardAuthUrls.ReturnParameterProblem(spec.SignInReturnParameter) is { } parameterProblem)
+            {
+                errors.Add(new(where, parameterProblem));
+            }
         }
     }
 

@@ -11,6 +11,7 @@ using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 using HostAccessListSpec = Paduraksa.Proxy.Config.HostAccessListSpec;
+using HostAuthProviderSpec = Paduraksa.Proxy.Config.HostAuthProviderSpec;
 using HostHstsSpec = Paduraksa.Proxy.Config.HostHstsSpec;
 using HostRateLimitSpec = Paduraksa.Proxy.Config.HostRateLimitSpec;
 using HostRobotsSpec = Paduraksa.Proxy.Config.HostRobotsSpec;
@@ -153,13 +154,24 @@ public static class ConfigValidator
                 }
             }
 
+            var authProviders = document.AuthProviders ?? [];
+            Dictionary<string, string> authProviderNames = new(StringComparer.OrdinalIgnoreCase);
+            HashSet<AuthProviderId> authProviderIds = [];
+            for (var i = 0; i < authProviders.Count; i++)
+            {
+                if (NotNull(authProviders[i], $"/authProviders/{i}"))
+                {
+                    CheckAuthProvider(authProviders[i], $"/authProviders/{i}", authProviderNames, authProviderIds);
+                }
+            }
+
             HashSet<UpstreamId> upstreamIds = [.. upstreams.Where(u => u is not null).Select(u => u.Id)];
             var defaults = document.Settings?.Defaults;
             for (var i = 0; i < hosts.Count; i++)
             {
                 if (NotNull(hosts[i], $"/hosts/{i}"))
                 {
-                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds, policyIds, accessListIds, ruleSetIds);
+                    CheckHost(hosts[i], $"/hosts/{i}", defaults, profileSettings, upstreamIds, policyIds, accessListIds, ruleSetIds, authProviderIds);
                 }
             }
         }
@@ -344,7 +356,8 @@ public static class ConfigValidator
             HashSet<UpstreamId> upstreams,
             HashSet<RateLimitPolicyId> policies,
             HashSet<AccessListId> accessLists,
-            HashSet<RuleSetId> ruleSets)
+            HashSet<RuleSetId> ruleSets,
+            HashSet<AuthProviderId> authProviders)
         {
             CheckId(host.Id, path);
             CheckVersion(host.Version, path);
@@ -395,6 +408,7 @@ public static class ConfigValidator
             CheckRateLimit(resolved.RateLimit, policies, $"{path}/settings/rateLimit", HostRateLimitUnknown, defaults, profile, host.Settings);
             CheckAccessListReference(resolved.AccessList, accessLists, $"{path}/settings/accessList", HostAccessListUnknown, defaults, profile, host.Settings);
             CheckRuleSetReference(resolved.RuleSet, ruleSets, $"{path}/settings/ruleSet", HostRuleSetUnknown, defaults, profile, host.Settings);
+            CheckAuthProviderReference(resolved.AuthProvider, authProviders, $"{path}/settings/authProvider", HostAuthProviderUnknown, defaults, profile, host.Settings);
             if (kindDefined)
             {
                 CheckKindParts(host, path);
@@ -407,7 +421,7 @@ public static class ConfigValidator
             {
                 if (NotNull(routes[i], $"{path}/routes/{i}"))
                 {
-                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches, policies, accessLists, ruleSets);
+                    CheckRoute(routes[i], $"{path}/routes/{i}", upstreams, matches, policies, accessLists, ruleSets, authProviders);
                 }
             }
 
@@ -586,7 +600,7 @@ public static class ConfigValidator
             }
         }
 
-        private void CheckRoute(RouteConfig route, string path, HashSet<UpstreamId> upstreams, Dictionary<(RouteMatchKind, string), string> matches, HashSet<RateLimitPolicyId> policies, HashSet<AccessListId> accessLists, HashSet<RuleSetId> ruleSets)
+        private void CheckRoute(RouteConfig route, string path, HashSet<UpstreamId> upstreams, Dictionary<(RouteMatchKind, string), string> matches, HashSet<RateLimitPolicyId> policies, HashSet<AccessListId> accessLists, HashSet<RuleSetId> ruleSets, HashSet<AuthProviderId> authProviders)
         {
             CheckId(route.Id, path);
             CheckEnum(route.Match, $"{path}/match");
@@ -628,6 +642,11 @@ public static class ConfigValidator
             if (route.Settings?.RuleSet?.RuleSetId is { IsEmpty: false } routeRuleSet)
             {
                 CheckRuleSetReference(new HostRuleSetSpec { Enabled = true, RuleSetId = routeRuleSet }, ruleSets, $"{path}/settings/ruleSet", RouteRuleSetUnknown, defaults: null, profile: null, host: null);
+            }
+
+            if (route.Settings?.AuthProvider?.AuthProviderId is { IsEmpty: false } routeProvider)
+            {
+                CheckAuthProviderReference(new HostAuthProviderSpec { Enabled = true, AuthProviderId = routeProvider }, authProviders, $"{path}/settings/authProvider", RouteAuthProviderUnknown, defaults: null, profile: null, host: null);
             }
 
             if (route.Settings?.ProofOfWork is { } proofOfWork)
@@ -1329,6 +1348,104 @@ public static class ConfigValidator
             var inherited = HostSettingsLayers.InheritedSuffix(
                 HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.RuleSet?.RuleSetId));
             Add($"{path}/ruleSetId", unknownCode, $"rule set '{resolved.RuleSetId}' doesn't exist{inherited}");
+        }
+
+        /// <summary>An auth provider's own endpoint and header lists, judged the way the compiler will read them.</summary>
+        private void CheckAuthProvider(AuthProviderConfig provider, string path, Dictionary<string, string> names, HashSet<AuthProviderId> ids)
+        {
+            CheckId(provider.Id, path);
+            CheckVersion(provider.Version, path);
+            CheckLabel(provider.Name, $"{path}/name", "auth provider", names);
+            ids.Add(provider.Id);
+            CheckNotes(provider.Notes, path);
+            if (provider.ForwardAuth is not { } forward)
+            {
+                Add($"{path}/forwardAuth", AuthProviderForwardAuthRequired, "an auth provider needs a forwardAuth endpoint");
+                return;
+            }
+
+            var own = $"{path}/forwardAuth";
+            if (forward.Preset is { } preset)
+            {
+                CheckEnum(preset, $"{own}/preset");
+            }
+
+            if (forward.CacheScope is { } scope)
+            {
+                CheckEnum(scope, $"{own}/cacheScope");
+            }
+
+            if (ForwardAuthUrls.EndpointProblem(forward.Url) is { } urlProblem)
+            {
+                Add($"{own}/url", AuthProviderUrlInvalid, urlProblem);
+            }
+
+            if (forward.TimeoutSeconds is { } timeout && timeout is < 1 or > ForwardAuthLimits.MaxTimeoutSeconds)
+            {
+                Add($"{own}/timeoutSeconds", AuthProviderTimeoutInvalid, $"the timeout must be 1-{ForwardAuthLimits.MaxTimeoutSeconds} seconds, got {timeout}");
+            }
+
+            if (forward.CacheSeconds is { } cache && cache is < 0 or > ForwardAuthLimits.MaxCacheSeconds)
+            {
+                Add($"{own}/cacheSeconds", AuthProviderCacheSecondsInvalid, $"the cache time must be 0-{ForwardAuthLimits.MaxCacheSeconds} seconds (0 remembers nothing), got {cache}");
+            }
+
+            CheckHeaderNames(forward.RequestHeaders, $"{own}/requestHeaders", response: false);
+            CheckHeaderNames(forward.ResponseHeaders, $"{own}/responseHeaders", response: true);
+            if (forward.SignIn is { } signIn)
+            {
+                if (ForwardAuthUrls.SignInProblem(signIn.Url) is { } signInProblem)
+                {
+                    Add($"{own}/signIn/url", AuthProviderSignInInvalid, signInProblem);
+                }
+
+                if (signIn.ReturnParameter is not null && ForwardAuthUrls.ReturnParameterProblem(signIn.ReturnParameter) is { } parameterProblem)
+                {
+                    Add($"{own}/signIn/returnParameter", AuthProviderReturnParameterInvalid, parameterProblem);
+                }
+            }
+        }
+
+        private void CheckHeaderNames(IReadOnlyList<string>? names, string path, bool response)
+        {
+            if (names is null)
+            {
+                return;
+            }
+
+            if (names.Count > ForwardAuthLimits.MaxHeaderNames)
+            {
+                Add(path, AuthProviderHeadersTooMany, $"at most {ForwardAuthLimits.MaxHeaderNames} header names");
+            }
+
+            for (var i = 0; i < names.Count; i++)
+            {
+                if (ForwardAuthHeaderNames.Problem((names[i] ?? string.Empty).Trim(), response) is { } problem)
+                {
+                    Add($"{path}/{i}", AuthProviderHeaderInvalid, problem);
+                }
+            }
+        }
+
+        /// <summary>A host's or route's resolved auth provider: the provider must be one of the document's. A named provider is checked even
+        /// while the switch is off, because the reference is kept for turning it back on.</summary>
+        private void CheckAuthProviderReference(
+            HostAuthProviderSpec resolved,
+            HashSet<AuthProviderId> providers,
+            string path,
+            string unknownCode,
+            HostSettings? defaults,
+            HostSettings? profile,
+            HostSettings? host)
+        {
+            if (resolved.AuthProviderId.IsEmpty || providers.Contains(resolved.AuthProviderId))
+            {
+                return;
+            }
+
+            var inherited = HostSettingsLayers.InheritedSuffix(
+                HostSettingsLayers.LayerOf(defaults, profile, host, static s => s.AuthProvider?.AuthProviderId));
+            Add($"{path}/authProviderId", unknownCode, $"auth provider '{resolved.AuthProviderId}' doesn't exist{inherited}");
         }
 
         private void CheckAddresses(IReadOnlyList<string> addresses, string path)

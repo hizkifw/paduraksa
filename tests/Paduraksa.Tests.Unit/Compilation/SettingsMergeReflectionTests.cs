@@ -38,6 +38,7 @@ public sealed class SettingsMergeReflectionTests
                 or $"{nameof(HostSettings.RateLimit)}.{nameof(RateLimitSettings.PolicyId)}"
                 or $"{nameof(HostSettings.AccessList)}.{nameof(AccessListSettings.AccessListId)}"
                 or $"{nameof(HostSettings.RuleSet)}.{nameof(RuleSetSettings.RuleSetId)}"
+                or $"{nameof(HostSettings.AuthProvider)}.{nameof(AuthProviderSettings.AuthProviderId)}"
                 or $"{nameof(HostSettings.Robots)}.{nameof(RobotsSettings.CustomText)}")
             {
                 // The absence is the default: no named policy or list, no custom Server value and no custom robots.txt text.
@@ -124,6 +125,11 @@ public sealed class SettingsMergeReflectionTests
         if (value == typeof(RuleSetId))
         {
             return RuleSetId.New();
+        }
+
+        if (value == typeof(AuthProviderId))
+        {
+            return AuthProviderId.New();
         }
 
         if (value.IsEnum)

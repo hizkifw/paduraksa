@@ -179,6 +179,7 @@ internal sealed partial class ConfigDrafts
             UpsertRateLimitPolicyCommand { Policy: { } policy } => (new ConfigDocument(RateLimitPolicies: [policy]), "/rateLimitPolicies/0"),
             UpsertAccessListCommand { AccessList: { } list } => (new ConfigDocument(AccessLists: [list]), "/accessLists/0"),
             UpsertRuleSetCommand { RuleSet: { } set } => (new ConfigDocument(RuleSets: [set]), "/ruleSets/0"),
+            UpsertAuthProviderCommand { AuthProvider: { } provider } => (new ConfigDocument(AuthProviders: [provider]), "/authProviders/0"),
             UpsertProfileCommand { Profile: { } profile } => (new ConfigDocument(Profiles: [profile]), "/profiles/0"),
             UpdateSettingsCommand { Settings: { } settings } => (new ConfigDocument(Settings: settings), "/settings"),
             _ => null,

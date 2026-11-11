@@ -19,6 +19,7 @@ internal static class ConfigSamples
     public static readonly RateLimitPolicyId OtherPolicy = Id<RateLimitPolicyId>(2);
     public static readonly AccessListId LanList = Id<AccessListId>(1);
     public static readonly RuleSetId Scanners = Id<RuleSetId>(1);
+    public static readonly AuthProviderId Sso = Id<AuthProviderId>(1);
 
     /// <summary>The vault credential of the <paramref name="n"/>th sample user: each user of a document has their own.</summary>
     public static PasswordCredentialId Credential(int n) => Id<PasswordCredentialId>(1000 + n);

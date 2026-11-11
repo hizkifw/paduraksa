@@ -18,7 +18,7 @@ namespace Paduraksa.Application.Compilation;
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>,
-/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>, <see cref="HostSettings.RuleSet"/>) merge field by field and stay absent when
+/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>, <see cref="HostSettings.RuleSet"/>, <see cref="HostSettings.AuthProvider"/>) merge field by field and stay absent when
 /// neither layer sets a field of theirs. Everything else is a plain override.</para>
 /// </remarks>
 public static class HostSettingsLayers
@@ -49,6 +49,7 @@ public static class HostSettingsLayers
     private const int BuiltInMaxHeaderBytes = RequestLimitBounds.DefaultMaxHeaderBytes;
     private const int BuiltInMaxUrlLength = RequestLimitBounds.DefaultMaxUrlLength;
     private const bool BuiltInRuleSetEnabled = true;
+    private const bool BuiltInAuthProviderEnabled = true;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -77,6 +78,7 @@ public static class HostSettingsLayers
             MaxUrlLength = BuiltInMaxUrlLength,
         },
         RuleSet = new RuleSetSettings { Enabled = BuiltInRuleSetEnabled },
+        AuthProvider = new AuthProviderSettings { Enabled = BuiltInAuthProviderEnabled },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -107,6 +109,7 @@ public static class HostSettingsLayers
             AccessList = Merge(lower.AccessList, upper.AccessList),
             RequestLimits = Merge(lower.RequestLimits, upper.RequestLimits),
             RuleSet = Merge(lower.RuleSet, upper.RuleSet),
+            AuthProvider = Merge(lower.AuthProvider, upper.AuthProvider),
         };
     }
 
@@ -306,6 +309,24 @@ public static class HostSettingsLayers
         return merged is { Enabled: null, RuleSetId: null } ? null : merged;
     }
 
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static AuthProviderSettings? Merge(AuthProviderSettings? lower, AuthProviderSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        AuthProviderSettings merged = new()
+        {
+            Enabled = upper.Enabled ?? lower?.Enabled,
+            AuthProviderId = upper.AuthProviderId ?? lower?.AuthProviderId,
+        };
+
+        return merged.SetsNothing ? null : merged;
+    }
+
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
     /// host); null layers are skipped, and the built-in defaults sit underneath them all.</summary>
     internal static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers) => Concrete(MergeAll(layers));
@@ -328,6 +349,16 @@ public static class HostSettingsLayers
         return own is null
             ? host.RuleSet
             : new HostRuleSetSpec { Enabled = own.Enabled ?? host.RuleSet.Enabled, RuleSetId = own.RuleSetId ?? host.RuleSet.RuleSetId };
+    }
+
+    /// <summary>The effective auth provider of a route: the route's own switch and provider, field by field, over the host's
+    /// resolved ones. So a route inherits, names another provider, or turns authentication off.</summary>
+    internal static HostAuthProviderSpec ResolveRouteAuthProvider(EffectiveHostSettings host, RouteSettings? route)
+    {
+        var own = route?.AuthProvider;
+        return own is null
+            ? host.AuthProvider
+            : new HostAuthProviderSpec { Enabled = own.Enabled ?? host.AuthProvider.Enabled, AuthProviderId = own.AuthProviderId ?? host.AuthProvider.AuthProviderId };
     }
 
     /// <summary>The effective proof of work of a route: its own switch over the host's resolved values.</summary>
@@ -411,6 +442,7 @@ public static class HostSettingsLayers
         var accessList = settings.AccessList ?? new AccessListSettings();
         var requestLimits = settings.RequestLimits ?? new RequestLimitsSettings();
         var ruleSet = settings.RuleSet ?? new RuleSetSettings();
+        var authProvider = settings.AuthProvider ?? new AuthProviderSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -477,6 +509,12 @@ public static class HostSettingsLayers
                 // Naming a set is enough: only a layer that says otherwise turns it off.
                 Enabled = ruleSet.Enabled ?? BuiltInRuleSetEnabled,
                 RuleSetId = ruleSet.RuleSetId ?? RuleSetId.Empty,
+            },
+            new HostAuthProviderSpec
+            {
+                // Naming a provider is enough: only a layer that says otherwise turns it off.
+                Enabled = authProvider.Enabled ?? BuiltInAuthProviderEnabled,
+                AuthProviderId = authProvider.AuthProviderId ?? AuthProviderId.Empty,
             });
     }
 }
@@ -508,6 +546,7 @@ public enum SettingsLayer
 /// <param name="AccessList">The access list in force, with the switch as it resolved.</param>
 /// <param name="RequestLimits">The body, header and request-target limits.</param>
 /// <param name="RuleSet">The rule set in force, with the switch as it resolved.</param>
+/// <param name="AuthProvider">The auth provider in force, with the switch as it resolved.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -521,4 +560,5 @@ internal sealed record EffectiveHostSettings(
     HostCloudflareSpec Cloudflare,
     HostAccessListSpec AccessList,
     HostRequestLimitsSpec RequestLimits,
-    HostRuleSetSpec RuleSet);
+    HostRuleSetSpec RuleSet,
+    HostAuthProviderSpec AuthProvider);

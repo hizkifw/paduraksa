@@ -102,6 +102,7 @@ public static class ProxyConfigMapping
             ],
             AccessLists = [.. canonical.AccessLists.Select(l => MapAccessList(l, credentials, pending, errors, warnings))],
             RuleSets = MapRuleSets(canonical),
+            AuthProviders = MapAuthProviders(canonical, errors),
             Defaults = new DefaultsSpec
             {
                 UnknownHost = (UnknownHostBehaviour)settings.UnknownHost,
@@ -261,8 +262,12 @@ public static class ProxyConfigMapping
                 MaxBodySize = HostSettingsLayers.ResolveRouteMaxBodySize(effective, route.Settings),
                 MaxBodySizeRouteOverride = HostSettingsLayers.RouteOverridesMaxBodySize(route.Settings),
                 RuleSet = HostSettingsLayers.ResolveRouteRuleSet(effective, route.Settings).Effective,
+                AuthProvider = HostSettingsLayers.ResolveRouteAuthProvider(effective, route.Settings).Effective,
+                AuthProviderRouteOverride = route.Settings?.AuthProvider is { Enabled: not null } or { AuthProviderId: not null },
             };
         }
+
+        AddAuthProviderWarnings(host, effective, routes, where, warnings);
 
         // A password over plain HTTP travels in the clear. A host that forces the redirect never asks for one there (the
         // route chain runs after the redirect), so only the rest are worth a warning.
@@ -339,6 +344,7 @@ public static class ProxyConfigMapping
             AccessList = effective.AccessList,
             RequestLimits = effective.RequestLimits,
             RuleSet = effective.RuleSet,
+            AuthProvider = host.Kind == HostKind.Proxy ? effective.AuthProvider : HostAuthProviderSpec.Off,
             Robots = effective.Robots,
             Cloudflare = effective.Cloudflare,
             Routes = routes,
@@ -490,6 +496,75 @@ public static class ProxyConfigMapping
         var at = Array.FindIndex(chain, spec => spec is AccessListPolicySpec { Stage: AccessListStage.Full } access
             && lists.TryGetValue(access.List, out var list) && list.BasicAuth is { Users.Count: > 0 });
         return at < 0 ? [.. chain, policy] : [.. chain[..at], policy, .. chain[at..]];
+    }
+
+    /// <summary>
+    /// Two things said at the host that carries a provider: that it does nothing there (an admin, redirect or respond host has no route to ask
+    /// it on, and the admin must never wait on a provider that could lock the operator out), and that the session cookie it relies on travels in
+    /// the clear when the host also answers plain HTTP without forcing HTTPS.
+    /// </summary>
+    private static void AddAuthProviderWarnings(HostConfig host, EffectiveHostSettings effective, RouteSpec[] routes, CompileErrorSource where, List<MappedWarning> warnings)
+    {
+        if (!host.Enabled)
+        {
+            return;
+        }
+
+        if (host.Kind != HostKind.Proxy)
+        {
+            if (effective.AuthProvider.Effective is not null)
+            {
+                warnings.Add(new MappedWarning(
+                    where,
+                    "/settings/authProvider",
+                    ConfigWarningCodes.AuthProviderIgnored,
+                    host.Kind == HostKind.Admin
+                        ? "an admin host is never behind an auth provider (a provider that is down would lock the operator out); the setting is ignored"
+                        : "a redirect or respond host has no route to ask an auth provider on; the setting is ignored"));
+            }
+
+            return;
+        }
+
+        if (!effective.ForceHttps && routes.Any(static route => route.AuthProvider is not null))
+        {
+            warnings.Add(new MappedWarning(
+                where,
+                string.Empty,
+                ConfigWarningCodes.AuthProviderInsecureSession,
+                "an auth provider guards this host, which also answers plain HTTP without forcing HTTPS, so a session cookie could be sent in the clear; turn on forceHttps"));
+        }
+    }
+
+    /// <summary>The document's auth providers, with the preset's defaults filled in.</summary>
+    private static AuthProviderSpec[] MapAuthProviders(ConfigDocument document, List<CompileError> errors)
+    {
+        List<AuthProviderSpec> specs = [];
+        foreach (var provider in document.AuthProviders)
+        {
+            if (provider.ForwardAuth is not { } forward)
+            {
+                errors.Add(new CompileError(CompileErrorSource.AuthProvider(provider.Id), "an auth provider needs a forwardAuth endpoint"));
+                continue;
+            }
+
+            var resolved = ForwardAuthPresets.Resolve(forward);
+            specs.Add(new AuthProviderSpec
+            {
+                Id = provider.Id,
+                Name = provider.Name,
+                Url = resolved.Url,
+                Timeout = resolved.Timeout,
+                CacheTtl = resolved.CacheTtl,
+                CacheScope = resolved.CacheScope,
+                RequestHeaders = resolved.RequestHeaders,
+                ResponseHeaders = resolved.ResponseHeaders,
+                SignInUrl = resolved.SignInUrl,
+                SignInReturnParameter = resolved.SignInReturnParameter,
+            });
+        }
+
+        return [.. specs];
     }
 
     /// <summary>The document's rule sets, and the built-in presets something names (a preset no layer names isn't compiled).</summary>

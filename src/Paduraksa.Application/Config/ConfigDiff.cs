@@ -109,6 +109,16 @@ public static class ConfigDiff
             changes);
 
         Objects(
+            old.AuthProviders,
+            @new.AuthProviders,
+            p => p.Id,
+            "/authProviders",
+            json.AuthProviderConfig,
+            (kind, id, path, fields) => new AuthProviderChange(kind, id, path, fields),
+            children: null,
+            changes);
+
+        Objects(
             old.Hosts,
             @new.Hosts,
             h => h.Id,

@@ -268,6 +268,22 @@ public sealed class SettingsInheritanceTests
             BuiltIn: null,
             First: Id<RuleSetId>(1).ToString()!,
             Second: Id<RuleSetId>(2).ToString()!),
+        new(
+            "authProvider.enabled",
+            static s => s.AuthProvider?.Enabled?.ToString().ToLowerInvariant(),
+            static v => new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = bool.Parse(v) } },
+            static h => h.AuthProvider.Enabled ? "true" : "false",
+            BuiltIn: "true",
+            First: "false",
+            Second: "true"),
+        new(
+            "authProvider.authProviderId",
+            static s => s.AuthProvider?.AuthProviderId?.ToString(),
+            static v => new HostSettings { AuthProvider = new AuthProviderSettings { AuthProviderId = AuthProviderId.Parse(v) } },
+            static h => h.AuthProvider.AuthProviderId.IsEmpty ? null : h.AuthProvider.AuthProviderId.ToString(),
+            BuiltIn: null,
+            First: Id<AuthProviderId>(1).ToString()!,
+            Second: Id<AuthProviderId>(2).ToString()!),
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
@@ -483,6 +499,11 @@ public sealed class SettingsInheritanceTests
             new RuleSetConfig(Id<RuleSetId>(1), "one"),
             new RuleSetConfig(Id<RuleSetId>(2), "two"),
         ],
+        AuthProviders:
+        [
+            new AuthProviderConfig(Id<AuthProviderId>(1), "one", ForwardAuth: new ForwardAuthConfig("http://auth.example.com/")),
+            new AuthProviderConfig(Id<AuthProviderId>(2), "two", ForwardAuth: new ForwardAuthConfig("http://auth.example.com/")),
+        ],
         Hosts: [new HostConfig(AppHost, ["app.example.com"], ProfileId: profile is null ? null : LanProfile, Settings: host, Routes: [new RouteConfig(RootRoute, AppUpstream)])]);
 
     /// <summary>One nested settings record and which of its fields each layer sets.</summary>
@@ -513,6 +534,7 @@ public sealed class SettingsInheritanceTests
         new("accessList", Defaults: ["accessList.enabled"], Profile: [], Host: ["accessList.accessListId"]),
         new("requestLimits", Defaults: ["requestLimits.maxBodySize", "requestLimits.maxHeaderCount"], Profile: ["requestLimits.maxHeaderBytes"], Host: ["requestLimits.maxUrlLength"]),
         new("ruleSet", Defaults: ["ruleSet.enabled"], Profile: [], Host: ["ruleSet.ruleSetId"]),
+        new("authProvider", Defaults: ["authProvider.enabled"], Profile: [], Host: ["authProvider.authProviderId"]),
     ];
 
     /// <summary>

@@ -125,6 +125,7 @@ public sealed class ProxyConfigMappingTests
                     RateLimit = new HostRateLimitSpec { Enabled = true },
                     AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Lan.Id },
                     RuleSet = new HostRuleSetSpec { Enabled = true },
+                    AuthProvider = new HostAuthProviderSpec { Enabled = true },
                 },
                 new HostSpec
                 {
@@ -136,6 +137,7 @@ public sealed class ProxyConfigMappingTests
                     RateLimit = new HostRateLimitSpec { Enabled = true },
                     AccessList = new HostAccessListSpec { Enabled = true },
                     RuleSet = new HostRuleSetSpec { Enabled = true },
+                    AuthProvider = new HostAuthProviderSpec { Enabled = true },
                 },
                 new HostSpec
                 {

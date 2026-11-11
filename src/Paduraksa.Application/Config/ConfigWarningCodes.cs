@@ -52,6 +52,7 @@ public static class ConfigWarningCodes
     /// could travel in the clear.</summary>
     public const string AccessListInsecureCredentials = "accessList.insecureCredentials";
 
+
     /// <summary>An access-list user whose credential the vault holds no password for (it was deleted since, say by a rollback to a
     /// revision from before): the user is listed but can't sign in until a password is set.</summary>
     public const string AccessListUserNoPassword = "accessList.user.noPassword";
@@ -59,4 +60,12 @@ public static class ConfigWarningCodes
     /// <summary>An enabled host uses an access list with country rules while the trusted-proxy mode isn't a Cloudflare one, so every
     /// request's country is unknown.</summary>
     public const string AccessListCountriesNoSource = "accessList.countries.noSource";
+
+    /// <summary>An auth provider guards a host that also answers plain HTTP without forcing HTTPS, so the session cookie it relies on
+    /// could travel in the clear.</summary>
+    public const string AuthProviderInsecureSession = "authProvider.insecureSession";
+
+    /// <summary>An auth provider is set for an admin, redirect or respond host, which never asks one: the admin must not wait on a
+    /// provider that could lock the operator out, and the other two have no route to ask it on.</summary>
+    public const string AuthProviderIgnored = "authProvider.ignored";
 }

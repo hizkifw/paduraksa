@@ -37,6 +37,7 @@ public sealed class CanonicalConfigGoldenTests
                     RateLimit = new RateLimitSettings { Enabled = true, PolicyId = ApiPolicy },
                     AccessList = new AccessListSettings { Enabled = true, AccessListId = LanList },
                     RuleSet = new RuleSetSettings { Enabled = true, RuleSetId = Scanners },
+                    AuthProvider = new AuthProviderSettings { Enabled = true, AuthProviderId = Sso },
                 },
                 UnknownHost: UnknownHostBehaviour.MisdirectedRequest,
                 TrustedProxies: new TrustedProxySettings(TrustedProxyMode.CloudflareProxy, [], UseTrueClientIp: true)),
@@ -85,6 +86,7 @@ public sealed class CanonicalConfigGoldenTests
                         RateLimit = new RateLimitSettings { PolicyId = ApiPolicy },
                         AccessList = new AccessListSettings { Enabled = false },
                         RuleSet = new RuleSetSettings { Enabled = false },
+                        AuthProvider = new AuthProviderSettings { Enabled = false },
                     },
                     Routes:
                     [
@@ -95,6 +97,7 @@ public sealed class CanonicalConfigGoldenTests
                             RateLimit = new RateLimitSettings { Enabled = false, PolicyId = ApiPolicy },
                             AccessList = new AccessListSettings { Enabled = true, AccessListId = LanList },
                             RuleSet = new RuleSetSettings { RuleSetId = RuleSetId.FromValue(new Guid("0190a000-0000-7000-8000-72756c650002")) },
+                            AuthProvider = new AuthProviderSettings { Enabled = true },
                         }),
                     ],
                     Tags: ["media"]),
@@ -129,9 +132,26 @@ public sealed class CanonicalConfigGoldenTests
                         new RuleConfig(RuleAction.Drop, new RuleMatchConfig(UserAgent: new RuleUserAgentConfig(["sqlmap", "Nikto"], Empty: true))),
                         new RuleConfig(RuleAction.Deny, new RuleMatchConfig(Path: new RulePathConfig(RulePathKind.Regex, @"\.(php|asp)$"))),
                     ]),
+            ],
+            AuthProviders:
+            [
+                new AuthProviderConfig(
+                    Sso,
+                    "Authentik",
+                    Version: 2,
+                    Notes: "the SSO outpost",
+                    ForwardAuth: new ForwardAuthConfig(
+                        "http://authentik:9000",
+                        ForwardAuthPreset.Authentik,
+                        TimeoutSeconds: 4,
+                        CacheSeconds: 30,
+                        CacheScope: ForwardAuthCacheScope.Request,
+                        RequestHeaders: ["X-Tenant", "x-tenant", "Accept-Charset"],
+                        ResponseHeaders: ["X-authentik-*", "Remote-User"],
+                        SignIn: new ForwardAuthSignInConfig("/outpost.goauthentik.io/start", "rd"))),
             ]);
 
-        AssertPinned(document, "9E4FBFA9651CBF370A3A7AE7035DE0EA7F8E253A50CAA6B193772E58A7B28844");
+        AssertPinned(document, "40174CA6171C10D4FBCBA67984564222FA248FD07F2BE70083BBB7921805FBBE");
     }
 
     [Fact]
@@ -163,13 +183,14 @@ public sealed class CanonicalConfigGoldenTests
                         RateLimit = new RateLimitSettings(),
                         AccessList = new AccessListSettings(),
                         RuleSet = new RuleSetSettings(),
+                        AuthProvider = new AuthProviderSettings(),
                     },
                 },
             ],
         };
 
         Assert.Equal(CanonicalConfigJson.Serialize(bare), CanonicalConfigJson.Serialize(emptyLayers));
-        AssertPinned(bare, "2628BDA06AAC87EEE67EBE1B330C09AADBA6A564532A169B5DBC5AE2A336F38A");
+        AssertPinned(bare, "D10820E4D25178FC63B8F31A6811933BDF972323ACDA2F82BB362FBD4693D60F");
     }
 
     private static void AssertPinned(ConfigDocument document, string expectedSha256)

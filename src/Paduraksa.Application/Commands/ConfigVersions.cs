@@ -35,6 +35,7 @@ internal static class ConfigVersions
         var rateLimitPolicies = Versions(current.RateLimitPolicies, p => p.Id, p => p.Version);
         var accessLists = Versions(current.AccessLists, l => l.Id, l => l.Version);
         var ruleSets = Versions(current.RuleSets, r => r.Id, r => r.Version);
+        var authProviders = Versions(current.AuthProviders, p => p.Id, p => p.Version);
         var hosts = Versions(current.Hosts, h => h.Id, h => h.Version);
 
         // Not in the current document and untouched only happens with duplicate IDs (invalid): a new version then.
@@ -51,6 +52,7 @@ internal static class ConfigVersions
             RateLimitPolicies = [.. (document.RateLimitPolicies ?? []).Select(p => p is null ? p! : p with { Version = VersionOf(rateLimitPolicies, p.Id, touched.RateLimitPolicies.Contains(p.Id)) })],
             AccessLists = [.. (document.AccessLists ?? []).Select(l => l is null ? l! : l with { Version = VersionOf(accessLists, l.Id, touched.AccessLists.Contains(l.Id)) })],
             RuleSets = [.. (document.RuleSets ?? []).Select(r => r is null ? r! : r with { Version = VersionOf(ruleSets, r.Id, touched.RuleSets.Contains(r.Id)) })],
+            AuthProviders = [.. (document.AuthProviders ?? []).Select(p => p is null ? p! : p with { Version = VersionOf(authProviders, p.Id, touched.AuthProviders.Contains(p.Id)) })],
             Hosts = [.. (document.Hosts ?? []).Select(h => h is null ? h! : h with { Version = VersionOf(hosts, h.Id, touched.Hosts.Contains(h.Id)) })],
         };
     }

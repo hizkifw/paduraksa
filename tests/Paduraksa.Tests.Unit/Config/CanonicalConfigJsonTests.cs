@@ -49,7 +49,7 @@ public sealed class CanonicalConfigJsonTests
             + "\"notes\":\"\\u003Cb\\u003E\",\"certificate\":{\"mode\":\"auto\"},\"settings\":{\"tls\":{\"minimumVersion\":\"tls13\"}},"
             + $"\"routes\":[{{\"id\":\"{RootRoute}\",\"upstreamId\":\"{AppUpstream}\",\"order\":0,\"match\":\"prefix\",\"path\":\"/\",\"settings\":{{}}}}],"
             + "\"tags\":[]}],"
-            + "\"rateLimitPolicies\":[],\"accessLists\":[],\"ruleSets\":[]}",
+            + "\"rateLimitPolicies\":[],\"accessLists\":[],\"ruleSets\":[],\"authProviders\":[]}",
             json);
     }
 
@@ -100,6 +100,64 @@ public sealed class CanonicalConfigJsonTests
     }
 
     [Fact]
+    public void AuthProvidersAreWrittenInIdOrderWithTheirHeaderListsAsSets()
+    {
+        AuthProviderConfig later = new(Id<AuthProviderId>(2), "  Later  ", ForwardAuth: new ForwardAuthConfig(" http://later/ ", ForwardAuthPreset.Custom));
+        AuthProviderConfig first = new(
+            Id<AuthProviderId>(1),
+            "First",
+            ForwardAuth: new ForwardAuthConfig(
+                "http://first:9091",
+                ForwardAuthPreset.Authelia,
+                RequestHeaders: [" X-Tenant ", "x-tenant", "Accept-Charset"],
+                ResponseHeaders: ["Remote-User", "remote-user", " Remote-Email"]));
+        AuthProviderConfig none = new(Id<AuthProviderId>(3), "None", ForwardAuth: new ForwardAuthConfig("http://none/", RequestHeaders: [], ResponseHeaders: []));
+
+        var json = Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(new ConfigDocument(AuthProviders: [none, later, first])));
+
+        Assert.Contains(
+            "\"authProviders\":["
+            + $"{{\"id\":\"{first.Id}\",\"name\":\"First\",\"version\":0,\"forwardAuth\":{{\"url\":\"http://first:9091\",\"preset\":\"authelia\",\"requestHeaders\":[\"Accept-Charset\",\"X-Tenant\"],\"responseHeaders\":[\"Remote-Email\",\"Remote-User\"]}}}},"
+            // A preset of custom is no preset, and the endpoint is trimmed.
+            + $"{{\"id\":\"{later.Id}\",\"name\":\"Later\",\"version\":0,\"forwardAuth\":{{\"url\":\"http://later/\"}}}},"
+            // An empty response list says "none" where an absent one says "the preset's", so it stays; an empty request list is no list.
+            + $"{{\"id\":\"{none.Id}\",\"name\":\"None\",\"version\":0,\"forwardAuth\":{{\"url\":\"http://none/\",\"responseHeaders\":[]}}}}]",
+            json,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ACanonicalDocumentWithAuthProvidersRoundTripsToTheSameBytes()
+    {
+        ConfigDocument document = new(
+            AuthProviders:
+            [
+                new AuthProviderConfig(
+                    Id<AuthProviderId>(1),
+                    "sso",
+                    ForwardAuth: new ForwardAuthConfig(
+                        "http://oauth2-proxy:4180", ForwardAuthPreset.OAuth2Proxy, TimeoutSeconds: 3, CacheSeconds: 0, CacheScope: ForwardAuthCacheScope.Host,
+                        SignIn: new ForwardAuthSignInConfig("/oauth2/start", "rd"))),
+            ]);
+        var bytes = CanonicalConfigJson.Serialize(document);
+
+        Assert.Equal(bytes, CanonicalConfigJson.Serialize(CanonicalConfigJson.Deserialize(bytes)));
+    }
+
+    [Fact]
+    public void ADocumentStoredBeforeAuthProvidersReadsWithNoneAndOnlyGainsTheEmptyList()
+    {
+        var before = """{"apiVersion":"paduraksa.dev/v1","settings":{"version":0,"unknownHost":"notFound","defaults":{},"trustedProxies":{"mode":"off","useTrueClientIp":false,"forwardedForFallback":false,"trustForwardedProto":false,"proxies":[]}},"profiles":[],"upstreams":[],"hosts":[],"rateLimitPolicies":[],"accessLists":[],"ruleSets":[]}"""u8.ToArray();
+
+        var document = CanonicalConfigJson.Deserialize(before);
+
+        Assert.Empty(document.AuthProviders);
+        Assert.Equal(
+            Encoding.UTF8.GetString(before).Replace("\"ruleSets\":[]}", "\"ruleSets\":[],\"authProviders\":[]}", StringComparison.Ordinal),
+            Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)));
+    }
+
+    [Fact]
     public void ADocumentStoredBeforeRuleSetsReadsWithNoneAndOnlyGainsTheEmptyList()
     {
         var before = """{"apiVersion":"paduraksa.dev/v1","settings":{"version":0,"unknownHost":"notFound","defaults":{},"trustedProxies":{"mode":"off","useTrueClientIp":false,"forwardedForFallback":false,"trustForwardedProto":false,"proxies":[]}},"profiles":[],"upstreams":[],"hosts":[],"rateLimitPolicies":[],"accessLists":[]}"""u8.ToArray();
@@ -108,7 +166,7 @@ public sealed class CanonicalConfigJsonTests
 
         Assert.Empty(document.RuleSets);
         Assert.Equal(
-            Encoding.UTF8.GetString(before).Replace("\"accessLists\":[]}", "\"accessLists\":[],\"ruleSets\":[]}", StringComparison.Ordinal),
+            Encoding.UTF8.GetString(before).Replace("\"accessLists\":[]}", "\"accessLists\":[],\"ruleSets\":[],\"authProviders\":[]}", StringComparison.Ordinal),
             Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)));
     }
 

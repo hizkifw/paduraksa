@@ -204,6 +204,8 @@ internal static class ConfigCommandPlanner
             DeleteAccessListCommand c => new("config.access_list.delete", c.AccessListId.ToString()),
             UpsertRuleSetCommand c => new($"config.rule_set.{Verb(Required(c.RuleSet).Version)}", c.RuleSet.Id.ToString()),
             DeleteRuleSetCommand c => new("config.rule_set.delete", c.RuleSetId.ToString()),
+            UpsertAuthProviderCommand c => new($"config.auth_provider.{Verb(Required(c.AuthProvider).Version)}", c.AuthProvider.Id.ToString()),
+            DeleteAuthProviderCommand c => new("config.auth_provider.delete", c.AuthProviderId.ToString()),
             UpsertProfileCommand c => new($"config.profile.{Verb(Required(c.Profile).Version)}",
                 c.Profile.Id.ToString()),
             DeleteProfileCommand c => new("config.profile.delete", c.ProfileId.ToString()),
