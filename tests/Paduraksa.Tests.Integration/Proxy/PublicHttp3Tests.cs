@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
@@ -151,6 +152,62 @@ public sealed class PublicHttp3Tests
             Assert.Equal(status, response.StatusCode);
             Assert.Contains($"<h1>{heading}</h1>", body, StringComparison.Ordinal);
             Assert.EndsWith("</html>\n", body, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task AnOperatorsErrorPagesAndMaintenanceAreWrittenWholeOverHttp3()
+    {
+        // HTTP/3 drops what is left in the body pipe when the request ends, so a page that isn't flushed arrives without its body
+        // (Safari got the built-in pages that way); the custom pages go through the same writer, and this run pins them on QUIC.
+        QuicSupport.Require();
+        var ct = TestContext.Current.CancellationToken;
+        using TestCertificates certificates = new();
+        await using var host = await StartOnFreePortAsync(new ClientInfoProbe());
+        host.Shared.Certificates.Set(TestIds.Certificate("app"), certificates.Create("app.test", "app.test"));
+        host.Shared.Certificates.Set(TestIds.Certificate("down"), certificates.Create("down.test", "down.test"));
+        var snapshot = Compile(host, new ProxyConfigModel
+        {
+            Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("none"), Destinations = [new(TestIds.Destination("none-1"), "http://127.0.0.1:1/")] }],
+            Hosts =
+            [
+                new HostSpec
+                {
+                    Id = TestIds.Host("app"),
+                    Names = ["app.test"],
+                    Certificate = TestIds.Certificate("app"),
+                    Routes = [new RouteSpec { Id = TestIds.Route("app-only"), Path = "/only", Upstream = TestIds.Upstream("none") }],
+                    ErrorPages = new HostErrorPagesSpec
+                    {
+                        Pages = new Dictionary<int, ErrorPageSpec> { [404] = new() { Heading = "{status} on {host}", Text = "{requestId}", Source = ErrorPageSource.Host } },
+                    },
+                },
+                new HostSpec
+                {
+                    Id = TestIds.Host("down"),
+                    Names = ["down.test"],
+                    Certificate = TestIds.Certificate("down"),
+                    Routes = [new RouteSpec { Id = TestIds.Route("down-root"), Upstream = TestIds.Upstream("none") }],
+                    Maintenance = new HostMaintenanceSpec { Enabled = true, RetryAfterSeconds = 60 },
+                },
+            ],
+        });
+        var published = await host.Shared.SnapshotPublisher.PublishAsync(snapshot, ct);
+        Assert.True(published.Succeeded, string.Join("; ", published.Errors));
+
+        using var quic = EdgeClient.Create(out _);
+        foreach (var (name, status, expected) in new (string, HttpStatusCode, string)[]
+        {
+            ("app.test", HttpStatusCode.NotFound, "<h1>404 on app.test</h1>"),
+            ("down.test", HttpStatusCode.ServiceUnavailable, "<h1>Down for maintenance</h1>"),
+        })
+        {
+            using var request = EdgeClient.Request(host, "https", name, "/nothing", HttpVersion.Version30);
+            request.Headers.TryAddWithoutValidation("Accept", "text/html");
+            using var response = await quic.SendAsync(request, ct);
+            Assert.Equal(HttpVersion.Version30, response.Version);
+            Assert.Equal(status, response.StatusCode);
+            Assert.Contains(expected, await response.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
         }
     }
 
