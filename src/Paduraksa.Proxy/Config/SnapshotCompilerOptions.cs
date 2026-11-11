@@ -80,11 +80,14 @@ public sealed record SnapshotCompilerOptions
     /// <summary>The process's forward-auth decision caches, clients and counters; null: <see cref="ForwardAuth.ForwardAuthRuntime.Default"/>.</summary>
     public ForwardAuth.ForwardAuthRuntime? ForwardAuth { get; init; }
 
+    /// <summary>The process's request counters and latency histograms; null: the compiled objects get no slot and nothing is counted.</summary>
+    public Metrics.MetricsRegistry? Metrics { get; init; }
+
     /// <summary>
     /// True for a candidate that a publisher will make live; false for a dry run, a draft or a simulation, which must
-    /// leave the process's slot registry exactly as it found it. A non-published compile only looks a pair's slot up:
-    /// a pair that has none yet compiles with slot 0, a placeholder the simulator reports as a new policy and the gate
-    /// never sees (such a snapshot is never published).
+    /// leave the process's slot registries exactly as it found them. A non-published compile only looks a slot up:
+    /// a rate-limit pair that has none yet compiles with slot 0, a placeholder the simulator reports as a new policy and the gate
+    /// never sees (such a snapshot is never published), and a metric object with none gets no slot.
     /// </summary>
-    public bool RateLimitsWillBePublished { get; init; } = true;
+    public bool WillBePublished { get; init; } = true;
 }

@@ -54,6 +54,12 @@ public sealed class CompiledRoute
     /// </summary>
     public bool Admin { get; init; }
 
+    /// <summary>The route's stable metric slot (none for the admin host's implicit route and when the compile had no registry).</summary>
+    public Metrics.MetricSlot MetricSlot { get; init; } = Metrics.MetricSlot.None;
+
+    /// <summary>The slots of the upstream the route forwards to and its destinations; null when it forwards nowhere or the compile had no registry.</summary>
+    public Metrics.UpstreamMetrics? Upstream { get; init; }
+
     /// <summary>Does this route take <paramref name="path"/> (a canonical view)? An empty path counts as <c>/</c>.</summary>
     public bool Matches(ReadOnlySpan<char> path) => RoutePath.Takes(MatchKind, Path, path);
 }

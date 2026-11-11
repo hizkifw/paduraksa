@@ -60,7 +60,7 @@ public sealed class RateLimitCompilationTests
         // A draft, a dry run or a simulation: no publish would ever retire a slot it allocated, so it allocates none.
         var draft = SnapshotCompiler.Compile(
             model,
-            new SnapshotCompilerOptions { RateLimits = runtime, RateLimitsWillBePublished = false });
+            new SnapshotCompilerOptions { RateLimits = runtime, WillBePublished = false });
 
         Assert.True(draft.Succeeded);
         Assert.Empty(draft.Snapshot!.RateLimitRegistrations);

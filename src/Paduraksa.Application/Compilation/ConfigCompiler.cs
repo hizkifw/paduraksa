@@ -19,8 +19,8 @@ namespace Paduraksa.Application.Compilation;
 /// it, since the compiler only sees the resolved settings. The same message at the same path is reported once.
 /// <para>A user's password is the vault's: the mapping opens a handle for each credential, and a user whose credential the vault
 /// holds no password for compiles, can't sign in and is a warning (<see cref="ConfigWarningCodes.AccessListUserNoPassword"/>), never an error.</para>
-/// <para>The publish flag reaches <see cref="SnapshotCompilerOptions.RateLimitsWillBePublished"/>, so a draft, a dry run
-/// or a simulation can't allocate a rate-limit slot for a pair no publish would ever retire.</para>
+/// <para>The publish flag reaches <see cref="SnapshotCompilerOptions.WillBePublished"/>, so a draft, a dry run
+/// or a simulation can't allocate a rate-limit or metric slot for an object no publish would ever retire.</para>
 /// </remarks>
 public sealed class ConfigCompiler : IConfigCompiler
 {
@@ -70,7 +70,7 @@ public sealed class ConfigCompiler : IConfigCompiler
         // The inventory's resolver (usable certificates only) replaces whatever the options carry.
         var result = SnapshotCompiler.Compile(
             mapped.Model,
-            _options with { Certificates = inventory.Resolver, RateLimitsWillBePublished = publish });
+            _options with { Certificates = inventory.Resolver, WillBePublished = publish });
         CompileErrorPaths paths = new(document);
         if (result.Snapshot is { } snapshot && mapped.Errors.Count == 0)
         {

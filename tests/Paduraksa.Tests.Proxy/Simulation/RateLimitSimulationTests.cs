@@ -50,7 +50,7 @@ public sealed class RateLimitSimulationTests
         RateLimitPolicyId policy = TestIds.RateLimitPolicy("draft");
         var draft = TestSnapshots.Bound(
             Model(policy, "draft", new RateLimitParameters(1, 1)),
-            options: new SnapshotCompilerOptions { RateLimits = runtime, RateLimitsWillBePublished = false });
+            options: new SnapshotCompilerOptions { RateLimits = runtime, WillBePublished = false });
 
         Assert.Contains("would allow, full burst (new policy)", RateLimitStep(draft, Probe), StringComparison.Ordinal);
         Assert.False(runtime.Slots.TryGetSlot($"{policy}/{TestIds.Host("rl")}", out _));

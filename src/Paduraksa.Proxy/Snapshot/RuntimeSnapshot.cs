@@ -61,6 +61,9 @@ public sealed class RuntimeSnapshot
     /// </summary>
     public RateLimitRegistration[] RateLimitRegistrations { get; init; } = [];
 
+    /// <summary>The metric slots this snapshot holds, which the publisher makes the live set (see <see cref="Metrics.MetricsRegistry.Publish"/>).</summary>
+    public Metrics.MetricRegistrations MetricRegistrations { get; init; } = Metrics.MetricRegistrations.Empty;
+
     /// <summary>
     /// The forward-auth provider states the compiled routes run on. The publisher makes them the process's live ones as this snapshot goes live
     /// (<see cref="ForwardAuth.ForwardAuthRuntime"/>) and retires the states it replaces; a candidate that never goes live leaves them alone.
@@ -167,6 +170,7 @@ public sealed class RuntimeSnapshot
             RouteIdBySlot = RouteIdBySlot,
             YarpEndpoints = endpoints,
             RateLimitRegistrations = RateLimitRegistrations,
+            MetricRegistrations = MetricRegistrations,
             AuthProviderStates = AuthProviderStates,
             Default = Default,
             DefaultResponseHeaders = DefaultResponseHeaders,

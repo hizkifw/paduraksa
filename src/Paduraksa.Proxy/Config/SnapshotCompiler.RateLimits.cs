@@ -47,7 +47,7 @@ public static partial class SnapshotCompiler
         // across every publish (PLAN §6.3).
         var identity = policyId.ToString() + "/" + host.Id.ToString();
         ushort slot;
-        if (context.Options.RateLimitsWillBePublished)
+        if (context.Options.WillBePublished)
         {
             try
             {

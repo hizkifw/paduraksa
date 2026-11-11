@@ -5,6 +5,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -176,6 +177,7 @@ public static partial class SnapshotCompiler
                 RequestLimits = spec.RequestLimits,
                 ServesProofOfWork = servesProofOfWork,
                 ProofOfWorkHostScope = hostScope,
+                MetricSlot = MetricSlotOf(MetricSubject.Host, spec.Id.Value, spec.Enabled),
             };
 
             if (spec.Names is null || spec.Names.Count == 0)
@@ -453,6 +455,8 @@ public static partial class SnapshotCompiler
                 ProofOfWork = routeProofOfWork,
                 ProofOfWorkRouteOverride = spec.ProofOfWorkRouteOverride,
                 MaxBodySize = spec.MaxBodySizeRouteOverride ? spec.MaxBodySize : null,
+                MetricSlot = context.MetricSlotOf(MetricSubject.Route, spec.Id.Value, host.Enabled),
+                Upstream = context.UpstreamMetricsOf(spec.Upstream, host.Enabled),
             };
         }
 

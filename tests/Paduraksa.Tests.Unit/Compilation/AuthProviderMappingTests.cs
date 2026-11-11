@@ -132,7 +132,7 @@ public sealed class AuthProviderMappingTests
         Assert.Empty(ConfigValidator.Validate(document));
 
         var mapped = Map(document);
-        var result = SnapshotCompiler.Compile(mapped.Model, new SnapshotCompilerOptions { ForwardAuth = new ForwardAuthRuntime(), RateLimitsWillBePublished = false });
+        var result = SnapshotCompiler.Compile(mapped.Model, new SnapshotCompilerOptions { ForwardAuth = new ForwardAuthRuntime(), WillBePublished = false });
 
         Assert.Empty(mapped.Errors);
         Assert.True(result.Succeeded, string.Join("; ", result.Errors));

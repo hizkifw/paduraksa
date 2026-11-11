@@ -144,11 +144,8 @@ public sealed class CompiledHost
     /// </summary>
     public byte[] ProofOfWorkHostScope { get; init; } = [];
 
-    /// <summary>
-    /// Placeholder for the stable metric slot: the same host keeps the same slot across snapshots.
-    /// -1 until the metrics registry exists.
-    /// </summary>
-    public int MetricSlot { get; init; } = -1;
+    /// <summary>The host's stable metric slot: the same host keeps the same slot across snapshots (PLAN §6.3). None when the compile had no registry.</summary>
+    public Metrics.MetricSlot MetricSlot { get; init; } = Metrics.MetricSlot.None;
 
     /// <summary>The first route that takes <paramref name="path"/>, or <see langword="null"/>.</summary>
     public CompiledRoute? Match(ReadOnlySpan<char> path)

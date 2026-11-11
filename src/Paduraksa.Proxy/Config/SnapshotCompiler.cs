@@ -227,6 +227,7 @@ public static partial class SnapshotCompiler
             Yarp = new YarpConfig(YarpRoutes.ToArray(), BuildClusters()),
             RouteIdBySlot = RouteIdBySlot.ToArray(),
             RateLimitRegistrations = RateLimitRegistrations.ToArray(),
+            MetricRegistrations = MetricRegistrations,
             AuthProviderStates = AuthProviders.States(),
             YarpEndpoints = [],
             Default = Defaults.UnknownHost switch

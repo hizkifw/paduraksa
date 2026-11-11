@@ -86,6 +86,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     private readonly SnapshotPublisherOptions _options;
     private readonly RateLimitRuntime? _rateLimits;
     private readonly ForwardAuth.ForwardAuthRuntime? _forwardAuth;
+    private readonly Metrics.MetricsRegistry? _metrics;
     private Pending? _queued;
     private bool _workerRunning;
     private Attachment? _attachment;
@@ -100,7 +101,8 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         TimeProvider? timeProvider = null,
         SnapshotPublisherOptions? options = null,
         RateLimitRuntime? rateLimits = null,
-        ForwardAuth.ForwardAuthRuntime? forwardAuth = null)
+        ForwardAuth.ForwardAuthRuntime? forwardAuth = null,
+        Metrics.MetricsRegistry? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Store = store;
@@ -109,6 +111,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         _options = options ?? new SnapshotPublisherOptions();
         _rateLimits = rateLimits;
         _forwardAuth = forwardAuth;
+        _metrics = metrics;
     }
 
     public SnapshotStore Store { get; }
@@ -478,6 +481,14 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         // Likewise the forward-auth providers: a compile that went no further changed nothing, and a state this snapshot replaces is retired.
         _forwardAuth?.Publish(candidate.AuthProviderStates);
 
+        // And the metric slots: the objects this snapshot has keep their counters, the ones it dropped are retired (their
+        // slots are reused only after the grace period, so a request still in flight on the old snapshot counts onto its own).
+        var metricConflicts = _metrics?.Publish(candidate.MetricRegistrations) ?? 0;
+        if (metricConflicts > 0)
+        {
+            LogMetricSlotReused(_logger, metricConflicts, candidate.RevisionLabel);
+        }
+
         Store.Publish(candidate.Bind(generation, endpoints));
         LogPublished(_logger, generation, candidate.RevisionLabel, candidate.HostsByIndex.Length, candidate.RouteIdBySlot.Length);
         return PublishResult.Published(generation);
@@ -545,6 +556,9 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Publishing revision {Revision}: {Count} rate-limit pair(s) could not reclaim their slot because another policy now holds it; they start on a fresh slot at the next compile and are not swept as if retired.")]
     private static partial void LogRateLimitSlotReused(ILogger logger, int count, string revision);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Publishing revision {Revision}: {Count} object(s) could not reclaim their metric slot because another object now holds it; their requests are not counted (never counted into the other object) until the next compile gives them a fresh slot.")]
+    private static partial void LogMetricSlotReused(ILogger logger, int count, string revision);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Publishing the snapshot for revision {Revision} failed")]
     private static partial void LogPublishFailed(ILogger logger, string revision, Exception exception);
