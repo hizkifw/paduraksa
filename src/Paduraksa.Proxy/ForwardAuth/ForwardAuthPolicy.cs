@@ -82,6 +82,8 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
 
     string IRequestPolicy.Name => "forwardAuth";
 
+    Metrics.GateOutcome IRequestPolicy.Outcome => Metrics.GateOutcome.RefusedForwardAuth;
+
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict)
     {
         var spec = _provider.Spec;

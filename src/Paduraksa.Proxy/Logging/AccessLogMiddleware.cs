@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Yarp.ReverseProxy.Model;
 
@@ -22,7 +23,7 @@ namespace Paduraksa.Proxy.Logging;
 /// completion callback is a static method whose state is the <see cref="HttpContext"/>, so it captures no closure, and
 /// Kestrel creates its per-connection callback stack once and reuses it. The ring and the start timestamp ride on the
 /// gate's pooled state (<see cref="GateRequestState"/>). A request whose host turned the access log off costs a few reads
-/// and nothing else.</para>
+/// and nothing else, apart from the request counters, which every request feeds (<see cref="RequestMetricsRecorder"/>).</para>
 /// <para><b>Bytes.</b> Kestrel doesn't expose the bytes it wrote; without wrapping the response body there is no 0 B way to
 /// count them. So the entry carries the response's <c>Content-Length</c> when it declares one, and -1 (written as
 /// <c>-</c>) otherwise: a chunked or streamed response shows <c>-</c>, not a number nobody can read cheaply.</para>
@@ -43,11 +44,15 @@ namespace Paduraksa.Proxy.Logging;
 public sealed class AccessLogMiddleware
 {
     private readonly AccessLogRing _ring;
+    private readonly MetricsRegistry? _metrics;
 
-    public AccessLogMiddleware(AccessLogRing ring)
+    /// <param name="ring">Where the lines go.</param>
+    /// <param name="metrics">The request counters, which this completion callback also feeds (PLAN §7.4); null: none are kept.</param>
+    public AccessLogMiddleware(AccessLogRing ring, MetricsRegistry? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(ring);
         _ring = ring;
+        _metrics = metrics;
     }
 
     /// <summary>For <c>app.Use(accessLog.InvokeAsync)</c>, before the gate.</summary>
@@ -58,6 +63,7 @@ public sealed class AccessLogMiddleware
 
         var state = GateMiddleware.BeginRequest(context);
         state.AccessLogRing = _ring;
+        state.Metrics = _metrics;
         state.RequestStartedTimestamp = Stopwatch.GetTimestamp();
         RegisterCompletion(context);
         return next(context);
@@ -88,8 +94,14 @@ public sealed class AccessLogMiddleware
             }
 
             Record(context, ring, state.RequestStartedTimestamp);
+            if (state.Metrics is { } metrics)
+            {
+                RequestMetricsRecorder.Record(context, state, metrics, state.RequestStartedTimestamp);
+            }
+
             // Request-scoped: the gate skips its reset only for a request a stage above it already started.
             state.AccessLogRing = null;
+            state.Metrics = null;
             state.RequestStartedTimestamp = 0;
         }
 

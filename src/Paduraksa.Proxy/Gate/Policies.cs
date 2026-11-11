@@ -98,6 +98,9 @@ public interface IRequestPolicy
     /// the hot path.</summary>
     string Name => "policy";
 
+    /// <summary>What the metrics call this policy's refusals; policies with a kind of their own say so.</summary>
+    Metrics.GateOutcome Outcome => Metrics.GateOutcome.RefusedOther;
+
     /// <summary>Says why <paramref name="verdict"/> (what <see cref="Evaluate"/> just returned for
     /// <paramref name="request"/>) came out as it did, for the simulator's trace. Must have no side effects (a rate
     /// limit reports "would allow, N left" without taking a token). Never called on the hot path.</summary>

@@ -6,6 +6,7 @@ using Paduraksa.Proxy;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Tests.Proxy.Testing;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
 
@@ -37,7 +38,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
                 ProxyHost("off", "quiet.test", Route("off-root", "web")) with { AccessLog = false },
             ],
         };
-        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true });
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, Metrics = new MetricsRegistry() });
         using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
 
         await SendAsync(server, client, host, path, expected, Warmup);
@@ -73,7 +74,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             Hosts = [ProxyHost("app", "app.test", Route("app-root", "web"))],
         };
         CompletionProbe probe = new();
-        await using var server = await ProxyTestServer.StartAsync(model, new() { AfterGate = probe.Invoke });
+        await using var server = await ProxyTestServer.StartAsync(model, new() { AfterGate = probe.Invoke, Metrics = new MetricsRegistry() });
         using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
 
         await SendAsync(server, client, "app.test", "/api/items", HttpStatusCode.OK, Warmup);
@@ -85,6 +86,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         Assert.True(probe.Requests >= Measured, $"only {probe.Requests} requests measured");
         Assert.True(probe.RegistrationBytes == 0, $"the OnCompleted and OnStarting registrations allocated {probe.RegistrationBytes} B over {probe.Requests} requests");
         Assert.True(probe.RecordingBytes == 0, $"the access-log callback allocated {probe.RecordingBytes} B over {probe.Requests} requests");
+        Assert.True(probe.MetricsBytes == 0, $"the request-counter callback allocated {probe.MetricsBytes} B over {probe.Requests} requests");
         Assert.True(probe.ReapplyBytes == 0, $"the reapply callback allocated {probe.ReapplyBytes} B over {probe.Requests} requests");
         Assert.True(probe.ResponseStartBytes == 0, $"the response-start hook allocated {probe.ResponseStartBytes} B over {probe.Requests} requests on the successful path");
         await WaitForEntriesAsync(server.AccessLog, Measured);
@@ -133,6 +135,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
         private long _registrationBytes;
         private long _recordingBytes;
         private long _reapplyBytes;
+        private long _metricsBytes;
         private long _responseStartBytes;
 
         public bool Enabled
@@ -149,6 +152,8 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
 
         public long ReapplyBytes => Volatile.Read(ref _reapplyBytes);
 
+        public long MetricsBytes => Volatile.Read(ref _metricsBytes);
+
         public long ResponseStartBytes => Volatile.Read(ref _responseStartBytes);
 
         public void Reset()
@@ -157,6 +162,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             Volatile.Write(ref _registrationBytes, 0);
             Volatile.Write(ref _recordingBytes, 0);
             Volatile.Write(ref _reapplyBytes, 0);
+            Volatile.Write(ref _metricsBytes, 0);
             Volatile.Write(ref _responseStartBytes, 0);
         }
 
@@ -186,6 +192,12 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             AccessLogMiddleware.Record(context, ring, started);
             var recording = GC.GetAllocatedBytesForCurrentThread() - before;
 
+            // The counters, for a request that was forwarded: the same entry point the completion callback calls, with the
+            // outcome the gate set when it handed the request on.
+            before = GC.GetAllocatedBytesForCurrentThread();
+            RequestMetricsRecorder.Record(context, state, state.Metrics!, started);
+            var counting = GC.GetAllocatedBytesForCurrentThread() - before;
+
             before = GC.GetAllocatedBytesForCurrentThread();
             GateResponseHeaders.Reapply(context);
             var reapply = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -201,6 +213,7 @@ public sealed class AccessLogAllocationTests(TestUpstream upstream) : IClassFixt
             Interlocked.Add(ref _registrationBytes, registration);
             Interlocked.Add(ref _recordingBytes, recording);
             Interlocked.Add(ref _reapplyBytes, reapply);
+            Interlocked.Add(ref _metricsBytes, counting);
             Interlocked.Add(ref _responseStartBytes, responseStart);
             return next(context);
         }

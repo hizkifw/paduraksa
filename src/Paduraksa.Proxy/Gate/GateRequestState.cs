@@ -3,6 +3,7 @@ using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Geo;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 
@@ -127,6 +128,15 @@ public sealed class GateRequestState : IGateFeature
     /// <summary>The last access-list verdict of a simulated request, for the trace's sentence; never set on a real one.</summary>
     internal AccessLists.AccessListOutcome AccessListOutcome { get; set; }
 
+    /// <summary>What the gate did, once a policy refused or the request was handed on; <see cref="GateOutcome.Unset"/> for the answers the end of the request classifies.</summary>
+    internal GateOutcome Outcome { get; set; }
+
+    /// <summary>The process's counters, put on the state by the access-log middleware so its static completion callback can reach them; null when metrics are off.</summary>
+    internal MetricsRegistry? Metrics { get; set; }
+
+    /// <summary>YARP's key of the destination the forward chose, for the destination's counters; null when nothing was forwarded.</summary>
+    internal string? UpstreamDestinationKey { get; set; }
+
     /// <summary>Clears every field at the start of a request.</summary>
     internal void Reset()
     {
@@ -135,6 +145,9 @@ public sealed class GateRequestState : IGateFeature
         ForwardAuthHeaders = null;
         DeferredPolicy = null;
         AccessListOutcome = default;
+        Outcome = GateOutcome.Unset;
+        Metrics = null;
+        UpstreamDestinationKey = null;
         Snapshot = null;
         Host = null;
         Route = null;

@@ -86,6 +86,8 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
 
     string IRequestPolicy.Name => "accessList";
 
+    Metrics.GateOutcome IRequestPolicy.Outcome => Metrics.GateOutcome.RefusedAccessList;
+
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict) =>
         AccessListExplanation.Describe(_list, _stage, request.State.ClientAddress, request.State.ClientCountry, request.State.AccessListOutcome, verdict);
 
@@ -374,6 +376,8 @@ public sealed class AccessListUnionPolicy : IRequestPolicy, IPolicyTraceFacts
     }
 
     string IRequestPolicy.Name => "accessList";
+
+    Metrics.GateOutcome IRequestPolicy.Outcome => Metrics.GateOutcome.RefusedAccessList;
 
     void IPolicyTraceFacts.AddFacts(in RequestView request, PolicyDecision verdict, List<GateFact> facts)
     {

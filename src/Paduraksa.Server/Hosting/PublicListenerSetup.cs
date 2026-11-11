@@ -1,9 +1,9 @@
 using System.Security.Cryptography.X509Certificates;
-
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
@@ -29,7 +29,8 @@ internal sealed class PublicListenerSetup
         CloudflareEdgeRangeSource? edgeRanges = null,
         X509Certificate2Collection? originPullCa = null,
         AccessListRuntime? accessLists = null,
-        ForwardAuthRuntime? forwardAuth = null)
+        ForwardAuthRuntime? forwardAuth = null,
+        MetricsRegistry? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(listen);
         ArgumentNullException.ThrowIfNull(snapshots);
@@ -50,6 +51,7 @@ internal sealed class PublicListenerSetup
             OriginPullCa = originPullCa,
             AccessLists = accessLists,
             ForwardAuth = forwardAuth,
+            Metrics = metrics,
         };
     }
 

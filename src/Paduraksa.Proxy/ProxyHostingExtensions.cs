@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Yarp;
@@ -44,9 +45,11 @@ public static class ProxyHostingExtensions
     /// protected route then fails closed). The snapshot compiler must carry the same instance.</param>
     /// <param name="rateLimits">The process's rate-limit table, slots and counters; null: a fresh runtime. The snapshot
     /// compiler and the publisher must carry the same instance.</param>
+    /// <param name="metrics">The process's request counters and latency histograms; null: a fresh registry. The snapshot compiler
+    /// and the publisher must carry the same instance, or the compiled objects get no slot and nothing is counted.</param>
     public static IServiceCollection AddPaduraksaProxy(
         this IServiceCollection services, SnapshotPublisher publisher, AdminInternalListener? adminInternal = null, ProofOfWorkRuntime? proofOfWork = null,
-        RateLimitRuntime? rateLimits = null)
+        RateLimitRuntime? rateLimits = null, MetricsRegistry? metrics = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(publisher);
@@ -67,6 +70,7 @@ public static class ProxyHostingExtensions
         services.TryAddSingleton(new AccessLogRing());
         services.TryAddSingleton(AccessLogFormatOptions.Default);
         services.TryAddSingleton<IAccessLogSink>(NullAccessLogSink.Instance);
+        services.TryAddSingleton(metrics ?? new MetricsRegistry());
         services.TryAddSingleton<AccessLogMiddleware>();
 
         services.AddReverseProxy()

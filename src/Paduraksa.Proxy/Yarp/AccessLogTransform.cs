@@ -32,6 +32,7 @@ internal static class AccessLogTransform
             state.UpstreamStartedTimestamp = Stopwatch.GetTimestamp();
             state.UpstreamTicks = AccessLogEntry.Unknown;
             state.UpstreamAddress = null;
+            state.UpstreamDestinationKey = null;
         }
 
         return ValueTask.CompletedTask;
@@ -53,6 +54,7 @@ internal static class AccessLogTransform
         if (httpContext.Features.Get<IReverseProxyFeature>() is { ProxiedDestination: { } destination })
         {
             state.UpstreamAddress = destination.Model.Config.Address;
+            state.UpstreamDestinationKey = destination.DestinationId;
         }
 
         return ValueTask.CompletedTask;

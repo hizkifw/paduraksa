@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Http;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
@@ -141,6 +142,11 @@ public sealed class GateMiddleware
             var index = state.DeferredIndex;
             state.DeferredPolicy = null;
             var verdict = await policy.CompleteAsync(context, state).ConfigureAwait(false);
+            if (verdict.Action != PolicyAction.Continue)
+            {
+                state.Outcome = policy.Outcome;
+            }
+
             var decision = verdict.Action switch
             {
                 PolicyAction.Continue => ContinueAfter(context, state, scope, index + 1),
@@ -390,6 +396,8 @@ public sealed class GateMiddleware
         }
 
         context.SetEndpoint(endpoints[route.Slot]);
+        // Recorded where the state is at hand, so the completion that carries the decision out needs no feature lookup for it.
+        state.Outcome = GateOutcome.Forwarded;
         return GateDecision.Forward;
     }
 
@@ -472,6 +480,7 @@ public sealed class GateMiddleware
                 case PolicyAction.Continue:
                     continue;
                 case PolicyAction.Respond:
+                    view.State.Outcome = policy.Outcome;
                     decision = GateDecision.Respond(verdict.Response!, verdict.RetryAfter);
                     return true;
                 case PolicyAction.Defer:
@@ -482,6 +491,7 @@ public sealed class GateMiddleware
                     decision = GateDecision.AwaitPolicy;
                     return true;
                 default:
+                    view.State.Outcome = policy.Outcome;
                     decision = GateDecision.Abort;
                     return true;
             }

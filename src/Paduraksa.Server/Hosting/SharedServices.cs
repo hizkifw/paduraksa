@@ -1,5 +1,4 @@
 using System.Security.Cryptography.X509Certificates;
-
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging.Console;
@@ -21,6 +20,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
@@ -66,6 +66,7 @@ internal sealed class SharedServices : IAsyncDisposable
         ProofOfWork = Get<ProofOfWorkRuntime>();
         ProofOfWorkKey = Get<ProofOfWorkKeyStartup>();
         RateLimits = Get<RateLimitRuntime>();
+        Metrics = Get<MetricsRegistry>();
         EdgeRanges = Get<CloudflareEdgeRangeSource>();
         RangeReport = Get<CloudflareRangeReport>();
         RangeRefresher = _registrations.FirstOrDefault(static r => r.Key == typeof(CloudflareRangeRefresher)).Value as CloudflareRangeRefresher;
@@ -172,6 +173,9 @@ internal sealed class SharedServices : IAsyncDisposable
 
     /// <summary>The rate-limit engine's table, slots and counters; the compiler, the publisher and the public app share it.</summary>
     public RateLimitRuntime RateLimits { get; }
+
+    /// <summary>The request counters and latency histograms (PLAN §7.4); the compiler, the publisher and the public app share it, and the sampler and the exporters read it.</summary>
+    public MetricsRegistry Metrics { get; }
 
     /// <summary>The access lists' verification line and counters, shared by every compile (the cache lives in the vault).</summary>
     public AccessListRuntime AccessLists { get; }
@@ -282,6 +286,9 @@ internal sealed class SharedServices : IAsyncDisposable
             // The rate-limit table, slots and counters: the compiler assigns pairs slots in this registry, the publisher
             // makes a live snapshot's pairs the live parameters, and every compiled policy takes from this table.
             var rateLimits = builder.Add(RateLimitServiceCollectionExtensions.CreateRuntime(configuration));
+            // The request counters and latency histograms: the compiler asks it for each object's slot, the publisher makes a live
+            // snapshot's objects the live set, and the access-log completion adds to it for every request.
+            var metrics = builder.Add(new MetricsRegistry(timeProvider: timeProvider));
             // The vault first among the services that use it, so it is disposed after them all: the config store loads certificates through
             // it, and the access-list gate asks its verifier for every password check.
             var vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
@@ -294,7 +301,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
             var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
-            var publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider, rateLimits: rateLimits, forwardAuth: forwardAuth));
+            var publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider, rateLimits: rateLimits, forwardAuth: forwardAuth, metrics: metrics));
             var placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
             var certificates = builder.Add(new PlaceholderCertificates(placeholder));
             AdminInternalListener adminInternal;
@@ -319,7 +326,7 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             var originPullCa = LoadOriginPullCa(options.Cloudflare.OriginPullCaFile);
-            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists, forwardAuth));
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists, forwardAuth, metrics));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 
@@ -373,7 +380,6 @@ internal sealed class SharedServices : IAsyncDisposable
             // The proof-of-work HMAC key: ensured at its reserved ID and opened into the runtime before the public
             // listener binds (a core-host start step), so the first protected request has a key or fails closed.
             builder.Add(new ProofOfWorkKeyStartup(vault.Secrets, vault.MacKeys, proofOfWork, coreLoggers));
-            // TODO: MetricsRegistry.
             configure?.Invoke(builder);
             builder.Freeze();
             return new SharedServices(builder, loggerFactory, vault.KeyRing);

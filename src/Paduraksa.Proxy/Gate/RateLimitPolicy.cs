@@ -124,6 +124,8 @@ public sealed class RateLimitPolicy : IRequestPolicy
 
     string IRequestPolicy.Name => "rateLimit";
 
+    Metrics.GateOutcome IRequestPolicy.Outcome => Metrics.GateOutcome.RefusedRateLimit;
+
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict)
     {
         var keyed = _key switch

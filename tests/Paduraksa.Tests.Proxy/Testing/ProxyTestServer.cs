@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Hosting;
@@ -12,16 +11,15 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-
 using Paduraksa.Proxy;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
+using Paduraksa.Proxy.Metrics;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
-
 using Yarp.ReverseProxy.Health;
 
 namespace Paduraksa.Tests.Proxy.Testing;
@@ -82,8 +80,13 @@ internal sealed class ProxyTestServer : IAsyncDisposable
             compilerOptions = (compilerOptions ?? SnapshotCompilerOptions.Default) with { RateLimits = rateLimits };
         }
 
+        if (options.Metrics is { } metrics && (compilerOptions is null || compilerOptions.Metrics is null))
+        {
+            compilerOptions = (compilerOptions ?? SnapshotCompilerOptions.Default) with { Metrics = metrics };
+        }
+
         var protocols = options.Protocols;
-        var publisher = options.Publisher ?? new SnapshotPublisher(new SnapshotStore(), options: options.PublisherOptions, rateLimits: options.RateLimits);
+        var publisher = options.Publisher ?? new SnapshotPublisher(new SnapshotStore(), options: options.PublisherOptions, rateLimits: options.RateLimits, metrics: options.Metrics);
         var initialPublish = initial is null ? null : publisher.PublishAsync(TestSnapshots.Compile(initial, compilerOptions));
         var stats = options.MeasureGate ? new GateStats() : null;
 
@@ -110,7 +113,7 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                 })
                 .ConfigureServices(s =>
                 {
-                    s.AddPaduraksaProxy(publisher, proofOfWork: options.ProofOfWork, rateLimits: options.RateLimits);
+                    s.AddPaduraksaProxy(publisher, proofOfWork: options.ProofOfWork, rateLimits: options.RateLimits, metrics: options.Metrics);
                     s.Configure<TransportFailureRateHealthPolicyOptions>(o =>
                     {
                         o.MinimalTotalCountThreshold = 2;
@@ -257,6 +260,9 @@ internal sealed record ProxyTestServerOptions
 
     /// <summary>The rate-limit runtime the compiler, the publisher and the public app share; null: each picks its own.</summary>
     public RateLimitRuntime? RateLimits { get; init; }
+
+    /// <summary>The request counters the compiler, the publisher and the public app share; null: nothing is counted.</summary>
+    public MetricsRegistry? Metrics { get; init; }
 }
 
 /// <summary>

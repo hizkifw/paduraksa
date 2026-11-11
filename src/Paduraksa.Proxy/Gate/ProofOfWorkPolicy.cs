@@ -97,6 +97,8 @@ public sealed class ProofOfWorkPolicy : IRequestPolicy
 
     string IRequestPolicy.Name => "proofOfWork";
 
+    Metrics.GateOutcome IRequestPolicy.Outcome => Metrics.GateOutcome.RefusedProofOfWork;
+
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict)
     {
         var source = _routeOverride ? "the route's own override; " : string.Empty;

@@ -74,6 +74,8 @@ public sealed class RuleSetPolicy : IRequestPolicy, IPolicyTraceFacts
 
     string IRequestPolicy.Name => "ruleSet";
 
+    Metrics.GateOutcome IRequestPolicy.Outcome => Metrics.GateOutcome.RefusedRuleSet;
+
     string IRequestPolicy.Explain(in RequestView request, PolicyDecision verdict)
     {
         var http = request.Http.Request;
