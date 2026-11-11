@@ -124,6 +124,30 @@ public sealed class PublicForwardAuthTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AnIdentityValueWithNonAsciiTextReachesTheUpstreamAsUtf8InsteadOfAnErrorForTheWholeRequest()
+    {
+        await using var host = await StartedAsync();
+        Auth.Handler = context =>
+        {
+            context.Response.Headers["Remote-User"] = "José Ωmega";
+            context.Response.Headers["Remote-Groups"] = "admins";
+            return Task.CompletedTask;
+        };
+
+        // The same twice: the second is the remembered allow's headers.
+        for (var i = 0; i < 2; i++)
+        {
+            var (response, upstream) = await SendAsync(host, "app.test", "/docs", request => request.Headers.TryAddWithoutValidation("Cookie", "session=alice"));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("José Ωmega", upstream["Remote-User"]);
+            Assert.Equal("admins", upstream["Remote-Groups"]);
+        }
+
+        Assert.Single(Auth.Calls);
+    }
+
+    [Fact]
     public async Task AForgedIdentityWithoutASessionIsStillRefusedAndNothingReachesTheUpstream()
     {
         await using var host = await StartedAsync();

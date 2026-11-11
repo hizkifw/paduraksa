@@ -30,6 +30,9 @@ public sealed class ForwardAuthProviderState
     // Written by ForwardAuthRuntime.ReportFailure: when the last failure was logged, so a dead endpoint costs one line a minute.
     internal long LastReportedAt;
 
+    // The same for an identity header left off (ForwardAuthPolicy), which is another message with a minute of its own.
+    internal long LastDroppedReportedAt;
+
     internal ForwardAuthProviderState(
         ForwardAuthRuntime runtime, AuthProviderSpec spec, string configHash, ForwardAuthCounters counters, Func<AuthProviderSpec, HttpMessageHandler>? handlerFactory)
     {
@@ -200,6 +203,10 @@ public sealed class ForwardAuthProviderState
             PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30),
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
             MaxConnectionsPerServer = Paduraksa.Core.Model.ForwardAuthLimits.MaxConcurrentCalls,
+
+            // A provider writes a user's name as UTF-8 (authentik's X-authentik-name), as Kestrel reads a client's headers. The default is Latin-1, which would show
+            // each byte of "é" as a character of its own and have it encoded again on the way upstream.
+            ResponseHeaderEncodingSelector = static (_, _) => System.Text.Encoding.UTF8,
         };
 
         // The timeout is the call's own (a token that also ends with the client's request), not the client's.

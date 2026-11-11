@@ -1,12 +1,14 @@
 using System.Net;
 
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
 
@@ -59,14 +61,62 @@ public sealed class ForwardAuthFailureTests
         Assert.Equal(1, runtime.CountersFor(Provider).Errors);
     }
 
-    [Fact]
-    public async Task AnAllowWhoseIdentityHeaderHasAByteTheUpstreamRequestCannotCarryRefuses()
+    [Theory]
+    [InlineData("rémy")]
+    [InlineData("Ωmega 山田")]
+    [InlineData("tab\there")]
+    [InlineData("emoji \U0001F600")]
+    public async Task AnIdentityValueWithTextOutsideAsciiIsForwardedAsTheProviderSentItNotRefused(string value)
     {
-        var runtime = Answering(() => Status(HttpStatusCode.OK, ("Remote-User", "rémy")));
+        var runtime = Answering(() => Status(HttpStatusCode.OK, ("Remote-User", value), ("Remote-Groups", "dev")));
         var gate = GateFor(runtime, Model(Spec("http://127.0.0.1:1/auth")), out _);
 
-        Assert.Equal("502", await RunAsync(gate, Context(cookie: "session=ok")));
-        Assert.Equal((0, 1), (runtime.CountersFor(Provider).Allowed, runtime.CountersFor(Provider).Errors));
+        var context = Context(cookie: "session=ok");
+        Assert.Equal("pass", await RunAsync(gate, context));
+        var copied = context.Features.Get<IGateFeature>()!.State.ForwardAuthHeaders!;
+        Assert.Equal([new ForwardAuthHeader("Remote-User", value), new ForwardAuthHeader("Remote-Groups", "dev")], copied.OrderBy(static h => h.Name == "Remote-User" ? 0 : 1));
+        Assert.Equal((1, 0), (runtime.CountersFor(Provider).Allowed, runtime.CountersFor(Provider).Errors));
+    }
+
+    [Theory]
+    [InlineData("a\r\nX-Injected: 1")]
+    [InlineData("a\nb")]
+    [InlineData("a\0b")]
+    [InlineData("a\u0001b")]
+    [InlineData("a\u007fb")]
+    [InlineData("caf\uFFFD")]
+    [InlineData("lone \uD83D")]
+    public async Task AnIdentityValueTheUpstreamCannotCarryCostsThatOneHeaderNotTheRequestAndTheClientsCopyIsNeverItsReplacement(string value)
+    {
+        var lines = new List<(LogLevel Level, string Message)>();
+        ForwardAuthRuntime runtime = new(TimeProvider.System, new ListLogger(lines), _ => new StubHandler(_ => Status(HttpStatusCode.OK, ("Remote-User", value), ("Remote-Groups", "dev"))));
+        var gate = GateFor(runtime, Model(Spec("http://127.0.0.1:1/auth")), out var snapshot);
+
+        var context = Context(cookie: "session=ok");
+        context.Request.Headers["Remote-User"] = "root";
+        Assert.Equal("pass", await RunAsync(gate, context));
+
+        // The provider's other header still goes, the bad one doesn't, and it was an allow, not an error.
+        var copied = context.Features.Get<IGateFeature>()!.State.ForwardAuthHeaders!;
+        Assert.Equal([new ForwardAuthHeader("Remote-Groups", "dev")], copied);
+        Assert.Equal((1, 0), (runtime.CountersFor(Provider).Allowed, runtime.CountersFor(Provider).Errors));
+
+        // The forwarding transform removes the client's own Remote-User and adds only what was copied, so the upstream sees no Remote-User at all.
+        using HttpRequestMessage upstream = new();
+        upstream.Headers.TryAddWithoutValidation("Remote-User", "root");
+        ForwardedHeadersTransform.ApplyForwardAuth(upstream.Headers, snapshot.HostsByIndex[0].IdentityProviders, copied);
+        Assert.False(upstream.Headers.Contains("Remote-User"));
+        Assert.Equal(["dev"], upstream.Headers.GetValues("Remote-Groups"));
+
+        // Said once, at warning level, with the header's name and never its value.
+        var warning = Assert.Single(lines);
+        Assert.Equal(LogLevel.Warning, warning.Level);
+        Assert.Contains("Remote-User", warning.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(value, warning.Message, StringComparison.Ordinal);
+
+        // A second request in the same minute is not logged again.
+        Assert.Equal("pass", await RunAsync(gate, Context(cookie: "session=other")));
+        Assert.Single(lines);
     }
 
     [Fact]
@@ -164,6 +214,17 @@ public sealed class ForwardAuthFailureTests
         })), out _);
 
         Assert.Equal("401", await RunAsync(gate, Context(accept: "text/html", path: "/oauth2/start")));
+    }
+
+    private sealed class ListLogger(List<(LogLevel Level, string Message)> lines) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            lines.Add((logLevel, formatter(state, exception)));
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> answer) : HttpMessageHandler

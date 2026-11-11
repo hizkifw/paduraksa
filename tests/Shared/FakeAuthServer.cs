@@ -59,6 +59,9 @@ internal sealed class FakeAuthServer : IAsyncDisposable
                 {
                     kestrel.Listen(IPAddress.Loopback, 0);
                     kestrel.AddServerHeader = false;
+
+                    // A provider writes a display name as UTF-8, as authentik does.
+                    kestrel.ResponseHeaderEncodingSelector = static _ => System.Text.Encoding.UTF8;
                 })
                 .Configure(app => app.Run(context =>
                 {

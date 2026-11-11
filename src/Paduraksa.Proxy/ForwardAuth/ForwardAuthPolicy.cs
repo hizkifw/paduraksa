@@ -24,7 +24,7 @@ namespace Paduraksa.Proxy.ForwardAuth;
 /// resolved client). Whatever the client sent as <c>X-Forwarded-*</c> is not forwarded: these are ours.</para>
 /// <para><b>The answer.</b> 2xx lets the request on, with the provider's response headers copied to the upstream request and the client's own
 /// copies of them removed first (<see cref="CompiledAuthProvider.Owns"/>), so a client can never be the source of an identity header on a protected
-/// route. A 401, 403 or 407 and a redirect are relayed to the client with their body and <c>Set-Cookie</c>; a 401 to a browser that asked for a page
+/// route. A copied value may be any text but for control characters; one that can't go upstream is left off with a warning, and the request goes on. A 401, 403 or 407 and a redirect are relayed to the client with their body and <c>Set-Cookie</c>; a 401 to a browser that asked for a page
 /// goes to the provider's sign-in URL when one is configured. Anything else, a failed or slow call and a call made while too many are
 /// running all refuse the request (502, 504, 503): the policy fails closed.</para>
 /// <para><b>What is remembered.</b> An allow, at the grain the provider's scope says only when it vouched for an identity: under <c>host</c> scope, which leaves
@@ -327,7 +327,7 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
 
     private static readonly string[] RelayedHeaders = ["Location", "Set-Cookie", "WWW-Authenticate", "Proxy-Authenticate"];
 
-    /// <summary>The headers the provider owns that its answer carries, or false when one has a value an upstream request can't hold.</summary>
+    /// <summary>The headers the provider owns that its answer carries and an upstream request can hold, or false when there are too many.</summary>
     private bool TryCollectHeaders(HttpResponseMessage response, out ForwardAuthHeader[] copied)
     {
         List<ForwardAuthHeader>? found = null;
@@ -344,10 +344,12 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
                 continue;
             }
 
-            if (!IsForwardable(value))
+            // One value the upstream can't carry costs that header, not the request: a user whose display name holds a byte that isn't text is still let in.
+            // The client's own copy of the name is removed all the same (the provider owns the name), so it is never what the upstream reads instead.
+            if (!IsCarriableIdentity(value))
             {
-                copied = [];
-                return false;
+                _provider.State.Runtime.ReportDroppedHeader(_provider.State, _provider.Name, header.Key);
+                continue;
             }
 
             found ??= [];
@@ -364,13 +366,35 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
         return true;
     }
 
-    // A value both an upstream request and a Kestrel response can carry: printable ASCII and tab. A line break would split the message, and a byte
-    // outside that makes the transport throw on write, which would answer 500 where the provider's misbehaviour is a 502.
+    // A value a Kestrel response can carry: printable ASCII and tab. A line break would split the message, and a byte outside that makes the transport throw on write,
+    // which would answer 500 where the provider's misbehaviour is a 502. The headers relayed to the client stay this strict.
     private static bool IsForwardable(string value)
     {
         foreach (var c in value)
         {
             if (!(c is '\t' or (>= ' ' and <= '~')))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // A value an upstream request can carry: text, which the forwarder's handler writes as UTF-8 (PaduraksaForwarderHttpClientFactory) as the provider sent it. The
+    // C0 controls other than tab and DEL are out (CR, LF and NUL would split or cut the message), and so is what isn't text: U+FFFD is the decoder's mark for bytes
+    // that weren't UTF-8, and a lone surrogate has no encoding. Neither can be passed on as the provider sent it.
+    private static bool IsCarriableIdentity(string value)
+    {
+        for (var i = 0; i < value.Length; i++)
+        {
+            var c = value[i];
+            if (c < ' ' ? c != '\t' : c is '\u007f' or '\uFFFD')
+            {
+                return false;
+            }
+
+            if (char.IsHighSurrogate(c) ? i + 1 >= value.Length || !char.IsLowSurrogate(value[++i]) : char.IsLowSurrogate(c))
             {
                 return false;
             }

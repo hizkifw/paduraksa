@@ -153,6 +153,30 @@ public sealed partial class ForwardAuthRuntime
         }
     }
 
+    /// <summary>An identity header the provider's allow carried a value for that can't go upstream: the header is left off the request, at most once a minute per provider.</summary>
+    internal void ReportDroppedHeader(ForwardAuthProviderState state, string name, string header)
+    {
+        if (_logger is null)
+        {
+            return;
+        }
+
+        var now = Time.GetTimestamp();
+        var last = Interlocked.Read(ref state.LastDroppedReportedAt);
+        if (last != 0 && Time.GetElapsedTime(last, now) < TimeSpan.FromMinutes(1))
+        {
+            return;
+        }
+
+        if (Interlocked.CompareExchange(ref state.LastDroppedReportedAt, now, last) == last)
+        {
+            LogDroppedHeader(_logger, name, state.Url, header);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The auth provider '{Name}' ({Url}) answered with a value in {Header} that can't be sent upstream (a control character or bytes that aren't text). The header is left off the request, and so is the client's own copy of it.")]
+    private static partial void LogDroppedHeader(ILogger logger, string name, string url, string header);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "The auth provider '{Name}' ({Url}) failed: {What}. Requests to the hosts and routes it guards are refused until it answers.")]
     private static partial void LogFailure(ILogger logger, string name, string url, string what);
 

@@ -90,5 +90,9 @@ internal sealed class PaduraksaForwarderHttpClientFactory : ForwarderHttpClientF
         // traceparent, ~7% of plain-HTTP throughput (bench h1) for tracing nothing here reads. A client's own
         // traceparent still reaches the upstream unchanged, as any other header.
         handler.ActivityHeadersPropagator = null;
+
+        // Header values go upstream as UTF-8, as Kestrel read them (it decodes UTF-8 and answers 400 to bytes that aren't). The default is ASCII only, which
+        // refuses a non-ASCII value, and a forward-auth identity header (an authentik user's display name) is one. Control characters never reach it.
+        handler.RequestHeaderEncodingSelector = static (_, _) => System.Text.Encoding.UTF8;
     }
 }
