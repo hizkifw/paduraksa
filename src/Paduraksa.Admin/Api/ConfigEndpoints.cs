@@ -23,7 +23,7 @@ internal static class ConfigEndpoints
     {
         api.MapGet("/config", GetConfigAsync)
             .WithName("GetConfig").WithTags("Config").WithSummary("The current config document")
-            .WithDescription("The whole config as the latest revision has it, versions included. The ETag is the latest revision's ID.")
+            .WithDescription("The whole config as the latest revision has it, versions included. The ETag is the latest revision's ID. It includes access lists' users with their PBKDF2 password verifiers (never a password); see the access list endpoints.")
             .Produces<CurrentConfig>()
             .RequirePermission(Permission.ConfigRead);
 
@@ -82,6 +82,25 @@ internal static class ConfigEndpoints
             .RequirePermission(Permission.ConfigWrite);
         rateLimits.MapDelete("/{id:RateLimitPolicyId}", DeleteRateLimitPolicyAsync).WithName("DeleteRateLimitPolicy").WithSummary("Delete a rate-limit policy")
             .WithDescription("Refused (422, relatedErrors) while a host or route still names it.")
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+
+        var accessLists = api.MapGroup("/accessLists").WithTags("Access lists");
+        accessLists.MapGet("/", ListAccessListsAsync).WithName("ListAccessLists").WithSummary("List access lists")
+            .WithDescription("Users carry 'passwordHash', a salted PBKDF2 verifier that cannot be replayed as a password but can be attacked offline. Every caller with config:read sees it, here and in the config document, revisions and exports, so give config:read only to roles you would trust with it.")
+            .Produces<IReadOnlyList<AccessListConfig>>().RequirePermission(Permission.ConfigRead);
+        accessLists.MapGet("/{id:AccessListId}", GetAccessListAsync).WithName("GetAccessList").WithSummary("Get an access list")
+            .WithDescription("Users carry 'passwordHash' for every caller with config:read; see the list endpoint.")
+            .Produces<AccessListConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
+        accessLists.MapPost("/", CreateAccessListAsync).WithName("CreateAccessList").WithSummary("Create an access list")
+            .WithDescription("A user's plain 'password' is hashed before the list is validated or stored, and is never returned; 'passwordHash' is what the list keeps.")
+            .Accepts<AccessListConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        accessLists.MapPut("/{id:AccessListId}", ReplaceAccessListAsync).WithName("ReplaceAccessList").WithSummary("Replace an access list")
+            .WithDescription("A user sent without 'password' or 'passwordHash' keeps the hash the list has for that username.")
+            .Accepts<AccessListConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        accessLists.MapDelete("/{id:AccessListId}", DeleteAccessListAsync).WithName("DeleteAccessList").WithSummary("Delete an access list")
+            .WithDescription("Refused (422, relatedErrors) while a host, profile, global default or route still names it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
         var profiles = api.MapGroup("/profiles").WithTags("Profiles");
@@ -307,6 +326,38 @@ internal static class ConfigEndpoints
 
     private static Task<IResult> DeleteRateLimitPolicyAsync(HttpContext http, RateLimitPolicyId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         DeleteAsync(http, caller, config, version => new DeleteRateLimitPolicyCommand(id, version), ct);
+
+    private static async Task<IResult> ListAccessListsAsync(HttpContext http, ConfigService config, CancellationToken ct)
+    {
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        TagWithRevision(http, current);
+        return EndpointSupport.Json(current.Document.AccessLists, AdminJsonContext.Default.IReadOnlyListAccessListConfig);
+    }
+
+    private static async Task<IResult> GetAccessListAsync(HttpContext http, AccessListId id, ConfigService config, CancellationToken ct)
+    {
+        var list = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.AccessLists.FirstOrDefault(l => l.Id == id);
+        if (list is null)
+        {
+            return NoSuchObject("access list");
+        }
+
+        http.Response.Headers.ETag = Preconditions.VersionTag(list.Version);
+        return EndpointSupport.Json(list, AdminJsonContext.Default.AccessListConfig);
+    }
+
+    private static Task<IResult> CreateAccessListAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.AccessListConfig,
+            (list, _, _) => (list with { Version = 0 }, null), (list, dry, message) => new UpsertAccessListCommand(list) { DryRun = dry, Message = message },
+            list => EndpointSupport.Path("accessLists", list.Id), ct);
+
+    private static Task<IResult> ReplaceAccessListAsync(HttpContext http, AccessListId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.AccessListConfig,
+            (list, version, _) => list.Id == id ? (list with { Version = version }, null) : (list, IdMismatch()),
+            (list, dry, message) => new UpsertAccessListCommand(list) { DryRun = dry, Message = message }, null, ct);
+
+    private static Task<IResult> DeleteAccessListAsync(HttpContext http, AccessListId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        DeleteAsync(http, caller, config, version => new DeleteAccessListCommand(id, version), ct);
 
     private static async Task<IResult> ListProfilesAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {

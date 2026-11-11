@@ -231,6 +231,100 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
     }
 
     [Fact]
+    public async Task AccessListsAreManagedHashPasswordsAndOneInUseCannotBeDeleted()
+    {
+        var api = shared.Api;
+        var upstream = ConfigTestSupport.Upstream("u-lists", "http://127.0.0.1:9");
+        using var createdUpstream = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/upstreams", upstream, AdminJsonContext.Default.UpstreamConfig);
+        Assert.Equal(HttpStatusCode.Created, createdUpstream.StatusCode);
+
+        AccessListConfig list = new(
+            AccessListId.New(),
+            "office",
+            Ip: new AccessListIp(["10.0.0.0/8"]),
+            BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Password: "correct horse battery staple")]));
+        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/accessLists", list, AdminJsonContext.Default.AccessListConfig);
+        var createdBody = await created.Content.ReadAsStringAsync(Ct);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal($"/api/v1/accessLists/{list.Id}", created.Headers.Location!.ToString());
+        Assert.DoesNotContain("correct horse", createdBody, StringComparison.Ordinal);
+        var version = AdminApiHarness.ETag(created)!;
+
+        // What comes back has the hash, never the password, and not even a "password" member.
+        using var read = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
+        var readBody = await read.Content.ReadAsStringAsync(Ct);
+        Assert.DoesNotContain("correct horse", readBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"password\"", readBody, StringComparison.Ordinal);
+        Assert.Contains("\"passwordHash\":\"$pbkdf2-sha256$", readBody, StringComparison.Ordinal);
+        Assert.Equal(version, AdminApiHarness.ETag(read));
+        var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.AccessListConfig)!;
+        var hash = Assert.Single(stored.BasicAuth!.Users).PasswordHash;
+        using var all = await api.GetAsync("/api/v1/accessLists");
+        Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListAccessListConfig, Ct), l => l.Id == list.Id);
+
+        // An edit that names the user without a password keeps the hash.
+        var edit = stored with { BasicAuth = new AccessListBasicAuth(Users: [new AccessListUserConfig("alice")]), Ip = new AccessListIp(["10.0.0.0/8", "192.168.0.0/16"]) };
+        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/accessLists/{list.Id}", edit, AdminJsonContext.Default.AccessListConfig, ifMatch: version);
+        Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
+        var latest = AdminApiHarness.ETag(replaced)!;
+        using var reread = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
+        Assert.Equal(hash, Assert.Single((await AdminApiHarness.ReadAsync(reread, AdminJsonContext.Default.AccessListConfig, Ct)).BasicAuth!.Users).PasswordHash);
+
+        HostConfig host = ConfigTestSupport.ProxyHost("h-lists", "h-lists.test", "u-lists") with
+        {
+            Settings = new HostSettings { AccessList = new AccessListSettings { AccessListId = list.Id } },
+        };
+        using var hostCreated = await PostHostAsync(api, host);
+        Assert.Equal(HttpStatusCode.Created, hostCreated.StatusCode);
+
+        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/accessLists/{list.Id}", ifMatch: latest);
+        var problem = await AdminApiHarness.ProblemAsync(inUse, Ct);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, inUse.StatusCode);
+        Assert.Contains(problem.RelatedErrors!, e => e.Code == "host.accessList.unknown");
+
+        using var hostGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/hosts/{host.Id}", ifMatch: AdminApiHarness.ETag(hostCreated));
+        Assert.Equal(HttpStatusCode.NoContent, hostGone.StatusCode);
+        using var listGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/accessLists/{list.Id}", ifMatch: latest);
+        Assert.Equal(HttpStatusCode.NoContent, listGone.StatusCode);
+        using var gone = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+
+        using var upstreamGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: AdminApiHarness.ETag(createdUpstream));
+        Assert.Equal(HttpStatusCode.NoContent, upstreamGone.StatusCode);
+    }
+
+    [Fact]
+    public async Task AWeakOrEmptyPasswordIsAValidationFailureThatStoresNothing()
+    {
+        var api = shared.Api;
+        AccessListConfig list = new(AccessListId.New(), "bad-passwords", BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Password: string.Empty)]));
+
+        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/accessLists", list, AdminJsonContext.Default.AccessListConfig);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, rejected.StatusCode);
+        Assert.Contains("accessList.user.password.empty", await rejected.Content.ReadAsStringAsync(Ct), StringComparison.Ordinal);
+        using var gone = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnInlineIpAllowListIsRefusedWithASentenceThatNamesAccessLists()
+    {
+        var api = shared.Api;
+        var host = ConfigTestSupport.ProxyHost("h-inline", "h-inline.test", "u-inline");
+        var json = System.Text.Json.JsonSerializer.Serialize(host, AdminJsonContext.Default.HostConfig)
+            .Replace("\"settings\":{}", "\"settings\":{\"ipAllowList\":{\"addresses\":[\"10.0.0.0/8\"]}}", StringComparison.Ordinal);
+        Assert.Contains("ipAllowList", json, StringComparison.Ordinal);
+
+        using var response = await api.SendAsync(HttpMethod.Post, "/api/v1/hosts", content: AdminApiHarness.JsonBody(json));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await AdminApiHarness.ProblemAsync(response, Ct);
+        Assert.Contains("access lists replaced", problem.Detail, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/accessLists", problem.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SettingsNeedTheirVersion()
     {
         var api = shared.Api;
