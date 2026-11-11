@@ -16,15 +16,16 @@ public static class RolePermissions
         [Role.Admin] = Set(
             Permission.ConfigRead, Permission.ConfigWrite, Permission.CertificatesRead, Permission.CertificatesWrite,
             Permission.ProvidersRead, Permission.ProvidersWrite, Permission.UsersRead, Permission.AuditRead,
-            Permission.Simulate, Permission.LogsRead, Permission.TokensOwn),
+            Permission.Simulate, Permission.LogsRead, Permission.MetricsRead, Permission.TokensOwn),
         [Role.Operator] = Set(
             Permission.ConfigRead, Permission.ConfigWrite, Permission.CertificatesRead, Permission.CertificatesWrite,
-            Permission.ProvidersRead, Permission.Simulate, Permission.TokensOwn),
+            Permission.ProvidersRead, Permission.Simulate, Permission.MetricsRead, Permission.TokensOwn),
         [Role.Viewer] = Set(
-            Permission.ConfigRead, Permission.CertificatesRead, Permission.ProvidersRead, Permission.Simulate, Permission.TokensOwn),
+            Permission.ConfigRead, Permission.CertificatesRead, Permission.ProvidersRead, Permission.Simulate, Permission.MetricsRead,
+            Permission.TokensOwn),
         [Role.Auditor] = Set(
             Permission.ConfigRead, Permission.CertificatesRead, Permission.ProvidersRead, Permission.AuditRead, Permission.LogsRead,
-            Permission.TokensOwn),
+            Permission.MetricsRead, Permission.TokensOwn),
     }.ToFrozenDictionary();
 
     /// <summary>Every permission there is.</summary>

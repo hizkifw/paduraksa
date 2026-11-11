@@ -113,6 +113,7 @@ public static class ModelNames
         Permission.VaultManage => "vault:manage",
         Permission.Simulate => "simulate",
         Permission.LogsRead => "logs:read",
+        Permission.MetricsRead => "metrics:read",
         _ => throw Undefined(permission),
     };
 

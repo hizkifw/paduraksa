@@ -66,3 +66,8 @@ public readonly partial record struct UserId;
 /// <summary>An API token.</summary>
 [TypedId("tok")]
 public readonly partial record struct ApiTokenId;
+
+/// <summary>A one-minute metric rollup row (a host's, an upstream's or the process's totals for one minute). Int64Ordered:
+/// admin-only, append-only and high-volume.</summary>
+[TypedId("mrl", IdKind.Int64Ordered)]
+public readonly partial record struct MetricRollupId;

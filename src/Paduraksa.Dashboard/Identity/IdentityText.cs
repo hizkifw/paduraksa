@@ -47,6 +47,7 @@ public static class IdentityText
         Permission.UsersWrite => "Create, change and delete users",
         Permission.AuditRead => "Read the audit log",
         Permission.LogsRead => "Browse, tail and download the log files",
+        Permission.MetricsRead => "Read the request counters and latencies, and scrape /metrics",
         Permission.Simulate => "Run the request simulator",
         Permission.VaultManage => "Manage secrets in the vault",
         Permission.TokensOwn => "Manage one's own API tokens",
@@ -64,6 +65,7 @@ public static class IdentityText
         ("Simulator", [Permission.Simulate]),
         ("Audit", [Permission.AuditRead]),
         ("Logs", [Permission.LogsRead]),
+        ("Metrics", [Permission.MetricsRead]),
         ("Users", [Permission.UsersRead, Permission.UsersWrite]),
         ("Vault", [Permission.VaultManage]),
     ];
@@ -71,7 +73,7 @@ public static class IdentityText
     /// <summary>Whether a scope only reads.</summary>
     public static bool IsRead(Permission permission) =>
         permission is Permission.ConfigRead or Permission.CertificatesRead or Permission.ProvidersRead or Permission.UsersRead
-            or Permission.AuditRead or Permission.Simulate or Permission.LogsRead;
+            or Permission.AuditRead or Permission.Simulate or Permission.LogsRead or Permission.MetricsRead;
 
     /// <summary>Why an identity change was refused, in a sentence; <paramref name="problem"/> is the service's own reason when it gave one.</summary>
     public static string Refusal(IdentityStatus status, string? problem = null) => status switch

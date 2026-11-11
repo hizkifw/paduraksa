@@ -45,6 +45,10 @@ public sealed class RolePermissionTests
     [InlineData(Role.Auditor, Permission.ConfigRead, true)]
     [InlineData(Role.Auditor, Permission.ConfigWrite, false)]
     [InlineData(Role.Auditor, Permission.Simulate, false)]
+    [InlineData(Role.Admin, Permission.MetricsRead, true)]
+    [InlineData(Role.Operator, Permission.MetricsRead, true)]
+    [InlineData(Role.Viewer, Permission.MetricsRead, true)]
+    [InlineData(Role.Auditor, Permission.MetricsRead, true)]
     public void RolesGrantWhatThePlanSays(Role role, Permission permission, bool granted) =>
         Assert.Equal(granted, RolePermissions.Of(role).Contains(permission));
 
@@ -96,6 +100,7 @@ public sealed class RolePermissionTests
             [
                 "config:read", "config:write", "certificates:read", "certificates:write", "providers:read", "providers:write",
                 "users:read", "users:write", "tokens:own", "tokens:all", "sessions:all", "audit:read", "vault:manage", "simulate", "logs:read",
+                "metrics:read",
             ],
             Enum.GetValues<Permission>().Select(p => p.ToName()));
         Assert.All(Enum.GetValues<Role>(), r => Assert.Equal(r, ModelNames.ParseRole(r.ToName())));

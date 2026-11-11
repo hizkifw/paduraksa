@@ -67,4 +67,7 @@ public enum Permission
 
     /// <summary>Browse, tail and download the access and error log files.</summary>
     LogsRead = 15,
+
+    /// <summary>Read the counters and latency figures: the dashboard overview and the Prometheus <c>/metrics</c> endpoint.</summary>
+    MetricsRead = 16,
 }
