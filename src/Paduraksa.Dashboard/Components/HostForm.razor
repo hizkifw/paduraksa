@@ -144,6 +144,10 @@
                                                  HelperText="Inherits the host's list unless this route names one or turns it off."
                                                  Error="@(E($"/routes/{index}/settings/accessList/accessListId") ?? E($"/routes/{index}/settings/accessList/enabled"))" ReadOnly="ReadOnly"
                                                  Field="@($"route-access-list-{index}")" />
+                                <SizeField Value="route.MaxBodySize" ValueChanged="@(value => SetAsync(() => route.MaxBodySize = value, $"/routes/{index}/settings/requestLimits/maxBodySize"))"
+                                           Inherited="HostMaxBodySize" Presets="RequestLimitPresets.Body" AllowUnlimited="true" Label="Body size on this route"
+                                           Error="@E($"/routes/{index}/settings/requestLimits/maxBodySize")" ReadOnly="ReadOnly"
+                                           Field="@($"route-max-body-size-{index}")" />
                                 </div>
                             </div>
                         }
@@ -374,6 +378,9 @@
     private AccessListSettings HostAccessList =>
         HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).AccessList ?? new AccessListSettings();
 
+    private long HostMaxBodySize =>
+        HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).RequestLimits?.MaxBodySize ?? RequestLimitBounds.DefaultMaxBodySize;
+
     private bool InheritedForceHttps => Inherited.ForceHttps == true;
 
     private string KindHint => Model.Kind switch
@@ -504,5 +511,6 @@
         || route.ProofOfWorkEnabled is not null
         || route.RateLimit is not null
         || route.AccessList is not null
+        || route.MaxBodySize is not null
         || Errors.Keys.Any(key => key.StartsWith($"/routes/{index}/settings", StringComparison.Ordinal));
 }

@@ -252,11 +252,8 @@ public sealed record CloudflareSettings : ISettingsLayer
 /// </summary>
 public sealed record RequestLimitsSettings : ISettingsLayer
 {
-    /// <summary>
-    /// The largest request body, in bytes; 0 is no limit. Built-in default: 100 MiB. A declared <c>Content-Length</c> over it is
-    /// refused up front; a body that has none (chunked, or HTTP/2 and HTTP/3 without a length) is cut off when it passes the
-    /// limit, so the upstream may already have received part of it. A route may set its own.
-    /// </summary>
+    /// <summary>Largest request body in bytes; 0 is no limit. Built-in default: 100 MiB. Over it is 413: at once when the request declares
+    /// its size, mid-upload when it doesn't. A route may set its own.</summary>
     public long? MaxBodySize { get; init; }
 
     /// <summary>Most header lines a request may carry, 8 to 128. Built-in default: 100. Host-wide: a route can't set it.</summary>

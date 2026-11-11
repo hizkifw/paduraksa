@@ -1,0 +1,166 @@
+@using Paduraksa.Dashboard.SettingsArea
+@* A size in bytes: inherit what the layer below resolves, "no limit" where 0 means that, a preset, or a number with a unit
+   (KiB, MiB, GiB). The config holds bytes; a person never types them. *@
+<div class="@("pdk-size-field " + Class)">
+    <MudSelect T="string" Value="_choice" ValueChanged="SetChoiceAsync" Label="@Label" Variant="Variant.Outlined" Margin="Margin.Dense"
+               Dense="true" ReadOnly="@ReadOnly" Error="@(_choice != CustomChoice && Error is not null)"
+               ErrorText="@(_choice == CustomChoice ? null : Error)" data-field="@Field">
+        <MudSelectItem T="string" Value="@InheritChoice">@InheritWord (@Describe(Inherited))</MudSelectItem>
+        @if (AllowUnlimited)
+        {
+            <MudSelectItem T="string" Value="@UnlimitedChoice">No limit</MudSelectItem>
+        }
+        @foreach (var preset in Presets)
+        {
+            var bytes = preset;
+            <MudSelectItem T="string" Value="@PresetChoice(bytes)">@SizeText.Format(bytes)</MudSelectItem>
+        }
+        <MudSelectItem T="string" Value="@CustomChoice">Custom size</MudSelectItem>
+    </MudSelect>
+    @if (_choice == CustomChoice)
+    {
+        <div class="pdk-size-custom">
+            <MudNumericField T="double?" Value="_number" ValueChanged="SetNumberAsync" Label="Size" Min="0" Variant="Variant.Outlined"
+                             Margin="Margin.Dense" ReadOnly="@ReadOnly" HideSpinButtons="true" Class="pdk-mono-input"
+                             Error="@(Error is not null)" ErrorText="@Error" data-field="@(Field + "-custom")" />
+            <MudSelect T="string" Value="_unit" ValueChanged="SetUnitAsync" Label="Unit" Variant="Variant.Outlined" Margin="Margin.Dense"
+                       Dense="true" ReadOnly="@ReadOnly" data-field="@(Field + "-unit")">
+                @foreach (var unit in SizeText.Units)
+                {
+                    <MudSelectItem T="string" Value="@unit">@unit</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+    }
+</div>
+
+@code {
+    private const string InheritChoice = "inherit";
+    private const string UnlimitedChoice = "none";
+    private const string CustomChoice = "custom";
+
+    private string _choice = InheritChoice;
+    private double? _number;
+    private string _unit = "MiB";
+    private long? _seen;
+    private bool _initialised;
+
+    /// <summary>This layer's size in bytes; null inherits.</summary>
+    [Parameter]
+    public long? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<long?> ValueChanged { get; set; }
+
+    /// <summary>What the layer below resolves to, which the inherit choice names in words.</summary>
+    [Parameter, EditorRequired]
+    public long Inherited { get; set; }
+
+    /// <summary>The words of the inherit choice: "Inherit" or "Built-in default".</summary>
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>The <c>data-field</c> of the choice; the custom number and unit add <c>-custom</c> and <c>-unit</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Field { get; set; } = string.Empty;
+
+    /// <summary>Sizes offered by name, in bytes.</summary>
+    [Parameter]
+    public IReadOnlyList<long> Presets { get; set; } = [];
+
+    /// <summary>0 bytes means no limit: offered as a choice of its own, and said so wherever it is inherited.</summary>
+    [Parameter]
+    public bool AllowUnlimited { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        // The parent's value is the truth: a reload or an undo changes it underneath us, while our own emission is already
+        // _seen, so choosing "Custom size" (which emits the value it starts from) doesn't collapse into the matching preset.
+        if (!_initialised || Value != _seen)
+        {
+            Read(Value);
+            _seen = Value;
+            _initialised = true;
+        }
+    }
+
+    private string Describe(long bytes) => bytes == 0 && AllowUnlimited ? "no limit" : SizeText.Format(bytes);
+
+    private static string PresetChoice(long bytes) => "p" + bytes.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private void Read(long? value)
+    {
+        if (value is not { } bytes)
+        {
+            _choice = InheritChoice;
+            return;
+        }
+
+        if (bytes == 0 && AllowUnlimited)
+        {
+            _choice = UnlimitedChoice;
+            return;
+        }
+
+        if (Presets.Contains(bytes))
+        {
+            _choice = PresetChoice(bytes);
+            return;
+        }
+
+        _choice = CustomChoice;
+        (var number, _unit) = SizeText.Split(bytes);
+        _number = number;
+    }
+
+    private Task SetChoiceAsync(string choice)
+    {
+        _choice = choice;
+        if (choice == CustomChoice)
+        {
+            // Starts from what the field resolves to now, in the unit that holds it, and sets nothing: the layer takes a size once
+            // the number or the unit is edited, so looking at Custom and leaving keeps what was there.
+            var start = Value ?? Inherited;
+            (var number, _unit) = SizeText.Split(start == 0 ? SizeText.Mebibyte : start);
+            _number = number;
+            return Task.CompletedTask;
+        }
+
+        return EmitAsync(choice switch
+        {
+            InheritChoice => null,
+            UnlimitedChoice => 0L,
+            _ => long.Parse(choice.AsSpan(1), System.Globalization.CultureInfo.InvariantCulture),
+        });
+    }
+
+    private Task SetNumberAsync(double? number)
+    {
+        _number = number;
+        return EmitAsync(number is { } typed ? SizeText.ToBytes(typed, _unit) : null);
+    }
+
+    private Task SetUnitAsync(string unit)
+    {
+        _unit = unit;
+        return EmitAsync(_number is { } number ? SizeText.ToBytes(number, unit) : null);
+    }
+
+    private Task EmitAsync(long? bytes)
+    {
+        _seen = bytes;
+        return ValueChanged.InvokeAsync(bytes);
+    }
+}

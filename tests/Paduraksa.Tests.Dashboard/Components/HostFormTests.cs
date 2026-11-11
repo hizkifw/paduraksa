@@ -282,6 +282,36 @@ public sealed class HostFormTests
         Assert.Null(model.ToConfig().Routes[0].Settings.AccessList);
     }
 
+    [Fact]
+    public async Task TheRouteBodySize_InheritsTheHostsLimit_AndOverridesItForOneRoute()
+    {
+        var model = HostEditModel.From(new HostConfig(HostId.New(), ["app.example.com"], Routes: [new RouteConfig(RouteId.New(), App.Id)]));
+        await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
+        var form = context.Render<HostForm>(parameters => parameters
+            .Add(f => f.Model, model)
+            .Add(f => f.Upstreams, [App])
+            .Add(f => f.Defaults, new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = 10 * 1024 * 1024 } })
+            .Add(f => f.Errors, new Dictionary<string, string>()));
+
+        await form.Find("[data-action='route-menu-0'] button").ClickAsync(new());
+        await popovers.Find("[data-action='route-settings']").ClickAsync(new());
+
+        // The route's inherit choice names the host's limit; an upload route can name its own, or none.
+        Assert.Contains("Inherit (10 MiB)", form.Find("[data-field='route-max-body-size-0']").OuterHtml, StringComparison.Ordinal);
+        await ChooseBodySize(form, "p1073741824");
+        Assert.Equal(new RequestLimitsSettings { MaxBodySize = 1024L * 1024 * 1024 }, model.ToConfig().Routes[0].Settings.RequestLimits);
+        await ChooseBodySize(form, "none");
+        Assert.Equal(new RequestLimitsSettings { MaxBodySize = 0 }, model.ToConfig().Routes[0].Settings.RequestLimits);
+        await ChooseBodySize(form, "inherit");
+        Assert.Null(model.ToConfig().Routes[0].Settings.RequestLimits);
+    }
+
+    private static Task ChooseBodySize(IRenderedComponent<HostForm> form, string key) =>
+        form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Body size on this route")
+            .Instance.ValueChanged.InvokeAsync(key));
+
     private static Task ChooseAccessList(IRenderedComponent<HostForm> form, string key) =>
         form.InvokeAsync(() => form.FindComponents<MudSelect<string>>()
             .Single(select => select.Instance.Label == "Access list on this route")

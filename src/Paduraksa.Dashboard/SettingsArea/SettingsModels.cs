@@ -75,6 +75,15 @@ public static class HostSettingsEdit
         return settings with { Robots = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its request-limits record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithRequestLimits(HostSettings settings, Func<RequestLimitsSettings, RequestLimitsSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.RequestLimits ?? new RequestLimitsSettings());
+        return settings with { RequestLimits = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary><paramref name="settings"/> with its Cloudflare record changed, and no record at all when nothing is left set.</summary>
     public static HostSettings WithCloudflare(HostSettings settings, Func<CloudflareSettings, CloudflareSettings> change)
     {
@@ -131,6 +140,7 @@ public static class SettingsSummary
         static (settings, _) => settings.Robots is { } robots ? RobotsSummary(robots) : null,
         static (settings, _) => settings.Cloudflare is { } cloudflare ? CloudflareText(cloudflare) : null,
         static (settings, document) => settings.AccessList is { } accessList ? AccessListSummary(accessList, document) : null,
+        static (settings, _) => settings.RequestLimits is { } requestLimits ? RequestLimitsText(requestLimits) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
@@ -178,6 +188,32 @@ public static class SettingsSummary
         OriginLockdownMode.Drop => "drop the connection",
         _ => "the layer below's",
     };
+
+    private static string? RequestLimitsText(RequestLimitsSettings limits)
+    {
+        List<string> parts = [];
+        if (limits.MaxBodySize is { } body)
+        {
+            parts.Add(body == 0 ? "no body limit" : $"body up to {SizeText.Format(body)}");
+        }
+
+        if (limits.MaxHeaderCount is { } count)
+        {
+            parts.Add($"{count.ToString(System.Globalization.CultureInfo.InvariantCulture)} header lines");
+        }
+
+        if (limits.MaxHeaderBytes is { } headerBytes)
+        {
+            parts.Add($"headers up to {SizeText.Format(headerBytes)}");
+        }
+
+        if (limits.MaxUrlLength is { } url)
+        {
+            parts.Add($"URL up to {SizeText.Format(url)}");
+        }
+
+        return parts.Count == 0 ? null : $"Request limits: {string.Join(", ", parts)}";
+    }
 
     private static string? CloudflareText(CloudflareSettings cloudflare)
     {

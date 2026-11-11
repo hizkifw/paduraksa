@@ -43,6 +43,7 @@ public sealed class HostSettingsFieldsTests
         Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers },
         Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true },
         AccessList = new AccessListSettings { AccessListId = SampleList },
+        RequestLimits = new RequestLimitsSettings { MaxBodySize = 10 * 1024 * 1024, MaxHeaderCount = 30, MaxHeaderBytes = 16 * 1024, MaxUrlLength = 4 * 1024 },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -378,6 +379,62 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/accessList/accessListId",
             ShowsAtField = true,
         },
+        new(
+            "requestLimits.maxBodySize",
+            "max-body-size",
+            "/requestLimits/maxBodySize",
+            new HostSettings(),
+            (fields, _) => SetSize(fields, "Body size", "p1048576"),
+            new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = 1024 * 1024 } },
+            (fields, _) => SetSize(fields, "Body size", "inherit"),
+            new HostSettings(),
+            "Inherit (10 MiB)")
+        {
+            ValidatorPath = "/requestLimits/maxBodySize",
+            ShowsAtField = true,
+        },
+        new(
+            "requestLimits.maxHeaderCount",
+            "max-header-count",
+            "/requestLimits/maxHeaderCount",
+            new HostSettings(),
+            (fields, _) => SetCount(fields, "Header lines", 40),
+            new HostSettings { RequestLimits = new RequestLimitsSettings { MaxHeaderCount = 40 } },
+            (fields, _) => SetCount(fields, "Header lines", null),
+            new HostSettings(),
+            "Inherit (30)")
+        {
+            ValidatorPath = "/requestLimits/maxHeaderCount",
+            ShowsAtField = true,
+        },
+        new(
+            "requestLimits.maxHeaderBytes",
+            "max-header-bytes",
+            "/requestLimits/maxHeaderBytes",
+            new HostSettings(),
+            (fields, _) => SetSize(fields, "Header size", "p8192"),
+            new HostSettings { RequestLimits = new RequestLimitsSettings { MaxHeaderBytes = 8192 } },
+            (fields, _) => SetSize(fields, "Header size", "inherit"),
+            new HostSettings(),
+            "Inherit (16 KiB)")
+        {
+            ValidatorPath = "/requestLimits/maxHeaderBytes",
+            ShowsAtField = true,
+        },
+        new(
+            "requestLimits.maxUrlLength",
+            "max-url-length",
+            "/requestLimits/maxUrlLength",
+            new HostSettings(),
+            (fields, _) => SetSize(fields, "URL length", "p2048"),
+            new HostSettings { RequestLimits = new RequestLimitsSettings { MaxUrlLength = 2048 } },
+            (fields, _) => SetSize(fields, "URL length", "inherit"),
+            new HostSettings(),
+            "Inherit (4 KiB)")
+        {
+            ValidatorPath = "/requestLimits/maxUrlLength",
+            ShowsAtField = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -522,6 +579,67 @@ public sealed class HostSettingsFieldsTests
     }
 
     [Fact]
+    public async Task ASizeIsTypedWithAUnitAndTheConfigHoldsBytes()
+    {
+        await using DashboardTestContext context = new();
+        Holder holder = new() { Value = new HostSettings() };
+        var fields = Render(context, holder, holder.Value);
+
+        // No limit is a choice of its own, and is 0 in the config; the inherit choice names the layer below's size.
+        Assert.Contains("Inherit (10 MiB)", fields.Find("[data-field=max-body-size]").OuterHtml, StringComparison.Ordinal);
+        await SetSize(fields, "Body size", "none");
+        Assert.Equal(0, holder.Value.RequestLimits!.MaxBodySize);
+
+        // Custom starts from what the field resolves to, in the unit that holds it, and sets nothing until the number or the unit is
+        // edited: looking at it and leaving keeps inheriting. The number and unit make the bytes.
+        await SetSize(fields, "Body size", "inherit");
+        await SetSize(fields, "Body size", "custom");
+        Assert.Null(holder.Value.RequestLimits);
+        Assert.Equal("10", InputOf(fields, "max-body-size-custom").GetAttribute("value"));
+        await fields.InvokeAsync(() => fields.FindComponents<MudNumericField<double?>>().Single(f => f.Instance.Label == "Size").Instance.ValueChanged.InvokeAsync(1.5));
+        Assert.Equal(1_572_864, holder.Value.RequestLimits!.MaxBodySize);
+        await fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>().Single(s => s.Instance.Label == "Unit").Instance.ValueChanged.InvokeAsync("GiB"));
+        Assert.Equal(1_610_612_736, holder.Value.RequestLimits!.MaxBodySize);
+        await fields.InvokeAsync(() => fields.FindComponents<MudNumericField<double?>>().Single(f => f.Instance.Label == "Size").Instance.ValueChanged.InvokeAsync(null));
+        Assert.Null(holder.Value.RequestLimits);
+
+        // A size too big for the int a header or URL limit is kept in saturates, so the validator names it instead of a wrapped 0.
+        Assert.Equal(int.MaxValue, SizeText.ToInt(SizeText.ToBytes(4, "GiB")));
+        Assert.Equal(long.MaxValue, SizeText.ToBytes(double.MaxValue, "GiB"));
+        Assert.Null(SizeText.ToInt(null));
+        await SetSize(fields, "Body size", "inherit");
+        await SetSize(fields, "URL length", "custom");
+        await fields.InvokeAsync(() => fields.FindComponents<MudNumericField<double?>>().Single(f => f.Instance.Label == "Size").Instance.ValueChanged.InvokeAsync(4));
+        await fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>().Single(s => s.Instance.Label == "Unit").Instance.ValueChanged.InvokeAsync("GiB"));
+        Assert.Equal(int.MaxValue, holder.Value.RequestLimits!.MaxUrlLength);
+
+        // A stored size reads back as its words: a preset by name, anything else as a number in the unit that holds it, and a size
+        // no unit holds exactly in KiB with decimals.
+        foreach (var (bytes, text) in new (long, string)[] { (0, "No limit"), (100 * 1024 * 1024, "100 MiB"), (3 * 1024 * 1024, "Custom size"), (1500, "Custom size") })
+        {
+            Holder stored = new() { Value = new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = bytes } } };
+            Assert.Contains(text, Render(context, stored, stored.Value).Find("[data-field=max-body-size]").TextContent, StringComparison.Ordinal);
+        }
+
+        Holder odd = new() { Value = new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = 1500 } } };
+        var oddFields = Render(context, odd, odd.Value);
+        Assert.Equal("1.465", InputOf(oddFields, "max-body-size-custom").GetAttribute("value"));
+        Assert.Contains("KiB", oddFields.Find("[data-field=max-body-size-unit]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheRequestLimitsAreSummarisedInWords()
+    {
+        Assert.Equal(
+            ["Request limits: body up to 10 MiB, 30 header lines, headers up to 16 KiB, URL up to 4 KiB"],
+            SettingsSummary.Summary(new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = 10 * 1024 * 1024, MaxHeaderCount = 30, MaxHeaderBytes = 16 * 1024, MaxUrlLength = 4 * 1024 } }));
+        Assert.Equal(["Request limits: no body limit"], SettingsSummary.Summary(new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = 0 } }));
+        Assert.Equal(["Request limits: body up to 1500 bytes"], SettingsSummary.Summary(new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = 1500 } }));
+        Assert.Equal(4, HostSettingsEdit.CountSet(new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = 1, MaxHeaderCount = 8, MaxHeaderBytes = 1024, MaxUrlLength = 256 } }));
+        Assert.Null(HostSettingsEdit.WithRequestLimits(new HostSettings { RequestLimits = new RequestLimitsSettings { MaxHeaderCount = 8 } }, l => l with { MaxHeaderCount = null }).RequestLimits);
+    }
+
+    [Fact]
     public async Task TheRobotsDependentsFollowTheModeAndTheListIsShown()
     {
         await using DashboardTestContext context = new();
@@ -637,7 +755,7 @@ public sealed class HostSettingsFieldsTests
     private static async Task SetMaxAgeAsync(IRenderedComponent<HostSettingsFields> fields)
     {
         await SetChoice(fields, HstsMaxAgeChoice.Custom);
-        await fields.InvokeAsync(() => fields.FindComponents<MudNumericField<int?>>().Single().Instance.ValueChanged.InvokeAsync(1234));
+        await fields.InvokeAsync(() => fields.FindComponents<MudNumericField<int?>>().Single(field => field.Instance.Label == "Seconds").Instance.ValueChanged.InvokeAsync(1234));
     }
 
     /// <summary>
@@ -663,6 +781,17 @@ public sealed class HostSettingsFieldsTests
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<HstsMaxAgeChoice>>()
             .Single(select => select.Instance.Label == "Remembered for")
             .Instance.ValueChanged.InvokeAsync(choice));
+
+    /// <summary>Chooses a size field's inherit, no-limit, preset (<c>p</c> and the bytes) or custom item by its key.</summary>
+    private static Task SetSize(IRenderedComponent<HostSettingsFields> fields, string label, string key) =>
+        fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == label)
+            .Instance.ValueChanged.InvokeAsync(key));
+
+    private static Task SetCount(IRenderedComponent<HostSettingsFields> fields, string label, int? value) =>
+        fields.InvokeAsync(() => fields.FindComponents<MudNumericField<int?>>()
+            .Single(field => field.Instance.Label == label)
+            .Instance.ValueChanged.InvokeAsync(value));
 
     private static Task SetLifetime(IRenderedComponent<HostSettingsFields> fields, TokenLifetimeChoice choice) =>
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<TokenLifetimeChoice>>()

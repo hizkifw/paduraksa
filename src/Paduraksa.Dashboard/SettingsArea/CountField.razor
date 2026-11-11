@@ -1,0 +1,35 @@
+@* A whole number with the inherited value as its placeholder: empty inherits. *@
+<MudNumericField T="int?" Value="Value" ValueChanged="ValueChanged" Label="@Label" Placeholder="@($"{InheritWord} ({Inherited})")"
+                 Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" HideSpinButtons="true" Clearable="true"
+                 Class="@("pdk-mono-input " + Class)" Error="@(Error is not null)" ErrorText="@Error" data-field="@Field" />
+
+@code {
+    [Parameter]
+    public int? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<int?> ValueChanged { get; set; }
+
+    /// <summary>What the layer below resolves to, which the placeholder names.</summary>
+    [Parameter, EditorRequired]
+    public int Inherited { get; set; }
+
+    /// <summary>The words of the placeholder: "Inherit" or "Built-in default".</summary>
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Field { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+}

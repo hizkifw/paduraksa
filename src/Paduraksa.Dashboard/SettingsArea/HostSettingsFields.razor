@@ -180,6 +180,32 @@
         <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
     </InheritSelect>
 
+    <h4 class="pdk-setting-section">Request limits</h4>
+
+    <SettingRow Title="Body size" Help="Refused with 413 above this: at once when the request declares its size, mid-upload when it doesn't. A route can set its own.">
+        <SizeField Value="_current.RequestLimits?.MaxBodySize" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxBodySize = value }), "/requestLimits/maxBodySize"))"
+                   Inherited="@Resolved.RequestLimits!.MaxBodySize!.Value" Presets="BodyPresets" AllowUnlimited="true" InheritWord="@InheritWord"
+                   Label="Body size" Field="max-body-size" Error="@E("/requestLimits/maxBodySize")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+    </SettingRow>
+
+    <SettingRow Title="Header lines" Help="Most header lines a request may carry, a cookie header included. More gets a 431.">
+        <CountField Value="_current.RequestLimits?.MaxHeaderCount" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxHeaderCount = value }), "/requestLimits/maxHeaderCount"))"
+                    Inherited="@Resolved.RequestLimits!.MaxHeaderCount!.Value" InheritWord="@InheritWord" Label="Header lines" Field="max-header-count"
+                    Error="@E("/requestLimits/maxHeaderCount")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+    </SettingRow>
+
+    <SettingRow Title="Header size" Help="Header names and values together. More gets a 431; large cookies are the usual cause.">
+        <SizeField Value="_current.RequestLimits?.MaxHeaderBytes" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxHeaderBytes = SizeText.ToInt(value) }), "/requestLimits/maxHeaderBytes"))"
+                   Inherited="@Resolved.RequestLimits!.MaxHeaderBytes!.Value" Presets="HeaderPresets" InheritWord="@InheritWord"
+                   Label="Header size" Field="max-header-bytes" Error="@E("/requestLimits/maxHeaderBytes")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+    </SettingRow>
+
+    <SettingRow Title="URL length" Help="The path and query as sent. Longer gets a 414.">
+        <SizeField Value="_current.RequestLimits?.MaxUrlLength" ValueChanged="@(value => Update(WithRequestLimits(limits => limits with { MaxUrlLength = SizeText.ToInt(value) }), "/requestLimits/maxUrlLength"))"
+                   Inherited="@Resolved.RequestLimits!.MaxUrlLength!.Value" Presets="UrlPresets" InheritWord="@InheritWord"
+                   Label="URL length" Field="max-url-length" Error="@E("/requestLimits/maxUrlLength")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+    </SettingRow>
+
     <h4 class="pdk-setting-section">Headers and logging</h4>
 
     <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
@@ -358,6 +384,14 @@
     private HostSettings WithCloudflare(Func<CloudflareSettings, CloudflareSettings> change) => HostSettingsEdit.WithCloudflare(_current, change);
 
     private HostSettings WithRobots(Func<RobotsSettings, RobotsSettings> change) => HostSettingsEdit.WithRobots(_current, change);
+
+    private HostSettings WithRequestLimits(Func<RequestLimitsSettings, RequestLimitsSettings> change) => HostSettingsEdit.WithRequestLimits(_current, change);
+
+    private static readonly IReadOnlyList<long> BodyPresets = RequestLimitPresets.Body;
+
+    private static readonly IReadOnlyList<long> HeaderPresets = RequestLimitPresets.HeaderBytes;
+
+    private static readonly IReadOnlyList<long> UrlPresets = RequestLimitPresets.Url;
 
     /// <summary>
     /// A concrete mode other than custom clears this layer's text: kept beside it, the validator would refuse the text as
