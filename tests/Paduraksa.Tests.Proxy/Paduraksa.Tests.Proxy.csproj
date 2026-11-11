@@ -8,4 +8,5 @@
     <Compile Include="../Shared/TestIds.cs" Link="Shared/TestIds.cs" />
     <Compile Include="../Shared/TestAccessLists.cs" Link="Shared/TestAccessLists.cs" />
   </ItemGroup>
+  <Import Project="../Shared/TestPasswords.props" />
 </Project>

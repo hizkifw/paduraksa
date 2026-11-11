@@ -4,6 +4,7 @@ using Paduraksa.Core.Vault;
 using Paduraksa.Vault;
 using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.DataProtection;
+using Paduraksa.Vault.Passwords;
 
 namespace Paduraksa.Tests.Vault.Testing;
 
@@ -39,6 +40,9 @@ internal sealed class VaultHarness : IDisposable
 
     /// <summary>What the Data Protection store logged (a skipped damaged row, a newly sealed element).</summary>
     public ListLogger<DataProtectionKeyStore> DataProtectionLog { get; } = new();
+
+    /// <summary>What the password store logged (a credential it couldn't open, sets and deletes).</summary>
+    public ListLogger<PasswordCredentialStore> PasswordLog { get; } = new();
 
     public VaultHarness()
     {
@@ -86,6 +90,7 @@ internal sealed class VaultHarness : IDisposable
         VaultServiceCollectionExtensions.AddVault(services, options, NameRules);
         services.AddSingleton<ILogger<KekProvider>>(KekLog);
         services.AddSingleton<ILogger<DataProtectionKeyStore>>(DataProtectionLog);
+        services.AddSingleton<ILogger<PasswordCredentialStore>>(PasswordLog);
         return services.BuildServiceProvider(validateScopes: true);
     }
 }

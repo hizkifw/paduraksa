@@ -15,6 +15,10 @@
     <Compile Include="../Paduraksa.Tests.Acme/Dns/FakeDnsApis.cs" LinkBase="Shared/AcmeFakes" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The allocation check of the gate's tests: the cache probe must stay 0 B. -->
+    <Compile Include="../Paduraksa.Tests.Proxy/Testing/AllocAssert.cs" LinkBase="Shared" />
+  </ItemGroup>
+  <ItemGroup>
     <!-- A local HTTPS server (Kestrel) for the authenticating handler's wire tests. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

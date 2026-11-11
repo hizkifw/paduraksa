@@ -27,6 +27,9 @@ internal sealed partial class VaultRuntime(
 
     private volatile Started? _started;
 
+    /// <summary>Whether <see cref="InitializeAsync"/> has completed: the KEK is resolved and the database is current.</summary>
+    public bool IsStarted => _started is not null;
+
     public TimeProvider Time => options.Time;
 
     public VaultPolicy Policy => options.Policy;

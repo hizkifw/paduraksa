@@ -1,6 +1,6 @@
-using Paduraksa.Core.Security;
+using Paduraksa.Vault.Passwords;
 
-namespace Paduraksa.Tests.Unit.Security;
+namespace Paduraksa.Tests.Vault.Passwords;
 
 public sealed class PasswordHashTests
 {

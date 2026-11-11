@@ -1,28 +1,28 @@
-using Paduraksa.Proxy.AccessLists;
+using Paduraksa.Vault.Passwords;
 
-namespace Paduraksa.Tests.Proxy.AccessLists;
+namespace Paduraksa.Tests.Vault.Passwords;
 
-public sealed class AccessListVerificationCacheTests
+public sealed class PasswordVerificationCacheTests
 {
     private const long Minute = 60_000;
 
     [Fact]
     public void AKeyIsFoundUntilItExpires()
     {
-        AccessListVerificationCache cache = new(16);
+        PasswordVerificationCache cache = new(16);
 
         cache.Add(42, nowMs: 1000);
 
         Assert.True(cache.Contains(42, 1000));
-        Assert.True(cache.Contains(42, 1000 + AccessListVerificationCache.LifetimeMs - 1));
-        Assert.False(cache.Contains(42, 1000 + AccessListVerificationCache.LifetimeMs));
+        Assert.True(cache.Contains(42, 1000 + PasswordVerificationCache.LifetimeMs - 1));
+        Assert.False(cache.Contains(42, 1000 + PasswordVerificationCache.LifetimeMs));
         Assert.False(cache.Contains(43, 1000));
     }
 
     [Fact]
     public void AHitPushesTheExpiryToFiveMinutesFromNow()
     {
-        AccessListVerificationCache cache = new(16);
+        PasswordVerificationCache cache = new(16);
         cache.Add(42, 0);
 
         Assert.True(cache.TryHit(42, 4 * Minute + 30_000));
@@ -34,7 +34,7 @@ public sealed class AccessListVerificationCacheTests
     [Fact]
     public void AHitWithMoreThanFourMinutesLeftWritesNothing()
     {
-        AccessListVerificationCache cache = new(16);
+        PasswordVerificationCache cache = new(16);
         cache.Add(42, 0);
 
         Assert.True(cache.TryHit(42, 30_000));
@@ -54,7 +54,7 @@ public sealed class AccessListVerificationCacheTests
     [Fact]
     public void AnExpiredOrAbsentKeyIsNotBroughtBackByAHit()
     {
-        AccessListVerificationCache cache = new(16);
+        PasswordVerificationCache cache = new(16);
         cache.Add(42, 0);
 
         Assert.False(cache.TryHit(42, 5 * Minute));
@@ -66,7 +66,7 @@ public sealed class AccessListVerificationCacheTests
     [Fact]
     public void AnIdleEntryDropsOutBetweenFourAndFiveMinutesAfterItsLastUse()
     {
-        AccessListVerificationCache cache = new(16);
+        PasswordVerificationCache cache = new(16);
         cache.Add(42, 0);
 
         // Used every ten seconds for ten minutes: always live.
@@ -83,7 +83,7 @@ public sealed class AccessListVerificationCacheTests
     [Fact]
     public void AddingAKeyAgainRenewsItInPlace()
     {
-        AccessListVerificationCache cache = new(16);
+        PasswordVerificationCache cache = new(16);
 
         cache.Add(42, 0);
         cache.Add(42, 4 * Minute);
@@ -95,7 +95,7 @@ public sealed class AccessListVerificationCacheTests
     [Fact]
     public void AFullNeighbourhoodEvictsTheEntryThatWouldLapseFirstAndKeepsTheTableBounded()
     {
-        AccessListVerificationCache cache = new(4);
+        PasswordVerificationCache cache = new(4);
 
         // Capacity 4 and four probes: every key shares one neighbourhood.
         cache.Add(1, 0);
@@ -112,13 +112,13 @@ public sealed class AccessListVerificationCacheTests
     [Fact]
     public void AnExpiredEntryIsReusedBeforeALiveOneIsGivenUp()
     {
-        AccessListVerificationCache cache = new(4);
+        PasswordVerificationCache cache = new(4);
         cache.Add(1, 0);
-        cache.Add(2, AccessListVerificationCache.LifetimeMs);
-        cache.Add(3, AccessListVerificationCache.LifetimeMs);
-        cache.Add(4, AccessListVerificationCache.LifetimeMs);
+        cache.Add(2, PasswordVerificationCache.LifetimeMs);
+        cache.Add(3, PasswordVerificationCache.LifetimeMs);
+        cache.Add(4, PasswordVerificationCache.LifetimeMs);
 
-        var now = AccessListVerificationCache.LifetimeMs + 1;
+        var now = PasswordVerificationCache.LifetimeMs + 1;
         cache.Add(5, now);
 
         Assert.True(cache.Contains(2, now));
@@ -133,13 +133,13 @@ public sealed class AccessListVerificationCacheTests
     [InlineData(0)]
     public void ACapacityThatIsNotAPowerOfTwoIsRefused(int capacity)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new AccessListVerificationCache(capacity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PasswordVerificationCache(capacity));
     }
 
     [Fact]
     public async Task ConcurrentRefreshesAndWritersNeverMakeAnUnaddedKeyLive()
     {
-        AccessListVerificationCache cache = new(64);
+        PasswordVerificationCache cache = new(64);
         using CancellationTokenSource stop = new();
         var forged = 0;
         var writers = Enumerable.Range(0, 2).Select(w => Task.Run(() =>
@@ -172,7 +172,7 @@ public sealed class AccessListVerificationCacheTests
     [Fact]
     public async Task ConcurrentWritersAndReadersNeverBelieveAKeyNobodyAdded()
     {
-        AccessListVerificationCache cache = new(64);
+        PasswordVerificationCache cache = new(64);
         using CancellationTokenSource stop = new();
         var forged = 0;
         var writers = Enumerable.Range(0, 4).Select(w => Task.Run(() =>

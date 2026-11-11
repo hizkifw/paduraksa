@@ -52,6 +52,9 @@ public sealed class VaultContractTests
         typeof(IVaultKekRotation),
         typeof(ITotpAuthenticator),
         typeof(IDataProtectionKeyStore),
+        typeof(IPasswordCredential),
+        typeof(IPasswordCredentials),
+        typeof(IPasswordVerifier),
     ];
 
     /// <summary>
@@ -110,6 +113,31 @@ public sealed class VaultContractTests
     {
         var leaks = VaultLeaks(VaultTypes());
         Assert.True(leaks.Count == 0, "Not allowed in the vault contracts (deny by default): " + string.Join("; ", leaks));
+    }
+
+    [Fact]
+    public void PasswordVerifiersAndTheirCacheNeverLeaveTheVault()
+    {
+        // The hash type, the parsed form, the cache, the registry, the handle and the store are what hold a verifier or a cache entry; each is internal to the
+        // vault (the vault exports nothing but its registration, see ArchRules.VaultHasNoPublicTypes), and no other assembly declares
+        // its own copy.
+        var vault = LoadAssembly(Layer.Vault);
+        string[] names = ["PasswordHash", "ParsedPasswordHash", "PasswordVerificationCache", "PasswordRegistry", "PasswordCredentialSlot", "PasswordCredentialStore"];
+        foreach (var name in names)
+        {
+            var type = Assert.Single(vault.GetTypes(), t => t.Name == name);
+            Assert.False(type.IsVisible, $"{name} must be internal to the vault");
+        }
+
+        foreach (var layer in Enum.GetValues<Layer>().Where(l => l != Layer.Vault))
+        {
+            Assert.DoesNotContain(LoadAssembly(layer).GetTypes(), t => names.Contains(t.Name));
+        }
+
+        // What crosses the boundary is a handle, a verdict and the probe's two facts: none can carry a verifier or a cache key.
+        Assert.All(
+            typeof(PasswordCacheProbe).GetProperties().Select(p => p.PropertyType).Concat(typeof(IPasswordCredential).GetProperties().Select(p => p.PropertyType)),
+            t => Assert.True(t == typeof(bool) || t == typeof(long) || t == typeof(PasswordCredentialId)));
     }
 
     [Fact]

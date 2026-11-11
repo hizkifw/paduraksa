@@ -156,6 +156,37 @@ namespace Paduraksa.Vault.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Paduraksa.Vault.Persistence.PasswordCredentialRow", b =>
+                {
+                    b.Property<byte[]>("Id")
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Sealed")
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PasswordCredentials", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PasswordCredentials_Sealed", "length(\"Sealed\") > 0");
+
+                            t.HasCheckConstraint("CK_PasswordCredentials_Version", "\"Version\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("Paduraksa.Vault.Persistence.SecretRow", b =>
                 {
                     b.Property<byte[]>("Id")

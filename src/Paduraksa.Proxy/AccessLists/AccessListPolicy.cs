@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -6,7 +5,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Security;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Pages;
@@ -29,20 +28,20 @@ public enum AccessListStage : byte
 /// <summary>
 /// One access list in a host's or route's chain: IP allow and deny, then HTTP basic auth, combined as the list's
 /// <c>satisfy</c> says. Every verdict (pass, 403, drop, 401) the policy gives at once allocates nothing; a password that
-/// isn't in the verification cache costs one PBKDF2, which the request waits for without holding a thread.
+/// isn't in the vault's verification cache costs one PBKDF2, which the request waits for without holding a thread.
 /// </summary>
 /// <remarks>
 /// <para><b>Rules.</b> A denied address is refused whatever it sends. An allow list that has entries lets only those
 /// addresses pass; with <c>satisfy: all</c> (and users) the others get 403, with <c>any</c> they are asked for a password
 /// instead. Without users only the address applies; without address rules only the password does.</para>
 /// <para><b>Credentials.</b> The name is compared in constant time with every user's, so where in the list it matched isn't
-/// observable; an unknown name still pays one PBKDF2 against a dummy hash, so it is indistinguishable by timing from a wrong
-/// password. A password that isn't in the cache defers the verdict (<see cref="IDeferredPolicy"/>): the request waits in
+/// observable; an unknown name (and a user with no password) still pays one PBKDF2 against a dummy hash, so it is indistinguishable
+/// by timing from a wrong password. The hashes and the cache are the vault's (<see cref="IPasswordVerifier"/>): this class hands
+/// it the credential and the bytes the client sent and gets a verdict back. A password that isn't in the cache defers the verdict (<see cref="IDeferredPolicy"/>): the request waits in
 /// <see cref="AccessListVerificationQueue"/> for one of at most as many concurrent checks as the machine has processors (never
 /// fewer than 8; one client runs at most two of them), runs its PBKDF2 and then carries on through the rest of the chain, or is
 /// answered 401. A request that can't get a place in the line, or waits too long, is answered 429. A verified credential is remembered in
-/// <see cref="AccessListVerificationCache"/> until five minutes after its last use, keyed by a keyed hash of the list's user
-/// (which changes with the password), the password and the client address masked as the rate limit masks it (IPv4 whole, IPv6
+/// the vault's cache until five minutes after its last use, per client address masked as the rate limit masks it (IPv4 whole, IPv6
 /// by /64). The same credentials never run twice at once: a request waits while an identical one is being checked and then finds
 /// the result in the cache.</para>
 /// <para><b>Allocation.</b> Every synchronous path is 0 B, including the cache miss that defers. The wait and the check run
@@ -53,9 +52,6 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
 {
     private static readonly PolicyDecision Busy = PolicyDecision.Respond(
         PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Please slow down.\n", htmlPage: ErrorPages.TooManyRequests), "1");
-
-    // Checked when a name matches no user, so that a guess at a name costs what a guess at a password does.
-    private static readonly ParsedPasswordHash DummyHash = ParseDummy();
 
     private readonly CompiledAccessList _list;
     private readonly AccessListStage _stage;
@@ -227,18 +223,18 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
             return unreadable;
         }
 
-        var password = credentials[(credentials.IndexOf((byte)':') + 1)..];
+        var colon = credentials.IndexOf((byte)':');
+        var name = credentials[..colon];
+        var password = credentials[(colon + 1)..];
+        Span<byte> masked = stackalloc byte[16];
+        client.MaskTo(32, 64).WriteBytes(masked);
+        var verifier = _runtime.Verifier;
 
         // Looked up again in the Verify phase: a request ahead in the line may have verified these very credentials.
-        ulong fingerprint = 0;
-        if (user is not null && phase != Phase.Simulation)
+        if (user is not null && phase != Phase.Simulation && verifier.TryVerifyCached(user.Credential, name, password, masked).Hit)
         {
-            fingerprint = Fingerprint(user, client, credentials);
-            if (_runtime.Cache.TryHit(fingerprint, _runtime.NowMs))
-            {
-                stats!.CountCacheHit();
-                return CredentialVerdict.VerifiedFromCache;
-            }
+            stats!.CountCacheHit();
+            return CredentialVerdict.VerifiedFromCache;
         }
 
         if (phase == Phase.Decide)
@@ -247,23 +243,11 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
         }
 
         stats?.CountVerification();
-        var matches = PasswordHash.Verify(password, user?.Hash ?? DummyHash);
-        if (user is null)
-        {
-            return CredentialVerdict.UnknownUser;
-        }
-
-        if (!matches)
-        {
-            return CredentialVerdict.WrongPassword;
-        }
-
-        if (phase != Phase.Simulation)
-        {
-            _runtime.Cache.Add(fingerprint, _runtime.NowMs);
-        }
-
-        return CredentialVerdict.Verified;
+        var verdict = verifier.Verify(user?.Credential, name, password, masked, remember: phase != Phase.Simulation);
+        return user is null ? CredentialVerdict.UnknownUser
+            : verdict == PasswordVerdict.Verified ? CredentialVerdict.Verified
+            : verdict == PasswordVerdict.NoPassword ? CredentialVerdict.NoPassword
+            : CredentialVerdict.WrongPassword;
     }
 
     /// <summary>The credentials of a request's <c>Authorization</c> header and the user they name (null: nobody), decoded into
@@ -297,33 +281,20 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
     }
 
     // Names the credentials a request is about to have checked, so the line never runs the same ones twice at once; 0 when the
-    // name is nobody's (every such check is its own, against the dummy hash).
+    // name is nobody's or has no password (every such check is its own, against the dummy hash). The vault's name for an attempt
+    // is a keyed hash: it says nothing about what was sent.
     private ulong CredentialKey(HttpRequest request, IpKey client)
     {
         Span<byte> buffer = stackalloc byte[BasicCredentials.MaxDecodedLength + 64];
-        return TryRead(request, buffer, out var credentials, out var user, out _) && user is not null ? Fingerprint(user, client, credentials) : 0;
-    }
+        if (!TryRead(request, buffer, out var credentials, out var user, out _) || user is null)
+        {
+            return 0;
+        }
 
-    // SHA-256 over the process key, the user's fingerprint, the masked client and the credentials as sent. The key is the
-    // keyed part: without it nobody can compute, aim or guess an entry. Never leaves the stack.
-    private ulong Fingerprint(CompiledAccessListUser user, IpKey client, ReadOnlySpan<byte> credentials)
-    {
-        Span<byte> input = stackalloc byte[32 + 16 + 16 + BasicCredentials.MaxDecodedLength + 8];
-        _runtime.Key.CopyTo(input);
-        user.Fingerprint.CopyTo(input[32..]);
-        client.MaskTo(32, 64).WriteBytes(input[48..]);
-        credentials.CopyTo(input[64..]);
-        Span<byte> digest = stackalloc byte[32];
-        SHA256.HashData(input[..(64 + credentials.Length)], digest);
-        CryptographicOperations.ZeroMemory(input);
-        var key = BinaryPrimitives.ReadUInt64LittleEndian(digest);
-        return key == 0 ? 1 : key;
-    }
-
-    private static ParsedPasswordHash ParseDummy()
-    {
-        var made = PasswordHash.TryParse(PasswordHash.Create(Convert.ToHexString(RandomNumberGenerator.GetBytes(8))), out var parsed);
-        return made ? parsed! : throw new InvalidOperationException("The dummy password hash didn't parse.");
+        var colon = credentials.IndexOf((byte)':');
+        Span<byte> masked = stackalloc byte[16];
+        client.MaskTo(32, 64).WriteBytes(masked);
+        return (ulong)_runtime.Verifier.TryVerifyCached(user.Credential, credentials[..colon], credentials[(colon + 1)..], masked).AttemptKey;
     }
 }
 
@@ -345,6 +316,9 @@ internal enum CredentialVerdict : byte
     Unreadable,
     UnknownUser,
     WrongPassword,
+
+    /// <summary>The user exists but the vault holds no password for them (a rollback brought them back after their credential was deleted).</summary>
+    NoPassword,
     Verified,
     VerifiedFromCache,
     Busy,

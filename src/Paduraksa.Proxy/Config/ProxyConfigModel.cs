@@ -1,4 +1,5 @@
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
@@ -446,7 +447,7 @@ public sealed record AccessListPolicySpec(AccessListId List, AccessListStage Sta
 /// <summary>The host chain of a host whose routes name different lists: the address rules of all of them as one check.</summary>
 public sealed record AccessListUnionPolicySpec(IReadOnlyList<AccessListId> Lists) : PolicySpec;
 
-/// <summary>A named access list. The validator has judged it; the compiler checks the addresses and hashes again.</summary>
+/// <summary>A named access list. The validator has judged it; the compiler checks the addresses again.</summary>
 public sealed record AccessListSpec
 {
     public required AccessListId Id { get; init; }
@@ -470,5 +471,6 @@ public sealed record AccessListSpec
     public IReadOnlyList<AccessListUserSpec> Users { get; init; } = [];
 }
 
-/// <summary>A user as stored: the name and the PBKDF2 verifier, never the password.</summary>
-public sealed record AccessListUserSpec(string Username, string PasswordHash);
+/// <summary>A user: the name and the vault's handle on their password, never a password or a hash. A handle with no password in the
+/// vault is a user who can't sign in.</summary>
+public sealed record AccessListUserSpec(string Username, IPasswordCredential Credential);

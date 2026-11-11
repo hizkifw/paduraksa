@@ -162,6 +162,23 @@ internal sealed class DataProtectionKeyRow
     public byte[] Sealed { get; set; } = [];
 }
 
+/// <summary>
+/// A basic-auth user's password verifier (the PHC string) sealed under the KEK, bound to <c>(Id, Version)</c>. The version is in
+/// the AAD and is a concurrency token, like a secret's.
+/// </summary>
+internal sealed class PasswordCredentialRow
+{
+    public PasswordCredentialId Id { get; set; }
+
+    public int Version { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public byte[] Sealed { get; set; } = [];
+}
+
 internal sealed class VaultMetaRowConfiguration : IEntityTypeConfiguration<VaultMetaRow>
 {
     public void Configure(EntityTypeBuilder<VaultMetaRow> builder)
@@ -297,5 +314,22 @@ internal sealed class TotpStateRowConfiguration : IEntityTypeConfiguration<TotpS
         builder.ToTable("TotpStates", table => table.HasCheckConstraint("CK_TotpStates_LastStep", "\"LastStep\" IS NULL OR \"LastStep\" >= 0"));
         builder.HasKey(r => r.SecretId);
         builder.HasOne<SecretRow>().WithOne().HasForeignKey<TotpStateRow>(r => r.SecretId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+internal sealed class PasswordCredentialRowConfiguration : IEntityTypeConfiguration<PasswordCredentialRow>
+{
+    public void Configure(EntityTypeBuilder<PasswordCredentialRow> builder)
+    {
+        builder.ToTable("PasswordCredentials", table =>
+        {
+            table.HasCheckConstraint("CK_PasswordCredentials_Version", "\"Version\" >= 1");
+            table.HasCheckConstraint("CK_PasswordCredentials_Sealed", "length(\"Sealed\") > 0");
+        });
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Sealed).IsRequired();
+
+        // The version is in the AAD of the sealed value, so a write that lost a race must fail rather than reuse a version.
+        builder.Property(r => r.Version).IsConcurrencyToken();
     }
 }

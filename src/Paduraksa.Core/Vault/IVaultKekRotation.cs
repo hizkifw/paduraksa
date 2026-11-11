@@ -1,9 +1,9 @@
 namespace Paduraksa.Core.Vault;
 
 /// <summary>What a KEK rotation re-wrapped, counted per kind of value.</summary>
-public sealed record KekRotationResult(int Secrets, int AccountKeys, int CertificateKeys, int StagedKeys, int DataProtectionKeys)
+public sealed record KekRotationResult(int Secrets, int AccountKeys, int CertificateKeys, int StagedKeys, int DataProtectionKeys, int PasswordCredentials)
 {
-    /// <summary>Every key re-wrapped, of all kinds together (the secrets are not keys and are not counted here).</summary>
+    /// <summary>Every key re-wrapped, of all kinds together (the secrets and the password credentials are not keys and are not counted here).</summary>
     public int Keys => AccountKeys + CertificateKeys + StagedKeys + DataProtectionKeys;
 }
 

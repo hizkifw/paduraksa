@@ -4,6 +4,7 @@ using Paduraksa.Vault.Certificates;
 using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.DataProtection;
 using Paduraksa.Vault.Keys;
+using Paduraksa.Vault.Passwords;
 using Paduraksa.Vault.Persistence;
 using Paduraksa.Vault.Secrets;
 using Paduraksa.Vault.Totp;
@@ -70,6 +71,9 @@ public static class VaultServiceCollectionExtensions
         services.AddSingleton<ICertificateCatalog, CertificateCatalog>();
         services.AddSingleton<ITotpAuthenticator, TotpAuthenticator>();
         services.AddSingleton<IDataProtectionKeyStore, DataProtectionKeyStore>();
+        services.AddSingleton(p => new PasswordRegistry(p.GetRequiredService<VaultOptions>().Time));
+        services.AddSingleton<IPasswordVerifier>(p => p.GetRequiredService<PasswordRegistry>());
+        services.AddSingleton<IPasswordCredentials, PasswordCredentialStore>();
         return services;
     }
 }

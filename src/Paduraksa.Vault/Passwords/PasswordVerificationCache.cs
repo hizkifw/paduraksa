@@ -1,12 +1,12 @@
-namespace Paduraksa.Proxy.AccessLists;
+namespace Paduraksa.Vault.Passwords;
 
 /// <summary>
 /// Remembers that a credential has just passed PBKDF2, so the next request with the same one doesn't pay for it again.
 /// A fixed table of two arrays, lock-free and bounded: a flood of distinct credentials can only evict one another.
 /// </summary>
 /// <remarks>
-/// <para><b>What is stored.</b> A 64-bit fingerprint (a keyed SHA-256 of the list, user, password and masked client IP;
-/// see <see cref="AccessListPolicy"/>) and an expiry in milliseconds. Never a password, a hash or an address. Only a
+/// <para><b>What is stored.</b> A 64-bit fingerprint (a keyed SHA-256 of the credential's stamp, the user, the password and the masked
+/// client IP; see <see cref="PasswordRegistry"/>) and an expiry in milliseconds. Never a password, a hash or an address. Only a
 /// <i>successful</i> verification is ever added, so a miss costs the attacker a PBKDF2 and a hit proves a real one ran.</para>
 /// <para><b>The race.</b> A writer clears the expiry, stores the key, then stores the new expiry; a reader reads the key,
 /// the expiry, then the key again and believes it only when both reads of the key agree and the expiry is live. So a
@@ -18,7 +18,7 @@ namespace Paduraksa.Proxy.AccessLists;
 /// clock reads taken microseconds apart, or shorter when the refreshing thread was stalled after reading its clock; either way
 /// the cost is an entry living a few milliseconds longer or being verified again early.</para>
 /// </remarks>
-public sealed class AccessListVerificationCache
+internal sealed class PasswordVerificationCache
 {
     /// <summary>How long a verified credential stays trusted.</summary>
     public const long LifetimeMs = 5 * 60 * 1000;
@@ -36,7 +36,7 @@ public sealed class AccessListVerificationCache
     private readonly long[] _expires;
     private readonly int _mask;
 
-    public AccessListVerificationCache(int capacity = DefaultCapacity)
+    public PasswordVerificationCache(int capacity = DefaultCapacity)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(capacity, Probes);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(capacity, 1 << 24);

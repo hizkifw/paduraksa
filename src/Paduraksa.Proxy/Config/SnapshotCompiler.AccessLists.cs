@@ -1,5 +1,4 @@
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Security;
 using Paduraksa.Core.Text;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Net;
@@ -50,13 +49,13 @@ public static partial class SnapshotCompiler
                 {
                     errors.Add(new(where, $"the username '{name}' is listed twice"));
                 }
-                else if (!PasswordHash.TryParse(user.PasswordHash, out var parsed))
+                else if (user.Credential is null)
                 {
-                    errors.Add(new(where, $"the password hash of '{name}' isn't one this build reads"));
+                    errors.Add(new(where, $"the user '{name}' has no password credential"));
                 }
                 else
                 {
-                    users.Add(new CompiledAccessListUser(spec.Id, name, user.PasswordHash, parsed));
+                    users.Add(new CompiledAccessListUser(name, user.Credential));
                 }
             }
 

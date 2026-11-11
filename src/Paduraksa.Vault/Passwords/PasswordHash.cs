@@ -1,18 +1,20 @@
-using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Paduraksa.Core.Security;
+using Paduraksa.Core.Model;
+
+namespace Paduraksa.Vault.Passwords;
 
 /// <summary>
 /// A password verifier in a PHC-style string, <c>$pbkdf2-sha256$i=210000$salt$hash</c> (unpadded standard base64), so the
 /// cost is written next to the hash and a later build can raise <see cref="DefaultIterations"/> without invalidating
-/// what is stored. Only the verifier is ever kept; a password is hashed and then forgotten.
+/// what is stored. Only the verifier is ever kept; a password is hashed and then forgotten. Internal to the vault: no other
+/// assembly ever holds a verifier.
 /// </summary>
-public static class PasswordHash
+internal static class PasswordHash
 {
-    /// <summary>What <see cref="Create"/> uses: a few tens of milliseconds a check on a current CPU, and the gate's
+    /// <summary>What <see cref="Create(string, int)"/> uses: a few tens of milliseconds a check on a current CPU, and the
     /// verification cache is what keeps that off the request path.</summary>
     public const int DefaultIterations = 210_000;
 
@@ -26,9 +28,6 @@ public static class PasswordHash
 
     public const int HashLength = 32;
 
-    /// <summary>Longest password the dashboard, the API and the gate deal in (UTF-8 bytes).</summary>
-    public const int MaxPasswordBytes = 256;
-
     private const string Prefix = "$pbkdf2-sha256$i=";
     private const int MinSaltLength = 8;
     private const int MaxSaltLength = 64;
@@ -39,21 +38,32 @@ public static class PasswordHash
     public static string Create(string password, int iterations = DefaultIterations)
     {
         ArgumentNullException.ThrowIfNull(password);
-        ArgumentOutOfRangeException.ThrowIfLessThan(iterations, MinIterations);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(iterations, MaxIterations);
         var bytes = Encoding.UTF8.GetBytes(password);
         try
         {
-            Span<byte> salt = stackalloc byte[SaltLength];
-            RandomNumberGenerator.Fill(salt);
-            Span<byte> hash = stackalloc byte[HashLength];
-            Rfc2898DeriveBytes.Pbkdf2(bytes, salt, hash, iterations, HashAlgorithmName.SHA256);
-            return Format(iterations, salt, hash);
+            return Create(bytes, iterations);
         }
         finally
         {
             CryptographicOperations.ZeroMemory(bytes);
         }
+    }
+
+    /// <summary><see cref="Create(string, int)"/> over the password's UTF-8 bytes.</summary>
+    public static string Create(ReadOnlySpan<byte> utf8Password, int iterations = DefaultIterations)
+    {
+        if (utf8Password.Length is 0 or > AccessListLimits.MaxPasswordBytes)
+        {
+            throw new ArgumentException($"A password is 1 to {AccessListLimits.MaxPasswordBytes} bytes in UTF-8.", nameof(utf8Password));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(iterations, MinIterations);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(iterations, MaxIterations);
+        Span<byte> salt = stackalloc byte[SaltLength];
+        RandomNumberGenerator.Fill(salt);
+        Span<byte> hash = stackalloc byte[HashLength];
+        Rfc2898DeriveBytes.Pbkdf2(utf8Password, salt, hash, iterations, HashAlgorithmName.SHA256);
+        return Format(iterations, salt, hash);
     }
 
     /// <summary>Reads a stored hash; false for anything this build wouldn't have written, a cost outside the accepted
@@ -140,13 +150,14 @@ public static class PasswordHash
 }
 
 /// <summary>A stored hash taken apart once, so a check doesn't parse it again.</summary>
-public sealed class ParsedPasswordHash
+internal sealed class ParsedPasswordHash
 {
     internal ParsedPasswordHash(int iterations, byte[] salt, byte[] hash)
     {
         Iterations = iterations;
         Salt = salt;
         Hash = hash;
+        Stamp = SHA256.HashData([.. salt, .. hash])[..16];
     }
 
     public int Iterations { get; }
@@ -154,4 +165,8 @@ public sealed class ParsedPasswordHash
     public byte[] Salt { get; }
 
     public byte[] Hash { get; }
+
+    /// <summary>16 bytes that change with the salt or the hash, for the cache's fingerprint: the same password hashed again has
+    /// another salt, so every cached entry of the old one misses.</summary>
+    public byte[] Stamp { get; }
 }

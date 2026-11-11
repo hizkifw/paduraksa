@@ -23,7 +23,7 @@ public sealed class AccessListQueueGateTests
     private static readonly IpKey Holder = IpKey.Parse("203.0.113.250");
 
     private static AccessListRuntime Runtime(int slots, int maxQueued = 64, int places = AccessListRuntime.DefaultMaxPlacesPerClient, TimeSpan? maxWait = null) =>
-        new(TimeProvider.System, maxConcurrentVerifications: slots, maxPlacesPerClient: places, maxQueued: maxQueued, maxWait: maxWait);
+        AccessListFixtures.NewRuntime(TimeProvider.System, maxConcurrentVerifications: slots, maxPlacesPerClient: places, maxQueued: maxQueued, maxWait: maxWait);
 
     private static async Task HoldAsync(AccessListRuntime runtime, int slots)
     {
@@ -110,7 +110,7 @@ public sealed class AccessListQueueGateTests
     [Fact]
     public async Task ABurstOfTwelveColdLoginsFromOneClientAllSucceedAndPayOnePbkdf2()
     {
-        var runtime = new AccessListRuntime();
+        var runtime = AccessListFixtures.NewRuntime();
         var gate = GateFor(runtime, Model(List("office")), out _);
 
         // An HTTP/2 page after the cache expired: a dozen credentialed requests at once.
@@ -124,7 +124,7 @@ public sealed class AccessListQueueGateTests
     [Fact]
     public async Task ABurstOfTwelveChecksThatCanNotShareOneFromOneClientIsQueuedNotRefused()
     {
-        var runtime = new AccessListRuntime();
+        var runtime = AccessListFixtures.NewRuntime();
         var gate = GateFor(runtime, Model(List("office")), out _);
 
         // Twelve names nobody has: each is its own PBKDF2, and one client runs only two at once, so the rest wait for their turn.
@@ -217,7 +217,7 @@ public sealed class AccessListQueueGateTests
         Release(runtime, slots: 1);
 
         Assert.Equal("401", await login);
-        Assert.Equal((1, 0), (runtime.Stats.Unauthorized, runtime.Cache.LiveCount(runtime.NowMs)));
+        Assert.Equal((1, 0), (runtime.Stats.Unauthorized, AccessListFixtures.Cached(runtime)));
     }
 
     [Fact]

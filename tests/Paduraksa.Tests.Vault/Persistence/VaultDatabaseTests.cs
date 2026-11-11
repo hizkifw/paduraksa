@@ -55,11 +55,12 @@ public sealed class VaultDatabaseTests : IDisposable
         var first = await Initialize();
         var second = await Initialize();
 
-        Assert.Equal(4, first.AppliedMigrations.Count);
+        Assert.Equal(5, first.AppliedMigrations.Count);
         Assert.EndsWith("_Initial", first.AppliedMigrations[0], StringComparison.Ordinal);
         Assert.EndsWith("_Certificates", first.AppliedMigrations[1], StringComparison.Ordinal);
         Assert.EndsWith("_Totp", first.AppliedMigrations[2], StringComparison.Ordinal);
         Assert.EndsWith("_DataProtectionKeys", first.AppliedMigrations[3], StringComparison.Ordinal);
+        Assert.EndsWith("_PasswordCredentials", first.AppliedMigrations[4], StringComparison.Ordinal);
         Assert.Empty(second.AppliedMigrations);
         await using var context = await Factory().CreateDbContextAsync(TestContext.Current.CancellationToken);
         var meta = await context.Meta.SingleAsync(TestContext.Current.CancellationToken);

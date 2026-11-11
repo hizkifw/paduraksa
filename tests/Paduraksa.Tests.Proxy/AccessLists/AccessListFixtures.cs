@@ -1,10 +1,9 @@
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
-
 using Microsoft.AspNetCore.Http;
-
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Security;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
@@ -12,6 +11,7 @@ using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
+using Paduraksa.Vault.Passwords;
 
 namespace Paduraksa.Tests.Proxy.AccessLists;
 
@@ -33,9 +33,30 @@ internal static class AccessListFixtures
 {
     public const string Password = "correct horse";
 
-    public static readonly string AliceHash = PasswordHash.Create(Password);
+    public static readonly IPasswordCredential Alice = TestPasswords.Credential(Password);
 
-    public static readonly string BobHash = PasswordHash.Create("battery staple");
+    public static readonly IPasswordCredential Bob = TestPasswords.Credential("battery staple");
+
+    private static readonly ConditionalWeakTable<AccessListRuntime, PasswordRegistry> Registries = [];
+
+    /// <summary>A runtime over a verifier of its own, so no test sees another's cache.</summary>
+    public static AccessListRuntime NewRuntime(
+        TimeProvider? time = null,
+        int? maxConcurrentVerifications = null,
+        int maxPlacesPerClient = AccessListRuntime.DefaultMaxPlacesPerClient,
+        int maxRunningPerClient = AccessListRuntime.DefaultMaxRunningPerClient,
+        int? maxQueued = null,
+        TimeSpan? maxWait = null)
+    {
+        time ??= TimeProvider.System;
+        PasswordRegistry registry = new(time);
+        AccessListRuntime runtime = new(time, registry, maxConcurrentVerifications, maxPlacesPerClient, maxRunningPerClient, maxQueued, maxWait);
+        Registries.Add(runtime, registry);
+        return runtime;
+    }
+
+    /// <summary>The vault-side cache entries a runtime holds that haven't expired.</summary>
+    public static int Cached(AccessListRuntime runtime) => Registries.TryGetValue(runtime, out var registry) ? registry.CachedCount() : throw new InvalidOperationException("Not made by NewRuntime.");
 
     public static AccessListSpec List(
         string label,
@@ -55,7 +76,7 @@ internal static class AccessListFixtures
             Satisfy = satisfy,
             PassCredentialsUpstream = passUpstream,
             Realm = realm ?? label,
-            Users = users ? [new AccessListUserSpec("alice", AliceHash), new AccessListUserSpec("bob", BobHash)] : [],
+            Users = users ? [new AccessListUserSpec("alice", Alice), new AccessListUserSpec("bob", Bob)] : [],
         };
 
     public static ProxyConfigModel Model(AccessListSpec list, string host = "acl.test") => new()

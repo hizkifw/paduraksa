@@ -1,17 +1,15 @@
-using System.Security.Cryptography;
-
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Net;
 
 namespace Paduraksa.Proxy.AccessLists;
 
 /// <summary>
-/// What the access-list policies need at request time from outside the immutable snapshot: the verification cache, its
-/// per-process key, the clock and the counters. One per process, handed to the compiler like the rate-limit runtime.
+/// What the access-list policies need at request time from outside the immutable snapshot: the vault's password verifier (which
+/// holds the hashes and the verification cache), the line for slow checks and the counters. One per process, handed to the compiler
+/// like the rate-limit runtime.
 /// </summary>
 public sealed class AccessListRuntime
 {
-    private readonly long _start;
-
     /// <summary>The places one client may hold in the line, queued and running together: a page's burst of credentialed requests
     /// (HTTP/2 sends a dozen at once) must fit, while one source still can't take more than a sixteenth of the default line.</summary>
     public const int DefaultMaxPlacesPerClient = 16;
@@ -29,14 +27,9 @@ public sealed class AccessListRuntime
     /// line waits a few seconds, well inside <see cref="DefaultMaxWait"/> whatever the machine's size.</summary>
     internal const int QueuedPerSlot = 32;
 
-    public AccessListRuntime()
-        : this(TimeProvider.System)
-    {
-    }
-
     public AccessListRuntime(
         TimeProvider time,
-        int cacheCapacity = AccessListVerificationCache.DefaultCapacity,
+        IPasswordVerifier verifier,
         int? maxConcurrentVerifications = null,
         int maxPlacesPerClient = DefaultMaxPlacesPerClient,
         int maxRunningPerClient = DefaultMaxRunningPerClient,
@@ -44,33 +37,38 @@ public sealed class AccessListRuntime
         TimeSpan? maxWait = null)
     {
         ArgumentNullException.ThrowIfNull(time);
+        ArgumentNullException.ThrowIfNull(verifier);
         Time = time;
-        Cache = new AccessListVerificationCache(cacheCapacity);
-        _start = time.GetTimestamp();
+        Verifier = verifier;
 
         // PBKDF2 runs on a thread-pool thread, so a flood of wrong passwords could otherwise take every thread the pool has.
         // The floor is for small machines: with a cap of 2 a page's third credentialed request on a cold cache got no slot.
         // Over-subscribing a 2-core box with PBKDF2 only makes each check slower, which is the cheaper failure.
         var slots = maxConcurrentVerifications ?? Math.Max(MinConcurrentVerifications, Environment.ProcessorCount);
         Queue = new AccessListVerificationQueue(time, Stats, slots, maxQueued ?? slots * QueuedPerSlot, maxPlacesPerClient, maxRunningPerClient, maxWait ?? DefaultMaxWait);
-        Key = RandomNumberGenerator.GetBytes(32);
     }
 
-    /// <summary>The runtime a compile uses when none is configured: a cache of its own that nothing else reads.</summary>
-    public static AccessListRuntime Default { get; } = new();
+    /// <summary>The runtime a compile uses when none is configured: nobody can sign in (its verifier holds no password), so a list
+    /// with users refuses everyone.</summary>
+    public static AccessListRuntime Default { get; } = new(TimeProvider.System, NoPasswords.Instance);
 
     public TimeProvider Time { get; }
 
-    public AccessListVerificationCache Cache { get; }
+    public IPasswordVerifier Verifier { get; }
 
     public AccessListStats Stats { get; } = new();
 
-    /// <summary>Drawn when the process starts: a client can't compute a fingerprint, so it can't aim one at another's entry.</summary>
-    internal byte[] Key { get; }
-
     internal AccessListVerificationQueue Queue { get; }
 
-    internal long NowMs => (long)Time.GetElapsedTime(_start).TotalMilliseconds;
+    private sealed class NoPasswords : IPasswordVerifier
+    {
+        public static NoPasswords Instance { get; } = new();
+
+        public PasswordCacheProbe TryVerifyCached(IPasswordCredential credential, ReadOnlySpan<byte> username, ReadOnlySpan<byte> password, ReadOnlySpan<byte> client) => default;
+
+        public PasswordVerdict Verify(IPasswordCredential? credential, ReadOnlySpan<byte> username, ReadOnlySpan<byte> password, ReadOnlySpan<byte> client, bool remember) =>
+            PasswordVerdict.NoPassword;
+    }
 }
 
 /// <summary>Process-lifetime access-list counters; the security page reads them. Each count is one interlocked add.</summary>

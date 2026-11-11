@@ -164,7 +164,7 @@ internal static class VaultCommands
             }
 
             await output.WriteLineAsync(
-                $"Rotated the master key: {result.Secrets} secret(s) and {result.Keys} key(s) re-wrapped "
+                $"Rotated the master key: {result.Secrets} secret(s), {result.PasswordCredentials} password credential(s) and {result.Keys} key(s) re-wrapped "
                 + $"({result.AccountKeys} account, {result.CertificateKeys} certificate, {result.StagedKeys} staged, {result.DataProtectionKeys} Data Protection).").ConfigureAwait(false);
             if (backup is not null)
             {

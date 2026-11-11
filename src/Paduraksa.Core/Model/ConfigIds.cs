@@ -29,6 +29,10 @@ public readonly partial record struct RateLimitPolicyId;
 [TypedId("acl")]
 public readonly partial record struct AccessListId;
 
+/// <summary>A basic-auth user's password in the vault: the config document names it, the vault holds what verifies it.</summary>
+[TypedId("pwc")]
+public readonly partial record struct PasswordCredentialId;
+
 /// <summary>A destination of an upstream; must stay stable for YARP health state to survive.</summary>
 [TypedId("dst")]
 public readonly partial record struct DestinationId;

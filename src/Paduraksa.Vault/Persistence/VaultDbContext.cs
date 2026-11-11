@@ -33,6 +33,8 @@ internal sealed class VaultDbContext(DbContextOptions<VaultDbContext> options) :
 
     internal DbSet<DataProtectionKeyRow> DataProtectionKeys => Set<DataProtectionKeyRow>();
 
+    internal DbSet<PasswordCredentialRow> PasswordCredentials => Set<PasswordCredentialRow>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         configurationBuilder.AddTypedIdConventions();
@@ -51,6 +53,7 @@ internal sealed class VaultDbContext(DbContextOptions<VaultDbContext> options) :
         modelBuilder.ApplyConfiguration(new StagedKeyRowConfiguration());
         modelBuilder.ApplyConfiguration(new TotpStateRowConfiguration());
         modelBuilder.ApplyConfiguration(new DataProtectionKeyRowConfiguration());
+        modelBuilder.ApplyConfiguration(new PasswordCredentialRowConfiguration());
     }
 }
 

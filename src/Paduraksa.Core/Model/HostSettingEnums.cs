@@ -120,6 +120,9 @@ public static class AccessListLimits
 
     /// <summary>The users of one list: each is a hash a request may have to check, and a document this large is a mistake.</summary>
     public const int MaxUsers = 1000;
+
+    /// <summary>Longest password the dashboard, the API and the gate deal in (UTF-8 bytes).</summary>
+    public const int MaxPasswordBytes = 256;
 }
 
 /// <summary>The bounds of the proof-of-work settings, shared by the validator, the compiler and the proxy.</summary>

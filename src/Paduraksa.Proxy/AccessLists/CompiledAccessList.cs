@@ -1,11 +1,10 @@
-using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Security;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Pages;
@@ -13,9 +12,8 @@ using Paduraksa.Proxy.Pages;
 namespace Paduraksa.Proxy.AccessLists;
 
 /// <summary>
-/// An access list as the gate uses it: the address sets compiled once, the users' hashes parsed once, and the answers it
-/// gives precomputed. One instance per list and snapshot, shared by every policy that names it, so every policy of a list
-/// agrees on its identity in the verification cache.
+/// An access list as the gate uses it: the address sets compiled once, the users' password handles resolved once, and the answers
+/// it gives precomputed. One instance per list and snapshot, shared by every policy that names it.
 /// </summary>
 public sealed class CompiledAccessList
 {
@@ -91,23 +89,20 @@ public sealed class CompiledAccessList
     private static string Quote(string realm) => realm.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
 }
 
-/// <summary>One user: the name as bytes for the constant-time compare, the parsed hash, and a fingerprint of both that
-/// changes when the password does (the salt is in the stored hash), so a changed password never matches a cached entry.</summary>
+/// <summary>One user: the name as bytes for the constant-time compare, and the vault's handle on their password (which can't be
+/// read, only checked against). The handle outlives a change of password, so one compiled list sees the new one.</summary>
 internal sealed class CompiledAccessListUser
 {
-    public CompiledAccessListUser(AccessListId list, string username, string storedHash, ParsedPasswordHash hash)
+    public CompiledAccessListUser(string username, IPasswordCredential credential)
     {
         Username = username;
         Name = Encoding.ASCII.GetBytes(username);
-        Hash = hash;
-        Fingerprint = SHA256.HashData(Encoding.UTF8.GetBytes(string.Concat(list.ToString(), "\n", username, "\n", storedHash)))[..16];
+        Credential = credential;
     }
 
     public string Username { get; }
 
     public byte[] Name { get; }
 
-    public ParsedPasswordHash Hash { get; }
-
-    public byte[] Fingerprint { get; }
+    public IPasswordCredential Credential { get; }
 }

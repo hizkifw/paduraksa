@@ -144,7 +144,7 @@ public sealed class AccessListSimulationTests
             Assert.Equal(401, GateSimulator.Run(snapshot, Probe(Inside, Header("bad"))).Outcome.StatusCode);
         }
 
-        Assert.Equal(0, runtime.Cache.LiveCount(runtime.NowMs));
+        Assert.Equal(0, AccessListFixtures.Cached(runtime));
         Assert.Equal((0, 0, 0, 0, 0, 0), (runtime.Stats.Allowed, runtime.Stats.AddressRefused, runtime.Stats.Unauthorized, runtime.Stats.CacheHits, runtime.Stats.Verifications, runtime.Stats.Busy));
 
         // The real gate then pays its own PBKDF2 once and remembers it: the simulations left it nothing to hit.
@@ -156,7 +156,7 @@ public sealed class AccessListSimulationTests
     [Fact]
     public async Task ASimulationWorksWhileEveryVerificationSlotIsTaken()
     {
-        var busy = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 1);
+        var busy = AccessListFixtures.NewRuntime(TimeProvider.System, maxConcurrentVerifications: 1);
         Assert.Equal(VerificationSlot.Granted, await busy.Queue.EnterAsync(IpKey.Parse("203.0.113.200"), CancellationToken.None));
         var crowded = TestSnapshots.Bound(AccessListFixtures.Model(List("office", Allow, Deny)), options: new SnapshotCompilerOptions { AccessLists = busy });
 
@@ -180,7 +180,7 @@ public sealed class AccessListSimulationTests
                 Routes = [TestSnapshots.Route("root", "web") with { Policies = [new AccessListPolicySpec(list.Id)] }],
             }],
         };
-        var snapshot = TestSnapshots.Bound(model, options: new SnapshotCompilerOptions { AccessLists = new AccessListRuntime() });
+        var snapshot = TestSnapshots.Bound(model, options: new SnapshotCompilerOptions { AccessLists = AccessListFixtures.NewRuntime() });
 
         var run = GateSimulator.Run(snapshot, Probe(Inside, null));
 
@@ -209,7 +209,7 @@ public sealed class AccessListSimulationTests
                 Routes = [TestSnapshots.Route("root", "web")],
             }],
         };
-        var snapshot = TestSnapshots.Bound(model, options: new SnapshotCompilerOptions { AccessLists = new AccessListRuntime() });
+        var snapshot = TestSnapshots.Bound(model, options: new SnapshotCompilerOptions { AccessLists = AccessListFixtures.NewRuntime() });
 
         var admitted = AccessListStep(GateSimulator.Run(snapshot, Probe("10.2.0.5", null)));
         var refused = AccessListStep(GateSimulator.Run(snapshot, Probe(Outside, null)));
@@ -223,7 +223,7 @@ public sealed class AccessListSimulationTests
 
     private static (RuntimeSnapshot Snapshot, GateMiddleware Gate) Build(AccessListSatisfy satisfy, out AccessListRuntime runtime)
     {
-        runtime = new AccessListRuntime();
+        runtime = AccessListFixtures.NewRuntime();
         var model = AccessListFixtures.Model(List("office", Allow, Deny, satisfy: satisfy));
         var gate = GateFor(runtime, model, out var snapshot);
         return (snapshot, gate);

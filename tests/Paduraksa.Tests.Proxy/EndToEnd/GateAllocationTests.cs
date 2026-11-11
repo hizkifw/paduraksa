@@ -130,7 +130,8 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
                 new HostSpec { Id = TestIds.Host("acl-auth"), Names = ["acl-auth.test"], Routes = [Route("acl-auth", "web") with { Policies = [new AccessListPolicySpec(passwords.Id)] }] },
             ],
         };
-        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true });
+        await using var server = await ProxyTestServer.StartAsync(
+            model, new() { MeasureGate = true, CompilerOptions = new SnapshotCompilerOptions { AccessLists = AccessListFixtures.NewRuntime() } });
         using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
         Action<HttpRequestMessage>? credentials = user is null
             ? null

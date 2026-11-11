@@ -47,6 +47,30 @@ public sealed class KekRotationTests : IDisposable
     }
 
     [Fact]
+    public async Task PasswordCredentialsAreRewrappedAndStillVerifyAfterARestartUnderTheNewKey()
+    {
+        var id = PasswordCredentialId.New();
+        await _vault.Get<IPasswordCredentials>().SetAsync(id, "correct horse".AsMemory(), Ct);
+        using var newKek = Kek.Generate();
+        var newKey = newKek.Encode();
+
+        var rotated = await _vault.Get<KekRotation>().RotateAsync(newKek, Ct);
+
+        Assert.Equal(1, rotated.PasswordCredentials);
+        await using (var context = await _vault.Get<IDbContextFactory<VaultDbContext>>().CreateDbContextAsync(Ct))
+        {
+            Assert.Equal(newKek.Id, EnvelopeCipher.KekIdOf((await context.PasswordCredentials.AsNoTracking().SingleAsync(Ct)).Sealed).ToArray());
+        }
+
+        _vault.Variables[Paduraksa.Vault.Crypto.KekProvider.KeyVariable] = newKey;
+        _vault.Restart();
+        await _vault.Get<IVaultLifecycle>().InitializeAsync(Ct);
+        var handle = _vault.Get<IPasswordCredentials>().Open(id);
+        Assert.True(handle.IsSet);
+        Assert.Equal(PasswordVerdict.Verified, _vault.Get<IPasswordVerifier>().Verify(handle, "alice"u8, "correct horse"u8, new byte[16], remember: false));
+    }
+
+    [Fact]
     public async Task EverythingIsRewrappedAndKeepsWorkingUnderTheNewKekInTheSameProcess()
     {
         var (dns, mac, account) = await Populate();
@@ -57,7 +81,7 @@ public sealed class KekRotationTests : IDisposable
 
         var rotated = await _vault.Get<KekRotation>().RotateAsync(newKek, Ct);
 
-        Assert.Equal(new KekRotated(3, 1, 0, 0, 0), rotated);
+        Assert.Equal(new KekRotated(3, 1, 0, 0, 0, 0), rotated);
         Assert.All(await KekIds(), id => Assert.Equal(newId, id));
         var tag = new byte[32];
         key!.Sign(Data, tag);
@@ -150,7 +174,7 @@ public sealed class KekRotationTests : IDisposable
 
         var result = await rotation.RotateKekAsync(newKek.Encode().AsMemory(), Ct);
 
-        Assert.Equal(new KekRotationResult(3, 1, 0, 0, 0), result);
+        Assert.Equal(new KekRotationResult(3, 1, 0, 0, 0, 0), result);
         var key = await _vault.Get<IMacKeySource>().OpenAsync(mac, SecretKind.HmacSigningKey, Ct);
         Assert.True(key!.Verify(Data, HMACSHA256.HashData(KeyB, Data)));
         Assert.All(await KekIds(), id => Assert.Equal(newKek.Id, id));
@@ -213,6 +237,6 @@ public sealed class KekRotationTests : IDisposable
     {
         using var newKek = Kek.Generate();
 
-        Assert.Equal(new KekRotated(0, 0, 0, 0, 0), await _vault.Get<KekRotation>().RotateAsync(newKek, Ct));
+        Assert.Equal(new KekRotated(0, 0, 0, 0, 0, 0), await _vault.Get<KekRotation>().RotateAsync(newKek, Ct));
     }
 }

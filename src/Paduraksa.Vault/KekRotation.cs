@@ -5,6 +5,7 @@ using Paduraksa.Vault.Certificates;
 using Paduraksa.Vault.Crypto;
 using Paduraksa.Vault.DataProtection;
 using Paduraksa.Vault.Keys;
+using Paduraksa.Vault.Passwords;
 using Paduraksa.Vault.Secrets;
 
 namespace Paduraksa.Vault;
@@ -15,7 +16,8 @@ namespace Paduraksa.Vault;
 /// <param name="CertificateKeys">Certificate keys re-wrapped (the local CA root's included).</param>
 /// <param name="StagedKeys">Keys staged for a certificate chain re-wrapped.</param>
 /// <param name="DataProtectionKeys">Data Protection key-ring elements re-wrapped.</param>
-internal sealed record KekRotated(int Secrets, int AccountKeys, int CertificateKeys, int StagedKeys, int DataProtectionKeys);
+/// <param name="PasswordCredentials">Access-list password verifiers re-wrapped.</param>
+internal sealed record KekRotated(int Secrets, int AccountKeys, int CertificateKeys, int StagedKeys, int DataProtectionKeys, int PasswordCredentials);
 
 /// <summary>
 /// KEK rotation: re-wraps every DEK in the database under a new KEK. Nothing is
@@ -59,7 +61,7 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
         try
         {
             var rotated = await RotateAsync(newKek, cancellationToken).ConfigureAwait(false);
-            return new KekRotationResult(rotated.Secrets, rotated.AccountKeys, rotated.CertificateKeys, rotated.StagedKeys, rotated.DataProtectionKeys);
+            return new KekRotationResult(rotated.Secrets, rotated.AccountKeys, rotated.CertificateKeys, rotated.StagedKeys, rotated.DataProtectionKeys, rotated.PasswordCredentials);
         }
         catch
         {
@@ -132,6 +134,8 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                     dataProtectionKeys++;
                 }
 
+                var passwordCredentials = await PasswordCredentialStore.RewrapAsync(context, old, newKek, cancellationToken).ConfigureAwait(false);
+
                 var meta = await context.Meta.SingleAsync(cancellationToken).ConfigureAwait(false);
                 meta.KekCheck = newKek.CheckValue;
                 meta.UpdatedAt = runtime.Time.GetUtcNow();
@@ -142,7 +146,7 @@ internal sealed partial class KekRotation(VaultRuntime runtime, ILogger<KekRotat
                 await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
                 runtime.ReplaceKek(newKek);
                 await CheckpointAsync(context).ConfigureAwait(false);
-                return new KekRotated(secrets, accountKeys, certificateKeys, stagedKeys, dataProtectionKeys);
+                return new KekRotated(secrets, accountKeys, certificateKeys, stagedKeys, dataProtectionKeys, passwordCredentials);
             }
         }
     }
