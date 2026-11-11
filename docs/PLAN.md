@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.23**: M0-M8 done; the property tests and coverage-guided fuzzing (§15) and M9 observability are in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.24**: M0-M8 done, M9 part 1 (metrics) done; the property tests and coverage-guided fuzzing (§15) and M9 part 2 (health checks, notifications, live tail) are next (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -2188,3 +2188,8 @@ These are cheap now and expensive later. Fold them into the milestones that touc
   - **Error pages (§7.3):** a page per status at every settings layer, either a message in the built-in layout or the operator's own document, with variables written from precompiled byte segments at 0 B; a dashboard preview that is the proxy's own rendering, byte for byte.
   - **Maintenance mode (§7.3):** per host, with a status, `Retry-After` and a bypass named by an access list; never on an admin host.
   - **Upstream errors (§7.3):** opt-in replacement (`html` or `any`) decided when the response starts; the upstream body is closed unread; never for upgrades, event streams, gRPC or the admin host.
+- **v0.24:** M9 part 1: metrics.
+  - **Counters (§7.4):** per host, route, upstream and destination in striped per-core tables with log-linear latency histograms, recorded from the access-log completion at 0 B; slots carry a version, so a request that outlives its slot's grace never counts for the next owner.
+  - **Exposure (§7.4):** `System.Diagnostics.Metrics` and a Prometheus `/metrics` on the admin port behind `metrics:read`.
+  - **History (§7.4):** a one-second sampler into an hour of ten-second buckets, one-minute SQLite rollups keyed by typed ID with retention, summed in SQL.
+  - **Dashboard (§12):** the home page shows live traffic: rates, errors, latency percentiles, two charts, the busiest hosts and the upstreams' errors. Bench: h1 −1.1 %, h2 −2.6 % throughput.
