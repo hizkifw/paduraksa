@@ -7,7 +7,7 @@ namespace Paduraksa.Application.Compilation;
 /// <summary>
 /// Turns a <see cref="CompileErrorSource"/> into the JSON pointer of that object in the document <i>as given</i> (the
 /// compiler reads its canonical form, but objects keep their IDs): <c>/hosts/{i}</c>, <c>/hosts/{i}/routes/{j}</c>,
-/// <c>/upstreams/{k}</c>, <c>/upstreams/{k}/destinations/{m}</c>, <c>/settings</c>,
+/// <c>/profiles/{i}</c>, <c>/upstreams/{k}</c>, <c>/upstreams/{k}/destinations/{m}</c>, <c>/settings</c>,
 /// <c>/settings/trustedProxies</c>. A duplicated ID points at its last occurrence: the compiler reports the duplicate
 /// at the later object, and errors can't tell occurrences apart (the validator names each). An object that can't be
 /// found points at its parent, else at the whole document (<c>""</c>).
@@ -15,6 +15,7 @@ namespace Paduraksa.Application.Compilation;
 internal sealed class CompileErrorPaths
 {
     private readonly Dictionary<HostId, int> _hosts = [];
+    private readonly Dictionary<ProfileId, int> _profiles = [];
     private readonly Dictionary<(HostId, RouteId), (int Host, int Route)> _routes = [];
     private readonly Dictionary<UpstreamId, int> _upstreams = [];
     private readonly Dictionary<(UpstreamId, DestinationId), (int Upstream, int Destination)> _destinations = [];
@@ -42,6 +43,15 @@ internal sealed class CompileErrorPaths
                 {
                     _routes[(host.Id, route.Id)] = (i, j);
                 }
+            }
+        }
+
+        var profiles = document.Profiles ?? [];
+        for (var i = 0; i < profiles.Count; i++)
+        {
+            if (profiles[i] is { } profile)
+            {
+                _profiles[profile.Id] = i;
             }
         }
 
@@ -106,6 +116,7 @@ internal sealed class CompileErrorPaths
         DefaultsErrorSource => "/settings",
         TrustedProxiesErrorSource => "/settings/trustedProxies",
         HostErrorSource host => Host(host.HostId),
+        ProfileErrorSource profile => _profiles.TryGetValue(profile.ProfileId, out var at) ? $"/profiles/{at}" : string.Empty,
         RouteErrorSource route => _routes.TryGetValue((route.HostId, route.RouteId), out var at)
             ? $"/hosts/{at.Host}/routes/{at.Route}"
             : Host(route.HostId),

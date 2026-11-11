@@ -82,6 +82,7 @@ public static class ProxyConfigMapping
         }
 
         var signIns = SignInPages(canonical);
+        HashSet<ProfileId> profilesWarned = [];
         var hosts = new HostSpec[canonical.Hosts.Count];
         for (var i = 0; i < hosts.Length; i++)
         {
@@ -89,7 +90,8 @@ public static class ProxyConfigMapping
             var profile = host.ProfileId is { } id ? profiles.GetValueOrDefault(id) : null;
             var effective = HostSettingsLayers.Resolve(settings.Defaults, profile, host.Settings);
             hosts[i] = MapHost(host, effective, settings.TrustedProxies.Mode, inventory, accessLists, signIns, errors, warnings);
-            AddAuthProviderSwitchWarnings(host, effective, HostSettingsLayers.ProviderNamedAboveOffSwitch(settings.Defaults, profile, host.Settings), warnings);
+            AddAuthProviderSwitchWarnings(
+                host, effective, HostSettingsLayers.ProviderNamingLayerAboveOffSwitch(settings.Defaults, profile, host.Settings), profilesWarned, warnings);
         }
 
         ProxyConfigModel model = new()
@@ -544,14 +546,16 @@ public static class ProxyConfigMapping
         AddSignInPageWarnings(host, routes, signIns, where, warnings);
     }
 
-    /// <summary>A provider whose sign-in page is a path on this host needs a route that takes the path with sign-in off: the first route to take it, in
-    /// the order requests are matched, decides, and a page behind the provider (or behind no route) is one a browser is refused at and sent to again.</summary>
+    /// <summary>A provider whose sign-in page is a path on this host (a relative URL, or an absolute one whose host is one of this host's names) needs a route that takes
+    /// the path with sign-in off: the first route to take it, in the order requests are matched, decides, and a page behind the provider (or behind no route) is one a browser
+    /// is refused at and sent to again. A route takes a path by its match kind and path alone (the document has no method or header matcher), so the route found is the one
+    /// every request for the page, whatever its method and headers, goes to.</summary>
     private static void AddSignInPageWarnings(HostConfig host, RouteSpec[] routes, Dictionary<AuthProviderId, SignInPage> signIns, CompileErrorSource where, List<MappedWarning> warnings)
     {
         HashSet<AuthProviderId> checkedProviders = [];
         foreach (var route in routes)
         {
-            if (route.AuthProvider is not { } id || !checkedProviders.Add(id) || !signIns.TryGetValue(id, out var page))
+            if (route.AuthProvider is not { } id || !checkedProviders.Add(id) || !signIns.TryGetValue(id, out var page) || !page.IsOn(host))
             {
                 continue;
             }
@@ -572,28 +576,77 @@ public static class ProxyConfigMapping
         }
     }
 
-    /// <summary>Where each provider's sign-in page is when it is a path on the protected host, by the provider's ID.</summary>
+    /// <summary>Where each provider's sign-in page is when it is a path on a protected host, by the provider's ID.</summary>
     private static Dictionary<AuthProviderId, SignInPage> SignInPages(ConfigDocument document)
     {
         Dictionary<AuthProviderId, SignInPage> pages = [];
         foreach (var provider in document.AuthProviders)
         {
-            if (provider.ForwardAuth is { } forward && ForwardAuthPresets.Resolve(forward).SignInUrl is { Length: > 0 } url && url[0] == '/' && ForwardAuthUrls.SignInProblem(url) is null)
+            if (provider.ForwardAuth is not { } forward || ForwardAuthPresets.Resolve(forward).SignInUrl is not { Length: > 0 } url || ForwardAuthUrls.SignInProblem(url) is not null)
+            {
+                continue;
+            }
+
+            string? authority = null;
+            string raw;
+            if (url[0] == '/')
             {
                 var query = url.IndexOf('?', StringComparison.Ordinal);
-                var path = RoutePath.Canonicalize(query < 0 ? url : url[..query]);
-                pages.TryAdd(provider.Id, new SignInPage(provider.Name, path.Length > 1 ? path.TrimEnd('/') : path));
+                raw = query < 0 ? url : url[..query];
             }
+            else if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            {
+                authority = uri.Host;
+                raw = uri.AbsolutePath;
+            }
+            else
+            {
+                continue;
+            }
+
+            var path = RoutePath.Canonicalize(raw);
+            pages.TryAdd(provider.Id, new SignInPage(provider.Name, path.Length > 1 ? path.TrimEnd('/') : path, authority));
         }
 
         return pages;
     }
 
-    private readonly record struct SignInPage(string Name, string Path);
+    /// <param name="Name">The provider's name.</param>
+    /// <param name="Path">The canonical path of the sign-in page.</param>
+    /// <param name="Host">The host name of an absolute sign-in URL; null for a path on whichever host is protected.</param>
+    private readonly record struct SignInPage(string Name, string Path, string? Host)
+    {
+        /// <summary>Whether the page is on <paramref name="host"/>: a relative one is on every host, an absolute one on a host that has its name (a wildcard name covers its subdomains).</summary>
+        public bool IsOn(HostConfig host)
+        {
+            if (Host is null)
+            {
+                return true;
+            }
+
+            foreach (var name in host.Names)
+            {
+                if (string.Equals(name, Host, StringComparison.OrdinalIgnoreCase)
+                    || (name.StartsWith("*.", StringComparison.Ordinal) && Host.Length > name.Length - 1 && Host.EndsWith(name.AsSpan(1), StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 
     /// <summary>A provider named above a switch that is off stays unasked: it is the one way a provider named through the API can leave a host unprotected
-    /// without a word, so each such layer says so. A layer that names a provider below the layer that switches it off, or in the same one, means it.</summary>
-    private static void AddAuthProviderSwitchWarnings(HostConfig host, EffectiveHostSettings effective, bool hostNamedAboveOff, List<MappedWarning> warnings)
+    /// without a word, so each such layer says so, at the layer that names it (the host's own settings, or the profile, once however many hosts use it). A layer
+    /// that names a provider below the layer that switches it off, or in the same one, means it.</summary>
+    /// <param name="host">The host the layers resolve for.</param>
+    /// <param name="effective">The host's resolved settings.</param>
+    /// <param name="namingLayer">The index of the layer that names the provider above an off switch (1: the host's profile, 2: the host), else -1.</param>
+    /// <param name="profilesWarned">The profiles already warned about, so one profile shared by many hosts is said once.</param>
+    /// <param name="warnings">Where the warnings go.</param>
+    private static void AddAuthProviderSwitchWarnings(
+        HostConfig host, EffectiveHostSettings effective, int namingLayer, HashSet<ProfileId> profilesWarned, List<MappedWarning> warnings)
     {
         if (!host.Enabled || host.Kind != HostKind.Proxy)
         {
@@ -601,13 +654,21 @@ public static class ProxyConfigMapping
         }
 
         var where = CompileErrorSource.Host(host.Id);
-        if (hostNamedAboveOff)
+        if (namingLayer == 2)
         {
             warnings.Add(new MappedWarning(
                 where,
                 "/settings/authProvider",
                 ConfigWarningCodes.AuthProviderNamedButOff,
                 "an auth provider is named here but a less specific layer (the defaults or the profile) switches sign-in off, so it is not asked; set enabled: true next to it"));
+        }
+        else if (namingLayer == 1 && host.ProfileId is { } profileId && profilesWarned.Add(profileId))
+        {
+            warnings.Add(new MappedWarning(
+                CompileErrorSource.Profile(profileId),
+                "/settings/authProvider",
+                ConfigWarningCodes.AuthProviderNamedButOff,
+                "an auth provider is named in this profile but the defaults switch sign-in off, so it is not asked on the hosts that use it; set enabled: true next to it"));
         }
 
         if (effective.AuthProvider.Enabled)

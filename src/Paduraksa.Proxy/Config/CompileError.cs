@@ -23,6 +23,8 @@ public abstract record CompileErrorSource
 
     public static CompileErrorSource Host(HostId host) => new HostErrorSource(host);
 
+    public static CompileErrorSource Profile(ProfileId profile) => new ProfileErrorSource(profile);
+
     public static CompileErrorSource Route(HostId host, RouteId route) => new RouteErrorSource(host, route);
 
     public static CompileErrorSource Upstream(UpstreamId upstream) => new UpstreamErrorSource(upstream);
@@ -55,6 +57,12 @@ public sealed record TrustedProxiesErrorSource : CompileErrorSource
 public sealed record HostErrorSource(HostId HostId) : CompileErrorSource
 {
     public override string ToString() => $"host '{HostId}'";
+}
+
+/// <summary>A profile: the settings layer between the global defaults and the hosts that use it.</summary>
+public sealed record ProfileErrorSource(ProfileId ProfileId) : CompileErrorSource
+{
+    public override string ToString() => $"profile '{ProfileId}'";
 }
 
 /// <summary>A route of <paramref name="HostId"/>, with its own policies.</summary>

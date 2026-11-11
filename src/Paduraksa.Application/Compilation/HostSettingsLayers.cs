@@ -328,10 +328,11 @@ public static class HostSettingsLayers
     }
 
     /// <summary>
-    /// Whether, in <paramref name="layers"/> (listed bottom to top), the switch of the auth provider ends up off and the layer that names the provider is
-    /// above the one that last set the switch. The merge leaves the switch where the lower layer put it, so the provider is named and never asked.
+    /// When, in <paramref name="layers"/> (listed bottom to top), the switch of the auth provider ends up off and the layer that names the provider is
+    /// above the one that last set the switch, the index of the layer that names it, else -1. The merge leaves the switch where the lower layer put it,
+    /// so the provider is named and never asked.
     /// </summary>
-    internal static bool ProviderNamedAboveOffSwitch(params ReadOnlySpan<HostSettings?> layers)
+    internal static int ProviderNamingLayerAboveOffSwitch(params ReadOnlySpan<HostSettings?> layers)
     {
         var switchAt = -1;
         var namedAt = -1;
@@ -355,7 +356,7 @@ public static class HostSettingsLayers
             }
         }
 
-        return !enabled && namedAt > switchAt;
+        return !enabled && namedAt > switchAt ? namedAt : -1;
     }
 
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
