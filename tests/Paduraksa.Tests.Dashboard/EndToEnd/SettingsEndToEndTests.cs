@@ -117,7 +117,7 @@ public sealed class SettingsEndToEndTests
         // a reconnect under load re-renders it, and waiting on the form alone would race that.
         await Expect(page.Locator(".pdk-shell[data-circuit=live]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
         await Expect(page.Locator("[data-form=defaults]")).ToBeVisibleAsync(new() { Timeout = 15_000 });
-        await page.GetByText("421 Misdirected Request").ClickAsync();
+        await page.Locator("[data-field=unknown-host]").GetByText("421 Misdirected Request").ClickAsync();
         await PlaywrightBrowser.ScreenshotAsync(page, "defaults");
         await page.ClickAsync("[data-action=review]");
         var apply = page.Locator(".pdk-sheet [data-review=apply]");
