@@ -46,9 +46,13 @@ internal static class SecurityFigures
 
     public static string Routes(int count) => count == 1 ? "1 route" : $"{count} routes";
 
-    /// <summary>What a list asks of a visitor, in a few words: its users, or that it only looks at addresses.</summary>
+    /// <summary>What a list asks of a visitor, in a few words: its users, or that it only looks at addresses and countries.</summary>
     public static string ListText(AccessListRef list) =>
-        list.Users > 0 ? (list.Users == 1 ? "1 user" : $"{list.Users} users") : list.AddressRanges > 0 ? "addresses only" : "no rules";
+        list.Users > 0 ? (list.Users == 1 ? "1 user" : $"{list.Users} users")
+        : list.AddressRanges > 0 && list.Countries > 0 ? "addresses and countries only"
+        : list.Countries > 0 ? "countries only"
+        : list.AddressRanges > 0 ? "addresses only"
+        : "no rules";
 
     public static string LockdownText(OriginLockdownMode mode) => mode switch
     {

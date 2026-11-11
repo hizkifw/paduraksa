@@ -1709,6 +1709,19 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     }
 }
 
+/* The countries of an access list: a search box and what it holds as chips under it. */
+.pdk-country-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pdk-country-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
 /* Requests and its period on one line: a number and the unit it is measured over, read as one sentence. */
 .pdk-request-row {
     display: grid;

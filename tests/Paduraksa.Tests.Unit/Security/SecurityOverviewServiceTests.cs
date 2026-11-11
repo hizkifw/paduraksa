@@ -25,6 +25,7 @@ public sealed class SecurityOverviewServiceTests
     private static readonly UpstreamId App = Id<UpstreamId>(1);
     private static readonly AccessListId Office = Id<AccessListId>(1);
     private static readonly AccessListId Lan = Id<AccessListId>(2);
+    private static readonly AccessListId Geo = Id<AccessListId>(3);
 
     [Fact]
     public void TheCountersAreReadAsTheyStand()
@@ -225,6 +226,17 @@ public sealed class SecurityOverviewServiceTests
     }
 
     [Fact]
+    public void AListCountsTheCountriesItNames()
+    {
+        var (service, _, _, store) = Start();
+        Publish(store, Model(Host(1, "a.test") with { AccessList = new HostAccessListSpec { Enabled = true, AccessListId = Geo } }));
+
+        var list = Assert.Single(service.Read().Hosts).AccessList.List;
+
+        Assert.Equal(new AccessListRef(Geo, "geo", 0, 0, 3), list);
+    }
+
+    [Fact]
     public void RoutesThatUseAnotherListOrNoneAreGroupedByWhatGuardsThemInstead()
     {
         var (service, _, _, store) = Start();
@@ -344,6 +356,7 @@ public sealed class SecurityOverviewServiceTests
                 Users = [new AccessListUserSpec("alice", TestPasswords.Credential("a")), new AccessListUserSpec("bob", TestPasswords.Credential("b"))],
             },
             new AccessListSpec { Id = Lan, Name = "lan", Allow = ["192.168.0.0/16"], Realm = "lan" },
+            new AccessListSpec { Id = Geo, Name = "geo", AllowCountries = ["DE", "NL"], DenyCountries = ["T1"], Realm = "geo" },
         ],
         Hosts = hosts,
     };

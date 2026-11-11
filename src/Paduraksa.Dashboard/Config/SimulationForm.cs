@@ -26,6 +26,11 @@ public sealed class SimulationForm
     /// <summary>The proxy's own address, for a request through a proxy; empty: one the config trusts.</summary>
     public string PeerIp { get; set; } = string.Empty;
 
+    /// <summary>The country Cloudflare reports (<c>DE</c>, <c>T1</c> for Tor); empty: none sent, so unknown. Only a request through Cloudflare carries one.</summary>
+    public string Country { get; set; } = string.Empty;
+
+    public bool ArrivesViaCloudflare => Arrival is SimulationArrival.CloudflareProxy or SimulationArrival.CloudflareTunnel;
+
     public SimulationTlsVersion? TlsVersion { get; set; }
 
     public SimulationHttpVersion? HttpVersion { get; set; }
@@ -36,7 +41,7 @@ public sealed class SimulationForm
     /// <summary>Whether the URL is HTTPS (only then does the TLS context apply).</summary>
     public bool IsHttps => Url.TrimStart().StartsWith("https:", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The request for the simulator. Fields that would change nothing (TLS on plain HTTP, a peer on a direct request) are left out.</summary>
+    /// <summary>The request for the simulator. Fields that would change nothing (TLS on plain HTTP, a peer or a country on a direct request) are left out.</summary>
     public SimulationRequest ToRequest()
     {
         var viaProxy = Arrival != SimulationArrival.Direct;
@@ -50,7 +55,8 @@ public sealed class SimulationForm
             [.. Headers.Where(h => !string.IsNullOrWhiteSpace(h.Name)).Select(h => new SimulationHeader(h.Name.Trim(), h.Value))],
             Arrival,
             viaProxy && !string.IsNullOrWhiteSpace(PeerIp) ? PeerIp.Trim() : null,
-            Tls: tls);
+            Tls: tls,
+            Country: ArrivesViaCloudflare && !string.IsNullOrWhiteSpace(Country) ? Country.Trim() : null);
     }
 
     /// <summary>The verdict's tone, icon and headline.</summary>

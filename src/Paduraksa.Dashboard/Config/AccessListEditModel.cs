@@ -24,6 +24,8 @@ public sealed class AccessListEditModel
         Notes = source?.Notes;
         AllowText = string.Join('\n', source?.Ip?.Allow ?? []);
         DenyText = string.Join('\n', source?.Ip?.Deny ?? []);
+        AllowCountries = [.. source?.Ip?.Countries?.Allow ?? []];
+        DenyCountries = [.. source?.Ip?.Countries?.Deny ?? []];
         DropDenied = source?.Ip?.DropDenied ?? false;
         Realm = source?.BasicAuth?.Realm;
         Satisfy = source?.Satisfy ?? AccessListSatisfy.All;
@@ -49,6 +51,11 @@ public sealed class AccessListEditModel
     public string AllowText { get; set; }
 
     public string DenyText { get; set; }
+
+    /// <summary>The country codes the list allows and denies, in the order they were picked.</summary>
+    public IReadOnlyList<string> AllowCountries { get; set; }
+
+    public IReadOnlyList<string> DenyCountries { get; set; }
 
     public bool DropDenied { get; set; }
 
@@ -82,7 +89,7 @@ public sealed class AccessListEditModel
 
     /// <summary>
     /// The list as the command sends it. Rules that aren't used are left out rather than sent empty, so a list with no
-    /// addresses writes none: dropping needs something to refuse, which the validator would otherwise report on an empty box.
+    /// addresses or countries writes none: dropping needs something to refuse, which the validator would otherwise report on an empty box.
     /// </summary>
     public AccessListConfig ToConfig()
     {
@@ -94,7 +101,9 @@ public sealed class AccessListEditModel
             Name.Trim(),
             Version,
             string.IsNullOrWhiteSpace(Notes) ? null : Notes,
-            allow.Count + deny.Count == 0 && !DropDenied ? null : new AccessListIp(allow, deny, DropDenied),
+            allow.Count + deny.Count + AllowCountries.Count + DenyCountries.Count == 0 && !DropDenied
+                ? null
+                : new AccessListIp(allow, deny, DropDenied, AllowCountries.Count + DenyCountries.Count == 0 ? null : new AccessListCountries(AllowCountries, DenyCountries)),
             Users.Count == 0 && realm is null ? null : new AccessListBasicAuth(realm, [.. Users.Select(user => user.ToConfig())]),
             Satisfy,
             PassCredentialsUpstream);

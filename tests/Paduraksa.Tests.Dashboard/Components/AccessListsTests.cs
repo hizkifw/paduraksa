@@ -249,7 +249,7 @@ public sealed class AccessListsTests
         var select = drawers.FindComponents<MudSelect<AccessListSatisfy>>().Single();
 
         Assert.Equal("A visitor must pass", select.Instance.Label);
-        Assert.Contains("An allowed address gets in without a password", drawers.Find("[data-drawer=access-list]").TextContent, StringComparison.Ordinal);
+        Assert.Contains("gets in without a password; any other visitor, a blocked country included, can still sign in", drawers.Find("[data-drawer=access-list]").TextContent, StringComparison.Ordinal);
         Assert.Equal(["Address and password", "Address or password"], new[] { AccessListSatisfy.All, AccessListSatisfy.Any }.Select(Paduraksa.Dashboard.Config.AccessListText.SatisfyText));
     }
 

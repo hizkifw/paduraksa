@@ -79,7 +79,7 @@
                 </FormSection>
 
                 <FormSection Title="Addresses" Name="addresses"
-                             Description="IP addresses and networks, one per line. A denied address is always refused. With allowed addresses listed, only those get in.">
+                             Description="IP addresses and networks, one per line. A denied address is always refused. With allowed addresses listed, only those get in. Countries and addresses both have to allow a visitor.">
                     <AddressListField Label="Allowed" Placeholder="192.168.1.0/24" Count="Model.AllowCount" Text="@Model.AllowText" ReadOnly="!MayWrite"
                                       TextChanged="@(value => Set(() => Model.AllowText = value, "/ip/allow"))" Error="@FirstUnder("/ip/allow")" Field="allowed" />
                     <AddressListField Label="Denied" Placeholder="203.0.113.9" Count="Model.DenyCount" Text="@Model.DenyText" ReadOnly="!MayWrite"
@@ -90,6 +90,20 @@
                     {
                         <MudText Typo="Typo.caption" Color="Color.Error" data-error="drop-denied">@dropError</MudText>
                     }
+                </FormSection>
+
+                <FormSection Title="Countries" Name="countries"
+                             Description="The visitor's country, as Cloudflare reports it. A denied country is always refused. With allowed countries listed, only those get in, so a visitor whose country is unknown is refused unless Unknown country is allowed.">
+                    @if (!CountryKnown)
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Text" Dense="true" data-banner="no-country-source">
+                            The trusted-proxy mode isn't Cloudflare, so every visitor's country is unknown. Change it in <MudLink Href="@DashboardRoutes.Settings" Color="Color.Inherit" Underline="Underline.Always">Settings</MudLink>.
+                        </MudAlert>
+                    }
+                    <CountryPicker Label="Allowed countries" Field="allowed-countries" Selected="Model.AllowCountries" Excluded="Model.DenyCountries" ReadOnly="!MayWrite"
+                                   SelectedChanged="@(value => Set(() => Model.AllowCountries = value, "/ip/countries/allow"))" Error="@FirstUnder("/ip/countries/allow")" />
+                    <CountryPicker Label="Denied countries" Field="denied-countries" Selected="Model.DenyCountries" Excluded="Model.AllowCountries" ReadOnly="!MayWrite"
+                                   SelectedChanged="@(value => Set(() => Model.DenyCountries = value, "/ip/countries/deny"))" Error="@FirstUnder("/ip/countries/deny")" />
                 </FormSection>
 
                 <FormSection Title="Passwords" Name="passwords"
@@ -237,8 +251,10 @@
         Model is null || Document is null || Model.IsNew ? new AccessListUsage([], []) : AccessListUsageOf.Find(Document, Model.Id);
 
     private string SatisfyHelp => Model is { Satisfy: AccessListSatisfy.Any }
-        ? "An allowed address gets in without a password; any other address has to sign in."
-        : "The address has to be allowed, and then the visitor has to sign in.";
+        ? "A visitor the allowed addresses and countries admit gets in without a password; any other visitor, a blocked country included, can still sign in. A denied address or country is refused even with the right password."
+        : "The address and country have to be allowed, and then the visitor has to sign in.";
+
+    private bool CountryKnown => Document?.Settings.TrustedProxies.Mode is TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel;
 
     protected override string LoadFailureMessage => "Couldn't load the access-list form.";
 

@@ -1,0 +1,100 @@
+@using Paduraksa.Core.Geo
+@* Countries one at a time from a search box (by name or code), kept as chips: the countries of an access list's allow or deny side.
+   Tor exit nodes and the unknown country come first. A country the other side already holds isn't offered. *@
+<div class="pdk-country-picker" data-field="@Field">
+    <MudAutocomplete T="string" @ref="_search" Value="null" ValueChanged="AddAsync" SearchFunc="SearchAsync" ToStringFunc="Display" Label="@Label"
+                     Placeholder="Search by name or code" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="@ReadOnly" Disabled="@Disabled"
+                     MinCharacters="0" OpenOnFocus="true" MaxItems="@OptionCount" ResetValueOnEmptyText="true" CoerceText="true" CoerceValue="false"
+                     Error="@(Error is not null)" ErrorText="@Error" data-input="@Field" />
+    @if (Selected.Count > 0)
+    {
+        <div class="pdk-country-chips">
+            @foreach (var code in Selected)
+            {
+                var chosen = code;
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" OnClose="CloseOf(chosen)" data-country="@chosen">@Display(chosen)</MudChip>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // Tor and unknown lead; then every country by name. Built once: the list is the same for every picker.
+    private static readonly string[] Options =
+    [
+        Countries.TorCode,
+        Countries.UnknownCode,
+        .. Countries.All.Select(static country => country.Code),
+    ];
+
+    private MudAutocomplete<string>? _search;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>The codes held, in the order they were added.</summary>
+    [Parameter]
+    public IReadOnlyList<string> Selected { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<IReadOnlyList<string>> SelectedChanged { get; set; }
+
+    /// <summary>Codes the other side holds, left out of the search.</summary>
+    [Parameter]
+    public IReadOnlyCollection<string> Excluded { get; set; } = [];
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>The <c>data-field</c> the tests and the browser select it by.</summary>
+    [Parameter, EditorRequired]
+    public string Field { get; set; } = string.Empty;
+
+    private static int OptionCount => Options.Length;
+
+    /// <summary>"Germany (DE)", "Tor exit nodes" and "Unknown country" for the two pseudo-codes, the code itself for one nobody knows.</summary>
+    public static string Display(string? code)
+    {
+        if (code is null || !Countries.TryParseRuleCode(code, out var parsed))
+        {
+            return code ?? string.Empty;
+        }
+
+        return parsed.IsTor || parsed.IsUnknown ? Countries.NameOf(parsed) : $"{Countries.NameOf(parsed)} ({parsed})";
+    }
+
+    private Task<IEnumerable<string>> SearchAsync(string? text, CancellationToken cancellationToken)
+    {
+        var query = (text ?? string.Empty).Trim();
+        IEnumerable<string> found = Options.Where(code => !Selected.Contains(code, StringComparer.OrdinalIgnoreCase)
+            && !Excluded.Contains(code, StringComparer.OrdinalIgnoreCase)
+            && (query.Length == 0 || Display(code).Contains(query, StringComparison.OrdinalIgnoreCase)));
+        return Task.FromResult(found);
+    }
+
+    private async Task AddAsync(string? code)
+    {
+        if (code is null || ReadOnly || Selected.Contains(code, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        await SelectedChanged.InvokeAsync([.. Selected, code]);
+        if (_search is not null)
+        {
+            await _search.ClearAsync();
+        }
+    }
+
+    // A chip with no handler has no close icon, which is right when the picker is read-only.
+    private EventCallback<MudChip<string>> CloseOf(string code) =>
+        ReadOnly ? default : EventCallback.Factory.Create<MudChip<string>>(this, () => RemoveAsync(code));
+
+    private Task RemoveAsync(string code) => SelectedChanged.InvokeAsync([.. Selected.Where(held => !string.Equals(held, code, StringComparison.OrdinalIgnoreCase))]);
+}

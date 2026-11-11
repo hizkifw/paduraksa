@@ -84,6 +84,8 @@ else
                                 </MudSelect>
                                 <MudTextField T="string" @bind-Value="_form.PeerIp" Label="Proxy address" Placeholder="One the config trusts" Variant="Variant.Outlined" Margin="Margin.Dense"
                                               Class="pdk-mono-input" Disabled="@(_form.Arrival == SimulationArrival.Direct)" Error="@(ErrorFor("peerIp") is not null)" ErrorText="@ErrorFor("peerIp")" />
+                                <MudTextField T="string" @bind-Value="_form.Country" Label="Country from Cloudflare" Placeholder="DE, T1 for Tor; blank: unknown" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                              Class="pdk-mono-input pdk-span-2" Disabled="@(!_form.ArrivesViaCloudflare)" Error="@(ErrorFor("country") is not null)" ErrorText="@ErrorFor("country")" data-field="country" />
                                 <MudSelect T="SimulationTlsVersion?" @bind-Value="_form.TlsVersion" Label="TLS version" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Disabled="!_form.IsHttps">
                                     <MudSelectItem T="SimulationTlsVersion?" Value="null">Default (TLS 1.3)</MudSelectItem>
                                     <MudSelectItem T="SimulationTlsVersion?" Value="SimulationTlsVersion.Tls12">TLS 1.2</MudSelectItem>
