@@ -28,6 +28,11 @@ public sealed class KekProviderTests : IDisposable
         return new KekProvider(_log).Resolve(name => variables.GetValueOrDefault(name), _data.Path, Database);
     }
 
+    /// <summary>A reader that waits far longer than the test's own 100 ms pause, so a starved thread pool can't run the
+    /// production wait out before the test releases the file.</summary>
+    private ResolvedKek ResolvePatiently() =>
+        new KekProvider(_log, keyReadWaitMilliseconds: 60_000).Resolve(_ => null, _data.Path, Database);
+
     private static byte[] IdOf(string text)
     {
         using var kek = Kek.Parse(text);
@@ -319,7 +324,7 @@ public sealed class KekProviderTests : IDisposable
             await Task.Delay(5, TestContext.Current.CancellationToken);
         }
 
-        var resolve = Task.Run(() => Resolve());
+        var resolve = Task.Run(() => ResolvePatiently());
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(resolve.IsCompleted); // Held exclusively: the reader cannot open it yet, and retries instead of failing.
         release.Set();
@@ -346,7 +351,7 @@ public sealed class KekProviderTests : IDisposable
         writer.Write(bytes.AsSpan(0, 10));
         writer.Flush();
 
-        var resolve = Task.Run(() => Resolve());
+        var resolve = Task.Run(() => ResolvePatiently());
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.False(resolve.IsCompleted); // Ten bytes are not a key: the reader waits for the rest instead of parsing them.
         writer.Write(bytes.AsSpan(10));

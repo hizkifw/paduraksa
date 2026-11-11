@@ -35,8 +35,13 @@ internal sealed record ResolvedKek(Kek Kek, KekSourceKind Source, bool BesideDat
 /// systemd credentials are routinely mounted 0444 or 0440 and refusing them would make the feature unusable.
 /// </para>
 /// </remarks>
-internal sealed partial class KekProvider(ILogger<KekProvider> logger)
+internal sealed partial class KekProvider(ILogger<KekProvider> logger, int keyReadWaitMilliseconds)
 {
+    public KekProvider(ILogger<KekProvider> logger)
+        : this(logger, KeyReadWaitMilliseconds)
+    {
+    }
+
     public const string KeyVariable = "PADURAKSA_MASTER_KEY";
 
     public const string KeyFileVariable = "PADURAKSA_MASTER_KEY_FILE";
@@ -46,7 +51,8 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
     /// <summary>A key file is 44 characters and a newline; anything much larger is not one, and is not read.</summary>
     private const int MaxKeyFileBytes = 1024;
 
-    /// <summary>How long a reader waits for another first start to finish writing <c>master.key</c>.</summary>
+    /// <summary>How long a reader waits for another first start to finish writing <c>master.key</c>. Tests that hold the
+    /// file on purpose pass a longer wait: on a loaded machine their own delays can outlast this one.</summary>
     private const int KeyReadWaitMilliseconds = 2000;
 
     private const int KeyReadPollMilliseconds = 20;
@@ -296,7 +302,7 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
     /// exclusively is still writing it. On Linux .NET enforces <see cref="FileShare"/> with advisory locks, so a reader that
     /// arrives while the creator's <see cref="FileShare.None"/> handle is open fails at once instead of waiting.
     /// </summary>
-    private static FileStream OpenKeyFile(string path, bool generated)
+    private FileStream OpenKeyFile(string path, bool generated)
     {
         var started = Environment.TickCount64;
         while (true)
@@ -305,7 +311,7 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
             {
                 return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, bufferSize: 0);
             }
-            catch (IOException ex) when (generated && IsSharingViolation(ex) && Environment.TickCount64 - started < KeyReadWaitMilliseconds)
+            catch (IOException ex) when (generated && IsSharingViolation(ex) && Environment.TickCount64 - started < keyReadWaitMilliseconds)
             {
                 Thread.Sleep(KeyReadPollMilliseconds);
             }
@@ -316,10 +322,10 @@ internal sealed partial class KekProvider(ILogger<KekProvider> logger)
     /// Waits (at most <see cref="KeyReadWaitMilliseconds"/>) for a key file to be complete. The hard-link install never
     /// exposes a partial one; this covers the exclusive-create fallback and a key file some other writer is producing.
     /// </summary>
-    private static void WaitForComplete(FileStream stream)
+    private void WaitForComplete(FileStream stream)
     {
         var started = Environment.TickCount64;
-        while (stream.Length < Kek.FileLength && Environment.TickCount64 - started < KeyReadWaitMilliseconds)
+        while (stream.Length < Kek.FileLength && Environment.TickCount64 - started < keyReadWaitMilliseconds)
         {
             Thread.Sleep(KeyReadPollMilliseconds);
         }
