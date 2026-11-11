@@ -1,0 +1,257 @@
+@attribute [Route(DashboardRoutes.RuleSets)]
+@attribute [Route(DashboardRoutes.RuleSets + "/{Key}")]
+@implements IDisposable
+@using Microsoft.Extensions.Logging
+@inject IDashboardConfig Config
+@inject DashboardCaller Caller
+@inject DrawerStack Drawers
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+@inject ILogger<RuleSets> Logger
+@* Security: the rule sets. Each row says what a set's rules do and which hosts and routes apply it; one in use can't be deleted, so its
+   delete button is not offered. The built-in presets are listed under them: read-only, copied into a set of your own to change them.
+   /rules/rs_... is that set with its drawer open; /rules/new?copy=rs_... starts a new one from a preset. *@
+
+<PageTitle>Rules · Paduraksa</PageTitle>
+
+<PageHeader Title="Rules">
+    <Actions>
+        @if (_mayWrite)
+        {
+            <MudButton Href="@DashboardRoutes.NewRuleSet" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add" data-action="add-rule-set">Add rule set</MudButton>
+        }
+    </Actions>
+</PageHeader>
+
+@if (_denied)
+{
+    <MudPaper Class="pdk-card" Elevation="0" Outlined="true">
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="@IdentityText.CantReadConfig" Description="@IdentityText.CantReadConfigHelp" />
+    </MudPaper>
+}
+else
+{
+    @if (_failed)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+            The rule sets couldn't be read. The details are in the server log.
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="LoadAsync" Class="ml-2">Try again</MudButton>
+        </MudAlert>
+    }
+
+    <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="rule-sets">
+        @if (_document is null)
+        {
+            @for (var i = 0; i < 3; i++)
+            {
+                <div class="pdk-row-skeleton">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="24%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="36%" />
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="20%" />
+                </div>
+            }
+        }
+        else if (_document.RuleSets.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.Rule" Title="No rule sets yet"
+                        Description="A rule set refuses, drops or allows requests by path, method and user agent. Start from a preset below, or write your own.">
+                <Action>
+                    @if (_mayWrite)
+                    {
+                        <MudButton Href="@DashboardRoutes.NewRuleSet" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Add">Add rule set</MudButton>
+                    }
+                </Action>
+            </EmptyState>
+        }
+        else
+        {
+            <div class="pdk-dt pdk-rule-sets-table" role="table" aria-label="Rule sets">
+                <div class="pdk-dt-row pdk-dt-head" role="row">
+                    <span role="columnheader">Rule set</span>
+                    <span role="columnheader">Rules</span>
+                    <span role="columnheader">Used by</span>
+                    <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
+                </div>
+                @foreach (var set in _document.RuleSets.OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    var usage = RuleSetUsageOf.Find(_document, set.Id);
+                    <div class="pdk-dt-row pdk-dt-link" role="row" @onclick="() => Open(set)" data-rule-set="@set.Name" @key="set.Id">
+                        <div role="cell" class="pdk-dt-main">
+                            <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Rule" Size="Size.Small" /></span>
+                            <div class="pdk-dt-titles">
+                                <a class="pdk-row-link" href="@DashboardRoutes.RuleSet(set.Id)" @onclick:stopPropagation="true">@set.Name</a>
+                                @if (!string.IsNullOrWhiteSpace(set.Notes))
+                                {
+                                    <span class="pdk-dt-note">@set.Notes</span>
+                                }
+                            </div>
+                        </div>
+                        <div role="cell" class="pdk-dt-cell" data-label="Rules">
+                            <span class="pdk-dt-note">@RuleSetText.Summary(set)</span>
+                        </div>
+                        <div role="cell" class="pdk-dt-cell" data-label="Used by" @onclick:stopPropagation="true">
+                            <RuleSetUsageCell Usage="usage" />
+                        </div>
+                        <div role="cell" class="pdk-dt-cell pdk-dt-actions" @onclick:stopPropagation="true">
+                            @if (_mayWrite && usage.IsEmpty)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => ReviewDeleteAsync(set)"
+                                               aria-label="@($"Delete {set.Name}")" data-action="delete" />
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </MudPaper>
+
+    @if (_document is not null)
+    {
+        <MudText Typo="Typo.subtitle2" HtmlTag="h2" Class="mt-6 mb-2">Built-in presets</MudText>
+        <MudPaper Class="pdk-card pdk-table-card" Elevation="0" Outlined="true" data-section="presets">
+            <div class="pdk-dt pdk-presets-table" role="table" aria-label="Built-in presets">
+                <div class="pdk-dt-row pdk-dt-head" role="row">
+                    <span role="columnheader">Preset</span>
+                    <span role="columnheader">Rules</span>
+                    <span role="columnheader">Used by</span>
+                    <span role="columnheader"><span class="pdk-visually-hidden">Actions</span></span>
+                </div>
+                @foreach (var preset in RuleSetPresets.All)
+                {
+                    var usage = RuleSetUsageOf.Find(_document, preset.Id);
+                    <div class="pdk-dt-row" role="row" data-preset="@preset.Name" @key="preset.Id">
+                        <div role="cell" class="pdk-dt-main">
+                            <span class="pdk-list-icon pdk-tone-default"><MudIcon Icon="@Icons.Material.Outlined.Rule" Size="Size.Small" /></span>
+                            <div class="pdk-dt-titles">
+                                <span class="pdk-row-title">@preset.Name</span>
+                                <span class="pdk-dt-note pdk-dt-note-wrap">@preset.Notes</span>
+                            </div>
+                        </div>
+                        <div role="cell" class="pdk-dt-cell" data-label="Rules">
+                            <span class="pdk-dt-note">@RuleSetText.Summary(preset)</span>
+                        </div>
+                        <div role="cell" class="pdk-dt-cell" data-label="Used by">
+                            <RuleSetUsageCell Usage="usage" />
+                        </div>
+                        <div role="cell" class="pdk-dt-cell pdk-dt-actions">
+                            @if (_mayWrite)
+                            {
+                                <MudButton Href="@DashboardRoutes.CopyRuleSet(preset.Id)" Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Outlined.ContentCopy"
+                                           data-action="copy-preset" aria-label="@($"Copy {preset.Name} to edit")">Copy to edit</MudButton>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </MudPaper>
+    }
+}
+
+@code {
+    private bool _denied;
+    private bool _failed;
+    private bool _mayWrite;
+    private bool _loaded;
+    private ConfigDocument? _document;
+    private IDisposable? _watch;
+    private RoutedDrawer? _drawer;
+
+    /// <summary>The address's last segment: a set's ID, or <c>new</c>; null for the list alone.</summary>
+    [Parameter]
+    public string? Key { get; set; }
+
+    /// <summary>With <c>new</c>: the built-in preset to start from.</summary>
+    [SupplyParameterFromQuery(Name = DashboardRoutes.CopyParameter)]
+    public string? Copy { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        if (!_loaded)
+        {
+            _loaded = true;
+            _drawer = new RoutedDrawer(Navigation, DashboardRoutes.RuleSets);
+            _watch = Config.Watch(_ => InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            }));
+            await LoadAsync();
+        }
+
+        if (!_denied)
+        {
+            _drawer!.Show(Key, OpenDrawer);
+        }
+    }
+
+    public void Dispose()
+    {
+        _watch?.Dispose();
+        _drawer?.Dispose();
+    }
+
+    private async Task LoadAsync()
+    {
+        _failed = false;
+        var user = await Caller.CheckAsync();
+        if (user is null)
+        {
+            return;
+        }
+
+        if (!user.Has(Permission.ConfigRead))
+        {
+            _denied = true;
+            return;
+        }
+
+        _mayWrite = user.Has(Permission.ConfigWrite);
+        try
+        {
+            _document = (await Config.GetCurrentAsync()).Document;
+        }
+        catch (Exception ex) when (StoreFailures.Survivable(ex))
+        {
+            Logger.LogStoreFailure(ex, "Couldn't load the rule sets.");
+            _failed = true;
+            _document ??= new ConfigDocument();
+            Snackbar.Add(StoreFailures.Message("The rule sets couldn't be read."), Severity.Error);
+        }
+    }
+
+    private DrawerLevel OpenDrawer(string key)
+    {
+        if (key == DashboardRoutes.NewSegment)
+        {
+            return RuleSetId.TryParse(Copy, out var preset) && RuleSetPresets.TryGet(preset, out var source)
+                ? Drawers.Push<RuleSetDrawer>(new Dictionary<string, object?> { [nameof(RuleSetDrawer.Preset)] = source }, DrawerWidth.Medium)
+                : Drawers.Push<RuleSetDrawer>(width: DrawerWidth.Medium);
+        }
+
+        return RuleSetId.TryParse(key, out var id)
+            ? Drawers.Push<RuleSetDrawer>(new Dictionary<string, object?> { [nameof(RuleSetDrawer.Id)] = id }, DrawerWidth.Medium)
+            : Drawers.Push<NotFoundDrawer>(NotFoundDrawer.For("Rule set not found", "There is no such rule set", "Back to the rules"), DrawerWidth.Narrow);
+    }
+
+    private void Open(RuleSetConfig set) => Navigation.NavigateTo(DashboardRoutes.RuleSet(set.Id));
+
+    private async Task ReviewDeleteAsync(RuleSetConfig set)
+    {
+        if (_document is null || !_mayWrite || !RuleSetUsageOf.Find(_document, set.Id).IsEmpty)
+        {
+            return;
+        }
+
+        await Drawers.ReviewAsync(new ReviewRequest($"Delete rule set {set.Name}", new DeleteRuleSetCommand(set.Id, set.Version))
+        {
+            ApplyLabel = "Delete",
+            Destructive = true,
+            SuccessMessage = $"Deleted the rule set {set.Name}",
+        });
+    }
+}

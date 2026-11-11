@@ -22,6 +22,7 @@ public enum ChangedObject
     Route,
     RateLimitPolicy,
     AccessList,
+    RuleSet,
 }
 
 /// <summary>One field of a changed object, as the diff shows it: its label and its value before and after (null: not set).</summary>
@@ -129,6 +130,8 @@ public static class ChangeView
             DeleteRateLimitPolicyCommand c => current with { RateLimitPolicies = [.. current.RateLimitPolicies.Where(p => p.Id != c.RateLimitPolicyId)] },
             UpsertAccessListCommand c => current with { AccessLists = [.. current.AccessLists.Where(l => l.Id != c.AccessList.Id), c.AccessList] },
             DeleteAccessListCommand c => current with { AccessLists = [.. current.AccessLists.Where(l => l.Id != c.AccessListId)] },
+            UpsertRuleSetCommand c => current with { RuleSets = [.. current.RuleSets.Where(r => r.Id != c.RuleSet.Id), c.RuleSet] },
+            DeleteRuleSetCommand c => current with { RuleSets = [.. current.RuleSets.Where(r => r.Id != c.RuleSetId)] },
             UpdateSettingsCommand c => current with { Settings = c.Settings },
             ReplaceConfigCommand c => c.Document,
             _ => null,
@@ -233,6 +236,10 @@ public static class ChangeView
                     parts.Add($"Access list {document.AccessLists[index].Name}");
                     i = 2;
                     break;
+                case "ruleSets" when index < document.RuleSets.Count:
+                    parts.Add($"Rule set {document.RuleSets[index].Name}");
+                    i = 2;
+                    break;
             }
         }
 
@@ -298,6 +305,7 @@ public static class ChangeView
     {
         "Hostnames" => "Hostname",
         "Routes" => "Route",
+        "Rules" => "Rule",
         "Destinations" => "Destination",
         "Tags" => "Tag",
         "Addresses" => "Address",
@@ -316,6 +324,7 @@ public static class ChangeView
         ProfileChange c => c.ProfileId.ToString(),
         RateLimitPolicyChange c => c.RateLimitPolicyId.ToString(),
         AccessListChange c => c.AccessListId.ToString(),
+        RuleSetChange c => c.RuleSetId.ToString(),
         SettingsChange => "settings",
         _ => "document",
     };
@@ -351,6 +360,10 @@ public static class ChangeView
             AccessListChange c => (ChangedObject.AccessList, names.AccessList(c.AccessListId),
                 Node(before.AccessLists.FirstOrDefault(l => l.Id == c.AccessListId), ConfigJsonContext.Default.AccessListConfig),
                 Node(after.AccessLists.FirstOrDefault(l => l.Id == c.AccessListId), ConfigJsonContext.Default.AccessListConfig),
+                ["id", "version"]),
+            RuleSetChange c => (ChangedObject.RuleSet, names.RuleSet(c.RuleSetId),
+                Node(before.RuleSets.FirstOrDefault(r => r.Id == c.RuleSetId), ConfigJsonContext.Default.RuleSetConfig),
+                Node(after.RuleSets.FirstOrDefault(r => r.Id == c.RuleSetId), ConfigJsonContext.Default.RuleSetConfig),
                 ["id", "version"]),
             SettingsChange => (ChangedObject.Settings, "Global settings",
                 Node(before.Settings, ConfigJsonContext.Default.GlobalSettings),
@@ -439,6 +452,19 @@ public static class ChangeView
         return node;
     }
 
+    private static RuleConfig? TryRule(JsonObject node)
+    {
+        try
+        {
+            return node.Deserialize(ConfigJsonContext.Default.RuleConfig);
+        }
+        catch (JsonException)
+        {
+            // Not a rule after all (some other object with these two keys): shown as any object is.
+            return null;
+        }
+    }
+
     /// <summary>Names of the objects either document has, to show references (an upstream ID) and titles by name.</summary>
     private sealed class Names(ConfigDocument before, ConfigDocument after)
     {
@@ -466,6 +492,10 @@ public static class ChangeView
         public string AccessList(AccessListId id) =>
             (after.AccessLists.FirstOrDefault(l => l.Id == id) ?? before.AccessLists.FirstOrDefault(l => l.Id == id))?.Name ?? "a list that isn't here";
 
+        public string RuleSet(RuleSetId id) =>
+            (after.RuleSets.FirstOrDefault(r => r.Id == id) ?? before.RuleSets.FirstOrDefault(r => r.Id == id))?.Name
+            ?? (RuleSetPresets.TryGet(id, out var preset) ? preset.Name : "a set that isn't here");
+
         public string RateLimitPolicy(RateLimitPolicyId id) =>
             (after.RateLimitPolicies.FirstOrDefault(p => p.Id == id) ?? before.RateLimitPolicies.FirstOrDefault(p => p.Id == id))?.Name ?? "a policy that isn't here";
 
@@ -478,6 +508,9 @@ public static class ChangeView
                     return null;
                 case JsonArray array:
                     return array.Count == 0 ? "none" : string.Join(", ", array.Select(item => Format(path, item) ?? "-"));
+                case JsonObject rule when rule.ContainsKey("action") && rule.ContainsKey("match") && TryRule(rule) is { } parsed:
+                    // A rule as the sentence the editor shows: "Deny when path starts with /admin and method is POST".
+                    return RuleSetText.Describe(parsed);
                 case JsonObject auth when path.EndsWith("/basicAuth", StringComparison.Ordinal) && auth.ContainsKey("users"):
                     // An access list's passwords as an object of its own (the list added or removed): the realm, and the users by name.
                     return AccessListUsers.BasicAuth(auth, null, isAfter: true);
@@ -534,6 +567,11 @@ public static class ChangeView
             if (AccessListId.TryParse(text, out var list))
             {
                 return AccessList(list);
+            }
+
+            if (RuleSetId.TryParse(text, out var set))
+            {
+                return RuleSet(set);
             }
 
             return null;

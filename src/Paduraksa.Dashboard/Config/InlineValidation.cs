@@ -74,6 +74,16 @@ public static class InlineValidation
         return Relative(ConfigValidator.Validate(document), $"/accessLists/{document.AccessLists.Count - 1}");
     }
 
+    /// <summary>The errors of <paramref name="set"/> in <paramref name="current"/>, relative to it (<c>/name</c>, <c>/rules/0/match/path/pattern</c>).
+    /// A regex is built as the server will build it, so the reason it can't be is the message at its field.</summary>
+    public static IReadOnlyDictionary<string, string> ForRuleSet(ConfigDocument current, RuleSetConfig set)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(set);
+        var document = current with { RuleSets = [.. current.RuleSets.Where(r => r.Id != set.Id), set] };
+        return Relative(ConfigValidator.Validate(document), $"/ruleSets/{document.RuleSets.Count - 1}");
+    }
+
     // What the server leaves in a user's place once the vault has their password: a credential ID (a new one here, so none repeats).
     private static AccessListUserConfig HandedToVault(AccessListUserConfig user) =>
         user.Password is { Length: > 0 } password && System.Text.Encoding.UTF8.GetByteCount(password) <= AccessListLimits.MaxPasswordBytes

@@ -53,6 +53,7 @@ public static class Tones
         ChangedObject.Profile => Icons.Material.Outlined.Badge,
         ChangedObject.RateLimitPolicy => Icons.Material.Outlined.Speed,
         ChangedObject.AccessList => Icons.Material.Outlined.Lock,
+        ChangedObject.RuleSet => Icons.Material.Outlined.Rule,
         ChangedObject.Settings => Icons.Material.Outlined.Tune,
         _ => Icons.Material.Outlined.Description,
     };

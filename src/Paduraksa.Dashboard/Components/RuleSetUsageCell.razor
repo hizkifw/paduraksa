@@ -1,0 +1,26 @@
+@* Where a rule set is applied: how many hosts and routes, each linked to its host. Nothing when no host or route uses it. *@
+@if (Usage.IsEmpty)
+{
+    <span class="pdk-muted">No host or route</span>
+}
+else
+{
+    <div class="pdk-dt-stack">
+        <span class="pdk-muted">@Usage.CountText</span>
+        <span class="pdk-dt-chips">
+            @foreach (var host in Usage.Hosts)
+            {
+                <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
+            }
+            @foreach (var use in Usage.Routes)
+            {
+                <a class="pdk-tag pdk-tag-link" href="@DashboardRoutes.Host(use.Host.Id)">@($"{ChangeView.HostTitle(use.Host)} {use.Route.Path}")</a>
+            }
+        </span>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public RuleSetUsage Usage { get; set; } = default!;
+}

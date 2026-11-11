@@ -28,6 +28,8 @@ public static class DashboardRoutes
 
     public const string AccessLists = "/access-lists";
 
+    public const string RuleSets = "/rules";
+
     public const string Certificates = "/certificates";
 
     public const string LocalCa = Certificates + "/local-ca";
@@ -61,6 +63,11 @@ public static class DashboardRoutes
 
     public const string NewAccessList = AccessLists + "/" + NewSegment;
 
+    public const string NewRuleSet = RuleSets + "/" + NewSegment;
+
+    /// <summary>The query parameter of <see cref="NewRuleSet"/> that names the built-in preset to start from.</summary>
+    public const string CopyParameter = "copy";
+
     /// <summary>The page shown for an address the dashboard has no page at.</summary>
     public const string NotFound = "/not-found";
 
@@ -77,6 +84,12 @@ public static class DashboardRoutes
 
     /// <summary>An access list: <c>/access-lists/acl_...</c>, the lists with its drawer open. The page parses the segment back into an <see cref="AccessListId"/>.</summary>
     public static string AccessList(AccessListId id) => $"{AccessLists}/{id}";
+
+    /// <summary>A rule set: <c>/rules/rs_...</c>, the rule sets with its drawer open. The page parses the segment back into a <see cref="RuleSetId"/>.</summary>
+    public static string RuleSet(RuleSetId id) => $"{RuleSets}/{id}";
+
+    /// <summary>A new rule set that starts as a copy of a preset: <c>/rules/new?copy=rs_...</c>.</summary>
+    public static string CopyRuleSet(RuleSetId preset) => $"{NewRuleSet}?{CopyParameter}={preset}";
 
     public static string Certificate(CertificateId id) => $"{Certificates}/{id}";
 

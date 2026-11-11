@@ -841,6 +841,18 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     white-space: nowrap;
 }
 
+/* A note that is a sentence (a preset's reason), not a one-line hint. */
+.pdk-dt-note-wrap {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+.pdk-row-title {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
 .pdk-dt-chips {
     display: flex;
     flex-wrap: wrap;
@@ -875,6 +887,8 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
 .pdk-profiles-table { --pdk-dt-cols: minmax(0, 1.2fr) minmax(0, 1.6fr) minmax(0, 1.2fr) 40px; }
 .pdk-rate-limits-table { --pdk-dt-cols: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 40px; }
 .pdk-access-lists-table { --pdk-dt-cols: minmax(0, 1.1fr) minmax(0, 1.5fr) minmax(0, 1.4fr) 40px; }
+.pdk-rule-sets-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 0.9fr) minmax(0, 1.2fr) 40px; }
+.pdk-presets-table { --pdk-dt-cols: minmax(0, 1.5fr) minmax(0, 0.8fr) minmax(0, 1.1fr) auto; }
 .pdk-users-table { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) 80px; }
 .pdk-users-table.pdk-users-seen { --pdk-dt-cols: minmax(0, 1.6fr) minmax(0, 1.2fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(90px, 0.7fr) 80px; }
 .pdk-tokens-table { --pdk-dt-cols: minmax(0, 1.4fr) minmax(0, 1.8fr) minmax(80px, 0.7fr) minmax(90px, 0.8fr) minmax(80px, 0.6fr) 80px; }
@@ -1334,8 +1348,13 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
     }
 
     .pdk-hosts-table .pdk-dt-cell[data-label="Destination"], .pdk-upstreams-table .pdk-dt-cell, .pdk-profiles-table .pdk-dt-cell[data-label],
-    .pdk-rate-limits-table .pdk-dt-cell[data-label], .pdk-access-lists-table .pdk-dt-cell[data-label] {
+    .pdk-rate-limits-table .pdk-dt-cell[data-label], .pdk-access-lists-table .pdk-dt-cell[data-label], .pdk-rule-sets-table .pdk-dt-cell[data-label],
+    .pdk-presets-table .pdk-dt-cell[data-label], .pdk-presets-table .pdk-dt-actions {
         grid-column: 1 / -1;
+    }
+
+    .pdk-presets-table .pdk-dt-actions {
+        justify-content: flex-start;
     }
 
     .pdk-sec-tiles {
@@ -1363,7 +1382,7 @@ a.pdk-tag-link:hover, a.pdk-tag-link:focus-visible {
         right: 8px;
     }
 
-    .pdk-rate-limits-table .pdk-dt-actions, .pdk-access-lists-table .pdk-dt-actions {
+    .pdk-rate-limits-table .pdk-dt-actions, .pdk-access-lists-table .pdk-dt-actions, .pdk-rule-sets-table .pdk-dt-actions {
         position: absolute;
         top: 10px;
         right: 8px;
@@ -3339,5 +3358,90 @@ body:has(.pdk-editor-bar:not(.pdk-editor-bar-inline)) .mud-snackbar-location-bot
 
     .pdk-reconnect-spinner {
         animation-duration: 2400ms;
+    }
+}
+
+/* A rule set's rules: each a card that reads "When [path] [methods] [user agent] then [action]", the word in a narrow column beside its fields. */
+.pdk-rule-rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pdk-rule-row {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px 12px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 8px;
+}
+
+.pdk-rule-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pdk-rule-number {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.pdk-rule-tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.pdk-rule-body {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+}
+
+.pdk-rule-word {
+    padding-top: 12px;
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.pdk-rule-fields {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.pdk-rule-path {
+    display: grid;
+    grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1.3fr);
+    gap: 8px;
+    align-items: start;
+}
+
+.pdk-rule-path:not(:has(.mud-input-control + .mud-input-control)) {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 640px) {
+    .pdk-rule-path {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pdk-rule-body {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .pdk-rule-word {
+        padding-top: 0;
     }
 }

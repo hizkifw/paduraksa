@@ -104,6 +104,7 @@ public static class ReviewNotices
         ProfileChange profile => $"profile:{profile.ProfileId}",
         RateLimitPolicyChange policy => $"rateLimit:{policy.RateLimitPolicyId}",
         AccessListChange list => $"accessList:{list.AccessListId}",
+        RuleSetChange set => $"ruleSet:{set.RuleSetId}",
         SettingsChange => "settings",
         _ => "*",
     };
@@ -129,6 +130,7 @@ public static class ReviewNotices
             "profiles" when index < document.Profiles.Count => $"profile:{document.Profiles[index].Id}",
             "rateLimitPolicies" when index < document.RateLimitPolicies.Count => $"rateLimit:{document.RateLimitPolicies[index].Id}",
             "accessLists" when index < document.AccessLists.Count => $"accessList:{document.AccessLists[index].Id}",
+            "ruleSets" when index < document.RuleSets.Count => $"ruleSet:{document.RuleSets[index].Id}",
             _ => path,
         };
     }
@@ -154,6 +156,9 @@ public static class ReviewNotices
                 "That rate limit doesn't exist any more. Choose another one, or no limit.",
             ConfigErrorCodes.HostAccessListUnknown or ConfigErrorCodes.RouteAccessListUnknown =>
                 "That access list doesn't exist any more. Choose another one, or none.",
+            ConfigErrorCodes.HostRuleSetUnknown or ConfigErrorCodes.RouteRuleSetUnknown =>
+                "That rule set doesn't exist any more. Choose another one, or none.",
+            ConfigErrorCodes.RuleEmpty => "State at least one condition (a path, methods or a user agent): a rule with none would match every request.",
             ConfigErrorCodes.AccessListPasswordEmpty or ConfigErrorCodes.AccessListPasswordMissing => "Give this user a password.",
             ConfigErrorCodes.AccessListPasswordTooLong => "That password is too long. Use at most 256 bytes.",
             ConfigErrorCodes.IdEmpty when error.Path.EndsWith("/profileId", StringComparison.Ordinal) => "Choose a profile, or no profile.",
