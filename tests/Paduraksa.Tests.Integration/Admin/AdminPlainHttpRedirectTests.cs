@@ -167,13 +167,21 @@ public sealed class AdminPlainHttpRedirectTests(SharedHost shared) : IClassFixtu
     {
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(20));
         using TcpClient tcp = new();
-        await tcp.ConnectAsync(IPAddress.Loopback, admin.Port, timeout.Token);
+        try
+        {
+            await tcp.ConnectAsync(IPAddress.Loopback, admin.Port, timeout.Token);
+        }
+        catch (SocketException)
+        {
+            return []; // an abort can land while the connect completes; the listener still said nothing
+        }
+
         await using var stream = tcp.GetStream();
         try
         {
             await stream.WriteAsync(Encoding.ASCII.GetBytes(request), timeout.Token);
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or SocketException)
         {
             return []; // the listener aborted before we could speak
         }
@@ -183,7 +191,7 @@ public sealed class AdminPlainHttpRedirectTests(SharedHost shared) : IClassFixtu
         {
             await stream.CopyToAsync(received, timeout.Token);
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or SocketException)
         {
             // A reset after the answer (or before one): what was read is still the answer.
         }
