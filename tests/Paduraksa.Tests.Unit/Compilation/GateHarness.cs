@@ -34,12 +34,17 @@ internal sealed class GateHarness : IDisposable
 
     public void Dispose() => _store.Dispose();
 
-    public async Task<int> SendAsync(string host, string scheme, string path, IPAddress client)
+    public async Task<int> SendAsync(string host, string scheme, string path, IPAddress client, string method = "GET", string? userAgent = null)
     {
         DefaultHttpContext context = new();
         Lifetime lifetime = new();
         context.Features.Set<IHttpRequestLifetimeFeature>(lifetime);
-        context.Request.Method = HttpMethods.Get;
+        context.Request.Method = method;
+        if (userAgent is not null)
+        {
+            context.Request.Headers.UserAgent = userAgent;
+        }
+
         context.Request.Protocol = "HTTP/1.1";
         context.Request.Scheme = scheme;
         context.Request.Host = new HostString(host);
