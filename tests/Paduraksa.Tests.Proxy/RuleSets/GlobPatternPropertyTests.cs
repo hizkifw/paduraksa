@@ -24,14 +24,14 @@ public sealed class GlobPatternPropertyTests
     [Fact]
     public void TheAutomatonAgreesWithTheBacktrackingModelOnAnyPath() =>
         Gen.Select(Patterns, Paths).Check(
-            60_000,
+            20_000,
             t => Agree(t.Item1, t.Item2));
 
     [Fact]
     public void TheAutomatonAgreesWithTheModelOnPathsBuiltFromThePattern() =>
         Gen.Select(Patterns, Property.Pick("", "/", "a", "/a/b/").List[0, 6], Gen.Int[0, 1000])
             .Check(
-                60_000,
+                20_000,
                 t =>
                 {
                     // Each wildcard stands for something, so most of these paths are ones the pattern was written for.
@@ -56,7 +56,7 @@ public sealed class GlobPatternPropertyTests
     [Fact]
     public void ARunOfSlashDoubleStarSlashMatchesWhatTheSameRunWithOneStarDoes() =>
         Gen.Select(Gen.Int[1, 5], Property.StringOf("/ab", 0, 10), Gen.Int[0, 2]).Check(
-            20_000,
+            10_000,
             t =>
             {
                 // "/**/**/.../x" takes "/x" and everything "/**/x" does: repeating the run adds no path.

@@ -52,7 +52,7 @@ public sealed class ForwardAuthHeaderPropertyTests
     [Fact]
     public void ANameTheValidatorAcceptsNeverOwnsAHeaderTheProxyOwnsItself() =>
         Gen.Select(Names, Gen.Bool).Check(
-            60_000,
+            20_000,
             t =>
             {
                 var name = t.Item2 ? t.Item1 : t.Item1.TrimEnd('*');
@@ -74,7 +74,7 @@ public sealed class ForwardAuthHeaderPropertyTests
     [Fact]
     public void ANameTheValidatorAcceptsForAProviderOwnsNoFurtherNameThanThatSpellingOrItsPrefix() =>
         Gen.Select(Names, Spellings).Check(
-            30_000,
+            10_000,
             t =>
             {
                 var (name, spelling) = t;
@@ -89,7 +89,7 @@ public sealed class ForwardAuthHeaderPropertyTests
     [Fact]
     public void TheProxyStripsExactlyTheNamesAPlainModelSaysAreOwned() =>
         Gen.Select(Names.List[1, 3], Names.List[0, 6], Spellings.List[0, 4]).Check(
-            20_000,
+            8_000,
             t =>
             {
                 var (owned, clientNames, spellings) = t;

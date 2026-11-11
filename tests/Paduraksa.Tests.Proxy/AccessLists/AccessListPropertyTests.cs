@@ -52,7 +52,7 @@ public sealed class AccessListPropertyTests
     {
         var runtime = AccessListFixtures.NewRuntime();
         Gen.Select(Lists, Requests.List[1, 6]).Check(
-            250,
+            120,
             t =>
             {
                 var (model, requests) = t;

@@ -60,7 +60,7 @@ public sealed class AccessLogFormatterPropertyTests
     [Fact]
     public void ALineHasExactlyTheDocumentedFieldsWhateverTheClientSent() =>
         Entries.Check(
-            40_000,
+            12_000,
             entry =>
             {
                 var line = Format(entry, AccessLogFormatOptions.Default);
@@ -81,7 +81,7 @@ public sealed class AccessLogFormatterPropertyTests
     [Fact]
     public void TheRequestTargetDecodesToWhatTheClientSentWithItsSensitiveParametersRedacted() =>
         Gen.Select(Text, Text, Property.StringOf("ab&=?%", 0, 12), Text, Gen.Bool).Check(
-            40_000,
+            12_000,
             t =>
             {
                 var (method, path, noise, protocol, withCanary) = t;

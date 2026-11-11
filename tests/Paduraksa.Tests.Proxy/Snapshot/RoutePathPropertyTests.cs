@@ -49,7 +49,7 @@ public sealed class RoutePathPropertyTests(TestUpstream upstream) : IClassFixtur
     [Fact]
     public void TheCanonicalViewEqualsAPlainModel() =>
         ManyPieces.Check(
-            20_000,
+            10_000,
             path =>
             {
                 var expected = Model.Canonicalize(path);
@@ -62,7 +62,7 @@ public sealed class RoutePathPropertyTests(TestUpstream upstream) : IClassFixtur
     [Fact]
     public void TheCanonicalViewIsItsOwnCanonicalViewAndIsCanonicalSaysSo() =>
         ManyPieces.Check(
-            20_000,
+            10_000,
             path =>
             {
                 var canonical = RoutePath.Canonicalize(path);

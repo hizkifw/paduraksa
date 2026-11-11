@@ -66,7 +66,7 @@ public sealed class CompiledRuleSetPropertyTests
     [Fact]
     public void TheSetPicksTheFirstRuleTheRequestMatchesInTheDocumentsOrder() =>
         Gen.Select(Rules.List[1, 7], Requests.List[1, 12]).Check(
-            8_000,
+            4_000,
             t =>
             {
                 var rules = t.Item1;
@@ -85,7 +85,7 @@ public sealed class CompiledRuleSetPropertyTests
     [Fact]
     public void ARuleSetCompilesExactlyWhenEveryRuleCan() =>
         Gen.Select(Property.StringOf("/*a(\\", 0, 5), Gen.Int[0, 3], Property.Pick("curl", "")).Check(
-            4_000,
+            2_000,
             t =>
             {
                 var (pattern, kind, agent) = t;

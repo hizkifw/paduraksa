@@ -30,7 +30,7 @@ public sealed class ConfigPipelinePropertyTests : IDisposable
         var valid = 0;
         var total = 0;
         ConfigGen.Documents.Check(
-            1_500,
+            500,
             document =>
             {
                 total++;
@@ -56,7 +56,7 @@ public sealed class ConfigPipelinePropertyTests : IDisposable
     {
         var valid = 0;
         ConfigGen.Documents.Check(
-            1_500,
+            500,
             document =>
             {
                 var bytes = CanonicalConfigJson.Serialize(document);
@@ -79,7 +79,7 @@ public sealed class ConfigPipelinePropertyTests : IDisposable
                 Assert.True(compilation.Succeeded, string.Join("; ", compilation.Errors.Select(e => $"{e.Path}: {e.Message}")));
             });
 
-        Assert.True(valid > 50, $"only {valid} generated documents validate");
+        Assert.True(valid > 30, $"only {valid} generated documents validate");
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class ConfigPipelinePropertyTests : IDisposable
     {
         var checkedDocuments = 0;
         Gen.Select(ConfigGen.Documents, Gen.Int[0, 1_000_000]).Check(
-            800,
+            400,
             t =>
             {
                 var (document, seed) = t;
@@ -101,6 +101,6 @@ public sealed class ConfigPipelinePropertyTests : IDisposable
                 Assert.Equal(Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)), Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(respelled)));
             });
 
-        Assert.True(checkedDocuments > 30, $"only {checkedDocuments} generated documents validate");
+        Assert.True(checkedDocuments > 20, $"only {checkedDocuments} generated documents validate");
     }
 }

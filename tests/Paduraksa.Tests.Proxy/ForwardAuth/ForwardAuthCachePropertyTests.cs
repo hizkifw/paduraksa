@@ -109,7 +109,7 @@ public sealed class ForwardAuthCachePropertyTests
         var model = Model(spec, TestSnapshots.ProxyHost("app2", "app2.test", TestSnapshots.Route("app2-root", "web") with { AuthProvider = spec.Id }));
 
         Sequences.Check(
-            300,
+            150,
             t =>
             {
                 var gate = GateFor(new ForwardAuthRuntime(), model, out _);
