@@ -260,6 +260,11 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             ("GET /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigRead),
             ("PUT /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigWrite),
             ("DELETE /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigWrite),
+            ("GET /api/v1/authProviders", Permission.ConfigRead),
+            ("POST /api/v1/authProviders", Permission.ConfigWrite),
+            ("GET /api/v1/authProviders/{id:AuthProviderId}", Permission.ConfigRead),
+            ("PUT /api/v1/authProviders/{id:AuthProviderId}", Permission.ConfigWrite),
+            ("DELETE /api/v1/authProviders/{id:AuthProviderId}", Permission.ConfigWrite),
             ("GET /api/v1/profiles", Permission.ConfigRead),
             ("POST /api/v1/profiles", Permission.ConfigWrite),
             ("GET /api/v1/profiles/{id:ProfileId}", Permission.ConfigRead),
@@ -323,7 +328,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     {
         // The endpoints name their permission literally and the services enforce OperationPermissions on their own; this keeps the two
         // from drifting apart. Config resources run config commands, the certificate routes run certificate operations.
-        string[] configResources = ["hosts", "upstreams", "rateLimitPolicies", "accessLists", "ruleSets", "profiles", "settings", "revisions"];
+        string[] configResources = ["hosts", "upstreams", "rateLimitPolicies", "accessLists", "ruleSets", "authProviders", "profiles", "settings", "revisions"];
         var mutating = ApiEndpoints(shared.Api)
             .SelectMany(e => (e.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? [])
                 .Where(method => method is "POST" or "PUT" or "DELETE")
@@ -443,6 +448,31 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
         var propagationReference = propagation["$ref"]?.GetValue<string>() ?? propagation["oneOf"]?[1]?["$ref"]?.GetValue<string>();
         Assert.NotNull(propagationReference);
         Assert.Contains("off", schemas["RequestIdPropagation"]!["enum"]!.AsArray().Select(v => v!.GetValue<string>()));
+    }
+
+    [Fact]
+    public async Task TheOpenApiDocumentDescribesTheAuthProviderEndpointsAndTheirPresets()
+    {
+        var api = shared.Api;
+
+        using var response = await api.GetAsync("/api/v1/openapi.json", caller: null);
+        var document = JsonNode.Parse(await response.Content.ReadAsStringAsync(Ct))!.AsObject();
+        var paths = document["paths"]!.AsObject();
+
+        Assert.Contains("/api/v1/authProviders", paths.Select(p => p.Key));
+        var operation = paths["/api/v1/authProviders/{id}"]!["delete"]!;
+        Assert.Contains("Refused", operation["description"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Equal("config:write", operation["x-required-permission"]!.GetValue<string>());
+        var schemas = document["components"]!["schemas"]!.AsObject();
+        var forwardSchema = schemas["ForwardAuthConfig"]!.ToJsonString();
+        foreach (var value in (string[])["custom", "authentik", "authelia", "oAuth2Proxy", "request", "host"])
+        {
+            Assert.Contains($"\"{value}\"", forwardSchema, StringComparison.Ordinal);
+        }
+
+        var forward = schemas["ForwardAuthConfig"]!["properties"]!.AsObject();
+        Assert.Equal(["url", "preset", "timeoutSeconds", "cacheSeconds", "cacheScope", "requestHeaders", "responseHeaders", "signIn"], forward.Select(p => p.Key));
+        Assert.Contains("remembered", forward["cacheSeconds"]!["description"]!.GetValue<string>(), StringComparison.Ordinal);
     }
 
     [Fact]

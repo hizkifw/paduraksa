@@ -122,6 +122,25 @@ internal static class ConfigEndpoints
             .WithDescription("Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
+        var authProviders = api.MapGroup("/authProviders").WithTags("Auth providers");
+        authProviders.MapGet("/", ListAuthProvidersAsync).WithName("ListAuthProviders").WithSummary("List auth providers")
+            .Produces<IReadOnlyList<AuthProviderConfig>>().RequirePermission(Permission.ConfigRead);
+        authProviders.MapGet("/{id:AuthProviderId}", GetAuthProviderAsync).WithName("GetAuthProvider").WithSummary("Get an auth provider")
+            .Produces<AuthProviderConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
+        authProviders.MapPost("/", CreateAuthProviderAsync).WithName("CreateAuthProvider").WithSummary("Create an auth provider")
+            .WithDescription("A forward-auth endpoint: every request to a host or route that names the provider is checked against it first (authentik, Authelia, oauth2-proxy or any other). "
+                + "The preset (authentik, authelia, oauth2Proxy) fills in the endpoint's path when the URL is a bare address, the identity headers its answer carries, whether a remembered allow covers one path or the whole host, "
+                + "and oauth2-proxy's sign-in redirect; a field that is set wins. A URL with credentials, a header the proxy owns and a sign-in URL that isn't a path on the host or an absolute http(s) URL are refused (422).")
+            .Accepts<AuthProviderConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        authProviders.MapPut("/{id:AuthProviderId}", ReplaceAuthProviderAsync).WithName("ReplaceAuthProvider").WithSummary("Replace an auth provider")
+            .WithDescription("A change to what the endpoint is asked or how its answer is read starts the provider with an empty decision cache; a rename or new notes keep it.")
+            .Accepts<AuthProviderConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        authProviders.MapDelete("/{id:AuthProviderId}", DeleteAuthProviderAsync).WithName("DeleteAuthProvider").WithSummary("Delete an auth provider")
+            .WithDescription("Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.")
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+
         var profiles = api.MapGroup("/profiles").WithTags("Profiles");
         profiles.MapGet("/", ListProfilesAsync).WithName("ListProfiles").WithSummary("List profiles")
             .Produces<IReadOnlyList<ProfileConfig>>().RequirePermission(Permission.ConfigRead);
@@ -417,6 +436,38 @@ internal static class ConfigEndpoints
 
     private static Task<IResult> DeleteRuleSetAsync(HttpContext http, RuleSetId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         DeleteAsync(http, caller, config, version => new DeleteRuleSetCommand(id, version), ct);
+
+    private static async Task<IResult> ListAuthProvidersAsync(HttpContext http, ConfigService config, CancellationToken ct)
+    {
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        TagWithRevision(http, current);
+        return EndpointSupport.Json(current.Document.AuthProviders, AdminJsonContext.Default.IReadOnlyListAuthProviderConfig);
+    }
+
+    private static async Task<IResult> GetAuthProviderAsync(HttpContext http, AuthProviderId id, ConfigService config, CancellationToken ct)
+    {
+        var provider = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.AuthProviders.FirstOrDefault(p => p.Id == id);
+        if (provider is null)
+        {
+            return NoSuchObject("auth provider");
+        }
+
+        http.Response.Headers.ETag = Preconditions.VersionTag(provider.Version);
+        return EndpointSupport.Json(provider, AdminJsonContext.Default.AuthProviderConfig);
+    }
+
+    private static Task<IResult> CreateAuthProviderAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.AuthProviderConfig,
+            (provider, _, _) => (provider with { Version = 0 }, null), (provider, dry, message) => new UpsertAuthProviderCommand(provider) { DryRun = dry, Message = message },
+            provider => EndpointSupport.Path("authProviders", provider.Id), ct);
+
+    private static Task<IResult> ReplaceAuthProviderAsync(HttpContext http, AuthProviderId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.AuthProviderConfig,
+            (provider, version, _) => provider.Id == id ? (provider with { Version = version }, null) : (provider, IdMismatch()),
+            (provider, dry, message) => new UpsertAuthProviderCommand(provider) { DryRun = dry, Message = message }, null, ct);
+
+    private static Task<IResult> DeleteAuthProviderAsync(HttpContext http, AuthProviderId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        DeleteAsync(http, caller, config, version => new DeleteAuthProviderCommand(id, version), ct);
 
     private static async Task<IResult> ListProfilesAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {

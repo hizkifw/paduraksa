@@ -389,6 +389,79 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
     }
 
     [Fact]
+    public async Task AuthProvidersAreManagedAPresetIsReadBackByNameAndOneInUseCannotBeDeleted()
+    {
+        var api = shared.Api;
+        var upstream = ConfigTestSupport.Upstream("u-auth", "http://127.0.0.1:9");
+        using var createdUpstream = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/upstreams", upstream, AdminJsonContext.Default.UpstreamConfig);
+        Assert.Equal(HttpStatusCode.Created, createdUpstream.StatusCode);
+
+        AuthProviderConfig provider = new(
+            AuthProviderId.New(),
+            "authentik",
+            ForwardAuth: new ForwardAuthConfig(
+                "http://authentik:9000",
+                ForwardAuthPreset.Authentik,
+                CacheSeconds: 30,
+                RequestHeaders: ["x-tenant", "X-Tenant"],
+                SignIn: new ForwardAuthSignInConfig("/outpost.goauthentik.io/start", "rd")));
+        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/authProviders", provider, AdminJsonContext.Default.AuthProviderConfig);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal($"/api/v1/authProviders/{provider.Id}", created.Headers.Location!.ToString());
+        var version = AdminApiHarness.ETag(created)!;
+
+        // Read back canonically: the preset by name, the header list a set. No secret is part of it.
+        using var read = await api.GetAsync($"/api/v1/authProviders/{provider.Id}");
+        var readBody = await read.Content.ReadAsStringAsync(Ct);
+        Assert.Contains("\"preset\":\"authentik\"", readBody, StringComparison.Ordinal);
+        Assert.Contains("\"requestHeaders\":[\"x-tenant\"]", readBody, StringComparison.Ordinal);
+        Assert.Equal(version, AdminApiHarness.ETag(read));
+        var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.AuthProviderConfig)!;
+        using var all = await api.GetAsync("/api/v1/authProviders");
+        Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListAuthProviderConfig, Ct), p => p.Id == provider.Id);
+
+        // An endpoint with credentials and a header the proxy owns are 422s pointing at their fields.
+        AuthProviderConfig broken = new(AuthProviderId.New(), "broken", ForwardAuth: new ForwardAuthConfig("http://user:pw@auth/", ResponseHeaders: ["X-Forwarded-For"]));
+        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/authProviders", broken, AdminJsonContext.Default.AuthProviderConfig);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, rejected.StatusCode);
+        Assert.Equal(
+            [("/forwardAuth/url", "authProvider.url.invalid"), ("/forwardAuth/responseHeaders/0", "authProvider.header.invalid")],
+            (await AdminApiHarness.ProblemAsync(rejected, Ct)).Errors!.Select(e => (e.Path, e.Code)));
+
+        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/authProviders/{provider.Id}", stored with { Notes = "edited" }, AdminJsonContext.Default.AuthProviderConfig, ifMatch: version);
+        Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
+        var latest = AdminApiHarness.ETag(replaced)!;
+
+        // A host may name the provider; naming one that exists nowhere is refused.
+        HostConfig host = ConfigTestSupport.ProxyHost("h-auth", "h-auth.test", "u-auth") with
+        {
+            Settings = new HostSettings { AuthProvider = new AuthProviderSettings { AuthProviderId = provider.Id } },
+        };
+        using var hostCreated = await PostHostAsync(api, host);
+        Assert.Equal(HttpStatusCode.Created, hostCreated.StatusCode);
+        using var unknown = await PostHostAsync(api, ConfigTestSupport.ProxyHost("h-auth-2", "h-auth-2.test", "u-auth") with
+        {
+            Settings = new HostSettings { AuthProvider = new AuthProviderSettings { AuthProviderId = AuthProviderId.New() } },
+        });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, unknown.StatusCode);
+
+        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/authProviders/{provider.Id}", ifMatch: latest);
+        var problem = await AdminApiHarness.ProblemAsync(inUse, Ct);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, inUse.StatusCode);
+        Assert.Contains(problem.RelatedErrors!, e => e.Code == "host.authProvider.unknown");
+
+        using var hostGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/hosts/{host.Id}", ifMatch: AdminApiHarness.ETag(hostCreated));
+        Assert.Equal(HttpStatusCode.NoContent, hostGone.StatusCode);
+        using var providerGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/authProviders/{provider.Id}", ifMatch: latest);
+        Assert.Equal(HttpStatusCode.NoContent, providerGone.StatusCode);
+        using var gone = await api.GetAsync($"/api/v1/authProviders/{provider.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+
+        using var upstreamGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: AdminApiHarness.ETag(createdUpstream));
+        Assert.Equal(HttpStatusCode.NoContent, upstreamGone.StatusCode);
+    }
+
+    [Fact]
     public async Task AnInlineIpAllowListIsRefusedWithASentenceThatNamesAccessLists()
     {
         var api = shared.Api;
