@@ -70,6 +70,35 @@ internal static class ErrorPages
     /// <summary>Too many calls to a forward-auth endpoint were already running.</summary>
     public static HtmlPageTemplate AuthBusy { get; } = Page("503 Service Unavailable", "The sign-in service for this site is busy. Try again in a moment.");
 
+    private static readonly PrecomputedResponse?[] Replacements = BuildReplacements();
+
+    /// <summary>
+    /// The answer that replaces an upstream's own error with this status: its built-in page (an operator's takes its place when the
+    /// answer is written) and a plain line for a client that doesn't ask for HTML. Null for a status without a page.
+    /// </summary>
+    public static PrecomputedResponse? Replacement(int status)
+    {
+        var index = ErrorPageStatuses.IndexOf(status);
+        return index >= 0 && index < Replacements.Length ? Replacements[index] : null;
+    }
+
+    private static PrecomputedResponse?[] BuildReplacements()
+    {
+        var answers = new PrecomputedResponse?[ErrorPageStatuses.Statuses.Count];
+        (int Status, HtmlPageTemplate Page)[] pages =
+        [
+            (403, AccessDenied), (404, NotFound), (413, RequestTooLarge), (414, UriTooLong), (421, Misdirected), (429, TooManyRequests),
+            (431, HeadersTooLarge), (502, BadGateway), (503, ServiceUnavailable), (504, GatewayTimeout),
+        ];
+        foreach (var (status, page) in pages)
+        {
+            answers[ErrorPageStatuses.IndexOf(status)] = PrecomputedResponse.Text(
+                status, string.Concat(ErrorPageStatuses.StatusText(status).ToLowerInvariant(), "\n"), htmlPage: page);
+        }
+
+        return answers;
+    }
+
     private static readonly PrecomputedResponse UpstreamBadGateway =
         PrecomputedResponse.Text(502, "bad gateway\n", htmlPage: BadGateway);
 
