@@ -324,8 +324,8 @@ For comparison, the header refactor left adding a header setting at six files: t
 compiled operation (`ResponseHeaders`/`CompileResponseHeaders`), the matrix rows, the end-to-end test and these notes.
 
 **What the layers mean** (§6.4): built-in defaults → global defaults → profile → host, then a route's own subset on top of
-the host. Nested records (`Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`) merge field by field,
-and a layer lifts an inherited rate limit or access list with `enabled: false`; everything else is a plain override. A nested
+the host. Nested records (`Tls`, `Hsts`, `ServerHeader`, `ProofOfWork`, `RateLimit`, `Robots`, `Cloudflare`, `AccessList`, `RequestLimits`, `RuleSet`) merge field by field,
+and a layer lifts an inherited rate limit, access list or rule set with `enabled: false`; everything else is a plain override. A nested
 record that sets none of its fields is no record at all, so canonical JSON writes no key for it and a stored revision keeps
 its bytes (and its hash): `ISettingsLayer.SetsNothing`, which each record states, is the one rule that decides it.
 
@@ -475,6 +475,7 @@ As built in M2 (`src/Paduraksa.Application/Compilation`):
 - **Mapping.** `ProxyConfigMapping.Map` is a pure function from the document's canonical form to `ProxyConfigModel`, so two spellings of one config compile alike. `ConfigCompiler` (the `IConfigCompiler`) runs it and `SnapshotCompiler` with the process's `SnapshotCompilerOptions`. The compiler is split by concern: `Compile` is the orchestration, the per-host step (the admin-host rules included) is `SnapshotCompiler.Hosts.cs`, and upstreams, TLS/certificates and response headers have their own partials, each filling a small `CompileContext`.
 - **Layering.** Per host: built-in defaults → global defaults → its profile (a missing profile adds no layer; the validator rejects it, `host.profile.unknown`) → the host; per route, its own subset on top of the host's result. A null field inherits. TLS merges field by field. `ForceHttps` is judged after layering. (M2 had an inline IP allow list that replaced as a whole; M7 replaced it with named access lists, §7.3.)
 - **Access lists: host chain and route chains (M2's inline allow list, as M7 reworked it; §7.3).** The gate runs the host chain before the HTTPS redirect, fixed answers and route matching, so a route override can't *replace* a list that sits there alone. When every route ends up with the same list (none overrides the host's, or all override it alike) and it has no users, or the host has no routes, that list goes in the host chain only and guards everything the host answers. Otherwise each route carries its own effective list, and the host chain carries the **union** of the routes' address rules, dropping a refused request only if every route's list drops: a client no route admits is blocked on every path, over plain HTTP too (no redirect, no 403-vs-404 to map the host by, and a dropping host still looks dead), while one that some route admits is judged again by the route it hits. If some route's list can't refuse by address (or a route has none) the host chain carries no union, since anyone may reach that route. A list with users puts only its address rules in the host chain and the whole list (passwords too) in each route's chain, so a password is never asked for before the HTTPS redirect. A test drives the real gate over generated documents (scheme x path x client IP, lists with and without users) against a reference that reads the document directly.
+- **Rule sets: host chain and route chains (M7; §7.3).** Same shape as the access list's rule, without the union: when every route resolves to one set, or the host has no routes, the set is in the host chain (after the host chain's address-only check or union; for a host with no routes, before a full list that has users), otherwise each route's own chain carries its set, in front of its list when that has users (the list's address checks included), because a route's set replaces the host's and a deny can't be lifted by a union.
 - **Certificate binding (as built in M2; M3 resolves it against the inventory, §9.2).** Auto → no certificate of its own (the default one); Specific → its `CertificateId`; None → `HostSpec.Https = false`: no certificate-table entries and no `Alt-Svc`, and the gate answers HTTPS requests for the host 421 (a connection on the default or another host's certificate can't reach it). None with an effective `ForceHttps` is an error (validator: `host.certificate.noneWithForceHttps`; compiler at the host). Disabled destinations are left out; an upstream may have none left until an enabled host routes to it.
 - **Compile errors carry paths.** `SnapshotCompiler` attributes each error to a host, route, upstream, destination (by typed ID) or the defaults/trusted proxies; `ConfigCompiler` maps that to a pointer into the document *as given* (`/hosts/{i}`, `/hosts/{i}/routes/{j}`, `/upstreams/{k}/destinations/{m}`, `/settings`, `/settings/trustedProxies`) with code `compile.failed`, each (path, message) once. An inherited value is reported where it is used (each host or route whose chain carries it); a duplicated ID points at its last occurrence. The mapping itself reports the few invalid values the model can't carry (an undefined certificate binding mode or load-balancing policy, a respond host without a content type). A test runs sample, edge and generated documents through the validator and the compiler: whatever validates must compile (certificate references aside, which only the compiler can resolve against the inventory, §9.2).
 
@@ -625,8 +626,10 @@ C. Gate middleware (first in pipeline), in this order (as built in M1)
 
 D. Policy chains: one per host, one per route (IRequestPolicy[], sealed classes, evaluated in order;
    host policies run before a route is known, so State.Route is null for them)
-   AccessList (IP and country allow/deny, then basic auth; as built, the host chain only refuses by address and country; geo is part of it) → RateLimit →
-   [RequestLimits: as built, not a policy; the gate checks it, see below] → PathRules → UserAgentRules → Robots → Auth (forward-auth / OIDC) → ProofOfWork →
+   AccessList (IP and country allow/deny, then basic auth; as built, the host chain only refuses by address and country; geo is part of it) → RuleSet (path, method
+   and user-agent rules; as built in M7 it comes after the host chain's address-only list policy and before a route's
+   list that has users, address checks included, see §7.3) → RateLimit →
+   [RequestLimits: as built, not a policy; the gate checks it, see below] → Robots → Auth (forward-auth / OIDC) → ProofOfWork →
    [future: bot heuristics, header rules]
    each returns PolicyDecision { Continue | Respond(status, page) | Challenge | Drop } as a struct
 
@@ -729,8 +732,7 @@ the 16-byte token and challenge tags are checked; `Verify` itself only takes who
 | Geo blocking | **M7: `CF-IPCountry` only**, as country rules of an access list (**As built (M7): country rules** below): a two-letter code from a trusted Cloudflare peer, compiled per list into a bitset (676 letter pairs plus Tor and unknown), one bit test per request. **Not built: a local country database** (DB-IP Lite: CC-BY, no key; MaxMind GeoLite2 optional with a license key; compiled into sorted range arrays and binary-searched, an auto-update job); the seam it plugs into is in the gap list of that note. |
 | Rate limiting | Fixed-size open-addressed table (power of two, default 256 Ki entries ≈ 4 MiB). Each entry is two `long`s: a 64-bit **key fingerprint** (claimed with CAS, linear probing over at most 8 slots, else the oldest of those is evicted) and a packed **state** updated with a CAS loop. State layout: **bits 63-24 = last-refill time** in ms since process start (40 bits ≈ 34.8 years, so no wraparound handling needed); **bits 23-0 = tokens in 1/16 units** (unsigned 20.4 fixed point: max ≈ 1,048,575 tokens of burst, refill precision 1/16 token). The refill rate is a policy parameter in tokens/s, applied as `elapsedMs x rate x 16 / 1000` with saturation at burst. A background sweeper reads the **policy slot** from the high 16 bits of each key (the fingerprint itself can't be inverted, so the slot is stored alongside it). It looks up that policy's current full-refill window (burst / rate) and clears entries untouched for longer than that, or immediately if the slot no longer maps to a live policy. A 48-bit hash in a 256 Ki table makes false sharing between partition keys negligible (~2⁻³⁰ per probe). Bounded memory, so a flood of unique IPs can't exhaust RAM. Collisions only make limits slightly stricter. Policies per host or route: req/s + burst, keyed by IP / IP+path / header. Returns 429 + `Retry-After`. |
 | Request size limits | `IHttpMaxRequestBodySizeFeature` per host/route. Header count/size and URL length are checked cheaply in the gate. Global Kestrel limits act as the outer bound. Built in M7: **As built (M7): request limits** below. |
-| Path deny rules | Exact/prefix in a trie. Glob compiled to a small matcher. Regex as an escape hatch: `RegexOptions.NonBacktracking` (ReDoS-safe) with a compile-time validation timeout. |
-| User-agent deny | `SearchValues<string>` (vectorised multi-substring, case-insensitive), plus presets ("AI crawlers", "known scanners", "empty UA"). |
+| Rule sets | A named object (`rs_`): an ordered list of rules, each with path (exact, prefix, glob, regex), method and user-agent conditions and an action (deny, drop, allow). Exact and prefix paths in sorted arrays, a glob as a bit-parallel automaton, user-agent substrings in a `SearchValues<string>` (case-insensitive), a regex as an escape hatch (`RegexOptions.NonBacktracking`, validated when the config is written). Presets ("AI crawlers", "known scanners", "empty UA") are built in. See **As built (M7): rule sets** below. |
 | Proof of work | A route policy: a browser without a valid `paduraksa_pow` cookie gets a small challenge page whose pure-JS SHA-256 workers find a counter with `Difficulty` leading zero bits; the verify endpoint returns an HMAC-signed, host- and client-bound cookie. `IMacKey`, no server-side table, 0 B on the valid-token path. |
 | Robots.txt | Per host: passthrough / managed (preset: disallow all, block AI crawlers, custom text). Served from pre-encoded bytes. |
 | Error pages | Per status (and "upstream down" / "blocked" / "rate limited" / "maintenance"). Templates pre-split into byte segments at compile time, with variables (`{status}`, `{requestId}`, `{host}`) written straight into the response `PipeWriter`. **Replacing upstream error bodies** (opt-in per host) is decided at **response-header time** from status + content type. The upstream body is drained and discarded, never buffered. It's never applied to `101` upgrades, `text/event-stream`, gRPC (`application/grpc*`), or responses whose headers have already been flushed. |
@@ -1048,6 +1050,94 @@ a database would fill it when the header didn't (a lookup of the resolved client
 with a `CountryCode` per range, binary-searched like `CidrSet`, built by a background job and compiled into the snapshot), so rules, gate,
 trace and dashboard stay as they are, and `accessList.countries.noSource` would stop applying. (2) The trusted-proxy mode is global, so a
 host can't use Cloudflare for countries while another doesn't. (3) The country isn't in the access log or the metrics yet. (4) When Cloudflare sends no `CF-IPCountry` (its setting for it is off), every visitor is unknown, so an allow list refuses everyone; the trace's `country: XX` is the only sign, and the config can't tell.
+
+**As built (M7): rule sets.** A `RuleSet` is a top-level named object like an access list: a typed `rs_` ID, a unique name, notes and
+`rules`, an ordered list. A rule has `match` and an `action`. `match` states any combination of `path` (`kind` `exact`, `prefix`,
+`glob` or `regex`, and a `pattern`), `methods` (a set, upper case) and `userAgent` (`contains`, case-insensitive substrings, and `empty`,
+which also takes a missing or blank user agent); a rule needs at least one, because one with none would match every request, and
+every condition it states has to hold. `action` is `deny` (403 and the built-in page), `drop` (abort, no answer) or `allow`. The first
+rule a request matches decides, so an allow carves an exception out of the denies after it (it ends the set, and the rest of the
+chain still runs); a request no rule matches goes on. `HostSettings.RuleSet` and `RouteSettings.RuleSet` are one nested record
+`{ enabled, ruleSetId }` merged field by field through defaults, profile, host and route like the access list's. **One set per
+layer** was enough: a second concern is more rules in the same set, in the order the operator wants, which one list a request
+walks can express and two lists could not (an allow that must beat a deny sits in the same list as the deny). What it costs is that
+a preset and an operator's own rules can't be stacked without copying the preset into a set of one's own, which "Copy to edit" does.
+Validation codes: `ruleSet.id.reserved`, `ruleSet.rules.tooMany` (200), `ruleSet.rule.empty`, `ruleSet.rule.path.invalid`, `.encoded`
+(write a path decoded), `.notCanonical` (the route-path rules, so a pattern that no request's canonical path could equal is refused),
+`ruleSet.rule.path.glob.invalid` (at most 126 characters and wildcards, ASCII), `ruleSet.rule.path.regex.invalid` (the regex is built
+at validation, NonBacktracking, and the parse error is the message), `ruleSet.rule.methods.invalid` (a token, at most 16),
+`ruleSet.rule.userAgent.invalid` (printable ASCII, at most 100 of 128 characters), `host.ruleSet.unknown` and `route.ruleSet.unknown`.
+A regex that backtracks catastrophically on a backtracking engine (`^(a+)+$`) is **accepted**: it runs in time linear in the path, so
+it costs no more than a plain one. Canonical JSON orders sets by ID, writes methods upper case and sorted, and user-agent substrings
+trimmed, unique ignoring case and sorted; a stored document without `ruleSets` reads as none.
+
+*Presets.* `RuleSetPresets` (Contracts) has three read-only sets with reserved IDs, never part of a document (`ruleSet.id.reserved`
+refuses one that tries), named in a setting like any set and compiled into a snapshot only when something names them: **Block AI
+crawlers** (the user agents of `RobotsText.AiCrawlers`, one rule, so the robots.txt mode and the rule set can never disagree about
+who an AI crawler is), **Block known scanners** and **Block empty user agent**. The scanner list is deliberately short and
+conservative, one name each whose default user agent contains it and no browser's does: `sqlmap` (SQL-injection tool), `nikto`
+(web-server scanner), `nmap` (its scripting engine sends "Nmap Scripting Engine"), `masscan` and `zgrab` (internet-wide port and
+banner scans) and `nuclei` (template scanner). It removes noise, not attackers: a real one changes the header. The empty-agent
+preset refuses scripts and some health checks. Like the crawler list they are refreshed with each release. "Copy to edit" makes a new
+set (a fresh ID, "name (copy)") holding the same rules.
+
+*Where it sits.* Before the access list that asks for passwords, so a refused request costs no PBKDF2 (the deferred check is the one
+expensive thing in the chain) and no rate-limit token. Precisely: the mapping inserts the policy immediately **before the first
+`AccessListPolicySpec` with `Stage: Full` whose list has users**, which is the whole policy, address checks included: on a route whose own list has
+users, the list's address rules run *after* the set. What always runs before the set is the host chain's refusal by address, the `AddressOnly` policy or the
+union of the routes' lists (cheap, and a denied address must still be dropped, not answered with a rule's 403). With no such list the set goes after
+the access policies there are (a `Full` list without users is address rules only). So in a route chain: set, then the list (addresses, then
+passwords), then rate limit, then proof of work; in a host chain: the address-only check or union, then the set (a host with no routes carries the whole list there, and the set goes before it when it has users).
+Where it goes follows the access list's rule: when every route
+resolves to the same set, or the host has no routes (Redirect, Respond, Admin), it is in the **host chain** and also guards the 404 for a
+path no route takes and the HTTPS redirect (a denied client gets 403, not a 301 that maps the host); otherwise each route carries its own set
+(a deny can't be lifted by a union as an address allow list can). `GET` and `HEAD /robots.txt` are never ruled on, like the rate limit and the
+proof-of-work gate: RFC 9309 reads a 4xx on that file as "no restrictions", so refusing it would tell a crawler it may go anywhere. The unknown-host
+answer and ACME challenges are answered before any chain and are not ruled on; the proof-of-work verify endpoint is answered after the host chain, so
+only a set that sits there rules on it.
+
+*The matcher* (`Paduraksa.Proxy.RuleSets`). Rules read the **canonical matching path** routes match on (`RoutePath`: `\`, `%2F`, `%5C`,
+repeated separators, `;` parameters, dot segments and trailing dots resolved, case ignored), so no encoding trick or redundant spelling dodges
+a rule; it is computed only for a set whose rules read the path, on the stack or in a pooled buffer. Exact and prefix patterns sit in sorted arrays
+searched ignoring case, a prefix at each segment boundary of the request with the route's own segment-bound semantics (`/admin` takes `/admin` and
+`/admin/x`, not `/administrator`); rules with no path, a glob or a regex are scanned in order, and the lowest index among everything that matched
+wins, so the document's order is the precedence whichever index found a match first. A **glob** (`*` within a segment, `**` across segments, and a
+`/**/` segment for none or more, so `/**/.env` takes `/.env`) is simulated as an automaton with one bit of state per token (a `UInt128`, so at most
+126 tokens): each character is read once, nothing backtracks, a path can't be shaped to make it slow (a test runs the classic quadratic case over 8,000
+characters), and it allocates nothing. User-agent substrings are one `SearchValues<string>` per rule with `OrdinalIgnoreCase`, over every `User-Agent`
+header line (a request that sends two can't hide a name in the one the upstream reads). Methods compare ignoring case (over-matching only makes a deny
+stricter). Inside a rule the cheap conditions run first and the path scan last.
+
+*Allocation.* Every verdict is 0 B (the deny answer is precomputed, a non-canonical path is rewritten on the stack or in a pooled array): proved
+through `GateMiddleware.Decide` for a pass, an allow, a prefix and exact deny, a glob drop, a method deny, a user-agent deny, a blank user agent, a path
+canonicalised on the stack and in a pooled buffer and robots.txt, and on Kestrel (`RuleSetsAllocateNothingOnKestrel`). A **regex** is the one thing
+that may not be: the NonBacktracking engine builds its automaton lazily, as it meets characters it hasn't seen, so a first match over a new shape can
+allocate once. Measured here, a regex rule matched repeated path shapes at 0 B once warmed (`ARegexRuleMatchesWithoutAllocatingOncePathShapesAreKnown`,
+on the distro runtime and on Microsoft's 10.0.403); a set without a regex never pays for it, and a rule runs its regex last, after the
+conditions that could rule it out. The regex has a 50 ms match timeout, which is decided by the rule's action so it fails closed: a deny or a drop counts it as a match, an allow as no
+match, and `RuleSetCounters.Timeouts` counts it (shown under the set on the overview once above 0), though the engine is linear in the path and a request
+line is at most 8 KiB, so it should never happen.
+
+*Counters and the overview.* `RuleSetCounters` (denied, dropped, allowed, regex timeouts) are process-lifetime `Interlocked` longs per set, kept by `RuleSetRuntime`
+and carried by the compiled set, so they survive a publish and a simulation counts nothing. The security overview adds a **Rules** column: the set
+a host applies (a document set links to its page, a preset to the list that shows the presets), what it has refused or dropped, and the routes that
+apply another set, a preset or none. There is no global rule tile: the counts are per set, and a set that is deleted takes its history with it.
+
+*Simulator.* The policy's step names the set, the rule (counted from 1, as the dashboard numbers them), what matched (`path starts with /admin, method
+POST`, `user agent contains 'sqlmap'`, `no user agent`) and the action, as a sentence and as facts (`ruleSet`, `rule`, `matched`, `action`), and
+says when none matched or that robots.txt is exempt. `RuleSetSimulationTests` put a matrix of paths (non-canonical spellings included), methods and user
+agents through the simulator and the real gate and compare the outcomes. The lock-out guard now sends the caller's own `User-Agent` in its probe
+(`AdminRequestFacts.UserAgent`), so a rule set that refuses the caller on a proxied admin host is caught and one that refuses only other agents isn't.
+
+*API and dashboard.* `/api/v1/ruleSets` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other objects, with
+`config.rule_set.*` audit actions; `GET /ruleSets/presets` lists the presets and `GET /ruleSets/{id}` also reads one; a delete of a set a host still
+resolves to is refused. The dashboard has Security > **Rules**: the sets with what their rules do and who applies them, the presets read-only under them
+with "Copy to edit" (`/rules/new?copy=...`), and a drawer whose rules read "When [path] [methods] [user agent] then [action]" with add, move and remove
+and the real validator's messages at the fields (a regex's parse error, a rule with no condition). The settings of a host, profile, the defaults and a
+route pick a set by name in the Access section (inherit, none, a set, a preset, or a staged "New rule set..." that goes in with the host in one
+revision). The review shows a set's rules as numbered sentences. **Gaps:** nothing warns about a rule no request can reach (shadowed by an earlier one);
+no condition on the query string, headers or client address (geo and access lists decide by address); the `**` glob has no single-character wildcard;
+a set can't be applied to the unknown-host answer or an ACME challenge.
 
 **As built (M7): managed robots.txt.** `HostSettings.Robots` (`Mode`, `CustomText`; built-in passthrough) inherits
 through the layers and has no route override: a host has one file, and every route shares it. `CompiledHost.RobotsTxt`
@@ -1493,7 +1583,7 @@ All four call the **same Application services** with the same DTOs, authorizatio
 - **Description.** OpenAPI 3.1 at `/api/v1/openapi.json` (generated once, cached) and Scalar at `/api/docs` (script embedded in the package and served locally; no fonts, telemetry, agent or MCP hook). CSP `default-src 'none'; script-src 'self' 'nonce-...'; style-src 'self' 'unsafe-inline'; ...; connect-src 'self'`; Scalar's bundle contains no `eval` or `new Function` (a test checks), so there is no `'unsafe-eval'`. Both are anonymous (`AllowAnonymousAdmin`). Every operation, the identity ones included, has a summary and either `x-required-permission`, a sign-in requirement or `security: []`; the description names which resources take `If-Match`, the 428/412/400 rules and `config.publishFailed`. Integration tests check that every mapped `/api/*` endpoint carries `RequiredPermissionMetadata`, `AdminAuthenticatedMetadata` (`RequireAuthenticated`) or `AdminAnonymousMetadata`, and a table checks the exact permission of every resource route and method.
 - **Tests** use real authentication: users in every role from the identity services, an API token per role (scoped to the role) as the Bearer credential, and real cookie sessions for the CSRF tests.
 - **HSTS (M6).** Nothing new on the API: it is part of the config document, so `PUT /api/v1/settings` (the global defaults' layer), profile writes and host writes carry it, `?dryRun=true` returns the validator's HSTS errors like any other, and the generated document describes `HstsSettings` beside `TlsSettings` (an integration test asserts the schema and its field descriptions, so the description can't silently lose it).
-- **Not done:** `If-None-Match`/304, whole-document replace/import and YAML (M10), rule sets/error pages (not in the config model yet; access lists are, M7), metrics (M9), an ID-generation helper (IDs are client-chosen), a hermetic test of the ACME happy path (needs a CA).
+- **Not done:** `If-None-Match`/304, whole-document replace/import and YAML (M10), error pages (not in the config model yet; access lists and rule sets are, M7), metrics (M9), an ID-generation helper (IDs are client-chosen), a hermetic test of the ACME happy path (needs a CA).
 
 ### 11.2 MCP (`/mcp`, streamable HTTP, official `ModelContextProtocol.AspNetCore` SDK)
 - Tools: `list_hosts`, `get_host`, `upsert_host`, `delete_host`, `list_certificates`, `request_certificate`, `get_metrics`, `get_upstream_health`, `query_audit`, `diff_revisions`, `preview_change`, `apply_change`, `rollback`, `simulate_request`, `tail_access_log`.
