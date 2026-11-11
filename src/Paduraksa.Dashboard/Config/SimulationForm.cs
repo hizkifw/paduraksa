@@ -1,6 +1,7 @@
 using MudBlazor;
 
 using Paduraksa.Contracts.Simulation;
+using Paduraksa.Core.Model;
 
 namespace Paduraksa.Dashboard.Config;
 
@@ -81,6 +82,25 @@ public sealed class SimulationForm
         };
     }
 
+    /// <summary>Which page a browser is served, in words: the built-in one, or the operator's and the layer it came from.</summary>
+    public static string PageText(SimulationErrorPage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        if (!page.Custom)
+        {
+            return "built-in page";
+        }
+
+        var kind = page.Mode == ErrorPageMode.Html ? "HTML document" : "message";
+        var layer = page.Source switch
+        {
+            ErrorPageSource.GlobalDefaults => "the global defaults",
+            ErrorPageSource.Profile => "the profile",
+            _ => "the host",
+        };
+        return $"custom {kind} from {layer}";
+    }
+
     public static string StepTitle(SimulationStep step)
     {
         ArgumentNullException.ThrowIfNull(step);
@@ -100,6 +120,7 @@ public sealed class SimulationForm
             SimulationStepKind.HostPolicy => $"Host policy{policy}",
             SimulationStepKind.HttpsRedirect => "HTTPS redirect",
             SimulationStepKind.RobotsTxt => "robots.txt",
+            SimulationStepKind.Maintenance => "Maintenance mode",
             SimulationStepKind.RequestLimits => "Request limits",
             SimulationStepKind.FixedResponse => "Fixed answer",
             SimulationStepKind.ProofOfWork => "Proof of work",

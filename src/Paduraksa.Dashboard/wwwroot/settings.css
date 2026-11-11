@@ -714,3 +714,23 @@
     background: var(--mud-palette-action-default-hover);
     border-radius: 4px;
 }
+
+/* An error page's preview: the proxy's own rendering in a frame without script, on a page-coloured stage. */
+.pdk-page-preview {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.pdk-page-preview > button {
+    justify-self: start;
+}
+
+.pdk-page-frame {
+    width: 100%;
+    height: 360px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--pdk-radius);
+    background: #fff;
+    color-scheme: light dark;
+}

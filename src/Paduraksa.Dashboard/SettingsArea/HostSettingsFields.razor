@@ -218,6 +218,76 @@
                    Label="URL length" Field="max-url-length" Error="@E("/requestLimits/maxUrlLength")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
     </SettingRow>
 
+    <h4 class="pdk-setting-section">Error pages</h4>
+
+    @foreach (var (key, title, help) in ErrorPageRows)
+    {
+        var page = key;
+        var name = ErrorPageStatuses.NameOf(page);
+        <ErrorPageField Key="page" Title="@title" Help="@help" Label="@($"{name} page")" Field="@($"error-page-{name}")"
+                        Value="_current.ErrorPages?.Entry(page)" ValueChanged="@(value => SetPage(page, value))"
+                        Inherited="Resolved.ErrorPages?.Entry(page)" InheritWord="@InheritWord" PreviewStatus="page"
+                        Errors="@(field => E($"/errorPages/{name}/{field}"))" OnChanged="@(field => PageChanged(page, field))" ReadOnly="@ReadOnly" />
+    }
+
+    <InheritSelect T="UpstreamErrorReplacement" Value="_current.ErrorPages?.ReplaceUpstream" ValueChanged="@(value => Update(WithErrorPages(pages => pages with { ReplaceUpstream = value }), "/errorPages/replaceUpstream"))"
+                   Inherited="@Resolved.ErrorPages!.ReplaceUpstream!.Value" Format="@(mode => SettingsSummary.ReplaceUpstreamText(mode))" InheritWord="@InheritWord"
+                   Title="Upstream errors"
+                   Help="Answer with these pages in place of the upstream's own error. Its body is dropped unread; upgrades, event streams and gRPC are never touched. Replacing every error also replaces an API's JSON errors."
+                   Label="Upstream errors" Field="error-pages-replace-upstream" Error="@E("/errorPages/replaceUpstream")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Off">Keep the upstream's</MudSelectItem>
+        <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Html">Replace its HTML error pages</MudSelectItem>
+        <MudSelectItem T="UpstreamErrorReplacement?" Value="UpstreamErrorReplacement.Any">Replace every error</MudSelectItem>
+    </InheritSelect>
+
+    <h4 class="pdk-setting-section">Maintenance</h4>
+
+    <InheritSelect T="bool" Value="_current.Maintenance?.Enabled" ValueChanged="@(value => Update(WithMaintenance(maintenance => maintenance with { Enabled = value }), "/maintenance/enabled"))"
+                   Inherited="@Resolved.Maintenance!.Enabled!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                   Title="Maintenance mode"
+                   Help="Answer every request with the maintenance page instead of reaching the upstream. An admin host is never put in maintenance."
+                   Label="Maintenance mode" Field="maintenance-enabled" Error="@E("/maintenance/enabled")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+    </InheritSelect>
+
+    <div class="pdk-setting-children">
+        <InheritSelect T="int" Value="_current.Maintenance?.Status" ValueChanged="@(value => Update(WithMaintenance(maintenance => maintenance with { Status = value }), "/maintenance/status"))"
+                       Inherited="@Resolved.Maintenance!.Status!.Value" Format="@(value => StatusText(value))" InheritWord="@InheritWord"
+                       Title="Status" Help="503 tells crawlers and monitors the outage is temporary."
+                       Label="Maintenance status" Field="maintenance-status" Error="@E("/maintenance/status")" ReadOnly="@ReadOnly">
+            @foreach (var status in ErrorPageStatuses.MaintenanceStatuses)
+            {
+                var value = status;
+                <MudSelectItem T="int?" Value="value">@StatusText(value)</MudSelectItem>
+            }
+        </InheritSelect>
+
+        <SettingRow Title="Retry-After" Help="Seconds a client is told to wait, up to a week; 0 sends none.">
+            <CountField Value="_current.Maintenance?.RetryAfterSeconds" ValueChanged="@(value => Update(WithMaintenance(maintenance => maintenance with { RetryAfterSeconds = value }), "/maintenance/retryAfterSeconds"))"
+                        Inherited="@Resolved.Maintenance!.RetryAfterSeconds!.Value" InheritWord="@InheritWord" Label="Retry-After (seconds)" Field="maintenance-retry-after"
+                        Error="@E("/maintenance/retryAfterSeconds")" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+        </SettingRow>
+
+        <InheritSelect T="AccessListId" Value="_current.Maintenance?.BypassAccessListId" ValueChanged="@(value => Update(WithMaintenance(maintenance => maintenance with { BypassAccessListId = value }), "/maintenance/bypassAccessListId"))"
+                       Inherited="@(Resolved.Maintenance!.BypassAccessListId ?? AccessListId.Empty)" Format="@(id => BypassText(id))" InheritWord="@InheritWord"
+                       Title="Let through"
+                       Help="Addresses (and countries) the list allows reach the site as usual. A list needs an allow rule to let anyone through."
+                       Label="Let through" Field="maintenance-bypass" Error="@E("/maintenance/bypassAccessListId")" ReadOnly="@ReadOnly">
+            @foreach (var list in AccessLists)
+            {
+                var id = list.Id;
+                <MudSelectItem T="AccessListId?" Value="id">@list.Name</MudSelectItem>
+            }
+        </InheritSelect>
+
+        <ErrorPageField Key="ErrorPageStatuses.MaintenanceKey" Title="Maintenance page" Help="What visitors see. The built-in page says the site is down for maintenance."
+                        Label="Maintenance page" Field="error-page-maintenance"
+                        Value="_current.ErrorPages?.Maintenance" ValueChanged="@(value => SetPage(ErrorPageStatuses.MaintenanceKey, value))"
+                        Inherited="Resolved.ErrorPages?.Maintenance" InheritWord="@InheritWord" PreviewStatus="@(_current.Maintenance?.Status ?? Resolved.Maintenance!.Status!.Value)"
+                        Errors="@(field => E($"/errorPages/maintenance/{field}"))" OnChanged="@(field => PageChanged(ErrorPageStatuses.MaintenanceKey, field))" ReadOnly="@ReadOnly" />
+    </div>
+
     <h4 class="pdk-setting-section">Headers and logging</h4>
 
     <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
@@ -424,6 +494,40 @@
     private HostSettings WithCloudflare(Func<CloudflareSettings, CloudflareSettings> change) => HostSettingsEdit.WithCloudflare(_current, change);
 
     private HostSettings WithRobots(Func<RobotsSettings, RobotsSettings> change) => HostSettingsEdit.WithRobots(_current, change);
+
+    private HostSettings WithErrorPages(Func<ErrorPagesSettings, ErrorPagesSettings> change) => HostSettingsEdit.WithErrorPages(_current, change);
+
+    private HostSettings WithMaintenance(Func<MaintenanceSettings, MaintenanceSettings> change) => HostSettingsEdit.WithMaintenance(_current, change);
+
+    /// <summary>The statuses with a page, each with the row's title and the one line that says what makes the gate or the upstream answer it.</summary>
+    private static readonly (int Key, string Title, string Help)[] ErrorPageRows =
+    [
+        (403, "403 Forbidden", "An access list, rule set or Cloudflare check refused the request."),
+        (404, "404 Not Found", "No route takes the path, or the name isn't a host here."),
+        (413, "413 Content Too Large", "The request body is over the limit."),
+        (414, "414 URI Too Long", "The request target is over the limit."),
+        (421, "421 Misdirected Request", "The connection can't serve this host, so the client retries on its own."),
+        (429, "429 Too Many Requests", "A rate limit turned the request away."),
+        (431, "431 Header Fields Too Large", "The request headers are over the limit."),
+        (502, "502 Bad Gateway", "The upstream, or a sign-in service, didn't answer properly."),
+        (503, "503 Service Unavailable", "No upstream destination is healthy, or a sign-in service is busy."),
+        (504, "504 Gateway Timeout", "The upstream, or a sign-in service, took too long."),
+    ];
+
+    private static string StatusText(int status) => $"{status.ToString(System.Globalization.CultureInfo.InvariantCulture)} {ErrorPageStatuses.StatusText(status)}";
+
+    private string BypassText(AccessListId id) =>
+        id.IsEmpty ? "nobody" : AccessLists.FirstOrDefault(list => list.Id == id)?.Name ?? "a list";
+
+    /// <summary>Hands the layer with the page changed to the form; which field changed is <see cref="PageChanged"/>'s to say.</summary>
+    private async Task SetPage(int key, ErrorPageContent? page)
+    {
+        _current = WithErrorPages(pages => pages.WithEntry(key, page));
+        _seen = _current;
+        await SettingsChanged.InvokeAsync(_current);
+    }
+
+    private Task PageChanged(int key, string field) => OnChanged.InvokeAsync($"{PathPrefix}/errorPages/{ErrorPageStatuses.NameOf(key)}/{field}");
 
     private HostSettings WithRequestLimits(Func<RequestLimitsSettings, RequestLimitsSettings> change) => HostSettingsEdit.WithRequestLimits(_current, change);
 

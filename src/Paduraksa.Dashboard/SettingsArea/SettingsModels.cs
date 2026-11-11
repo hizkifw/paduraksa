@@ -111,6 +111,24 @@ public static class HostSettingsEdit
         return settings with { Cloudflare = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its error pages changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithErrorPages(HostSettings settings, Func<ErrorPagesSettings, ErrorPagesSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.ErrorPages ?? new ErrorPagesSettings());
+        return settings with { ErrorPages = changed.SetsNothing ? null : changed };
+    }
+
+    /// <summary><paramref name="settings"/> with its maintenance record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithMaintenance(HostSettings settings, Func<MaintenanceSettings, MaintenanceSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.Maintenance ?? new MaintenanceSettings());
+        return settings with { Maintenance = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary>
     /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
     /// <see cref="HostSettings"/> itself, so a new setting is counted without a hand-kept list. A preset-or-custom choice with no
@@ -161,6 +179,8 @@ public static class SettingsSummary
         static (settings, _) => settings.RequestLimits is { } requestLimits ? RequestLimitsText(requestLimits) : null,
         static (settings, document) => settings.RuleSet is { } ruleSet ? RuleSetSummary(ruleSet, document) : null,
         static (settings, document) => settings.AuthProvider is { } authProvider ? AuthProviderSummary(authProvider, document) : null,
+        static (settings, _) => settings.ErrorPages is { } errorPages ? ErrorPagesText(errorPages) : null,
+        static (settings, document) => settings.Maintenance is { } maintenance ? MaintenanceText(maintenance, document) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
@@ -208,6 +228,76 @@ public static class SettingsSummary
         OriginLockdownMode.Drop => "drop the connection",
         _ => "the layer below's",
     };
+
+    /// <summary>An error page entry in the words of the row's choices: its kind, and a message's heading.</summary>
+    public static string PageKindText(ErrorPageContent page) => page.Mode == ErrorPageMode.Html
+        ? "HTML document"
+        : string.IsNullOrWhiteSpace(page.Heading) ? "message" : $"message \"{Shorten(page.Heading, 40)}\"";
+
+    /// <summary>An upstream error replacement mode in the words of the row's choices.</summary>
+    public static string ReplaceUpstreamText(UpstreamErrorReplacement mode) => mode switch
+    {
+        UpstreamErrorReplacement.Off => "keep the upstream's",
+        UpstreamErrorReplacement.Html => "replace its HTML error pages",
+        UpstreamErrorReplacement.Any => "replace every error",
+        _ => "the layer below's",
+    };
+
+    private static string? ErrorPagesText(ErrorPagesSettings pages)
+    {
+        List<string> parts = [];
+        var own = pages.Entries().Count(static entry => entry.Content is not null && entry.Key != ErrorPageStatuses.MaintenanceKey);
+        if (own > 0)
+        {
+            parts.Add(own == 1 ? "1 error page" : $"{own.ToString(System.Globalization.CultureInfo.InvariantCulture)} error pages");
+        }
+
+        if (pages.Maintenance is not null)
+        {
+            parts.Add("maintenance page");
+        }
+
+        if (pages.ReplaceUpstream is { } replace)
+        {
+            parts.Add($"upstream errors: {ReplaceUpstreamText(replace)}");
+        }
+
+        return parts.Count == 0 ? null : string.Join(", ", parts);
+    }
+
+    private static string? MaintenanceText(MaintenanceSettings maintenance, ConfigDocument? document)
+    {
+        if (maintenance.SetsNothing)
+        {
+            return null;
+        }
+
+        List<string> parts = [];
+        if (maintenance.Status is { } status)
+        {
+            parts.Add(status.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        if (maintenance.RetryAfterSeconds is { } retry)
+        {
+            parts.Add(retry == 0 ? "no Retry-After" : $"retry after {retry.ToString(System.Globalization.CultureInfo.InvariantCulture)} s");
+        }
+
+        if (maintenance.BypassAccessListId is { IsEmpty: false } list)
+        {
+            parts.Add($"bypassed by {document?.AccessLists.FirstOrDefault(candidate => candidate.Id == list)?.Name ?? "a list"}");
+        }
+
+        var details = parts.Count == 0 ? string.Empty : $" ({string.Join(", ", parts)})";
+        return maintenance.Enabled switch
+        {
+            true => $"In maintenance{details}",
+            false => "Not in maintenance",
+            _ => $"Maintenance when on{details}",
+        };
+    }
+
+    private static string Shorten(string text, int length) => text.Length <= length ? text : text[..(length - 1)] + "...";
 
     private static string? RequestLimitsText(RequestLimitsSettings limits)
     {

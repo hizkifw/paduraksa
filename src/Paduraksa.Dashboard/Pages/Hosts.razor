@@ -145,6 +145,14 @@ else
                         </div>
                         <div role="cell" class="pdk-dt-cell pdk-dt-status" data-label="Status" @onclick:stopPropagation="true">
                             <StatusChip Tone="@StatusTone(row)" Dot="true" Text="@StatusText(row)" Detail="@HealthText(row)" Name="status" />
+                            @if (_mayWrite && host.Kind != HostKind.Admin && host.Enabled)
+                            {
+                                <MudTooltip Text="@(row.InMaintenance ? "End maintenance" : "Put in maintenance")" Placement="Placement.Bottom">
+                                    <MudIconButton Icon="@(row.InMaintenance ? Icons.Material.Filled.Construction : Icons.Material.Outlined.Construction)" Size="Size.Medium"
+                                                   Color="@(row.InMaintenance ? Color.Warning : Color.Default)" OnClick="() => ToggleMaintenanceAsync(row)"
+                                                   aria-label="@($"{(row.InMaintenance ? "End maintenance of" : "Put in maintenance")} {Primary(host)}")" data-action="maintenance" />
+                                </MudTooltip>
+                            }
                             @if (_mayWrite && host.Kind != HostKind.Admin)
                             {
                                 <MudSwitch @key="_toggles" T="bool" Value="host.Enabled" ValueChanged="_ => ToggleAsync(host)" Color="Color.Success"
@@ -275,11 +283,32 @@ else
         _toggles++;
     }
 
+    /// <summary>The wrench in the list: maintenance on or off for the host, through review like every change. A host that inherits the setting gets its own value.</summary>
+    private async Task ToggleMaintenanceAsync(HostRow row)
+    {
+        if (!_mayWrite)
+        {
+            return;
+        }
+
+        var host = row.Host;
+        var name = ChangeView.HostTitle(host);
+        var on = !row.InMaintenance;
+        var changed = host with { Settings = HostSettingsEdit.WithMaintenance(host.Settings, maintenance => maintenance with { Enabled = on }) };
+        await Drawers.ReviewAsync(new ReviewRequest($"{(on ? "Put in maintenance" : "End maintenance of")} {name}", new UpsertHostCommand(changed))
+        {
+            ApplyLabel = on ? "Put in maintenance" : "End maintenance",
+            SuccessMessage = on ? $"{name} is in maintenance" : $"{name} is out of maintenance",
+            SampleHost = host.Names.FirstOrDefault(n => !n.StartsWith('*')),
+        });
+    }
+
     private static string Primary(HostConfig host) => host.Names.Count > 0 ? host.Names[0] : "Unnamed host";
 
     private static string HealthText(HostRow row) => row.Health switch
     {
         Tone.Default => "Switched off",
+        _ when row.InMaintenance => "In maintenance: every request gets the maintenance page",
         Tone.Warning => row.Problems.Count > 0 ? string.Join(" ", row.Problems) : row.Certificate?.Detail ?? "Needs attention",
         _ => "Serving",
     };
@@ -287,11 +316,12 @@ else
     private static string StatusText(HostRow row) => row.Health switch
     {
         Tone.Default => "Off",
+        _ when row.InMaintenance => "Maintenance",
         Tone.Warning => "Attention",
         _ => "Online",
     };
 
-    private static Tone StatusTone(HostRow row) => row.Health == Tone.Warning ? Tone.Warning : row.Health == Tone.Default ? Tone.Default : Tone.Success;
+    private static Tone StatusTone(HostRow row) => row.Health == Tone.Default ? Tone.Default : row.Health == Tone.Warning || row.InMaintenance ? Tone.Warning : Tone.Success;
 
     private static string CertificateIcon(Tone tone) => tone switch
     {

@@ -22,6 +22,10 @@ else
         <div class="pdk-outcome-text">
             <div class="pdk-outcome-title">@title</div>
             <div class="pdk-outcome-summary">@ReviewNotices.Sentence(Result.Outcome.Summary)</div>
+            @if (Result.Outcome.ErrorPage is { } errorPage)
+            {
+                <div class="pdk-outcome-detail" data-field="sim-page"><span class="pdk-muted">Page for a browser</span> <span>@SimulationForm.PageText(errorPage)</span></div>
+            }
             @if (Result.Outcome.Location is { } location)
             {
                 <div class="pdk-outcome-detail"><span class="pdk-muted">Location</span> <span class="pdk-mono">@location</span></div>

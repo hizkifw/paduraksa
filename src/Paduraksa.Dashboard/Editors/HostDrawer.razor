@@ -1,3 +1,4 @@
+@using Paduraksa.Application.Compilation
 @using Paduraksa.Contracts.Certificates
 @using Paduraksa.Dashboard.Certificates
 @using Microsoft.Extensions.Logging
@@ -11,6 +12,14 @@
 <DrawerShell Title="@Title" Subtitle="@Subtitle" Icon="@Icons.Material.Outlined.Language"
              Name="host" OnSubmit="ReviewAsync">
     <HeaderActions>
+        @if (Model is { IsNew: false, Kind: not HostKind.Admin } && MayWrite)
+        {
+            <MudTooltip Text="@(InMaintenance ? "End maintenance (then review the change)" : "Put in maintenance (then review the change)")" Placement="Placement.Bottom">
+                <MudIconButton Icon="@(InMaintenance ? Icons.Material.Filled.Construction : Icons.Material.Outlined.Construction)" Size="Size.Small"
+                               Color="@(InMaintenance ? Color.Warning : Color.Default)" OnClick="ToggleMaintenance" data-action="maintenance"
+                               aria-label="@(InMaintenance ? "End maintenance" : "Put in maintenance")" />
+            </MudTooltip>
+        }
         @if (Model is { IsNew: false } && _maySimulate)
         {
             <MudTooltip Text="Simulate a request" Placement="Placement.Bottom">
@@ -294,6 +303,27 @@
     private HashSet<RuleSetId> StagedRuleSetIds => [.. _stagedRuleSets.Select(r => r.Id)];
 
     private HashSet<AuthProviderId> StagedAuthProviderIds => [.. _stagedAuthProviders.Select(p => p.Id)];
+
+    /// <summary>Whether maintenance resolves to on for the host as the form has it: its own layer over its profile and the global defaults.</summary>
+    private bool InMaintenance =>
+        Model is not null
+        && HostSettingsLayers.MergeAll(
+            _current?.Document.Settings.Defaults,
+            Model.ProfileId is { } profile ? DraftDocument.Profiles.FirstOrDefault(candidate => candidate.Id == profile)?.Settings : null,
+            Model.Settings).Maintenance?.Enabled == true;
+
+    /// <summary>The wrench in the header sets the host's own switch to the opposite of what it resolves to; the change is reviewed like any other.</summary>
+    private void ToggleMaintenance()
+    {
+        if (Model is null)
+        {
+            return;
+        }
+
+        var on = !InMaintenance;
+        Model.Settings = HostSettingsEdit.WithMaintenance(Model.Settings, maintenance => maintenance with { Enabled = on });
+        Changed();
+    }
 
     private string? SampleHost => Model?.Names.Select(n => n.Value.Trim()).FirstOrDefault(n => n.Length > 0 && !n.StartsWith('*'));
 

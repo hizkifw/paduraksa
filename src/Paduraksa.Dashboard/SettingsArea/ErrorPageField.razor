@@ -1,0 +1,163 @@
+@using Paduraksa.Application.ErrorPages
+@* One error page of a layer: inherit, a message (heading and sentence) or the operator's own document, and a preview that is
+   the proxy's own rendering shown in a frame that can't run script. *@
+<SettingRow Title="@Title" Help="@Help">
+    <MudSelect T="ErrorPageMode?" Value="Value?.Mode" ValueChanged="OnModeChanged" Label="@Label"
+               Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="@ReadOnly"
+               Class="pdk-setting-control" Error="@(ErrorFor("mode") is not null)" ErrorText="@ErrorFor("mode")" data-field="@Field">
+        <MudSelectItem T="ErrorPageMode?" Value="null">@InheritWord (@InheritedText)</MudSelectItem>
+        <MudSelectItem T="ErrorPageMode?" Value="ErrorPageMode.Message">Message</MudSelectItem>
+        <MudSelectItem T="ErrorPageMode?" Value="ErrorPageMode.Html">HTML document</MudSelectItem>
+    </MudSelect>
+</SettingRow>
+
+@if (Value is not null || Effective is not null)
+{
+    <div class="pdk-setting-children">
+        @if (Value is { Mode: ErrorPageMode.Message })
+        {
+            <SettingRow Title="Heading" Help="@VariablesHelp">
+                <MudTextField T="string" Value="@(Value.Heading ?? string.Empty)"
+                              ValueChanged="@(text => Changed(Value with { Heading = string.IsNullOrEmpty(text) ? null : text }, "heading"))"
+                              Label="Heading" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="@ErrorPageText.MaxHeadingLength"
+                              Class="pdk-setting-control" Error="@(ErrorFor("heading") is not null)" ErrorText="@ErrorFor("heading")"
+                              data-field="@($"{Field}-heading")" />
+            </SettingRow>
+            <SettingRow Title="Sentence" Help="One line under the heading; may be left empty.">
+                <MudTextField T="string" Value="@(Value.Text ?? string.Empty)"
+                              ValueChanged="@(text => Changed(Value with { Text = string.IsNullOrEmpty(text) ? null : text }, "text"))"
+                              Label="Sentence" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@ReadOnly" MaxLength="@ErrorPageText.MaxTextLength"
+                              Class="pdk-setting-control" Error="@(ErrorFor("text") is not null)" ErrorText="@ErrorFor("text")"
+                              data-field="@($"{Field}-text")" />
+            </SettingRow>
+        }
+        else if (Value is { Mode: ErrorPageMode.Html })
+        {
+            <SettingRow Title="Document" Help="@DocumentHelp" Wide="true">
+                <MudTextField T="string" Value="@(Value.Html ?? string.Empty)"
+                              ValueChanged="@(text => Changed(Value with { Html = string.IsNullOrEmpty(text) ? null : text }, "html"))"
+                              Label="HTML" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="10" ReadOnly="@ReadOnly"
+                              Class="pdk-mono-input" Error="@(ErrorFor("html") is not null)" ErrorText="@ErrorFor("html")"
+                              data-field="@($"{Field}-html")" />
+            </SettingRow>
+        }
+
+        @if (Effective is not null)
+        {
+            <SettingRow Title="Preview" Help="@PreviewHelp" Wide="true">
+                <div class="pdk-page-preview">
+                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="TogglePreview" data-field="@($"{Field}-preview")"
+                               StartIcon="@(_previewOpen ? Icons.Material.Outlined.VisibilityOff : Icons.Material.Outlined.Visibility)">
+                        @(_previewOpen ? "Hide preview" : "Show preview")
+                    </MudButton>
+                    @if (_previewOpen)
+                    {
+                        var (preview, problems) = Rendered;
+                        @if (preview is not null)
+                        {
+                            <iframe class="pdk-page-frame" sandbox="" referrerpolicy="no-referrer" title="@($"Preview of the {Title} page")"
+                                    srcdoc="@preview.Html" data-field="@($"{Field}-frame")"></iframe>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Warning" Variant="Variant.Text" Dense="true" data-field="@($"{Field}-preview-error")">
+                                The page can't be previewed until it is valid: @problems[0].Message.
+                            </MudAlert>
+                        }
+                    }
+                </div>
+            </SettingRow>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public int Key { get; set; }
+
+    /// <summary>The page this layer sets; null inherits.</summary>
+    [Parameter]
+    public ErrorPageContent? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<ErrorPageContent?> ValueChanged { get; set; }
+
+    /// <summary>The page the layer below resolves to; null is the built-in page.</summary>
+    [Parameter]
+    public ErrorPageContent? Inherited { get; set; }
+
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Help { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>The <c>data-field</c> of the select; the page's own fields append <c>-heading</c>, <c>-text</c> and <c>-html</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Field { get; set; } = string.Empty;
+
+    /// <summary>The message at one of the page's fields (<c>mode</c>, <c>heading</c>, <c>text</c>, <c>html</c>), or null.</summary>
+    [Parameter]
+    public Func<string, string?>? Errors { get; set; }
+
+    /// <summary>The status the preview writes as <c>{status}</c>: the page's own, or a maintenance page's resolved one.</summary>
+    [Parameter]
+    public int PreviewStatus { get; set; } = 503;
+
+    /// <summary>Called with the field that changed (<c>mode</c>, <c>heading</c>, ...), so the form can show and recheck its errors.</summary>
+    [Parameter]
+    public EventCallback<string> OnChanged { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    private bool _previewOpen;
+
+    private bool IsMaintenance => Key == ErrorPageStatuses.MaintenanceKey;
+
+    /// <summary>What a visitor would get from this layer: its own page, else the one it inherits.</summary>
+    private ErrorPageContent? Effective => Value ?? Inherited;
+
+    private string InheritedText => Inherited is null ? "no custom page" : SettingsSummary.PageKindText(Inherited);
+
+    private string VariablesHelp => $"Variables: {ErrorPageText.VariableList}.";
+
+    private string DocumentHelp =>
+        $"A full document, up to 64 KiB. Variables: {ErrorPageText.VariableList}. Inline style and data: images work; scripts and outside resources are blocked.";
+
+    private string PreviewHelp => Value is null
+        ? "The inherited page, rendered as a visitor gets it."
+        : "Rendered as a visitor gets it, with a sample request ID and host.";
+
+    private string? ErrorFor(string field) => Errors?.Invoke(field);
+
+    private (ErrorPagePreview? Preview, IReadOnlyList<ConfigError> Errors) Rendered =>
+        ErrorPagePreviewer.Render(new ErrorPagePreviewRequest(Effective!, PreviewStatus, IsMaintenance));
+
+    private void TogglePreview() => _previewOpen = !_previewOpen;
+
+    private async Task OnModeChanged(ErrorPageMode? mode)
+    {
+        // A page of the other kind starts clean: the heading and sentence of a message, or a document, can't live beside each other
+        // (the validator refuses the one that doesn't belong), so a switch keeps only what the new kind has.
+        ErrorPageContent? changed = mode switch
+        {
+            null => null,
+            ErrorPageMode.Message => new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = Value?.Heading, Text = Value?.Text },
+            _ => new ErrorPageContent { Mode = ErrorPageMode.Html, Html = Value?.Html },
+        };
+        await Changed(changed, "mode");
+    }
+
+    private async Task Changed(ErrorPageContent? page, string field)
+    {
+        await ValueChanged.InvokeAsync(page);
+        await OnChanged.InvokeAsync(field);
+    }
+}

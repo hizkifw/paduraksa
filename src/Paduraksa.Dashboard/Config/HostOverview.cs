@@ -37,8 +37,11 @@ public sealed record HostDestination(string? Path, string Label, string? Detail,
 /// <param name="Health">The status dot.</param>
 /// <param name="Problems">What the live config warns about this host.</param>
 /// <param name="Destinations">Where requests go, line by line.</param>
+/// <param name="InMaintenance">Maintenance mode resolves to on for the host (its own layer, its profile or the global defaults) and the host serves it:
+/// an admin host never does.</param>
 public sealed record HostRow(
-    HostConfig Host, string Kind, CertificateState? Certificate, string Https, string Target, Tone Health, IReadOnlyList<string> Problems, IReadOnlyList<HostDestination> Destinations)
+    HostConfig Host, string Kind, CertificateState? Certificate, string Https, string Target, Tone Health, IReadOnlyList<string> Problems, IReadOnlyList<HostDestination> Destinations,
+    bool InMaintenance = false)
 {
     /// <summary>Whether the row matches a search: any name, tag, upstream or address, kind or target containing <paramref name="term"/>.</summary>
     public bool Matches(string? term) =>
@@ -80,7 +83,9 @@ public static class HostOverview
             var health = !host.Enabled ? Tone.Default
                 : problems.Length > 0 || certificate?.Tone is Tone.Warning or Tone.Error ? Tone.Warning
                 : Tone.Success;
-            rows.Add(new HostRow(host, KindLabel(host.Kind), certificate, HttpsOf(host, document), TargetOf(host, document), health, problems, DestinationsOf(host, document)));
+            var profile = host.ProfileId is { } profileId ? document.Profiles.FirstOrDefault(candidate => candidate.Id == profileId)?.Settings : null;
+            var inMaintenance = host.Kind != HostKind.Admin && HostSettingsLayers.MergeAll(document.Settings.Defaults, profile, host.Settings).Maintenance?.Enabled == true;
+            rows.Add(new HostRow(host, KindLabel(host.Kind), certificate, HttpsOf(host, document), TargetOf(host, document), health, problems, DestinationsOf(host, document), inMaintenance));
         }
 
         return [.. rows.OrderBy(r => r.Host.Names.Count > 0 ? r.Host.Names[0] : string.Empty, StringComparer.Ordinal)];

@@ -54,6 +54,13 @@ public sealed class HostSettingsFieldsTests
         RequestLimits = new RequestLimitsSettings { MaxBodySize = 10 * 1024 * 1024, MaxHeaderCount = 30, MaxHeaderBytes = 16 * 1024, MaxUrlLength = 4 * 1024 },
         RuleSet = new RuleSetSettings { RuleSetId = SampleSet },
         AuthProvider = new AuthProviderSettings { AuthProviderId = SampleProvider },
+        ErrorPages = new ErrorPagesSettings
+        {
+            NotFound = new ErrorPageContent { Heading = "Gone fishing" },
+            ServiceUnavailable = new ErrorPageContent { Mode = ErrorPageMode.Html, Html = "<p>back soon</p>" },
+            ReplaceUpstream = UpstreamErrorReplacement.Html,
+        },
+        Maintenance = new MaintenanceSettings { Enabled = true, Status = 200, RetryAfterSeconds = 600, BypassAccessListId = SampleList },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -499,6 +506,285 @@ public sealed class HostSettingsFieldsTests
             "Inherit (Authelia)")
         {
             ValidatorPath = "/authProvider/authProviderId",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.forbidden",
+            "error-page-403",
+            "/errorPages/403/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "403 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-403-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(403, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "403 page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/403/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.notFound",
+            "error-page-404",
+            "/errorPages/404/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "404 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-404-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(404, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "404 page", null),
+            new HostSettings(),
+            "Inherit (message \"Gone fishing\")")
+        {
+            ValidatorPath = "/errorPages/404/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.contentTooLarge",
+            "error-page-413",
+            "/errorPages/413/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "413 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-413-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(413, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "413 page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/413/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.uriTooLong",
+            "error-page-414",
+            "/errorPages/414/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "414 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-414-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(414, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "414 page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/414/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.misdirectedRequest",
+            "error-page-421",
+            "/errorPages/421/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "421 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-421-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(421, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "421 page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/421/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.tooManyRequests",
+            "error-page-429",
+            "/errorPages/429/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "429 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-429-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(429, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "429 page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/429/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.headerFieldsTooLarge",
+            "error-page-431",
+            "/errorPages/431/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "431 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-431-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(431, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "431 page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/431/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.badGateway",
+            "error-page-502",
+            "/errorPages/502/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "502 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-502-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(502, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "502 page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/502/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.serviceUnavailable",
+            "error-page-503",
+            "/errorPages/503/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "503 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-503-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(503, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "503 page", null),
+            new HostSettings(),
+            "Inherit (HTML document)")
+        {
+            ValidatorPath = "/errorPages/503/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.gatewayTimeout",
+            "error-page-504",
+            "/errorPages/504/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "504 page", ErrorPageMode.Message);
+                await Input(fields, "error-page-504-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(504, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "504 page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/504/mode",
+            ShowsAtField = true,
+        },
+        // The kind is the row's choice; the heading is what a message needs, and the validator names the kind's own path.
+        new(
+            "errorPages.maintenance",
+            "error-page-maintenance",
+            "/errorPages/maintenance/mode",
+            new HostSettings(),
+            async (fields, _) =>
+            {
+                await SetSelect<ErrorPageMode>(fields, "Maintenance page", ErrorPageMode.Message);
+                await Input(fields, "error-page-maintenance-heading", "Not here");
+            },
+            new HostSettings { ErrorPages = new ErrorPagesSettings().WithEntry(ErrorPageStatuses.MaintenanceKey, new ErrorPageContent { Mode = ErrorPageMode.Message, Heading = "Not here" }) },
+            (fields, _) => SetSelect<ErrorPageMode>(fields, "Maintenance page", null),
+            new HostSettings(),
+            "Inherit (no custom page)")
+        {
+            ValidatorPath = "/errorPages/maintenance/mode",
+            ShowsAtField = true,
+        },
+        new(
+            "errorPages.replaceUpstream",
+            "error-pages-replace-upstream",
+            "/errorPages/replaceUpstream",
+            new HostSettings(),
+            (fields, _) => SetSelect<UpstreamErrorReplacement>(fields, "Upstream errors", UpstreamErrorReplacement.Any),
+            new HostSettings { ErrorPages = new ErrorPagesSettings { ReplaceUpstream = UpstreamErrorReplacement.Any } },
+            (fields, _) => SetSelect<UpstreamErrorReplacement>(fields, "Upstream errors", null),
+            new HostSettings(),
+            "Inherit (replace its HTML error pages)")
+        {
+            ValidatorPath = "/errorPages/replaceUpstream",
+            ShowsAtField = true,
+        },
+        new(
+            "maintenance.enabled",
+            "maintenance-enabled",
+            "/maintenance/enabled",
+            new HostSettings(),
+            (fields, _) => SetSelect<bool>(fields, "Maintenance mode", false),
+            new HostSettings { Maintenance = new MaintenanceSettings { Enabled = false } },
+            (fields, _) => SetSelect<bool>(fields, "Maintenance mode", null),
+            new HostSettings(),
+            "Inherit (on)")
+        {
+            ValidatorPath = "/maintenance/enabled",
+            ShowsAtField = true,
+        },
+        new(
+            "maintenance.status",
+            "maintenance-status",
+            "/maintenance/status",
+            new HostSettings(),
+            (fields, _) => SetSelect<int>(fields, "Maintenance status", 503),
+            new HostSettings { Maintenance = new MaintenanceSettings { Status = 503 } },
+            (fields, _) => SetSelect<int>(fields, "Maintenance status", null),
+            new HostSettings(),
+            "Inherit (200 OK)")
+        {
+            ValidatorPath = "/maintenance/status",
+            ShowsAtField = true,
+        },
+        new(
+            "maintenance.retryAfterSeconds",
+            "maintenance-retry-after",
+            "/maintenance/retryAfterSeconds",
+            new HostSettings(),
+            (fields, _) => SetCount(fields, "Retry-After (seconds)", 120),
+            new HostSettings { Maintenance = new MaintenanceSettings { RetryAfterSeconds = 120 } },
+            (fields, _) => SetCount(fields, "Retry-After (seconds)", null),
+            new HostSettings(),
+            "Inherit (600)")
+        {
+            ValidatorPath = "/maintenance/retryAfterSeconds",
+            ShowsAtField = true,
+        },
+        new(
+            "maintenance.bypassAccessListId",
+            "maintenance-bypass",
+            "/maintenance/bypassAccessListId",
+            new HostSettings(),
+            (fields, _) => SetSelect<AccessListId>(fields, "Let through", SampleList),
+            new HostSettings { Maintenance = new MaintenanceSettings { BypassAccessListId = SampleList } },
+            (fields, _) => SetSelect<AccessListId>(fields, "Let through", null),
+            new HostSettings(),
+            "Inherit (Office)")
+        {
+            ValidatorPath = "/maintenance/bypassAccessListId",
             ShowsAtField = true,
         },
     ];
