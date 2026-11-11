@@ -102,6 +102,26 @@ internal static class ConfigEndpoints
             .WithDescription("Refused (422, relatedErrors) while a host, profile, global default or route still names it.")
             .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
 
+        var ruleSets = api.MapGroup("/ruleSets").WithTags("Rule sets");
+        ruleSets.MapGet("/", ListRuleSetsAsync).WithName("ListRuleSets").WithSummary("List rule sets")
+            .WithDescription("The document's own sets. The built-in presets are at /ruleSets/presets and are named in a setting like any other set.")
+            .Produces<IReadOnlyList<RuleSetConfig>>().RequirePermission(Permission.ConfigRead);
+        ruleSets.MapGet("/presets", ListRuleSetPresetsAsync).WithName("ListRuleSetPresets").WithSummary("List the built-in rule-set presets")
+            .WithDescription("Read-only, refreshed with each release. Copy one into a set of your own to change it.")
+            .Produces<IReadOnlyList<RuleSetConfig>>().RequirePermission(Permission.ConfigRead);
+        ruleSets.MapGet("/{id:RuleSetId}", GetRuleSetAsync).WithName("GetRuleSet").WithSummary("Get a rule set")
+            .Produces<RuleSetConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
+        ruleSets.MapPost("/", CreateRuleSetAsync).WithName("CreateRuleSet").WithSummary("Create a rule set")
+            .WithDescription("Rules are tried in order and the first match decides. A regex that can't be built, or a rule that states no condition, is refused (422).")
+            .Accepts<RuleSetConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        ruleSets.MapPut("/{id:RuleSetId}", ReplaceRuleSetAsync).WithName("ReplaceRuleSet").WithSummary("Replace a rule set")
+            .Accepts<RuleSetConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
+            .RequirePermission(Permission.ConfigWrite);
+        ruleSets.MapDelete("/{id:RuleSetId}", DeleteRuleSetAsync).WithName("DeleteRuleSet").WithSummary("Delete a rule set")
+            .WithDescription("Refused (422, relatedErrors) while a host still resolves to it (named by the host, its profile or the global defaults) or a route names it.")
+            .Produces(204).Produces<ConfigCommandResult>().ProducesApiProblems(404, 412, 422, 428).MayFailToPublish().RequirePermission(Permission.ConfigWrite);
+
         var profiles = api.MapGroup("/profiles").WithTags("Profiles");
         profiles.MapGet("/", ListProfilesAsync).WithName("ListProfiles").WithSummary("List profiles")
             .Produces<IReadOnlyList<ProfileConfig>>().RequirePermission(Permission.ConfigRead);
@@ -357,6 +377,46 @@ internal static class ConfigEndpoints
 
     private static Task<IResult> DeleteAccessListAsync(HttpContext http, AccessListId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
         DeleteAsync(http, caller, config, version => new DeleteAccessListCommand(id, version), ct);
+
+    private static async Task<IResult> ListRuleSetsAsync(HttpContext http, ConfigService config, CancellationToken ct)
+    {
+        var current = await config.GetCurrentAsync(ct).ConfigureAwait(false);
+        TagWithRevision(http, current);
+        return EndpointSupport.Json(current.Document.RuleSets, AdminJsonContext.Default.IReadOnlyListRuleSetConfig);
+    }
+
+    private static IResult ListRuleSetPresetsAsync() =>
+        EndpointSupport.Json(RuleSetPresets.All, AdminJsonContext.Default.IReadOnlyListRuleSetConfig);
+
+    private static async Task<IResult> GetRuleSetAsync(HttpContext http, RuleSetId id, ConfigService config, CancellationToken ct)
+    {
+        if (RuleSetPresets.TryGet(id, out var preset))
+        {
+            return EndpointSupport.Json(preset, AdminJsonContext.Default.RuleSetConfig);
+        }
+
+        var set = (await config.GetCurrentAsync(ct).ConfigureAwait(false)).Document.RuleSets.FirstOrDefault(r => r.Id == id);
+        if (set is null)
+        {
+            return NoSuchObject("rule set");
+        }
+
+        http.Response.Headers.ETag = Preconditions.VersionTag(set.Version);
+        return EndpointSupport.Json(set, AdminJsonContext.Default.RuleSetConfig);
+    }
+
+    private static Task<IResult> CreateRuleSetAsync(HttpContext http, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Create, requireVersion: false, AdminJsonContext.Default.RuleSetConfig,
+            (set, _, _) => (set with { Version = 0 }, null), (set, dry, message) => new UpsertRuleSetCommand(set) { DryRun = dry, Message = message },
+            set => EndpointSupport.Path("ruleSets", set.Id), ct);
+
+    private static Task<IResult> ReplaceRuleSetAsync(HttpContext http, RuleSetId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        MutateAsync(http, caller, config, MutationKind.Change, requireVersion: true, AdminJsonContext.Default.RuleSetConfig,
+            (set, version, _) => set.Id == id ? (set with { Version = version }, null) : (set, IdMismatch()),
+            (set, dry, message) => new UpsertRuleSetCommand(set) { DryRun = dry, Message = message }, null, ct);
+
+    private static Task<IResult> DeleteRuleSetAsync(HttpContext http, RuleSetId id, AdminCaller caller, ConfigService config, CancellationToken ct) =>
+        DeleteAsync(http, caller, config, version => new DeleteRuleSetCommand(id, version), ct);
 
     private static async Task<IResult> ListProfilesAsync(HttpContext http, ConfigService config, CancellationToken ct)
     {

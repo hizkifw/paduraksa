@@ -254,6 +254,12 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             ("GET /api/v1/accessLists/{id:AccessListId}", Permission.ConfigRead),
             ("PUT /api/v1/accessLists/{id:AccessListId}", Permission.ConfigWrite),
             ("DELETE /api/v1/accessLists/{id:AccessListId}", Permission.ConfigWrite),
+            ("GET /api/v1/ruleSets", Permission.ConfigRead),
+            ("GET /api/v1/ruleSets/presets", Permission.ConfigRead),
+            ("POST /api/v1/ruleSets", Permission.ConfigWrite),
+            ("GET /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigRead),
+            ("PUT /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigWrite),
+            ("DELETE /api/v1/ruleSets/{id:RuleSetId}", Permission.ConfigWrite),
             ("GET /api/v1/profiles", Permission.ConfigRead),
             ("POST /api/v1/profiles", Permission.ConfigWrite),
             ("GET /api/v1/profiles/{id:ProfileId}", Permission.ConfigRead),
@@ -317,7 +323,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     {
         // The endpoints name their permission literally and the services enforce OperationPermissions on their own; this keeps the two
         // from drifting apart. Config resources run config commands, the certificate routes run certificate operations.
-        string[] configResources = ["hosts", "upstreams", "rateLimitPolicies", "accessLists", "profiles", "settings", "revisions"];
+        string[] configResources = ["hosts", "upstreams", "rateLimitPolicies", "accessLists", "ruleSets", "profiles", "settings", "revisions"];
         var mutating = ApiEndpoints(shared.Api)
             .SelectMany(e => (e.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? [])
                 .Where(method => method is "POST" or "PUT" or "DELETE")

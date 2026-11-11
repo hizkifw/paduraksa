@@ -296,6 +296,85 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
     }
 
     [Fact]
+    public async Task RuleSetsAreManagedPresetsAreReadOnlyAndOneInUseCannotBeDeleted()
+    {
+        var api = shared.Api;
+        var upstream = ConfigTestSupport.Upstream("u-rules", "http://127.0.0.1:9");
+        using var createdUpstream = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/upstreams", upstream, AdminJsonContext.Default.UpstreamConfig);
+        Assert.Equal(HttpStatusCode.Created, createdUpstream.StatusCode);
+
+        RuleSetConfig set = new(
+            RuleSetId.New(),
+            "block-admin",
+            Rules:
+            [
+                new RuleConfig(RuleAction.Allow, new RuleMatchConfig(new RulePathConfig(RulePathKind.Prefix, "/admin/public"))),
+                new RuleConfig(RuleAction.Deny, new RuleMatchConfig(new RulePathConfig(RulePathKind.Prefix, "/admin"), ["POST", "get"], new RuleUserAgentConfig(["sqlmap"], Empty: true))),
+            ]);
+        using var created = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/ruleSets", set, AdminJsonContext.Default.RuleSetConfig);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal($"/api/v1/ruleSets/{set.Id}", created.Headers.Location!.ToString());
+        var version = AdminApiHarness.ETag(created)!;
+
+        // Read back canonically: the enums by name, the methods upper case and sorted.
+        using var read = await api.GetAsync($"/api/v1/ruleSets/{set.Id}");
+        var readBody = await read.Content.ReadAsStringAsync(Ct);
+        Assert.Contains("\"action\":\"deny\"", readBody, StringComparison.Ordinal);
+        Assert.Contains("\"kind\":\"prefix\"", readBody, StringComparison.Ordinal);
+        Assert.Contains("\"methods\":[\"GET\",\"POST\"]", readBody, StringComparison.Ordinal);
+        Assert.Equal(version, AdminApiHarness.ETag(read));
+        var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.RuleSetConfig)!;
+        using var all = await api.GetAsync("/api/v1/ruleSets");
+        Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct), r => r.Id == set.Id);
+
+        // The built-in presets are read-only: listed on their own, readable by ID, never written.
+        using var presets = await api.GetAsync("/api/v1/ruleSets/presets");
+        var presetList = await AdminApiHarness.ReadAsync(presets, AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct);
+        Assert.Equal(["Block AI crawlers", "Block known scanners", "Block empty user agent"], presetList.Select(p => p.Name));
+        Assert.DoesNotContain(await AdminApiHarness.ReadAsync(await api.GetAsync("/api/v1/ruleSets"), AdminJsonContext.Default.IReadOnlyListRuleSetConfig, Ct), r => RuleSetPresets.IsPreset(r.Id));
+        using var presetRead = await api.GetAsync($"/api/v1/ruleSets/{RuleSetPresets.KnownScanners.Id}");
+        Assert.Equal(HttpStatusCode.OK, presetRead.StatusCode);
+        using var presetWrite = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/ruleSets", RuleSetPresets.AiCrawlers, AdminJsonContext.Default.RuleSetConfig);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, presetWrite.StatusCode);
+        Assert.Equal("ruleSet.id.reserved", Assert.Single((await AdminApiHarness.ProblemAsync(presetWrite, Ct)).Errors!).Code);
+
+        // A regex that cannot be built is a 422 pointing at its field.
+        RuleSetConfig broken = new(RuleSetId.New(), "broken", Rules: [new RuleConfig(RuleAction.Deny, new RuleMatchConfig(new RulePathConfig(RulePathKind.Regex, "(unclosed")))]);
+        using var rejected = await api.SendJsonAsync(HttpMethod.Post, "/api/v1/ruleSets", broken, AdminJsonContext.Default.RuleSetConfig);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, rejected.StatusCode);
+        var error = Assert.Single((await AdminApiHarness.ProblemAsync(rejected, Ct)).Errors!);
+        Assert.Equal("/rules/0/match/path/pattern", error.Path);
+        Assert.Equal("ruleSet.rule.path.regex.invalid", error.Code);
+
+        using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/ruleSets/{set.Id}", stored with { Notes = "edited" }, AdminJsonContext.Default.RuleSetConfig, ifMatch: version);
+        Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
+        var latest = AdminApiHarness.ETag(replaced)!;
+
+        // A host may name the set or a preset; naming one that exists nowhere is refused.
+        HostConfig host = ConfigTestSupport.ProxyHost("h-rules", "h-rules.test", "u-rules") with
+        {
+            Settings = new HostSettings { RuleSet = new RuleSetSettings { RuleSetId = set.Id } },
+        };
+        using var hostCreated = await PostHostAsync(api, host);
+        Assert.Equal(HttpStatusCode.Created, hostCreated.StatusCode);
+
+        using var inUse = await api.SendAsync(HttpMethod.Delete, $"/api/v1/ruleSets/{set.Id}", ifMatch: latest);
+        var problem = await AdminApiHarness.ProblemAsync(inUse, Ct);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, inUse.StatusCode);
+        Assert.Contains(problem.RelatedErrors!, e => e.Code == "host.ruleSet.unknown");
+
+        using var hostGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/hosts/{host.Id}", ifMatch: AdminApiHarness.ETag(hostCreated));
+        Assert.Equal(HttpStatusCode.NoContent, hostGone.StatusCode);
+        using var setGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/ruleSets/{set.Id}", ifMatch: latest);
+        Assert.Equal(HttpStatusCode.NoContent, setGone.StatusCode);
+        using var gone = await api.GetAsync($"/api/v1/ruleSets/{set.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+
+        using var upstreamGone = await api.SendAsync(HttpMethod.Delete, $"/api/v1/upstreams/{upstream.Id}", ifMatch: AdminApiHarness.ETag(createdUpstream));
+        Assert.Equal(HttpStatusCode.NoContent, upstreamGone.StatusCode);
+    }
+
+    [Fact]
     public async Task AWeakOrEmptyPasswordIsAValidationFailureThatStoresNothing()
     {
         var api = shared.Api;

@@ -34,6 +34,7 @@ internal static class TypedIdRouting
         Add<UpstreamId>(options);
         Add<RateLimitPolicyId>(options);
         Add<AccessListId>(options);
+        Add<RuleSetId>(options);
         Add<ProfileId>(options);
         Add<RouteId>(options);
         Add<CertificateId>(options);
