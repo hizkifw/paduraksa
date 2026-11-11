@@ -30,7 +30,6 @@ public sealed class ConfigServiceDocumentCommandTests : IAsyncLifetime
         var current = await _h.CurrentAsync();
         // The settings are the defaults, so they didn't change and keep version 0; the new objects get #1.
         Assert.Equal([0L, 1L, 1L], [current.Settings.Version, current.Upstreams[0].Version, current.Hosts[0].Version]);
-        await _h.AssertProjectionMatchesAsync();
     }
 
     [Fact]
@@ -52,7 +51,6 @@ public sealed class ConfigServiceDocumentCommandTests : IAsyncLifetime
         Assert.Equal(1, versions[a]);
         Assert.Equal(3, versions[b]);
         Assert.Equal(b, Assert.IsType<HostChange>(Assert.Single(result.Changes)).HostId);
-        await _h.AssertProjectionMatchesAsync();
     }
 
     [Fact]
@@ -133,7 +131,6 @@ public sealed class ConfigServiceDocumentCommandTests : IAsyncLifetime
 
         var audit = (await _h.AuditAsync()).Single(a => a.Action == "config.rollback");
         Assert.Equal((AuditOutcome.Success, target.Revision.Id.ToString(), (ConfigRevisionId?)result.Revision.Id), (audit.Outcome, audit.Target, audit.RevisionId));
-        await _h.AssertProjectionMatchesAsync();
         await _h.AssertChainIntactAsync();
     }
 
@@ -151,7 +148,6 @@ public sealed class ConfigServiceDocumentCommandTests : IAsyncLifetime
         Assert.Equal(4, Assert.Single((await _h.CurrentAsync()).Hosts).Version);
         Assert.Equal("undo delete", (await _h.RevisionsAsync())[0].Message);
         Assert.Equal(ConfigCommandStatus.Conflict, (await _h.RunAsync(new DeleteHostCommand(id, 2))).Status);
-        await _h.AssertProjectionMatchesAsync();
     }
 
     [Fact]

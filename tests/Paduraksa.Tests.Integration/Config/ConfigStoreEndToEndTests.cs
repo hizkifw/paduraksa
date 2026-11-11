@@ -118,7 +118,7 @@ public sealed class ConfigStoreEndToEndTests
     }
 
     [Fact]
-    public async Task ARestartRecompilesTheLatestRevisionAndRewritesAStaleProjection()
+    public async Task ARestartRecompilesTheLatestRevision()
     {
         var ct = TestContext.Current.CancellationToken;
         var data = TestDataDirectories.NewPath();
@@ -130,9 +130,6 @@ public sealed class ConfigStoreEndToEndTests
             latest = await CommitAsync(first, new UpsertHostCommand(RespondHost("two", "two.test", "two")), ct);
         }
 
-        // A projection that doesn't show the latest revision (a restored or hand-edited database): rewritten at startup.
-        await ExecuteSqlAsync(data, "DELETE FROM GlobalSettings; DELETE FROM Hosts;", ct);
-
         await using var second = TestHost.Create(dataDirectory: data);
         await second.StartAsync(ct);
         using var client = TestHost.CreateClient(second);
@@ -143,8 +140,6 @@ public sealed class ConfigStoreEndToEndTests
         Assert.Equal((HttpStatusCode.OK, "one"), await GetAsync(client, second, "one.test", "/", ct));
         Assert.Equal((HttpStatusCode.OK, "two"), await GetAsync(client, second, "two.test", "/", ct));
         Assert.Equal((HttpStatusCode.OK, "ready\n"), await ReadyzAsync(adminClient, second, ct));
-        Assert.Equal(2L, await ScalarAsync(data, "SELECT count(*) FROM Hosts", ct));
-        Assert.Equal(1L, await ScalarAsync(data, "SELECT count(*) FROM GlobalSettings", ct));
 
         // And the store works on: the next command builds on the latest revision.
         var third = await CommitAsync(second, new UpsertHostCommand(RespondHost("three", "three.test", "three")), ct);

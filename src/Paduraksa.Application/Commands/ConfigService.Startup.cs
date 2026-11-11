@@ -5,7 +5,6 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Application.LastKnownGood;
-using Paduraksa.Application.Projection;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -37,8 +36,7 @@ public sealed partial class ConfigService
     internal Task StartupPublishFollowed => Volatile.Read(ref _startupPublish);
 
     /// <summary>
-    /// The startup recompile: brings the database up to date, loads the latest revision, rewrites the projection when it
-    /// doesn't show that revision, compiles it and queues the publish. Run once, before anything reads or writes config.
+    /// The startup recompile: brings the database up to date, loads the latest revision, compiles it and queues the publish. Run once, before anything reads or writes config.
     /// </summary>
     /// <remarks>
     /// <para><b>Never awaits the publish.</b> A snapshot with YARP content can only go live once the public app attaches
@@ -125,8 +123,7 @@ public sealed partial class ConfigService
     /// <summary>
     /// The live revision still had the inline IP allow lists, which reading converted to access lists: stores the converted
     /// document as one revision (actor System, audited, saying what was converted), so the config that is running is the
-    /// config that is stored. Every host, profile and list counts as touched, so the projection is rewritten and their
-    /// versions move. Null when the converted document can't be stored (it doesn't validate or compile, or another process
+    /// config that is stored. Every host, profile and list counts as touched, so their versions move. Null when the converted document can't be stored (it doesn't validate or compile, or another process
     /// committed first): startup then runs on the converted document in memory, and the next change writes it.
     /// </summary>
     private async Task<ConfigStoreStatus?> WriteUpgradedAsync(DatabaseStart database, LastKnownGoodEntry? lastGood, CancellationToken cancellationToken)
@@ -329,7 +326,6 @@ public sealed partial class ConfigService
                 }
 
                 document = CanonicalConfigJson.Canonicalize(document);
-                await HealProjectionAsync(context, latest, document, cancellationToken).ConfigureAwait(false);
                 return new DatabaseStart(latest, document, null, upgraded);
             }
         }
@@ -339,49 +335,6 @@ public sealed partial class ConfigService
             // unusable whatever the exception says.
             LogDatabaseFailed(ex);
             return new DatabaseStart(null, null, "the latest config revision can't be read");
-        }
-    }
-
-    /// <summary>
-    /// Rewrites the projection whole when it doesn't show <paramref name="latest"/> (a crash can't cause that, the projection
-    /// commits with its revision, but a restored or hand-edited database can), including when its settings row can't be read.
-    /// Any failure is logged and startup goes on: the next commit rewrites it whole anyway.
-    /// </summary>
-    private async Task HealProjectionAsync(ConfigDbContext context, StoredRevision latest, ConfigDocument document, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var reflected = await ConfigProjection.TryReflectedRevisionAsync(context, cancellationToken).ConfigureAwait(false);
-            if (reflected == latest.Info.Id)
-            {
-                return;
-            }
-
-            var transaction = await context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-            await using (transaction.ConfigureAwait(false))
-            {
-                var head = await context.ConfigRevisions
-                    .OrderByDescending(r => r.Seq)
-                    .Select(r => (ConfigRevisionId?)r.Id)
-                    .FirstOrDefaultAsync(cancellationToken)
-                    .ConfigureAwait(false);
-                if (head != latest.Info.Id)
-                {
-                    // Another writer committed meanwhile, and its commit brought the projection up to date.
-                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
-                    return;
-                }
-
-                await ConfigProjection.WriteAsync(context, document, [], latest.Info.Id, parent: null, cancellationToken).ConfigureAwait(false);
-                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            LogProjectionRewritten(latest.Info.Seq, latest.Info.Id, reflected?.ToString() ?? "nothing readable");
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            context.ChangeTracker.Clear();
-            LogProjectionHealFailed(ex, latest.Info.Seq, latest.Info.Id);
         }
     }
 
@@ -711,12 +664,6 @@ public sealed partial class ConfigService
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The config database can't be used.")]
     private partial void LogDatabaseFailed(Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Rewrote the config projection to show revision #{Seq} ({Revision}); it showed {Reflected}.")]
-    private partial void LogProjectionRewritten(long seq, ConfigRevisionId revision, string reflected);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Couldn't rewrite the config projection for revision #{Seq} ({Revision}); queries may show stale config until the next commit rewrites it.")]
-    private partial void LogProjectionHealFailed(Exception exception, long seq, ConfigRevisionId revision);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The last-known-good file holds revision #{LastGoodSeq} ({LastGood}), newer than the database's latest (#{LatestSeq}): was the database replaced or restored? Serving the database's config, which is the source of truth; the file is replaced at the next publish.")]
     private partial void LogLastKnownGoodAhead(long lastGoodSeq, ConfigRevisionId lastGood, long latestSeq);

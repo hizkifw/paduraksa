@@ -97,7 +97,6 @@ public sealed class ConfigServicePipelineTests
 
         Assert.Equal(Enumerable.Range(1, Writers).Select(i => (long)i), seqs);
         await h.AssertChainIntactAsync();
-        await h.AssertProjectionMatchesAsync();
     }
 
     [Fact]
@@ -121,7 +120,6 @@ public sealed class ConfigServicePipelineTests
         Assert.Equal(("config.publish", AuditOutcome.Failed, result.Revision.Id.ToString(), (ConfigRevisionId?)result.Revision.Id), (audit.Action, audit.Outcome, audit.Target, audit.RevisionId));
         Assert.StartsWith("""{"status":"failed","errors":[""", audit.Details, StringComparison.Ordinal);
         await h.AssertChainIntactAsync();
-        await h.AssertProjectionMatchesAsync();
     }
 
     [Fact]
@@ -209,21 +207,6 @@ public sealed class ConfigServicePipelineTests
     }
 
     [Fact]
-    public async Task AProjectionThatDoesntShowTheParentRevisionIsRewrittenWhole()
-    {
-        await using var h = await ConfigServiceHarness.CreateAsync();
-        var upstream = UpstreamId.New();
-        await h.RunAsync(new UpsertUpstreamCommand(Upstream(upstream, "app")));
-        await h.RunAsync(new UpsertHostCommand(ProxyHost(HostId.New(), "a.example.com", upstream)));
-        await h.Db.ExecuteAsync("DELETE FROM Hosts; DELETE FROM GlobalSettings; UPDATE Upstreams SET Name = 'stale'");
-
-        await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "b.example.com")));
-
-        await h.AssertProjectionMatchesAsync();
-        Assert.Equal(2, await h.CountAsync("Hosts"));
-    }
-
-    [Fact]
     public async Task TheServiceRegistersAsASingleton()
     {
         await using var db = await CreateAsync();
@@ -293,7 +276,6 @@ public sealed class ConfigServicePipelineTests
         Assert.True(
             best < BudgetMilliseconds,
             $"the best round median was {best:F1} ms, budget {BudgetMilliseconds:F0} ms; rounds: {string.Join(", ", medians.Select(m => m.ToString("F1", CultureInfo.InvariantCulture)))}");
-        await h.AssertProjectionMatchesAsync();
     }
 
     private sealed class DenyAll : IConfigCommandAuthorizer

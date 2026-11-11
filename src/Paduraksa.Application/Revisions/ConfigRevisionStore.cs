@@ -58,7 +58,7 @@ internal sealed class ConfigRevisionStore
 
     /// <summary>
     /// Commits <paramref name="revision"/> on top of the latest one: <c>Seq</c> = latest + 1 (1 for the first),
-    /// parent = latest. Must run inside the caller's transaction, which also holds the projection and audit writes;
+    /// parent = latest. Must run inside the caller's transaction, which also holds the audit write;
     /// this saves the context (flushing anything else pending in it), the caller commits. If a concurrent writer got
     /// there first the save fails on the unique <c>Seq</c>/parent indexes instead of forking history.
     /// </summary>

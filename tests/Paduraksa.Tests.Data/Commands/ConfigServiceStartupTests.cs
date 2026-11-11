@@ -51,21 +51,6 @@ public sealed class ConfigServiceStartupTests
         Assert.Equal(latest, entry.Revision);
     }
 
-    [Theory]
-    [InlineData("DELETE FROM GlobalSettings; DELETE FROM Hosts")]
-    [InlineData("UPDATE GlobalSettings SET RevisionId = (SELECT Id FROM ConfigRevisions WHERE Seq = 1); DELETE FROM Hosts WHERE rowid IN (SELECT rowid FROM Hosts LIMIT 1)")]
-    public async Task AProjectionThatDoesNotShowTheLatestRevisionIsRewritten(string damage)
-    {
-        await using var h = await ConfigServiceHarness.CreateAsync();
-        await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "a.example.com")));
-        await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "b.example.com")));
-        await h.Db.ExecuteAsync(damage);
-
-        await h.Service.StartAsync(Ct);
-
-        await h.AssertProjectionMatchesAsync();
-    }
-
     [Fact]
     public async Task ACorruptLatestRevisionWithNothingToFallBackOnFailsTheStart()
     {
@@ -133,19 +118,6 @@ public sealed class ConfigServiceStartupTests
         Assert.Equal(first, status.Revision);
         Assert.False(status.AcceptsCommands);
         Assert.Equal(first.Id, restarted.Store.Current.Revision);
-    }
-
-    [Fact]
-    public async Task ASettingsRowThatCantBeReadIsRewritten()
-    {
-        await using var h = await ConfigServiceHarness.CreateAsync();
-        var latest = (await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "a.example.com")))).Revision!;
-        await h.Db.ExecuteUncheckedAsync("PRAGMA foreign_keys = OFF; UPDATE GlobalSettings SET RevisionId = x'0102'");
-
-        var status = await h.Service.StartAsync(Ct);
-
-        Assert.Equal(new ConfigStoreStatus(ConfigSource.Database, latest), status);
-        await h.AssertProjectionMatchesAsync();
     }
 
     [Fact]

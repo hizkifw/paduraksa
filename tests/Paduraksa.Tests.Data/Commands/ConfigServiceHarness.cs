@@ -4,7 +4,6 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
-using Paduraksa.Application.Projection;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -105,39 +104,6 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
         Assert.True(report.IsIntact, report.Break?.Description);
     }
 
-    /// <summary>The projection holds exactly the rows of the latest revision's document, and names that revision.</summary>
-    public async Task AssertProjectionMatchesAsync()
-    {
-        var current = await Service.GetCurrentAsync(Ct);
-        await using var context = Db.NewContext();
-        if (current.Revision is null)
-        {
-            Assert.Equal(0, await context.GlobalSettings.CountAsync(Ct));
-            return;
-        }
-
-        var document = current.Document;
-        Assert.Equal(Describe(ConfigProjection.Settings(document.Settings, current.Revision.Id)), Describe(await context.GlobalSettings.SingleAsync(Ct)));
-        Assert.Equal(
-            document.Profiles.Select(p => Describe(ConfigProjection.Profile(p))).Order(StringComparer.Ordinal),
-            (await context.Profiles.ToListAsync(Ct)).Select(Describe).Order(StringComparer.Ordinal));
-        Assert.Equal(
-            document.Upstreams.Select(u => Describe(ConfigProjection.Upstream(u))).Order(StringComparer.Ordinal),
-            (await context.Upstreams.ToListAsync(Ct)).Select(Describe).Order(StringComparer.Ordinal));
-        Assert.Equal(
-            document.Upstreams.SelectMany(ConfigProjection.Destinations).Select(Describe).Order(StringComparer.Ordinal),
-            (await context.Destinations.ToListAsync(Ct)).Select(Describe).Order(StringComparer.Ordinal));
-        Assert.Equal(
-            document.Hosts.Select(h => Describe(ConfigProjection.Host(h))).Order(StringComparer.Ordinal),
-            (await context.Hosts.ToListAsync(Ct)).Select(Describe).Order(StringComparer.Ordinal));
-        Assert.Equal(
-            document.Hosts.SelectMany(ConfigProjection.Names).Select(Describe).Order(StringComparer.Ordinal),
-            (await context.HostNames.ToListAsync(Ct)).Select(Describe).Order(StringComparer.Ordinal));
-        Assert.Equal(
-            document.Hosts.SelectMany(ConfigProjection.Routes).Select(Describe).Order(StringComparer.Ordinal),
-            (await context.Routes.ToListAsync(Ct)).Select(Describe).Order(StringComparer.Ordinal));
-    }
-
     public async ValueTask DisposeAsync()
     {
         Service.Dispose();
@@ -145,23 +111,6 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
         Store.Dispose();
         await Db.DisposeAsync();
     }
-
-    private static string Describe(Paduraksa.Data.Projection.GlobalSettingsRow r) =>
-        $"{r.Key}|{r.RevisionId}|{r.Version}|{r.UnknownHost}|{r.DefaultCertificateId}|{r.TrustedProxyMode}|{r.Defaults}";
-
-    private static string Describe(Paduraksa.Data.Projection.ProfileRow r) => $"{r.Id}|{r.Name}|{r.Version}|{r.Settings}|{r.Notes}";
-
-    private static string Describe(Paduraksa.Data.Projection.UpstreamRow r) => $"{r.Id}|{r.Name}|{r.Version}|{r.Notes}";
-
-    private static string Describe(Paduraksa.Data.Projection.DestinationRow r) => $"{r.Id}|{r.UpstreamId}|{r.Address}|{r.Enabled}";
-
-    private static string Describe(Paduraksa.Data.Projection.HostRow r) =>
-        $"{r.Id}|{r.Version}|{r.Kind}|{r.Enabled}|{r.ProfileId}|{r.CertificateMode}|{r.CertificateId}|{r.Settings}|{string.Join(',', r.Tags)}|{r.Notes}";
-
-    private static string Describe(Paduraksa.Data.Projection.HostNameRow r) => $"{r.HostId}|{r.Name}|{r.HostEnabled}";
-
-    private static string Describe(Paduraksa.Data.Projection.RouteRow r) =>
-        $"{r.Id}|{r.HostId}|{r.UpstreamId}|{r.Position}|{r.Order}|{r.Match}|{r.Path}|{r.Settings}";
 
     /// <summary>A stand-in compiler for the pipeline tests: an empty proxy config per document.</summary>
     public sealed class FakeCompiler : IConfigCompiler

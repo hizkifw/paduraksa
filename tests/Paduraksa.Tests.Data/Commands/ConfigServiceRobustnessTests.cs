@@ -32,7 +32,6 @@ public sealed class ConfigServiceRobustnessTests
         Assert.Equal(2, result.Revision!.Seq);
         Assert.Equal(2, h.Compiler.Compiled.Count); // planned, validated and compiled again
         Assert.Equal(2, (await h.CurrentAsync()).Hosts.Count);
-        await h.AssertProjectionMatchesAsync();
         await h.AssertChainIntactAsync();
     }
 

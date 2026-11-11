@@ -6,7 +6,6 @@ using Paduraksa.Data.Certificates;
 using Paduraksa.Data.Conversion;
 using Paduraksa.Data.Identity;
 using Paduraksa.Data.Issuance;
-using Paduraksa.Data.Projection;
 using Paduraksa.Data.Revisions;
 using Paduraksa.Storage;
 using Paduraksa.Storage.Ids;
@@ -14,10 +13,9 @@ using Paduraksa.Storage.Ids;
 namespace Paduraksa.Data;
 
 /// <summary>
-/// The config database (<c>data/paduraksa.db</c>): revisions, audit, the projection of the latest revision's config
-/// entities (<see cref="Projection.GlobalSettingsRow"/>), and the certificate inventory
-/// (<see cref="Certificates.CertificateRow"/>) with its ACME accounts, orders and DNS providers
-/// (<see cref="Issuance.AcmeOrderRow"/>), all of it operational metadata outside the config document. Entities are
+/// The config database (<c>data/paduraksa.db</c>): revisions (the config document is the only copy of the config),
+/// audit, and the certificate inventory (<see cref="Certificates.CertificateRow"/>) with its ACME accounts, orders and
+/// DNS providers (<see cref="Issuance.AcmeOrderRow"/>), all of it operational metadata outside the config document. Entities are
 /// internal to Data and Application; nothing outside them sees a row type. Create contexts from the registered
 /// <see cref="IDbContextFactory{TContext}"/>; the schema comes from migrations, applied at startup by
 /// <see cref="ConfigDatabase.InitializeAsync"/>.
@@ -27,20 +25,6 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
     internal DbSet<ConfigRevision> ConfigRevisions => Set<ConfigRevision>();
 
     internal DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
-
-    internal DbSet<GlobalSettingsRow> GlobalSettings => Set<GlobalSettingsRow>();
-
-    internal DbSet<ProfileRow> Profiles => Set<ProfileRow>();
-
-    internal DbSet<UpstreamRow> Upstreams => Set<UpstreamRow>();
-
-    internal DbSet<DestinationRow> Destinations => Set<DestinationRow>();
-
-    internal DbSet<HostRow> Hosts => Set<HostRow>();
-
-    internal DbSet<HostNameRow> HostNames => Set<HostNameRow>();
-
-    internal DbSet<RouteRow> Routes => Set<RouteRow>();
 
     internal DbSet<CertificateRow> Certificates => Set<CertificateRow>();
 
@@ -84,13 +68,6 @@ public sealed class ConfigDbContext(DbContextOptions<ConfigDbContext> options) :
     {
         modelBuilder.ApplyConfiguration(new ConfigRevisionConfiguration());
         modelBuilder.ApplyConfiguration(new AuditEventConfiguration());
-        modelBuilder.ApplyConfiguration(new GlobalSettingsRowConfiguration());
-        modelBuilder.ApplyConfiguration(new ProfileRowConfiguration());
-        modelBuilder.ApplyConfiguration<UpstreamRow>(new UpstreamRowConfiguration());
-        modelBuilder.ApplyConfiguration<DestinationRow>(new UpstreamRowConfiguration());
-        modelBuilder.ApplyConfiguration<HostRow>(new HostRowConfiguration());
-        modelBuilder.ApplyConfiguration<HostNameRow>(new HostRowConfiguration());
-        modelBuilder.ApplyConfiguration<RouteRow>(new HostRowConfiguration());
         modelBuilder.ApplyConfiguration<CertificateRow>(new CertificateRowConfiguration());
         modelBuilder.ApplyConfiguration<CertificateNameRow>(new CertificateRowConfiguration());
         modelBuilder.ApplyConfiguration(new AcmeAccountRowConfiguration());

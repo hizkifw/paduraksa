@@ -198,7 +198,6 @@ public sealed class ConfigServiceAccessListTests : IAsyncLifetime
         Assert.All(current.AccessLists.Select(l => l.Version).Concat(current.Hosts.Select(h => h.Version)), v => Assert.Equal(2, v));
         var audit = await _h.WaitForAuditAsync(e => e.Action == "config.upgrade");
         Assert.Equal((ActorKind.System, AuditOutcome.Success, revisions[0].Id), (audit.Actor.Kind, audit.Outcome, audit.RevisionId));
-        await _h.AssertProjectionMatchesAsync();
         await _h.AssertChainIntactAsync();
 
         // The stored config is the new shape now, so the next start finds nothing to convert.

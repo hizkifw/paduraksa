@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Paduraksa.Core.Ids;
 using Paduraksa.Data;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
@@ -37,7 +39,7 @@ public sealed class ConfigDatabaseTests
         Assert.Empty(await context.Database.GetPendingMigrationsAsync(Ct));
         var tables = await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
         Assert.Equal(
-            ["AcmeAccounts", "AcmeOrders", "ApiTokens", "AuditEvents", "CertificateNames", "Certificates", "ConfigRevisions", "Destinations", "DnsProviders", "GlobalSettings", "HostNames", "Hosts", "Profiles", "RecoveryCodes", "RoleAssignments", "Routes", "Sessions", "Upstreams", "Users", "__EFMigrationsHistory", "__EFMigrationsLock"],
+            ["AcmeAccounts", "AcmeOrders", "ApiTokens", "AuditEvents", "CertificateNames", "Certificates", "ConfigRevisions", "DnsProviders", "RecoveryCodes", "RoleAssignments", "Sessions", "Users", "__EFMigrationsHistory", "__EFMigrationsLock"],
             tables.Select(r => (string)r[0]!).Order(StringComparer.Ordinal));
         Assert.Equal("wal", await db.ScalarAsync("PRAGMA journal_mode"));
     }
@@ -83,5 +85,31 @@ public sealed class ConfigDatabaseTests
 
         Assert.Equal(new Dictionary<string, long> { ["AuditEvents"] = persisted }, result.ObservedKeys);
         Assert.True(generator.Next() > persisted);
+    }
+
+    [Fact]
+    public async Task ADatabaseFromBeforeTheProjectionWasDroppedMigratesAndKeepsItsRevisions()
+    {
+        await using var db = Empty();
+        await using (var context = db.NewContext())
+        {
+            await context.GetService<IMigrator>().MigrateAsync("20261108022504_Identity", Ct);
+        }
+
+        // What a server running that schema left behind: a revision and the projection rows that mirror it.
+        await db.ExecuteAsync(
+            "INSERT INTO ConfigRevisions (Id, Seq, ParentId, ActorKind, Channel, CreatedAt, Document, DocumentHash, Summary) "
+            + "VALUES (x'01', 1, NULL, 'system', 'system', '2026-11-08T12:00:00.0000000Z', x'7b7d', zeroblob(32), '[]'); "
+            + "INSERT INTO GlobalSettings (Key, RevisionId, Version, UnknownHost, TrustedProxyMode, Defaults) VALUES (1, x'01', 1, 'notFound', 'none', '{}'); "
+            + "INSERT INTO Profiles (Id, Name, Settings, Version) VALUES (x'02', 'LAN', '{}', 1)");
+
+        var result = await ConfigDatabase.InitializeAsync(db.Factory, new Int64OrderedIdGenerator(TimeProvider.System), Ct);
+
+        Assert.Equal(["20261111050534_DropConfigProjection"], result.AppliedMigrations);
+        var tables = (await db.QueryAsync("SELECT name FROM sqlite_master WHERE type = 'table'")).Select(r => (string)r[0]!).ToList();
+        Assert.All(["GlobalSettings", "Profiles", "Upstreams", "Destinations", "Hosts", "HostNames", "Routes"], dropped => Assert.DoesNotContain(dropped, tables));
+        Assert.Equal(1L, await db.ScalarAsync("SELECT count(*) FROM ConfigRevisions WHERE Seq = 1"));
+        await using var upgraded = db.NewContext();
+        Assert.Empty(await upgraded.Database.GetPendingMigrationsAsync(Ct));
     }
 }

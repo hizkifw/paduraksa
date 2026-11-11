@@ -11,7 +11,6 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Application.LastKnownGood;
-using Paduraksa.Application.Projection;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Storage;
 using Paduraksa.Contracts.Commands;
@@ -31,7 +30,7 @@ namespace Paduraksa.Application.Commands;
 /// </summary>
 /// <remarks>
 /// <para><b>One writer.</b> A command is authorized, planned on the latest revision, validated and compiled; a dry run
-/// stops there, and a failure of any step persists nothing. The revision, its projection and its audit event commit in
+/// stops there, and a failure of any step persists nothing. The revision and its audit event commit in
 /// one transaction, and the snapshot is queued with the publisher while the writer lock is still held, so snapshots go
 /// live in commit order. The command then waits for the outcome outside the lock, at most
 /// <see cref="ConfigServiceOptions.PublishWait"/>.</para>
@@ -386,8 +385,6 @@ public sealed partial class ConfigService : IDisposable
             info = await _revisions.AppendAsync(context,
                     new NewRevision(document, summary, origin.Actor, origin.Channel, message) { Id = revisionId },
                     cancellationToken)
-                .ConfigureAwait(false);
-            await ConfigProjection.WriteAsync(context, candidate, changes, info.Id, latest?.Info.Id, cancellationToken)
                 .ConfigureAwait(false);
             var entry = Entry(origin, audited, AuditOutcome.Success) with
             {

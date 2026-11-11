@@ -24,7 +24,6 @@ public sealed class ConfigServiceObjectCommandTests : IAsyncLifetime
         Assert.Null(current.Revision);
         Assert.Equal(CanonicalConfigJson.Serialize(new ConfigDocument()), CanonicalConfigJson.Serialize(current.Document));
         Assert.Equal(0, await _h.CountAsync("ConfigRevisions"));
-        await _h.AssertProjectionMatchesAsync();
     }
 
     [Fact]
@@ -52,11 +51,10 @@ public sealed class ConfigServiceObjectCommandTests : IAsyncLifetime
         var revision = Assert.Single(await _h.RevisionsAsync());
         Assert.Equal("first host", revision.Message);
         Assert.Equal(JsonSerializer.Serialize(result.Changes, ConfigJsonContext.Default.IReadOnlyListConfigChange), revision.Summary);
-        await _h.AssertProjectionMatchesAsync();
     }
 
     [Fact]
-    public async Task EveryObjectCommandCommitsAndKeepsTheProjectionInStep()
+    public async Task EveryObjectCommandCommits()
     {
         var (profile, upstream, other, host) = (ProfileId.New(), UpstreamId.New(), UpstreamId.New(), HostId.New());
         var commands = new Func<ConfigDocument, ConfigCommand>[]
@@ -85,7 +83,6 @@ public sealed class ConfigServiceObjectCommandTests : IAsyncLifetime
             Assert.True(result.Status == ConfigCommandStatus.Committed, $"{command.GetType().Name}: {result.Status} {string.Join("; ", result.Errors.Concat(result.RelatedErrors))}");
             Assert.Equal(++seq, result.Revision!.Seq);
             Assert.NotEmpty(result.Changes);
-            await _h.AssertProjectionMatchesAsync();
         }
 
         var empty = await _h.CurrentAsync();
@@ -209,7 +206,6 @@ public sealed class ConfigServiceObjectCommandTests : IAsyncLifetime
         Assert.Equal(1, await _h.CountAsync("ConfigRevisions"));
         Assert.Equal(1, await _h.CountAsync("AuditEvents"));
         Assert.Single((await _h.CurrentAsync()).Hosts);
-        await _h.AssertProjectionMatchesAsync();
     }
 
     [Fact]
@@ -225,7 +221,6 @@ public sealed class ConfigServiceObjectCommandTests : IAsyncLifetime
         Assert.Empty(result.RelatedErrors);
         Assert.NotEmpty(result.Changes);
         Assert.Equal(0, await _h.CountAsync("ConfigRevisions"));
-        Assert.Equal(0, await _h.CountAsync("Hosts"));
         var audit = Assert.Single(await _h.AuditAsync());
         Assert.Equal(("config.host.create", AuditOutcome.Invalid, host.Id.ToString(), (ConfigRevisionId?)null), (audit.Action, audit.Outcome, audit.Target, audit.RevisionId));
         Assert.Contains(ConfigErrorCodes.HostNameInvalid, audit.Details, StringComparison.Ordinal);
@@ -267,7 +262,6 @@ public sealed class ConfigServiceObjectCommandTests : IAsyncLifetime
         Assert.Equal(ConfigCommandStatus.Invalid, result.Status);
         Assert.Equal(("/names/0", "compile.test"), (Assert.Single(result.Errors).Path, result.Errors[0].Code));
         Assert.Equal(0, await _h.CountAsync("ConfigRevisions"));
-        Assert.Equal(0, await _h.CountAsync("Hosts"));
         Assert.False(_h.Store.HasPublished);
         Assert.Equal(AuditOutcome.Invalid, Assert.Single(await _h.AuditAsync()).Outcome);
     }
