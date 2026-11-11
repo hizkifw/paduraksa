@@ -18,7 +18,7 @@ public enum MacAlgorithm
 
 /// <summary>
 /// A keyed MAC whose key stays in the vault: callers hand data in and get a tag, or hand a tag in and
-/// get a yes or no. Used for ACME external account binding (HS256), RFC 2136 TSIG, and later forward-auth and PoW tokens.
+/// get a yes or no. Used for ACME external account binding (HS256), RFC 2136 TSIG and the proof-of-work token.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -26,7 +26,7 @@ public enum MacAlgorithm
 /// owned by the vault: do not dispose it, and hold it as long as is convenient. Every call resolves the <i>current</i>
 /// version of the secret, so a rotation (<see cref="ISecretStore.ReplaceAsync"/>) takes effect without reopening. <see cref="Sign"/>
 /// always uses the current version. <see cref="Verify"/> accepts a tag made under the current version <i>or</i> the
-/// previous one, for a grace window after a replacement, so tokens issued just before a rotation (PoW, forward-auth) do
+/// previous one, for a grace window after a replacement, so tokens issued just before a rotation (proof of work) do
 /// not all fail at once. The window's length is vault policy, not a caller option; after it only the current version
 /// verifies. If the secret has been deleted, both methods throw <see cref="InvalidOperationException"/>.
 /// </para>

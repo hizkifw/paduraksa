@@ -22,12 +22,18 @@ users from a web dashboard or a REST API, with every change versioned and revers
 - **Dashboard and API:** a web dashboard with a first-run wizard, and a REST API with OpenAPI docs over the same
   operations.
 - **Multiple users:** roles, two-step sign-in (TOTP) and scoped API tokens.
+- **Access control and WAF:** named access lists (addresses, countries by `CF-IPCountry`, and basic-auth users whose
+  passwords live in the vault), rule sets (path, method and user-agent rules, with presets), rate limits, request size
+  limits, a proof-of-work browser check, a managed `robots.txt`, and Cloudflare origin lockdown with Authenticated
+  Origin Pulls.
+- **Sign-in with your identity provider:** forward-auth to authentik, Authelia, oauth2-proxy or any endpoint that
+  answers allow or refuse, per host or route, with the provider's identity headers passed upstream.
+- **Security overview:** what protects each host and how much work each protection has done.
 - **Request simulator:** ask why a request was routed, redirected or refused, against the live config or a draft.
 - **Logs:** access and error logs, rotated and compressed, browsable from the dashboard.
 - **Secrets stay encrypted:** certificate keys, DNS credentials and TOTP secrets live in an encrypted vault.
 
-**Planned:** access lists and forward auth, WAF policies (rate limits, geo, proof-of-work), custom error pages, metrics,
-a CLI, an MCP server, YAML import/export and backups. See the [roadmap](docs/PLAN.md#14-milestones).
+**Planned:** custom error pages, metrics, a CLI, an MCP server, YAML import/export and backups. See the [roadmap](docs/PLAN.md#14-milestones).
 
 ## Quick start
 
