@@ -4,7 +4,7 @@
 >
 > Open-source, homelab-grade reverse proxy and lightweight WAF on **Kestrel + YARP**. You deploy it once and manage it from the dashboard, the REST API, MCP or the CLI. It covers what nginx-proxy-manager does, adds versioned config, an audit trail, real multi-user support and a hot path designed for speed from day one.
 
-Status: **v0.22**: M0-M7 done; next the property tests and coverage-guided fuzzing (§15), then M8 custom error pages (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
+Status: **v0.23**: M0-M8 done; the property tests and coverage-guided fuzzing (§15) and M9 observability are in progress (see §18) · Target runtime: **.NET 10 (LTS)** · Single node, single process.
 
 ---
 
@@ -2174,4 +2174,7 @@ These are cheap now and expensive later. Fold them into the milestones that touc
   - **Config write path (§6):** after an external review, one writer in one process, `ConfigService` split by responsibility, one permission check for every surface, no optional constructor parameters in Application, and the unused projection tables dropped.
   - **Dashboard (§12):** pickers for rate limits, access lists, rule sets and auth providers by name, each with a "New ..." that is staged into the host and applied in one revision; pages for each; every one checked in a real browser at 1280 and 390 px.
   - **Tests (§15):** `scripts/test-ci-like.sh` runs the suite on the official SDK with four cores; the timing, key-file and upload tests were made to wait on signals; 0 B assertions cover the synchronous verdicts of the new policies.
-
+- **v0.23:** M8 done: custom error pages and maintenance mode.
+  - **Error pages (§7.3):** a page per status at every settings layer, either a message in the built-in layout or the operator's own document, with variables written from precompiled byte segments at 0 B; a dashboard preview that is the proxy's own rendering, byte for byte.
+  - **Maintenance mode (§7.3):** per host, with a status, `Retry-After` and a bypass named by an access list; never on an admin host.
+  - **Upstream errors (§7.3):** opt-in replacement (`html` or `any`) decided when the response starts; the upstream body is closed unread; never for upgrades, event streams, gRPC or the admin host.
