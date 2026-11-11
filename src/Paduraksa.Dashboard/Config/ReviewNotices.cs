@@ -105,6 +105,7 @@ public static class ReviewNotices
         RateLimitPolicyChange policy => $"rateLimit:{policy.RateLimitPolicyId}",
         AccessListChange list => $"accessList:{list.AccessListId}",
         RuleSetChange set => $"ruleSet:{set.RuleSetId}",
+        AuthProviderChange provider => $"authProvider:{provider.AuthProviderId}",
         SettingsChange => "settings",
         _ => "*",
     };
@@ -131,6 +132,7 @@ public static class ReviewNotices
             "rateLimitPolicies" when index < document.RateLimitPolicies.Count => $"rateLimit:{document.RateLimitPolicies[index].Id}",
             "accessLists" when index < document.AccessLists.Count => $"accessList:{document.AccessLists[index].Id}",
             "ruleSets" when index < document.RuleSets.Count => $"ruleSet:{document.RuleSets[index].Id}",
+            "authProviders" when index < document.AuthProviders.Count => $"authProvider:{document.AuthProviders[index].Id}",
             _ => path,
         };
     }
@@ -158,6 +160,8 @@ public static class ReviewNotices
                 "That access list doesn't exist any more. Choose another one, or none.",
             ConfigErrorCodes.HostRuleSetUnknown or ConfigErrorCodes.RouteRuleSetUnknown =>
                 "That rule set doesn't exist any more. Choose another one, or none.",
+            ConfigErrorCodes.HostAuthProviderUnknown or ConfigErrorCodes.RouteAuthProviderUnknown =>
+                "That auth provider doesn't exist any more. Choose another one, or none.",
             ConfigErrorCodes.RuleEmpty => "State at least one condition (a path, methods or a user agent): a rule with none would match every request.",
             ConfigErrorCodes.AccessListPasswordEmpty or ConfigErrorCodes.AccessListPasswordMissing => "Give this user a password.",
             ConfigErrorCodes.AccessListPasswordTooLong => "That password is too long. Use at most 256 bytes.",

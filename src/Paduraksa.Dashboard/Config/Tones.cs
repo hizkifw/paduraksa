@@ -54,6 +54,7 @@ public static class Tones
         ChangedObject.RateLimitPolicy => Icons.Material.Outlined.Speed,
         ChangedObject.AccessList => Icons.Material.Outlined.Lock,
         ChangedObject.RuleSet => Icons.Material.Outlined.Rule,
+        ChangedObject.AuthProvider => Icons.Material.Outlined.VerifiedUser,
         ChangedObject.Settings => Icons.Material.Outlined.Tune,
         _ => Icons.Material.Outlined.Description,
     };

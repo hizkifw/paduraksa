@@ -41,6 +41,7 @@ public static class DashboardNavigation
         new("Rate limits", DashboardRoutes.RateLimits, Icons.Material.Outlined.Speed, SecurityGroup, Permission.ConfigRead, true),
         new("Access lists", DashboardRoutes.AccessLists, Icons.Material.Outlined.Lock, SecurityGroup, Permission.ConfigRead, true),
         new("Rules", DashboardRoutes.RuleSets, Icons.Material.Outlined.Rule, SecurityGroup, Permission.ConfigRead, true),
+        new("Sign-in", DashboardRoutes.AuthProviders, Icons.Material.Outlined.VerifiedUser, SecurityGroup, Permission.ConfigRead, true),
         new("Certificates", DashboardRoutes.Certificates, Icons.Material.Outlined.WorkspacePremium, TlsGroup, Permission.CertificatesRead, true),
         new("Local CA", DashboardRoutes.LocalCa, Icons.Material.Outlined.AccountTree, TlsGroup, Permission.CertificatesRead, true),
         new("ACME accounts", DashboardRoutes.AcmeAccounts, Icons.Material.Outlined.Badge, TlsGroup, Permission.ProvidersRead, true),

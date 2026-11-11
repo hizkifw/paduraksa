@@ -13,9 +13,9 @@ namespace Paduraksa.Tests.Dashboard.Components;
 public sealed class PermissionVisibilityTests
 {
     [Theory]
-    [InlineData(Role.Owner, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Simulator", "History", "Audit", "Logs", "Global defaults", "Users and roles", "API tokens" })]
-    [InlineData(Role.Viewer, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Simulator", "History", "Global defaults", "API tokens" })]
-    [InlineData(Role.Auditor, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Certificates", "Local CA", "ACME accounts", "DNS providers", "History", "Audit", "Logs", "Global defaults", "API tokens" })]
+    [InlineData(Role.Owner, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Simulator", "History", "Audit", "Logs", "Global defaults", "Users and roles", "API tokens" })]
+    [InlineData(Role.Viewer, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "Simulator", "History", "Global defaults", "API tokens" })]
+    [InlineData(Role.Auditor, new[] { "Overview", "Hosts", "Upstreams", "Profiles", "Security overview", "Rate limits", "Access lists", "Rules", "Sign-in", "Certificates", "Local CA", "ACME accounts", "DNS providers", "History", "Audit", "Logs", "Global defaults", "API tokens" })]
     public void TheNavigation_ListsThePagesTheRoleMaySee(Role role, string[] expected)
     {
         using DashboardTestContext context = new();

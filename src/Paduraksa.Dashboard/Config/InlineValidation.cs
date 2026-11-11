@@ -84,6 +84,15 @@ public static class InlineValidation
         return Relative(ConfigValidator.Validate(document), $"/ruleSets/{document.RuleSets.Count - 1}");
     }
 
+    /// <summary>The errors of <paramref name="provider"/> in <paramref name="current"/>, relative to it (<c>/name</c>, <c>/forwardAuth/url</c>).</summary>
+    public static IReadOnlyDictionary<string, string> ForAuthProvider(ConfigDocument current, AuthProviderConfig provider)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(provider);
+        var document = current with { AuthProviders = [.. current.AuthProviders.Where(p => p.Id != provider.Id), provider] };
+        return Relative(ConfigValidator.Validate(document), $"/authProviders/{document.AuthProviders.Count - 1}");
+    }
+
     // What the server leaves in a user's place once the vault has their password: a credential ID (a new one here, so none repeats).
     private static AccessListUserConfig HandedToVault(AccessListUserConfig user) =>
         user.Password is { Length: > 0 } password && System.Text.Encoding.UTF8.GetByteCount(password) <= AccessListLimits.MaxPasswordBytes

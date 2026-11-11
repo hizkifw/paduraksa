@@ -1,0 +1,352 @@
+@inherits DraftDrawer<AuthProviderEditModel, AuthProviderConfig>
+
+@* An auth provider in a drawer: the forward-auth endpoint a host or a route asks who a request is. The preset fills in what its project expects
+   (the endpoint's path, the headers it returns, where a browser signs in) and each field says what it will use while it is left empty. On its own
+   it goes through Review changes; opened from a host's form it is handed back, to be applied with the host in one revision. Its ID is never shown: a
+   host or a route picks it by name. *@
+
+<DrawerShell Title="@Title"
+             Subtitle="@(Staged is not null ? "Not applied yet: it goes in with the host, in one revision." : "Hosts and routes pick it in their Access settings.")"
+             Icon="@Icons.Material.Outlined.VerifiedUser" Name="auth-provider" OnSubmit="SubmitAsync">
+    <Banner>
+        @if (ChangedElsewhere is { } elsewhere)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" data-banner="changed">
+                This provider was changed elsewhere (@elsewhere). Your edits are kept here; reload to start from the new version.
+                <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Info" OnClick="ReloadAsync" Class="ml-2">Reload</MudButton>
+            </MudAlert>
+        }
+        @if (DeleteRefusal is { } refusal)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true" data-banner="in-use" ShowCloseIcon="true" CloseIconClicked="() => DeleteRefusal = null">
+                <strong>@StoredName is still in use, so it can't be deleted.</strong> @refusal
+            </MudAlert>
+        }
+        @if (Failed)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true" data-alert="load-failed">
+                The auth provider couldn't be read. The details are in the server log.
+                <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" OnClick="ReloadAsync" Class="ml-2">Try again</MudButton>
+            </MudAlert>
+        }
+        @if (Denied)
+        {
+            <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">@IdentityText.CantReadConfig. @IdentityText.CantReadConfigHelp</MudAlert>
+        }
+        else if (!MayWrite && Model is not null)
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" data-banner="read-only">Read-only: your role can see this provider but not change it.</MudAlert>
+        }
+    </Banner>
+    <ChildContent>
+        @if (Missing)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.WrongLocation" Title="There is no such auth provider" Description="It may have been deleted, or the link is wrong." />
+        }
+        else if (Model is null || Document is null)
+        {
+            @if (!Failed && !Denied)
+            {
+                <div class="pdk-form" aria-busy="true">
+                    <MudSkeleton SkeletonType="SkeletonType.Text" Width="25%" Height="24px" />
+                    <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="120px" Class="mt-2" />
+                </div>
+            }
+        }
+        else
+        {
+            var resolved = Model.Resolved;
+            <div class="pdk-form" data-form="auth-provider">
+                @if (Attempted && FieldErrors.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="pdk-form-summary" data-form="errors">
+                        <strong>@(FieldErrors.Count == 1 ? "One thing to fix" : $"{FieldErrors.Count} things to fix"):</strong>
+                        <ul class="pdk-error-list">
+                            @foreach (var (path, message) in FieldErrors)
+                            {
+                                <li><span class="pdk-error-where">@ChangeView.Locate(path, null)</span> @message</li>
+                            }
+                        </ul>
+                    </MudAlert>
+                }
+
+                <FormSection Title="Provider" Name="provider">
+                    <div class="pdk-field-grid">
+                        <MudTextField T="string" Value="Model.Name" ValueChanged="@(value => Set(() => Model.Name = value, "/name"))" Immediate="true" DebounceInterval="250"
+                                      Label="Name" Placeholder="authentik" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" AutoFocus="Model.IsNew"
+                                      Error="@(E("/name") is not null)" ErrorText="@E("/name")" data-field="name" />
+                        <MudTextField T="string" Value="Model.Notes" ValueChanged="@(value => Set(() => Model.Notes = value, "/notes"))" Label="Notes"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Error="@(E("/notes") is not null)" ErrorText="@E("/notes")" />
+                    </div>
+                </FormSection>
+
+                <FormSection Title="Endpoint" Name="endpoint"
+                             Description="Every request to a host or route that uses this provider is checked against it first. The proxy sends the original request in X-Forwarded-Method, -Proto, -Host, -Uri and -For, with the client's cookies and Authorization header.">
+                    <MudSelect T="ForwardAuthPreset" Value="Model.Preset" ValueChanged="@(value => Set(() => Model.Preset = value, "/forwardAuth/preset"))"
+                               Label="Provider" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite"
+                               HelperText="@AuthProviderText.PresetHelp(Model.Preset)"
+                               Error="@(E("/forwardAuth/preset") is not null)" ErrorText="@E("/forwardAuth/preset")" data-field="preset">
+                        @foreach (var preset in AuthProviderText.Presets)
+                        {
+                            <MudSelectItem Value="@preset">@AuthProviderText.PresetLabel(preset)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTextField T="string" Value="Model.Url" ValueChanged="@(value => Set(() => Model.Url = value, "/forwardAuth/url"))" Immediate="true" DebounceInterval="250"
+                                  Label="Address" Placeholder="@AuthProviderText.UrlHint(Model.Preset)" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
+                                  HelperText="@UrlHelp(resolved)" Error="@(E("/forwardAuth/url") is not null)" ErrorText="@E("/forwardAuth/url")"
+                                  data-field="url" spellcheck="false" autocomplete="off" />
+                </FormSection>
+
+                <FormSection Title="Answers" Name="answers"
+                             Description="A 2xx lets the request through. A 401, 403 or redirect goes to the client as the provider sent it. Anything else, an unreachable endpoint or a timeout refuses the request.">
+                    <div class="pdk-request-row">
+                        <MudNumericField T="int?" Value="Model.TimeoutSeconds" ValueChanged="@(value => Set(() => Model.TimeoutSeconds = value, "/forwardAuth/timeoutSeconds"))"
+                                         Label="Wait for an answer (seconds)" Min="1" Max="ForwardAuthLimits.MaxTimeoutSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
+                                         HelperText="@($"Empty: {resolved.Timeout.TotalSeconds:0}. A timeout is a 504.")"
+                                         Error="@(E("/forwardAuth/timeoutSeconds") is not null)" ErrorText="@E("/forwardAuth/timeoutSeconds")" data-field="timeout" />
+                        <MudNumericField T="int?" Value="Model.CacheSeconds" ValueChanged="@(value => Set(() => Model.CacheSeconds = value, "/forwardAuth/cacheSeconds"))"
+                                         Label="Remember an allow (seconds)" Min="0" Max="ForwardAuthLimits.MaxCacheSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
+                                         HelperText="@($"Empty: {resolved.CacheTtl.TotalSeconds:0}; 0: never. A revoked session works this long.")"
+                                         Error="@(E("/forwardAuth/cacheSeconds") is not null)" ErrorText="@E("/forwardAuth/cacheSeconds")" data-field="cache-seconds" />
+                    </div>
+                    <MudSelect T="ForwardAuthCacheScope?" Value="Model.CacheScope" ValueChanged="@(value => Set(() => Model.CacheScope = value, "/forwardAuth/cacheScope"))"
+                               Label="A remembered allow covers" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite"
+                               HelperText="Always for the same client address and the same cookies. Choose a path when the provider's rules decide per path."
+                               Error="@(E("/forwardAuth/cacheScope") is not null)" ErrorText="@E("/forwardAuth/cacheScope")" data-field="cache-scope">
+                        <MudSelectItem T="ForwardAuthCacheScope?" Value="@((ForwardAuthCacheScope?)null)">@($"{AuthProviderText.PresetLabel(Model.Preset)}'s choice ({AuthProviderText.ScopeLabel(ForwardAuthPresets.DefaultCacheScope(Model.Preset)).ToLowerInvariant()})")</MudSelectItem>
+                        <MudSelectItem T="ForwardAuthCacheScope?" Value="@((ForwardAuthCacheScope?)ForwardAuthCacheScope.Request)">@AuthProviderText.ScopeLabel(ForwardAuthCacheScope.Request)</MudSelectItem>
+                        <MudSelectItem T="ForwardAuthCacheScope?" Value="@((ForwardAuthCacheScope?)ForwardAuthCacheScope.Host)">@AuthProviderText.ScopeLabel(ForwardAuthCacheScope.Host)</MudSelectItem>
+                    </MudSelect>
+                </FormSection>
+
+                <FormSection Title="Headers" Name="headers"
+                             Description="What the upstream learns about who the client is. The client's own copies of these headers are removed first, so on a protected route they can only come from the provider.">
+                    @if (Model.Preset != ForwardAuthPreset.Custom)
+                    {
+                        <MudSwitch T="bool" Value="@(!Model.ResponseHeadersCustom)" ValueChanged="@(value => Set(() => Model.ResponseHeadersCustom = !value, "/forwardAuth/responseHeaders"))"
+                                   Color="Color.Primary" ReadOnly="!MayWrite" Label="@($"Copy the headers {AuthProviderText.PresetLabel(Model.Preset)} returns")" data-field="response-headers-default" />
+                    }
+
+                    @if (Model.Preset != ForwardAuthPreset.Custom && !Model.ResponseHeadersCustom)
+                    {
+                        <span class="pdk-dt-chips" data-section="response-headers-default">
+                            @foreach (var header in resolved.ResponseHeaders)
+                            {
+                                <span class="pdk-tag pdk-mono-input">@header</span>
+                            }
+                        </span>
+                    }
+                    else
+                    {
+                        <MudTextField T="string" Value="Model.ResponseHeadersText" ValueChanged="@(value => Set(() => Model.ResponseHeadersText = value, "/forwardAuth/responseHeaders"))"
+                                      Immediate="true" DebounceInterval="250" Lines="2" Sizing="InputSizing.Auto" MaxLines="8" Label="Headers copied upstream" Placeholder="Remote-User"
+                                      Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
+                                      HelperText="One per line. A name ending in * is a prefix (X-authentik-*). Empty copies nothing."
+                                      Error="@(FirstUnder("/forwardAuth/responseHeaders") is not null)" ErrorText="@FirstUnder("/forwardAuth/responseHeaders")"
+                                      data-field="response-headers" spellcheck="false" autocomplete="off" />
+                    }
+
+                    <MudTextField T="string" Value="Model.RequestHeadersText" ValueChanged="@(value => Set(() => Model.RequestHeadersText = value, "/forwardAuth/requestHeaders"))"
+                                  Immediate="true" DebounceInterval="250" Lines="2" Sizing="InputSizing.Auto" MaxLines="8" Label="More client headers sent to the endpoint" Placeholder="X-Tenant"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
+                                  HelperText="One per line. Cookie, Authorization, User-Agent and Accept are always sent; nothing else is unless named here."
+                                  Error="@(FirstUnder("/forwardAuth/requestHeaders") is not null)" ErrorText="@FirstUnder("/forwardAuth/requestHeaders")"
+                                  data-field="request-headers" spellcheck="false" autocomplete="off" />
+                </FormSection>
+
+                <FormSection Title="Browser sign-in" Name="sign-in"
+                             Description="Where a browser without a session goes when the endpoint answers 401. Leave it empty when the provider redirects on its own (authentik, Authelia).">
+                    <div class="pdk-field-grid">
+                        <MudTextField T="string" Value="Model.SignInUrl" ValueChanged="@(value => Set(() => Model.SignInUrl = value, "/forwardAuth/signIn/url"))" Immediate="true" DebounceInterval="250"
+                                      Label="Sign-in address" Placeholder="@(resolved.SignInUrl ?? "/oauth2/start")" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
+                                      HelperText="@SignInHelp(resolved)" Error="@(E("/forwardAuth/signIn/url") is not null)" ErrorText="@E("/forwardAuth/signIn/url")"
+                                      data-field="sign-in-url" spellcheck="false" autocomplete="off" />
+                        <MudTextField T="string" Value="Model.SignInParameter" ValueChanged="@(value => Set(() => Model.SignInParameter = value, "/forwardAuth/signIn/returnParameter"))" Immediate="true" DebounceInterval="250"
+                                      Label="Query parameter" Placeholder="rd" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
+                                      HelperText="Carries the address the browser came from."
+                                      Error="@(E("/forwardAuth/signIn/returnParameter") is not null)" ErrorText="@E("/forwardAuth/signIn/returnParameter")"
+                                      data-field="sign-in-parameter" spellcheck="false" autocomplete="off" />
+                    </div>
+                </FormSection>
+
+                @if (!Stage && !Model.IsNew)
+                {
+                    <FormSection Title="Used by" Name="usage">
+                        @if (Usage.IsEmpty)
+                        {
+                            <MudText Typo="Typo.body2" Class="pdk-muted">No host or route uses it yet. Pick it in a host's Access settings.</MudText>
+                        }
+                        else
+                        {
+                            <ul class="pdk-list" data-section="usage-list">
+                                @foreach (var host in Usage.Hosts)
+                                {
+                                    <li class="pdk-list-row">
+                                        <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.Language" Size="Size.Small" /></span>
+                                        <span class="pdk-list-main">
+                                            <a class="pdk-row-link" href="@DashboardRoutes.Host(host.Id)">@ChangeView.HostTitle(host)</a>
+                                            <span class="pdk-list-sub">Asks it for the routes that name no provider of their own</span>
+                                        </span>
+                                    </li>
+                                }
+                                @foreach (var use in Usage.Routes)
+                                {
+                                    <li class="pdk-list-row">
+                                        <span class="pdk-list-icon pdk-tone-primary"><MudIcon Icon="@Icons.Material.Outlined.AltRoute" Size="Size.Small" /></span>
+                                        <span class="pdk-list-main">
+                                            <a class="pdk-row-link" href="@DashboardRoutes.Host(use.Host.Id)">@ChangeView.HostTitle(use.Host)</a>
+                                            <span class="pdk-list-sub">Route @use.Route.Path uses it</span>
+                                        </span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </FormSection>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <div class="pdk-drawer-actions">
+            @if (!Stage && Model is { IsNew: false } && MayWrite && Usage.IsEmpty)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="ReviewDeleteAsync" data-action="delete"
+                           Class="pdk-drawer-actions-start">Delete</MudButton>
+            }
+            @if (MayWrite && Model is not null)
+            {
+                <MudButton Variant="Variant.Text" OnClick="Cancel" data-action="cancel">Cancel</MudButton>
+                @if (Stage)
+                {
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Rounded.Check" data-action="stage">
+                        Use this provider
+                    </MudButton>
+                }
+                else
+                {
+                    <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Rounded.ArrowForward" data-action="review">
+                        Review changes
+                    </MudButton>
+                }
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Cancel" data-action="cancel">Close</MudButton>
+            }
+        </div>
+    </Footer>
+</DrawerShell>
+
+@code {
+    /// <summary>The provider to edit; null for a new one.</summary>
+    [Parameter]
+    public AuthProviderId? Id { get; set; }
+
+    private string Title => Missing ? "Auth provider not found" : Staged is { } staged ? staged.Name : Model is null ? (Id is null ? "New auth provider" : "Auth provider") : Model.IsNew ? "New auth provider" : StoredName;
+
+    private AuthProviderUsage Usage =>
+        Model is null || Document is null || Model.IsNew ? new AuthProviderUsage([], []) : AuthProviderUsageOf.Find(Document, Model.Id);
+
+    protected override string LoadFailureMessage => "Couldn't load the auth-provider form.";
+
+    protected override string RefreshFailureMessage => "Couldn't refresh an auth provider's usage.";
+
+    protected override async Task<ConfigDocument> LoadSourceAsync() => (await Config.GetCurrentAsync()).Document;
+
+    protected override bool LoadModel(ConfigDocument document)
+    {
+        if (Id is { } providerId && !Stage)
+        {
+            if (document.AuthProviders.FirstOrDefault(p => p.Id == providerId) is not { } provider)
+            {
+                Missing = true;
+                return false;
+            }
+
+            StoredName = provider.Name;
+            Model = AuthProviderEditModel.From(provider);
+            return true;
+        }
+
+        Model = Stage && Staged is { } staged ? AuthProviderEditModel.FromDraft(staged) : AuthProviderEditModel.New();
+        return true;
+    }
+
+    protected override AuthProviderConfig ToConfig() => Model!.ToConfig();
+
+    protected override string Fingerprint() =>
+        Model is null ? string.Empty : StagedChange.Fingerprint(new ConfigDocument(AuthProviders: [ToConfig()]));
+
+    protected override void Validate()
+    {
+        if (Model is not null && Document is not null)
+        {
+            FieldErrors = InlineValidation.ForAuthProvider(Document, Model.ToConfig());
+        }
+    }
+
+    protected override bool TracksCommits => Model is not { IsNew: true };
+
+    protected override bool IsChangedElsewhere(ConfigCommitted committed) =>
+        !Model!.IsNew && committed.Changes.Any(c => c is AuthProviderChange provider && provider.AuthProviderId == Model.Id);
+
+    protected override async Task RefreshAsync()
+    {
+        Document = (await Config.GetCurrentAsync()).Document;
+    }
+
+    // An error is shown once its field was touched, or the form was submitted. A header list's errors sit at the lines' indexes, so a touch of the list counts.
+    private string? FirstUnder(string path) =>
+        FieldErrors.Where(error => error.Key == path || error.Key.StartsWith(path + "/", StringComparison.Ordinal))
+            .Select(error => (Touched.Contains(path) || Attempted) ? error.Value : null).FirstOrDefault(message => message is not null);
+
+    private static string UrlHelp(ResolvedForwardAuth resolved) =>
+        string.IsNullOrWhiteSpace(resolved.Url) ? "The provider's own address; the preset adds the endpoint's path." : $"Asked at {resolved.Url}";
+
+    private static string SignInHelp(ResolvedForwardAuth resolved) =>
+        resolved.SignInUrl is { } url ? $"Empty: {url}, with {resolved.SignInReturnParameter}= the original address. A path is on the protected host." : "Empty: the provider's 401 or redirect is relayed as it is.";
+
+    private async Task SubmitAsync()
+    {
+        if (!CanSubmit())
+        {
+            return;
+        }
+
+        var provider = ToConfig();
+        if (Stage)
+        {
+            Level?.Close(provider);
+            return;
+        }
+
+        await RunReviewAsync(new ReviewRequest(Model!.IsNew ? $"New auth provider {provider.Name}" : $"Edit auth provider {provider.Name}", new UpsertAuthProviderCommand(provider))
+        {
+            SuccessMessage = Model.IsNew ? $"Created the auth provider {provider.Name}" : $"Saved the auth provider {provider.Name}",
+            OnInvalid = EventCallback.Factory.Create<IReadOnlyList<ConfigError>>(this, OnInvalid),
+        });
+    }
+
+    private async Task ReviewDeleteAsync()
+    {
+        if (Model is null || Model.IsNew || !MayWrite)
+        {
+            return;
+        }
+
+        if (!Usage.IsEmpty)
+        {
+            DeleteRefusal = $"{Usage.CountText} {Usage.UseVerb} it. "
+                + "Pick another provider (or none) for them first.";
+            Snackbar.Add($"{StoredName} is in use and can't be deleted.", Severity.Warning);
+            return;
+        }
+
+        await RunReviewAsync(new ReviewRequest($"Delete auth provider {StoredName}", new DeleteAuthProviderCommand(Model.Id, Model.Version))
+        {
+            ApplyLabel = "Delete",
+            Destructive = true,
+            SuccessMessage = $"Deleted the auth provider {StoredName}",
+        });
+    }
+}

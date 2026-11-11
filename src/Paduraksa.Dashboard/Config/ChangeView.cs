@@ -23,6 +23,7 @@ public enum ChangedObject
     RateLimitPolicy,
     AccessList,
     RuleSet,
+    AuthProvider,
 }
 
 /// <summary>One field of a changed object, as the diff shows it: its label and its value before and after (null: not set).</summary>
@@ -132,6 +133,8 @@ public static class ChangeView
             DeleteAccessListCommand c => current with { AccessLists = [.. current.AccessLists.Where(l => l.Id != c.AccessListId)] },
             UpsertRuleSetCommand c => current with { RuleSets = [.. current.RuleSets.Where(r => r.Id != c.RuleSet.Id), c.RuleSet] },
             DeleteRuleSetCommand c => current with { RuleSets = [.. current.RuleSets.Where(r => r.Id != c.RuleSetId)] },
+            UpsertAuthProviderCommand c => current with { AuthProviders = [.. current.AuthProviders.Where(p => p.Id != c.AuthProvider.Id), c.AuthProvider] },
+            DeleteAuthProviderCommand c => current with { AuthProviders = [.. current.AuthProviders.Where(p => p.Id != c.AuthProviderId)] },
             UpdateSettingsCommand c => current with { Settings = c.Settings },
             ReplaceConfigCommand c => c.Document,
             _ => null,
@@ -240,6 +243,10 @@ public static class ChangeView
                     parts.Add($"Rule set {document.RuleSets[index].Name}");
                     i = 2;
                     break;
+                case "authProviders" when index < document.AuthProviders.Count:
+                    parts.Add($"Auth provider {document.AuthProviders[index].Name}");
+                    i = 2;
+                    break;
             }
         }
 
@@ -325,6 +332,7 @@ public static class ChangeView
         RateLimitPolicyChange c => c.RateLimitPolicyId.ToString(),
         AccessListChange c => c.AccessListId.ToString(),
         RuleSetChange c => c.RuleSetId.ToString(),
+        AuthProviderChange c => c.AuthProviderId.ToString(),
         SettingsChange => "settings",
         _ => "document",
     };
@@ -364,6 +372,10 @@ public static class ChangeView
             RuleSetChange c => (ChangedObject.RuleSet, names.RuleSet(c.RuleSetId),
                 Node(before.RuleSets.FirstOrDefault(r => r.Id == c.RuleSetId), ConfigJsonContext.Default.RuleSetConfig),
                 Node(after.RuleSets.FirstOrDefault(r => r.Id == c.RuleSetId), ConfigJsonContext.Default.RuleSetConfig),
+                ["id", "version"]),
+            AuthProviderChange c => (ChangedObject.AuthProvider, names.AuthProvider(c.AuthProviderId),
+                Node(before.AuthProviders.FirstOrDefault(p => p.Id == c.AuthProviderId), ConfigJsonContext.Default.AuthProviderConfig),
+                Node(after.AuthProviders.FirstOrDefault(p => p.Id == c.AuthProviderId), ConfigJsonContext.Default.AuthProviderConfig),
                 ["id", "version"]),
             SettingsChange => (ChangedObject.Settings, "Global settings",
                 Node(before.Settings, ConfigJsonContext.Default.GlobalSettings),
@@ -496,6 +508,9 @@ public static class ChangeView
             (after.RuleSets.FirstOrDefault(r => r.Id == id) ?? before.RuleSets.FirstOrDefault(r => r.Id == id))?.Name
             ?? (RuleSetPresets.TryGet(id, out var preset) ? preset.Name : "a set that isn't here");
 
+        public string AuthProvider(AuthProviderId id) =>
+            (after.AuthProviders.FirstOrDefault(p => p.Id == id) ?? before.AuthProviders.FirstOrDefault(p => p.Id == id))?.Name ?? "a provider that isn't here";
+
         public string RateLimitPolicy(RateLimitPolicyId id) =>
             (after.RateLimitPolicies.FirstOrDefault(p => p.Id == id) ?? before.RateLimitPolicies.FirstOrDefault(p => p.Id == id))?.Name ?? "a policy that isn't here";
 
@@ -576,6 +591,11 @@ public static class ChangeView
             if (RuleSetId.TryParse(text, out var set))
             {
                 return RuleSet(set);
+            }
+
+            if (AuthProviderId.TryParse(text, out var provider))
+            {
+                return AuthProvider(provider);
             }
 
             return null;
