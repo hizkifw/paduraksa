@@ -12,8 +12,13 @@ public sealed class AccessListRuntime
 {
     private readonly long _start;
 
-    /// <summary>How many PBKDF2 checks one client may have queued and running together.</summary>
-    public const int DefaultMaxPerClient = 4;
+    /// <summary>The places one client may hold in the line, queued and running together: a page's burst of credentialed requests
+    /// (HTTP/2 sends a dozen at once) must fit, while one source still can't take more than a sixteenth of the default line.</summary>
+    public const int DefaultMaxPlacesPerClient = 16;
+
+    /// <summary>How many checks one client may have running at once, so it can't hold several slots while others wait; the rest of
+    /// its requests wait their turn in the line.</summary>
+    public const int DefaultMaxRunningPerClient = 2;
 
     /// <summary>How long a request may wait for a verification slot before it is refused.</summary>
     public static readonly TimeSpan DefaultMaxWait = TimeSpan.FromSeconds(10);
@@ -33,7 +38,8 @@ public sealed class AccessListRuntime
         TimeProvider time,
         int cacheCapacity = AccessListVerificationCache.DefaultCapacity,
         int? maxConcurrentVerifications = null,
-        int maxVerificationsPerClient = DefaultMaxPerClient,
+        int maxPlacesPerClient = DefaultMaxPlacesPerClient,
+        int maxRunningPerClient = DefaultMaxRunningPerClient,
         int? maxQueued = null,
         TimeSpan? maxWait = null)
     {
@@ -46,7 +52,7 @@ public sealed class AccessListRuntime
         // The floor is for small machines: with a cap of 2 a page's third credentialed request on a cold cache got no slot.
         // Over-subscribing a 2-core box with PBKDF2 only makes each check slower, which is the cheaper failure.
         var slots = maxConcurrentVerifications ?? Math.Max(MinConcurrentVerifications, Environment.ProcessorCount);
-        Queue = new AccessListVerificationQueue(time, Stats, slots, maxQueued ?? slots * QueuedPerSlot, maxVerificationsPerClient, maxWait ?? DefaultMaxWait);
+        Queue = new AccessListVerificationQueue(time, Stats, slots, maxQueued ?? slots * QueuedPerSlot, maxPlacesPerClient, maxRunningPerClient, maxWait ?? DefaultMaxWait);
         Key = RandomNumberGenerator.GetBytes(32);
     }
 

@@ -43,7 +43,7 @@ public sealed class AccessListQueueEndToEndTests(HeaderEchoUpstream upstream) : 
     [Fact]
     public async Task ABurstOfColdLoginsIsQueuedServedAndNeverShownToTheUpstream()
     {
-        AccessListRuntime runtime = new(TimeProvider.System, maxConcurrentVerifications: 2, maxVerificationsPerClient: 64);
+        AccessListRuntime runtime = new(TimeProvider.System, maxConcurrentVerifications: 2, maxPlacesPerClient: 64);
         await using var server = await StartAsync(Model(), runtime);
         using var client = ProxyTestServer.CreateClient(maxConnections: 16);
         Assert.Equal(VerificationSlot.Granted, await runtime.Queue.EnterAsync(Holder, TestContext.Current.CancellationToken));
@@ -71,7 +71,7 @@ public sealed class AccessListQueueEndToEndTests(HeaderEchoUpstream upstream) : 
     [Fact]
     public async Task AFullLineIsA429WithRetryAfterAndAWrongPasswordThatWaitedIsA401()
     {
-        AccessListRuntime runtime = new(TimeProvider.System, maxConcurrentVerifications: 1, maxVerificationsPerClient: 64, maxQueued: 1);
+        AccessListRuntime runtime = new(TimeProvider.System, maxConcurrentVerifications: 1, maxPlacesPerClient: 64, maxQueued: 1);
         await using var server = await StartAsync(Model(), runtime);
         using var client = ProxyTestServer.CreateClient();
         Assert.Equal(VerificationSlot.Granted, await runtime.Queue.EnterAsync(Holder, TestContext.Current.CancellationToken));
@@ -92,7 +92,7 @@ public sealed class AccessListQueueEndToEndTests(HeaderEchoUpstream upstream) : 
     [Fact]
     public async Task AClientThatHangsUpWhileWaitingLeavesTheLine()
     {
-        AccessListRuntime runtime = new(TimeProvider.System, maxConcurrentVerifications: 1, maxVerificationsPerClient: 64);
+        AccessListRuntime runtime = new(TimeProvider.System, maxConcurrentVerifications: 1, maxPlacesPerClient: 64);
         await using var server = await StartAsync(Model(), runtime);
         using var client = ProxyTestServer.CreateClient();
         Assert.Equal(VerificationSlot.Granted, await runtime.Queue.EnterAsync(Holder, TestContext.Current.CancellationToken));

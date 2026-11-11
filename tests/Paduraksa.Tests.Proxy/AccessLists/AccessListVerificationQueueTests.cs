@@ -11,10 +11,10 @@ public sealed class AccessListVerificationQueueTests
     private static readonly TimeSpan Patient = TimeSpan.FromMinutes(1);
 
     private static AccessListVerificationQueue Queue(
-        out AccessListStats stats, int slots = 2, int maxQueued = 16, int perClient = 4, TimeSpan? maxWait = null, TimeProvider? time = null)
+        out AccessListStats stats, int slots = 2, int maxQueued = 16, int perClient = 4, int running = 100, TimeSpan? maxWait = null, TimeProvider? time = null)
     {
         stats = new AccessListStats();
-        return new AccessListVerificationQueue(time ?? TimeProvider.System, stats, slots, maxQueued, perClient, maxWait ?? Patient);
+        return new AccessListVerificationQueue(time ?? TimeProvider.System, stats, slots, maxQueued, perClient, running, maxWait ?? Patient);
     }
 
     private static IpKey Client(int n) => IpKey.Parse($"192.0.2.{n}");
@@ -85,6 +85,69 @@ public sealed class AccessListVerificationQueueTests
 
         // Both places were given back.
         Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Sprayer));
+    }
+
+    [Fact]
+    public async Task OneClientRunsOnlyAFewChecksAtOnceAndTheRestWaitWhileOthersOvertakeThem()
+    {
+        var queue = Queue(out _, slots: 4, perClient: 8, running: 2);
+        Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Sprayer));
+        Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Sprayer));
+
+        // Two slots are free, and the third request of the same client still waits.
+        var third = queue.EnterAsync(Sprayer, TestContext.Current.CancellationToken).AsTask();
+        Assert.False(third.IsCompleted);
+        Assert.Equal((2, 1), (queue.Running, queue.Queued));
+
+        // Somebody else, arriving later, is not made to wait behind it.
+        Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Member));
+
+        queue.Exit(Sprayer);
+        Assert.Equal(VerificationSlot.Granted, await third);
+        Assert.Equal((3, 0), (queue.Running, queue.Queued));
+    }
+
+    [Fact]
+    public async Task AFreeSlotGoesToTheFirstWaiterThatMayRunNotTheFirstInTheLine()
+    {
+        var queue = Queue(out _, slots: 3, perClient: 8, running: 1);
+        Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Sprayer));
+        Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Client(1)));
+        Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Client(2)));
+        var again = queue.EnterAsync(Sprayer, TestContext.Current.CancellationToken).AsTask();
+        var other = queue.EnterAsync(Member, TestContext.Current.CancellationToken).AsTask();
+
+        queue.Exit(Client(1));
+
+        Assert.Equal(VerificationSlot.Granted, await other);
+        Assert.False(again.IsCompleted);
+        queue.Exit(Sprayer);
+        Assert.Equal(VerificationSlot.Granted, await again);
+    }
+
+    [Fact]
+    public async Task ACheckOfCredentialsThatAreBeingCheckedWaitsForTheFirstAndKeysOfNothingNeverWait()
+    {
+        var queue = Queue(out _, slots: 4, perClient: 8, running: 4);
+        const ulong Same = 77;
+        Assert.Equal(VerificationSlot.Granted, await queue.EnterAsync(Sprayer, TestContext.Current.CancellationToken, Same));
+
+        var twin = queue.EnterAsync(Sprayer, TestContext.Current.CancellationToken, Same).AsTask();
+        Assert.False(twin.IsCompleted);
+
+        // A different password, or one with no key (a name nobody has), runs beside it.
+        Assert.Equal(VerificationSlot.Granted, await queue.EnterAsync(Sprayer, TestContext.Current.CancellationToken, 78));
+        Assert.Equal(VerificationSlot.Granted, await queue.EnterAsync(Sprayer, TestContext.Current.CancellationToken));
+        Assert.Equal(VerificationSlot.Granted, await queue.EnterAsync(Sprayer, TestContext.Current.CancellationToken));
+
+        queue.Exit(Sprayer, 78);
+        Assert.False(twin.IsCompleted);
+        queue.Exit(Sprayer, Same);
+        Assert.Equal(VerificationSlot.Granted, await twin);
+        queue.Exit(Sprayer, Same);
+        queue.Exit(Sprayer);
+        queue.Exit(Sprayer);
+        Assert.Equal((0, 0), (queue.Running, queue.Queued));
     }
 
     [Fact]

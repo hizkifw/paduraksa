@@ -911,22 +911,27 @@ allowed or denied address, a cache hit, missing or unreadable credentials) is st
 robots.txt and fixed answers, route matching, the route's chain after the list (its rate limit, then proof of work) and the endpoint, by the
 same methods `Decide` uses (`DecideAfterHostChain`, `DecideRoute`, which take the first policy to run), so nothing after the list is
 duplicated or skipped and a request that waited is limited, challenged and forwarded (with `Authorization` stripped) exactly like one that
-didn't. The continuation takes a place in the line, waits for a slot without holding a thread, looks at the cache once more (a page's burst
-of identical credentials pays one PBKDF2 and the rest hit what it stored), runs the PBKDF2 and answers 401 or lets the chain go on. The slots
-are `max(8, ProcessorCount)` (never fewer than 8: on a 2-core box a cap of 2 refused a page's third credentialed request on a cold cache;
-over-subscribing only makes each check slower). The line is first in, first out and bounded three ways: **32 places per slot** (256 at the
-default 8: at tens of milliseconds a check, the last of a full line waits a few seconds, inside the wait cap whatever the machine's size), **4
-per client** (queued and running together, by the masked address, as the cache keys it; a table of 1024 in-flight counters striped by a keyed
-hash, 4 KiB) and a **10 second maximum wait**. A request that can't enter (line full, or its client already holds its 4) or that waits the
-maximum is answered 429 with `Retry-After: 1`; one whose client went away (`RequestAborted`) leaves the line at once, frees its place and is
-dropped without an answer. The per-client share replaces the old "under pressure" rule (a client holding two or more was refused only while
-half the slots ran): with the line in place a burst is the line's to absorb, and at the default sizes the old threshold (4 of 8) could never
-bind before the share did. A single source therefore occupies at most 4 of the 8 + 256 places and eats only its own 429s, while every other
-client still gets a turn within the wait; the share is a concurrency limit, not a rate. Waiters are pooled `IValueTaskSource` objects, one
-timer serves the whole line (arrivals wait the same maximum, so the head is always the next to expire), the line's one lock is held for a few
-field writes and never while a waiter is completed, a granted waiter's continuation goes to the thread pool (never run inline on the thread
-that freed the slot, which would stack one PBKDF2 on another), and the pool hands a waiter back only after its cancellation registration is
-disposed. **Allocation** (Release, 64-bit, `GC.GetAllocatedBytes`, on the distro runtime 10.0.14 and on Microsoft's 10.0.403 from
+didn't. The continuation takes a place in the line, waits for a slot without holding a thread, looks at the cache once more, runs the PBKDF2
+and answers 401 or lets the chain go on. The slots are `max(8, ProcessorCount)` (never fewer than 8: on a 2-core box a cap of 2 refused a
+page's third credentialed request on a cold cache; over-subscribing only makes each check slower). The line is bounded three ways: **32
+places per slot** (256 at the default 8: at tens of milliseconds a check, the last of a full line waits a few seconds, inside the wait cap
+whatever the machine's size), **16 places per client** (queued and running together, by the masked address, as the cache keys it; a table of
+1024 in-flight counters striped by a keyed hash, 4 KiB, and as many running counts) and a **10 second maximum wait**. A request that can't
+enter (line full, or its client already holds its 16) or that waits the maximum is answered 429 with `Retry-After: 1`; one whose client went
+away (`RequestAborted`) leaves the line at once, frees its place and is dropped without an answer. Two rules decide who runs next, so a place
+is never wasted and nobody is starved: **one client runs at most 2 checks at once** (its other requests wait in the line, and a free slot goes to
+the first waiter in arrival order whose client is under that cap, so others overtake them), and **identical credentials never run twice at
+once**: each deferred request carries its credentials' fingerprint (the cache's key; 0 for a name nobody has, which has no identity to share),
+and a waiter whose fingerprint is running waits for it, then finds the result in the cache and pays no PBKDF2 (a dozen identical cold requests
+cost one check; identical *wrong* passwords are checked one after the other, each its own). The per-client share replaces the old "under
+pressure" rule (a client holding two or more was refused only while half the slots ran). The first version of the share was 4 places, which
+refused the fifth credentialed request of an ordinary HTTP/2 page burst, the very 429 the line exists to remove; places are cheap (a pooled
+waiter), so the share only has to stop one source taking the whole line: a single source holds at most 16 of the 256 places and eats only its
+own 429s, while every other client still gets a turn within the wait. The share is a concurrency limit, not a rate. Waiters are pooled
+`IValueTaskSource` objects, one timer serves the whole line (arrivals wait the same maximum, so the head is always the next to expire), the
+line's one lock is held for a few field writes and a scan of the line, never while a waiter is completed, a granted waiter's continuation goes
+to the thread pool (never run inline on the thread that freed the slot, which would stack one PBKDF2 on another), and the pool hands a waiter
+back only after its cancellation registration is disposed. **Allocation** (Release, 64-bit, `GC.GetAllocatedBytes`, on the distro runtime 10.0.14 and on Microsoft's 10.0.403 from
 `scripts/test-ci-like.sh`, which both measured the same): taking and giving back a free slot is 0 B (`AllocAssert`), as is a refusal at the
 door; a miss that finds a slot free allocates nothing beyond the 401 a missing credential gets (1137 B against 1144 B in a test context, which
 is the answer's own cost); a miss that waits adds about 550 B (the boxed continuations, the cancellation registration, the thread-pool work
@@ -935,8 +940,7 @@ include the deferring decision. `AccessListStats` (allowed, address refused, 401
 refusals, timeouts**, and busy as the sum of the two refusals) are process counters the security overview shows. **Gap:** a spray spread
 over many addresses (a botnet, or many /64s) can still fill the 256 places, and then first-time logins on every list get 429 until it
 ends; nothing throttles failed attempts per address over time. A credential already in the cache still gets through, since a hit needs no
-slot. A page that fires more than four credentialed requests at once from one client on a cold cache has the rest refused (4 per client): the
-cache re-check keeps those four cheap, but not more of them.
+slot.
 
 *Simulator.* The policy's trace step names the list, the address verdict (denied, allowed with the matching entry, not in the allow
 list, unrestricted), the credentials verdict (not asked, missing, unreadable, unknown user, wrong password, ok, deferred, busy; a busy answer in the trace means the line was full or the wait ran out) and how

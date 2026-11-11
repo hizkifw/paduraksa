@@ -39,11 +39,12 @@ public enum AccessListStage : byte
 /// observable; an unknown name still pays one PBKDF2 against a dummy hash, so it is indistinguishable by timing from a wrong
 /// password. A password that isn't in the cache defers the verdict (<see cref="IDeferredPolicy"/>): the request waits in
 /// <see cref="AccessListVerificationQueue"/> for one of at most as many concurrent checks as the machine has processors (never
-/// fewer than 8), runs its PBKDF2 and then carries on through the rest of the chain, or is answered 401. A request that can't
-/// get a place in the line, or waits too long, is answered 429. A verified credential is remembered in
+/// fewer than 8; one client runs at most two of them), runs its PBKDF2 and then carries on through the rest of the chain, or is
+/// answered 401. A request that can't get a place in the line, or waits too long, is answered 429. A verified credential is remembered in
 /// <see cref="AccessListVerificationCache"/> until five minutes after its last use, keyed by a keyed hash of the list's user
 /// (which changes with the password), the password and the client address masked as the rate limit masks it (IPv4 whole, IPv6
-/// by /64); the same credentials queued behind the one that verified them find it there and skip their own PBKDF2.</para>
+/// by /64). The same credentials never run twice at once: a request waits while an identical one is being checked and then finds
+/// the result in the cache.</para>
 /// <para><b>Allocation.</b> Every synchronous path is 0 B, including the cache miss that defers. The wait and the check run
 /// after the decision and allocate a small, bounded amount (a pooled waiter, the continuation); the PBKDF2 itself measured 0 B
 /// on .NET 10.0.14 (the distro build and Microsoft's 10.0.403).</para>
@@ -184,7 +185,8 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
     {
         var client = state.ClientAddress;
         var stats = _runtime.Stats;
-        var slot = await _runtime.Queue.EnterAsync(client, http.RequestAborted).ConfigureAwait(false);
+        var key = CredentialKey(http.Request, client);
+        var slot = await _runtime.Queue.EnterAsync(client, http.RequestAborted, key).ConfigureAwait(false);
         if (slot == VerificationSlot.Cancelled)
         {
             return PolicyDecision.Drop;
@@ -202,7 +204,7 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
         }
         finally
         {
-            _runtime.Queue.Exit(client);
+            _runtime.Queue.Exit(client, key);
         }
 
         return Conclude(credentials, state, stats);
@@ -219,38 +221,13 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
 
     private CredentialVerdict Authenticate(HttpRequest request, IpKey client, AccessListStats? stats, Phase phase)
     {
-        var header = request.Headers.Authorization;
-        if (header.Count == 0)
-        {
-            return CredentialVerdict.Missing;
-        }
-
-        if (header.Count > 1)
-        {
-            return CredentialVerdict.Unreadable;
-        }
-
         Span<byte> buffer = stackalloc byte[BasicCredentials.MaxDecodedLength + 64];
-        if (BasicCredentials.TryParse(header[0], buffer, out var length) != BasicParse.Ok)
+        if (!TryRead(request, buffer, out var credentials, out var user, out var unreadable))
         {
-            return CredentialVerdict.Unreadable;
+            return unreadable;
         }
 
-        var credentials = buffer[..length];
-        var colon = credentials.IndexOf((byte)':');
-        var name = credentials[..colon];
-        var password = credentials[(colon + 1)..];
-
-        // Every user is compared, with no early exit, so the position of a match isn't something a client can time.
-        CompiledAccessListUser? user = null;
-        var users = _list.Users;
-        for (var i = 0; i < users.Length; i++)
-        {
-            if (CryptographicOperations.FixedTimeEquals(name, users[i].Name))
-            {
-                user = users[i];
-            }
-        }
+        var password = credentials[(credentials.IndexOf((byte)':') + 1)..];
 
         // Looked up again in the Verify phase: a request ahead in the line may have verified these very credentials.
         ulong fingerprint = 0;
@@ -287,6 +264,44 @@ public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
         }
 
         return CredentialVerdict.Verified;
+    }
+
+    /// <summary>The credentials of a request's <c>Authorization</c> header and the user they name (null: nobody), decoded into
+    /// <paramref name="buffer"/>; false, with the verdict, when there are none or they can't be read.</summary>
+    private bool TryRead(
+        HttpRequest request, Span<byte> buffer, out ReadOnlySpan<byte> credentials, out CompiledAccessListUser? user, out CredentialVerdict failure)
+    {
+        credentials = default;
+        user = null;
+        var header = request.Headers.Authorization;
+        failure = header.Count == 0 ? CredentialVerdict.Missing : CredentialVerdict.Unreadable;
+        if (header.Count != 1 || BasicCredentials.TryParse(header[0], buffer, out var length) != BasicParse.Ok)
+        {
+            return false;
+        }
+
+        credentials = buffer[..length];
+        var name = credentials[..credentials.IndexOf((byte)':')];
+
+        // Every user is compared, with no early exit, so the position of a match isn't something a client can time.
+        var users = _list.Users;
+        for (var i = 0; i < users.Length; i++)
+        {
+            if (CryptographicOperations.FixedTimeEquals(name, users[i].Name))
+            {
+                user = users[i];
+            }
+        }
+
+        return true;
+    }
+
+    // Names the credentials a request is about to have checked, so the line never runs the same ones twice at once; 0 when the
+    // name is nobody's (every such check is its own, against the dummy hash).
+    private ulong CredentialKey(HttpRequest request, IpKey client)
+    {
+        Span<byte> buffer = stackalloc byte[BasicCredentials.MaxDecodedLength + 64];
+        return TryRead(request, buffer, out var credentials, out var user, out _) && user is not null ? Fingerprint(user, client, credentials) : 0;
     }
 
     // SHA-256 over the process key, the user's fingerprint, the masked client and the credentials as sent. The key is the

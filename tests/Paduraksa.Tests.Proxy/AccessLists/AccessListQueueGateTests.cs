@@ -22,8 +22,8 @@ public sealed class AccessListQueueGateTests
 {
     private static readonly IpKey Holder = IpKey.Parse("203.0.113.250");
 
-    private static AccessListRuntime Runtime(int slots, int maxQueued = 64, int perClient = 4, TimeSpan? maxWait = null) =>
-        new(TimeProvider.System, maxConcurrentVerifications: slots, maxVerificationsPerClient: perClient, maxQueued: maxQueued, maxWait: maxWait);
+    private static AccessListRuntime Runtime(int slots, int maxQueued = 64, int places = AccessListRuntime.DefaultMaxPlacesPerClient, TimeSpan? maxWait = null) =>
+        new(TimeProvider.System, maxConcurrentVerifications: slots, maxPlacesPerClient: places, maxQueued: maxQueued, maxWait: maxWait);
 
     private static async Task HoldAsync(AccessListRuntime runtime, int slots)
     {
@@ -70,7 +70,7 @@ public sealed class AccessListQueueGateTests
     [Fact]
     public async Task ARequestThatWaitsFindsTheCredentialsAnotherOneJustVerifiedAndSkipsItsOwnPbkdf2()
     {
-        var runtime = Runtime(slots: 1, perClient: 8);
+        var runtime = Runtime(slots: 1, places: 8);
         var gate = GateFor(runtime, Model(List("office")), out _);
         await HoldAsync(runtime, slots: 1);
 
@@ -84,26 +84,67 @@ public sealed class AccessListQueueGateTests
     }
 
     [Fact]
-    public async Task OneClientFloodingWrongPasswordsFillsOnlyItsOwnShareAndAnotherClientStillLogsIn()
+    public async Task OneClientFloodingWrongPasswordsFillsOnlyItsOwnPlacesAndAnotherClientStillLogsIn()
     {
-        var runtime = Runtime(slots: 1, perClient: 3);
+        var runtime = Runtime(slots: 1);
         var gate = GateFor(runtime, Model(List("office")), out _);
         await HoldAsync(runtime, slots: 1);
 
-        var spray = Enumerable.Range(0, 10).Select(_ => RunAsync(gate, "198.51.100.66", Basic("alice", "wrong"))).ToArray();
-        await WaitUntilAsync(() => runtime.Stats.QueueFull == 7 && runtime.Queue.Queued == 3);
+        var spray = Enumerable.Range(0, 40).Select(_ => RunAsync(gate, "198.51.100.66", Basic("alice", "wrong"))).ToArray();
+        var places = AccessListRuntime.DefaultMaxPlacesPerClient;
+        await WaitUntilAsync(() => runtime.Stats.QueueFull == 40 - places && runtime.Queue.Queued == places);
         var member = RunAsync(gate, "203.0.113.9", Basic("alice", Password));
-        await WaitUntilAsync(() => runtime.Queue.Queued == 4);
+        await WaitUntilAsync(() => runtime.Queue.Queued == places + 1);
 
-        // Seven were refused at once and none of the member's place was taken.
-        Assert.Equal(7, spray.Count(task => task.IsCompleted));
+        // The rest were refused at once and none of the member's place was taken.
+        Assert.Equal(40 - places, spray.Count(task => task.IsCompleted));
         Assert.All(spray.Where(task => task.IsCompleted), task => Assert.Equal("429", task.Result));
 
         Release(runtime, slots: 1);
 
         Assert.Equal("pass", await member);
-        Assert.Equal(3, (await Task.WhenAll(spray)).Count(outcome => outcome == "401"));
-        Assert.Equal((7, 0), (runtime.Stats.Busy, runtime.Stats.QueueTimeouts));
+        Assert.Equal(places, (await Task.WhenAll(spray)).Count(outcome => outcome == "401"));
+        Assert.Equal((40 - places, 0), (runtime.Stats.Busy, runtime.Stats.QueueTimeouts));
+    }
+
+    [Fact]
+    public async Task ABurstOfTwelveColdLoginsFromOneClientAllSucceedAndPayOnePbkdf2()
+    {
+        var runtime = new AccessListRuntime();
+        var gate = GateFor(runtime, Model(List("office")), out _);
+
+        // An HTTP/2 page after the cache expired: a dozen credentialed requests at once.
+        var outcomes = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => Task.Run(() => RunAsync(gate, "192.0.2.1", Basic("alice", Password)), TestContext.Current.CancellationToken)));
+
+        Assert.All(outcomes, outcome => Assert.Equal("pass", outcome));
+        Assert.Equal((0, 1), (runtime.Stats.Busy, runtime.Stats.Verifications));
+        Assert.Equal((0, 0), (runtime.Queue.Running, runtime.Queue.Queued));
+    }
+
+    [Fact]
+    public async Task ABurstOfTwelveChecksThatCanNotShareOneFromOneClientIsQueuedNotRefused()
+    {
+        var runtime = new AccessListRuntime();
+        var gate = GateFor(runtime, Model(List("office")), out _);
+
+        // Twelve names nobody has: each is its own PBKDF2, and one client runs only two at once, so the rest wait for their turn.
+        var outcomes = await Task.WhenAll(Enumerable.Range(0, 12).Select(n => Task.Run(() => RunAsync(gate, "192.0.2.1", Basic($"nobody{n}", "x")), TestContext.Current.CancellationToken)));
+
+        Assert.All(outcomes, outcome => Assert.Equal("401", outcome));
+        Assert.Equal((0, 12), (runtime.Stats.Busy, runtime.Stats.Verifications));
+    }
+
+    [Fact]
+    public async Task IdenticalCredentialsThatAreBeingCheckedNowWaitForThatCheckInsteadOfStartingAnother()
+    {
+        var runtime = Runtime(slots: 4);
+        var gate = GateFor(runtime, Model(List("office")), out _);
+
+        // Slots to spare and room under the client's running cap, and still only one of the six runs a PBKDF2.
+        var outcomes = await Task.WhenAll(Enumerable.Range(0, 6).Select(_ => Task.Run(() => RunAsync(gate, "192.0.2.1", Basic("alice", Password)), TestContext.Current.CancellationToken)));
+
+        Assert.All(outcomes, outcome => Assert.Equal("pass", outcome));
+        Assert.Equal(1, runtime.Stats.Verifications);
     }
 
     [Fact]
@@ -143,7 +184,7 @@ public sealed class AccessListQueueGateTests
     [Fact]
     public async Task ARequestWhoseClientWentAwayLeavesTheLineAtOnceAndNothingIsAnswered()
     {
-        var runtime = Runtime(slots: 1, perClient: 1);
+        var runtime = Runtime(slots: 1, places: 1);
         var gate = GateFor(runtime, Model(List("office")), out _);
         await HoldAsync(runtime, slots: 1);
         using CancellationTokenSource gone = new();
@@ -201,7 +242,7 @@ public sealed class AccessListQueueGateTests
         // The check and the answer are all that is left of the miss: with a slot free nothing waits, so nothing is queued or boxed.
         // Compared with the 401 a missing credential gets, which is the answer's own cost. Bounded generously because a Debug
         // build's async state machines are classes; in Release the difference measures about zero.
-        var runtime = Runtime(slots: 8, perClient: 1000);
+        var runtime = Runtime(slots: 8, places: 1000);
         var gate = GateFor(runtime, Model(List("office")), out _);
         const int Warmup = 20;
         const int Measured = 30;
