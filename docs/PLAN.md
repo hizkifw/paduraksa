@@ -526,7 +526,7 @@ As built in M2 (startup: `ConfigService.StartAsync`, `Paduraksa.Application.Last
 
 Mechanisms M1 adopts:
 - **Pipeline:** the public app is built on the **generic host with an explicit pipeline**: `Configure(app => { app.Use(gate); app.UseRouting(); app.UseEndpoints(e => e.MapReverseProxy(...)); })`, not `WebApplication`. YARP calls `AddAuthorization()` unconditionally, and `WebApplication` then auto-inserts `UseAuthorization()` *ahead of the gate*. That costs bytes and is a hazard if a `FallbackPolicy` is ever set. A guard test with a spy `IAuthorizationPolicyProvider` asserts it never runs.
-- **Gate shape:** one synchronous gate middleware. It decides what to do, and the response body is written *after* the measured section. Responses come from precomputed bytes plus shared header values set through the typed header properties.
+- **Gate shape:** one synchronous gate middleware. It decides what to do, and the response body is written *after* the measured section. Responses come from precomputed bytes plus shared header values set through the typed header properties. The one exception is a policy that can't decide at once (an access list's password check, `PolicyAction.Defer`): the gate awaits it after the decision and resumes the chain after that policy (**As built (M7): access lists**); every synchronous path stays 0 B.
 - **Per-connection state:** an immutable `ClientInfo`, set as a connection feature in `ListenOptions.Use`. It's shared by all H2 streams on the connection, so it must stay immutable. Never use `IConnectionItemsFeature.Items`, which is one non-thread-safe dictionary for all streams.
 - **Per-request state:** one object cached in `IPersistentStateFeature` and reset each request. Stream reuse happens only on graceful end, so RST, cancels and Drop reallocate, and that's accepted.
 - **Host lookup:** `Headers.Host[0]` (H2 `:authority` is already folded in), with the port stripped by span. Two `FrozenDictionary` tables (exact names, wildcard parents), `OrdinalIgnoreCase`, looked up via `GetAlternateLookup<ReadOnlySpan<char>>`: 11-22 ns, 0 B. `Request.Host.Host` allocates when a port is present. The compiler **rejects duplicate host names** (otherwise the last one silently wins) and canonicalises IPv6-literal keys.
@@ -876,44 +876,73 @@ refuse, one `AccessListUnionPolicySpec` of them; a host with no routes (Redirect
 password deferred on plain HTTP when the host redirects to HTTPS (the redirect is what answers next). A compile warning,
 `accessList.insecureCredentials`, says so for a host that asks for a password without forcing HTTPS.
 
-*The gate* (`Paduraksa.Proxy.AccessLists`, 0 B on every path). Rules: a denied address is refused whatever it sends; a non-empty allow
+*The gate* (`Paduraksa.Proxy.AccessLists`, 0 B on every synchronous path). Rules: a denied address is refused whatever it sends; a non-empty allow
 list admits only its addresses (with `satisfy: all` and users the rest get 403, with `any` they are asked for a password instead); no
 users means the address rules alone, no address rules means the password alone. `dropDenied` aborts the connection where the address
 decided. `Authorization: Basic` is read from the header string into a `stackalloc` buffer (at most 64 + 1 + 256 decoded bytes, split on
 the first colon, UTF-8), the name is compared in constant time with every user's (no early exit), and the password is checked with
 PBKDF2 against the stored hash; a name nobody has still pays one PBKDF2 against a dummy hash, so it can't be told from a wrong password
-by timing, and at most as many checks as the machine has processors, but never fewer than 8, run at once (on a 2-core box a cap of 2 refused a page's third credentialed request on a cold cache; over-subscribing only makes each check slower), and the rest get 429 with `Retry-After: 1`, so a flood of
-wrong passwords can't take every thread. Each client also has its own share, two concurrent checks, but only under pressure: while fewer than half
-of the global cap is running anyone is admitted (an app reopening after the cache expired sends several credentialed requests at once,
-and they must not be refused), and from half up a client holding two or more is refused. A fixed table of 1024 in-flight counters
-(4 KiB, lock-free, 0 B) striped by a keyed hash of the masked client address (IPv4 whole, IPv6 by /64, as the cache keys it) keeps the
-counts, taken after the global slot and always given back in a `finally`, so a single-source spray gets at most half the cap, eats only
-its own 429s and leaves the other half to everyone else; the global limit stays the hard outer bound. The *verification cache* (`AccessListVerificationCache`) is a fixed table of two arrays (4096
-entries, 64 KiB): a 64-bit key (the first 8 bytes of SHA-256 over a per-process random key, the user's fingerprint, the client address
-masked as the rate limit masks it (IPv4 whole, IPv6 by /64) and the credentials as sent) and an expiry five minutes ahead. A hit needs no
-PBKDF2; only a *successful* verification is ever inserted. Writers clear the expiry, store the key and then the new expiry, and readers
-read the key, the expiry and the key again and believe it only if both reads agree, so a reader never pairs one entry's key with
-another's expiry; a probe of four slots evicts the entry that would lapse first. A user's fingerprint is a hash of the list's ID, the
-username and the stored verifier, whose salt changes with every password, so **a password change invalidates its cache entries by
-itself** (a recompile changes the fingerprint), and so does removing the user. A missing or wrong credential is `401` with
+by timing. A missing or wrong credential is `401` with
 `WWW-Authenticate: Basic realm="<realm>", charset="UTF-8"` (precomputed per list, the realm quoted), `Cache-Control: no-store` and the
 built-in `401 Unauthorized` page for `Accept: text/html` (plain text `authentication required` otherwise); the 403 is the existing
 access-denied page. When the list accepted the credentials, `GateRequestState.StripAuthorization` makes the forwarding transform remove the
 `Authorization` header before the upstream sees it, unless the list sets `passCredentialsUpstream`; a list that let an allowed address
-through without asking consumed nothing, so a bearer token meant for the upstream still reaches it. Allocation: allowed, refused (403 and
-dropped), cache hit, missing and unreadable credentials all measure 0 B through `GateMiddleware.Decide` and on Kestrel
-(`GateAllocationTests`, `AccessListPolicyTests`), and so does a PBKDF2 itself, on the distro runtime and on Microsoft's 10.0.403, where
-`MemoryExtensions`' range searches allocate (hence `AsciiChars.Printable` and `.UsernameChars`); the test bounds a miss at 512 B in case a
-runtime's provider allocates its handles. `AccessListStats` (allowed, address refused, 401, cache hits, verifications, busy) are
-process counters the security page will read. **Gap:** the share is a concurrency limit, not a rate: a spray spread over many addresses (a botnet, or many
-/64s) can still keep the global limit busy, so first-time logins on every list get 429 for as long as it lasts, and nothing throttles
-failed attempts per address over time. A credential already in the cache still gets through, since a hit needs no slot.
+through without asking consumed nothing, so a bearer token meant for the upstream still reaches it.
+
+*The verification cache* (`AccessListVerificationCache`) is a fixed table of two arrays (4096
+entries, 64 KiB): a 64-bit key (the first 8 bytes of SHA-256 over a per-process random key, the user's fingerprint, the client address
+masked as the rate limit masks it (IPv4 whole, IPv6 by /64) and the credentials as sent) and an expiry. A hit needs no PBKDF2 and **pushes
+the expiry to five minutes from the hit**, but only once less than four minutes are left, so a hot entry is written about once a minute (one
+lock-free store, 0 B) and an idle user drops out between four and five minutes after the last request, while an active one stays verified;
+only a *successful* verification is ever inserted. Writers clear the expiry, store the key and then the new expiry, and readers
+read the key, the expiry and the key again and believe it only if both reads agree, so a reader never pairs one entry's key with
+another's expiry; a probe of four slots evicts the entry that would lapse first. A refresh stores its expiry with no further check, so it can
+land after a writer has replaced the slot's key: that cannot make an unverified key live (a key only enters through `Add`, after PBKDF2), and
+leaves a verified key with an expiry off by the skew of two clock reads, so the worst case is an entry living milliseconds longer or being
+verified again early. A user's fingerprint is a hash of the list's ID, the
+username and the stored verifier, whose salt changes with every password, so **a password change invalidates its cache entries by
+itself** (a recompile changes the fingerprint), and so does removing the user.
+
+*The line for a check* (`AccessListVerificationQueue`). A cache miss no longer runs PBKDF2 inside the synchronous decision, and no longer
+answers 429 when the slots are taken. `AccessListPolicy` returns `PolicyDecision.Defer` (`PolicyAction.Defer`; the decision is
+`GateAction.AwaitPolicy`, with the policy and its place in the chain in `GateRequestState.DeferredPolicy/Scope/Index`); every other path (an
+allowed or denied address, a cache hit, missing or unreadable credentials) is still synchronous and 0 B. `GateMiddleware` then awaits
+`IDeferredPolicy.CompleteAsync` and **resumes the same chain right after that policy**: the rest of the host chain, the HTTPS redirect, the
+robots.txt and fixed answers, route matching, the route's chain after the list (its rate limit, then proof of work) and the endpoint, by the
+same methods `Decide` uses (`DecideAfterHostChain`, `DecideRoute`, which take the first policy to run), so nothing after the list is
+duplicated or skipped and a request that waited is limited, challenged and forwarded (with `Authorization` stripped) exactly like one that
+didn't. The continuation takes a place in the line, waits for a slot without holding a thread, looks at the cache once more (a page's burst
+of identical credentials pays one PBKDF2 and the rest hit what it stored), runs the PBKDF2 and answers 401 or lets the chain go on. The slots
+are `max(8, ProcessorCount)` (never fewer than 8: on a 2-core box a cap of 2 refused a page's third credentialed request on a cold cache;
+over-subscribing only makes each check slower). The line is first in, first out and bounded three ways: **32 places per slot** (256 at the
+default 8: at tens of milliseconds a check, the last of a full line waits a few seconds, inside the wait cap whatever the machine's size), **4
+per client** (queued and running together, by the masked address, as the cache keys it; a table of 1024 in-flight counters striped by a keyed
+hash, 4 KiB) and a **10 second maximum wait**. A request that can't enter (line full, or its client already holds its 4) or that waits the
+maximum is answered 429 with `Retry-After: 1`; one whose client went away (`RequestAborted`) leaves the line at once, frees its place and is
+dropped without an answer. The per-client share replaces the old "under pressure" rule (a client holding two or more was refused only while
+half the slots ran): with the line in place a burst is the line's to absorb, and at the default sizes the old threshold (4 of 8) could never
+bind before the share did. A single source therefore occupies at most 4 of the 8 + 256 places and eats only its own 429s, while every other
+client still gets a turn within the wait; the share is a concurrency limit, not a rate. Waiters are pooled `IValueTaskSource` objects, one
+timer serves the whole line (arrivals wait the same maximum, so the head is always the next to expire), the line's one lock is held for a few
+field writes and never while a waiter is completed, a granted waiter's continuation goes to the thread pool (never run inline on the thread
+that freed the slot, which would stack one PBKDF2 on another), and the pool hands a waiter back only after its cancellation registration is
+disposed. **Allocation** (Release, 64-bit, `GC.GetAllocatedBytes`, on the distro runtime 10.0.14 and on Microsoft's 10.0.403 from
+`scripts/test-ci-like.sh`, which both measured the same): taking and giving back a free slot is 0 B (`AllocAssert`), as is a refusal at the
+door; a miss that finds a slot free allocates nothing beyond the 401 a missing credential gets (1137 B against 1144 B in a test context, which
+is the answer's own cost); a miss that waits adds about 550 B (the boxed continuations, the cancellation registration, the thread-pool work
+item); PBKDF2 itself is 0 B on both runtimes. The allocation tests of the synchronous paths (`GateAllocationTests`, `AccessListPolicyTests`)
+include the deferring decision. `AccessListStats` (allowed, address refused, 401, cache hits, verifications, **queued, queue-full
+refusals, timeouts**, and busy as the sum of the two refusals) are process counters the security overview shows. **Gap:** a spray spread
+over many addresses (a botnet, or many /64s) can still fill the 256 places, and then first-time logins on every list get 429 until it
+ends; nothing throttles failed attempts per address over time. A credential already in the cache still gets through, since a hit needs no
+slot. A page that fires more than four credentialed requests at once from one client on a cold cache has the rest refused (4 per client): the
+cache re-check keeps those four cheap, but not more of them.
 
 *Simulator.* The policy's trace step names the list, the address verdict (denied, allowed with the matching entry, not in the allow
-list, unrestricted), the credentials verdict (not asked, missing, unreadable, unknown user, wrong password, ok, deferred, busy) and how
+list, unrestricted), the credentials verdict (not asked, missing, unreadable, unknown user, wrong password, ok, deferred, busy; a busy answer in the trace means the line was full or the wait ran out) and how
 `satisfy` combined them, as a sentence and as facts (`accessList`, `address`, `credentials`, `satisfy`); the probe's `Authorization`
-header is read like a real one, and neither it nor a typed name is ever echoed. A simulation neither reads nor writes the cache, moves
-no counter and takes no verification slot, so it can't warm the gate for a later request or exhaust the verifier;
+header is read like a real one, and neither it nor a typed name is ever echoed. A simulation neither reads nor refreshes the cache, moves
+no counter and takes no verification slot or place in the line (it runs its PBKDF2 inline, as it always did), so it can't warm the gate for a later request or exhaust the verifier;
 `AccessListSimulationTests` compare the simulator's outcome with the real gate's for every satisfy mode, address and credential.
 
 *API and dashboard.* `/api/v1/accessLists` (list, get, create, replace, delete) has the same ETag, dry-run and 422 rules as the other
@@ -1242,7 +1271,7 @@ There are two separate domains:
 - **Not built:** passkeys; a login-throttle store that survives a restart (the windows are in memory; the lockout is in the database). The §3.1 internal listener and forwarded-header trust are built (see §3.1, **As built (M4)**).
 
 ### 10.2 Proxied-host auth (`AuthProvider` per host/route)
-- **Access lists:** IP allow/deny + HTTP basic auth (PBKDF2 hashes compiled into the snapshot; the verification cost is cached per credential and client address for five minutes). As built in M7: §7.3, **As built (M7): access lists**.
+- **Access lists:** IP allow/deny + HTTP basic auth (PBKDF2 hashes compiled into the snapshot; the verification cost is cached per credential and client address until five minutes after its last use; a check that finds no free slot waits in a bounded line). As built in M7: §7.3, **As built (M7): access lists**.
 - **Forward-auth** (authentik, Authelia, oauth2-proxy presets): a sub-request to the auth endpoint with the original method/URI/headers. 2xx → copy the configured response headers upstream. 401/302 → relay to the client. A short-TTL decision cache keyed by the session-cookie hash keeps it cheap. This path allocates (an outbound HTTP call), which is accepted and documented.
 - **Native OIDC per host** (later): Paduraksa as the relying party with a session cookie on the host's domain.
 
@@ -1425,7 +1454,7 @@ For declarative deployments (Kubernetes manifests, Helm, Compose with a mounted 
 
 **As built (M6): the settings fields bind to the contract.** `HostSettingsFields` works on the contract layer itself - a `HostSettings` where null means inherit - plus what that layer would inherit, and hands back a changed record with `SettingsChanged`; the form page owns it (the global defaults, a profile, a host), and there is no flat form model in between. The inherited values are `HostSettingsLayers.MergeAll` of the layers below over `BuiltIn`, so the form can't promise a default or a merge the proxy would not apply. Each field changes its own record with `with`, and `HostSettingsEdit.WithTls`/`WithHsts`/`WithServerHeader` collapses a nested record that sets nothing back to null by `ISettingsLayer.SetsNothing`, so clearing a field leaves no key behind. `SettingRow` is the row's title, help and control; `InheritSelect<T>` is a nullable value as a select whose first option says "Inherit (...)" - or "Built-in default (...)" on the global defaults - in the words of the value the layer below has, with the label, `data-field`, error and read-only state every field shares. HSTS's "Remembered for" keeps state of its own in a small component (`HstsMaxAgeField`: the preset-or-custom choice, derived from the stored seconds, with a custom number remembered while a preset is picked, as before; the IP allow list's own field went with the inline list in M7, which the access-list picker replaced). `SettingsSummary` holds one phrase per setting in the contract's order, so the cards and profile summaries need no per-field code elsewhere. The per-field `From`/`ApplyTo`/`Overrides` round trips are gone; `HostSettingsFieldsTests` is one table over every field - setting it through the control, the record that leaves, the inherited words, clearing it, and an error at its path - with a reflection completeness check over the contract, the dashboard's counterpart to `SettingsInheritanceTests`. The §5.3 "Adding a field to the settings UI" checklist is the whole cost of a new setting here.
 
-**As built (M7): the security overview.** The first entry of the Security group (`/security`, `config:read`, "Security overview") answers "what is protecting my hosts, and is it working". `SecurityOverviewService` (`Paduraksa.Application.Security`, registered as a shared singleton at startup, so its `Since` is the process start) reads `ProofOfWorkStats` and `RateLimitStats` and, per enabled host, the *live compiled snapshot*, not the stored document: so it is what the gate is doing, and a revision the compiler rejected never shows. It needed three small additions to the compiled model: `CompiledHost.Names`, `CompiledHost.RateLimit` (the host's own policy object, which an inheriting route's chain shares, so a route whose `RateLimitPolicy` has another ID, or none, is an override) and `RateLimitPolicy.PolicyId`/`PolicyName`; nothing on the request path changed. A host reports proof of work (its switch and difficulty, plus how many routes differ, either way; Redirect/Respond/Admin hosts report it off, since the gate only runs on proxy routes), the rate-limit policy (with the routes that apply another policy or none, grouped), the robots.txt mode and its access list. The access list is read from `CompiledHost.AccessList` and `CompiledRoute.AccessList` (the compiled list each carries, which the host's and routes' chains no longer reveal once a host with routes on different lists holds only the address-only union), not from the policies in the chain. The column names the list, linked to its page, with what it asks of a visitor ("2 users" or "addresses only", from `CompiledAccessList.UserCount`); routes on another list, or none, are grouped like the rate-limit column's, so "Off on 2 routes" is a route that lifted it. `AccessListRef.AddressRanges` (merged ranges, `CidrSet.RangeCount`: `10.0.0.0/8` plus `10.1.0.0/16` is one range) rides along in the DTO for the API, the page does not print it. The overview is one immutable DTO (`Paduraksa.Contracts.Security.SecurityOverview`), read lock-free and stateless; `GET /api/v1/security/overview` returns it (`config:read`, in OpenAPI) for debugging with a token.
+**As built (M7): the security overview.** The first entry of the Security group (`/security`, `config:read`, "Security overview") answers "what is protecting my hosts, and is it working". `SecurityOverviewService` (`Paduraksa.Application.Security`, registered as a shared singleton at startup, so its `Since` is the process start) reads `ProofOfWorkStats`, `RateLimitStats` and `AccessListStats` (a card of its own under the proof-of-work rejections: refused by address, wrong or missing password, passwords checked, queued, refused busy) and, per enabled host, the *live compiled snapshot*, not the stored document: so it is what the gate is doing, and a revision the compiler rejected never shows. It needed three small additions to the compiled model: `CompiledHost.Names`, `CompiledHost.RateLimit` (the host's own policy object, which an inheriting route's chain shares, so a route whose `RateLimitPolicy` has another ID, or none, is an override) and `RateLimitPolicy.PolicyId`/`PolicyName`; nothing on the request path changed. A host reports proof of work (its switch and difficulty, plus how many routes differ, either way; Redirect/Respond/Admin hosts report it off, since the gate only runs on proxy routes), the rate-limit policy (with the routes that apply another policy or none, grouped), the robots.txt mode and its access list. The access list is read from `CompiledHost.AccessList` and `CompiledRoute.AccessList` (the compiled list each carries, which the host's and routes' chains no longer reveal once a host with routes on different lists holds only the address-only union), not from the policies in the chain. The column names the list, linked to its page, with what it asks of a visitor ("2 users" or "addresses only", from `CompiledAccessList.UserCount`); routes on another list, or none, are grouped like the rate-limit column's, so "Off on 2 routes" is a route that lifted it. `AccessListRef.AddressRanges` (merged ranges, `CidrSet.RangeCount`: `10.0.0.0/8` plus `10.1.0.0/16` is one range) rides along in the DTO for the API, the page does not print it. The overview is one immutable DTO (`Paduraksa.Contracts.Security.SecurityOverview`), read lock-free and stateless; `GET /api/v1/security/overview` returns it (`config:read`, in OpenAPI) for debugging with a token.
 
 The page polls every 2 s with a `PeriodicTimer` (a `PollInterval` parameter for tests) and shows per-second rates computed from the difference between two samples over their `SampledAt` times (blank until the second sample). A small JS helper (`paduraksa.pageVisibility`) pauses polling while the tab is hidden and, on return, starts over from a fresh sample so a rate never spans the time away. Four compact tiles (challenges served; solved, with solve rate; rejected, the sum of bad solutions, non-browsers and the four cookie reasons; rate-limited, with its share of the requests a limit checked), the hosts table (protected hosts by name, then those with nothing on, each cell a muted "None" when empty; a stacked card per host on a phone), and the rejection reasons. No persistence and no background service: rollups are M9. **Gaps:** the permission is checked when the page opens, not on each tick (the session re-check still ends a revoked session's circuit); the rate-limit share counts only requests on routes with a policy; there is no per-host or per-route counter (the stats are process-wide).
 
