@@ -83,6 +83,8 @@ public sealed class AuthProviderValidationTests
     [InlineData("X-Forwarded-Uri")]
     [InlineData("X-Real-IP")]
     [InlineData("X-Request-Id")]
+    [InlineData("X_Real_IP")]
+    [InlineData("X_Forwarded_For")]
     [InlineData("Forwarded")]
     [InlineData("a b")]
     [InlineData("name:")]
@@ -99,6 +101,8 @@ public sealed class AuthProviderValidationTests
     [InlineData("Auth*")]
     [InlineData("Coo*")]
     [InlineData("Proxy-Auth*")]
+    [InlineData("Proxy_Authorization")]
+    [InlineData("Proxy_Auth*")]
     public void AResponseHeaderThatIsTheClientsOwnCredentialIsRefusedWithItsOwnCodeSoItIsNeverRemovedFromTheHostsRequests(string name) =>
         AssertErrors(WithProvider(new ForwardAuthConfig("http://auth/", ResponseHeaders: [name])), ($"{ForwardPath}/responseHeaders/0", AuthProviderHeaderCredential));
 

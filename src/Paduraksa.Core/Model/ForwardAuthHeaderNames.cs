@@ -28,7 +28,7 @@ public static class ForwardAuthHeaderNames
     {
         ArgumentNullException.ThrowIfNull(name);
         var prefix = name.EndsWith('*');
-        var stem = prefix ? name[..^1] : name;
+        var stem = Fold(prefix ? name[..^1] : name);
         foreach (var credential in ClientCredentials)
         {
             if (prefix ? stem.Length >= 3 && credential.StartsWith(stem, StringComparison.OrdinalIgnoreCase) : string.Equals(stem, credential, StringComparison.OrdinalIgnoreCase))
@@ -68,6 +68,8 @@ public static class ForwardAuthHeaderNames
             return "a prefix must have at least three characters before the *";
         }
 
+        // The proxy strips an owned name with '_' and '-' taken as one character, so the reserved names are compared the same way.
+        stem = Fold(stem);
         if (stem.StartsWith("X-Forwarded-", StringComparison.OrdinalIgnoreCase) || (response && name.EndsWith('*') && IsPrefixOfReserved(stem)))
         {
             return $"'{name}' is a header the proxy sets itself";
@@ -88,6 +90,8 @@ public static class ForwardAuthHeaderNames
 
         return null;
     }
+
+    private static string Fold(string name) => name.Replace('_', '-');
 
     private static bool IsPrefixOfReserved(string stem)
     {
