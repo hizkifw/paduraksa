@@ -43,7 +43,7 @@ public sealed class AccessListPolicyTests
 
     [Theory]
     [MemberData(nameof(Verdicts))]
-    public void SatisfyCombinesTheAddressAndThePassword(AccessListSatisfy satisfy, string client, string credentials, string expected)
+    public async Task SatisfyCombinesTheAddressAndThePassword(AccessListSatisfy satisfy, string client, string credentials, string expected)
     {
         var gate = GateFor(new AccessListRuntime(), Model(List("office", Allow, Deny, satisfy: satisfy)), out _);
         var authorization = credentials switch
@@ -53,9 +53,7 @@ public sealed class AccessListPolicyTests
             _ => null,
         };
 
-        var decision = Decide(gate, client, authorization);
-
-        Assert.Equal(expected, Describe(decision));
+        Assert.Equal(expected, await RunAsync(gate, client, authorization));
     }
 
     [Theory]
@@ -77,46 +75,46 @@ public sealed class AccessListPolicyTests
     }
 
     [Fact]
-    public void WithoutUsersOnlyTheAddressApplies()
+    public async Task WithoutUsersOnlyTheAddressApplies()
     {
         var gate = GateFor(new AccessListRuntime(), Model(List("lan", Allow, Deny, users: false)), out _);
 
-        Assert.Equal("pass", Describe(Decide(gate, Inside)));
-        Assert.Equal("403", Describe(Decide(gate, Outside)));
-        Assert.Equal("403", Describe(Decide(gate, Vetoed)));
+        Assert.Equal("pass", await RunAsync(gate, Inside));
+        Assert.Equal("403", await RunAsync(gate, Outside));
+        Assert.Equal("403", await RunAsync(gate, Vetoed));
     }
 
     [Fact]
-    public void WithoutAddressRulesOnlyThePasswordApplies()
+    public async Task WithoutAddressRulesOnlyThePasswordApplies()
     {
         foreach (var satisfy in new[] { AccessListSatisfy.All, AccessListSatisfy.Any })
         {
             var gate = GateFor(new AccessListRuntime(), Model(List("open", satisfy: satisfy)), out _);
 
-            Assert.Equal("401", Describe(Decide(gate, Outside)));
-            Assert.Equal("pass", Describe(Decide(gate, Outside, Basic("bob", "battery staple"))));
+            Assert.Equal("401", await RunAsync(gate, Outside));
+            Assert.Equal("pass", await RunAsync(gate, Outside, Basic("bob", "battery staple")));
         }
     }
 
     [Fact]
-    public void ADenyEntryAloneRefusesThatAddressAndAsksEveryoneElseForAPassword()
+    public async Task ADenyEntryAloneRefusesThatAddressAndAsksEveryoneElseForAPassword()
     {
         var gate = GateFor(new AccessListRuntime(), Model(List("veto", deny: Deny, satisfy: AccessListSatisfy.Any)), out _);
 
-        Assert.Equal("403", Describe(Decide(gate, Vetoed, Basic("alice", Password))));
-        Assert.Equal("401", Describe(Decide(gate, Outside)));
-        Assert.Equal("pass", Describe(Decide(gate, Outside, Basic("alice", Password))));
+        Assert.Equal("403", await RunAsync(gate, Vetoed, Basic("alice", Password)));
+        Assert.Equal("401", await RunAsync(gate, Outside));
+        Assert.Equal("pass", await RunAsync(gate, Outside, Basic("alice", Password)));
     }
 
     [Fact]
-    public void DropDeniedAbortsAnAddressTheListRefusesButStillAsksForAPassword()
+    public async Task DropDeniedAbortsAnAddressTheListRefusesButStillAsksForAPassword()
     {
         var gate = GateFor(new AccessListRuntime(), Model(List("quiet", Allow, Deny, drop: true)), out _);
 
-        Assert.Equal("drop", Describe(Decide(gate, Outside)));
-        Assert.Equal("drop", Describe(Decide(gate, Vetoed, Basic("alice", Password))));
-        Assert.Equal("401", Describe(Decide(gate, Inside)));
-        Assert.Equal("pass", Describe(Decide(gate, Inside, Basic("alice", Password))));
+        Assert.Equal("drop", await RunAsync(gate, Outside));
+        Assert.Equal("drop", await RunAsync(gate, Vetoed, Basic("alice", Password)));
+        Assert.Equal("401", await RunAsync(gate, Inside));
+        Assert.Equal("pass", await RunAsync(gate, Inside, Basic("alice", Password)));
     }
 
     [Fact]
@@ -148,91 +146,91 @@ public sealed class AccessListPolicyTests
     [InlineData("Basic !!!not-base64")]
     [InlineData("Basic YWxpY2U=")]
     [InlineData("Basic Om5vLW5hbWU=")]
-    public void CredentialsThatCannotBeReadAreNotAPassword(string header)
+    public async Task CredentialsThatCannotBeReadAreNotAPassword(string header)
     {
         var runtime = new AccessListRuntime();
         var gate = GateFor(runtime, Model(List("office")), out _);
 
-        Assert.Equal("401", Describe(Decide(gate, Outside, header)));
+        Assert.Equal("401", await RunAsync(gate, Outside, header));
         Assert.Equal(0, runtime.Stats.Verifications);
     }
 
     [Fact]
-    public void AnotherHeaderLineIsNotAPasswordEither()
+    public async Task AnotherHeaderLineIsNotAPasswordEither()
     {
         var gate = GateFor(new AccessListRuntime(), Model(List("office")), out _);
         var context = Context(Outside);
         context.Request.Headers.Authorization = new Microsoft.Extensions.Primitives.StringValues([Basic("alice", Password), Basic("alice", Password)]);
 
-        Assert.Equal("401", Describe(gate.Decide(context)));
+        Assert.Equal("401", await RunAsync(gate, context));
     }
 
     [Fact]
-    public void ThePasswordMayContainColonsAndNonAsciiCharacters()
+    public async Task ThePasswordMayContainColonsAndNonAsciiCharacters()
     {
         var hash = Paduraksa.Core.Security.PasswordHash.Create("pa:ss:wörd");
         AccessListSpec list = List("office") with { Users = [new AccessListUserSpec("carol", hash)] };
         var gate = GateFor(new AccessListRuntime(), Model(list), out _);
 
-        Assert.Equal("pass", Describe(Decide(gate, Outside, Basic("carol", "pa:ss:wörd"))));
-        Assert.Equal("401", Describe(Decide(gate, Outside, Basic("carol", "pa"))));
+        Assert.Equal("pass", await RunAsync(gate, Outside, Basic("carol", "pa:ss:wörd")));
+        Assert.Equal("401", await RunAsync(gate, Outside, Basic("carol", "pa")));
     }
 
     [Fact]
-    public void NamesAreCaseSensitive()
+    public async Task NamesAreCaseSensitive()
     {
         var gate = GateFor(new AccessListRuntime(), Model(List("office")), out _);
 
-        Assert.Equal("401", Describe(Decide(gate, Outside, Basic("Alice", Password))));
+        Assert.Equal("401", await RunAsync(gate, Outside, Basic("Alice", Password)));
     }
 
     [Fact]
-    public void AVerifiedPasswordIsRememberedAndNeedsNoSecondPbkdf2()
+    public async Task AVerifiedPasswordIsRememberedAndNeedsNoSecondPbkdf2()
     {
         var runtime = new AccessListRuntime();
         var gate = GateFor(runtime, Model(List("office")), out _);
         var credentials = Basic("alice", Password);
 
-        Assert.Equal("pass", Describe(Decide(gate, Outside, credentials)));
-        Assert.Equal("pass", Describe(Decide(gate, Outside, credentials)));
-        Assert.Equal("pass", Describe(Decide(gate, Outside, credentials)));
+        Assert.Equal("pass", await RunAsync(gate, Outside, credentials));
+        Assert.Equal("pass", await RunAsync(gate, Outside, credentials));
+        Assert.Equal("pass", await RunAsync(gate, Outside, credentials));
 
         Assert.Equal(1, runtime.Stats.Verifications);
         Assert.Equal(2, runtime.Stats.CacheHits);
     }
 
     [Fact]
-    public void ARememberedPasswordExpiresFiveMinutesAfterItsLastUse()
+    public async Task ARememberedPasswordExpiresFiveMinutesAfterItsLastUse()
     {
         StepClock clock = new();
         var runtime = new AccessListRuntime(clock);
         var gate = GateFor(runtime, Model(List("office")), out _);
         var credentials = Basic("alice", Password);
 
-        Decide(gate, Outside, credentials);
+        await RunAsync(gate, Outside, credentials);
         clock.Advance(TimeSpan.FromMinutes(4) + TimeSpan.FromSeconds(59));
-        Decide(gate, Outside, credentials);
+        await RunAsync(gate, Outside, credentials);
         Assert.Equal(1, runtime.Stats.Verifications);
 
         // The hit pushed the expiry out: five minutes from the hit, not from the first check.
         clock.Advance(TimeSpan.FromMinutes(4) + TimeSpan.FromSeconds(59));
-        Decide(gate, Outside, credentials);
+        await RunAsync(gate, Outside, credentials);
         Assert.Equal(1, runtime.Stats.Verifications);
 
         clock.Advance(TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1));
-        Assert.Equal("pass", Describe(Decide(gate, Outside, credentials)));
+        Assert.Equal("pass", await RunAsync(gate, Outside, credentials));
         Assert.Equal(2, runtime.Stats.Verifications);
     }
 
     [Fact]
-    public void AWrongPasswordIsNeverRemembered()
+    public async Task AWrongPasswordIsNeverRemembered()
     {
         var runtime = new AccessListRuntime();
         var gate = GateFor(runtime, Model(List("office")), out _);
 
         for (var i = 0; i < 3; i++)
         {
-            Assert.Equal("401", Describe(Decide(gate, Outside, Basic("alice", "wrong"))));
+            Assert.Equal("401", await RunAsync(gate, Outside, Basic("alice", "wrong")));
         }
 
         Assert.Equal(3, runtime.Stats.Verifications);
@@ -241,61 +239,61 @@ public sealed class AccessListPolicyTests
     }
 
     [Fact]
-    public void AnUnknownNameCostsAVerificationToo()
+    public async Task AnUnknownNameCostsAVerificationToo()
     {
         var runtime = new AccessListRuntime();
         var gate = GateFor(runtime, Model(List("office")), out _);
 
-        Assert.Equal("401", Describe(Decide(gate, Outside, Basic("mallory", Password))));
+        Assert.Equal("401", await RunAsync(gate, Outside, Basic("mallory", Password)));
 
         Assert.Equal(1, runtime.Stats.Verifications);
     }
 
     [Fact]
-    public void AnotherAddressDoesNotShareARememberedPassword()
+    public async Task AnotherAddressDoesNotShareARememberedPassword()
     {
         var runtime = new AccessListRuntime();
         var gate = GateFor(runtime, Model(List("office")), out _);
         var credentials = Basic("alice", Password);
 
-        Decide(gate, "192.0.2.1", credentials);
-        Decide(gate, "192.0.2.2", credentials);
+        await RunAsync(gate, "192.0.2.1", credentials);
+        await RunAsync(gate, "192.0.2.2", credentials);
 
         Assert.Equal(2, runtime.Stats.Verifications);
     }
 
     [Fact]
-    public void AnIpv6ClientIsRememberedByItsSlash64()
+    public async Task AnIpv6ClientIsRememberedByItsSlash64()
     {
         var runtime = new AccessListRuntime();
         var gate = GateFor(runtime, Model(List("office")), out _);
         var credentials = Basic("alice", Password);
 
-        Decide(gate, "2001:db8:1:2::1", credentials);
-        Decide(gate, "2001:db8:1:2::ffff", credentials);
-        Decide(gate, "2001:db8:1:3::1", credentials);
+        await RunAsync(gate, "2001:db8:1:2::1", credentials);
+        await RunAsync(gate, "2001:db8:1:2::ffff", credentials);
+        await RunAsync(gate, "2001:db8:1:3::1", credentials);
 
         Assert.Equal(2, runtime.Stats.Verifications);
     }
 
     [Fact]
-    public void AChangedPasswordDoesNotReuseAnEntryOfTheOldOne()
+    public async Task AChangedPasswordDoesNotReuseAnEntryOfTheOldOne()
     {
         var runtime = new AccessListRuntime();
         var before = GateFor(runtime, Model(List("office")), out _);
         var credentials = Basic("alice", Password);
-        Assert.Equal("pass", Describe(Decide(before, Outside, credentials)));
+        Assert.Equal("pass", await RunAsync(before, Outside, credentials));
 
         // The same list and user with a new password: a new hash and salt, so a new fingerprint.
         AccessListSpec changed = List("office") with { Users = [new AccessListUserSpec("alice", Paduraksa.Core.Security.PasswordHash.Create("a new password"))] };
         var after = GateFor(runtime, Model(changed), out _);
 
-        Assert.Equal("401", Describe(Decide(after, Outside, credentials)));
-        Assert.Equal("pass", Describe(Decide(after, Outside, Basic("alice", "a new password"))));
+        Assert.Equal("401", await RunAsync(after, Outside, credentials));
+        Assert.Equal("pass", await RunAsync(after, Outside, Basic("alice", "a new password")));
     }
 
     [Fact]
-    public void TwoListsWithTheSameUserDoNotShareAnEntry()
+    public async Task TwoListsWithTheSameUserDoNotShareAnEntry()
     {
         var runtime = new AccessListRuntime();
         var one = List("one");
@@ -313,21 +311,21 @@ public sealed class AccessListPolicyTests
         var gate = GateFor(runtime, model, out _);
         var credentials = Basic("alice", Password);
 
-        Decide(gate, Outside, credentials, "a.test");
-        Decide(gate, Outside, credentials, "b.test");
+        await RunAsync(gate, Outside, credentials, "a.test");
+        await RunAsync(gate, Outside, credentials, "b.test");
 
         Assert.Equal(2, runtime.Stats.Verifications);
     }
 
     [Fact]
-    public void TheCredentialsAreStrippedFromWhatTheUpstreamGetsOnlyWhenTheListConsumedThem()
+    public async Task TheCredentialsAreStrippedFromWhatTheUpstreamGetsOnlyWhenTheListConsumedThem()
     {
         foreach (var (pass, expected) in new[] { (false, true), (true, false) })
         {
             var gate = GateFor(new AccessListRuntime(), Model(List("office", passUpstream: pass)), out _);
             var context = Context(Outside, Basic("alice", Password));
 
-            Assert.Equal(GateAction.Forward, gate.Decide(context).Action);
+            Assert.Equal("pass", await RunAsync(gate, context));
             Assert.Equal(expected, context.Features.Get<IGateFeature>()!.State.StripAuthorization);
         }
 
@@ -339,7 +337,7 @@ public sealed class AccessListPolicyTests
     }
 
     [Fact]
-    public void AHostChainListOnlyRefusesByAddressAndLeavesPasswordsToTheRoute()
+    public async Task AHostChainListOnlyRefusesByAddressAndLeavesPasswordsToTheRoute()
     {
         var list = List("office", Allow, satisfy: AccessListSatisfy.All);
         ProxyConfigModel model = new()
@@ -356,12 +354,12 @@ public sealed class AccessListPolicyTests
         };
         var gate = GateFor(new AccessListRuntime(), model, out _);
 
-        Assert.Equal("403", Describe(Decide(gate, Outside)));
-        Assert.Equal("pass", Describe(Decide(gate, Inside)));
+        Assert.Equal("403", await RunAsync(gate, Outside));
+        Assert.Equal("pass", await RunAsync(gate, Inside));
     }
 
     [Fact]
-    public void TheHostChainUnionRefusesOnlyWhatEveryRoutesListRefuses()
+    public async Task TheHostChainUnionRefusesOnlyWhatEveryRoutesListRefuses()
     {
         var north = List("north", ["10.1.0.0/16"], users: false);
         var south = List("south", ["10.2.0.0/16"], users: false, drop: true);
@@ -380,188 +378,15 @@ public sealed class AccessListPolicyTests
         };
         var gate = GateFor(new AccessListRuntime(), model, out _);
 
-        Assert.Equal("pass", Describe(Decide(gate, "10.1.0.5")));
-        Assert.Equal("pass", Describe(Decide(gate, "10.2.0.5")));
+        Assert.Equal("pass", await RunAsync(gate, "10.1.0.5"));
+        Assert.Equal("pass", await RunAsync(gate, "10.2.0.5"));
 
         // Dropped only if every list drops: the north list answers 403, so that is what the host chain answers.
-        Assert.Equal("403", Describe(Decide(gate, Outside)));
-    }
-
-    private static readonly IpKey Sprayer = IpKey.Parse("198.51.100.66");
-    private static readonly IpKey Member = IpKey.Parse("203.0.113.9");
-
-    [Fact]
-    public void OnlyAsManyVerificationsRunAtOnceAsTheRuntimeAllows()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 2);
-
-        Assert.True(runtime.TryEnterVerification(Sprayer));
-        Assert.True(runtime.TryEnterVerification(Member));
-        Assert.False(runtime.TryEnterVerification(IpKey.Parse("192.0.2.77")));
-        runtime.ExitVerification(Member);
-        Assert.True(runtime.TryEnterVerification(IpKey.Parse("192.0.2.77")));
+        Assert.Equal("403", await RunAsync(gate, Outside));
     }
 
     [Fact]
-    public void WhileTheSystemIsIdleOneClientIsAdmittedWhateverItsOwnCount()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 8);
-
-        // Four at once is more than the share of two, but fewer than half of the eight.
-        for (var i = 0; i < 4; i++)
-        {
-            Assert.True(runtime.TryEnterVerification(Sprayer));
-        }
-    }
-
-    [Fact]
-    public void FourColdLoginsFromOneClientAllSucceedWhenNothingElseIsRunning()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 8);
-        var gate = GateFor(runtime, Model(List("office")), out _);
-        var results = new string[4];
-        using var start = new Barrier(results.Length);
-
-        // The fourth request of an app that reopens after the cache expired, with the other three still hashing.
-        Parallel.For(0, results.Length, new ParallelOptions { MaxDegreeOfParallelism = results.Length }, i =>
-        {
-            start.SignalAndWait();
-            results[i] = Describe(Decide(gate, Sprayer.ToString(), Basic("alice", Password)));
-        });
-
-        Assert.All(results, result => Assert.Equal("pass", result));
-        Assert.Equal(0, runtime.Stats.Busy);
-    }
-
-    [Fact]
-    public void FromHalfTheCapOneClientCanHaveOnlyItsOwnShareRunningAndTheRestIsLeftToOthers()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 8);
-        for (var i = 0; i < 4; i++)
-        {
-            Assert.True(runtime.TryEnterVerification(Sprayer));
-        }
-
-        Assert.False(runtime.TryEnterVerification(Sprayer));
-
-        // Others are not affected, and a refusal gave back nothing it hadn't taken: the global count is still 7.
-        Assert.True(runtime.TryEnterVerification(Member));
-        Assert.True(runtime.TryEnterVerification(IpKey.Parse("192.0.2.1")));
-        Assert.True(runtime.TryEnterVerification(IpKey.Parse("192.0.2.2")));
-        runtime.ExitVerification(Sprayer);
-        runtime.ExitVerification(Sprayer);
-        Assert.False(runtime.TryEnterVerification(Sprayer));
-        runtime.ExitVerification(Sprayer);
-        Assert.True(runtime.TryEnterVerification(Sprayer));
-    }
-
-    [Fact]
-    public void TheGlobalCapIsStillTheHardBoundForClientsWithinTheirShare()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 4);
-        for (byte i = 1; i <= 4; i++)
-        {
-            Assert.True(runtime.TryEnterVerification(IpKey.Parse($"192.0.2.{i}")));
-        }
-
-        Assert.False(runtime.TryEnterVerification(Member));
-    }
-
-    [Fact]
-    public void AnIpv6ClientSharesItsShareWithItsWholeSlash64()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 8);
-
-        Assert.True(runtime.TryEnterVerification(IpKey.Parse("2001:db8:1:2::1")));
-        Assert.True(runtime.TryEnterVerification(IpKey.Parse("2001:db8:1:2::ffff")));
-        Assert.True(runtime.TryEnterVerification(IpKey.Parse("2001:db8:1:2:1::1")));
-        Assert.True(runtime.TryEnterVerification(IpKey.Parse("2001:db8:1:2:2::1")));
-        Assert.False(runtime.TryEnterVerification(IpKey.Parse("2001:db8:1:2:3::1")));
-        Assert.True(runtime.TryEnterVerification(IpKey.Parse("2001:db8:1:3::1")));
-    }
-
-    [Fact]
-    public void ASprayerSaturatingTheSystemDoesNotBlockAnotherClientsVerification()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 8);
-        var gate = GateFor(runtime, Model(List("office")), out _);
-        var held = 0;
-        for (var attempt = 0; attempt < 100; attempt++)
-        {
-            held += runtime.TryEnterVerification(Sprayer) ? 1 : 0;
-        }
-
-        // It got half the cap, and no more however hard it kept trying.
-        Assert.Equal(4, held);
-
-        var refused = Decide(gate, Sprayer.ToString(), Basic("alice", "wrong"));
-        var other = Decide(gate, Member.ToString(), Basic("alice", Password));
-
-        Assert.Equal(429, refused.Response!.StatusCode);
-        Assert.Equal("pass", Describe(other));
-        Assert.Equal(1, runtime.Stats.Busy);
-
-        // What the refused request took, it gave back.
-        for (var i = 0; i < 3; i++)
-        {
-            runtime.ExitVerification(Sprayer);
-        }
-
-        Assert.True(runtime.TryEnterVerification(Sprayer));
-    }
-
-    [Fact]
-    public void ASlotIsGivenBackWhateverTheVerificationDoes()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 1, maxVerificationsPerClient: 1);
-        var gate = GateFor(runtime, Model(List("office")), out _);
-
-        for (var i = 0; i < 5; i++)
-        {
-            Assert.Equal("401", Describe(Decide(gate, Sprayer.ToString(), Basic("alice", "wrong"))));
-            Assert.Equal("401", Describe(Decide(gate, Sprayer.ToString(), Basic("nobody", "wrong"))));
-        }
-
-        Assert.Equal(0, runtime.Stats.Busy);
-        Assert.True(runtime.TryEnterVerification(Sprayer));
-    }
-
-    [Fact]
-    public void TakingAndGivingBackASlotAllocatesNothing()
-    {
-        var runtime = new AccessListRuntime();
-
-        AllocAssert.Zero(runtime, static r =>
-        {
-            if (r.TryEnterVerification(Sprayer))
-            {
-                r.ExitVerification(Sprayer);
-            }
-        }, "a verification slot");
-    }
-
-    [Fact]
-    public void WhenEveryVerificationSlotIsTakenAWrongPasswordIsAskedToWait()
-    {
-        var runtime = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 1);
-        var gate = GateFor(runtime, Model(List("office")), out _);
-        Assert.True(runtime.TryEnterVerification(Member));
-
-        var decision = Decide(gate, Outside, Basic("alice", Password));
-
-        Assert.Equal(429, decision.Response!.StatusCode);
-        Assert.Equal("1", decision.RetryAfter);
-        Assert.Equal(1, runtime.Stats.Busy);
-
-        // A password that is already remembered needs no slot, so it still gets through.
-        runtime.ExitVerification(Member);
-        Assert.Equal("pass", Describe(Decide(gate, Outside, Basic("alice", Password))));
-        Assert.True(runtime.TryEnterVerification(Member));
-        Assert.Equal("pass", Describe(Decide(gate, Outside, Basic("alice", Password))));
-    }
-
-    [Fact]
-    public void TheHostChainsAddressStageAndTheRoutesFullStageCountOneAllowedRequest()
+    public async Task TheHostChainsAddressStageAndTheRoutesFullStageCountOneAllowedRequest()
     {
         var runtime = new AccessListRuntime();
         var list = List("office", Allow, Deny);
@@ -579,7 +404,7 @@ public sealed class AccessListPolicyTests
         };
         var gate = GateFor(runtime, model, out _);
 
-        Assert.Equal("pass", Describe(Decide(gate, Inside, Basic("alice", Password))));
+        Assert.Equal("pass", await RunAsync(gate, Inside, Basic("alice", Password)));
 
         Assert.Equal(1, runtime.Stats.Allowed);
     }
@@ -602,7 +427,7 @@ public sealed class AccessListPolicyTests
     }
 
     [Fact]
-    public void EveryVerdictThatNeedsNoPbkdf2AllocatesNothing()
+    public async Task EveryVerdictThatNeedsNoPbkdf2AllocatesNothing()
     {
         var runtime = new AccessListRuntime();
         IClientAddressSource addresses = new TrustedProxyClientAddressSource();
@@ -621,6 +446,11 @@ public sealed class AccessListPolicyTests
             ],
         };
         var snapshot = TestSnapshots.Bound(model, options: new SnapshotCompilerOptions { AccessLists = runtime });
+        SnapshotStore store = new();
+        store.Publish(snapshot);
+
+        // The one PBKDF2 a password costs, through the whole gate, so the measured requests find it remembered.
+        Assert.Equal("pass", await RunAsync(new GateMiddleware(store, addresses), Context(Outside, Basic("alice", Password), "passwords.test")));
 
         var cases = new (string Name, DefaultHttpContext Context, GateAction Expected)[]
         {
@@ -630,27 +460,13 @@ public sealed class AccessListPolicyTests
             ("no credentials (401)", Context(Outside, host: "passwords.test"), GateAction.Respond),
             ("unreadable credentials (401)", Context(Outside, "Basic ???", "passwords.test"), GateAction.Respond),
             ("a remembered password", Context(Outside, Basic("alice", Password), "passwords.test"), GateAction.Forward),
+            ("a password that is not remembered (the decision defers; nothing is checked yet)", Context(Outside, Basic("alice", "wrong"), "passwords.test"), GateAction.AwaitPolicy),
         };
         foreach (var (name, context, expected) in cases)
         {
-            // The first request of a remembered password pays its PBKDF2; the measured ones must not.
             Assert.Equal(expected, GateMiddleware.Decide(context, snapshot, addresses, null, default(NoGateTracer)).Action);
             AllocAssert.Zero((snapshot, addresses, context), static s => _ = GateMiddleware.Decide(s.context, s.snapshot, s.addresses, null, default(NoGateTracer)), name);
         }
-    }
-
-    [Fact]
-    public void AMissCostsOnePbkdf2AndAtMostAFewHundredBytes()
-    {
-        var runtime = new AccessListRuntime();
-        IClientAddressSource addresses = new TrustedProxyClientAddressSource();
-        var passwords = List("passwords");
-        var snapshot = TestSnapshots.Bound(Model(passwords, "passwords.test"), options: new SnapshotCompilerOptions { AccessLists = runtime });
-        var context = Context(Outside, Basic("alice", "wrong"), "passwords.test");
-
-        var measured = AllocAssert.Measure((snapshot, addresses, context), static s => _ = GateMiddleware.Decide(s.context, s.snapshot, s.addresses, null, default(NoGateTracer)), warmup: 3, iterations: 20);
-
-        Assert.True(measured.BytesPerCall < 512, $"{measured.BytesPerCall} B per wrong-password check");
     }
 
     private static HostSpec Host(string name, AccessListSpec list) => new()
@@ -658,13 +474,5 @@ public sealed class AccessListPolicyTests
         Id = TestIds.Host(name),
         Names = [name],
         Routes = [TestSnapshots.Route(name, "web") with { Policies = [new AccessListPolicySpec(list.Id)] }],
-    };
-
-    private static string Describe(GateDecision decision) => decision.Action switch
-    {
-        GateAction.Forward => "pass",
-        GateAction.Abort => "drop",
-        GateAction.Respond => decision.Response!.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        _ => decision.Action.ToString(),
     };
 }

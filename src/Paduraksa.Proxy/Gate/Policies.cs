@@ -13,6 +13,10 @@ public enum PolicyAction : byte
 
     /// <summary>Abort the request without a response (H1: the connection closes; H2/H3: the stream is reset).</summary>
     Drop,
+
+    /// <summary>The verdict needs asynchronous work: the gate calls <see cref="IDeferredPolicy.CompleteAsync"/> and, if that
+    /// continues, resumes the chain after this policy. Never returned for a simulation.</summary>
+    Defer,
 }
 
 /// <summary>A policy's verdict, 24 bytes: two references and the action. The second reference is the precomputed
@@ -39,6 +43,8 @@ public readonly struct PolicyDecision : IEquatable<PolicyDecision>
     public static PolicyDecision Continue => default;
 
     public static PolicyDecision Drop => new(PolicyAction.Drop, null, null);
+
+    public static PolicyDecision Defer => new(PolicyAction.Defer, null, null);
 
     public static PolicyDecision Respond(PrecomputedResponse response) => Respond(response, null);
 
@@ -97,4 +103,16 @@ public interface IRequestPolicy
     /// limit reports "would allow, N left" without taking a token). Never called on the hot path.</summary>
     string Explain(in RequestView request, PolicyDecision verdict) =>
         verdict.Action == PolicyAction.Continue ? "lets the request through" : verdict.Action == PolicyAction.Drop ? "drops the request" : "answers it";
+}
+
+/// <summary>
+/// A policy that can't always decide synchronously (an access list's password check waits for a verification slot). Its
+/// <see cref="IRequestPolicy.Evaluate"/> returns <see cref="PolicyDecision.Defer"/> for the requests that need the wait, and
+/// every other verdict stays synchronous and allocation-free. The gate then awaits <see cref="CompleteAsync"/> and carries on
+/// with the policies after this one.
+/// </summary>
+internal interface IDeferredPolicy : IRequestPolicy
+{
+    /// <summary>The final verdict of a request <see cref="IRequestPolicy.Evaluate"/> deferred; never <see cref="PolicyAction.Defer"/>.</summary>
+    ValueTask<PolicyDecision> CompleteAsync(HttpContext http, GateRequestState state);
 }

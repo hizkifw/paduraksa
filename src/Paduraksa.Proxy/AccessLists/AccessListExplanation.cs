@@ -27,7 +27,8 @@ internal static class AccessListExplanation
             CredentialVerdict.WrongPassword => "the password is wrong",
             CredentialVerdict.Verified => "the password is right",
             CredentialVerdict.VerifiedFromCache => "the password was verified a moment ago",
-            CredentialVerdict.Busy => "too many password checks are running",
+            CredentialVerdict.Busy => "no password check came free: the line for one was full or the wait ran out",
+            CredentialVerdict.Pending => "the password is checked once a slot is free",
             CredentialVerdict.Deferred => "the password is asked after the redirect to HTTPS",
             _ => NotAsked(list, stage, outcome),
         };
@@ -62,6 +63,7 @@ internal static class AccessListExplanation
         CredentialVerdict.WrongPassword => "wrongPassword",
         CredentialVerdict.Verified or CredentialVerdict.VerifiedFromCache => "ok",
         CredentialVerdict.Busy => "busy",
+        CredentialVerdict.Pending => "pending",
         CredentialVerdict.Deferred => "deferred",
         _ => "notAsked",
     };

@@ -94,4 +94,22 @@ internal static class AccessListFixtures
 
     public static GateDecision Decide(GateMiddleware gate, string client, string? authorization = null, string host = "acl.test") =>
         gate.Decide(Context(client, authorization, host));
+
+    /// <summary>The request through the whole gate, waiting for a verification slot where it must: <c>pass</c> (forwarded),
+    /// <c>drop</c>, or the status it was answered with.</summary>
+    public static Task<string> RunAsync(GateMiddleware gate, string client, string? authorization = null, string host = "acl.test") =>
+        RunAsync(gate, Context(client, authorization, host));
+
+    public static async Task<string> RunAsync(GateMiddleware gate, DefaultHttpContext context)
+    {
+        var forwarded = false;
+        await gate.InvokeAsync(context, _ =>
+        {
+            forwarded = true;
+            return Task.CompletedTask;
+        });
+        return forwarded ? "pass"
+            : context.Features.Get<IGateFeature>()!.State.Aborted ? "drop"
+            : context.Response.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
 }

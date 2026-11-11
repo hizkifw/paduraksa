@@ -54,15 +54,20 @@ public sealed class AccessListSimulationTests
 
     [Theory]
     [MemberData(nameof(Matrix))]
-    public void TheSimulatedOutcomeIsWhatTheRealGateDoes(AccessListSatisfy satisfy, string client, string credentials)
+    public async Task TheSimulatedOutcomeIsWhatTheRealGateDoes(AccessListSatisfy satisfy, string client, string credentials)
     {
         var (snapshot, gate) = Build(satisfy, out _);
         var header = Header(credentials);
 
         var simulated = GateSimulator.Run(snapshot, Probe(client, header)).Outcome;
-        var real = gate.Decide(Context(client, header));
+        var real = await RunAsync(gate, client, header);
 
-        Assert.Equal(Of(real), (simulated.Action, simulated.StatusCode));
+        Assert.Equal(real, simulated.Action switch
+        {
+            GateOutcomeAction.Forward => "pass",
+            GateOutcomeAction.Abort => "drop",
+            _ => simulated.StatusCode.ToString(),
+        });
     }
 
     [Theory]
@@ -129,7 +134,7 @@ public sealed class AccessListSimulationTests
     }
 
     [Fact]
-    public void ASimulationNeitherCachesNorCountsNorTakesAVerificationSlot()
+    public async Task ASimulationNeitherCachesNorCountsNorTakesAVerificationSlot()
     {
         var (snapshot, gate) = Build(AccessListSatisfy.All, out var runtime);
 
@@ -143,20 +148,20 @@ public sealed class AccessListSimulationTests
         Assert.Equal((0, 0, 0, 0, 0, 0), (runtime.Stats.Allowed, runtime.Stats.AddressRefused, runtime.Stats.Unauthorized, runtime.Stats.CacheHits, runtime.Stats.Verifications, runtime.Stats.Busy));
 
         // The real gate then pays its own PBKDF2 once and remembers it: the simulations left it nothing to hit.
-        Assert.Equal(GateAction.Forward, gate.Decide(Context(Inside, Header("good"))).Action);
-        Assert.Equal(GateAction.Forward, gate.Decide(Context(Inside, Header("good"))).Action);
+        Assert.Equal("pass", await RunAsync(gate, Inside, Header("good")));
+        Assert.Equal("pass", await RunAsync(gate, Inside, Header("good")));
         Assert.Equal((1, 1), (runtime.Stats.Verifications, runtime.Stats.CacheHits));
     }
 
     [Fact]
-    public void ASimulationWorksWhileEveryVerificationSlotIsTaken()
+    public async Task ASimulationWorksWhileEveryVerificationSlotIsTaken()
     {
         var busy = new AccessListRuntime(TimeProvider.System, maxConcurrentVerifications: 1);
-        Assert.True(busy.TryEnterVerification(IpKey.Parse("203.0.113.200")));
+        Assert.Equal(VerificationSlot.Granted, await busy.Queue.EnterAsync(IpKey.Parse("203.0.113.200"), CancellationToken.None));
         var crowded = TestSnapshots.Bound(AccessListFixtures.Model(List("office", Allow, Deny)), options: new SnapshotCompilerOptions { AccessLists = busy });
 
         Assert.Equal(GateOutcomeAction.Forward, GateSimulator.Run(crowded, Probe(Inside, Header("good"))).Outcome.Action);
-        Assert.Equal(0, busy.Stats.Busy);
+        Assert.Equal((0, 0), (busy.Stats.Busy, busy.Stats.Queued));
     }
 
     [Fact]
@@ -239,13 +244,6 @@ public sealed class AccessListSimulationTests
         Path = "/",
         ClientAddress = IPAddress.Parse(client),
         Headers = authorization is null ? [] : [new ProbeHeader("Authorization", authorization)],
-    };
-
-    private static (GateOutcomeAction Action, int? Status) Of(GateDecision decision) => decision.Action switch
-    {
-        GateAction.Forward => (GateOutcomeAction.Forward, null),
-        GateAction.Abort => (GateOutcomeAction.Abort, null),
-        _ => (GateOutcomeAction.Respond, decision.Response!.StatusCode),
     };
 
     private static GateStep AccessListStep(GateSimulation run) =>

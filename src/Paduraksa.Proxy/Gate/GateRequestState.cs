@@ -105,6 +105,14 @@ public sealed class GateRequestState : IGateFeature
     /// <c>Authorization</c> header (<see cref="Yarp.ForwardedHeadersTransform"/> removes it).</summary>
     internal bool StripAuthorization { get; set; }
 
+    /// <summary>The policy whose verdict the gate is waiting for, where it sits (<see cref="DeferredScope"/>, <see cref="DeferredIndex"/>),
+    /// so the chain resumes right after it.</summary>
+    internal IDeferredPolicy? DeferredPolicy { get; set; }
+
+    internal PolicyScope DeferredScope { get; set; }
+
+    internal int DeferredIndex { get; set; }
+
     /// <summary>The last access-list verdict of a simulated request, for the trace's sentence; never set on a real one.</summary>
     internal AccessLists.AccessListOutcome AccessListOutcome { get; set; }
 
@@ -112,6 +120,7 @@ public sealed class GateRequestState : IGateFeature
     internal void Reset()
     {
         StripAuthorization = false;
+        DeferredPolicy = null;
         AccessListOutcome = default;
         Snapshot = null;
         Host = null;

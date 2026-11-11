@@ -148,7 +148,9 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                                 var before = GC.GetAllocatedBytesForCurrentThread();
                                 var decision = gate.Decide(context);
                                 stats.Record(GC.GetAllocatedBytesForCurrentThread() - before, fresh);
-                                return GateMiddleware.CompleteAsync(context, decision, next);
+                                return decision.Action == GateAction.AwaitPolicy
+                                    ? gate.CompleteDeferredAsync(context, next)
+                                    : GateMiddleware.CompleteAsync(context, decision, next);
                             });
                         }
                     }

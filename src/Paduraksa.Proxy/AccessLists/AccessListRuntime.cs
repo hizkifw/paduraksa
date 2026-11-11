@@ -11,44 +11,42 @@ namespace Paduraksa.Proxy.AccessLists;
 public sealed class AccessListRuntime
 {
     private readonly long _start;
-    private readonly int _maxVerifications;
-    private readonly int _maxPerClient;
-    private readonly int _pressureAt;
-    private readonly int[] _perClient = new int[ClientStripes];
-    private readonly ulong _stripeSeed = BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(8));
-    private int _verifying;
 
-    /// <summary>Stripes of the per-client in-flight counters (4 KiB): a client maps to one by a keyed hash of its masked
-    /// address, so two clients share a stripe only by chance, and nobody can aim at another's.</summary>
-    private const int ClientStripes = 1024;
+    /// <summary>How many PBKDF2 checks one client may have queued and running together.</summary>
+    public const int DefaultMaxPerClient = 4;
 
-    /// <summary>How many PBKDF2 checks one client may have running at once once half the global cap is in use.</summary>
-    public const int DefaultMaxPerClient = 2;
+    /// <summary>How long a request may wait for a verification slot before it is refused.</summary>
+    public static readonly TimeSpan DefaultMaxWait = TimeSpan.FromSeconds(10);
+
+    internal const int MinConcurrentVerifications = 8;
+
+    /// <summary>The line holds this many requests per slot by default: at tens of milliseconds a check, the last one in a full
+    /// line waits a few seconds, well inside <see cref="DefaultMaxWait"/> whatever the machine's size.</summary>
+    internal const int QueuedPerSlot = 32;
 
     public AccessListRuntime()
         : this(TimeProvider.System)
     {
     }
 
-    internal const int MinConcurrentVerifications = 8;
-
-    public AccessListRuntime(TimeProvider time, int cacheCapacity = AccessListVerificationCache.DefaultCapacity, int? maxConcurrentVerifications = null, int maxVerificationsPerClient = DefaultMaxPerClient)
+    public AccessListRuntime(
+        TimeProvider time,
+        int cacheCapacity = AccessListVerificationCache.DefaultCapacity,
+        int? maxConcurrentVerifications = null,
+        int maxVerificationsPerClient = DefaultMaxPerClient,
+        int? maxQueued = null,
+        TimeSpan? maxWait = null)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(maxVerificationsPerClient, 1);
-        _maxPerClient = maxVerificationsPerClient;
         ArgumentNullException.ThrowIfNull(time);
         Time = time;
         Cache = new AccessListVerificationCache(cacheCapacity);
         _start = time.GetTimestamp();
 
-        // PBKDF2 runs on the request's thread, so a flood of wrong passwords could otherwise take every thread the pool has. The
-        // global limit is the outer bound. Idle, any client may use it all (an app reopening after the cache expired sends
-        // several credentialed requests at once); once half is taken, each client's own share (a masked address, as the cache
-        // keys it) keeps one sprayer from taking the rest, so it only eats its own 429s.
-        // The floor is for small machines: with a cap of 2 a page's third credentialed request on a cold cache got a 429.
+        // PBKDF2 runs on a thread-pool thread, so a flood of wrong passwords could otherwise take every thread the pool has.
+        // The floor is for small machines: with a cap of 2 a page's third credentialed request on a cold cache got no slot.
         // Over-subscribing a 2-core box with PBKDF2 only makes each check slower, which is the cheaper failure.
-        _maxVerifications = maxConcurrentVerifications ?? Math.Max(MinConcurrentVerifications, Environment.ProcessorCount);
-        _pressureAt = Math.Max(1, _maxVerifications / 2);
+        var slots = maxConcurrentVerifications ?? Math.Max(MinConcurrentVerifications, Environment.ProcessorCount);
+        Queue = new AccessListVerificationQueue(time, Stats, slots, maxQueued ?? slots * QueuedPerSlot, maxVerificationsPerClient, maxWait ?? DefaultMaxWait);
         Key = RandomNumberGenerator.GetBytes(32);
     }
 
@@ -64,45 +62,9 @@ public sealed class AccessListRuntime
     /// <summary>Drawn when the process starts: a client can't compute a fingerprint, so it can't aim one at another's entry.</summary>
     internal byte[] Key { get; }
 
+    internal AccessListVerificationQueue Queue { get; }
+
     internal long NowMs => (long)Time.GetElapsedTime(_start).TotalMilliseconds;
-
-    /// <summary>Takes a verification slot for <paramref name="client"/>. The global cap is the hard bound. While fewer than
-    /// half of it is in use anyone is admitted, so a page that fires several credentialed requests at once on a cold cache
-    /// is not refused; from half up, a client may hold at most its own share. 0 B, lock-free. Every true must be paired with
-    /// <see cref="ExitVerification"/> with the same client, in a <c>finally</c>.</summary>
-    internal bool TryEnterVerification(IpKey client)
-    {
-        var running = Interlocked.Increment(ref _verifying);
-        if (running > _maxVerifications)
-        {
-            Interlocked.Decrement(ref _verifying);
-            return false;
-        }
-
-        // The client's count is kept whatever the load, so the share is right the moment the load rises.
-        ref var own = ref _perClient[Stripe(client)];
-        if (Interlocked.Increment(ref own) > _maxPerClient && running > _pressureAt)
-        {
-            Interlocked.Decrement(ref own);
-            Interlocked.Decrement(ref _verifying);
-            return false;
-        }
-
-        return true;
-    }
-
-    internal void ExitVerification(IpKey client)
-    {
-        Interlocked.Decrement(ref _verifying);
-        Interlocked.Decrement(ref _perClient[Stripe(client)]);
-    }
-
-    private int Stripe(IpKey client)
-    {
-        var value = client.MaskTo(32, 64).Value;
-        var hash = ((ulong)value ^ ((ulong)(value >> 64) * 0x9E37_79B9_7F4A_7C15UL) ^ _stripeSeed) * 0xFF51_AFD7_ED55_8CCDUL;
-        return (int)((hash ^ (hash >> 32)) & (ClientStripes - 1));
-    }
 }
 
 /// <summary>Process-lifetime access-list counters; the security page reads them. Each count is one interlocked add.</summary>
@@ -114,6 +76,9 @@ public sealed class AccessListStats
     private long _cacheHits;
     private long _verifications;
     private long _busy;
+    private long _queued;
+    private long _queueFull;
+    private long _queueTimeouts;
 
     /// <summary>Requests an access list let through.</summary>
     public long Allowed => Volatile.Read(ref _allowed);
@@ -130,8 +95,17 @@ public sealed class AccessListStats
     /// <summary>PBKDF2 checks run.</summary>
     public long Verifications => Volatile.Read(ref _verifications);
 
-    /// <summary>Requests answered 429 because too many PBKDF2 checks were already running.</summary>
+    /// <summary>Requests answered 429 because no PBKDF2 slot came free for them: <see cref="QueueFull"/> plus <see cref="QueueTimeouts"/>.</summary>
     public long Busy => Volatile.Read(ref _busy);
+
+    /// <summary>Requests that waited in the line for a PBKDF2 slot (however the wait ended).</summary>
+    public long Queued => Volatile.Read(ref _queued);
+
+    /// <summary>Requests refused at once because the line was full or their client already held its share of it.</summary>
+    public long QueueFull => Volatile.Read(ref _queueFull);
+
+    /// <summary>Requests that waited the maximum and were refused.</summary>
+    public long QueueTimeouts => Volatile.Read(ref _queueTimeouts);
 
     internal void CountAllowed() => Interlocked.Increment(ref _allowed);
 
@@ -143,5 +117,17 @@ public sealed class AccessListStats
 
     internal void CountVerification() => Interlocked.Increment(ref _verifications);
 
-    internal void CountBusy() => Interlocked.Increment(ref _busy);
+    internal void CountQueued() => Interlocked.Increment(ref _queued);
+
+    internal void CountQueueFull()
+    {
+        Interlocked.Increment(ref _queueFull);
+        Interlocked.Increment(ref _busy);
+    }
+
+    internal void CountQueueTimeout()
+    {
+        Interlocked.Increment(ref _queueTimeouts);
+        Interlocked.Increment(ref _busy);
+    }
 }

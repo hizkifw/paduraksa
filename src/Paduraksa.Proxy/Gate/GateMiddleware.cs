@@ -31,6 +31,10 @@ internal enum GateAction : byte
     /// <summary>The gate's own proof-of-work verify endpoint: <see cref="GateMiddleware.InvokeAsync"/> reads the body, checks it
     /// and answers with the cookie and a redirect.</summary>
     VerifyProofOfWork,
+
+    /// <summary>A policy deferred its verdict (<see cref="GateRequestState.DeferredPolicy"/>): <see cref="GateMiddleware.InvokeAsync"/>
+    /// awaits it, then resumes the chain after that policy. Only the production decision returns it, never a simulation.</summary>
+    AwaitPolicy,
 }
 
 /// <summary>The gate's synchronous verdict, 24 bytes: the action, the answer and its precomputed <c>Retry-After</c>.
@@ -46,6 +50,8 @@ internal readonly record struct GateDecision(GateAction Action, PrecomputedRespo
     public static GateDecision Respond(PrecomputedResponse response, string? retryAfter) => new(GateAction.Respond, response, retryAfter);
 
     public static GateDecision VerifyProofOfWork => new(GateAction.VerifyProofOfWork, null);
+
+    public static GateDecision AwaitPolicy => new(GateAction.AwaitPolicy, null);
 }
 
 /// <summary>
@@ -82,13 +88,22 @@ public sealed class GateMiddleware
     public Task InvokeAsync(HttpContext context, RequestDelegate next) => InvokeCoreAsync(context, next);
 
     /// <summary>
-    /// <see cref="Decide"/>, then the last header stage (the response <c>X-Request-Id</c>), then
-    /// <see cref="CompleteAsync"/>. The ID's header value is the one string a request materialises; it is built here,
-    /// once, and shared with the upstream header and the access log, so <see cref="Decide"/> stays at 0 B.
+    /// <see cref="Decide"/>, then <see cref="FinishAsync"/>; a deferred policy is awaited first and the chain resumed after
+    /// it, so the last header stage and the answer see the final decision.
     /// </summary>
     private Task InvokeCoreAsync(HttpContext context, RequestDelegate next)
     {
         var decision = Decide(context);
+        return decision.Action == GateAction.AwaitPolicy ? CompleteDeferredAsync(context, next) : FinishAsync(context, decision, next);
+    }
+
+    /// <summary>
+    /// The last header stage (the response <c>X-Request-Id</c>), then <see cref="CompleteAsync"/>. The ID's header value is the
+    /// one string a request materialises; it is built here, once, and shared with the upstream header and the access log, so
+    /// <see cref="Decide"/> stays at 0 B.
+    /// </summary>
+    private Task FinishAsync(HttpContext context, GateDecision decision, RequestDelegate next)
+    {
         var state = context.Features.Get<IGateFeature>()?.State;
         if (state is not null)
         {
@@ -102,6 +117,57 @@ public sealed class GateMiddleware
         }
 
         return CompleteAsync(context, decision, next);
+    }
+
+    /// <summary>Awaits the deferred policy and finishes the request with the verdict the rest of the chain gives.</summary>
+    internal async Task CompleteDeferredAsync(HttpContext context, RequestDelegate next)
+    {
+        var decision = await ResumeAsync(context).ConfigureAwait(false);
+        await FinishAsync(context, decision, next).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Awaits the policy that deferred, then carries on from the policy after it through the rest of the same chain and
+    /// everything that follows it (the host's redirect and fixed answers, route matching, the route's chain, the endpoint),
+    /// exactly as <see cref="Decide"/> would have had the verdict been synchronous. A later policy may defer too.
+    /// </summary>
+    private static async ValueTask<GateDecision> ResumeAsync(HttpContext context)
+    {
+        var state = context.Features.Get<IGateFeature>()!.State;
+        while (true)
+        {
+            var policy = state.DeferredPolicy!;
+            var scope = state.DeferredScope;
+            var index = state.DeferredIndex;
+            state.DeferredPolicy = null;
+            var verdict = await policy.CompleteAsync(context, state).ConfigureAwait(false);
+            var decision = verdict.Action switch
+            {
+                PolicyAction.Continue => ContinueAfter(context, state, scope, index + 1),
+                PolicyAction.Respond => GateDecision.Respond(verdict.Response!, verdict.RetryAfter),
+                _ => GateDecision.Abort,
+            };
+            if (decision.Action != GateAction.AwaitPolicy)
+            {
+                return decision;
+            }
+        }
+    }
+
+    private static GateDecision ContinueAfter(HttpContext context, GateRequestState state, PolicyScope scope, int next)
+    {
+        var snapshot = state.Snapshot!;
+        var tracer = default(NoGateTracer);
+        RequestView view = new(context, state);
+        if (scope == PolicyScope.Route)
+        {
+            return DecideRoute(context, snapshot, state.Route!, state, next, in view, tracer);
+        }
+
+        var host = state.Host!;
+        return Stops(PolicyScope.Host, host.Policies, next, in view, tracer, out var stopped)
+            ? stopped
+            : DecideAfterHostChain(context, snapshot, host, state, in view, tracer);
     }
 
     internal GateDecision Decide(HttpContext context) => Decide(context, _store.Current, _clientAddresses, _challenges, _proofOfWork, default(NoGateTracer));
@@ -200,10 +266,17 @@ public sealed class GateMiddleware
 
         ApplyHeaders(context, host.ResponseHeaders, ResponseHeaderStage.AfterTlsCheck, state, host, tracer);
         RequestView view = new(context, state, TTracer.IsSimulation);
-        if (Stops(PolicyScope.Host, host.Policies, in view, tracer, out var stopped))
-        {
-            return stopped;
-        }
+        return Stops(PolicyScope.Host, host.Policies, 0, in view, tracer, out var stopped)
+            ? stopped
+            : DecideAfterHostChain(context, snapshot, host, state, in view, tracer);
+    }
+
+    /// <summary>The decision from the end of the host's policy chain on: a separate method so a deferred host policy can resume here.</summary>
+    private static GateDecision DecideAfterHostChain<TTracer>(
+        HttpContext context, RuntimeSnapshot snapshot, CompiledHost host, GateRequestState state, in RequestView view, TTracer tracer)
+        where TTracer : struct, IGateTracer
+    {
+        var request = context.Request;
 
         // The trusted scheme, not the connection's: behind a TLS-terminating trusted proxy the client already uses HTTPS.
         if (host.HttpsRedirect is { } httpsRedirect)
@@ -237,7 +310,7 @@ public sealed class GateMiddleware
 
         // The proof-of-work verify endpoint, before route matching: the gate answers it for any host where the gate is on
         // for the host or one of its routes, and every other host lets the path fall through as usual. A verify POST is a
-        // body to read, so the asynchronous endpoint handles it after this decision (see InvokeCoreAsync).
+        // body to read, so the asynchronous endpoint handles it after this decision (see FinishAsync).
         if (host.ServesProofOfWork && ProofOfWorkTargets.IsVerifyPath(request.Path.Value.AsSpan()))
         {
             if (HttpMethods.IsPost(request.Method))
@@ -256,7 +329,15 @@ public sealed class GateMiddleware
         }
 
         state.Route = route;
-        if (Stops(PolicyScope.Route, route.Policies, in view, tracer, out stopped))
+        return DecideRoute(context, snapshot, route, state, 0, in view, tracer);
+    }
+
+    /// <summary>The decision from a route's policy chain (starting at policy <paramref name="first"/>) to the endpoint.</summary>
+    private static GateDecision DecideRoute<TTracer>(
+        HttpContext context, RuntimeSnapshot snapshot, CompiledRoute route, GateRequestState state, int first, in RequestView view, TTracer tracer)
+        where TTracer : struct, IGateTracer
+    {
+        if (Stops(PolicyScope.Route, route.Policies, first, in view, tracer, out var stopped))
         {
             return stopped;
         }
@@ -337,11 +418,12 @@ public sealed class GateMiddleware
         }
     }
 
-    /// <summary>Runs a chain; true (with the decision) when a policy responds or drops.</summary>
-    private static bool Stops<TTracer>(PolicyScope scope, IRequestPolicy[] policies, in RequestView view, TTracer tracer, out GateDecision decision)
+    /// <summary>Runs a chain from policy <paramref name="first"/>; true (with the decision) when a policy responds, drops or defers.</summary>
+    private static bool Stops<TTracer>(
+        PolicyScope scope, IRequestPolicy[] policies, int first, in RequestView view, TTracer tracer, out GateDecision decision)
         where TTracer : struct, IGateTracer
     {
-        for (var i = 0; i < policies.Length; i++)
+        for (var i = first; i < policies.Length; i++)
         {
             var policy = policies[i];
             var verdict = policy.Evaluate(in view);
@@ -352,6 +434,13 @@ public sealed class GateMiddleware
                     continue;
                 case PolicyAction.Respond:
                     decision = GateDecision.Respond(verdict.Response!, verdict.RetryAfter);
+                    return true;
+                case PolicyAction.Defer:
+                    var state = view.State;
+                    state.DeferredPolicy = (IDeferredPolicy)policy;
+                    state.DeferredScope = scope;
+                    state.DeferredIndex = i;
+                    decision = GateDecision.AwaitPolicy;
                     return true;
                 default:
                     decision = GateDecision.Abort;

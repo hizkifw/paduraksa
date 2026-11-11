@@ -28,8 +28,8 @@ public enum AccessListStage : byte
 
 /// <summary>
 /// One access list in a host's or route's chain: IP allow and deny, then HTTP basic auth, combined as the list's
-/// <c>satisfy</c> says. Every verdict (pass, 403, drop, 401) allocates nothing; a password that isn't in the
-/// verification cache costs one PBKDF2.
+/// <c>satisfy</c> says. Every verdict (pass, 403, drop, 401) the policy gives at once allocates nothing; a password that
+/// isn't in the verification cache costs one PBKDF2, which the request waits for without holding a thread.
 /// </summary>
 /// <remarks>
 /// <para><b>Rules.</b> A denied address is refused whatever it sends. An allow list that has entries lets only those
@@ -37,15 +37,18 @@ public enum AccessListStage : byte
 /// instead. Without users only the address applies; without address rules only the password does.</para>
 /// <para><b>Credentials.</b> The name is compared in constant time with every user's, so where in the list it matched isn't
 /// observable; an unknown name still pays one PBKDF2 against a dummy hash, so it is indistinguishable by timing from a wrong
-/// password. At most as many checks as the machine has processors run at once; the rest are answered 429 rather than
-/// queued behind a flood of wrong passwords. A verified credential is remembered in
-/// <see cref="AccessListVerificationCache"/> until five minutes after its last use, keyed by a keyed hash of the list's user (which changes with the password),
-/// the password and the client address masked as the rate limit masks it (IPv4 whole, IPv6 by /64).</para>
-/// <para><b>Allocation.</b> Every path is 0 B, a PBKDF2 included on .NET 10.0.14 (the distro build and Microsoft's 10.0.403
-/// both measured 0 B); <c>AccessListPolicyTests</c> only bounds a miss at 512 B, in case a runtime's provider allocates its
-/// handles.</para>
+/// password. A password that isn't in the cache defers the verdict (<see cref="IDeferredPolicy"/>): the request waits in
+/// <see cref="AccessListVerificationQueue"/> for one of at most as many concurrent checks as the machine has processors (never
+/// fewer than 8), runs its PBKDF2 and then carries on through the rest of the chain, or is answered 401. A request that can't
+/// get a place in the line, or waits too long, is answered 429. A verified credential is remembered in
+/// <see cref="AccessListVerificationCache"/> until five minutes after its last use, keyed by a keyed hash of the list's user
+/// (which changes with the password), the password and the client address masked as the rate limit masks it (IPv4 whole, IPv6
+/// by /64); the same credentials queued behind the one that verified them find it there and skip their own PBKDF2.</para>
+/// <para><b>Allocation.</b> Every synchronous path is 0 B, including the cache miss that defers. The wait and the check run
+/// after the decision and allocate a small, bounded amount (a pooled waiter, the continuation); the PBKDF2 itself measured 0 B
+/// on .NET 10.0.14 (the distro build and Microsoft's 10.0.403).</para>
 /// </remarks>
-public sealed class AccessListPolicy : IRequestPolicy, IPolicyTraceFacts
+public sealed class AccessListPolicy : IDeferredPolicy, IPolicyTraceFacts
 {
     private static readonly PolicyDecision Busy = PolicyDecision.Respond(
         PrecomputedResponse.Text(StatusCodes.Status429TooManyRequests, "Too many requests. Please slow down.\n", htmlPage: ErrorPages.TooManyRequests), "1");
@@ -153,30 +156,69 @@ public sealed class AccessListPolicy : IRequestPolicy, IPolicyTraceFacts
             return new AccessListOutcome(PolicyDecision.Continue, ip, CredentialVerdict.Deferred);
         }
 
-        var credentials = Authenticate(request.Http.Request, client, stats);
+        var credentials = Authenticate(request.Http.Request, client, stats, stats is null ? Phase.Simulation : Phase.Decide);
+        return new AccessListOutcome(credentials == CredentialVerdict.Pending ? PolicyDecision.Defer : Conclude(credentials, state, stats), ip, credentials);
+    }
+
+    private PolicyDecision Conclude(CredentialVerdict credentials, GateRequestState state, AccessListStats? stats)
+    {
         switch (credentials)
         {
             case CredentialVerdict.Verified or CredentialVerdict.VerifiedFromCache:
                 stats?.CountAllowed();
-                if (!list.PassCredentialsUpstream)
+                if (!_list.PassCredentialsUpstream)
                 {
                     state.StripAuthorization = true;
                 }
 
-                return new AccessListOutcome(PolicyDecision.Continue, ip, credentials);
+                return PolicyDecision.Continue;
             case CredentialVerdict.Busy:
-                stats?.CountBusy();
-                return new AccessListOutcome(Busy, ip, credentials);
+                return Busy;
             default:
                 stats?.CountUnauthorized();
-                return new AccessListOutcome(list.Unauthorized, ip, credentials);
+                return _list.Unauthorized;
         }
     }
 
-    // stats null: a simulation, which neither reads nor writes the cache, takes no verification slot and counts nothing.
-    private CredentialVerdict Authenticate(HttpRequest request, IpKey client, AccessListStats? stats)
+    async ValueTask<PolicyDecision> IDeferredPolicy.CompleteAsync(HttpContext http, GateRequestState state)
     {
-        var simulate = stats is null;
+        var client = state.ClientAddress;
+        var stats = _runtime.Stats;
+        var slot = await _runtime.Queue.EnterAsync(client, http.RequestAborted).ConfigureAwait(false);
+        if (slot == VerificationSlot.Cancelled)
+        {
+            return PolicyDecision.Drop;
+        }
+
+        if (slot != VerificationSlot.Granted)
+        {
+            return Busy;
+        }
+
+        CredentialVerdict credentials;
+        try
+        {
+            credentials = Authenticate(http.Request, client, stats, Phase.Verify);
+        }
+        finally
+        {
+            _runtime.Queue.Exit(client);
+        }
+
+        return Conclude(credentials, state, stats);
+    }
+
+    /// <summary>Which part of the check a call is: a simulation (no cache, no slot, no counters), the synchronous decision (only
+    /// the cache; a miss is <see cref="CredentialVerdict.Pending"/>), or the check itself, once a slot is held.</summary>
+    private enum Phase : byte
+    {
+        Simulation,
+        Decide,
+        Verify,
+    }
+
+    private CredentialVerdict Authenticate(HttpRequest request, IpKey client, AccessListStats? stats, Phase phase)
+    {
         var header = request.Headers.Authorization;
         if (header.Count == 0)
         {
@@ -210,8 +252,9 @@ public sealed class AccessListPolicy : IRequestPolicy, IPolicyTraceFacts
             }
         }
 
+        // Looked up again in the Verify phase: a request ahead in the line may have verified these very credentials.
         ulong fingerprint = 0;
-        if (user is not null && !simulate)
+        if (user is not null && phase != Phase.Simulation)
         {
             fingerprint = Fingerprint(user, client, credentials);
             if (_runtime.Cache.TryHit(fingerprint, _runtime.NowMs))
@@ -221,25 +264,13 @@ public sealed class AccessListPolicy : IRequestPolicy, IPolicyTraceFacts
             }
         }
 
-        if (!simulate && !_runtime.TryEnterVerification(client))
+        if (phase == Phase.Decide)
         {
-            return CredentialVerdict.Busy;
+            return CredentialVerdict.Pending;
         }
 
-        bool matches;
-        try
-        {
-            stats?.CountVerification();
-            matches = PasswordHash.Verify(password, user?.Hash ?? DummyHash);
-        }
-        finally
-        {
-            if (!simulate)
-            {
-                _runtime.ExitVerification(client);
-            }
-        }
-
+        stats?.CountVerification();
+        var matches = PasswordHash.Verify(password, user?.Hash ?? DummyHash);
         if (user is null)
         {
             return CredentialVerdict.UnknownUser;
@@ -250,7 +281,7 @@ public sealed class AccessListPolicy : IRequestPolicy, IPolicyTraceFacts
             return CredentialVerdict.WrongPassword;
         }
 
-        if (!simulate)
+        if (phase != Phase.Simulation)
         {
             _runtime.Cache.Add(fingerprint, _runtime.NowMs);
         }
@@ -302,6 +333,9 @@ internal enum CredentialVerdict : byte
     Verified,
     VerifiedFromCache,
     Busy,
+
+    /// <summary>No slot has been asked for yet: the verdict waits for one (<see cref="IDeferredPolicy"/>).</summary>
+    Pending,
 
     /// <summary>A plain-HTTP request to a host that redirects: the password is asked after the redirect.</summary>
     Deferred,
