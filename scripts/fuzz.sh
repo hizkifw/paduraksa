@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Coverage-guided fuzzing of the byte-level parsers (fuzz/, docs/PLAN.md section 15): SharpFuzz instruments the proxy's assemblies, libFuzzer
+# Coverage-guided fuzzing of the byte-level parsers (see fuzz/README.md): SharpFuzz instruments the proxy's assemblies, libFuzzer
 # (libfuzzer-dotnet) drives the harness. One run per target, each for a time box; a crash is kept as a file and fails the script.
 #
 #   scripts/fuzz.sh                                  # every target, 60 s each

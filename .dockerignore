@@ -1,5 +1,5 @@
 # Build context for the container (PLAN §16). The publish needs src/, Directory.Build.props, Directory.Packages.props and
-# the tool manifest; tests, benchmarks, docs, local data and keys do not go in.
+# the tool manifest; tests, benchmarks, fuzzing, docs, local data and keys do not go in.
 .git
 .gitignore
 .gitattributes
@@ -16,6 +16,7 @@ scripts
 **/*.user
 tests
 bench
+fuzz
 docs
 deploy
 **/data/

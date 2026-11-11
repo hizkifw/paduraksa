@@ -1,6 +1,6 @@
 name: Fuzz
 
-# Coverage-guided fuzzing of the byte-level parsers (fuzz/, docs/PLAN.md section 15) and a deeper run of the property tests. Time-boxed and slow on
+# Coverage-guided fuzzing of the byte-level parsers (see fuzz/README.md) and a deeper run of the property tests. Time-boxed and slow on
 # purpose, so it never runs on a push or a pull request: by hand, and every night. A crash is uploaded as an artifact; to keep it, put the file in
 # fuzz/regressions/<target>/, fix the bug and add a unit test beside the code.
 on:
