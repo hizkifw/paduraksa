@@ -506,6 +506,10 @@ public static class ChangeView
             {
                 case null:
                     return null;
+                case JsonArray rules when rules.Count > 0 && rules.All(static item => item is JsonObject rule && rule.ContainsKey("action") && rule.ContainsKey("match")):
+                    // A rule set's rules, numbered the way the editor numbers them: a rule's own sentence has commas, so they can't be
+                    // told apart by a comma between them.
+                    return string.Join("; ", rules.Select((item, index) => $"{index + 1}. {Format(path, item)}"));
                 case JsonArray array:
                     return array.Count == 0 ? "none" : string.Join(", ", array.Select(item => Format(path, item) ?? "-"));
                 case JsonObject rule when rule.ContainsKey("action") && rule.ContainsKey("match") && TryRule(rule) is { } parsed:

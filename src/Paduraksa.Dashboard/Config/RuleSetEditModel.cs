@@ -11,13 +11,13 @@ public sealed class RuleSetEditModel
 {
     private readonly RuleSetConfig? _original;
 
-    private RuleSetEditModel(RuleSetConfig? original, RuleSetId id, RuleSetConfig? source = null, string? name = null)
+    private RuleSetEditModel(RuleSetConfig? original, RuleSetId id, RuleSetConfig? source = null, string? name = null, bool copy = false)
     {
         _original = original;
         Id = id;
         source ??= original;
         Name = name ?? source?.Name ?? string.Empty;
-        Notes = source?.Notes;
+        Notes = copy ? null : source?.Notes;
         foreach (var rule in source?.Rules ?? [])
         {
             Rules.Add(RuleEntry.From(rule));
@@ -52,11 +52,12 @@ public sealed class RuleSetEditModel
         return new RuleSetEditModel(null, set.Id, set);
     }
 
-    /// <summary>A new set that starts as <paramref name="preset"/>: the same rules under a name of its own, to edit.</summary>
+    /// <summary>A new set that starts as <paramref name="preset"/>: the same rules under a name of its own, to edit. The preset's note says why
+    /// it is built in, which isn't why this set exists, so it isn't copied.</summary>
     public static RuleSetEditModel CopyOf(RuleSetConfig preset)
     {
         ArgumentNullException.ThrowIfNull(preset);
-        return new RuleSetEditModel(null, RuleSetId.New(), preset, $"{preset.Name} (copy)");
+        return new RuleSetEditModel(null, RuleSetId.New(), preset, $"{preset.Name} (copy)", copy: true);
     }
 
     public RuleSetConfig ToConfig() => new(

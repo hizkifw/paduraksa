@@ -146,7 +146,7 @@
 
                                             <div class="pdk-rule-agent">
                                                 <MudTextField T="string" Value="rule.AgentsText" ValueChanged="@(value => Set(() => rule.AgentsText = value, $"/rules/{index}/match/userAgent"))"
-                                                              Immediate="true" DebounceInterval="250" Lines="2" Label="User agent contains" Placeholder="sqlmap"
+                                                              Immediate="true" DebounceInterval="250" Lines="2" Sizing="InputSizing.Auto" MaxLines="8" Label="User agent contains" Placeholder="sqlmap"
                                                               Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
                                                               HelperText="One per line, any case. A match on any of them counts."
                                                               Error="@(AgentError(index) is not null)" ErrorText="@AgentError(index)" data-field="@($"agents-{index}")" spellcheck="false" autocomplete="off" />

@@ -229,6 +229,36 @@ public sealed class ChangeListTests
     }
 
     [Fact]
+    public void ARuleSetsRules_AreShownAsNumberedSentences_AndAHostsSetByItsName()
+    {
+        RuleSetConfig set = new(
+            RuleSetId.New(),
+            "Scanners",
+            Rules:
+            [
+                new RuleConfig(RuleAction.Allow, new RuleMatchConfig(new RulePathConfig(RulePathKind.Prefix, "/health"))),
+                new RuleConfig(RuleAction.Deny, new RuleMatchConfig(new RulePathConfig(RulePathKind.Exact, "/admin"), ["POST", "PUT"], new RuleUserAgentConfig(["sqlmap", "nikto"], Empty: true))),
+                new RuleConfig(RuleAction.Drop, new RuleMatchConfig(UserAgent: new RuleUserAgentConfig(Empty: true))),
+            ]);
+        HostConfig before = new(HostId.New(), ["app.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200));
+        var after = before with { Settings = new HostSettings { RuleSet = new RuleSetSettings { RuleSetId = set.Id } } };
+        ConfigDocument older = new(Hosts: [before]);
+        ConfigDocument newer = new(RuleSets: [set], Hosts: [after]);
+
+        var groups = ChangeView.Build(older, newer, ConfigDiff.Compare(older, newer));
+
+        var rules = Assert.Single(Assert.Single(groups, group => group.Head.What == ChangedObject.RuleSet).Head.Fields, field => field.Label == "Rules");
+        Assert.Equal(
+            "1. Allow when path starts with /health; "
+            + "2. Deny when path is /admin and method is POST or PUT and user agent contains \"sqlmap\" or \"nikto\" or is empty; "
+            + "3. Drop when user agent is empty",
+            rules.After);
+        var host = Assert.Single(Assert.Single(groups, group => group.Head.What == ChangedObject.Host).Head.Fields, field => field.Label == "Rule set");
+        Assert.Equal("Rule set: Scanners", host.After);
+        Assert.DoesNotContain(set.Id.ToString(), host.After!, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NoChanges_IsAnEmptyState()
     {
         await using DashboardTestContext context = new();
