@@ -44,6 +44,7 @@ namespace Paduraksa.Contracts.Config;
         typeof(ConfigEnumConverter<RequestIdPropagation>),
         typeof(ConfigEnumConverter<RateLimitPeriod>),
         typeof(ConfigEnumConverter<RateLimitKey>),
+        typeof(ConfigEnumConverter<AccessListSatisfy>),
         typeof(ConfigEnumConverter<RobotsMode>),
         typeof(ConfigEnumConverter<OriginLockdownMode>),
     ])]

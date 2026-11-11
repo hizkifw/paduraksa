@@ -4,6 +4,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
+using Paduraksa.Tests.Proxy.AccessLists;
 using Paduraksa.Tests.Proxy.Testing;
 using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Proxy.Testing.TestSnapshots;
@@ -97,6 +98,46 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         // (CI's official build has shown 4-25 KB once in 3000), while an allocation of the gate's shows on every request.
         // A client reconnect (or a new H2 stream beyond the pooled ones) creates the gate's pooled state once (spike S3
         // §3); those requests are counted apart and must stay rare.
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
+    }
+
+    /// <summary>
+    /// The access list's paths on Kestrel: an address it allows, an address it refuses, a password it remembers and a request
+    /// with no credentials (401). The one PBKDF2 a password costs happens before the measured run, in the warm-up.
+    /// </summary>
+    [Theory]
+    [InlineData("acl-ip.test", null, HttpStatusCode.OK)]
+    [InlineData("acl-deny.test", null, HttpStatusCode.Forbidden)]
+    [InlineData("acl-auth.test", "alice", HttpStatusCode.OK)]
+    [InlineData("acl-auth.test", null, HttpStatusCode.Unauthorized)]
+    public async Task AccessListsAllocateNothingOnKestrel(string host, string? user, HttpStatusCode expected)
+    {
+        var lan = AccessListFixtures.List("lan", allow: ["127.0.0.1"], users: false);
+        var closed = AccessListFixtures.List("closed", allow: ["10.0.0.0/8"], users: false);
+        var passwords = AccessListFixtures.List("passwords");
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", upstream.Address("a"))],
+            AccessLists = [lan, closed, passwords],
+            Hosts =
+            [
+                new HostSpec { Id = TestIds.Host("acl-ip"), Names = ["acl-ip.test"], Policies = [new AccessListPolicySpec(lan.Id)], Routes = [Route("acl-ip", "web")] },
+                new HostSpec { Id = TestIds.Host("acl-deny"), Names = ["acl-deny.test"], Policies = [new AccessListPolicySpec(closed.Id)], Routes = [Route("acl-deny", "web")] },
+                new HostSpec { Id = TestIds.Host("acl-auth"), Names = ["acl-auth.test"], Routes = [Route("acl-auth", "web") with { Policies = [new AccessListPolicySpec(passwords.Id)] }] },
+            ],
+        };
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true });
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        Action<HttpRequestMessage>? credentials = user is null
+            ? null
+            : request => request.Headers.Authorization = new("Basic", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{user}:{AccessListFixtures.Password}")));
+
+        await SendAsync(server, client, host, "/", expected, Warmup, credentials);
+        server.GateStats!.Reset();
+        await SendAsync(server, client, host, "/", expected, Measured, credentials);
+
+        Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
         Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }

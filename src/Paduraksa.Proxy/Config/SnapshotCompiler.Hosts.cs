@@ -51,7 +51,7 @@ public static partial class SnapshotCompiler
                 }
             }
 
-            var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors);
+            var hostPolicies = CompilePolicies(spec.Policies ?? [], where, Errors, AccessLists);
 
             // One policy object per (policy, host) pair, shared by every route that resolves to it: that pair owns the
             // buckets. A disabled host serves nothing and a Redirect/Respond host has no routes, so neither registers a
@@ -376,7 +376,7 @@ public static partial class SnapshotCompiler
             }
 
             // Only the route's own chain: the gate runs the host's chain earlier, before redirects and fixed answers.
-            var own = CompilePolicies(spec.Policies ?? [], routeWhere, errors);
+            var own = CompilePolicies(spec.Policies ?? [], routeWhere, errors, context.AccessLists);
 
             // After the access policies and before proof of work: a client already over its budget gets the 429, not a
             // challenge page. A route that resolves to the host's policy shares its pair's buckets; another policy gets

@@ -33,6 +33,7 @@ public sealed class SharedEnumWireTests
         // a document writes.
         Assert.Equal(
             [
+                typeof(AccessListSatisfy),
                 typeof(HostKind),
                 typeof(OriginLockdownMode),
                 typeof(RateLimitKey),

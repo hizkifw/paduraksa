@@ -25,6 +25,10 @@ public readonly partial record struct UpstreamId;
 [TypedId("rlp")]
 public readonly partial record struct RateLimitPolicyId;
 
+/// <summary>An access list: IP allow and deny entries and basic-auth users, which hosts and routes name.</summary>
+[TypedId("acl")]
+public readonly partial record struct AccessListId;
+
 /// <summary>A destination of an upstream; must stay stable for YARP health state to survive.</summary>
 [TypedId("dst")]
 public readonly partial record struct DestinationId;

@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
@@ -69,6 +70,9 @@ public sealed record SnapshotCompilerOptions
     /// app and the publisher must carry the same instance for the live set to be the one the sweeper walks.
     /// </summary>
     public RateLimitRuntime? RateLimits { get; init; }
+
+    /// <summary>The process's access-list verification cache and counters; null: <see cref="AccessListRuntime.Default"/>.</summary>
+    public AccessListRuntime? AccessLists { get; init; }
 
     /// <summary>
     /// True for a candidate that a publisher will make live; false for a dry run, a draft or a simulation, which must

@@ -100,6 +100,28 @@ public enum RateLimitKey
     Header,
 }
 
+/// <summary>How an access list combines its address rule and its passwords.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<AccessListSatisfy>))]
+public enum AccessListSatisfy
+{
+    /// <summary>The address must pass and, when the list has users, the credentials too (the built-in choice).</summary>
+    All,
+
+    /// <summary>Either passes: a trusted range can skip the password prompt.</summary>
+    Any,
+}
+
+/// <summary>The bounds of an access list's users and realm, shared by the validator, the compiler and the proxy.</summary>
+public static class AccessListLimits
+{
+    public const int MaxUsernameLength = 64;
+
+    public const int MaxRealmLength = 64;
+
+    /// <summary>The users of one list: each is a hash a request may have to check, and a document this large is a mistake.</summary>
+    public const int MaxUsers = 1000;
+}
+
 /// <summary>The bounds of the proof-of-work settings, shared by the validator, the compiler and the proxy.</summary>
 public static class ProofOfWorkLimits
 {

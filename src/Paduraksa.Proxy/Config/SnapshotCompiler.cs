@@ -1,5 +1,6 @@
 using System.Net;
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
@@ -109,6 +110,7 @@ public static partial class SnapshotCompiler
             Defaults = model.Defaults ?? new DefaultsSpec();
             AltSvc = new AltSvcHeader(options.PublicHttpsPort, options.AdvertiseHttp3);
             RateLimitPolicies = CompileRateLimitPolicies(model.RateLimitPolicies ?? []);
+            AccessLists = CompileAccessLists(model.AccessLists ?? [], options.AccessLists ?? AccessListRuntime.Default, Errors);
         }
 
         public ProxyConfigModel Model { get; }
@@ -155,6 +157,9 @@ public static partial class SnapshotCompiler
 
         /// <summary>The named policies by ID (first one wins on a duplicate, which is invalid anyway).</summary>
         public Dictionary<RateLimitPolicyId, RateLimitPolicySpec> RateLimitPolicies { get; }
+
+        /// <summary>The named access lists, compiled once so every policy that names one shares it.</summary>
+        public AccessListBinding AccessLists { get; }
 
         public bool AdminHost { get; set; }
 

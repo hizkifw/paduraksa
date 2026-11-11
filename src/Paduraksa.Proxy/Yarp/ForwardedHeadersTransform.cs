@@ -53,6 +53,12 @@ internal static class ForwardedHeadersTransform
 
         var proto = (state?.IsHttps ?? request.IsHttps) ? Https : Http;
 
+        // The proxy's own credentials, consumed by an access list: the upstream has no use for them.
+        if (state is { StripAuthorization: true })
+        {
+            upstream.Remove(Microsoft.Net.Http.Headers.HeaderNames.Authorization);
+        }
+
         upstream.Remove(ForwardingHeaders.XForwardedFor);
         upstream.Remove(ForwardingHeaders.XRealIp);
         upstream.Remove(ForwardingHeaders.XForwardedProto);

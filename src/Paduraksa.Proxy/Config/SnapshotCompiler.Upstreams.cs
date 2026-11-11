@@ -3,6 +3,7 @@ using System.Buffers;
 using Microsoft.AspNetCore.Http;
 
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Pages;
@@ -169,18 +170,18 @@ public static partial class SnapshotCompiler
         return true;
     }
 
-    private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors)
+    private static IRequestPolicy[] CompilePolicies(IReadOnlyList<PolicySpec> specs, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists)
     {
         var policies = new IRequestPolicy[specs.Count];
         for (var i = 0; i < specs.Count; i++)
         {
-            policies[i] = CompilePolicy(specs[i], where, errors);
+            policies[i] = CompilePolicy(specs[i], where, errors, accessLists);
         }
 
         return policies;
     }
 
-    private static IRequestPolicy CompilePolicy(PolicySpec spec, CompileErrorSource where, List<CompileError> errors)
+    private static IRequestPolicy CompilePolicy(PolicySpec spec, CompileErrorSource where, List<CompileError> errors, AccessListBinding accessLists)
     {
         switch (spec)
         {
@@ -200,6 +201,19 @@ public static partial class SnapshotCompiler
                     ? PolicyDecision.Drop
                     : PolicyDecision.Respond(PrecomputedResponse.Text(StatusCodes.Status403Forbidden, "forbidden\n", htmlPage: ErrorPages.AccessDenied));
                 return new IpAllowListPolicy(allowed, denied);
+            case AccessListPolicySpec access when accessLists.Lists.TryGetValue(access.List, out var list):
+                return new AccessListPolicy(list, access.Stage, accessLists.Runtime);
+            case AccessListPolicySpec access:
+                errors.Add(new(where, $"access list '{access.List}' doesn't exist"));
+                break;
+            case AccessListUnionPolicySpec union:
+                if (TryBindUnion(union, accessLists, out var lists))
+                {
+                    return new AccessListUnionPolicy(lists);
+                }
+
+                errors.Add(new(where, "a union of access lists names one that doesn't exist, or none"));
+                break;
             default:
                 errors.Add(new(where, $"unsupported policy {spec?.GetType().Name ?? "null"}"));
                 break;

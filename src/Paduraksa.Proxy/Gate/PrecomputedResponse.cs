@@ -110,13 +110,13 @@ public sealed class PrecomputedResponse
     /// <paramref name="htmlPage"/> is set, a request that accepts <c>text/html</c> gets that page instead, with the
     /// request ID in its one slot.
     /// </summary>
-    public static PrecomputedResponse Text(int statusCode, string body, bool noStore = true, HtmlPageTemplate? htmlPage = null)
+    public static PrecomputedResponse Text(int statusCode, string body, bool noStore = true, HtmlPageTemplate? htmlPage = null, PrecomputedHeader[]? headers = null)
     {
         ArgumentNullException.ThrowIfNull(body);
         ValidateStatus(statusCode, body.Length, nameof(body));
         return new(
             statusCode, Encoding.UTF8.GetBytes(body), TextPlain, noStore ? NoStore : default, default, null,
-            htmlPage: htmlPage, htmlSlot0IsRequestId: htmlPage is not null);
+            headers: headers, htmlPage: htmlPage, htmlSlot0IsRequestId: htmlPage is not null);
     }
 
     /// <summary>

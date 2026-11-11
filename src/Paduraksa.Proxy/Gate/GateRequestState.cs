@@ -101,9 +101,18 @@ public sealed class GateRequestState : IGateFeature
     /// </summary>
     internal AccessLogRing? AccessLogRing { get; set; }
 
+    /// <summary>Set by an access list that accepted the request's basic-auth credentials: the upstream must not see the proxy's
+    /// <c>Authorization</c> header (<see cref="Yarp.ForwardedHeadersTransform"/> removes it).</summary>
+    internal bool StripAuthorization { get; set; }
+
+    /// <summary>The last access-list verdict of a simulated request, for the trace's sentence; never set on a real one.</summary>
+    internal AccessLists.AccessListOutcome AccessListOutcome { get; set; }
+
     /// <summary>Clears every field at the start of a request.</summary>
     internal void Reset()
     {
+        StripAuthorization = false;
+        AccessListOutcome = default;
         Snapshot = null;
         Host = null;
         Route = null;

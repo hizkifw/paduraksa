@@ -1,4 +1,5 @@
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Tls;
@@ -26,6 +27,9 @@ public sealed record ProxyConfigModel
     public IReadOnlyList<RateLimitPolicySpec> RateLimitPolicies { get; init; } = [];
 
     public DefaultsSpec Defaults { get; init; } = new();
+
+    /// <summary>The named access lists the policies in host and route chains refer to.</summary>
+    public IReadOnlyList<AccessListSpec> AccessLists { get; init; } = [];
 }
 
 /// <summary>Global settings the compiler needs.</summary>
@@ -416,3 +420,37 @@ public sealed record DropPolicySpec : PolicySpec;
 /// through, judged on the resolved client IP. Others get 403, or are dropped when <paramref name="DropDenied"/> is set.
 /// </summary>
 public sealed record IpAllowListPolicySpec(IReadOnlyList<string> Addresses, bool DropDenied = false) : PolicySpec;
+
+/// <summary>One access list in a chain: the host chain takes <see cref="AccessListStage.AddressOnly"/>, a route's chain the
+/// whole list.</summary>
+public sealed record AccessListPolicySpec(AccessListId List, AccessListStage Stage = AccessListStage.Full) : PolicySpec;
+
+/// <summary>The host chain of a host whose routes name different lists: the address rules of all of them as one check.</summary>
+public sealed record AccessListUnionPolicySpec(IReadOnlyList<AccessListId> Lists) : PolicySpec;
+
+/// <summary>A named access list. The validator has judged it; the compiler checks the addresses and hashes again.</summary>
+public sealed record AccessListSpec
+{
+    public required AccessListId Id { get; init; }
+
+    /// <summary>The human label, for traces and errors.</summary>
+    public required string Name { get; init; }
+
+    public IReadOnlyList<string> Allow { get; init; } = [];
+
+    public IReadOnlyList<string> Deny { get; init; } = [];
+
+    public bool DropDenied { get; init; }
+
+    public AccessListSatisfy Satisfy { get; init; }
+
+    public bool PassCredentialsUpstream { get; init; }
+
+    /// <summary>The <c>realm</c> of the 401 challenge: printable ASCII.</summary>
+    public required string Realm { get; init; }
+
+    public IReadOnlyList<AccessListUserSpec> Users { get; init; } = [];
+}
+
+/// <summary>A user as stored: the name and the PBKDF2 verifier, never the password.</summary>
+public sealed record AccessListUserSpec(string Username, string PasswordHash);

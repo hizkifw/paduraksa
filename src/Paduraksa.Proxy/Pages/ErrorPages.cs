@@ -18,6 +18,9 @@ internal static class ErrorPages
     /// <summary>A host that requires Cloudflare's client certificate got a request without a verified one.</summary>
     public static HtmlPageTemplate ClientCertificateRequired { get; } = Page("403 Forbidden", "This site only accepts requests that Cloudflare has authenticated.");
 
+    /// <summary>An access list wants a password and the request had none, or a wrong one.</summary>
+    public static HtmlPageTemplate Unauthorized { get; } = Page("401 Unauthorized", "This site needs a username and password. Reload the page to enter them.");
+
     /// <summary>A host matched but no route took the path, or the host is unknown.</summary>
     public static HtmlPageTemplate NotFound { get; } = Page("404 Not Found", "Nothing on this site matches that address.");
 

@@ -18,6 +18,7 @@ public sealed class ErrorPagesTests
 
     public static TheoryData<int, HtmlPageTemplate, string> Pages => new()
     {
+        { 401, ErrorPages.Unauthorized, "401 Unauthorized" },
         { 403, ErrorPages.AccessDenied, "403 Forbidden" },
         { 404, ErrorPages.NotFound, "404 Not Found" },
         { 421, ErrorPages.Misdirected, "421 Misdirected Request" },
@@ -86,6 +87,23 @@ public sealed class ErrorPagesTests
         await ResponseWriter.WriteAsync(text.Context, PrecomputedResponse.Text(status, "plain only\n", htmlPage: page));
         Assert.Empty(await WrittenAsync(text.Context, text.Body));
         Assert.Equal("text/plain; charset=utf-8", text.Context.Response.ContentType);
+    }
+
+    [Fact]
+    public async Task TheUnauthorizedPageCarriesTheChallengeOnBothRepresentations()
+    {
+        var response = PrecomputedResponse.Text(
+            401, "authentication required\n", htmlPage: ErrorPages.Unauthorized, headers: [new PrecomputedHeader("WWW-Authenticate", "Basic realm=\"x\", charset=\"UTF-8\"")]);
+
+        foreach (var accept in new[] { "text/html", "text/plain" })
+        {
+            var (context, _) = Context(accept);
+            await ResponseWriter.WriteAsync(context, response);
+
+            Assert.Equal(401, context.Response.StatusCode);
+            Assert.Equal("Basic realm=\"x\", charset=\"UTF-8\"", context.Response.Headers.WWWAuthenticate.ToString());
+            Assert.Equal("no-store", context.Response.Headers.CacheControl.ToString());
+        }
     }
 
     [Fact]

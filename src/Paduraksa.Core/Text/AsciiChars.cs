@@ -18,14 +18,24 @@ public static class AsciiChars
     /// <summary>Controls and the space, 0x00-0x20: what a local URL must not contain.</summary>
     public static readonly SearchValues<char> ControlOrSpace = Range('\0', ' ');
 
-    private static SearchValues<char> Range(char first, char last)
+    /// <summary>The space and visible ASCII, 0x20-0x7E: what a realm may hold.</summary>
+    public static readonly SearchValues<char> Printable = Range(' ', '~');
+
+    /// <summary>Visible ASCII but the colon, which ends the name in <c>user:password</c>.</summary>
+    public static readonly SearchValues<char> UsernameChars = Range('\x21', '\x7E', except: ':');
+
+    private static SearchValues<char> Range(char first, char last, char? except = null)
     {
         Span<char> chars = stackalloc char[last - first + 1];
-        for (var i = 0; i < chars.Length; i++)
+        var count = 0;
+        for (var c = first; c <= last; c++)
         {
-            chars[i] = (char)(first + i);
+            if (c != except)
+            {
+                chars[count++] = c;
+            }
         }
 
-        return SearchValues.Create(chars);
+        return SearchValues.Create(chars[..count]);
     }
 }
