@@ -1,3 +1,5 @@
+using Paduraksa.Core.Model;
+
 namespace Paduraksa.Proxy.Metrics;
 
 /// <summary>
@@ -9,7 +11,7 @@ public sealed class UpstreamMetrics
     private readonly string[] _destinationKeys;
     private readonly MetricSlot[] _destinationSlots;
 
-    public UpstreamMetrics(MetricSlot slot, string[] destinationKeys, MetricSlot[] destinationSlots)
+    public UpstreamMetrics(UpstreamId id, MetricSlot slot, string[] destinationKeys, MetricSlot[] destinationSlots)
     {
         ArgumentNullException.ThrowIfNull(destinationKeys);
         ArgumentNullException.ThrowIfNull(destinationSlots);
@@ -18,12 +20,20 @@ public sealed class UpstreamMetrics
             throw new ArgumentException("Every destination key needs a slot.", nameof(destinationSlots));
         }
 
+        Id = id;
         Slot = slot;
         _destinationKeys = destinationKeys;
         _destinationSlots = destinationSlots;
     }
 
+    public UpstreamId Id { get; }
+
     public MetricSlot Slot { get; }
+
+    /// <summary>YARP's keys of the destinations (their typed-ID strings), parallel to <see cref="DestinationSlots"/>.</summary>
+    public IReadOnlyList<string> DestinationKeys => _destinationKeys;
+
+    public IReadOnlyList<MetricSlot> DestinationSlots => _destinationSlots;
 
     /// <summary>The slot of the destination YARP calls <paramref name="destinationKey"/>, or none. A scan: an upstream has a handful, and the keys are the very strings YARP holds. 0 B.</summary>
     public MetricSlot DestinationSlot(string? destinationKey)

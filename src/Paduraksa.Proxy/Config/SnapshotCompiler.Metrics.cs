@@ -92,7 +92,7 @@ public static partial class SnapshotCompiler
                         break;
                     }
 
-                    compiled = new UpstreamMetrics(slot, keys.ToArray(), slots.ToArray());
+                    compiled = new UpstreamMetrics(upstream, slot, keys.ToArray(), slots.ToArray());
                 }
             }
 
