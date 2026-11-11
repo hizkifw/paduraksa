@@ -3,6 +3,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
+using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.Tls;
 
 namespace Paduraksa.Proxy.Snapshot;
@@ -42,6 +43,12 @@ public sealed class CompiledHost
 
     /// <summary>The mode that produced <see cref="RobotsTxt"/>, for the trace: passthrough, a preset, or custom.</summary>
     public RobotsMode RobotsMode { get; init; } = RobotsMode.Passthrough;
+
+    /// <summary>The pages the host answers with in place of the built-in ones, and whether an upstream's error bodies give way to them.</summary>
+    internal CompiledErrorPages ErrorPages { get; init; } = CompiledErrorPages.None;
+
+    /// <summary>The host's maintenance mode, or null when it serves none (off, or an admin host).</summary>
+    internal CompiledMaintenance? Maintenance { get; init; }
 
     /// <summary>
     /// The host's response headers: <c>Alt-Svc</c>, <c>Strict-Transport-Security</c>, <c>Server</c> and the

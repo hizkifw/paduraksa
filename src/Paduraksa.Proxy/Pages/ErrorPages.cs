@@ -1,3 +1,4 @@
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
 
 namespace Paduraksa.Proxy.Pages;
@@ -38,18 +39,18 @@ internal static class ErrorPages
     public static HtmlPageTemplate ServiceUnavailable { get; } = Page("503 Service Unavailable", "The site is temporarily unavailable. Try again in a moment.");
 
     /// <summary>The proof-of-work key is missing; the page names the check rather than the whole site.</summary>
-    public static HtmlPageTemplate CheckUnavailable { get; } = Page("503 Service Unavailable", "The browser check is temporarily unavailable. Try again in a moment.");
+    public static HtmlPageTemplate CheckUnavailable { get; } = Page("503 Service Unavailable", "The browser check is temporarily unavailable. Try again in a moment.", customizable: false);
 
     public static HtmlPageTemplate GatewayTimeout { get; } = Page("504 Gateway Timeout", "The server behind this site took too long to respond. Try again in a moment.");
 
     /// <summary>Anything that isn't a browser asking for a page never gets the challenge.</summary>
-    public static HtmlPageTemplate BrowserRequired { get; } = Page("403 Forbidden", "This site checks your browser first, which needs JavaScript. Turn it on and reload the page.");
+    public static HtmlPageTemplate BrowserRequired { get; } = Page("403 Forbidden", "This site checks your browser first, which needs JavaScript. Turn it on and reload the page.", customizable: false);
 
     /// <summary>A posted challenge or solution that doesn't check out.</summary>
-    public static HtmlPageTemplate CheckFailed { get; } = Page("403 Forbidden", "The browser check didn't pass. Reload the page to try again.");
+    public static HtmlPageTemplate CheckFailed { get; } = Page("403 Forbidden", "The browser check didn't pass. Reload the page to try again.", customizable: false);
 
     /// <summary>The verify endpoint's body is over 2 KiB.</summary>
-    public static HtmlPageTemplate PayloadTooLarge { get; } = Page("413 Content Too Large", "The browser check sent more data than expected. Reload the page to try again.");
+    public static HtmlPageTemplate PayloadTooLarge { get; } = Page("413 Content Too Large", "The browser check sent more data than expected. Reload the page to try again.", customizable: false);
 
     /// <summary>A declared body over the host's or route's limit.</summary>
     public static HtmlPageTemplate RequestTooLarge { get; } = Page("413 Content Too Large", "What you sent is larger than this site accepts. Send less and try again.");
@@ -87,11 +88,18 @@ internal static class ErrorPages
         _ => null,
     };
 
-    private static HtmlPageTemplate Page(string heading, string message) => HtmlPageTemplate.Create(
-        heading,
-        string.Concat(
-            "<h1>", heading, "</h1>",
-            "<p>", message, "</p>",
-            "<p class=\"request-id\">Request ID: <code>{requestId}</code></p>"),
-        slots: ["requestId"]);
+    // The heading starts with the status. Only a page whose status an operator can give a page of their own is customizable: a
+    // proof-of-work step's refusal says what that step needs, which a generic page would hide.
+    private static HtmlPageTemplate Page(string heading, string message, bool customizable = true)
+    {
+        var status = int.Parse(heading.AsSpan(0, 3), System.Globalization.CultureInfo.InvariantCulture);
+        return HtmlPageTemplate.Create(
+            heading,
+            string.Concat(
+                "<h1>", heading, "</h1>",
+                "<p>", message, "</p>",
+                "<p class=\"request-id\">Request ID: <code>{requestId}</code></p>"),
+            customizableStatus: customizable && ErrorPageStatuses.IndexOf(status) >= 0 ? status : 0,
+            slots: ["requestId"]);
+    }
 }

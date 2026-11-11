@@ -39,8 +39,10 @@ public sealed class PrecomputedResponse
         string? htmlSlot0 = null,
         string? htmlSlot1 = null,
         string? htmlSlot2 = null,
-        bool htmlSlot0IsRequestId = false)
+        bool htmlSlot0IsRequestId = false,
+        CustomErrorPage? customPage = null)
     {
+        CustomPage = customPage;
         StatusCode = statusCode;
         _body = body;
         ContentType = contentType;
@@ -93,6 +95,13 @@ public sealed class PrecomputedResponse
     internal bool HtmlSlot0IsRequestId { get; }
 
     /// <summary>
+    /// The operator's (or the built-in maintenance) page this answer is served with to a client that accepts <c>text/html</c>. Only
+    /// maintenance answers carry one; an error answer with a built-in page is matched to its host's own page when it is written
+    /// (<see cref="ErrorPageSelection"/>), since one answer is shared by every host.
+    /// </summary>
+    internal CustomErrorPage? CustomPage { get; }
+
+    /// <summary>
     /// Whether the plain path can answer this response. A page-only answer (the challenge) carries no text, so
     /// <see cref="ResponseWriter"/> refuses it instead of sending the HTML as <c>text/plain</c>.
     /// </summary>
@@ -130,6 +139,14 @@ public sealed class PrecomputedResponse
         return new(
             statusCode, body: null, new StringValues(HtmlPageTemplate.ContentType), NoStore, default, null,
             headers: page.SecurityHeaders, htmlPage: page, htmlSlot0: slot0, htmlSlot1: slot1, htmlSlot2: slot2);
+    }
+
+    /// <summary>A host's maintenance answer: <paramref name="page"/> for a browser, a plain line for anything else.</summary>
+    internal static PrecomputedResponse Maintenance(int statusCode, CustomErrorPage page)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        ValidateStatus(statusCode, 1, nameof(statusCode));
+        return new(statusCode, Encoding.UTF8.GetBytes("down for maintenance\n"), TextPlain, NoStore, default, null, customPage: page);
     }
 
     /// <summary>A response with an arbitrary body and content type.</summary>

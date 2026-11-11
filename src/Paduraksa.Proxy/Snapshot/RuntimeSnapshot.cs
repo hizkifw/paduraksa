@@ -73,6 +73,9 @@ public sealed class RuntimeSnapshot
     /// answer follow too: the same list a host carries, compiled from the defaults.</summary>
     public ResponseHeaderOperation[] DefaultResponseHeaders { get; init; } = [];
 
+    /// <summary>The global defaults' error pages, which a request for an unknown host is answered with.</summary>
+    internal CompiledErrorPages DefaultErrorPages { get; init; } = CompiledErrorPages.None;
+
     /// <summary>A proxy host matched but none of its routes took the path.</summary>
     public PrecomputedResponse NoRoute { get; init; } = DefaultNoRoute;
 
@@ -167,6 +170,7 @@ public sealed class RuntimeSnapshot
             AuthProviderStates = AuthProviderStates,
             Default = Default,
             DefaultResponseHeaders = DefaultResponseHeaders,
+            DefaultErrorPages = DefaultErrorPages,
             NoRoute = NoRoute,
             Unavailable = Unavailable,
             Misdirected = Misdirected,

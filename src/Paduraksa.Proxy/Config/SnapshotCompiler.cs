@@ -4,6 +4,7 @@ using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
+using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
 using Paduraksa.Proxy.Snapshot;
@@ -201,6 +202,7 @@ public static partial class SnapshotCompiler
                     CompileTlsPolicy(Defaults.Tls, CompileErrorSource.Defaults, Errors));
             }
 
+            CheckErrorPages(Defaults.ErrorPages, CompileErrorSource.Defaults, Errors);
             TrustedProxies = CompileTrustedProxies(Defaults.TrustedProxies, Options, Errors, out var edgeRanges);
             EdgeRanges = edgeRanges;
             DefaultHeaders = CompileResponseHeaders(
@@ -240,6 +242,7 @@ public static partial class SnapshotCompiler
             AccessLog = Defaults.AccessLog,
             RequestIdPropagation = Defaults.RequestIdPropagation,
             DefaultResponseHeaders = DefaultHeaders,
+            DefaultErrorPages = CompiledErrorPages.Compile(Defaults.ErrorPages),
         };
 
         /// <summary>

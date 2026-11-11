@@ -439,6 +439,35 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
             host.Id));
     }
 
+    public void Maintenance(CompiledHost host, CompiledMaintenance? maintenance, bool bypassed)
+    {
+        if (maintenance is null)
+        {
+            steps.Add(new GateStep(GateStepKind.Maintenance, GateStepVerdict.Skipped, "the host isn't in maintenance", [new("maintenance", "off")], host.Id));
+            return;
+        }
+
+        var list = maintenance.Bypass?.Name;
+        List<GateFact> facts =
+        [
+            new("maintenance", "on"),
+            new("status", maintenance.Status.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+            new("retryAfter", maintenance.RetryAfter ?? "none"),
+            new("bypassList", list ?? "none"),
+            new("bypassed", Flag(bypassed)),
+        ];
+        steps.Add(new GateStep(
+            GateStepKind.Maintenance,
+            bypassed ? GateStepVerdict.Passed : GateStepVerdict.Stopped,
+            bypassed
+                ? $"the host is in maintenance, and the client's address is allowed by the bypass list '{list}': it goes on"
+                : list is null
+                    ? $"the host is in maintenance: answered {maintenance.Status} with the maintenance page"
+                    : $"the host is in maintenance and the bypass list '{list}' doesn't allow the client's address: answered {maintenance.Status} with the maintenance page",
+            facts,
+            host.Id));
+    }
+
     public void ProofOfWorkVerify(HttpContext context, CompiledHost host) =>
         steps.Add(new GateStep(
             GateStepKind.ProofOfWork,

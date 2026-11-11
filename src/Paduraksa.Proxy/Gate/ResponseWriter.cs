@@ -6,6 +6,7 @@ using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
 using Paduraksa.Proxy.Http;
+using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.Snapshot;
 
@@ -86,11 +87,20 @@ internal static class ResponseWriter
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(response);
 
-        if (response.HtmlPage is { } page && MediaTypes.AcceptsHtml(context.Request.Headers.Accept))
+        if ((response.HtmlPage is not null || response.CustomPage is not null) && MediaTypes.AcceptsHtml(context.Request.Headers.Accept))
         {
-            ApplyPageHeaders(context, response, page, retryAfter);
-            var slot0 = response.HtmlSlot0IsRequestId ? RequestIdOf(context) : response.HtmlSlot0;
-            return WritePageAsync(context, page, slot0, response.HtmlSlot1, response.HtmlSlot2);
+            if (ErrorPageSelection.Find(context, response) is { } custom)
+            {
+                ApplyPageHeaders(context, response, custom.SecurityHeaders, retryAfter);
+                return WriteCustomPageAsync(context, custom);
+            }
+
+            if (response.HtmlPage is { } page)
+            {
+                ApplyPageHeaders(context, response, page.SecurityHeaders, retryAfter);
+                var slot0 = response.HtmlSlot0IsRequestId ? RequestIdOf(context) : response.HtmlSlot0;
+                return WritePageAsync(context, page, slot0, response.HtmlSlot1, response.HtmlSlot2);
+            }
         }
 
         ApplyHeaders(context, response, retryAfter);
@@ -112,7 +122,7 @@ internal static class ResponseWriter
     /// measuring a <c>HEAD</c> page just to send a length would mean rendering it. A <c>HEAD</c> page therefore has no
     /// length, unlike a <c>HEAD</c> plain answer, whose precomputed body carries one.
     /// </summary>
-    private static void ApplyPageHeaders(HttpContext context, PrecomputedResponse response, HtmlPageTemplate page, string? retryAfter)
+    private static void ApplyPageHeaders(HttpContext context, PrecomputedResponse response, PrecomputedHeader[] securityHeaders, string? retryAfter)
     {
         var http = context.Response;
         http.StatusCode = response.StatusCode;
@@ -136,9 +146,45 @@ internal static class ResponseWriter
             headers[header.Name] = header.Value;
         }
 
-        foreach (var header in page.SecurityHeaders)
+        foreach (var header in securityHeaders)
         {
             headers[header.Name] = header.Value;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="WritePageAsync"/> for an operator's page: the same start, write and flush (the flush is as necessary on
+    /// HTTP/3), with the request's values filled in. The host is the <c>Host</c> header without its port and the ray is Cloudflare's
+    /// only when the request's peer is trusted to send it, as in the access log; both are encoded when written.
+    /// </summary>
+    private static Task WriteCustomPageAsync(HttpContext context, CustomErrorPage page)
+    {
+        var start = context.Response.StartAsync();
+        return start.IsCompletedSuccessfully ? WritePage(context, page) : AwaitStartAsync(start, context, page);
+
+        static Task WritePage(HttpContext http, CustomErrorPage template)
+        {
+            if (!HttpMethods.IsHead(http.Request.Method))
+            {
+                var writer = http.Response.BodyWriter;
+                var hostHeader = http.Request.Headers.Host;
+                var host = hostHeader.Count == 1 ? HostTable.HostName(hostHeader[0]) : default;
+                var ray = http.Features.Get<IGateFeature>()?.State is { ClientIp.CloudflareHeadersTrusted: true } ? http.Request.Headers[CloudflareHeaders.Ray].ToString() : string.Empty;
+                template.Write(writer, RequestIdOf(http), host, ray);
+                var flush = writer.FlushAsync(http.RequestAborted);
+                if (!flush.IsCompletedSuccessfully)
+                {
+                    return flush.AsTask();
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        static async Task AwaitStartAsync(Task start, HttpContext http, CustomErrorPage template)
+        {
+            await start.ConfigureAwait(false);
+            await WritePage(http, template).ConfigureAwait(false);
         }
     }
 

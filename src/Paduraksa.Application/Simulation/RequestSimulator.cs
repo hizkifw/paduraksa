@@ -404,7 +404,8 @@ public sealed partial class RequestSimulator : IDisposable
                 _ => SimulationOutcomeKind.FixedAnswer,
             },
         };
-        return new SimulationOutcome(kind, summary, outcome.StatusCode, outcome.Location, outcome.Body);
+        return new SimulationOutcome(
+            kind, summary, outcome.StatusCode, outcome.Location, outcome.Body, outcome.ErrorPage is { } page ? new SimulationErrorPage(page.Custom, page.Source, page.Mode) : null);
     }
 
     private static SimulationStep Describe(GateStep step)
@@ -435,6 +436,7 @@ public sealed partial class RequestSimulator : IDisposable
         GateStepKind.RequestLimits => SimulationStepKind.RequestLimits,
         GateStepKind.HttpsRedirect => SimulationStepKind.HttpsRedirect,
         GateStepKind.RobotsTxt => SimulationStepKind.RobotsTxt,
+        GateStepKind.Maintenance => SimulationStepKind.Maintenance,
         GateStepKind.FixedResponse => SimulationStepKind.FixedResponse,
         GateStepKind.ProofOfWork => SimulationStepKind.ProofOfWork,
         GateStepKind.RouteMatch => SimulationStepKind.RouteMatch,

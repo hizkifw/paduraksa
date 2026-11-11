@@ -1,9 +1,11 @@
 using System.Text;
 
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
+using Paduraksa.Proxy.Pages;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
 using Paduraksa.Proxy.Yarp;
@@ -74,6 +76,8 @@ public static partial class SnapshotCompiler
             };
             var fixedResponse = CompileFixedResponse(spec, where, Errors);
             var robotsTxt = CompileRobots(spec.Robots, where, Errors);
+            var errorPages = CompiledErrorPages.Compile(spec.ErrorPages);
+            var maintenance = CompileMaintenance(this, spec, where, Errors);
 
             if (spec.ForceHttps)
             {
@@ -122,6 +126,7 @@ public static partial class SnapshotCompiler
             }
 
             CheckRequestLimits(spec, where, Errors);
+            CheckErrorPages(spec.ErrorPages, where, Errors);
             var hostScope = HostScopeOf(spec.Id);
             var serverNames =
                 spec.Enabled ? GroupByCertificate(ServerNamesOf(spec.Names ?? []), certificate, nameCertificates) : [];
@@ -152,6 +157,8 @@ public static partial class SnapshotCompiler
                 FixedResponse = fixedResponse,
                 RobotsTxt = robotsTxt,
                 RobotsMode = spec.Robots.Mode,
+                ErrorPages = errorPages,
+                Maintenance = maintenance,
                 RateLimit = hostRateLimit,
                 OriginLockdown = CompileOriginLockdown(spec.Cloudflare, TrustedProxies.Mode, where, Errors),
                 AuthenticatedOriginPulls = originPulls,
@@ -543,6 +550,94 @@ public static partial class SnapshotCompiler
         {
             errors.Add(new(where, $"{what}'s proof-of-work token lifetime must be {ProofOfWorkLimits.MinTokenLifetimeHours}-{ProofOfWorkLimits.MaxTokenLifetimeHours} hours, got {spec.TokenLifetimeHours}"));
         }
+    }
+
+    /// <summary>The backstop for what the validator judges: a page that can't be served as written (a mode that isn't one, a message without
+    /// a heading, a document past the cap, a variable that doesn't exist) fails the compile instead of serving something else.</summary>
+    internal static void CheckErrorPages(HostErrorPagesSpec pages, CompileErrorSource where, List<CompileError> errors)
+    {
+        if (!Enum.IsDefined(pages.ReplaceUpstream))
+        {
+            errors.Add(new(where, $"unknown upstream error replacement {pages.ReplaceUpstream}"));
+        }
+
+        foreach (var (key, page) in pages.Pages)
+        {
+            var name = ErrorPageStatuses.NameOf(key);
+            if (ErrorPageStatuses.IndexOf(key) < 0)
+            {
+                errors.Add(new(where, $"{key} isn't a status with an error page"));
+                continue;
+            }
+
+            if (!Enum.IsDefined(page.Mode))
+            {
+                errors.Add(new(where, $"the {name} error page has an unknown mode {page.Mode}"));
+                continue;
+            }
+
+            var texts = page.Mode == ErrorPageMode.Message
+                ? (Parts: new[] { page.Heading, page.Text }, Valid: !string.IsNullOrWhiteSpace(page.Heading)
+                    && page.Heading.Length <= ErrorPageText.MaxHeadingLength && (page.Text ?? string.Empty).Length <= ErrorPageText.MaxTextLength
+                    && ErrorPageText.IsPlainLine(page.Heading) && ErrorPageText.IsPlainLine(page.Text ?? string.Empty) && page.Html is null)
+                : (Parts: new[] { page.Html }, Valid: !string.IsNullOrWhiteSpace(page.Html) && ErrorPageText.IsWithinSizeLimit(page.Html)
+                    && ErrorPageText.IsPlainDocument(page.Html) && page.Heading is null && page.Text is null);
+            if (!texts.Valid)
+            {
+                errors.Add(new(where, $"the {name} error page isn't a valid {(page.Mode == ErrorPageMode.Message ? "message (a heading of up to 120 characters and a sentence of up to 500)" : "document (up to 64 KiB)")}"));
+                continue;
+            }
+
+            foreach (var text in texts.Parts)
+            {
+                ErrorPageText.Parse(text ?? string.Empty, out var unknown);
+                foreach (var variable in unknown)
+                {
+                    errors.Add(new(where, $"the {name} error page uses {{{variable}}}, which isn't a variable; the variables are {ErrorPageText.VariableList}"));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// A host's maintenance mode, or null when it serves none. The page is the host's own maintenance entry, else the built-in one, compiled
+    /// for the status the host answers with; the bypass list must exist, as a policy's does.
+    /// </summary>
+    private static CompiledMaintenance? CompileMaintenance(CompileContext context, HostSpec spec, CompileErrorSource where, List<CompileError> errors)
+    {
+        var maintenance = spec.Maintenance;
+        if (!spec.Enabled || !maintenance.Enabled || spec.Kind == HostKind.Admin)
+        {
+            return null;
+        }
+
+        if (!ErrorPageStatuses.MaintenanceStatuses.Contains(maintenance.Status))
+        {
+            errors.Add(new(where, $"a maintenance answer's status is one of {string.Join(", ", ErrorPageStatuses.MaintenanceStatuses)}, got {maintenance.Status}"));
+            return null;
+        }
+
+        if (maintenance.RetryAfterSeconds is < 0 or > ErrorPageStatuses.MaxRetryAfterSeconds)
+        {
+            errors.Add(new(where, $"the maintenance retry delay is 0 to {ErrorPageStatuses.MaxRetryAfterSeconds} seconds, got {maintenance.RetryAfterSeconds}"));
+            return null;
+        }
+
+        CompiledAccessList? bypass = null;
+        if (!maintenance.BypassAccessListId.IsEmpty && (bypass = context.AccessListOf(maintenance.BypassAccessListId)) is null)
+        {
+            errors.Add(new(where, $"the maintenance bypass access list '{maintenance.BypassAccessListId}' doesn't exist"));
+            return null;
+        }
+
+        var page = spec.ErrorPages.Pages.TryGetValue(ErrorPageStatuses.MaintenanceKey, out var own)
+            ? CustomErrorPage.Compile(own, maintenance.Status)
+            : CustomErrorPage.BuiltInMaintenance(maintenance.Status);
+        return new CompiledMaintenance(
+            PrecomputedResponse.Maintenance(maintenance.Status, page),
+            maintenance.RetryAfterSeconds > 0 ? CompiledMaintenance.RetryAfterOf(maintenance.RetryAfterSeconds) : null,
+            bypass,
+            page);
     }
 
     /// <summary>

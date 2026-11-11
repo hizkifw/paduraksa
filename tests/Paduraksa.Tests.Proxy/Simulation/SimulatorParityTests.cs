@@ -318,6 +318,33 @@ public sealed class SimulatorParityTests : IDisposable
             ProxyHost("ipv6", "[::1]", Route("ipv6-root", "web")),
             ProxyHost("lax", "lax.test", Route("lax-root", "web")),
             ProxyHost("robots", "robots.test", Route("robots-root", "web")) with { Robots = new HostRobotsSpec { Mode = RobotsMode.BlockAiCrawlers } },
+            ProxyHost("maint", "maint.test", Route("maint-root", "web")) with
+            {
+                Maintenance = new HostMaintenanceSpec { Enabled = true, RetryAfterSeconds = 60, BypassAccessListId = LanList.Id },
+            },
+            ProxyHost("maint-page", "maint-page.test", Route("maint-page-root", "web")) with
+            {
+                Maintenance = new HostMaintenanceSpec { Enabled = true, Status = 200 },
+                ErrorPages = new HostErrorPagesSpec
+                {
+                    Pages = new Dictionary<int, ErrorPageSpec>
+                    {
+                        [ErrorPageStatuses.MaintenanceKey] = new() { Heading = "Back soon", Source = ErrorPageSource.Profile },
+                    },
+                },
+            },
+            ProxyHost("paged", "paged.test", Route("paged-app", "web", "/app")) with
+            {
+                Policies = [LanList.Policy()],
+                ErrorPages = new HostErrorPagesSpec
+                {
+                    Pages = new Dictionary<int, ErrorPageSpec>
+                    {
+                        [403] = new() { Mode = ErrorPageMode.Html, Html = "<p>{status}</p>", Source = ErrorPageSource.GlobalDefaults },
+                        [404] = new() { Heading = "Nothing here", Source = ErrorPageSource.Host },
+                    },
+                },
+            },
             new HostSpec
             {
                 Id = TestIds.Host("pow"),
@@ -464,6 +491,76 @@ public sealed class SimulatorParityTests : IDisposable
         Assert.Equal(GateStepVerdict.Passed, step.Verdict);
         Assert.Contains("not managed", step.Summary, StringComparison.Ordinal);
         Assert.Equal("passthrough", Assert.Single(step.Facts, fact => fact.Name == "mode").Value);
+    }
+
+    [Fact]
+    public async Task MaintenanceMatchesTheGateAndTheStepSaysWhetherItIsOnOffOrBypassed()
+    {
+        using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
+
+        // A client the bypass list's allow rules admit goes on; any other is answered 503 with the page.
+        var bypassed = new Wire("maint.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/x", Lan);
+        Assert.Equal(1, await fixture.CompareAsync(bypassed));
+        var passed = fixture.Simulate(bypassed);
+        Assert.Equal(GateOutcomeAction.Forward, passed.Outcome.Action);
+        var passStep = Assert.Single(passed.Steps, step => step.Kind == GateStepKind.Maintenance);
+        Assert.Equal(GateStepVerdict.Passed, passStep.Verdict);
+        Assert.Contains("lan", passStep.Summary, StringComparison.Ordinal);
+        Assert.Equal("yes", Assert.Single(passStep.Facts, fact => fact.Name == "bypassed").Value);
+
+        var refused = new Wire("maint.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/x", Outsider);
+        Assert.Equal(1, await fixture.CompareAsync(refused));
+        var answered = fixture.Simulate(refused);
+        Assert.Equal((GateOutcomeAction.Respond, GateReason.Maintenance, 503), (answered.Outcome.Action, answered.Outcome.Reason, answered.Outcome.StatusCode));
+        var stopped = Assert.Single(answered.Steps, step => step.Kind == GateStepKind.Maintenance);
+        Assert.Equal(GateStepVerdict.Stopped, stopped.Verdict);
+        Assert.Equal("lan", Assert.Single(stopped.Facts, fact => fact.Name == "bypassList").Value);
+        Assert.Equal("60", Assert.Single(stopped.Facts, fact => fact.Name == "retryAfter").Value);
+        Assert.Equal("no", Assert.Single(stopped.Facts, fact => fact.Name == "bypassed").Value);
+
+        // A host that isn't in maintenance says so, and the request goes on.
+        var off = new Wire("secure.test", true, ProbeHttpVersion.Http2, SslProtocols.Tls13, "/x", Lan);
+        Assert.Equal(1, await fixture.CompareAsync(off));
+        var skipped = Assert.Single(fixture.Simulate(off).Steps, step => step.Kind == GateStepKind.Maintenance);
+        Assert.Equal(GateStepVerdict.Skipped, skipped.Verdict);
+        Assert.Equal("off", Assert.Single(skipped.Facts, fact => fact.Name == "maintenance").Value);
+
+        // The HTTPS redirect still comes first on a host that forces it, as it does in the gate.
+        Assert.Equal(1, await fixture.CompareAsync(new Wire("maint.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/robots.txt", Outsider)));
+    }
+
+    [Fact]
+    public async Task TheOutcomeSaysWhichErrorPageIsServedAndFromWhichLayer()
+    {
+        using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
+
+        // The host's own message for 404, and its document (from the global defaults) for the 403 of the host chain.
+        var notFound = new Wire("paged.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/nothing", Lan);
+        Assert.Equal(1, await fixture.CompareAsync(notFound));
+        Assert.Equal(new GateErrorPage(Custom: true, ErrorPageSource.Host, ErrorPageMode.Message), fixture.Simulate(notFound).Outcome.ErrorPage);
+
+        var forbidden = new Wire("paged.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/app", Outsider);
+        Assert.Equal(1, await fixture.CompareAsync(forbidden));
+        Assert.Equal(new GateErrorPage(Custom: true, ErrorPageSource.GlobalDefaults, ErrorPageMode.Html), fixture.Simulate(forbidden).Outcome.ErrorPage);
+
+        // A host with no page of its own for the status serves the built-in one; so does the unknown host.
+        var builtIn = new Wire("locked.test", true, ProbeHttpVersion.Http2, SslProtocols.Tls13, "/api", Outsider);
+        Assert.Equal(1, await fixture.CompareAsync(builtIn));
+        Assert.Equal(new GateErrorPage(Custom: false, ErrorPageSource.BuiltIn, ErrorPageMode.Message), fixture.Simulate(builtIn).Outcome.ErrorPage);
+        Assert.Equal(new GateErrorPage(Custom: false, ErrorPageSource.BuiltIn, ErrorPageMode.Message), fixture.Simulate(new Wire("unknown.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/", Lan)).Outcome.ErrorPage);
+
+        // The maintenance page is the host's own when it set one, else the built-in message.
+        var withPage = new Wire("maint-page.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/", Outsider);
+        Assert.Equal(1, await fixture.CompareAsync(withPage));
+        Assert.Equal(new GateErrorPage(Custom: true, ErrorPageSource.Profile, ErrorPageMode.Message), fixture.Simulate(withPage).Outcome.ErrorPage);
+        Assert.Equal(200, fixture.Simulate(withPage).Outcome.StatusCode);
+        Assert.Equal(
+            new GateErrorPage(Custom: false, ErrorPageSource.BuiltIn, ErrorPageMode.Message),
+            fixture.Simulate(new Wire("maint.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/", Outsider)).Outcome.ErrorPage);
+
+        // An answer that is only text (a Respond host's) has no page; nor does a redirect.
+        Assert.Null(fixture.Simulate(new Wire("soon.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/", Lan)).Outcome.ErrorPage);
+        Assert.Null(fixture.Simulate(new Wire("secure.test", false, ProbeHttpVersion.Http11, SslProtocols.None, "/", Lan)).Outcome.ErrorPage);
     }
 
     [Fact]

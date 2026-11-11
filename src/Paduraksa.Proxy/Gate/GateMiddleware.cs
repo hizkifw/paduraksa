@@ -314,6 +314,17 @@ public sealed class GateMiddleware
             }
         }
 
+        // After robots.txt, which a crawler should still read, and before every answer of the host's own and the route: a host in
+        // maintenance is down for all of them. After the host chain, the limits and the redirect, so a refused client is still refused, an
+        // oversized request still 413s/414s/431s, and plain HTTP still redirects before it is told to come back.
+        var maintenance = host.Maintenance;
+        var bypassed = maintenance is not null && maintenance.Bypasses(state.ClientAddress, state.ClientCountry);
+        tracer.Maintenance(host, maintenance, bypassed);
+        if (maintenance is not null && !bypassed)
+        {
+            return GateDecision.Respond(maintenance.Response, maintenance.RetryAfter);
+        }
+
         if (host.FixedResponse is { } fixedResponse)
         {
             tracer.FixedResponse(host);

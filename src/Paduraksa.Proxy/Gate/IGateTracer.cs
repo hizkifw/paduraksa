@@ -86,6 +86,10 @@ internal interface IGateTracer
     /// managed file answered it, or it goes on to the upstream (or the host's fixed answer).</summary>
     void RobotsTxt(CompiledHost host, bool served);
 
+    /// <summary>The host's maintenance mode was consulted: <paramref name="maintenance"/> is null when the host serves none. Otherwise
+    /// <paramref name="bypassed"/> says the request's address is one the bypass list admits, so it goes on; if not, the maintenance page answers it.</summary>
+    void Maintenance(CompiledHost host, CompiledMaintenance? maintenance, bool bypassed);
+
     /// <summary>The proof-of-work verify endpoint took the request: the gate reads the posted challenge and answers it.</summary>
     void ProofOfWorkVerify(HttpContext context, CompiledHost host);
 
@@ -163,6 +167,11 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void RobotsTxt(CompiledHost host, bool served)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void Maintenance(CompiledHost host, CompiledMaintenance? maintenance, bool bypassed)
     {
     }
 

@@ -42,6 +42,9 @@ public enum GateReason : byte
     /// <summary>The host's managed <c>/robots.txt</c> answered the request.</summary>
     RobotsTxt,
 
+    /// <summary>The host is in maintenance and the request isn't bypassed.</summary>
+    Maintenance,
+
     /// <summary>A Redirect or Respond host answers everything itself.</summary>
     FixedHost,
 
@@ -78,7 +81,15 @@ public enum GateReason : byte
 /// <param name="StatusCode">The status of a <see cref="GateOutcomeAction.Respond"/>.</param>
 /// <param name="Location">The <c>Location</c> a redirect would carry, built the way the real response builds it.</param>
 /// <param name="Body">The body of a text response (short ones), for display.</param>
-public sealed record GateOutcome(GateOutcomeAction Action, GateReason Reason, int? StatusCode = null, string? Location = null, string? Body = null);
+/// <param name="ErrorPage">The page a browser would be served, when the answer is one of the proxy's own pages.</param>
+public sealed record GateOutcome(
+    GateOutcomeAction Action, GateReason Reason, int? StatusCode = null, string? Location = null, string? Body = null, GateErrorPage? ErrorPage = null);
+
+/// <summary>Which page an answer is served with to a client that accepts HTML.</summary>
+/// <param name="Custom">An operator's page, not the one built into Paduraksa.</param>
+/// <param name="Source">The layer the operator's page came from; <see cref="ErrorPageSource.BuiltIn"/> when it isn't one.</param>
+/// <param name="Mode">How the page is written; a built-in page is a message.</param>
+public sealed record GateErrorPage(bool Custom, ErrorPageSource Source, ErrorPageMode Mode);
 
 /// <summary>Which step of the gate a <see cref="GateStep"/> is.</summary>
 public enum GateStepKind : byte
@@ -114,6 +125,9 @@ public enum GateStepKind : byte
 
     /// <summary>The managed <c>robots.txt</c>: served, or passed through to the upstream.</summary>
     RobotsTxt,
+
+    /// <summary>The host's maintenance mode: off, bypassed by an access list, or answering with the maintenance page.</summary>
+    Maintenance,
 
     FixedResponse,
 

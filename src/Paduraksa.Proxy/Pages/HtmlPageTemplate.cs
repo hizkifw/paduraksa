@@ -41,11 +41,21 @@ public sealed class HtmlPageTemplate
 
     private static readonly HtmlEncoder Encoder = HtmlEncoder.Default;
 
+    // The layout around a page's title and body, one definition for every page the proxy writes (the operator's message pages included).
+    internal const string DocumentStart =
+        "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>";
+
+    internal static readonly string TitleEnd = string.Concat("</title><style>", BrandStyle, "</style></head><body><main>", Logo);
+
+    internal const string DocumentEnd =
+        "</main><footer><a href=\"https://github.com/hizkifw/paduraksa\">Protected by Paduraksa</a></footer></body></html>\n";
+
     private readonly byte[][] _segments;
     private readonly PrecomputedHeader[] _headers;
 
-    private HtmlPageTemplate(byte[][] segments, int slotCount, string contentSecurityPolicy)
+    private HtmlPageTemplate(byte[][] segments, int slotCount, string contentSecurityPolicy, int customizableStatus)
     {
+        CustomizableStatus = customizableStatus;
         _segments = segments;
         SlotCount = slotCount;
         ContentSecurityPolicy = contentSecurityPolicy;
@@ -56,6 +66,12 @@ public sealed class HtmlPageTemplate
             new("X-Content-Type-Options", new StringValues("nosniff")),
         ];
     }
+
+    /// <summary>
+    /// The status whose operator-written page replaces this one (<see cref="Paduraksa.Core.Model.ErrorPageStatuses"/>), or 0 when
+    /// the page is a flow's own (the proof-of-work challenge and its refusals) and stays as it is.
+    /// </summary>
+    internal int CustomizableStatus { get; }
 
     /// <summary>How many values the page expects; each <c>Write</c> overload checks it.</summary>
     public int SlotCount { get; }
@@ -80,6 +96,7 @@ public sealed class HtmlPageTemplate
         string? script = null,
         string? extraCsp = null,
         bool allowForm = false,
+        int customizableStatus = 0,
         params string[] slots)
     {
         ArgumentNullException.ThrowIfNull(title);
@@ -88,16 +105,12 @@ public sealed class HtmlPageTemplate
 
         // The title is the one caller-supplied static string, so it is encoded once here rather than trusted.
         var page = string.Concat(
-            "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">",
-            "<title>",
+            DocumentStart,
             Encoder.Encode(title),
-            "</title><style>",
-            BrandStyle,
-            "</style></head><body><main>",
-            Logo,
+            TitleEnd,
             body,
             script is null ? string.Empty : string.Concat("<script>", script, "</script>"),
-            "</main><footer><a href=\"https://github.com/hizkifw/paduraksa\">Protected by Paduraksa</a></footer></body></html>\n");
+            DocumentEnd);
 
         var segments = new byte[slots.Length + 1][];
         var position = 0;
@@ -121,7 +134,7 @@ public sealed class HtmlPageTemplate
 
         segments[^1] = Encoding.UTF8.GetBytes(page[position..]);
 
-        return new HtmlPageTemplate(segments, slots.Length, BuildContentSecurityPolicy(script, extraCsp, allowForm));
+        return new HtmlPageTemplate(segments, slots.Length, BuildContentSecurityPolicy(script, extraCsp, allowForm), customizableStatus);
     }
 
     /// <summary>Writes a one-slot page.</summary>
@@ -194,7 +207,7 @@ public sealed class HtmlPageTemplate
         }
     }
 
-    private static void WriteSegment(IBufferWriter<byte> writer, ReadOnlySpan<byte> segment)
+    internal static void WriteSegment(IBufferWriter<byte> writer, ReadOnlySpan<byte> segment)
     {
         if (segment.IsEmpty)
         {
@@ -205,7 +218,7 @@ public sealed class HtmlPageTemplate
         writer.Advance(segment.Length);
     }
 
-    private static void WriteSlot(IBufferWriter<byte> writer, ReadOnlySpan<char> value)
+    internal static void WriteSlot(IBufferWriter<byte> writer, ReadOnlySpan<char> value)
     {
         // The encoder writes characters; its output for an HTML slot is always ASCII (anything else becomes an
         // entity), so the encoded chars narrow to bytes without a second buffer. 256 chars holds several characters'

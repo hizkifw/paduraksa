@@ -551,13 +551,24 @@ public static class GateSimulator
                 var location = response.StatusCode / 100 == 3 && context.Response.Headers.Location.Count > 0
                     ? context.Response.Headers.Location.ToString()
                     : null;
-                return new GateOutcome(GateOutcomeAction.Respond, reason, response.StatusCode, location, BodyOf(response));
+                return new GateOutcome(GateOutcomeAction.Respond, reason, response.StatusCode, location, BodyOf(response), ErrorPageOf(context, response));
             // A probe carries no body, and the real gate refuses a post without a challenge and solution with 403.
             case GateAction.VerifyProofOfWork:
                 return new GateOutcome(GateOutcomeAction.Respond, GateReason.ProofOfWork, StatusCodes.Status403Forbidden);
             default:
                 return new GateOutcome(GateOutcomeAction.Abort, reason);
         }
+    }
+
+    /// <summary>The page a browser would be served for <paramref name="response"/>: the operator's, with its layer, or the built-in one; null for an answer that has no page.</summary>
+    private static GateErrorPage? ErrorPageOf(HttpContext context, PrecomputedResponse response)
+    {
+        if (ErrorPageSelection.Find(context, response) is { } custom)
+        {
+            return new GateErrorPage(Custom: custom.Source != ErrorPageSource.BuiltIn, custom.Source, custom.Mode);
+        }
+
+        return response.HtmlPage is not null ? new GateErrorPage(Custom: false, ErrorPageSource.BuiltIn, ErrorPageMode.Message) : null;
     }
 
     private static string? BodyOf(PrecomputedResponse response)
@@ -606,6 +617,7 @@ public static class GateSimulator
                     GateStepKind.RequestLimits => GateReason.RequestLimits,
                     GateStepKind.HttpsRedirect => GateReason.HttpsRedirect,
                     GateStepKind.RobotsTxt => GateReason.RobotsTxt,
+                    GateStepKind.Maintenance => GateReason.Maintenance,
                     GateStepKind.FixedResponse => GateReason.FixedHost,
                     GateStepKind.ProofOfWork => GateReason.ProofOfWork,
                     GateStepKind.RouteMatch => GateReason.NoRoute,

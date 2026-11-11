@@ -82,12 +82,21 @@ public enum SimulationOutcomeKind
 /// <param name="StatusCode">The status, when the gate answers.</param>
 /// <param name="Location">The <c>Location</c> of a redirect, built as the real response builds it.</param>
 /// <param name="Body">The body of a short text answer.</param>
+/// <param name="ErrorPage">The page a browser is served when the answer is one of the proxy's own error pages; absent for a redirect, a
+/// forward, a drop and an answer that is only text (a Respond host's).</param>
 public sealed record SimulationOutcome(
     SimulationOutcomeKind Kind,
     string Summary,
     int? StatusCode = null,
     string? Location = null,
-    string? Body = null);
+    string? Body = null,
+    SimulationErrorPage? ErrorPage = null);
+
+/// <summary>Which page an answer is served as, to a client that accepts HTML (anything else gets plain text).</summary>
+/// <param name="Custom">An operator's page. False: the page built into Paduraksa.</param>
+/// <param name="Source">Which layer the operator's page came from (the global defaults, the profile, the host); built-in when it isn't one.</param>
+/// <param name="Mode">A message in the built-in layout, or the operator's own document.</param>
+public sealed record SimulationErrorPage(bool Custom, ErrorPageSource Source, ErrorPageMode Mode);
 
 /// <summary>Which gate step a <see cref="SimulationStep"/> is, in the order they run.</summary>
 [JsonConverter(typeof(ConfigEnumConverter<SimulationStepKind>))]
@@ -139,6 +148,9 @@ public enum SimulationStepKind
 
     /// <summary>The managed <c>robots.txt</c>: served for the host, or passed through to the upstream.</summary>
     RobotsTxt,
+
+    /// <summary>The host's maintenance mode: off, bypassed by an access list, or answering with the maintenance page.</summary>
+    Maintenance,
 
     /// <summary>A Redirect or Respond host's fixed answer.</summary>
     FixedResponse,
