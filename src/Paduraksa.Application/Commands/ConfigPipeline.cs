@@ -203,7 +203,7 @@ internal sealed partial class ConfigPipeline
         }
     }
 
-    /// <summary>The commit transaction: the revision and its audit event; the publish is queued by the caller's lock.</summary>
+    /// <summary>Commits the revision and its audit event in one transaction, then queues the publish; the caller still holds the writer lock, so snapshots go live in commit order.</summary>
     internal async Task<Execution> CommitAsync(
         ConfigDbContext context,
         CommandOrigin origin,
