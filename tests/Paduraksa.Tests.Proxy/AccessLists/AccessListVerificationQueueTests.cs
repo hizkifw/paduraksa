@@ -203,10 +203,11 @@ public sealed class AccessListVerificationQueueTests
     [Fact]
     public async Task OnlyTheWaitersPastTheirMaximumTimeOutTheOthersKeepTheirTurn()
     {
-        var queue = Queue(out var stats, slots: 1, perClient: 8, maxWait: TimeSpan.FromMilliseconds(400));
+        // A second between the two deadlines, so a stalled test thread can't let the timer expire the late one too.
+        var queue = Queue(out var stats, slots: 1, perClient: 8, maxWait: TimeSpan.FromMilliseconds(1500));
         Assert.Equal(VerificationSlot.Granted, await EnterAsync(queue, Client(1)));
         var early = queue.EnterAsync(Client(2), TestContext.Current.CancellationToken).AsTask();
-        await Task.Delay(250, TestContext.Current.CancellationToken);
+        await Task.Delay(1000, TestContext.Current.CancellationToken);
         var late = queue.EnterAsync(Client(3), TestContext.Current.CancellationToken).AsTask();
 
         Assert.Equal(VerificationSlot.TimedOut, await early.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));

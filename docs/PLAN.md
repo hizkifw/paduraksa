@@ -935,8 +935,9 @@ back only after its cancellation registration is disposed. **Allocation** (Relea
 `scripts/test-ci-like.sh`, which both measured the same): taking and giving back a free slot is 0 B (`AllocAssert`), as is a refusal at the
 door; a miss that finds a slot free allocates nothing beyond the 401 a missing credential gets (1137 B against 1144 B in a test context, which
 is the answer's own cost); a miss that waits adds about 550 B (the boxed continuations, the cancellation registration, the thread-pool work
-item); PBKDF2 itself is 0 B on both runtimes. The allocation tests of the synchronous paths (`GateAllocationTests`, `AccessListPolicyTests`)
-include the deferring decision. `AccessListStats` (allowed, address refused, 401, cache hits, verifications, **queued, queue-full
+item; measured once, not asserted by a test); PBKDF2 itself is 0 B on both runtimes. The allocation tests of the synchronous paths (`GateAllocationTests`, `AccessListPolicyTests`)
+include the deferring decision. Not yet pinned by a test: a queued waiter cancelled while an identical-credential twin waits
+behind it (safe by construction: the twin is served once the in-flight check exits). `AccessListStats` (allowed, address refused, 401, cache hits, verifications, **queued, queue-full
 refusals, timeouts**, and busy as the sum of the two refusals) are process counters the security overview shows. **Gap:** a spray spread
 over many addresses (a botnet, or many /64s) can still fill the 256 places, and then first-time logins on every list get 429 until it
 ends; nothing throttles failed attempts per address over time. A credential already in the cache still gets through, since a hit needs no
