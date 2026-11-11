@@ -251,7 +251,14 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
         {
             if (response.Headers.NonValidated.TryGetValues(name, out var values))
             {
-                relayed.Add(new PrecomputedHeader(name, new StringValues(values.ToArray())));
+                var lines = new string[values.Count];
+                var at = 0;
+                foreach (var line in values)
+                {
+                    lines[at++] = line;
+                }
+
+                relayed.Add(new PrecomputedHeader(name, new StringValues(lines)));
             }
         }
 

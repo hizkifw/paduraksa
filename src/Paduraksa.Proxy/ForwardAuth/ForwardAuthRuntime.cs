@@ -122,10 +122,23 @@ public sealed partial class ForwardAuthRuntime
             spec.Timeout.Ticks,
             spec.CacheTtl.Ticks,
             (int)spec.CacheScope,
-            string.Join(',', spec.RequestHeaders.Select(static h => h.ToUpperInvariant()).Order(StringComparer.Ordinal)),
-            string.Join(',', spec.ResponseHeaders.Select(static h => h.ToUpperInvariant()).Order(StringComparer.Ordinal)),
+            SortedUpper(spec.RequestHeaders),
+            SortedUpper(spec.ResponseHeaders),
             spec.SignInUrl ?? string.Empty,
             spec.SignInReturnParameter ?? string.Empty);
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)).AsSpan(0, 16));
+    }
+
+    // A header list is a set: the order it was written in changes nothing, so it doesn't change the hash.
+    private static string SortedUpper(IReadOnlyList<string> names)
+    {
+        var upper = new string[names.Count];
+        for (var i = 0; i < upper.Length; i++)
+        {
+            upper[i] = names[i].ToUpperInvariant();
+        }
+
+        Array.Sort(upper, StringComparer.Ordinal);
+        return string.Join(',', upper);
     }
 }

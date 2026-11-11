@@ -32,9 +32,23 @@ public sealed class CompiledAuthProvider
             }
         }
 
-        _exact = [.. exact];
-        _prefixes = [.. prefixes];
-        RequestHeaders = [.. ForwardAuthLimits.StandardRequestHeaders, .. spec.RequestHeaders.Where(extra => !ForwardAuthLimits.StandardRequestHeaders.Contains(extra, StringComparer.OrdinalIgnoreCase))];
+        _exact = exact.ToArray();
+        _prefixes = prefixes.ToArray();
+        List<string> requests = new(ForwardAuthLimits.StandardRequestHeaders.Count + spec.RequestHeaders.Count);
+        foreach (var standard in ForwardAuthLimits.StandardRequestHeaders)
+        {
+            requests.Add(standard);
+        }
+
+        foreach (var extra in spec.RequestHeaders)
+        {
+            if (!requests.Exists(known => string.Equals(known, extra, StringComparison.OrdinalIgnoreCase)))
+            {
+                requests.Add(extra);
+            }
+        }
+
+        RequestHeaders = requests.ToArray();
     }
 
     public AuthProviderId Id { get; }

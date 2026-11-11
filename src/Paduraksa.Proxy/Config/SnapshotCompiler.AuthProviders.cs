@@ -31,7 +31,13 @@ public static partial class SnapshotCompiler
 
         if (publish)
         {
-            runtime.Retain(providers.Keys.ToHashSet());
+            HashSet<AuthProviderId> live = [];
+            foreach (var id in providers.Keys)
+            {
+                live.Add(id);
+            }
+
+            runtime.Retain(live);
         }
 
         return new AuthProviderBinding(providers);
