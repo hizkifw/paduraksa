@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
+using Paduraksa.Application.Identity;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -58,7 +59,7 @@ public sealed partial class RequestSimulator : IDisposable
     private readonly ConfigService _config;
     private readonly SnapshotStore _store;
     private readonly IUpstreamHealth? _health;
-    private readonly ISimulationAuthorizer _authorizer;
+    private readonly IPermissionEvaluator _permissions;
     private readonly AcmeChallengeStore? _challenges;
     private readonly ListenerFacts? _listeners;
     private readonly ProofOfWorkRuntime? _proofOfWork;
@@ -67,8 +68,8 @@ public sealed partial class RequestSimulator : IDisposable
 
     /// <param name="config">Where drafts and revisions come from.</param>
     /// <param name="store">The live snapshot.</param>
+    /// <param name="permissions">Who may simulate against which target (<see cref="OperationPermissions.ForSimulation"/>).</param>
     /// <param name="health">The live proxy's destination health; null: unknown.</param>
-    /// <param name="authorizer">Who may simulate; null: everyone (until roles exist).</param>
     /// <param name="challenges">The live HTTP-01 answers. Challenges are process state, not config, so every target (a draft
     /// or an old revision too) is asked against this one store, as the live gate is; null: no challenge is answered.</param>
     /// <param name="listeners">What the public listeners do before a request exists (PROXY protocol, HTTP/3); null: not
@@ -81,8 +82,8 @@ public sealed partial class RequestSimulator : IDisposable
     internal RequestSimulator(
         ConfigService config,
         SnapshotStore store,
+        IPermissionEvaluator permissions,
         IUpstreamHealth? health = null,
-        ISimulationAuthorizer? authorizer = null,
         AcmeChallengeStore? challenges = null,
         ListenerFacts? listeners = null,
         ProofOfWorkRuntime? proofOfWork = null,
@@ -92,16 +93,30 @@ public sealed partial class RequestSimulator : IDisposable
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(permissions);
         _config = config;
         _store = store;
         _health = health;
-        _authorizer = authorizer ?? AllowAllSimulations.Instance;
+        _permissions = permissions;
         _challenges = challenges;
         _listeners = listeners;
         _proofOfWork = proofOfWork;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<RequestSimulator>.Instance;
         _busyWait = busyWait ?? BusyWait;
         _time = time ?? TimeProvider.System;
+    }
+
+    private async ValueTask<bool> MayAsync(SimulationTarget target, CommandOrigin origin, CancellationToken cancellationToken)
+    {
+        foreach (var permission in OperationPermissions.ForSimulation(target))
+        {
+            if (!await _permissions.IsAllowedAsync(origin, permission, cancellationToken).ConfigureAwait(false))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -116,7 +131,7 @@ public sealed partial class RequestSimulator : IDisposable
         ArgumentNullException.ThrowIfNull(origin);
 
         SimulationSource source = new(KindOf(target));
-        if (!await _authorizer.IsAllowedAsync(target, origin, cancellationToken).ConfigureAwait(false))
+        if (!await MayAsync(target, origin, cancellationToken).ConfigureAwait(false))
         {
             return new SimulationResult(SimulationStatus.Denied, source);
         }

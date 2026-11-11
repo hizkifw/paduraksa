@@ -1,10 +1,11 @@
 using System.Diagnostics;
-
 using Microsoft.Data.Sqlite;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Core.Model;
 using Paduraksa.Storage.Sqlite;
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
@@ -16,7 +17,7 @@ public sealed class ConfigServiceRobustnessTests
     public async Task WhenAnotherWriterCommitsBeforeTheCommitTheCommandIsPreparedAgainOnTheNewHead()
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
-        using var otherProcess = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), h.Publisher);
+        using var otherProcess = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), h.Publisher, TestPermissions.AllowAll);
         var moves = 1;
         h.Compiler.OnCompile = _ =>
         {
@@ -39,7 +40,7 @@ public sealed class ConfigServiceRobustnessTests
     public async Task WhenTheHeadMovesTwiceItIsAConflictNamingTheRealHead()
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
-        using var otherProcess = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), h.Publisher);
+        using var otherProcess = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), h.Publisher, TestPermissions.AllowAll);
         var id = HostId.New();
         await h.RunAsync(new UpsertHostCommand(RespondHost(id, "a.example.com")));
         var moves = 0;
@@ -128,9 +129,12 @@ public sealed class ConfigServiceRobustnessTests
         Assert.Equal(ConfigCommandStatus.Committed, result.Status);
     }
 
-    private sealed class CancelThenDeny(CancellationTokenSource cancel) : IConfigCommandAuthorizer
+    private sealed class CancelThenDeny(CancellationTokenSource cancel) : IPermissionEvaluator
     {
-        public async ValueTask<bool> IsAllowedAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken)
+        public ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(Actor actor, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlySet<Permission>>(new HashSet<Permission>());
+
+        public async ValueTask<bool> IsAllowedAsync(CommandOrigin origin, Permission permission, CancellationToken cancellationToken)
         {
             await cancel.CancelAsync();
             return false;

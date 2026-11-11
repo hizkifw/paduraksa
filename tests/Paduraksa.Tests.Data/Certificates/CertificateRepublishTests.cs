@@ -1,9 +1,7 @@
 using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-
 using Microsoft.Extensions.Logging.Abstractions;
-
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
@@ -17,10 +15,9 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Data.Commands;
 using Paduraksa.Tests.Data.Config;
-
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
-
 using SnapshotStore = Paduraksa.Proxy.Snapshot.SnapshotStore;
 
 namespace Paduraksa.Tests.Data.Certificates;
@@ -204,8 +201,8 @@ public sealed class CertificateRepublishTests
                     : null;
             }
 
-            Service = new ConfigService(h.Db.Factory, compiler, _publisher, lastKnownGood: LastGood);
-            Certificates = new CertificateService(h.Db.Factory, Service, TimeProvider.System, NullLogger<CertificateService>.Instance);
+            Service = new ConfigService(h.Db.Factory, compiler, _publisher, TestPermissions.AllowAll, lastKnownGood: LastGood);
+            Certificates = new CertificateService(h.Db.Factory, Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll);
         }
 
         public SnapshotStore Store { get; }
@@ -241,8 +238,8 @@ public sealed class CertificateRepublishTests
             Store = new SnapshotStore();
             _publisher = new SnapshotPublisher(Store);
             Service = new ConfigService(
-                db.Factory, new ConfigCompiler(SnapshotCompilerOptions.Default), _publisher, Time, certificateSource: new Source(_contexts));
-            Certificates = new CertificateService(db.Factory, Service, Time, NullLogger<CertificateService>.Instance);
+                db.Factory, new ConfigCompiler(SnapshotCompilerOptions.Default), _publisher, TestPermissions.AllowAll, Time, certificateSource: new Source(_contexts));
+            Certificates = new CertificateService(db.Factory, Service, Time, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll);
         }
 
         public TestConfigDatabase Db { get; }

@@ -76,7 +76,7 @@ public sealed partial class AcmeIssuanceService
     private readonly TimeProvider _time;
     private readonly Func<double> _random;
     private readonly ILogger _logger;
-    private readonly IPermissionEvaluator? _permissions;
+    private readonly IPermissionEvaluator _permissions;
 
     internal AcmeIssuanceService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -89,10 +89,10 @@ public sealed partial class AcmeIssuanceService
         AcmeIssuanceOptions options,
         TimeProvider time,
         ILogger<AcmeIssuanceService> logger,
+        IPermissionEvaluator permissions,
         ICertificateCatalog? catalog = null,
         IDnsPropagationCheck? propagation = null,
-        Func<double>? random = null,
-        IPermissionEvaluator? permissions = null)
+        Func<double>? random = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
@@ -103,6 +103,7 @@ public sealed partial class AcmeIssuanceService
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(permissions);
         _contexts = contexts;
         _config = config;
         _certificates = certificates;

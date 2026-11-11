@@ -4,6 +4,7 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
+using Paduraksa.Application.Identity;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
@@ -11,6 +12,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Tests.Data.Config;
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 using SnapshotStore = Paduraksa.Proxy.Snapshot.SnapshotStore;
 
@@ -24,11 +26,11 @@ namespace Paduraksa.Tests.Data.Commands;
 /// </summary>
 internal sealed class ConfigServiceHarness : IAsyncDisposable
 {
-    private ConfigServiceHarness(TestConfigDatabase db, IConfigCommandAuthorizer? authorizer, IConfigCompiler? compiler, ConfigServiceOptions? options)
+    private ConfigServiceHarness(TestConfigDatabase db, IPermissionEvaluator? permissions, IConfigCompiler? compiler, ConfigServiceOptions? options)
     {
         Db = db;
         Publisher = new SnapshotPublisher(Store);
-        Service = new ConfigService(db.Factory, compiler ?? Compiler, Publisher, TimeProvider.System, authorizer: authorizer, options: options);
+        Service = new ConfigService(db.Factory, compiler ?? Compiler, Publisher, permissions ?? TestPermissions.AllowAll, TimeProvider.System, options: options);
     }
 
     public TestConfigDatabase Db { get; }
@@ -41,7 +43,7 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
 
     public ConfigService Service { get; }
 
-    /// <param name="authorizer">Default: allow everything.</param>
+    /// <param name="permissions">Default: every origin holds every permission.</param>
     /// <param name="compiler">Default: <see cref="Compiler"/>.</param>
     /// <param name="options">Default: the service's defaults.</param>
     /// <param name="sqliteRetryWindow">
@@ -49,9 +51,9 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
     /// to tell that retry loop from the busy handler.
     /// </param>
     public static async Task<ConfigServiceHarness> CreateAsync(
-        IConfigCommandAuthorizer? authorizer = null, IConfigCompiler? compiler = null, ConfigServiceOptions? options = null,
+        IPermissionEvaluator? permissions = null, IConfigCompiler? compiler = null, ConfigServiceOptions? options = null,
         TimeSpan? sqliteRetryWindow = null) =>
-        new(await TestConfigDatabase.CreateAsync(sqliteRetryWindow), authorizer, compiler, options);
+        new(await TestConfigDatabase.CreateAsync(sqliteRetryWindow), permissions, compiler, options);
 
     public static CommandOrigin Admin { get; } = new(Actor.ForUser(UserId.New()), Channel.Dashboard, System.Net.IPAddress.Loopback);
 

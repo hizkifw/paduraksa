@@ -66,7 +66,7 @@ public sealed class DnsProviderRegistrationTests
         cloudflare.AddZone("example.com");
         FakeSecretHandlers handlers = new(cloudflare.Handle);
         using var provider = Services(handlers).AddPaduraksaDnsProviders().BuildServiceProvider();
-        DnsProviderService service = new(h.Config.Db.Factory, h.Config.Service, h.Secrets, provider.GetRequiredService<IDnsProviderFactory>(), h.Time, NullLogger<DnsProviderService>.Instance);
+        DnsProviderService service = new(h.Config.Db.Factory, h.Config.Service, h.Secrets, provider.GetRequiredService<IDnsProviderFactory>(), h.Time, NullLogger<DnsProviderService>.Instance, h.Permissions);
         var row = await h.CreateDnsProviderAsync();
 
         Assert.Equal(new Paduraksa.Contracts.Issuance.DnsProviderTestResult(true, true), await service.TestAsync(row.Id, Paduraksa.Application.Commands.CommandOrigin.Cli, Ct));

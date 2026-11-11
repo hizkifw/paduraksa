@@ -28,10 +28,10 @@ public sealed class PermissionTests
     [InlineData(Role.Auditor, false)]
     public async Task OnlyRolesWithConfigWriteMayRunConfigCommands(Role role, bool allowed)
     {
-        var late = new LateAuthorizer();
-        await using var config = await ConfigServiceHarness.CreateAsync(authorizer: late);
+        var late = new LateEvaluator();
+        await using var config = await ConfigServiceHarness.CreateAsync(permissions: late);
         await using var h = Over(config.Db);
-        late.Inner = h.Get<IConfigCommandAuthorizer>();
+        late.Inner = h.Get<IPermissionEvaluator>();
         var user = await h.CreateUserAsync("someone", role);
 
         var result = await config.RunAsync(NewHost("app.example.com"), h.As(user));
@@ -47,10 +47,10 @@ public sealed class PermissionTests
     [Fact]
     public async Task SystemAndTheCliMayAlwaysAndAnUnknownUserNeverMay()
     {
-        var late = new LateAuthorizer();
-        await using var config = await ConfigServiceHarness.CreateAsync(authorizer: late);
+        var late = new LateEvaluator();
+        await using var config = await ConfigServiceHarness.CreateAsync(permissions: late);
         await using var h = Over(config.Db);
-        late.Inner = h.Get<IConfigCommandAuthorizer>();
+        late.Inner = h.Get<IPermissionEvaluator>();
 
         Assert.Equal(ConfigCommandStatus.Committed, (await config.RunAsync(NewHost("a.example.com"), CommandOrigin.System)).Status);
         Assert.Equal(ConfigCommandStatus.Committed, (await config.RunAsync(NewHost("b.example.com"), CommandOrigin.Cli)).Status);
@@ -61,10 +61,10 @@ public sealed class PermissionTests
     [Fact]
     public async Task ATokenMayRunACommandOnlyWithTheWriteScopeAndOnlyWhileItsOwnerMay()
     {
-        var late = new LateAuthorizer();
-        await using var config = await ConfigServiceHarness.CreateAsync(authorizer: late);
+        var late = new LateEvaluator();
+        await using var config = await ConfigServiceHarness.CreateAsync(permissions: late);
         await using var h = Over(config.Db);
-        late.Inner = h.Get<IConfigCommandAuthorizer>();
+        late.Inner = h.Get<IPermissionEvaluator>();
         var operatorUser = await h.CreateUserAsync("operator1", Role.Operator);
         var readOnly = (await h.Tokens.IssueAsync(h.As(operatorUser), new("ro", [Permission.ConfigRead], null), Ct)).Issued!;
         var writer = (await h.Tokens.IssueAsync(h.As(operatorUser), new("rw", [Permission.ConfigRead, Permission.ConfigWrite], null), Ct)).Issued!;
@@ -99,36 +99,15 @@ public sealed class PermissionTests
         Assert.Equal(("certificate.delete", id.ToString(), viewer.Id), (audit.Action, audit.Target, audit.Actor.UserId));
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task TheRegistrationReplacesTheAllowAllAuthorizerInEitherOrder(bool identityFirst)
+    /// <summary>The evaluator is needed to build the config service, whose database the users live in: bound afterwards.</summary>
+    private sealed class LateEvaluator : IPermissionEvaluator
     {
-        await using var db = await TestConfigDatabase.CreateAsync();
-        var services = new ServiceCollection().AddSingleton(db.Factory).AddSingleton<ITotpAuthenticator>(new FakeTotp());
-        if (identityFirst)
-        {
-            services.AddPaduraksaIdentity("/tmp/unused");
-        }
+        public IPermissionEvaluator? Inner { get; set; }
 
-        // Stands in for AddPaduraksaConfigService, which adds its default with TryAdd.
-        services.TryAddSingleton<IConfigCommandAuthorizer>(sp => throw new InvalidOperationException("the allow-all default must not win"));
-        if (!identityFirst)
-        {
-            services.AddPaduraksaIdentity("/tmp/unused");
-        }
+        public ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(Actor actor, CancellationToken cancellationToken) =>
+            Inner!.GetPermissionsAsync(actor, cancellationToken);
 
-        await using var provider = services.BuildServiceProvider();
-
-        Assert.Equal("PermissionConfigCommandAuthorizer", provider.GetRequiredService<IConfigCommandAuthorizer>().GetType().Name);
-    }
-
-    /// <summary>The authorizer is needed to build the config service, whose database the users live in: bound afterwards.</summary>
-    private sealed class LateAuthorizer : IConfigCommandAuthorizer
-    {
-        public IConfigCommandAuthorizer? Inner { get; set; }
-
-        public ValueTask<bool> IsAllowedAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken) =>
-            Inner!.IsAllowedAsync(command, origin, cancellationToken);
+        public ValueTask<bool> IsAllowedAsync(CommandOrigin origin, Permission permission, CancellationToken cancellationToken) =>
+            Inner!.IsAllowedAsync(origin, permission, cancellationToken);
     }
 }

@@ -4,29 +4,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 
 namespace Paduraksa.Application.Certificates;
-
-/// <summary>Decides whether an origin may run a certificate operation (<c>AddPaduraksaIdentity</c> registers the
-/// permission-based one).</summary>
-public interface ICertificateOperationAuthorizer
-{
-    /// <summary>True if <paramref name="origin"/> may run <paramref name="operation"/>.</summary>
-    ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken);
-}
-
-/// <summary>The authorizer for a service built without the identity services (tests): allows everything, like <c>AllowAllConfigCommands</c>.</summary>
-internal sealed class AllowAllCertificateOperations : ICertificateOperationAuthorizer
-{
-    public static AllowAllCertificateOperations Instance { get; } = new();
-
-    public ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(true);
-}
 
 /// <summary>The certificate use cases that touch the vault: upload, self-signed, the local CA root and its leaves,
 /// re-issue and delete.</summary>
@@ -67,7 +51,7 @@ public sealed partial class CertificateOperations
     private readonly ICertificateIssuance _issuance;
     private readonly ICertificateImport _import;
     private readonly ICertificateCatalog _catalog;
-    private readonly ICertificateOperationAuthorizer _authorizer;
+    private readonly IPermissionEvaluator _permissions;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
 
@@ -76,7 +60,7 @@ public sealed partial class CertificateOperations
         ICertificateIssuance issuance,
         ICertificateImport import,
         ICertificateCatalog catalog,
-        ICertificateOperationAuthorizer authorizer,
+        IPermissionEvaluator permissions,
         TimeProvider timeProvider,
         ILogger<CertificateOperations> logger)
     {
@@ -84,14 +68,14 @@ public sealed partial class CertificateOperations
         ArgumentNullException.ThrowIfNull(issuance);
         ArgumentNullException.ThrowIfNull(import);
         ArgumentNullException.ThrowIfNull(catalog);
-        ArgumentNullException.ThrowIfNull(authorizer);
+        ArgumentNullException.ThrowIfNull(permissions);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
         _certificates = certificates;
         _issuance = issuance;
         _import = import;
         _catalog = catalog;
-        _authorizer = authorizer;
+        _permissions = permissions;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -513,7 +497,7 @@ public sealed partial class CertificateOperations
 
     private async ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken)
     {
-        var allowed = await _authorizer.IsAllowedAsync(operation, origin, cancellationToken).ConfigureAwait(false);
+        var allowed = await _permissions.IsAllowedAsync(origin, OperationPermissions.ForCertificateOperation, cancellationToken).ConfigureAwait(false);
         if (!allowed)
         {
             LogForbidden(operation, origin.Actor);
@@ -608,22 +592,21 @@ public sealed partial class CertificateOperations
 public static class CertificateOperationsServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="CertificateOperations"/> as a singleton, with the allow-everything
-    /// <see cref="ICertificateOperationAuthorizer"/> unless one is registered. Needs the <see cref="CertificateService"/>
-    /// (<c>AddPaduraksaConfigService</c>), <see cref="ICertificateIssuance"/>, <see cref="ICertificateImport"/> and
+    /// Registers <see cref="CertificateOperations"/> as a singleton. Needs the <see cref="CertificateService"/>
+    /// (<c>AddPaduraksaConfigService</c>), the <see cref="IPermissionEvaluator"/> (<c>AddPaduraksaIdentity</c>),
+    /// <see cref="ICertificateIssuance"/>, <see cref="ICertificateImport"/> and
     /// <see cref="ICertificateCatalog"/> (the vault), and a <see cref="TimeProvider"/> (when the admin certificate must be
     /// re-issued: its lifetime threshold is judged against it).
     /// </summary>
     public static IServiceCollection AddPaduraksaCertificateOperations(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        services.TryAddSingleton<ICertificateOperationAuthorizer>(AllowAllCertificateOperations.Instance);
         services.TryAddSingleton(sp => new CertificateOperations(
             sp.GetRequiredService<CertificateService>(),
             sp.GetRequiredService<ICertificateIssuance>(),
             sp.GetRequiredService<ICertificateImport>(),
             sp.GetRequiredService<ICertificateCatalog>(),
-            sp.GetRequiredService<ICertificateOperationAuthorizer>(),
+            sp.GetRequiredService<IPermissionEvaluator>(),
             sp.GetRequiredService<TimeProvider>(),
             (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<CertificateOperations>()));
         return services;

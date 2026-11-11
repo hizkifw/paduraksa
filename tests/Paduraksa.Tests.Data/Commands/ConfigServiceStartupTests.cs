@@ -7,6 +7,7 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Yarp;
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 using SnapshotStore = Paduraksa.Proxy.Snapshot.SnapshotStore;
@@ -39,7 +40,7 @@ public sealed class ConfigServiceStartupTests
         await using var lastGood = new LastKnownGoodFile(path);
         using var store = new SnapshotStore();
         await using var publisher = new SnapshotPublisher(store);
-        using var restarted = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, lastKnownGood: lastGood);
+        using var restarted = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, TestPermissions.AllowAll, lastKnownGood: lastGood);
 
         var status = await restarted.StartAsync(Ct);
         await restarted.StartupPublishFollowed;
@@ -76,7 +77,7 @@ public sealed class ConfigServiceStartupTests
         {
             using var store = new SnapshotStore();
             await using var publisher = new SnapshotPublisher(store);
-            using var first = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, lastKnownGood: writer);
+            using var first = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, TestPermissions.AllowAll, lastKnownGood: writer);
             await first.StartAsync(Ct);
             await first.StartupPublishFollowed;
         }
@@ -86,7 +87,7 @@ public sealed class ConfigServiceStartupTests
         await using var lastGood = new LastKnownGoodFile(path);
         using var degradedStore = new SnapshotStore();
         await using var degradedPublisher = new SnapshotPublisher(degradedStore);
-        using var degraded = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), degradedPublisher, lastKnownGood: lastGood);
+        using var degraded = new ConfigService(h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), degradedPublisher, TestPermissions.AllowAll, lastKnownGood: lastGood);
 
         var status = await degraded.StartAsync(Ct);
         var refused = await degraded.ExecuteAsync(new UpsertHostCommand(RespondHost(HostId.New(), "b.example.com")), ConfigServiceHarness.Admin, Ct);
@@ -249,7 +250,7 @@ public sealed class ConfigServiceStartupTests
         var publisher = new SnapshotPublisher(store);
         var lastGood = new LastKnownGoodFile(LastKnownGoodPath(h), logs);
         var service = new ConfigService(
-            h.Db.Factory, compiler ?? new ConfigServiceHarness.FakeCompiler(), publisher, loggerFactory: logs, lastKnownGood: lastGood);
+            h.Db.Factory, compiler ?? new ConfigServiceHarness.FakeCompiler(), publisher, TestPermissions.AllowAll, loggerFactory: logs, lastKnownGood: lastGood);
         return new Restarted(store, publisher, lastGood, service, logs);
     }
 

@@ -13,5 +13,6 @@
     <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
     <!-- The admin app's pure pieces: the source allowlist, the sign-in throttle, the cookie reader, the HTTP JSON contract. -->
     <ProjectReference Include="../../src/Paduraksa.Admin/Paduraksa.Admin.csproj" />
+    <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
   </ItemGroup>
 </Project>

@@ -859,7 +859,7 @@ public sealed partial class AcmeIssuanceTests
         {
             using var store = new SnapshotStore();
             await using var publisher = new SnapshotPublisher(store);
-            using var first = new ConfigService(h.Config.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, lastKnownGood: writer);
+            using var first = new ConfigService(h.Config.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, h.Permissions, lastKnownGood: writer);
             await first.StartAsync(Ct);
             await first.StartupPublishFollowed;
         }
@@ -868,20 +868,21 @@ public sealed partial class AcmeIssuanceTests
         await using var lastGood = new LastKnownGoodFile(path);
         using var degradedStore = new SnapshotStore();
         await using var degradedPublisher = new SnapshotPublisher(degradedStore);
-        using var degraded = new ConfigService(h.Config.Db.Factory, new ConfigServiceHarness.FakeCompiler(), degradedPublisher, lastKnownGood: lastGood);
+        using var degraded = new ConfigService(h.Config.Db.Factory, new ConfigServiceHarness.FakeCompiler(), degradedPublisher, h.Permissions, lastKnownGood: lastGood);
         Assert.False((await degraded.StartAsync(Ct)).AcceptsCommands);
         using var clients = new AcmeClientProvider(h.Signer, null, null, () => h.Hook, h.Time);
         var issuance = new AcmeIssuanceService(
             h.Config.Db.Factory,
             degraded,
-            new CertificateService(h.Config.Db.Factory, degraded, h.Time, NullLogger<CertificateService>.Instance),
+            new CertificateService(h.Config.Db.Factory, degraded, h.Time, NullLogger<CertificateService>.Instance, h.Permissions),
             clients,
             h.Vault,
             h.Challenges,
             h.Dns,
             h.Options,
             h.Time,
-            NullLogger<AcmeIssuanceService>.Instance);
+            NullLogger<AcmeIssuanceService>.Instance,
+            h.Permissions);
         h.Time.Now += TimeSpan.FromDays(80);
         var requests = h.Server.Requests.Count;
 

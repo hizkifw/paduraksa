@@ -257,8 +257,7 @@ public sealed class RequestSimulatorEndToEndTests
 
         // The shipped hook allows everything; a replaced one decides per target and origin.
         Assert.Equal(SimulationStatus.Simulated, (await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, CommandOrigin.Cli, ct)).Status);
-        ISimulationAuthorizer deny = new DenyDrafts();
-        RequestSimulator guarded = new(host.Shared.Config, host.Shared.SnapshotStore, authorizer: deny);
+        RequestSimulator guarded = new(host.Shared.Config, host.Shared.SnapshotStore, TestPermissions.Holding(Permission.Simulate));
 
         Assert.Equal(SimulationStatus.Simulated, (await guarded.SimulateAsync(SimulationTarget.Live, Request, Origin, ct)).Status);
         var denied = await guarded.SimulateAsync(new DraftDocumentSimulationTarget(new ConfigDocument()), Request, Origin, ct);
@@ -324,7 +323,7 @@ public sealed class RequestSimulatorEndToEndTests
         var ct = TestContext.Current.CancellationToken;
         await using var host = TestHost.Create();
         await host.StartAsync(ct);
-        using RequestSimulator simulator = new(host.Shared.Config, host.Shared.SnapshotStore, busyWait: TimeSpan.FromMilliseconds(50));
+        using RequestSimulator simulator = new(host.Shared.Config, host.Shared.SnapshotStore, TestPermissions.AllowAll, busyWait: TimeSpan.FromMilliseconds(50));
         for (var i = 0; i < RequestSimulator.MaxConcurrentCompiles; i++)
         {
             await simulator.CompileSlots.WaitAsync(ct);
@@ -418,6 +417,23 @@ public sealed class RequestSimulatorEndToEndTests
     }
 
     [Fact]
+    public async Task TheServersIssuanceServicesRefuseAnOriginWithoutTheProvidersPermission()
+    {
+        // The issuance services are built in a container of their own: they must be given the same permission check as the rest.
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = TestHost.Create();
+        await host.StartAsync(ct);
+        var created = await host.Shared.Users.CreateAsync(Origin, new CreateUserRequest("operator", null, "correct-horse-battery-staple-9", [Role.Operator]), ct);
+        Assert.True(created.Succeeded, created.Problem);
+        CommandOrigin operatorOrigin = new(Actor.ForUser(created.User!.Id), Channel.Api, IPAddress.Loopback); // config and certificates, not providers
+
+        var account = await host.Shared.AcmeAccounts.CreateAsync(
+            new Paduraksa.Contracts.Issuance.CreateAcmeAccountRequest("https://ca.example/directory", [], TermsOfServiceAgreed: true), operatorOrigin, ct);
+
+        Assert.Equal(Paduraksa.Contracts.Issuance.IssuanceChangeStatus.Denied, account.Status);
+    }
+
+    [Fact]
     public async Task TheServerAuthorizesSimulationsByPermission()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -440,11 +456,5 @@ public sealed class RequestSimulatorEndToEndTests
         Assert.Equal(SimulationStatus.Denied, (await host.Shared.Simulator.SimulateAsync(draft, Request, auditor, ct)).Status);
         Assert.Equal(SimulationStatus.Denied, (await host.Shared.Simulator.SimulateAsync(SimulationTarget.Live, Request, new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api), ct)).Status);
         Assert.Equal(SimulationStatus.Simulated, (await host.Shared.Simulator.SimulateAsync(draft, Request, CommandOrigin.Cli, ct)).Status);
-    }
-
-    private sealed class DenyDrafts : ISimulationAuthorizer
-    {
-        public ValueTask<bool> IsAllowedAsync(SimulationTarget target, CommandOrigin origin, CancellationToken cancellationToken) =>
-            ValueTask.FromResult(target is LiveSimulationTarget);
     }
 }

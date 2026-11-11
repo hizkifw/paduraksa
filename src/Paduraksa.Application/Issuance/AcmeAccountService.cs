@@ -33,7 +33,7 @@ public sealed partial class AcmeAccountService
     private readonly IMacKeySource? _macKeys;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
-    private readonly IPermissionEvaluator? _permissions;
+    private readonly IPermissionEvaluator _permissions;
     private readonly ISecretStore? _secrets;
 
     internal AcmeAccountService(
@@ -44,7 +44,7 @@ public sealed partial class AcmeAccountService
         IMacKeySource? macKeys,
         TimeProvider time,
         ILogger<AcmeAccountService> logger,
-        IPermissionEvaluator? permissions = null,
+        IPermissionEvaluator permissions,
         ISecretStore? secrets = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
@@ -53,6 +53,7 @@ public sealed partial class AcmeAccountService
         ArgumentNullException.ThrowIfNull(signer);
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(permissions);
         _contexts = contexts;
         _config = config;
         _clients = clients;

@@ -10,6 +10,7 @@ using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Tests.Data.Commands;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
@@ -100,19 +101,20 @@ public sealed class AcmePebbleTests(PebbleFixture pebble) : IClassFixture<Pebble
                 // when it's fetched: the bound must let the client wait that out.
                 new AcmeClientOptions { PollInterval = TimeSpan.FromMilliseconds(200), MinPollDelay = TimeSpan.FromMilliseconds(100), MaxPollDelay = TimeSpan.FromSeconds(10) },
                 PebbleFixture.CreateHandler);
-            Accounts = new AcmeAccountService(config.Db.Factory, config.Service, _clients, Signer, null, TimeProvider.System, NullLogger<AcmeAccountService>.Instance);
-            DnsProviders = new DnsProviderService(config.Db.Factory, config.Service, Secrets, Dns, TimeProvider.System, NullLogger<DnsProviderService>.Instance);
+            Accounts = new AcmeAccountService(config.Db.Factory, config.Service, _clients, Signer, null, TimeProvider.System, NullLogger<AcmeAccountService>.Instance, TestPermissions.AllowAll);
+            DnsProviders = new DnsProviderService(config.Db.Factory, config.Service, Secrets, Dns, TimeProvider.System, NullLogger<DnsProviderService>.Instance, TestPermissions.AllowAll);
             Issuance = new AcmeIssuanceService(
                 config.Db.Factory,
                 config.Service,
-                new CertificateService(config.Db.Factory, config.Service, TimeProvider.System, NullLogger<CertificateService>.Instance),
+                new CertificateService(config.Db.Factory, config.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll),
                 _clients,
                 _vault,
                 Challenges,
                 Dns,
                 new AcmeIssuanceOptions { DnsPropagationDelay = TimeSpan.Zero },
                 TimeProvider.System,
-                NullLogger<AcmeIssuanceService>.Instance);
+                NullLogger<AcmeIssuanceService>.Instance,
+                TestPermissions.AllowAll);
         }
 
         public TrackingSigner Signer { get; }

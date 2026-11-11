@@ -29,13 +29,14 @@ public sealed partial class UpstreamProbe
     public static readonly TimeSpan CertificateTimeout = TimeSpan.FromSeconds(5);
 
     private readonly ConfigService _config;
-    private readonly IPermissionEvaluator? _permissions;
+    private readonly IPermissionEvaluator _permissions;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
 
-    public UpstreamProbe(ConfigService config, IPermissionEvaluator? permissions = null, TimeProvider? time = null, ILogger<UpstreamProbe>? logger = null)
+    public UpstreamProbe(ConfigService config, IPermissionEvaluator permissions, TimeProvider? time = null, ILogger<UpstreamProbe>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(permissions);
         _config = config;
         _permissions = permissions;
         _time = time ?? TimeProvider.System;

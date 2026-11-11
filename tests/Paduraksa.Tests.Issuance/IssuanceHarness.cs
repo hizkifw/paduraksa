@@ -36,8 +36,8 @@ internal sealed partial class IssuanceHarness : IAsyncDisposable
         Hook = new HookHandler(server);
         Secrets = new FakeSecretStore();
         Accounts = new AcmeAccountService(
-            config.Db.Factory, config.Service, NewClients(), Signer, null, Time, Loggers.CreateLogger<AcmeAccountService>());
-        DnsProviders = new DnsProviderService(config.Db.Factory, config.Service, Secrets, Dns, Time, Loggers.CreateLogger<DnsProviderService>());
+            config.Db.Factory, config.Service, NewClients(), Signer, null, Time, Loggers.CreateLogger<AcmeAccountService>(), Permissions);
+        DnsProviders = new DnsProviderService(config.Db.Factory, config.Service, Secrets, Dns, Time, Loggers.CreateLogger<DnsProviderService>(), Permissions);
         InitializeOrchestration();
     }
 

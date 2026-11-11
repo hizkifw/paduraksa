@@ -141,36 +141,6 @@ internal sealed class PermissionEvaluator(IDbContextFactory<ConfigDbContext> con
     }
 }
 
-/// <summary>Runs config commands only for origins holding <see cref="Permission.ConfigWrite"/>.</summary>
-internal sealed class PermissionConfigCommandAuthorizer(IPermissionEvaluator permissions) : IConfigCommandAuthorizer
-{
-    public ValueTask<bool> IsAllowedAsync(Contracts.Commands.ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken) =>
-        permissions.IsAllowedAsync(origin, Permission.ConfigWrite, cancellationToken);
-}
-
-/// <summary>Runs certificate operations (upload, issue, re-issue, delete) only for origins holding <see cref="Permission.CertificatesWrite"/>.</summary>
-internal sealed class PermissionCertificateOperationAuthorizer(IPermissionEvaluator permissions) : Certificates.ICertificateOperationAuthorizer
-{
-    public ValueTask<bool> IsAllowedAsync(Contracts.Certificates.CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken) =>
-        permissions.IsAllowedAsync(origin, Permission.CertificatesWrite, cancellationToken);
-}
-
-/// <summary>Runs request simulations for origins holding <see cref="Permission.Simulate"/>; a draft or a stored
-/// revision shows what the config contains, so those also need <see cref="Permission.ConfigRead"/>.</summary>
-internal sealed class PermissionSimulationAuthorizer(IPermissionEvaluator permissions) : Simulation.ISimulationAuthorizer
-{
-    public async ValueTask<bool> IsAllowedAsync(Contracts.Simulation.SimulationTarget target, CommandOrigin origin, CancellationToken cancellationToken)
-    {
-        if (!await permissions.IsAllowedAsync(origin, Permission.Simulate, cancellationToken).ConfigureAwait(false))
-        {
-            return false;
-        }
-
-        return target is Contracts.Simulation.LiveSimulationTarget
-            || await permissions.IsAllowedAsync(origin, Permission.ConfigRead, cancellationToken).ConfigureAwait(false);
-    }
-}
-
 /// <summary>Appends identity events to the audit chain, in the caller's transaction or in one of its own.</summary>
 internal sealed partial class IdentityAudit(TimeProvider time, ILoggerFactory loggerFactory)
 {

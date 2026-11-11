@@ -4,12 +4,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
+using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Tests.Data.Commands;
+using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Data.Certificates;
 
@@ -18,11 +20,11 @@ public sealed class CertificateOperationsTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     private static (CertificateOperations Operations, CertificateService Certificates, FakeVault Vault) Create(
-        ConfigServiceHarness harness, ICertificateOperationAuthorizer? authorizer = null)
+        ConfigServiceHarness harness, IPermissionEvaluator? permissions = null)
     {
         var vault = new FakeVault();
-        var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance);
-        var operations = new CertificateOperations(certificates, vault, vault, vault, authorizer ?? new Allow(), TimeProvider.System, NullLogger<CertificateOperations>.Instance);
+        var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions ?? TestPermissions.AllowAll);
+        var operations = new CertificateOperations(certificates, vault, vault, vault, permissions ?? TestPermissions.AllowAll, TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         return (operations, certificates, vault);
     }
 
@@ -328,7 +330,7 @@ public sealed class CertificateOperationsTests
     public async Task AnUnauthorizedOriginChangesNothing()
     {
         await using var harness = await ConfigServiceHarness.CreateAsync();
-        var (operations, certificates, vault) = Create(harness, new Deny());
+        var (operations, certificates, vault) = Create(harness, TestPermissions.Deny);
 
         Assert.Equal(CertificateOperationStatus.Forbidden, (await operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["a.example.com"]), ConfigServiceHarness.Admin, Ct)).Status);
         Assert.Equal(CertificateOperationStatus.Forbidden, (await operations.UploadAsync(Upload(), default, null, null, ConfigServiceHarness.Admin, Ct)).Status);
@@ -427,7 +429,7 @@ public sealed class CertificateOperationsTests
         var certificates = new CertificateService(
             harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 0));
         // The operation-level authorizer lets the caller through, so it is the service's own check that refuses.
-        var operations = new CertificateOperations(certificates, vault, vault, vault, new Allow(), TimeProvider.System, NullLogger<CertificateOperations>.Instance);
+        var operations = new CertificateOperations(certificates, vault, vault, vault, TestPermissions.AllowAll, TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         var viewer = new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api);
 
         var issued = await operations.IssueSelfSignedAsync(new SelfSignedCertificateRequest(["a.example.com"]), viewer, Ct);
@@ -448,7 +450,7 @@ public sealed class CertificateOperationsTests
         // The caller may register the pending row (one allowed check), and has lost the permission by the time the rollback runs.
         var certificates = new CertificateService(
             harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, permissions: new ScriptedPermissions(allowedCalls: 1));
-        var operations = new CertificateOperations(certificates, vault, vault, vault, new Allow(), TimeProvider.System, NullLogger<CertificateOperations>.Instance);
+        var operations = new CertificateOperations(certificates, vault, vault, vault, TestPermissions.AllowAll, TimeProvider.System, NullLogger<CertificateOperations>.Instance);
         var caller = new CommandOrigin(Actor.ForUser(UserId.New()), Channel.Api, System.Net.IPAddress.Loopback);
 
         await Assert.ThrowsAsync<IOException>(
@@ -537,16 +539,6 @@ public sealed class CertificateOperationsTests
 
         Assert.Equal(CertificateOperationStatus.Invalid, refused.Status);
         Assert.Equal(CertificateErrorCodes.LocalCaMissing, Assert.Single(refused.Errors).Code);
-    }
-
-    private sealed class Allow : ICertificateOperationAuthorizer
-    {
-        public ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken) => ValueTask.FromResult(true);
-    }
-
-    private sealed class Deny : ICertificateOperationAuthorizer
-    {
-        public ValueTask<bool> IsAllowedAsync(CertificateOperation operation, CommandOrigin origin, CancellationToken cancellationToken) => ValueTask.FromResult(false);
     }
 
     /// <summary>A vault that remembers which IDs hold a key and can be made to fail; it makes CertificateInfo with a fresh fingerprint each time.</summary>

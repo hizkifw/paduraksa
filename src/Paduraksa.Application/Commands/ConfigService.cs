@@ -10,6 +10,7 @@ using Paduraksa.Application.Audit;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
+using Paduraksa.Application.Identity;
 using Paduraksa.Application.LastKnownGood;
 using Paduraksa.Application.Revisions;
 using Paduraksa.Application.Storage;
@@ -70,7 +71,7 @@ public sealed partial class ConfigService : IDisposable
     private readonly CertificateInventoryLoader _certificates;
     private readonly CertificateInventoryLoader _simulationCertificates;
     private readonly SnapshotPublisher _publisher;
-    private readonly IConfigCommandAuthorizer _authorizer;
+    private readonly IPermissionEvaluator _permissions;
     private readonly ConfigServiceOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ConfigRevisionStore _revisions;
@@ -100,9 +101,9 @@ public sealed partial class ConfigService : IDisposable
         IDbContextFactory<ConfigDbContext> contexts,
         IConfigCompiler compiler,
         SnapshotPublisher publisher,
+        IPermissionEvaluator permissions,
         TimeProvider? timeProvider = null,
         ILoggerFactory? loggerFactory = null,
-        IConfigCommandAuthorizer? authorizer = null,
         ConfigServiceOptions? options = null,
         LastKnownGoodFile? lastKnownGood = null,
         IServerCertificateSource? certificateSource = null,
@@ -112,12 +113,13 @@ public sealed partial class ConfigService : IDisposable
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(compiler);
         ArgumentNullException.ThrowIfNull(publisher);
+        ArgumentNullException.ThrowIfNull(permissions);
         _contexts = contexts;
         _compiler = compiler;
         _publisher = publisher;
         _timeProvider = timeProvider ?? TimeProvider.System;
         loggerFactory ??= NullLoggerFactory.Instance;
-        _authorizer = authorizer ?? AllowAllConfigCommands.Instance;
+        _permissions = permissions;
         _options = options ?? new ConfigServiceOptions();
         _revisions = new ConfigRevisionStore(_timeProvider);
         _lastKnownGood = lastKnownGood;
@@ -197,7 +199,7 @@ public sealed partial class ConfigService : IDisposable
         CancellationToken cancellationToken)
     {
         var audited = Describe(command);
-        if (!await _authorizer.IsAllowedAsync(command, origin, cancellationToken).ConfigureAwait(false))
+        if (!await _permissions.IsAllowedAsync(origin, OperationPermissions.ForConfigCommand, cancellationToken).ConfigureAwait(false))
         {
             return await RejectAsync(command, origin, audited, new(ConfigCommandStatus.Denied), AuditOutcome.Denied)
                 .ConfigureAwait(false);

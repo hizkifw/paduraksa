@@ -4,5 +4,6 @@
     <ProjectReference Include="../../src/Paduraksa.Storage/Paduraksa.Storage.csproj" />
     <!-- The revision store and audit log run on real SQLite here. -->
     <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
+    <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
   </ItemGroup>
 </Project>

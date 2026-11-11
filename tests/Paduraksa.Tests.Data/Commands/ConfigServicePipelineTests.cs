@@ -3,6 +3,7 @@ using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Compilation;
+using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
@@ -10,6 +11,7 @@ using Paduraksa.Data;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
 using Paduraksa.Storage.Sqlite;
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
@@ -57,7 +59,7 @@ public sealed class ConfigServicePipelineTests
     [Fact]
     public async Task ADeniedCommandIsAuditedAndChangesNothing()
     {
-        await using var h = await ConfigServiceHarness.CreateAsync(new DenyAll());
+        await using var h = await ConfigServiceHarness.CreateAsync(TestPermissions.Deny);
 
         // Authorization comes first: an unauthorised caller learns nothing about its command, not even the message rules.
         var result = await h.RunAsync(new UpsertHostCommand(RespondHost(HostId.New(), "a.example.com")) { Message = new string('m', 2000) });
@@ -215,6 +217,7 @@ public sealed class ConfigServicePipelineTests
             .AddPaduraksaDbContextFactory<ConfigDbContext>(db.DatabasePath)
             .AddSingleton<IConfigCompiler>(new ConfigServiceHarness.FakeCompiler())
             .AddSingleton(store)
+            .AddSingleton<IPermissionEvaluator>(TestPermissions.AllowAll)
             .AddSingleton(sp => new SnapshotPublisher(sp.GetRequiredService<SnapshotStore>()))
             .AddPaduraksaConfigService()
             .BuildServiceProvider();
@@ -276,10 +279,5 @@ public sealed class ConfigServicePipelineTests
         Assert.True(
             best < BudgetMilliseconds,
             $"the best round median was {best:F1} ms, budget {BudgetMilliseconds:F0} ms; rounds: {string.Join(", ", medians.Select(m => m.ToString("F1", CultureInfo.InvariantCulture)))}");
-    }
-
-    private sealed class DenyAll : IConfigCommandAuthorizer
-    {
-        public ValueTask<bool> IsAllowedAsync(ConfigCommand command, CommandOrigin origin, CancellationToken cancellationToken) => ValueTask.FromResult(false);
     }
 }

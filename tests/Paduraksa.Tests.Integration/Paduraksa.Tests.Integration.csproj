@@ -8,5 +8,6 @@
     <Compile Include="../Shared/TestIds.cs" Link="Shared/TestIds.cs" />
     <Compile Include="../Shared/TestAccessLists.cs" Link="Shared/TestAccessLists.cs" />
     <Compile Include="../Shared/DockerCli.cs" Link="Shared/DockerCli.cs" />
+    <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
   </ItemGroup>
 </Project>

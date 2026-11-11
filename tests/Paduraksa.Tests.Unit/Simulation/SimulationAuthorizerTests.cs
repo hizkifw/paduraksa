@@ -1,6 +1,3 @@
-using System.Net;
-
-using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Simulation;
@@ -10,37 +7,16 @@ namespace Paduraksa.Tests.Unit.Simulation;
 
 public sealed class SimulationAuthorizerTests
 {
-    private static readonly CommandOrigin User = new(Actor.ForUser(UserId.New()), Channel.Api, IPAddress.Loopback);
-
-    private static readonly SimulationTarget[] Targets =
-    [
-        SimulationTarget.Live,
-        new RevisionSimulationTarget(ConfigRevisionId.New()),
-        new DraftDocumentSimulationTarget(new ConfigDocument()),
-        new DraftCommandSimulationTarget(new Paduraksa.Contracts.Commands.DeleteHostCommand(HostId.New(), 1)),
-    ];
+    public static TheoryData<SimulationTarget, Permission[]> Targets => new()
+    {
+        { SimulationTarget.Live, [Permission.Simulate] },
+        { new RevisionSimulationTarget(ConfigRevisionId.New()), [Permission.Simulate, Permission.ConfigRead] },
+        { new DraftDocumentSimulationTarget(new ConfigDocument()), [Permission.Simulate, Permission.ConfigRead] },
+        { new DraftCommandSimulationTarget(new Paduraksa.Contracts.Commands.DeleteHostCommand(HostId.New(), 1)), [Permission.Simulate, Permission.ConfigRead] },
+    };
 
     [Theory]
-    [InlineData(new[] { Permission.Simulate }, new[] { true, false, false, false })]
-    [InlineData(new[] { Permission.ConfigRead }, new[] { false, false, false, false })]
-    [InlineData(new[] { Permission.Simulate, Permission.ConfigRead }, new[] { true, true, true, true })]
-    [InlineData(new Permission[0], new[] { false, false, false, false })]
-    public async Task ATargetNeedsSimulateAndForDraftsAndRevisionsConfigRead(Permission[] held, bool[] expected)
-    {
-        PermissionSimulationAuthorizer authorizer = new(new Fixed(held));
-
-        for (var i = 0; i < Targets.Length; i++)
-        {
-            Assert.Equal(expected[i], await authorizer.IsAllowedAsync(Targets[i], User, TestContext.Current.CancellationToken));
-        }
-    }
-
-    private sealed class Fixed(Permission[] held) : IPermissionEvaluator
-    {
-        public ValueTask<IReadOnlySet<Permission>> GetPermissionsAsync(Actor actor, CancellationToken cancellationToken) =>
-            ValueTask.FromResult<IReadOnlySet<Permission>>(held.ToHashSet());
-
-        public ValueTask<bool> IsAllowedAsync(CommandOrigin origin, Permission permission, CancellationToken cancellationToken) =>
-            ValueTask.FromResult(held.Contains(permission));
-    }
+    [MemberData(nameof(Targets))]
+    public void ATargetNeedsSimulateAndForDraftsAndRevisionsConfigRead(SimulationTarget target, Permission[] needed) =>
+        Assert.Equal(needed, OperationPermissions.ForSimulation(target));
 }

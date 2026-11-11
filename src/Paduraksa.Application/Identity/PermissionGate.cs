@@ -12,12 +12,12 @@ namespace Paduraksa.Application.Identity;
 internal static class PermissionGate
 {
     /// <summary>
-    /// True if <paramref name="origin"/> holds <paramref name="permission"/>. Always true without an <paramref name="permissions"/>
-    /// evaluator (services built for tests), and while the config store is unavailable (a degraded start): the permissions live in
-    /// that store, nothing is started in that state anyway, and the operation's own <c>Unavailable</c> answer is the honest one.
+    /// True if <paramref name="origin"/> holds <paramref name="permission"/>. Always true while the config store is unavailable
+    /// (a degraded start): the permissions live in that store, nothing is started in that state anyway, and the operation's own
+    /// <c>Unavailable</c> answer is the honest one.
     /// </summary>
     public static async ValueTask<bool> MayAsync(
-        IPermissionEvaluator? permissions,
+        IPermissionEvaluator permissions,
         ConfigService config,
         CommandOrigin origin,
         Permission permission,
@@ -25,7 +25,7 @@ internal static class PermissionGate
         string? target,
         CancellationToken cancellationToken)
     {
-        if (permissions is null || config.Status is { AcceptsCommands: false })
+        if (config.Status is { AcceptsCommands: false })
         {
             return true;
         }

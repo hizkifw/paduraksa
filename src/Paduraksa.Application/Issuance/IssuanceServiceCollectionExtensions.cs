@@ -52,7 +52,7 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetService<IMacKeySource>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<AcmeAccountService>(sp),
-            sp.GetService<IPermissionEvaluator>(),
+            sp.GetRequiredService<IPermissionEvaluator>(),
             sp.GetService<ISecretStore>()));
         services.TryAddSingleton(sp => new DnsProviderService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
@@ -61,7 +61,7 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetService<IDnsProviderFactory>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<DnsProviderService>(sp),
-            sp.GetService<IPermissionEvaluator>()));
+            sp.GetRequiredService<IPermissionEvaluator>()));
         services.TryAddSingleton(sp => new AcmeIssuanceService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),
@@ -73,9 +73,9 @@ public static class IssuanceServiceCollectionExtensions
             sp.GetRequiredService<AcmeIssuanceOptions>(),
             sp.GetRequiredService<TimeProvider>(),
             Logger<AcmeIssuanceService>(sp),
+            sp.GetRequiredService<IPermissionEvaluator>(),
             catalog: sp.GetService<ICertificateCatalog>(),
-            propagation: sp.GetService<IDnsPropagationCheck>(),
-            permissions: sp.GetService<IPermissionEvaluator>()));
+            propagation: sp.GetService<IDnsPropagationCheck>()));
         services.AddSingleton(sp => new AcmeRenewalScheduler(
             sp.GetRequiredService<AcmeIssuanceService>(),
             sp.GetRequiredService<AcmeIssuanceOptions>(),

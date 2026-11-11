@@ -67,6 +67,7 @@ internal static class IssuanceStore
             .AddSingleton(configStore.Contexts)
             .AddSingleton(configStore.Config)
             .AddSingleton(configStore.Certificates)
+            .AddSingleton(configStore.Permissions)
             .AddSingleton(vault.Issuance)
             .AddSingleton(vault.Catalog)
             .AddSingleton(vault.Signer)

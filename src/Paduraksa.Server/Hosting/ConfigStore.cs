@@ -103,14 +103,14 @@ internal static class ConfigStore
         builder.AddOwnedElsewhere(container.GetRequiredService<LoginService>());
         builder.AddOwnedElsewhere(container.GetRequiredService<ApiTokenService>());
         var setup = builder.AddOwnedElsewhere(container.GetRequiredService<SetupService>());
-        builder.AddOwnedElsewhere(container.GetRequiredService<IPermissionEvaluator>());
+        var permissions = builder.AddOwnedElsewhere(container.GetRequiredService<IPermissionEvaluator>());
         if (placeholderEnabled)
         {
             // The dashboard lists it with the inventory's certificates (source "built-in").
             builder.AddOwnedElsewhere<IBuiltInCertificates>(placeholder);
         }
 
-        return new ConfigStoreServices(contexts, config, certificates, operations, setup);
+        return new ConfigStoreServices(contexts, config, certificates, operations, setup, permissions);
     }
 }
 
@@ -120,9 +120,11 @@ internal static class ConfigStore
 /// <param name="Certificates">The certificate inventory's service.</param>
 /// <param name="Operations">The certificate use cases that touch the vault.</param>
 /// <param name="Setup">First-run setup: whether an Owner exists, and the one-time setup token.</param>
+/// <param name="Permissions">The one answer to "may this origin do that".</param>
 internal sealed record ConfigStoreServices(
     IDbContextFactory<ConfigDbContext> Contexts,
     ConfigService Config,
     CertificateService Certificates,
     CertificateOperations Operations,
-    SetupService Setup);
+    SetupService Setup,
+    IPermissionEvaluator Permissions);

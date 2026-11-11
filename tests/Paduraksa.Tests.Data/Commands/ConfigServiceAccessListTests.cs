@@ -1,5 +1,4 @@
 using System.Text;
-
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Config;
 using Paduraksa.Application.Revisions;
@@ -7,6 +6,7 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Security;
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Commands.Objects;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
@@ -203,7 +203,7 @@ public sealed class ConfigServiceAccessListTests : IAsyncLifetime
         // The stored config is the new shape now, so the next start finds nothing to convert.
         using Paduraksa.Proxy.Snapshot.SnapshotStore store = new();
         await using Paduraksa.Proxy.Yarp.SnapshotPublisher publisher = new(store);
-        using ConfigService restarted = new(_h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher);
+        using ConfigService restarted = new(_h.Db.Factory, new ConfigServiceHarness.FakeCompiler(), publisher, TestPermissions.AllowAll);
         await restarted.StartAsync(Ct);
         Assert.Equal(2, (await _h.RevisionsAsync()).Count);
     }

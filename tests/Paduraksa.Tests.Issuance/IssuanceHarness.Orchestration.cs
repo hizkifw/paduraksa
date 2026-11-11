@@ -6,6 +6,7 @@ using Paduraksa.Contracts.Certificates;
 using Paduraksa.Contracts.Issuance;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Gate;
+using Paduraksa.Tests.Shared;
 
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
@@ -49,13 +50,13 @@ internal sealed partial class IssuanceHarness
         Options,
         Time,
         Loggers.CreateLogger<AcmeIssuanceService>(),
+        Permissions,
         catalog: Vault,
         propagation: Propagation,
-        random: () => Random,
-        permissions: Permissions);
+        random: () => Random);
 
-    /// <summary>The permission check the services made here are given; null (the default) allows everything.</summary>
-    public Paduraksa.Application.Identity.IPermissionEvaluator? Permissions { get; set; }
+    /// <summary>The permission check the services made here are given; the default allows everything.</summary>
+    public Paduraksa.Application.Identity.IPermissionEvaluator Permissions { get; set; } = TestPermissions.AllowAll;
 
     public AcmeAccountService NewAccounts() => new(
         _config.Db.Factory, _config.Service, NewClients(), Signer, null, Time, Loggers.CreateLogger<AcmeAccountService>(), Permissions);
@@ -73,7 +74,7 @@ internal sealed partial class IssuanceHarness
     partial void InitializeOrchestration()
     {
         Vault = new FakeCertificateIssuance(Time);
-        Certificates = new CertificateService(_config.Db.Factory, _config.Service, Time, Loggers.CreateLogger<CertificateService>());
+        Certificates = new CertificateService(_config.Db.Factory, _config.Service, Time, Loggers.CreateLogger<CertificateService>(), Permissions);
         Issuance = NewIssuance();
         Scheduler = NewScheduler(Issuance);
     }

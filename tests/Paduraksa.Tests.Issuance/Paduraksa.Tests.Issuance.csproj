@@ -13,6 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/DockerCli.cs" Link="Shared/DockerCli.cs" />
+    <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- The fake CA, the fake account-key signer and the virtual clock, shared with the ACME client's own tests. -->

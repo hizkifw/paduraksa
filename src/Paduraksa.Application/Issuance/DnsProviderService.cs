@@ -30,7 +30,7 @@ public sealed partial class DnsProviderService
     private readonly IDnsProviderFactory? _providers;
     private readonly TimeProvider _time;
     private readonly ILogger _logger;
-    private readonly IPermissionEvaluator? _permissions;
+    private readonly IPermissionEvaluator _permissions;
 
     internal DnsProviderService(
         IDbContextFactory<ConfigDbContext> contexts,
@@ -39,13 +39,14 @@ public sealed partial class DnsProviderService
         IDnsProviderFactory? providers,
         TimeProvider time,
         ILogger<DnsProviderService> logger,
-        IPermissionEvaluator? permissions = null)
+        IPermissionEvaluator permissions)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(secrets);
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(permissions);
         _contexts = contexts;
         _config = config;
         _secrets = secrets;

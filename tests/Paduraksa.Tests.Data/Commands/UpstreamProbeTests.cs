@@ -3,13 +3,12 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-
 using Paduraksa.Application.Commands;
 using Paduraksa.Application.Identity;
 using Paduraksa.Application.Probes;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
-
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Commands;
@@ -25,7 +24,7 @@ public sealed class UpstreamProbeTests
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
-        var result = await new UpstreamProbe(h.Service).CheckAsync($"http://127.0.0.1:{port}/app", ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).CheckAsync($"http://127.0.0.1:{port}/app", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamProbeOutcome.Reachable, result.Outcome);
         Assert.True(result.Reachable);
@@ -42,7 +41,7 @@ public sealed class UpstreamProbeTests
             port = ((IPEndPoint)listener.LocalEndpoint).Port;
         }
 
-        var result = await new UpstreamProbe(h.Service).CheckAsync($"http://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).CheckAsync($"http://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal((UpstreamProbeOutcome.Unreachable, null), (result.Outcome, result.Message));
     }
@@ -56,7 +55,7 @@ public sealed class UpstreamProbeTests
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
 
-        var result = await new UpstreamProbe(h.Service).CheckAsync(address, ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).CheckAsync(address, ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamProbeOutcome.Invalid, result.Outcome);
         Assert.NotNull(result.Message);
@@ -88,7 +87,7 @@ public sealed class UpstreamProbeTests
             await tls.AuthenticateAsServerAsync(certificate);
         }, Ct);
 
-        var result = await new UpstreamProbe(h.Service).FetchCertificateAsync($"https://127.0.0.1:{port}/", ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).FetchCertificateAsync($"https://127.0.0.1:{port}/", ConfigServiceHarness.Admin, Ct);
         await server;
 
         Assert.Equal(UpstreamCertificateOutcome.Fetched, result.Outcome);
@@ -124,7 +123,7 @@ public sealed class UpstreamProbeTests
                     Ct);
             }
         }, Ct);
-        var probe = new UpstreamProbe(h.Service);
+        var probe = new UpstreamProbe(h.Service, TestPermissions.AllowAll);
 
         var bare = await probe.FetchCertificateAsync($"https://127.0.0.1:{port}/", ConfigServiceHarness.Admin, Ct);
         var forName = await probe.FetchCertificateAsync($"https://127.0.0.1:{port}/", "app.example.test", ConfigServiceHarness.Admin, Ct);
@@ -142,7 +141,7 @@ public sealed class UpstreamProbeTests
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
 
-        var result = await new UpstreamProbe(h.Service).FetchCertificateAsync("https://127.0.0.1:1", serverName, ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).FetchCertificateAsync("https://127.0.0.1:1", serverName, ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamCertificateOutcome.Invalid, result.Outcome);
     }
@@ -161,7 +160,7 @@ public sealed class UpstreamProbeTests
             await client.GetStream().WriteAsync("HTTP/1.1 400 Bad Request\r\n\r\n"u8.ToArray(), Ct);
         }, Ct);
 
-        var result = await new UpstreamProbe(h.Service).FetchCertificateAsync($"https://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).FetchCertificateAsync($"https://127.0.0.1:{port}", ConfigServiceHarness.Admin, Ct);
         await server;
 
         Assert.Equal(UpstreamCertificateOutcome.NoTls, result.Outcome);
@@ -175,7 +174,7 @@ public sealed class UpstreamProbeTests
     {
         await using var h = await ConfigServiceHarness.CreateAsync();
 
-        var result = await new UpstreamProbe(h.Service).FetchCertificateAsync(address, ConfigServiceHarness.Admin, Ct);
+        var result = await new UpstreamProbe(h.Service, TestPermissions.AllowAll).FetchCertificateAsync(address, ConfigServiceHarness.Admin, Ct);
 
         Assert.Equal(UpstreamCertificateOutcome.Invalid, result.Outcome);
     }

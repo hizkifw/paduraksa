@@ -1,6 +1,5 @@
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
-
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
 using Paduraksa.Contracts.Certificates;
@@ -9,7 +8,7 @@ using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Tests.Data.Commands;
-
+using Paduraksa.Tests.Shared;
 using static Paduraksa.Tests.Data.Config.TestConfigDatabase;
 
 namespace Paduraksa.Tests.Data.Certificates;
@@ -36,7 +35,7 @@ public sealed class CertificateServiceTests
         harness.RunAsync(new UpsertHostCommand(Objects.RespondHost(HostId.New(), "seed.example.com")));
 
     private static (ConfigServiceHarness Harness, CertificateService Certificates) Create(ConfigServiceHarness harness) =>
-        (harness, new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance));
+        (harness, new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll));
 
     [Fact]
     public async Task RegisteringAddsTheCertificateAuditsItAndRepublishesWithoutARevision()
@@ -104,7 +103,7 @@ public sealed class CertificateServiceTests
     {
         await using var harness = await ConfigServiceHarness.CreateAsync();
         var builtIn = new BuiltIns(Id("built-in"));
-        var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, builtIn);
+        var certificates = new CertificateService(harness.Db.Factory, harness.Service, TimeProvider.System, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll, builtIn);
 
         var registered = await certificates.RegisterAsync(Registration("built-in", "f1", "a.example.com"), ConfigServiceHarness.Admin, Ct);
         var pending = await certificates.RegisterPendingAsync(Id("built-in"), CertificateSource.Acme, ["a.example.com"], null, ConfigServiceHarness.Admin, Ct);

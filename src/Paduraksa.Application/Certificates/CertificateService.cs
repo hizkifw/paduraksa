@@ -53,20 +53,21 @@ public sealed partial class CertificateService
     private readonly TimeProvider _timeProvider;
     private readonly ILogger _logger;
     private readonly IBuiltInCertificates? _builtIns;
-    private readonly IPermissionEvaluator? _permissions;
+    private readonly IPermissionEvaluator _permissions;
 
     internal CertificateService(
         IDbContextFactory<ConfigDbContext> contexts,
         ConfigService config,
         TimeProvider timeProvider,
         ILogger<CertificateService> logger,
-        IBuiltInCertificates? builtIns = null,
-        IPermissionEvaluator? permissions = null)
+        IPermissionEvaluator permissions,
+        IBuiltInCertificates? builtIns = null)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(permissions);
         _contexts = contexts;
         _config = config;
         _timeProvider = timeProvider;
@@ -203,7 +204,7 @@ public sealed partial class CertificateService
 
     /// <summary>
     /// The refusal for an origin without <see cref="Permission.CertificatesWrite"/> (audited as <see cref="AuditOutcome.Denied"/>), or
-    /// null if it may go on. Always null without an <see cref="IPermissionEvaluator"/> (tests).
+    /// null if it may go on.
     /// </summary>
     private async Task<CertificateChangeResult?> DeniedAsync(CommandOrigin origin, string action, CertificateId id, CancellationToken cancellationToken) =>
         await PermissionGate.MayAsync(_permissions, _config, origin, Permission.CertificatesWrite, action, id.IsEmpty ? null : id.ToString(), cancellationToken).ConfigureAwait(false)

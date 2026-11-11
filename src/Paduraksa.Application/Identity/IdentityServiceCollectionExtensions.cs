@@ -12,10 +12,8 @@ namespace Paduraksa.Application.Identity;
 
 public static class IdentityServiceCollectionExtensions
 {
-    /// <summary>Registers the identity services and makes permissions decide who may run config commands and change
-    /// certificates. It <b>replaces</b> the allow-all <see cref="IConfigCommandAuthorizer"/> that <see
-    /// cref="ConfigServiceCollectionExtensions.AddPaduraksaConfigService"/> leaves behind, in whichever order the two
-    /// are called, and replaces <see cref="Certificates.ICertificateOperationAuthorizer"/> the same way.</summary>
+    /// <summary>Registers the identity services and the <see cref="IPermissionEvaluator"/>, the one answer to "may this
+    /// origin do that" for config commands, certificates, providers, simulations and the admin and dashboard surfaces.</summary>
     /// <param name="services">The service collection.</param>
     /// <param name="dataDirectory">The data directory: <c>setup-token</c> lives in it.</param>
     /// <param name="options">The lockout, session and password settings; the defaults when null.</param>
@@ -32,15 +30,6 @@ public static class IdentityServiceCollectionExtensions
         services.AddSingleton(sp => new IdentityAudit(sp.GetRequiredService<TimeProvider>(), LoggerFactory(sp)));
         services.AddSingleton<IPermissionEvaluator>(sp => new PermissionEvaluator(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(), sp.GetRequiredService<TimeProvider>()));
-
-        services.RemoveAll<IConfigCommandAuthorizer>();
-        services.AddSingleton<IConfigCommandAuthorizer>(sp => new PermissionConfigCommandAuthorizer(sp.GetRequiredService<IPermissionEvaluator>()));
-
-        services.RemoveAll<Certificates.ICertificateOperationAuthorizer>();
-        services.AddSingleton<Certificates.ICertificateOperationAuthorizer>(sp => new PermissionCertificateOperationAuthorizer(sp.GetRequiredService<IPermissionEvaluator>()));
-
-        services.RemoveAll<Simulation.ISimulationAuthorizer>();
-        services.AddSingleton<Simulation.ISimulationAuthorizer>(sp => new PermissionSimulationAuthorizer(sp.GetRequiredService<IPermissionEvaluator>()));
 
         services.AddSingleton(sp => new UserService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),

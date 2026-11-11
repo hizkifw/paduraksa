@@ -76,7 +76,8 @@ public sealed class AcmeAccountServiceTests
             h.Signer,
             macKeys,
             h.Time,
-            NullLogger<AcmeAccountService>.Instance);
+            NullLogger<AcmeAccountService>.Instance,
+            h.Permissions);
 
         var bound = await accounts.CreateAsync(Request() with { EabKid = "kid-1", EabSecretId = secret }, Admin, Ct);
 
@@ -100,7 +101,7 @@ public sealed class AcmeAccountServiceTests
         macKeys,
         h.Time,
         NullLogger<AcmeAccountService>.Instance,
-        permissions: null,
+        h.Permissions,
         secrets: h.Secrets);
 
     private sealed class AnyEabKeys(IMacKey key) : IMacKeySource

@@ -313,6 +313,29 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
     }
 
     [Fact]
+    public async Task EveryMutatingRouteRequiresWhatTheApplicationRequiresForItsOperation()
+    {
+        // The endpoints name their permission literally and the services enforce OperationPermissions on their own; this keeps the two
+        // from drifting apart. Config resources run config commands, the certificate routes run certificate operations.
+        string[] configResources = ["hosts", "upstreams", "rateLimitPolicies", "accessLists", "profiles", "settings", "revisions"];
+        var mutating = ApiEndpoints(shared.Api)
+            .SelectMany(e => (e.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods ?? [])
+                .Where(method => method is "POST" or "PUT" or "DELETE")
+                .Select(method => (Route: $"{method} {e.RoutePattern.RawText}", Resource: e.RoutePattern.RawText!.Split('/')[3], e.Metadata.GetMetadata<RequiredPermissionMetadata>()?.Permission)))
+            .ToList();
+
+        var config = mutating.Where(m => configResources.Contains(m.Resource)).ToList();
+        var certificates = mutating.Where(m => m.Resource == "certificates").ToList();
+        Assert.NotEmpty(config);
+        Assert.NotEmpty(certificates);
+        Assert.All(config, m => Assert.True(m.Permission == OperationPermissions.ForConfigCommand, $"{m.Route} requires {m.Permission}"));
+        Assert.All(certificates, m => Assert.True(m.Permission == OperationPermissions.ForCertificateOperation, $"{m.Route} requires {m.Permission}"));
+        Assert.Equal(
+            OperationPermissions.ForSimulation(Paduraksa.Contracts.Simulation.SimulationTarget.Live),
+            [mutating.Single(m => m.Resource == "simulate").Permission!.Value]);
+    }
+
+    [Fact]
     public async Task TheOpenApiDocumentIsAnonymousOpenApi31WithTypedIdSchemasAndEveryOperationDescribed()
     {
         var api = shared.Api;
