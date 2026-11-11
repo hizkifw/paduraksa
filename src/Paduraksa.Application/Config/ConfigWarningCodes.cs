@@ -51,4 +51,8 @@ public static class ConfigWarningCodes
     /// <summary>An access list with users guards a host that also answers plain HTTP without forcing HTTPS, so a password
     /// could travel in the clear.</summary>
     public const string AccessListInsecureCredentials = "accessList.insecureCredentials";
+
+    /// <summary>An access-list user whose credential the vault holds no password for (it was deleted since, say by a rollback to a
+    /// revision from before): the user is listed but can't sign in until a password is set.</summary>
+    public const string AccessListUserNoPassword = "accessList.user.noPassword";
 }

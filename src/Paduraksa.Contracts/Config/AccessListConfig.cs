@@ -51,17 +51,24 @@ public sealed record AccessListBasicAuth(string? Realm = null, IReadOnlyList<Acc
     public IReadOnlyList<AccessListUserConfig> Users { get; init; } = Users ?? [];
 }
 
-/// <summary>One basic-auth user. The document keeps only a verifier of the password.</summary>
+/// <summary>One basic-auth user. The document names the user's password in the vault and never holds it, or anything that
+/// verifies it: no read returns a password or a hash.</summary>
 /// <param name="Username">1-64 visible ASCII characters, no colon, case-sensitive.</param>
-/// <param name="PasswordHash">A PBKDF2-HMAC-SHA256 verifier in a PHC-style string
-/// (<c>$pbkdf2-sha256$i=210000$salt$hash</c>), which carries its own cost. Null on a write that sets
-/// <paramref name="Password"/>; kept as it is when a write names an existing user and sends neither.</param>
-/// <param name="Password">Write-only: the plain password of a new or changed user. The server hashes it before anything is
-/// validated, stored or audited and never returns it, so it is null in every document it hands out.</param>
+/// <param name="CredentialId">The vault's handle on this user's password. The server makes it when a user is first written with a
+/// <paramref name="Password"/> and keeps it when the password changes, so a rollback restores the user but not an older password.
+/// A user whose credential the vault doesn't hold (deleted since, or never set) can't sign in, and the config says so in a warning
+/// (<c>accessList.user.noPassword</c>). A write that names a user already on the list and sends neither a password nor an ID keeps
+/// the credential the list has.</param>
+/// <param name="Password">Write-only: the plain password of a new or changed user, 1-256 bytes in UTF-8. The server hands it to the
+/// vault before anything is validated, stored or audited and never returns it, so it is null in every document it hands out.</param>
 public sealed record AccessListUserConfig(
     string Username,
-    string? PasswordHash = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Password = null);
+    PasswordCredentialId? CredentialId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Password = null)
+{
+    // The generated one would print the plain password of a write into any log line that formats the command or the document.
+    public override string ToString() => $"AccessListUserConfig {{ Username = {Username}, CredentialId = {CredentialId} }}";
+}
 
 /// <summary>Which access list a layer applies. <see cref="AccessListId"/> names a list the document declares; both fields
 /// inherit on their own, so a host can turn an inherited list off without forgetting which one it was, and a route can

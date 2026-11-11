@@ -231,7 +231,7 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
     }
 
     [Fact]
-    public async Task AccessListsAreManagedHashPasswordsAndOneInUseCannotBeDeleted()
+    public async Task AccessListsAreManagedPasswordsGoToTheVaultAndOneInUseCannotBeDeleted()
     {
         var api = shared.Api;
         var upstream = ConfigTestSupport.Upstream("u-lists", "http://127.0.0.1:9");
@@ -250,25 +250,27 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         Assert.DoesNotContain("correct horse", createdBody, StringComparison.Ordinal);
         var version = AdminApiHarness.ETag(created)!;
 
-        // What comes back has the hash, never the password, and not even a "password" member.
+        // What comes back names the vault's credential: no password, no hash, and not even a "password" member.
         using var read = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
         var readBody = await read.Content.ReadAsStringAsync(Ct);
         Assert.DoesNotContain("correct horse", readBody, StringComparison.Ordinal);
         Assert.DoesNotContain("\"password\"", readBody, StringComparison.Ordinal);
-        Assert.Contains("\"passwordHash\":\"$pbkdf2-sha256$", readBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("pbkdf2", readBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("passwordHash", readBody, StringComparison.Ordinal);
+        Assert.Contains("\"credentialId\":\"pwc_", readBody, StringComparison.Ordinal);
         Assert.Equal(version, AdminApiHarness.ETag(read));
         var stored = System.Text.Json.JsonSerializer.Deserialize(readBody, AdminJsonContext.Default.AccessListConfig)!;
-        var hash = Assert.Single(stored.BasicAuth!.Users).PasswordHash;
+        var credential = Assert.Single(stored.BasicAuth!.Users).CredentialId;
         using var all = await api.GetAsync("/api/v1/accessLists");
         Assert.Contains(await AdminApiHarness.ReadAsync(all, AdminJsonContext.Default.IReadOnlyListAccessListConfig, Ct), l => l.Id == list.Id);
 
-        // An edit that names the user without a password keeps the hash.
+        // An edit that names the user without a password keeps the credential.
         var edit = stored with { BasicAuth = new AccessListBasicAuth(Users: [new AccessListUserConfig("alice")]), Ip = new AccessListIp(["10.0.0.0/8", "192.168.0.0/16"]) };
         using var replaced = await api.SendJsonAsync(HttpMethod.Put, $"/api/v1/accessLists/{list.Id}", edit, AdminJsonContext.Default.AccessListConfig, ifMatch: version);
         Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
         var latest = AdminApiHarness.ETag(replaced)!;
         using var reread = await api.GetAsync($"/api/v1/accessLists/{list.Id}");
-        Assert.Equal(hash, Assert.Single((await AdminApiHarness.ReadAsync(reread, AdminJsonContext.Default.AccessListConfig, Ct)).BasicAuth!.Users).PasswordHash);
+        Assert.Equal(credential, Assert.Single((await AdminApiHarness.ReadAsync(reread, AdminJsonContext.Default.AccessListConfig, Ct)).BasicAuth!.Users).CredentialId);
 
         HostConfig host = ConfigTestSupport.ProxyHost("h-lists", "h-lists.test", "u-lists") with
         {
@@ -322,6 +324,24 @@ public sealed class ConfigApiTests(SharedAdminApi shared) : IClassFixture<Shared
         var problem = await AdminApiHarness.ProblemAsync(response, Ct);
         Assert.Contains("access lists replaced", problem.Detail, StringComparison.Ordinal);
         Assert.Contains("/api/v1/accessLists", problem.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AUserSentWithAPasswordHashIsRefusedWithASentenceThatSaysWhereThePasswordWentAndNothingIsStored()
+    {
+        var api = shared.Api;
+        var id = AccessListId.New();
+        var json = $$$"""{"id":"{{{id}}}","name":"inline-hash","version":0,"basicAuth":{"users":[{"username":"alice","passwordHash":"$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE"}]}}""";
+
+        using var response = await api.SendAsync(HttpMethod.Post, "/api/v1/accessLists", content: AdminApiHarness.JsonBody(json));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await AdminApiHarness.ProblemAsync(response, Ct);
+        Assert.Contains("'passwordHash'", problem.Detail, StringComparison.Ordinal);
+        Assert.Contains("vault", problem.Detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("pbkdf2", problem.Detail, StringComparison.Ordinal);
+        using var gone = await api.GetAsync($"/api/v1/accessLists/{id}");
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
     }
 
     [Fact]

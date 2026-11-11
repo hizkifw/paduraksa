@@ -238,7 +238,7 @@ public sealed class CertificateRepublishTests
             Store = new SnapshotStore();
             _publisher = new SnapshotPublisher(Store);
             Service = TestConfigServices.Create(
-                db, _publisher, new ConfigCompiler(SnapshotCompilerOptions.Default), time: Time, certificateSource: new Source(_contexts));
+                db, _publisher, new ConfigCompiler(SnapshotCompilerOptions.Default, new TestPasswords()), time: Time, certificateSource: new Source(_contexts));
             Certificates = new CertificateService(db.Factory, Service, Time, NullLogger<CertificateService>.Instance, TestPermissions.AllowAll, null);
         }
 

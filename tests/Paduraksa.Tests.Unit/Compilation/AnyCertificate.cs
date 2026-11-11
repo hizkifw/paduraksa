@@ -19,7 +19,7 @@ internal sealed class AnyCertificate : IDisposable
 {
     private readonly X509Certificate2 _leaf;
     private readonly ServerCertificate _certificate;
-    private readonly ConfigCompiler _compiler = new(SnapshotCompilerOptions.Default);
+    private readonly ConfigCompiler _compiler = new(SnapshotCompilerOptions.Default, new TestPasswords());
 
     public AnyCertificate()
     {

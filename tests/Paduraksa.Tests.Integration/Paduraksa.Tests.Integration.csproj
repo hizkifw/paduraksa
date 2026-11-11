@@ -10,4 +10,5 @@
     <Compile Include="../Shared/DockerCli.cs" Link="Shared/DockerCli.cs" />
     <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
   </ItemGroup>
+  <Import Project="../Shared/TestPasswords.props" />
 </Project>

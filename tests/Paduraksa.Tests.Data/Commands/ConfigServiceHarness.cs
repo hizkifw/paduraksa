@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Paduraksa.Application.Audit;
 using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Commands;
@@ -26,12 +27,16 @@ namespace Paduraksa.Tests.Data.Commands;
 /// </summary>
 internal sealed class ConfigServiceHarness : IAsyncDisposable
 {
-    private ConfigServiceHarness(TestConfigDatabase db, IPermissionEvaluator? permissions, IConfigCompiler? compiler, ConfigServiceOptions? options)
+    private ConfigServiceHarness(TestConfigDatabase db, IPermissionEvaluator? permissions, IConfigCompiler? compiler, ConfigServiceOptions? options, TestPasswords? passwords, ILoggerFactory? loggers)
     {
         Db = db;
+        Passwords = passwords ?? new TestPasswords();
         Publisher = new SnapshotPublisher(Store);
-        Service = TestConfigServices.Create(db, Publisher, compiler ?? Compiler, permissions, options: options);
+        Service = TestConfigServices.Create(db, Publisher, compiler ?? Compiler, permissions, options: options, passwords: Passwords, loggers: loggers);
     }
+
+    /// <summary>The vault's password credentials, as the service sees them.</summary>
+    public TestPasswords Passwords { get; }
 
     public TestConfigDatabase Db { get; }
 
@@ -46,14 +51,16 @@ internal sealed class ConfigServiceHarness : IAsyncDisposable
     /// <param name="permissions">Default: every origin holds every permission.</param>
     /// <param name="compiler">Default: <see cref="Compiler"/>.</param>
     /// <param name="options">Default: the service's defaults.</param>
+    /// <param name="loggers">Default: no logging.</param>
+    /// <param name="passwords">Default: a registry of its own. Pass one to share it with a real <see cref="ConfigCompiler"/>.</param>
     /// <param name="sqliteRetryWindow">
     /// Pins Microsoft.Data.Sqlite's own retry window instead of deriving it from the pragmas' busy timeout, for the test that has
     /// to tell that retry loop from the busy handler.
     /// </param>
     public static async Task<ConfigServiceHarness> CreateAsync(
         IPermissionEvaluator? permissions = null, IConfigCompiler? compiler = null, ConfigServiceOptions? options = null,
-        TimeSpan? sqliteRetryWindow = null) =>
-        new(await TestConfigDatabase.CreateAsync(sqliteRetryWindow), permissions, compiler, options);
+        TimeSpan? sqliteRetryWindow = null, TestPasswords? passwords = null, ILoggerFactory? loggers = null) =>
+        new(await TestConfigDatabase.CreateAsync(sqliteRetryWindow), permissions, compiler, options, passwords, loggers);
 
     public static CommandOrigin Admin { get; } = new(Actor.ForUser(UserId.New()), Channel.Dashboard, System.Net.IPAddress.Loopback);
 

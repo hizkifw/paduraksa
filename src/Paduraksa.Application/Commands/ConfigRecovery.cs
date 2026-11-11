@@ -10,6 +10,7 @@ using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Yarp;
 
@@ -45,12 +46,13 @@ internal sealed partial class ConfigRecovery
     private readonly ConfigPipeline _pipeline;
     private readonly ConfigPublishing _publishing;
     private readonly SemaphoreSlim _writer;
+    private readonly IPasswordCredentials _passwords;
     private readonly ILogger _logger;
 
     public ConfigRecovery(
         IDbContextFactory<ConfigDbContext> contexts, IConfigCompiler compiler, CertificateInventoryLoader certificates,
         LastKnownGoodFile lastKnownGood, ConfigRevisionStore revisions, ConfigPipeline pipeline, ConfigPublishing publishing,
-        SemaphoreSlim writer, ILoggerFactory loggerFactory)
+        SemaphoreSlim writer, IPasswordCredentials passwords, ILoggerFactory loggerFactory)
     {
         _contexts = contexts;
         _compiler = compiler;
@@ -60,6 +62,7 @@ internal sealed partial class ConfigRecovery
         _pipeline = pipeline;
         _publishing = publishing;
         _writer = writer;
+        _passwords = passwords;
         _logger = loggerFactory.CreateLogger<ConfigRecovery>();
     }
 
@@ -130,8 +133,11 @@ internal sealed partial class ConfigRecovery
             return await StartOnLastKnownGoodAsync(database.Problem, acceptsCommands: false, lastGood, lastGoodProblem, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
+        // Before anything compiles the document: a conversion that took the passwords out of it must put them in the vault.
+        await AccessListPasswords.ImportAsync(_passwords, database.Legacy, cancellationToken).ConfigureAwait(false);
         if (database is { Upgraded: true, Latest: not null } && await WriteUpgradedAsync(database, lastGood, cancellationToken).ConfigureAwait(false) is { } upgraded)
         {
+            await DeleteOrphansAsync(database, cancellationToken).ConfigureAwait(false);
             return upgraded;
         }
 
@@ -145,6 +151,7 @@ internal sealed partial class ConfigRecovery
         }
 
         ReportCertificateWarnings(compilation.Warnings);
+        await DeleteOrphansAsync(database, cancellationToken).ConfigureAwait(false);
 
         var revision = database.Latest is null ? null : ConfigHead.Ref(database.Latest.Info);
         if (lastGood is not null && revision is not null && lastGood.Revision.Seq > revision.Seq)
@@ -160,7 +167,7 @@ internal sealed partial class ConfigRecovery
     }
 
     /// <summary>
-    /// The live revision still had the inline IP allow lists, which reading converted to access lists: stores the converted
+    /// The live revision still had inline IP allow lists, or users' password hashes, which reading converted (to access lists, to credential IDs): stores the converted
     /// document as one revision (actor System, audited, saying what was converted), so the config that is running is the
     /// config that is stored. Every host, profile and list counts as touched, so their versions move. Null when the converted document can't be stored (it doesn't validate or compile): startup then runs on the converted document in memory, and the next change writes it.
     /// </summary>
@@ -190,13 +197,7 @@ internal sealed partial class ConfigRecovery
                     return null;
                 }
 
-                var names = string.Join(", ", candidate.AccessLists.Select(static l => l.Name));
-                var message = $"Converted the inline IP allow lists to access lists: {names}";
-                if (message.Length > ConfigRevisionStore.MaxMessageLength)
-                {
-                    message = $"Converted the inline IP allow lists to {candidate.AccessLists.Count} access lists";
-                }
-
+                var message = UpgradeMessage(database.Upgrade, candidate);
                 var execution = await _pipeline.CommitAsync(
                         context, CommandOrigin.System, new ConfigCommandPlanner.Audited("config.upgrade", null), candidate, changes, revisionId, compilation, message, version: null, cancellationToken)
                     .ConfigureAwait(false);
@@ -213,6 +214,38 @@ internal sealed partial class ConfigRecovery
             LogUpgradeFailed(ex, latest.Info.Seq, latest.Info.Id);
             return null;
         }
+    }
+
+    // The vault's credentials the live config doesn't name (a change failed after setting a password). Only when the database's latest
+    // revision is the live config: a start on the last-known-good file, or on no revision at all, doesn't know what is orphaned.
+    private async Task DeleteOrphansAsync(DatabaseStart database, CancellationToken cancellationToken)
+    {
+        if (database is { Latest: not null, Document: { } document })
+        {
+            await AccessListPasswords.DeleteOrphansAsync(_passwords, document, _logger, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>What the startup revision says it converted, for each case and for both, within the message length.</summary>
+    private static string UpgradeMessage(DocumentUpgrade upgrade, ConfigDocument document)
+    {
+        var users = upgrade.Credentials.Count;
+        var passwords = $"{users} access-list {(users == 1 ? "password" : "passwords")} into the vault";
+        if (!upgrade.AllowLists)
+        {
+            return $"Moved {passwords}";
+        }
+
+        var names = string.Join(", ", document.AccessLists.Select(static l => l.Name));
+        var lists = $"Converted the inline IP allow lists to access lists: {names}";
+        var both = upgrade.Passwords ? $"{lists}; moved {passwords}" : lists;
+        if (both.Length <= ConfigRevisionStore.MaxMessageLength)
+        {
+            return both;
+        }
+
+        lists = $"Converted the inline IP allow lists to {document.AccessLists.Count} access lists";
+        return upgrade.Passwords ? $"{lists}; moved {passwords}" : lists;
     }
 
     /// <summary>The last-known-good file's entry, or null with why. A damaged file is logged; it never throws.</summary>
@@ -240,6 +273,7 @@ internal sealed partial class ConfigRecovery
     private async Task<ConfigStoreStatus?> RestoreAsync(LastKnownGoodEntry lastGood, CancellationToken cancellationToken)
     {
         var source = $"last-known-good #{lastGood.Revision.Seq} ({lastGood.Revision.Id})";
+        await AccessListPasswords.ImportAsync(_passwords, lastGood.Legacy, cancellationToken).ConfigureAwait(false);
         ReplaceConfigCommand command = new(lastGood.Parsed!, BaseRevision: null) { Message = $"Restored from {source}" };
         string problem;
         try
@@ -282,6 +316,7 @@ internal sealed partial class ConfigRecovery
         if (lastGood is not null)
         {
             // The last-known-good document, against the inventory as it is now.
+            await AccessListPasswords.ImportAsync(_passwords, lastGood.Legacy, cancellationToken).ConfigureAwait(false);
             var fallback = await CompileWithCurrentInventoryAsync(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id, cancellationToken).ConfigureAwait(false);
             if (fallback.Snapshot is { } snapshot)
             {
@@ -347,7 +382,7 @@ internal sealed partial class ConfigRecovery
                     return new DatabaseStart(null, ConfigHead.Initial, null);
                 }
 
-                if (!CanonicalConfigJson.TryDeserialize(latest.Document.Span, out var document, out var error, out var upgraded))
+                if (!CanonicalConfigJson.TryDeserialize(latest.Document.Span, out var document, out var error, out var upgrade))
                 {
                     return new DatabaseStart(
                         null,
@@ -356,7 +391,7 @@ internal sealed partial class ConfigRecovery
                 }
 
                 document = CanonicalConfigJson.Canonicalize(document);
-                return new DatabaseStart(latest, document, null, upgraded);
+                return new DatabaseStart(latest, document, null, upgrade);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -417,6 +452,7 @@ internal sealed partial class ConfigRecovery
                 return;
             }
 
+            await AccessListPasswords.ImportAsync(_passwords, lastGood.Legacy, CancellationToken.None).ConfigureAwait(false);
             var compilation = await CompileWithCurrentInventoryAsync(CanonicalConfigJson.Canonicalize(lastGood.Parsed!), lastGood.Revision.Id, CancellationToken.None).ConfigureAwait(false);
             if (compilation.Snapshot is not { } snapshot)
             {
@@ -487,6 +523,7 @@ internal sealed partial class ConfigRecovery
             return null;
         }
 
+        await AccessListPasswords.ImportAsync(_passwords, lastGood.Legacy, cancellationToken).ConfigureAwait(false);
         var lastGoodDocument = CanonicalConfigJson.Canonicalize(lastGood.Parsed!);
         var fallback = _compiler.Compile(
             lastGoodDocument, lastGood.Revision.Id, await _certificates.LoadAsync(context, lastGoodDocument, cancellationToken).ConfigureAwait(false));
@@ -637,7 +674,16 @@ internal sealed partial class ConfigRecovery
         errors.Count == 0 ? "no reason given" : string.Join("; ", errors.Take(ConfigAudit.MaxAuditedCodes).Select(e => $"{e.Path}: {e.Message}"));
 
     /// <summary>The database at startup: the latest revision (null: none yet) and its canonical document, or why not.</summary>
-    private sealed record DatabaseStart(StoredRevision? Latest, ConfigDocument? Document, string? Problem, bool Upgraded = false);
+    private sealed record DatabaseStart(StoredRevision? Latest, ConfigDocument? Document, string? Problem, DocumentUpgrade? Conversion = null)
+    {
+        /// <summary>What reading the latest revision converted: inline allow lists, inline password hashes.</summary>
+        public DocumentUpgrade Upgrade => Conversion ?? DocumentUpgrade.None;
+
+        public bool Upgraded => Upgrade.Upgraded;
+
+        /// <summary>The password verifiers an earlier build kept in the latest revision (read back converted).</summary>
+        public IReadOnlyList<LegacyCredential> Legacy => Upgrade.Credentials;
+    }
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Not republishing: {Reason} ({Detail}). Nothing was published; the next commit or start compiles with the current certificates.")]
     private partial void LogRepublishSkipped(string reason, string detail);

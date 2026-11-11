@@ -74,7 +74,8 @@ public sealed class ConfigService : IDisposable
         LastKnownGoodFile lastKnownGood,
         IServerCertificateSource certificateSource,
         IBuiltInCertificates? builtInCertificates,
-        ICertificateCatalog certificateCatalog)
+        ICertificateCatalog certificateCatalog,
+        IPasswordCredentials passwordCredentials)
     {
         ArgumentNullException.ThrowIfNull(contexts);
         ArgumentNullException.ThrowIfNull(compiler);
@@ -86,6 +87,7 @@ public sealed class ConfigService : IDisposable
         ArgumentNullException.ThrowIfNull(lastKnownGood);
         ArgumentNullException.ThrowIfNull(certificateSource);
         ArgumentNullException.ThrowIfNull(certificateCatalog);
+        ArgumentNullException.ThrowIfNull(passwordCredentials);
         _contexts = contexts;
         _logger = loggerFactory.CreateLogger<ConfigService>();
         var revisions = new ConfigRevisionStore(timeProvider);
@@ -98,9 +100,9 @@ public sealed class ConfigService : IDisposable
         _audit = new ConfigAudit(contexts, timeProvider, loggerFactory);
         _publishing = new ConfigPublishing(publisher, timeProvider, options, lastKnownGood, _audit, _writer, loggerFactory);
         _pipeline = new ConfigPipeline(contexts, compiler, certificates, simulationCertificates, publisher, permissions, revisions,
-            _audit, _publishing, Changes, loggerFactory);
+            _audit, _publishing, Changes, passwordCredentials, loggerFactory);
         _recovery = new ConfigRecovery(contexts, compiler, certificates, lastKnownGood, revisions, _pipeline, _publishing, _writer,
-            loggerFactory);
+            passwordCredentials, loggerFactory);
         Drafts = new ConfigDrafts(contexts, compiler, simulationCertificates, _pipeline, _publishing, loggerFactory);
         _publishing.ValidityChanged += () => _ = _recovery.RepublishForValidityAsync();
     }

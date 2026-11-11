@@ -224,6 +224,7 @@ public sealed class ConfigServicePipelineTests
             .AddSingleton(lastGood)
             .AddSingleton<IServerCertificateSource>(noCertificates)
             .AddSingleton<ICertificateCatalog>(noCertificates)
+            .AddSingleton<IPasswordCredentials>(new TestPasswords())
             .AddPaduraksaDbContextFactory<ConfigDbContext>(db.DatabasePath)
             .AddSingleton<IConfigCompiler>(new ConfigServiceHarness.FakeCompiler())
             .AddSingleton(store)

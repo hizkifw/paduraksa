@@ -18,13 +18,14 @@ namespace Paduraksa.Tests.Dashboard.Components;
 /// </summary>
 public sealed class AccessListsTests
 {
-    private const string Hash = "$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE";
+    private static readonly PasswordCredentialId AliceCredential = PasswordCredentialId.New();
+    private static readonly PasswordCredentialId BobCredential = PasswordCredentialId.New();
 
     private static readonly AccessListConfig Office = new(
         AccessListId.New(),
         "Office",
         Ip: new AccessListIp(["10.0.0.0/8", "192.168.1.7"], ["10.9.0.0/16"]),
-        BasicAuth: new AccessListBasicAuth("Staff area", [new AccessListUserConfig("alice", Hash), new AccessListUserConfig("bob", Hash)]),
+        BasicAuth: new AccessListBasicAuth("Staff area", [new AccessListUserConfig("alice", AliceCredential), new AccessListUserConfig("bob", BobCredential)]),
         Satisfy: AccessListSatisfy.Any);
 
     private static readonly AccessListConfig Guests = new(AccessListId.New(), "Guests", Ip: new AccessListIp(["203.0.113.0/24"]));
@@ -109,7 +110,7 @@ public sealed class AccessListsTests
         Assert.Equal(["10.0.0.0/8", "192.168.1.7"], list.Ip!.Allow);
         Assert.Equal(["10.9.0.0/16"], list.Ip.Deny);
         var user = Assert.Single(list.BasicAuth!.Users);
-        Assert.Equal(("alice", null, "correct horse"), (user.Username, user.PasswordHash, user.Password));
+        Assert.Equal(("alice", null, "correct horse"), (user.Username, user.CredentialId, user.Password));
 
         await drawers.Find("[data-review=apply]").ClickAsync(new());
         await reviewing.WaitAsync(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
@@ -117,7 +118,7 @@ public sealed class AccessListsTests
     }
 
     [Fact]
-    public async Task EditingAList_KeepsEveryStoredHashAndSendsANewPasswordOnlyWhereOneWasTyped()
+    public async Task EditingAList_KeepsEveryStoredCredentialAndSendsANewPasswordOnlyWhereOneWasTyped()
     {
         await using DashboardTestContext context = new();
         var config = ConfigPages.SignIn(context, Role.Operator);
@@ -137,8 +138,8 @@ public sealed class AccessListsTests
         var edit = Assert.IsType<UpsertAccessListCommand>(config.Executed[0]).AccessList;
         Assert.Equal((stored.Id, 4L, "Head office"), (edit.Id, edit.Version, edit.Name));
         var users = edit.BasicAuth!.Users;
-        Assert.Equal(("alice", Hash, null), (users[0].Username, users[0].PasswordHash, users[0].Password));
-        Assert.Equal(("bob", null, "a new password"), (users[1].Username, users[1].PasswordHash, users[1].Password));
+        Assert.Equal(("alice", AliceCredential, null), (users[0].Username, users[0].CredentialId, users[0].Password));
+        Assert.Equal(("bob", BobCredential, "a new password"), (users[1].Username, users[1].CredentialId, users[1].Password));
         Assert.Equal("Staff area", edit.BasicAuth.Realm);
     }
 
@@ -167,6 +168,27 @@ public sealed class AccessListsTests
         await TypeAsync(drawers, "[data-drawer=access-list] input[data-field=password-0]", "mine");
         Assert.Equal("password", drawers.Find("[data-drawer=access-list] input[data-field=password-0]").GetAttribute("type"));
         Assert.DoesNotContain("Copy it now", drawers.Find("[data-drawer=access-list]").TextContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AUserTheVaultHoldsNoPasswordFor_SaysSoAndAsksForOneInsteadOfOfferingToKeepIt()
+    {
+        await using DashboardTestContext context = new();
+        var config = ConfigPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument(AccessLists: [Office]);
+        config.LiveWarnings = [new ConfigWarning("/accessLists/0/basicAuth/users/1", "accessList.user.noPassword", "the user has no password in the vault, so they can't sign in until one is set")];
+        context.Render<MudPopoverProvider>();
+        var drawers = context.Render<DrawerHost>();
+        context.Render<AccessLists>(parameters => parameters.Add(p => p.Key, Office.Id.ToString()));
+        await drawers.WaitForStateAsync(() => drawers.FindAll("[data-drawer=access-list] input[data-field=password-1]").Count == 1);
+
+        var alice = drawers.Find("[data-drawer=access-list] input[data-field=password-0]");
+        var bob = drawers.Find("[data-drawer=access-list] input[data-field=password-1]");
+
+        Assert.Equal("Unchanged", alice.GetAttribute("placeholder"));
+        Assert.True(string.IsNullOrEmpty(bob.GetAttribute("placeholder")));
+        Assert.Contains("No password is set, so this user can't sign in.", drawers.Find("[data-drawer=access-list]").TextContent, StringComparison.Ordinal);
+        Assert.Single(drawers.FindAll("[data-drawer=access-list] .mud-input-helper-text"), e => e.TextContent.Contains("can't sign in", StringComparison.Ordinal));
     }
 
     [Fact]

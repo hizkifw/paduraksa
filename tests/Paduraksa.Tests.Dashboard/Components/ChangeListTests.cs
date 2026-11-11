@@ -104,14 +104,14 @@ public sealed class ChangeListTests
     }
 
     [Fact]
-    public void AnAddedAccessList_ShowsItsUsersByNameAndNeverAPasswordOrAHash()
+    public void AnAddedAccessList_ShowsItsUsersByNameAndNeverAPasswordOrACredentialId()
     {
-        const string Hash = "$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE";
+        var alice = PasswordCredentialId.New();
         AccessListConfig list = new(
             AccessListId.New(),
             "Office",
             Ip: new AccessListIp(["10.0.0.0/8"], ["10.9.0.0/16"], DropDenied: true),
-            BasicAuth: new AccessListBasicAuth("Staff", [new AccessListUserConfig("alice", Hash), new AccessListUserConfig("bob", Password: "correct horse")]),
+            BasicAuth: new AccessListBasicAuth("Staff", [new AccessListUserConfig("alice", alice), new AccessListUserConfig("bob", Password: "correct horse")]),
             Satisfy: AccessListSatisfy.Any);
         ConfigDocument older = new();
         ConfigDocument newer = new(AccessLists: [list]);
@@ -122,10 +122,94 @@ public sealed class ChangeListTests
         Assert.Contains(group.Head.Fields, f => f.Label == "Addresses" && f.After!.Contains("10.0.0.0/8", StringComparison.Ordinal));
         Assert.Contains(group.Head.Fields, f => f.Label == "Passwords" && f.After!.Contains("alice, bob (new password)", StringComparison.Ordinal));
         var shown = string.Join('\n', group.Head.Fields.SelectMany(f => new[] { f.Label, f.Before, f.After }).OfType<string>());
-        Assert.DoesNotContain(Hash, shown, StringComparison.Ordinal);
+        Assert.DoesNotContain(alice.ToString(), shown, StringComparison.Ordinal);
         Assert.DoesNotContain("correct horse", shown, StringComparison.Ordinal);
         Assert.DoesNotContain(list.Id.ToString(), shown, StringComparison.Ordinal);
         Assert.Equal(list.Id, Assert.Single(ChangeView.Apply(older, new UpsertAccessListCommand(list))!.AccessLists).Id);
+    }
+
+    private static AccessListConfig Office(params AccessListUserConfig[] users) => new(
+        AccessListId.New(),
+        "Office",
+        Ip: new AccessListIp(["10.0.0.0/8"], DropDenied: true),
+        BasicAuth: new AccessListBasicAuth("Staff", users),
+        Satisfy: AccessListSatisfy.Any,
+        PassCredentialsUpstream: true);
+
+    // The review is built from the server's change list, which names a list whose only change is a password (the documents' users are the same).
+    private static ObjectChange Reviewed(ConfigDocument before, ConfigCommand command, IReadOnlyList<ConfigChange>? changes = null)
+    {
+        var after = ChangeView.Apply(before, command)!;
+        return Assert.Single(ChangeView.Build(before, after, changes ?? ConfigDiff.Compare(before, after))).Head;
+    }
+
+    private static string Shown(ObjectChange change, string label) =>
+        string.Join(" | ", change.Fields.Where(f => f.Label == label).SelectMany(f => new[] { f.Before, f.After }).OfType<string>());
+
+    [Fact]
+    public void AnAddedAccessListInAReview_ReadsLikeTheRestOfTheDashboard_PasswordsByNameAndWordsForEveryChoice()
+    {
+        var list = Office(new AccessListUserConfig("alice", Password: "correct horse"), new AccessListUserConfig("bob", Password: "battery staple"));
+
+        var change = Reviewed(new ConfigDocument(), new UpsertAccessListCommand(list));
+
+        var shown = string.Join('\n', change.Fields.Select(f => $"{f.Label}: {f.After}"));
+        Assert.Contains("Passwords: Realm: Staff · alice (new password), bob (new password)", shown, StringComparison.Ordinal);
+        Assert.Contains("Combine: Address or password", shown, StringComparison.Ordinal);
+        Assert.Contains("Drop denied requests: on", shown, StringComparison.Ordinal);
+        Assert.Contains("Send credentials upstream: on", shown, StringComparison.Ordinal);
+        Assert.Contains("Allowed addresses: 10.0.0.0/8", shown, StringComparison.Ordinal);
+        foreach (var raw in new[] { "Username", "Users:", "username", "credentialId", "correct horse", "(pending)", "\"any\"", ": any" })
+        {
+            Assert.DoesNotContain(raw, shown, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ChangingOnlyAPassword_ReadsAsThatUsersPasswordChanged()
+    {
+        var alice = new AccessListUserConfig("alice", PasswordCredentialId.New());
+        var list = Office(alice, new AccessListUserConfig("bob", PasswordCredentialId.New()));
+        ConfigDocument before = new(AccessLists: [list]);
+
+        var change = Reviewed(
+            before,
+            new UpsertAccessListCommand(list with { BasicAuth = list.BasicAuth! with { Users = [alice with { Password = "a new password" }, list.BasicAuth.Users[1]] } }),
+            [new AccessListChange(ConfigChangeKind.Modified, list.Id, "/accessLists/0", ["/accessLists/0/basicAuth/users"])]);
+
+        Assert.Equal("Passwords > Users", Assert.Single(change.Fields).Label);
+        Assert.Equal("alice, bob | alice (password changed), bob", Shown(change, "Passwords > Users"));
+    }
+
+    [Fact]
+    public void AddingARemovingAndChangingUsers_AreEachSaidInTheirOwnWords()
+    {
+        var alice = new AccessListUserConfig("alice", PasswordCredentialId.New());
+        var bob = new AccessListUserConfig("bob", PasswordCredentialId.New());
+        var list = Office(alice, bob);
+        ConfigDocument before = new(AccessLists: [list]);
+
+        var change = Reviewed(before, new UpsertAccessListCommand(list with
+        {
+            Satisfy = AccessListSatisfy.All,
+            BasicAuth = list.BasicAuth! with { Users = [alice, new AccessListUserConfig("carol", Password: "carol's password")] },
+        }));
+
+        Assert.Equal("alice, bob (removed) | alice, carol (new password)", Shown(change, "Passwords > Users"));
+        Assert.Equal("Address or password | Address and password", Shown(change, "Combine"));
+    }
+
+    [Fact]
+    public void AHistoryEntryWhoseUsersAreTheSame_SaysAPasswordWasChangedInsteadOfShowingNoChange()
+    {
+        var list = Office(new AccessListUserConfig("alice", PasswordCredentialId.New()));
+        ConfigDocument before = new(AccessLists: [list]);
+        ConfigDocument after = new(AccessLists: [list with { Version = 5 }]);
+        List<ConfigChange> changes = [new AccessListChange(ConfigChangeKind.Modified, list.Id, "/accessLists/0", ["/accessLists/0/basicAuth/users"])];
+
+        var change = Assert.Single(ChangeView.Build(before, after, changes)).Head;
+
+        Assert.Equal("alice | alice; a password was changed", Shown(change, "Passwords > Users"));
     }
 
     [Fact]

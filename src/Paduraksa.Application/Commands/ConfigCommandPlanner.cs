@@ -37,6 +37,10 @@ internal static class ConfigCommandPlanner
     {
         public ConfigCommandResult? Early { get; init; }
 
+        /// <summary>The password verifiers an earlier build kept in a document this command restores (a rollback target): to be
+        /// imported into the vault before the document goes live.</summary>
+        public IReadOnlyList<LegacyCredential> Legacy { get; init; } = [];
+
         public AuditOutcome EarlyOutcome { get; init; }
 
         public static Plan Stop(ConfigCommandResult result, AuditOutcome outcome, ConfigDocument? arranged = null) =>
@@ -138,7 +142,7 @@ internal static class ConfigCommandPlanner
         }
 
         // A document this build no longer reads (it can't be newer: downgrades are unsupported) is invalid, not broken.
-        if (!CanonicalConfigJson.TryDeserialize(target.Document.Span, out var document, out var error))
+        if (!CanonicalConfigJson.TryDeserialize(target.Document.Span, out var document, out var error, out var upgrade))
         {
             return Plan.Stop(new(ConfigCommandStatus.Invalid, Errors: [error]), AuditOutcome.Invalid) with
             {
@@ -146,9 +150,10 @@ internal static class ConfigCommandPlanner
             };
         }
 
-        return await ReplaceAsync(context, current, head, document, command.BaseRevision,
+        var plan = await ReplaceAsync(context, current, head, document, command.BaseRevision,
                 $"Rollback to {target.Info.Label}", cancellationToken)
             .ConfigureAwait(false);
+        return plan with { Legacy = upgrade.Credentials };
     }
 
     internal static ConfigCommandResult Conflict(RevisionRef? head, long currentVersion) =>

@@ -72,6 +72,7 @@ internal sealed class SharedServices : IAsyncDisposable
         LogFiles = Get<ServerLogFiles>();
         LogStore = Get<ILogFileStore>();
         Catalog = Get<ICertificateCatalog>();
+        PasswordCredentials = Get<IPasswordCredentials>();
         KeyRing = keyRing;
         PublicListeners = Get<PublicListenerSetup>();
         Config = Get<ConfigService>();
@@ -171,8 +172,11 @@ internal sealed class SharedServices : IAsyncDisposable
     /// <summary>The rate-limit engine's table, slots and counters; the compiler, the publisher and the public app share it.</summary>
     public RateLimitRuntime RateLimits { get; }
 
-    /// <summary>The access lists' verification cache and counters, shared by every compile.</summary>
+    /// <summary>The access lists' verification line and counters, shared by every compile (the cache lives in the vault).</summary>
     public AccessListRuntime AccessLists { get; }
+
+    /// <summary>The vault's password credentials: the access-list users' passwords, which only the config service and tests set.</summary>
+    internal IPasswordCredentials PasswordCredentials { get; }
 
     /// <summary>
     /// The process's log files: the error log's writer and provider, and the access log's writer, which the access log's
@@ -277,7 +281,10 @@ internal sealed class SharedServices : IAsyncDisposable
             // The rate-limit table, slots and counters: the compiler assigns pairs slots in this registry, the publisher
             // makes a live snapshot's pairs the live parameters, and every compiled policy takes from this table.
             var rateLimits = builder.Add(RateLimitServiceCollectionExtensions.CreateRuntime(configuration));
-            var accessLists = builder.Add(new AccessListRuntime(timeProvider));
+            // The vault first among the services that use it, so it is disposed after them all: the config store loads certificates through
+            // it, and the access-list gate asks its verifier for every password check.
+            var vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
+            var accessLists = builder.Add(new AccessListRuntime(timeProvider, vault.PasswordVerifier));
             // Built here so its start time is the process's: the counters it reports begin at zero with them.
             builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider, accessLists));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
@@ -324,10 +331,9 @@ internal sealed class SharedServices : IAsyncDisposable
             var challenges = builder.Add(new AcmeChallengeStore());
             builder.Add<IAcmeChallengeStore>(challenges);
 
-            // The vault before the config store, so it is disposed after it (the store loads certificates through it).
-            var vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
             // The vault's own catalog is a shared instance too: the CA download endpoints read the root from it (public facts).
             builder.AddOwnedElsewhere(vault.Catalog);
+            builder.AddOwnedElsewhere(vault.PasswordCredentials);
             var configStore = ConfigStore.AddTo(
                 builder, options.DataDirectory, publisher, lastKnownGood, listeners, certificates, vault, challenges, options.Development.PlaceholderCertificate, options.Admin, timeProvider, proofOfWork, coreLoggers);
 

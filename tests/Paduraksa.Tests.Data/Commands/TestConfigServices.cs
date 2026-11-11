@@ -16,7 +16,7 @@ namespace Paduraksa.Tests.Data.Commands;
 
 /// <summary>
 /// A <see cref="ConfigService"/> over a test database with the test defaults spelled out in one place: the stand-in compiler,
-/// every permission held, the system clock, no logging, no certificates in the vault, and a last-known-good file next to the
+/// every permission held, an in-memory password registry, the system clock, no logging, no certificates in the vault, and a last-known-good file next to the
 /// database (disposed with it). Production passes all of these; a test names only what it changes.
 /// </summary>
 internal static class TestConfigServices
@@ -32,7 +32,8 @@ internal static class TestConfigServices
         ConfigServiceOptions? options = null,
         IServerCertificateSource? certificateSource = null,
         IBuiltInCertificates? builtIns = null,
-        ICertificateCatalog? catalog = null) =>
+        ICertificateCatalog? catalog = null,
+        IPasswordCredentials? passwords = null) =>
         new(
             db.Factory,
             compiler ?? new ConfigServiceHarness.FakeCompiler(),
@@ -44,7 +45,8 @@ internal static class TestConfigServices
             lastKnownGood ?? db.Own(new LastKnownGoodFile(Path.Combine(Path.GetDirectoryName(db.DatabasePath)!, "unshared-" + LastKnownGoodFile.FileName), NullLoggerFactory.Instance)),
             certificateSource ?? new NoCertificates(),
             builtIns,
-            catalog ?? new NoCertificates());
+            catalog ?? new NoCertificates(),
+            passwords ?? new TestPasswords());
 
     /// <summary>A vault that holds no certificate.</summary>
     internal sealed class NoCertificates : IServerCertificateSource, ICertificateCatalog

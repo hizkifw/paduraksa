@@ -262,12 +262,12 @@ public sealed partial class LastKnownGoodFile : IAsyncDisposable
                 return "its document doesn't match its sha256";
             }
 
-            if (!CanonicalConfigJson.TryDeserialize(documentBytes, out var parsed, out var error))
+            if (!CanonicalConfigJson.TryDeserialize(documentBytes, out var parsed, out var error, out var upgrade))
             {
                 return $"its document can't be read ({error.Code} at '{error.Path}': {error.Message})";
             }
 
-            entry = new LastKnownGoodEntry(new RevisionRef(revisionId, seqValue), documentBytes, expected) { Parsed = parsed };
+            entry = new LastKnownGoodEntry(new RevisionRef(revisionId, seqValue), documentBytes, expected) { Parsed = parsed, Legacy = upgrade.Credentials };
             return null;
         }
         catch (JsonException ex)
@@ -405,4 +405,8 @@ internal sealed record LastKnownGoodEntry(RevisionRef Revision, ReadOnlyMemory<b
 {
     /// <summary>The document, once read back from the file.</summary>
     public ConfigDocument? Parsed { get; init; }
+
+    /// <summary>The password verifiers an earlier build kept in the file's document (read back converted): to be imported into the
+    /// vault wherever the entry goes live.</summary>
+    public IReadOnlyList<LegacyCredential> Legacy { get; init; } = [];
 }

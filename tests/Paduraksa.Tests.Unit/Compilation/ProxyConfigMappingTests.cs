@@ -3,6 +3,7 @@ using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 
@@ -13,7 +14,6 @@ namespace Paduraksa.Tests.Unit.Compilation;
 public sealed class ProxyConfigMappingTests
 {
     private static readonly ConfigRevisionId Revision = Id<ConfigRevisionId>(7);
-    private static readonly string Hash = Paduraksa.Core.Security.PasswordHash.Create("secret");
     private static readonly AccessListConfig Lan = List(1, "lan", allow: ["192.168.0.0/16"]);
     private static readonly AccessListConfig Ten = List(2, "ten", allow: ["10.0.0.0/8"], drop: true);
     private static readonly AccessListConfig Seven = List(3, "seven", allow: ["192.168.1.7"], drop: true);
@@ -27,7 +27,7 @@ public sealed class ProxyConfigMappingTests
         Id<AccessListId>(id),
         name,
         Ip: allow is null ? null : new AccessListIp(allow, DropDenied: drop),
-        BasicAuth: users ? new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Hash)]) : null,
+        BasicAuth: users ? new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Id<PasswordCredentialId>(1))]) : null,
         Satisfy: satisfy);
 
     private static AccessListSettings Use(AccessListConfig list) => new() { AccessListId = list.Id };
@@ -201,7 +201,7 @@ public sealed class ProxyConfigMappingTests
 
         Assert.Empty(ConfigValidator.Validate(document));
         using AnyCertificate certificates = new();
-        var mapped = ProxyConfigMapping.Map(document, Revision, certificates.InventoryFor(document));
+        var mapped = TestMapping.Map(document, Revision, certificates.InventoryFor(document));
         Assert.Empty(mapped.Errors);
         Assert.Equivalent(expected, mapped.Model, strict: true);
     }
@@ -212,7 +212,7 @@ public sealed class ProxyConfigMappingTests
         for (var seed = 0; seed < 50; seed++)
         {
             var document = Random(seed);
-            Assert.Equivalent(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model, ProxyConfigMapping.Map(Respelled(document, seed), Revision, CertificateInventory.Empty).Model, strict: true);
+            Assert.Equivalent(TestMapping.Map(document, Revision, CertificateInventory.Empty).Model, TestMapping.Map(Respelled(document, seed), Revision, CertificateInventory.Empty).Model, strict: true);
         }
     }
 
@@ -326,7 +326,7 @@ public sealed class ProxyConfigMappingTests
             var document = Document(null, null, new HostSettings { ForceHttps = forceHttps, AccessList = Use(Passwords) });
             var host = document.Hosts[0] with { Kind = HostKind.Respond, Routes = [], Respond = new RespondConfig(503, "soon"), Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } };
 
-            var mapped = Assert.Single(ProxyConfigMapping.Map(document with { Hosts = [host], AccessLists = AllLists }, Revision, CertificateInventory.Empty).Model.Hosts);
+            var mapped = Assert.Single(TestMapping.Map(document with { Hosts = [host], AccessLists = AllLists }, Revision, CertificateInventory.Empty).Model.Hosts);
 
             Assert.Equal(new AccessListPolicySpec(Passwords.Id, AccessListStage.Full, deferred), Assert.Single(mapped.Policies));
         }
@@ -335,7 +335,7 @@ public sealed class ProxyConfigMappingTests
     [Fact]
     public void AHostThatAsksForPasswordsOverPlainHttpIsWarnedAbout()
     {
-        var mapped = (bool forceHttps) => ProxyConfigMapping.Map(
+        var mapped = (bool forceHttps) => TestMapping.Map(
             Document(null, null, new HostSettings { ForceHttps = forceHttps, AccessList = Use(Passwords) }) with { AccessLists = AllLists }, Revision, CertificateInventory.Empty);
 
         Assert.Contains(mapped(false).Warnings, w => w.Code == ConfigWarningCodes.AccessListInsecureCredentials);
@@ -347,7 +347,7 @@ public sealed class ProxyConfigMappingTests
     {
         var document = Document(null, null, new HostSettings { AccessList = Use(Lan) }) with { AccessLists = AllLists };
 
-        Assert.DoesNotContain(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Warnings, w => w.Code == ConfigWarningCodes.AccessListInsecureCredentials);
+        Assert.DoesNotContain(TestMapping.Map(document, Revision, CertificateInventory.Empty).Warnings, w => w.Code == ConfigWarningCodes.AccessListInsecureCredentials);
     }
 
     [Fact]
@@ -357,11 +357,11 @@ public sealed class ProxyConfigMappingTests
             Id<AccessListId>(9),
             "Staff area",
             Ip: new AccessListIp([" 10.0.0.0/8", "10.0.0.0/8", "192.168.1.7/32"], ["::ffff:10.9.0.0/112"], DropDenied: true),
-            BasicAuth: new AccessListBasicAuth(" Staff only ", [new AccessListUserConfig("bob", Hash), new AccessListUserConfig("alice", Hash)]),
+            BasicAuth: new AccessListBasicAuth(" Staff only ", [new AccessListUserConfig("bob", Id<PasswordCredentialId>(2)), new AccessListUserConfig("alice", Id<PasswordCredentialId>(1))]),
             Satisfy: AccessListSatisfy.Any,
             PassCredentialsUpstream: true);
 
-        var spec = Assert.Single(ProxyConfigMapping.Map(Document(null, null, null) with { AccessLists = [config] }, Revision, CertificateInventory.Empty).Model.AccessLists);
+        var spec = Assert.Single(TestMapping.Map(Document(null, null, null) with { AccessLists = [config] }, Revision, CertificateInventory.Empty).Model.AccessLists);
 
         Assert.Equal(["10.0.0.0/8", "192.168.1.7"], spec.Allow);
         Assert.Equal(["10.9.0.0/16"], spec.Deny);
@@ -370,13 +370,53 @@ public sealed class ProxyConfigMappingTests
         Assert.Equal(AccessListSatisfy.Any, spec.Satisfy);
         Assert.Equal("Staff only", spec.Realm);
         Assert.Equal(["alice", "bob"], spec.Users.Select(u => u.Username));
-        Assert.All(spec.Users, u => Assert.Equal(Hash, u.PasswordHash));
+        Assert.Equal([Id<PasswordCredentialId>(1), Id<PasswordCredentialId>(2)], spec.Users.Select(u => u.Credential.Id));
+    }
+
+    [Fact]
+    public async Task ACredentialInTheOverlayCompilesAgainstThePreparedHandleAndTouchesNothingElse()
+    {
+        var passwords = new TestPasswords();
+        var document = Document(null, null, null) with { AccessLists = [Passwords] };
+        var credential = Passwords.BasicAuth!.Users[0].CredentialId!.Value;
+        var prepared = await passwords.PrepareAsync(credential, "draft".AsMemory(), TestContext.Current.CancellationToken);
+
+        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty, passwords, new PendingPasswords(
+            new HashSet<PasswordCredentialId>(), new Dictionary<PasswordCredentialId, IPasswordCredential> { [credential] = prepared }));
+
+        Assert.Same(prepared, Assert.Single(Assert.Single(mapped.Model.AccessLists).Users).Credential);
+        Assert.DoesNotContain(mapped.Warnings, w => w.Code == ConfigWarningCodes.AccessListUserNoPassword);
+        Assert.False(passwords.Open(credential).IsSet);
+        Assert.Empty(await passwords.ListAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task AUserWhoseCredentialHasNoPasswordIsAWarningNeverAnErrorUnlessItsPasswordIsPending()
+    {
+        var passwords = new TestPasswords();
+        var document = Document(null, null, null) with { AccessLists = [Passwords] };
+        var credential = Passwords.BasicAuth!.Users[0].CredentialId!.Value;
+
+        var missing = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty, passwords, PendingPasswords.None);
+        var pending = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty, passwords, new PendingPasswords(new HashSet<PasswordCredentialId> { credential }, new Dictionary<PasswordCredentialId, IPasswordCredential>()));
+        await passwords.SetAsync(credential, "secret".AsMemory(), TestContext.Current.CancellationToken);
+        var held = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty, passwords, PendingPasswords.None);
+
+        Assert.Empty(missing.Errors);
+        var warning = Assert.Single(missing.Warnings, w => w.Code == ConfigWarningCodes.AccessListUserNoPassword);
+        Assert.Contains("'alice'", warning.Message, StringComparison.Ordinal);
+
+        // The warning points at the user's own entry, so nothing needs to read its text.
+        Assert.Equal("/basicAuth/users/0", warning.Member);
+        Assert.DoesNotContain(pending.Warnings, w => w.Code == ConfigWarningCodes.AccessListUserNoPassword);
+        Assert.DoesNotContain(held.Warnings, w => w.Code == ConfigWarningCodes.AccessListUserNoPassword);
+        Assert.True(Assert.Single(Assert.Single(held.Model.AccessLists).Users).Credential.IsSet);
     }
 
     [Fact]
     public void TheRealmIsTheListsNameUnlessItSaysOtherwise()
     {
-        var spec = Assert.Single(ProxyConfigMapping.Map(Document(null, null, null) with { AccessLists = [List(1, "  Family  ", users: true)] }, Revision, CertificateInventory.Empty).Model.AccessLists);
+        var spec = Assert.Single(TestMapping.Map(Document(null, null, null) with { AccessLists = [List(1, "  Family  ", users: true)] }, Revision, CertificateInventory.Empty).Model.AccessLists);
 
         Assert.Equal("Family", spec.Realm);
     }
@@ -393,7 +433,7 @@ public sealed class ProxyConfigMappingTests
             Hosts = [document.Hosts[0] with { Kind = HostKind.Admin, Routes = [], Settings = new HostSettings { Hsts = new HstsSettings { Preload = false } } }],
         };
 
-        var host = Assert.Single(ProxyConfigMapping.Map(admin, Revision, CertificateInventory.Empty).Model.Hosts);
+        var host = Assert.Single(TestMapping.Map(admin, Revision, CertificateInventory.Empty).Model.Hosts);
 
         Assert.Equal(HostKind.Admin, host.Kind);
         Assert.Equal(new HostHstsSpec { Enabled = true, MaxAgeSeconds = 86_400, IncludeSubDomains = false, Preload = false }, host.Hsts);
@@ -408,7 +448,7 @@ public sealed class ProxyConfigMappingTests
             host: new HostSettings { AccessList = Off }) with
         { AccessLists = AllLists };
 
-        var host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
+        var host = Assert.Single(TestMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
 
         Assert.Empty(host.Policies);
         Assert.Equal(new HostAccessListSpec { Enabled = false, AccessListId = Lan.Id }, host.AccessList);
@@ -439,7 +479,7 @@ public sealed class ProxyConfigMappingTests
             ]);
 
         Assert.Empty(ConfigValidator.Validate(document));
-        var host = Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
+        var host = Assert.Single(TestMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts);
         Dictionary<string, RouteSpec> routes = host.Routes.ToDictionary(r => r.Path);
 
         Assert.Equal(ApiPolicy, routes["/"].RateLimit);
@@ -456,7 +496,7 @@ public sealed class ProxyConfigMappingTests
         var document = Document(new HostSettings { ForceHttps = true }, new HostSettings { ForceHttps = false }, null);
         document = document with { Hosts = [document.Hosts[0] with { ProfileId = Id<ProfileId>(99) }] };
 
-        Assert.True(Assert.Single(ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts).ForceHttps);
+        Assert.True(Assert.Single(TestMapping.Map(document, Revision, CertificateInventory.Empty).Model.Hosts).ForceHttps);
     }
 
     [Fact]
@@ -467,7 +507,7 @@ public sealed class ProxyConfigMappingTests
         {
             var document = Document(null, null, null);
             var bound = document with { Hosts = [document.Hosts[0] with { Certificate = binding }] };
-            return Assert.Single(ProxyConfigMapping.Map(bound, Revision, certificates.InventoryFor(bound)).Model.Hosts);
+            return Assert.Single(TestMapping.Map(bound, Revision, certificates.InventoryFor(bound)).Model.Hosts);
         }
 
         var auto = Bound(new CertificateBinding());
@@ -496,7 +536,7 @@ public sealed class ProxyConfigMappingTests
             ],
         };
 
-        var mapped = ProxyConfigMapping.Map(changed, Revision, CertificateInventory.Empty);
+        var mapped = TestMapping.Map(changed, Revision, CertificateInventory.Empty);
 
         Assert.Equal(
             [
@@ -517,10 +557,10 @@ public sealed class ProxyConfigMappingTests
             var document = Valid();
             var changed = document with { Upstreams = [document.Upstreams[0] with { LoadBalancing = policy }] };
 
-            Assert.Equal(policy.ToString(), Assert.Single(ProxyConfigMapping.Map(changed, Revision, CertificateInventory.Empty).Model.Upstreams).LoadBalancing);
+            Assert.Equal(policy.ToString(), Assert.Single(TestMapping.Map(changed, Revision, CertificateInventory.Empty).Model.Upstreams).LoadBalancing);
         }
 
-        Assert.Null(Assert.Single(ProxyConfigMapping.Map(Valid(), Revision, CertificateInventory.Empty).Model.Upstreams).LoadBalancing);
+        Assert.Null(Assert.Single(TestMapping.Map(Valid(), Revision, CertificateInventory.Empty).Model.Upstreams).LoadBalancing);
     }
 
     [Fact]
@@ -529,7 +569,7 @@ public sealed class ProxyConfigMappingTests
         ConfigDocument document = new(
             Hosts: [new HostConfig(Id<HostId>(50), ["admin.example.com"], Kind: HostKind.Admin, Settings: new HostSettings { ForceHttps = false })]);
 
-        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
 
         var warning = Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.AdminForceHttpsIgnored);
         Assert.Equal("/settings/forceHttps", warning.Member);
@@ -550,7 +590,7 @@ public sealed class ProxyConfigMappingTests
             Upstream(3, "http://plain", new UpstreamTlsConfig(UpstreamTlsTrust.Any)),
         ]);
 
-        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
 
         var pinned = Assert.Single(mapped.Model.Upstreams, u => u.Id == Id<UpstreamId>(1));
         Assert.Equal(UpstreamTlsTrust.Pinned, pinned.TlsTrust);
@@ -566,7 +606,7 @@ public sealed class ProxyConfigMappingTests
     {
         HostSettings on = new() { ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 20, TokenLifetimeHours = 24 } };
         var document = Document(on, null, null);
-        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
         var host = Assert.Single(mapped.Model.Hosts);
         Assert.Equal(new HostProofOfWorkSpec { Enabled = true, Difficulty = 20, TokenLifetimeHours = 24 }, host.ProofOfWork);
         Assert.All(host.Routes, route => Assert.Equal(host.ProofOfWork, route.ProofOfWork));
@@ -593,10 +633,10 @@ public sealed class ProxyConfigMappingTests
         var warning = Assert.Single(mapped.Warnings, w => w.Code == ConfigWarningCodes.ProofOfWorkInsecureCookie);
         Assert.Equal(CompileErrorSource.Host(AppHost), warning.Source);
         Assert.DoesNotContain(
-            ProxyConfigMapping.Map(Document(on with { ForceHttps = true }, null, null), Revision, CertificateInventory.Empty).Warnings,
+            TestMapping.Map(Document(on with { ForceHttps = true }, null, null), Revision, CertificateInventory.Empty).Warnings,
             w => w.Code == ConfigWarningCodes.ProofOfWorkInsecureCookie);
         Assert.DoesNotContain(
-            ProxyConfigMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty).Warnings,
+            TestMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty).Warnings,
             w => w.Code == ConfigWarningCodes.ProofOfWorkInsecureCookie);
     }
 
@@ -609,7 +649,7 @@ public sealed class ProxyConfigMappingTests
 
         // Inherited from the defaults, carried by the host.
         var document = Document(null, null, null);
-        var mapped = ProxyConfigMapping.Map(document with { Settings = Mode(TrustedProxyMode.CloudflareProxy, locked) }, Revision, CertificateInventory.Empty);
+        var mapped = TestMapping.Map(document with { Settings = Mode(TrustedProxyMode.CloudflareProxy, locked) }, Revision, CertificateInventory.Empty);
         var host = Assert.Single(mapped.Model.Hosts);
         Assert.Equal(new HostCloudflareSpec { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true }, host.Cloudflare);
         Assert.DoesNotContain(mapped.Warnings, w => w.Code.StartsWith("cloudflare.", StringComparison.Ordinal));
@@ -617,7 +657,7 @@ public sealed class ProxyConfigMappingTests
         // The same settings under a mode that never trusts Cloudflare enforce nothing, and the host says so.
         foreach (var mode in new[] { TrustedProxyMode.Off, TrustedProxyMode.Generic })
         {
-            var inert = ProxyConfigMapping.Map(document with { Settings = Mode(mode, locked) }, Revision, CertificateInventory.Empty);
+            var inert = TestMapping.Map(document with { Settings = Mode(mode, locked) }, Revision, CertificateInventory.Empty);
             var warning = Assert.Single(inert.Warnings, w => w.Code == ConfigWarningCodes.CloudflareNeedsMode);
             Assert.Equal(CompileErrorSource.Host(AppHost), warning.Source);
             Assert.Equal("/settings/cloudflare", warning.Member);
@@ -625,7 +665,7 @@ public sealed class ProxyConfigMappingTests
 
         // Nothing set, nothing said.
         Assert.DoesNotContain(
-            ProxyConfigMapping.Map(document with { Settings = Mode(TrustedProxyMode.Off) }, Revision, CertificateInventory.Empty).Warnings,
+            TestMapping.Map(document with { Settings = Mode(TrustedProxyMode.Off) }, Revision, CertificateInventory.Empty).Warnings,
             w => w.Code.StartsWith("cloudflare.", StringComparison.Ordinal));
 
         // Authenticated Origin Pulls on a host with no HTTPS can only ever refuse, and so can it under a tunnel, where
@@ -635,10 +675,10 @@ public sealed class ProxyConfigMappingTests
             Settings = Mode(TrustedProxyMode.CloudflareProxy, locked),
             Hosts = [document.Hosts[0] with { Certificate = new CertificateBinding { Mode = CertificateBindingMode.None } }],
         };
-        var plainWarnings = ProxyConfigMapping.Map(plain, Revision, CertificateInventory.Empty).Warnings;
+        var plainWarnings = TestMapping.Map(plain, Revision, CertificateInventory.Empty).Warnings;
         Assert.Contains(plainWarnings, w => w.Code == ConfigWarningCodes.CloudflareAopNeedsHttps);
         Assert.DoesNotContain(plainWarnings, w => w.Code == ConfigWarningCodes.CloudflareAopTunnel);
-        var tunnelWarnings = ProxyConfigMapping.Map(document with { Settings = Mode(TrustedProxyMode.CloudflareTunnel, locked) }, Revision, CertificateInventory.Empty).Warnings;
+        var tunnelWarnings = TestMapping.Map(document with { Settings = Mode(TrustedProxyMode.CloudflareTunnel, locked) }, Revision, CertificateInventory.Empty).Warnings;
         Assert.Contains(tunnelWarnings, w => w.Code == ConfigWarningCodes.CloudflareAopTunnel);
         Assert.DoesNotContain(tunnelWarnings, w => w.Code == ConfigWarningCodes.CloudflareAopNeedsHttps);
     }
@@ -652,7 +692,7 @@ public sealed class ProxyConfigMappingTests
         {
             Routes = [new RouteConfig(RootRoute, AppUpstream, Path: "/a", Settings: first), new RouteConfig(ApiRoute, AppUpstream, Path: "/b", Settings: second)],
         };
-        return Assert.Single(ProxyConfigMapping.Map(document with { Hosts = [config] }, Revision, CertificateInventory.Empty).Model.Hosts);
+        return Assert.Single(TestMapping.Map(document with { Hosts = [config] }, Revision, CertificateInventory.Empty).Model.Hosts);
     }
 
     private static ConfigDocument Document(HostSettings? defaults, HostSettings? profile, HostSettings? host) => new(

@@ -133,7 +133,51 @@ public static class ChangeView
             ReplaceConfigCommand c => c.Document,
             _ => null,
         };
-        return next is null ? null : CanonicalConfigJson.Canonicalize(next);
+        return next is null ? null : WithPendingPasswords(CanonicalConfigJson.Canonicalize(next), command);
+    }
+
+    /// <summary>What stands in a user's <see cref="AccessListUserConfig.Password"/> in the document a review shows, once canonical form has
+    /// dropped the real one: it says "a password is being set" and is never printed.</summary>
+    public const string PendingPassword = "(pending)";
+
+    // Canonical form drops a typed password, which is also what tells a review that a user's password is changing; put the fact back.
+    private static ConfigDocument WithPendingPasswords(ConfigDocument canonical, ConfigCommand command)
+    {
+        IEnumerable<AccessListConfig> sent = command switch
+        {
+            UpsertAccessListCommand c => [c.AccessList],
+            ReplaceConfigCommand c => c.Document.AccessLists,
+            _ => [],
+        };
+        Dictionary<(AccessListId, string), bool> pending = [];
+        foreach (var list in sent.Where(static l => l is not null))
+        {
+            foreach (var user in list.BasicAuth?.Users ?? [])
+            {
+                if (user is { Password.Length: > 0 })
+                {
+                    pending[(list.Id, user.Username)] = true;
+                }
+            }
+        }
+
+        return pending.Count == 0
+            ? canonical
+            : canonical with
+            {
+                AccessLists =
+                [
+                    .. canonical.AccessLists.Select(list => list.BasicAuth is { } auth
+                        ? list with
+                        {
+                            BasicAuth = auth with
+                            {
+                                Users = [.. auth.Users.Select(u => pending.ContainsKey((list.Id, u.Username)) ? u with { Password = PendingPassword } : u)],
+                            },
+                        }
+                        : list),
+                ],
+            };
     }
 
     /// <summary>
@@ -326,6 +370,13 @@ public static class ChangeView
                     continue;
                 }
 
+                if (AccessListUsers.Handles(relative))
+                {
+                    var (was, now) = AccessListUsers.Describe(relative, old, @new);
+                    fields.Add(new FieldChange(relative, LabelOf(relative), was, now));
+                    continue;
+                }
+
                 fields.Add(new FieldChange(relative, LabelOf(relative), names.Format(relative, Resolve(old, relative)), names.Format(relative, Resolve(@new, relative))));
             }
         }
@@ -427,10 +478,15 @@ public static class ChangeView
                     return null;
                 case JsonArray array:
                     return array.Count == 0 ? "none" : string.Join(", ", array.Select(item => Format(path, item) ?? "-"));
-                case JsonObject user when user.ContainsKey("username") && (user.ContainsKey("passwordHash") || user.ContainsKey("password")):
-                    // A user of an access list: the name, and that a password is being set. Neither the hash nor the typed
-                    // password is ever shown, in a review or in the history.
+                case JsonObject auth when path.EndsWith("/basicAuth", StringComparison.Ordinal) && auth.ContainsKey("users"):
+                    // An access list's passwords as an object of its own (the list added or removed): the realm, and the users by name.
+                    return AccessListUsers.BasicAuth(auth, null, isAfter: true);
+                case JsonObject user when user.ContainsKey("username") && (user.ContainsKey("credentialId") || user.ContainsKey("password")):
+                    // A user of an access list: the name, and that a password is being set. The typed password is never shown, in a
+                    // review or in the history, and the vault's credential ID says nothing a reader needs.
                     return string.Concat(user["username"]?.ToString() ?? "-", user.ContainsKey("password") ? " (new password)" : string.Empty);
+                case JsonValue word when path.EndsWith("/satisfy", StringComparison.Ordinal) && word.TryGetValue(out string? satisfy):
+                    return satisfy == "any" ? "Address or password" : "Address and password";
                 case JsonObject obj:
                     StringBuilder text = new();
                     foreach (var (key, item) in obj)

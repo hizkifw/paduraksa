@@ -42,13 +42,15 @@ public static class CanonicalConfigJson
 
     /// <summary>Reads a document strictly (see <see cref="ConfigJsonContext"/>), as written: not canonicalised. A stored
     /// document that still has the inline <c>ipAllowList</c> is converted to access lists on the way in
-    /// (<see cref="LegacyAccessListUpgrade"/>).</summary>
+    /// (<see cref="LegacyAccessListUpgrade"/>), and a user's inline <c>passwordHash</c> to a <c>credentialId</c>
+    /// (<see cref="LegacyPasswordUpgrade"/>).</summary>
     /// <exception cref="JsonException">Not valid JSON, or not a valid document shape.</exception>
     public static ConfigDocument Deserialize(ReadOnlySpan<byte> utf8Json) => Deserialize(utf8Json, out _);
 
     /// <summary><see cref="Deserialize(ReadOnlySpan{byte})"/>, saying whether the document had to be converted (so startup can
-    /// write the converted one back).</summary>
-    internal static ConfigDocument Deserialize(ReadOnlySpan<byte> utf8Json, out bool upgraded)
+    /// write the converted one back) and which password verifiers it carried (<see cref="LegacyPasswordUpgrade"/>: the caller that
+    /// makes the document live imports them into the vault, or the passwords are gone).</summary>
+    internal static ConfigDocument Deserialize(ReadOnlySpan<byte> utf8Json, out DocumentUpgrade upgrade)
     {
         if (UnsupportedApiVersion(utf8Json) is { } version)
         {
@@ -56,8 +58,9 @@ public static class CanonicalConfigJson
         }
 
         var converted = LegacyAccessListUpgrade.Upgrade(utf8Json);
-        upgraded = converted is not null;
-        var document = JsonSerializer.Deserialize(converted ?? utf8Json, ConfigJsonContext.Default.ConfigDocument)
+        var passwords = LegacyPasswordUpgrade.Upgrade(converted ?? utf8Json);
+        upgrade = converted is null && passwords is null ? DocumentUpgrade.None : new DocumentUpgrade(converted is not null, passwords is not null, passwords?.Credentials ?? []);
+        var document = JsonSerializer.Deserialize(passwords?.Json ?? converted ?? utf8Json, ConfigJsonContext.Default.ConfigDocument)
                        ?? throw new JsonException("The config document can't be null.");
         RejectNullElements(document);
         return document;
@@ -70,12 +73,12 @@ public static class CanonicalConfigJson
     public static bool TryDeserialize(ReadOnlySpan<byte> utf8Json, [NotNullWhen(true)] out ConfigDocument? document, [NotNullWhen(false)] out ConfigError? error) =>
         TryDeserialize(utf8Json, out document, out error, out _);
 
-    /// <summary><see cref="TryDeserialize(ReadOnlySpan{byte}, out ConfigDocument?, out ConfigError?)"/>, saying whether the
-    /// document had to be converted.</summary>
+    /// <summary><see cref="TryDeserialize(ReadOnlySpan{byte}, out ConfigDocument?, out ConfigError?)"/>, saying what the document
+    /// had to convert.</summary>
     internal static bool TryDeserialize(
-        ReadOnlySpan<byte> utf8Json, [NotNullWhen(true)] out ConfigDocument? document, [NotNullWhen(false)] out ConfigError? error, out bool upgraded)
+        ReadOnlySpan<byte> utf8Json, [NotNullWhen(true)] out ConfigDocument? document, [NotNullWhen(false)] out ConfigError? error, out DocumentUpgrade upgrade)
     {
-        upgraded = false;
+        upgrade = DocumentUpgrade.None;
         if (UnsupportedApiVersion(utf8Json) is { } version)
         {
             document = null;
@@ -85,7 +88,7 @@ public static class CanonicalConfigJson
 
         try
         {
-            document = Deserialize(utf8Json, out upgraded);
+            document = Deserialize(utf8Json, out upgrade);
             error = null;
             return true;
         }

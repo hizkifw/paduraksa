@@ -58,7 +58,7 @@ public sealed class SecurityOverviewServiceTests
     [Fact]
     public void TheAccessListCountersAreReadAsTheyStand()
     {
-        AccessListRuntime accessLists = new();
+        var accessLists = NewRuntime();
         SecurityOverviewService service = new(new SnapshotStore(), new ProofOfWorkRuntime(), new RateLimitRuntime(new RateLimitTable(64)), new FakeTime(DateTimeOffset.UnixEpoch), accessLists);
         var stats = accessLists.Stats;
         stats.CountAddressRefused();
@@ -316,8 +316,10 @@ public sealed class SecurityOverviewServiceTests
         ProofOfWorkRuntime proofOfWork = new();
         RateLimitRuntime rateLimits = new(new RateLimitTable(64));
         SnapshotStore store = new();
-        return (new SecurityOverviewService(store, proofOfWork, rateLimits, time ?? new FakeTime(DateTimeOffset.UnixEpoch), new AccessListRuntime()), proofOfWork, rateLimits, store);
+        return (new SecurityOverviewService(store, proofOfWork, rateLimits, time ?? new FakeTime(DateTimeOffset.UnixEpoch), NewRuntime()), proofOfWork, rateLimits, store);
     }
+
+    private static AccessListRuntime NewRuntime() => new(TimeProvider.System, new TestPasswords().Verifier);
 
     private static HostSpec Host(int n, string name) => new() { Id = Id<HostId>(n), Names = [name], Https = false, Routes = [new RouteSpec { Id = Id<RouteId>(1000 + n), Upstream = App }] };
 
@@ -339,7 +341,7 @@ public sealed class SecurityOverviewServiceTests
                 Name = "office",
                 Allow = ["10.0.0.0/8", "10.1.0.0/16", "192.168.0.0/16"],
                 Realm = "office",
-                Users = [new AccessListUserSpec("alice", SampleHash), new AccessListUserSpec("bob", SampleHash)],
+                Users = [new AccessListUserSpec("alice", TestPasswords.Credential("a")), new AccessListUserSpec("bob", TestPasswords.Credential("b"))],
             },
             new AccessListSpec { Id = Lan, Name = "lan", Allow = ["192.168.0.0/16"], Realm = "lan" },
         ],

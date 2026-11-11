@@ -2,6 +2,7 @@ using Paduraksa.Application.Certificates;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.RateLimiting;
@@ -47,11 +48,17 @@ namespace Paduraksa.Application.Compilation;
 /// </remarks>
 public static class ProxyConfigMapping
 {
-    /// <summary>The compiler input for <paramref name="document"/>, labelled with <paramref name="revision"/>.</summary>
-    public static MappedConfig Map(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory)
+    /// <summary>The compiler input for <paramref name="document"/>, labelled with <paramref name="revision"/>. Each access-list user
+    /// gets the vault's handle on their password (<paramref name="credentials"/>); one the vault holds no password for, and that is not in
+    /// <paramref name="pending"/>'s assumed set (about to be set by the command being compiled), is a warning; a credential in its overlay
+    /// compiles against the overlay's handle (a draft's password that the vault doesn't hold).</summary>
+    public static MappedConfig Map(
+        ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory, IPasswordCredentials credentials, PendingPasswords pending)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(inventory);
+        ArgumentNullException.ThrowIfNull(credentials);
+        ArgumentNullException.ThrowIfNull(pending);
         var canonical = CanonicalConfigJson.Canonicalize(document);
         var settings = canonical.Settings;
         List<CompileError> errors = [];
@@ -93,7 +100,7 @@ public static class ProxyConfigMapping
                     .Where(static p => p is not null)
                     .Select(static p => p!),
             ],
-            AccessLists = [.. canonical.AccessLists.Select(MapAccessList)],
+            AccessLists = [.. canonical.AccessLists.Select(l => MapAccessList(l, credentials, pending, errors, warnings))],
             Defaults = new DefaultsSpec
             {
                 UnknownHost = (UnknownHostBehaviour)settings.UnknownHost,
@@ -433,18 +440,48 @@ public static class ProxyConfigMapping
         }
     }
 
-    private static AccessListSpec MapAccessList(AccessListConfig list) => new()
+    private static AccessListSpec MapAccessList(
+        AccessListConfig list, IPasswordCredentials credentials, PendingPasswords pending, List<CompileError> errors, List<MappedWarning> warnings)
     {
-        Id = list.Id,
-        Name = list.Name,
-        Allow = list.Ip?.Allow ?? [],
-        Deny = list.Ip?.Deny ?? [],
-        DropDenied = list.Ip?.DropDenied ?? false,
-        Satisfy = list.Satisfy,
-        PassCredentialsUpstream = list.PassCredentialsUpstream,
-        Realm = list.BasicAuth?.Realm ?? list.Name,
-        Users = [.. (list.BasicAuth?.Users ?? []).Select(static u => new AccessListUserSpec(u.Username, u.PasswordHash ?? string.Empty))],
-    };
+        List<AccessListUserSpec> users = [];
+        var listed = list.BasicAuth?.Users ?? [];
+        for (var i = 0; i < listed.Count; i++)
+        {
+            var user = listed[i];
+            if (user.CredentialId is not { IsEmpty: false } id)
+            {
+                errors.Add(new CompileError(CompileErrorSource.AccessList(list.Id), $"the user '{user.Username}' has no password credential"));
+                continue;
+            }
+
+            // The pointer names the user's own entry, so a reader of the warning needs nothing from its text; the list is canonical
+            // here, as the command pipeline hands it over, so the position is the one the stored document has.
+            var credential = pending.Overlay.TryGetValue(id, out var prepared) ? prepared : credentials.Open(id);
+            if (!credential.IsSet && !pending.AssumedSet.Contains(id))
+            {
+                warnings.Add(new MappedWarning(
+                    CompileErrorSource.AccessList(list.Id),
+                    $"/basicAuth/users/{i}",
+                    ConfigWarningCodes.AccessListUserNoPassword,
+                    $"the user '{user.Username}' has no password in the vault, so they can't sign in until one is set"));
+            }
+
+            users.Add(new AccessListUserSpec(user.Username, credential));
+        }
+
+        return new()
+        {
+            Id = list.Id,
+            Name = list.Name,
+            Allow = list.Ip?.Allow ?? [],
+            Deny = list.Ip?.Deny ?? [],
+            DropDenied = list.Ip?.DropDenied ?? false,
+            Satisfy = list.Satisfy,
+            PassCredentialsUpstream = list.PassCredentialsUpstream,
+            Realm = list.BasicAuth?.Realm ?? list.Name,
+            Users = users,
+        };
+    }
 
     /// <summary>
     /// One rate-limit policy's numbers. The validator has already judged them; a value the engine would throw on is
@@ -564,3 +601,14 @@ public sealed record MappedConfig(ProxyConfigModel Model, IReadOnlyList<CompileE
 /// <param name="Code">A <see cref="ConfigWarningCodes"/> code.</param>
 /// <param name="Message">The explanation.</param>
 public sealed record MappedWarning(CompileErrorSource Source, string Member, string Code, string Message);
+
+/// <summary>
+/// What a compile should know about passwords the vault doesn't hold yet. <paramref name="AssumedSet"/>: credentials the command is about to
+/// set (or import) before it commits, so a user on them is not reported as having no password. <paramref name="Overlay"/>: for a dry run or a
+/// draft that will never commit, handles that carry the prepared, already-hashed password for that compile alone, which the mapping uses in
+/// place of the vault's own handle, so the request simulator verifies a draft's passwords without anything reaching the vault or its cache.
+/// </summary>
+public sealed record PendingPasswords(IReadOnlySet<PasswordCredentialId> AssumedSet, IReadOnlyDictionary<PasswordCredentialId, IPasswordCredential> Overlay)
+{
+    public static PendingPasswords None { get; } = new(new HashSet<PasswordCredentialId>(), new Dictionary<PasswordCredentialId, IPasswordCredential>());
+}

@@ -93,7 +93,7 @@
                 </FormSection>
 
                 <FormSection Title="Passwords" Name="passwords"
-                             Description="Visitors sign in with HTTP basic auth. Passwords are stored as hashes and can't be shown again.">
+                             Description="Visitors sign in with HTTP basic auth. Passwords are kept in the vault and can't be shown again.">
                     <MudTextField T="string" Value="Model.Realm" ValueChanged="@(value => Set(() => Model.Realm = value, "/basicAuth/realm"))" Immediate="true" DebounceInterval="250"
                                   Label="Realm" Placeholder="@(string.IsNullOrWhiteSpace(Model.Name) ? "The list's name" : Model.Name.Trim())" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                   HelperText="The name the browser's sign-in prompt shows."
@@ -116,9 +116,9 @@
                                                   Error="@(E($"/basicAuth/users/{index}/username") is not null)" ErrorText="@E($"/basicAuth/users/{index}/username")"
                                                   data-field="@($"username-{index}")" spellcheck="false" autocomplete="off" />
                                     <MudTextField T="string" Value="user.Password" ValueChanged="@(value => SetPassword(user, index, value))" Immediate="true" DebounceInterval="250"
-                                                  Label="@(user.StoredHash is null ? "Password" : "New password")" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
+                                                  Label="@(user.StoredCredential is null || user.LacksPassword ? "Password" : "New password")" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
                                                   InputType="@(user.Revealed ? InputType.Text : InputType.Password)"
-                                                  Placeholder="@(user.StoredHash is null ? string.Empty : "Unchanged")"
+                                                  Placeholder="@(user.StoredCredential is null || user.LacksPassword ? string.Empty : "Unchanged")"
                                                   HelperText="@PasswordHelp(user)"
                                                   Error="@(PasswordError(index) is not null)" ErrorText="@PasswordError(index)"
                                                   data-field="@($"password-{index}")" spellcheck="false" autocomplete="new-password" />
@@ -258,6 +258,7 @@
 
             StoredName = list.Name;
             Model = AccessListEditModel.From(list);
+            MarkUsersWithoutPassword(document, list);
             return true;
         }
 
@@ -288,14 +289,30 @@
         Document = (await Config.GetCurrentAsync()).Document;
     }
 
+    // The live config's warnings point at the user's own entry (/accessLists/N/basicAuth/users/M), the order the form was filled in.
+    private void MarkUsersWithoutPassword(ConfigDocument document, AccessListConfig list)
+    {
+        var listPath = $"/accessLists/{document.AccessLists.ToList().FindIndex(l => l.Id == list.Id)}";
+        var warned = Config.LiveWarnings
+            .Where(w => w.Code == Paduraksa.Application.Config.ConfigWarningCodes.AccessListUserNoPassword)
+            .Select(w => w.Path)
+            .ToHashSet(StringComparer.Ordinal);
+        var stored = list.BasicAuth?.Users ?? [];
+        for (var i = 0; i < Model!.Users.Count && i < stored.Count; i++)
+        {
+            Model.Users[i].LacksPassword = Model.Users[i].StoredCredential is not null && warned.Contains($"{listPath}/basicAuth/users/{i}");
+        }
+    }
+
     private string? FirstUnder(string path) =>
         FieldErrors.Where(error => error.Key == path || error.Key.StartsWith(path + "/", StringComparison.Ordinal))
             .Select(error => (Touched.Contains(path) || Attempted) ? error.Value : null).FirstOrDefault(message => message is not null);
 
-    private string? PasswordError(int index) => E($"/basicAuth/users/{index}/password") ?? E($"/basicAuth/users/{index}/passwordHash");
+    private string? PasswordError(int index) => E($"/basicAuth/users/{index}/password");
 
-    private static string? PasswordHelp(AccessListUserEntry user) => user.Revealed && !string.IsNullOrEmpty(user.Password)
-        ? "Copy it now: once the list is saved it can't be shown again."
+    private static string? PasswordHelp(AccessListUserEntry user) =>
+        user.Revealed && !string.IsNullOrEmpty(user.Password) ? "Copy it now: once the list is saved it can't be shown again."
+        : user.LacksPassword && string.IsNullOrEmpty(user.Password) ? "No password is set, so this user can't sign in."
         : null;
 
     private static string RemoveLabel(AccessListUserEntry user) => string.IsNullOrEmpty(user.Username) ? "Remove user" : $"Remove {user.Username}";

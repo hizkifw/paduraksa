@@ -14,6 +14,7 @@ using Paduraksa.Proxy.Config;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.Snapshot;
+using Paduraksa.Tests.Shared;
 
 namespace Paduraksa.Tests.Dashboard.Components;
 
@@ -25,7 +26,7 @@ public sealed class SecurityPageTests
     private static readonly RateLimitPolicyId Standard = RateLimitPolicyId.New();
     private static readonly RateLimitPolicyId Strict = RateLimitPolicyId.New();
     private static readonly UpstreamId Upstream = UpstreamId.New();
-    private static readonly string Hash = Paduraksa.Core.Security.PasswordHash.Create("sample");
+    private static readonly Paduraksa.Core.Vault.IPasswordCredential Credential = TestPasswords.Credential("sample");
     private static readonly AccessListId Office = AccessListId.New();
     private static readonly AccessListId Lan = AccessListId.New();
 
@@ -339,7 +340,7 @@ public sealed class SecurityPageTests
                     Name = "office",
                     Allow = ["10.0.0.0/8"],
                     Realm = "office",
-                    Users = [new AccessListUserSpec("alice", Hash), new AccessListUserSpec("bob", Hash)],
+                    Users = [new AccessListUserSpec("alice", Credential), new AccessListUserSpec("bob", Credential)],
                 },
                 new AccessListSpec { Id = Lan, Name = "lan", Allow = ["192.168.0.0/16"], Realm = "lan" },
             ],
@@ -394,7 +395,7 @@ public sealed class SecurityPageTests
 
         public RateLimitRuntime RateLimits { get; } = new(new RateLimitTable(64));
 
-        public AccessListRuntime AccessLists { get; } = new();
+        public AccessListRuntime AccessLists { get; } = new(TimeProvider.System, new TestPasswords().Verifier);
 
         public void Publish(ProxyConfigModel model)
         {

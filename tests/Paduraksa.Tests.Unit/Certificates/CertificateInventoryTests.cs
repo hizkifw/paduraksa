@@ -293,7 +293,7 @@ public sealed class CertificateInventoryTests : IDisposable
     {
         CertificateInventoryLoader loader = new(_source, _builtIns, _clock, NullLogger.Instance);
         var inventory = await loader.LoadAsync(null, document, TestContext.Current.CancellationToken);
-        return new ConfigCompiler(SnapshotCompilerOptions.Default).Compile(document, Revision, inventory);
+        return new ConfigCompiler(SnapshotCompilerOptions.Default, new TestPasswords()).Compile(document, Revision, inventory);
     }
 
     private static SslStreamCertificateContext? Served(ConfigCompilation compilation, string name) =>

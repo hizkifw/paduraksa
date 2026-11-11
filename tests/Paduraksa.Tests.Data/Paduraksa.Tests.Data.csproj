@@ -6,4 +6,9 @@
     <ProjectReference Include="../../src/Paduraksa.Application/Paduraksa.Application.csproj" />
     <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
   </ItemGroup>
+  <Import Project="../Shared/TestPasswords.props" />
+  <ItemGroup>
+    <Compile Include="../Shared/TestMapping.cs" Link="Shared/TestMapping.cs" />
+    <Using Include="Paduraksa.Tests.Shared" />
+  </ItemGroup>
 </Project>

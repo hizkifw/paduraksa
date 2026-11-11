@@ -127,8 +127,8 @@ public sealed class LegacyAccessListUpgradeTests : IDisposable
     {
         var old = Encoding.UTF8.GetBytes(Old("{}", "{\"ipAllowList\":null}", [("/", "{}")]));
 
-        Assert.True(CanonicalConfigJson.TryDeserialize(old, out var document, out _, out var upgraded));
-        Assert.True(upgraded);
+        Assert.True(CanonicalConfigJson.TryDeserialize(old, out var document, out _, out var upgrade));
+        Assert.True(upgrade.Upgraded);
         Assert.Empty(document.AccessLists);
         Assert.DoesNotContain("ipAllowList", Encoding.UTF8.GetString(CanonicalConfigJson.Serialize(document)), StringComparison.Ordinal);
     }
@@ -228,10 +228,10 @@ public sealed class LegacyAccessListUpgradeTests : IDisposable
     {
         var old = Encoding.UTF8.GetBytes(Old("{\"ipAllowList\":{\"addresses\":[\"10.0.0.0/8\"]}}", "{}", [("/", "{}")]));
 
-        Assert.True(CanonicalConfigJson.TryDeserialize(old, out _, out _, out var upgraded));
-        Assert.True(upgraded);
-        Assert.True(CanonicalConfigJson.TryDeserialize(CanonicalConfigJson.Serialize(Valid()), out _, out _, out upgraded));
-        Assert.False(upgraded);
+        Assert.True(CanonicalConfigJson.TryDeserialize(old, out _, out _, out var upgrade));
+        Assert.True(upgrade.Upgraded);
+        Assert.True(CanonicalConfigJson.TryDeserialize(CanonicalConfigJson.Serialize(Valid()), out _, out _, out upgrade));
+        Assert.False(upgrade.Upgraded);
     }
 
     [Fact]

@@ -3,7 +3,7 @@ using System.Net.Http.Headers;
 using System.Text;
 
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Security;
+using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
 using Paduraksa.Proxy.Config;
 using Paduraksa.Server.Hosting;
@@ -19,8 +19,6 @@ namespace Paduraksa.Tests.Integration.Proxy;
 public sealed class PublicAccessListTests : IAsyncLifetime
 {
     private const string Password = "correct horse battery staple";
-
-    private static readonly string Hash = PasswordHash.Create(Password);
 
     private EdgeUpstream? _upstream;
 
@@ -107,8 +105,8 @@ public sealed class PublicAccessListTests : IAsyncLifetime
     {
         var host = TestHost.Create();
         await host.StartAsync(TestContext.Current.CancellationToken);
-        AccessListSpec office = List("office", "Staff area", passUpstream: false);
-        AccessListSpec shared = List("shared", "Shared area", passUpstream: true);
+        AccessListSpec office = await ListAsync(host, "office", "Staff area", passUpstream: false);
+        AccessListSpec shared = await ListAsync(host, "shared", "Shared area", passUpstream: true);
         ProxyConfigModel model = new()
         {
             Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("echo"), Destinations = [new(TestIds.Destination("echo-1"), Upstream.Address)] }],
@@ -124,14 +122,21 @@ public sealed class PublicAccessListTests : IAsyncLifetime
         return host;
     }
 
-    private static AccessListSpec List(string label, string realm, bool passUpstream) => new()
+    // The password goes into the host's own vault, and the list holds the handle the vault gives back: the real path from a document to the gate.
+    private static async Task<AccessListSpec> ListAsync(PaduraksaHost host, string label, string realm, bool passUpstream)
     {
-        Id = TestIds.AccessList(label),
-        Name = label,
-        Realm = realm,
-        PassCredentialsUpstream = passUpstream,
-        Users = [new AccessListUserSpec("alice", Hash)],
-    };
+        var credentials = host.Shared.PasswordCredentials;
+        var id = PasswordCredentialId.New();
+        await credentials.SetAsync(id, Password.AsMemory(), TestContext.Current.CancellationToken);
+        return new()
+        {
+            Id = TestIds.AccessList(label),
+            Name = label,
+            Realm = realm,
+            PassCredentialsUpstream = passUpstream,
+            Users = [new AccessListUserSpec("alice", credentials.Open(id))],
+        };
+    }
 
     private static HostSpec Guarded(string label, string name, AccessListSpec list) => new()
     {

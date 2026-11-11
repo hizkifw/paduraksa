@@ -263,6 +263,62 @@ public sealed class ConfigPagesEndToEndTests
         Assert.Empty(problems);
     }
 
+    [Fact]
+    public async Task AnAccessListWithAGeneratedPassword_IsSavedAndTheStoredPasswordIsKeptOnTheNextEdit()
+    {
+        var (playwright, browser) = await PlaywrightBrowser.LaunchOrSkipAsync();
+        using var ownedPlaywright = playwright;
+        await using var ownedBrowser = browser;
+        await using var host = await DashboardHost.StartAsync(Ct);
+        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = host.Admin.ToString(),
+            IgnoreHTTPSErrors = true,
+            ViewportSize = new ViewportSize { Width = 1280, Height = 900 },
+            ColorScheme = ColorScheme.Dark,
+        });
+        var page = await context.NewPageAsync();
+        var problems = PlaywrightBrowser.CollectProblems(page);
+        await SetUpAsync(page, host);
+
+        await OpenFromNavigationAsync(page, "Access lists");
+        await page.Locator("[data-action=add-access-list]").ClickAsync();
+        await ExpectDrawerTitleAsync(page, "New access list");
+        await FillAsync(page, "name", "Family");
+        await page.Locator(".pdk-sheet[data-top] [data-action=add-user]").ClickAsync();
+        await FillAsync(page, "username-0", "alice");
+        await page.Locator(".pdk-sheet[data-top] [data-action=generate-0]").ClickAsync();
+        await Expect(page.Locator(".pdk-sheet[data-top] input[data-field=password-0]")).Not.ToBeEmptyAsync();
+        var generated = await page.Locator(".pdk-sheet[data-top] input[data-field=password-0]").InputValueAsync();
+        Assert.Equal(20, generated.Length);
+        await ExpectInsideWindowAsync(page, page.Locator(".pdk-sheet[data-top] [data-action=generate-0]"));
+        await PlaywrightBrowser.ScreenshotAsync(page, "access-list-drawer-1280", fullPage: false);
+        await page.SetViewportSizeAsync(390, 844);
+        await page.Locator(".pdk-sheet[data-top] [data-action=generate-0]").ScrollIntoViewIfNeededAsync();
+        await ExpectInsideWindowAsync(page, page.Locator(".pdk-sheet[data-top] [data-action=generate-0]"));
+        await PlaywrightBrowser.ScreenshotAsync(page, "access-list-drawer-390", fullPage: false);
+        await page.SetViewportSizeAsync(1280, 900);
+        await ReviewAndApplyAsync(page, "access-list-review");
+
+        // Reopened, the user keeps their password: the box is empty and says so, and nothing of it is on the page.
+        await page.Locator("[data-access-list=Family]").ClickAsync();
+        await ExpectDrawerTitleAsync(page, "Family");
+        var box = page.Locator(".pdk-sheet[data-top] input[data-field=password-0]");
+        await Expect(box).ToHaveAttributeAsync("placeholder", "Unchanged");
+        Assert.Equal(string.Empty, await box.InputValueAsync());
+        Assert.DoesNotContain(generated, await page.ContentAsync(), StringComparison.Ordinal);
+
+        // Changing only the password still reviews and commits as a change to the list, and says so in words.
+        await FillAsync(page, "password-0", "A different password 123");
+        await page.Locator(".pdk-sheet[data-top] [data-action=review]").ClickAsync();
+        await Expect(page.Locator(".pdk-sheet[data-top] [data-review=apply]")).ToBeEnabledAsync(new() { Timeout = 15_000 });
+        await Expect(page.Locator(".pdk-diff-group").First).ToContainTextAsync("alice (password changed)");
+        await PlaywrightBrowser.ScreenshotAsync(page, "access-list-review-password-change", fullPage: false);
+        await page.Locator(".pdk-sheet[data-top] [data-review=apply]").ClickAsync();
+        await Expect(page.Locator(".pdk-sheet")).ToHaveCountAsync(0, new() { Timeout = 15_000 });
+        Assert.Empty(problems);
+    }
+
     private static async Task SetUpAsync(IPage page, DashboardHost host)
     {
         await page.GotoAsync("/");

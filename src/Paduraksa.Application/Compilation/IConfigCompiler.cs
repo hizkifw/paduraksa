@@ -22,6 +22,14 @@ public interface IConfigCompiler
     /// </summary>
     ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory, bool publish) =>
         Compile(document, revision, inventory);
+
+    /// <summary>
+    /// <see cref="Compile(ConfigDocument, ConfigRevisionId, CertificateInventory, bool)"/> for a command whose passwords have not
+    /// reached the vault yet (<see cref="PendingPasswords"/>): a user whose credential is in its assumed set is not reported as
+    /// having no password, and one in its overlay compiles against the prepared handle. Implementations that don't look at passwords can ignore it.
+    /// </summary>
+    ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory, bool publish, PendingPasswords pendingPasswords) =>
+        Compile(document, revision, inventory, publish);
 }
 
 /// <summary>Outcome of <see cref="IConfigCompiler.Compile(ConfigDocument, ConfigRevisionId, CertificateInventory)"/>: an unbound candidate, or every error found.</summary>

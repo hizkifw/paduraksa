@@ -35,7 +35,7 @@ public sealed class ConfigCompilerTests : IDisposable
     public void AnAdminHostWithoutTheInternalListenerWarnsAndCompilesAsUnavailable()
     {
         ConfigDocument document = new(Hosts: [new HostConfig(AppHost, ["admin.example.com"], Kind: HostKind.Admin)]);
-        ConfigCompiler compiler = new(new SnapshotCompilerOptions { AdminUpstream = false });
+        ConfigCompiler compiler = new(new SnapshotCompilerOptions { AdminUpstream = false }, new TestPasswords());
 
         var compilation = compiler.Compile(document, Revision, _certificates.InventoryFor(document));
 
@@ -50,7 +50,7 @@ public sealed class ConfigCompilerTests : IDisposable
     {
         var late = EdgeRangeList.BuiltIn.FetchedAt.AddDays(45);
         CloudflareEdgeRangeSource source = new(new Clock(late));
-        ConfigCompiler compiler = new(new SnapshotCompilerOptions { CloudflareRanges = source });
+        ConfigCompiler compiler = new(new SnapshotCompilerOptions { CloudflareRanges = source }, new TestPasswords());
         static ConfigDocument Mode(TrustedProxyMode mode) => new(
             Settings: new GlobalSettings(TrustedProxies: new TrustedProxySettings(mode, mode == TrustedProxyMode.CloudflareTunnel ? ["127.0.0.1"] : [])),
             Hosts: [new HostConfig(AppHost, ["app.example.com"], Kind: HostKind.Respond, Respond: new RespondConfig(200))]);

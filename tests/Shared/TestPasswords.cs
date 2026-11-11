@@ -54,8 +54,16 @@ internal sealed class TestPasswords : IPasswordCredentials
         return ValueTask.FromResult(new PasswordChange(ticket));
     }
 
+    /// <summary>Set to make <see cref="RevertAsync"/> fail, as a vault that can't put a password back does.</summary>
+    public Exception? RevertFailure { get; set; }
+
     public ValueTask RevertAsync(IReadOnlyList<PasswordChange> changes, CancellationToken cancellationToken)
     {
+        if (RevertFailure is { } failure)
+        {
+            throw failure;
+        }
+
         foreach (var change in changes.Reverse())
         {
             if (_undo.TryRemove(change.Ticket, out var undo))

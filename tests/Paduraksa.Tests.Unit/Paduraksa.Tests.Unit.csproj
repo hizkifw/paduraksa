@@ -15,4 +15,9 @@
     <ProjectReference Include="../../src/Paduraksa.Admin/Paduraksa.Admin.csproj" />
     <Compile Include="../Shared/TestPermissions.cs" Link="Shared/TestPermissions.cs" />
   </ItemGroup>
+  <Import Project="../Shared/TestPasswords.props" />
+  <ItemGroup>
+    <Compile Include="../Shared/TestMapping.cs" Link="Shared/TestMapping.cs" />
+    <Using Include="Paduraksa.Tests.Shared" />
+  </ItemGroup>
 </Project>

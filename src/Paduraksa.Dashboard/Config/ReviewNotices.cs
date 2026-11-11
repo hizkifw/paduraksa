@@ -154,7 +154,7 @@ public static class ReviewNotices
                 "That rate limit doesn't exist any more. Choose another one, or no limit.",
             ConfigErrorCodes.HostAccessListUnknown or ConfigErrorCodes.RouteAccessListUnknown =>
                 "That access list doesn't exist any more. Choose another one, or none.",
-            ConfigErrorCodes.AccessListPasswordEmpty => "Give this user a password.",
+            ConfigErrorCodes.AccessListPasswordEmpty or ConfigErrorCodes.AccessListPasswordMissing => "Give this user a password.",
             ConfigErrorCodes.AccessListPasswordTooLong => "That password is too long. Use at most 256 bytes.",
             ConfigErrorCodes.IdEmpty when error.Path.EndsWith("/profileId", StringComparison.Ordinal) => "Choose a profile, or no profile.",
             _ => Sentence(error.Message),

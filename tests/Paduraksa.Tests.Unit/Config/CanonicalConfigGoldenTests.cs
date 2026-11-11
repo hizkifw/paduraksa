@@ -18,7 +18,6 @@ namespace Paduraksa.Tests.Unit.Config;
 public sealed class CanonicalConfigGoldenTests
 {
     // A fixed verifier: a freshly made one has a random salt, and these bytes are pinned.
-    private const string Hash = "$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE";
 
     [Fact]
     public void ARichDocumentKeepsItsBytes()
@@ -109,12 +108,12 @@ public sealed class CanonicalConfigGoldenTests
                     Version: 2,
                     Notes: "the office network",
                     Ip: new AccessListIp(["192.168.1.7", "10.0.0.0/8"], ["10.9.0.0/16"], DropDenied: true),
-                    BasicAuth: new AccessListBasicAuth("Staff", [new AccessListUserConfig("bob", Hash), new AccessListUserConfig("alice", Hash)]),
+                    BasicAuth: new AccessListBasicAuth("Staff", [new AccessListUserConfig("bob", Id<PasswordCredentialId>(2)), new AccessListUserConfig("alice", Id<PasswordCredentialId>(1))]),
                     Satisfy: AccessListSatisfy.Any,
                     PassCredentialsUpstream: true),
             ]);
 
-        AssertPinned(document, "F78403DE8538FE6D823824E5472A351C7FADC859121E4C531F8A3318517E609B");
+        AssertPinned(document, "C4524F327DF9046F83CBFE80AFDE6BEA9E367209BC4FB3C033A5CFC48E0FD1E4");
     }
 
     [Fact]

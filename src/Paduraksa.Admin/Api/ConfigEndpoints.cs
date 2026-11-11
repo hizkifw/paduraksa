@@ -86,17 +86,16 @@ internal static class ConfigEndpoints
 
         var accessLists = api.MapGroup("/accessLists").WithTags("Access lists");
         accessLists.MapGet("/", ListAccessListsAsync).WithName("ListAccessLists").WithSummary("List access lists")
-            .WithDescription("Users carry 'passwordHash', a salted PBKDF2 verifier that cannot be replayed as a password but can be attacked offline. Every caller with config:read sees it, here and in the config document, revisions and exports, so give config:read only to roles you would trust with it.")
+            .WithDescription("Users carry 'credentialId', the vault's handle on their password. No read returns a password or a hash.")
             .Produces<IReadOnlyList<AccessListConfig>>().RequirePermission(Permission.ConfigRead);
         accessLists.MapGet("/{id:AccessListId}", GetAccessListAsync).WithName("GetAccessList").WithSummary("Get an access list")
-            .WithDescription("Users carry 'passwordHash' for every caller with config:read; see the list endpoint.")
             .Produces<AccessListConfig>().ProducesApiProblems(404).RequirePermission(Permission.ConfigRead);
         accessLists.MapPost("/", CreateAccessListAsync).WithName("CreateAccessList").WithSummary("Create an access list")
-            .WithDescription("A user's plain 'password' is hashed before the list is validated or stored, and is never returned; 'passwordHash' is what the list keeps.")
+            .WithDescription("A user's plain 'password' goes to the vault before the list is validated or stored, and is never returned; the list keeps the user's 'credentialId'.")
             .Accepts<AccessListConfig>("application/json").Produces<ConfigCommandResult>(201).ProducesApiProblems(400, 409, 415, 422).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         accessLists.MapPut("/{id:AccessListId}", ReplaceAccessListAsync).WithName("ReplaceAccessList").WithSummary("Replace an access list")
-            .WithDescription("A user sent without 'password' or 'passwordHash' keeps the hash the list has for that username.")
+            .WithDescription("A user sent without 'password' or 'credentialId' keeps the password the list has for that username. A password change commits a revision (the list is modified) that records no password.")
             .Accepts<AccessListConfig>("application/json").Produces<ConfigCommandResult>().ProducesApiProblems(400, 404, 412, 415, 422, 428).MayFailToPublish()
             .RequirePermission(Permission.ConfigWrite);
         accessLists.MapDelete("/{id:AccessListId}", DeleteAccessListAsync).WithName("DeleteAccessList").WithSummary("Delete an access list")

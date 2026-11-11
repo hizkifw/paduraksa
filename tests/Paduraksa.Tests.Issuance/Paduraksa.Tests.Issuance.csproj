@@ -28,4 +28,5 @@
     <Compile Include="../Paduraksa.Tests.Data/Commands/TestConfigServices.cs" LinkBase="Shared/Data" />
     <Compile Include="../Paduraksa.Tests.Data/Commands/CapturingLoggerFactory.cs" LinkBase="Shared/Data" />
   </ItemGroup>
+  <Import Project="../Shared/TestPasswords.props" />
 </Project>

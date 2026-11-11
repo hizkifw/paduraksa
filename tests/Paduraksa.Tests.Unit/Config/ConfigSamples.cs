@@ -19,8 +19,8 @@ internal static class ConfigSamples
     public static readonly RateLimitPolicyId OtherPolicy = Id<RateLimitPolicyId>(2);
     public static readonly AccessListId LanList = Id<AccessListId>(1);
 
-    /// <summary>One PBKDF2 hash for every sample user: making one is slow on purpose.</summary>
-    public static readonly string SampleHash = Paduraksa.Core.Security.PasswordHash.Create("sample");
+    /// <summary>The vault credential of the <paramref name="n"/>th sample user: each user of a document has their own.</summary>
+    public static PasswordCredentialId Credential(int n) => Id<PasswordCredentialId>(1000 + n);
 
     /// <summary>A small valid document: one profile, one upstream, a proxy, a redirect and a respond host.</summary>
     public static ConfigDocument Valid() => new(
@@ -90,7 +90,7 @@ internal static class ConfigSamples
                     Ip: allow.Length + deny.Length == 0 ? null : new AccessListIp(allow, deny, DropDenied: Coin()),
                     BasicAuth: Coin() ? null : new AccessListBasicAuth(
                         Coin() ? null : "Members only",
-                        [.. Enumerable.Range(0, 1 + random.Next(2)).Select(u => new AccessListUserConfig($"user{u}", SampleHash))]),
+                        [.. Enumerable.Range(0, 1 + random.Next(2)).Select(u => new AccessListUserConfig($"user{u}", NewId<PasswordCredentialId>()))]),
                     Satisfy: (AccessListSatisfy)random.Next(2),
                     PassCredentialsUpstream: Coin());
             }),

@@ -288,7 +288,7 @@ public sealed class SettingsInheritanceTests
 
         var document = Document(defaults, profile, host);
         Assert.Empty(ConfigValidator.Validate(document));
-        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
         Assert.Empty(mapped.Errors);
         var compiled = Assert.Single(mapped.Model.Hosts);
         Assert.True(SnapshotCompiler.Compile(mapped.Model).Succeeded);
@@ -406,7 +406,7 @@ public sealed class SettingsInheritanceTests
 
         Assert.Empty(ConfigValidator.Validate(document));
 
-        var mapped = ProxyConfigMapping.Map(document, Revision, CertificateInventory.Empty);
+        var mapped = TestMapping.Map(document, Revision, CertificateInventory.Empty);
         Assert.Empty(mapped.Errors);
         var compiled = Assert.Single(mapped.Model.Hosts);
 

@@ -1,15 +1,14 @@
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Security;
 
 using static Paduraksa.Application.Config.ConfigErrorCodes;
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 namespace Paduraksa.Tests.Unit.Config;
 
-/// <summary>An access list's own rules (addresses, realm, users and their hashes) and the references to it. A document that
-/// validates can always be compiled: the addresses parse, every hash is one the gate reads, and no password is in it.</summary>
+/// <summary>An access list's own rules (addresses, realm, users and their credentials) and the references to it. A document that
+/// validates can always be compiled: the addresses parse, every user names a credential of their own, and no password is in it.</summary>
 public sealed class AccessListValidationTests
 {
     private const string Proxy = "/hosts/0";
@@ -27,7 +26,7 @@ public sealed class AccessListValidationTests
                     LanList,
                     "lan",
                     Ip: new AccessListIp(["10.0.0.0/8", "2001:db8::/32"], ["10.9.0.0/16"], DropDenied: true),
-                    BasicAuth: new AccessListBasicAuth("Staff area", [new AccessListUserConfig("alice", SampleHash), new AccessListUserConfig("Alice", SampleHash)]),
+                    BasicAuth: new AccessListBasicAuth("Staff area", [new AccessListUserConfig("alice", Credential(1)), new AccessListUserConfig("Alice", Credential(2))]),
                     Satisfy: AccessListSatisfy.Any),
             ],
         }));
@@ -37,7 +36,7 @@ public sealed class AccessListValidationTests
     public void AnEmptyListIsValidAndSoIsOneWithOnlyUsers()
     {
         Assert.Empty(ConfigValidator.Validate(Valid() with { AccessLists = [new AccessListConfig(LanList, "empty")] }));
-        Assert.Empty(ConfigValidator.Validate(Valid() with { AccessLists = [new AccessListConfig(LanList, "passwords", BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", SampleHash)]))] }));
+        Assert.Empty(ConfigValidator.Validate(Valid() with { AccessLists = [new AccessListConfig(LanList, "passwords", BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", Credential(3))]))] }));
     }
 
     [Fact]
@@ -102,54 +101,65 @@ public sealed class AccessListValidationTests
     [InlineData("café")]
     public void AUsernameIsVisibleAsciiWithoutAColon(string username) =>
         AssertErrors(
-            WithUsers(new AccessListUserConfig(username, SampleHash)),
+            WithUsers(new AccessListUserConfig(username, Credential(4))),
             ($"{ListPath}/basicAuth/users/0/username", AccessListUsernameInvalid));
 
     [Fact]
     public void AUsernameIsAtMostSixtyFourCharacters()
     {
         AssertErrors(
-            WithUsers(new AccessListUserConfig(new string('u', AccessListLimits.MaxUsernameLength + 1), SampleHash)),
+            WithUsers(new AccessListUserConfig(new string('u', AccessListLimits.MaxUsernameLength + 1), Credential(5))),
             ($"{ListPath}/basicAuth/users/0/username", AccessListUsernameInvalid));
-        Assert.Empty(ConfigValidator.Validate(WithUsers(new AccessListUserConfig(new string('u', AccessListLimits.MaxUsernameLength), SampleHash))));
+        Assert.Empty(ConfigValidator.Validate(WithUsers(new AccessListUserConfig(new string('u', AccessListLimits.MaxUsernameLength), Credential(6)))));
     }
 
     [Fact]
     public void UsernamesAreCaseSensitiveAndUniqueWithinTheList()
     {
-        Assert.Empty(ConfigValidator.Validate(WithUsers(new AccessListUserConfig("alice", SampleHash), new AccessListUserConfig("ALICE", SampleHash))));
+        Assert.Empty(ConfigValidator.Validate(WithUsers(new AccessListUserConfig("alice", Credential(7)), new AccessListUserConfig("ALICE", Credential(8)))));
         AssertErrors(
-            WithUsers(new AccessListUserConfig("alice", SampleHash), new AccessListUserConfig("bob", SampleHash), new AccessListUserConfig("alice", SampleHash)),
+            WithUsers(new AccessListUserConfig("alice", Credential(9)), new AccessListUserConfig("bob", Credential(10)), new AccessListUserConfig("alice", Credential(11))),
             ($"{ListPath}/basicAuth/users/2/username", AccessListUsernameDuplicate));
     }
 
     [Fact]
     public void AListHasABoundedNumberOfUsers()
     {
-        var users = Enumerable.Range(0, AccessListLimits.MaxUsers + 1).Select(i => new AccessListUserConfig($"user{i}", SampleHash)).ToArray();
+        var users = Enumerable.Range(0, AccessListLimits.MaxUsers + 1).Select(i => new AccessListUserConfig($"user{i}", Credential(i))).ToArray();
 
         AssertErrors(WithUsers(users), ($"{ListPath}/basicAuth/users", AccessListUsersTooMany));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("plain text")]
-    [InlineData("$2y$10$abcdefghijklmnopqrstuvabcdefghijklmnopqrstuvwxyz01234")]
-    [InlineData("$pbkdf2-sha256$i=1000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE")]
-    public void AUserNeedsAHashThisBuildReads(string? hash) =>
+    [Fact]
+    public void AUserNeedsAPasswordOrTheCredentialOfOne() =>
         AssertErrors(
-            WithUsers(new AccessListUserConfig("alice", hash)),
-            ($"{ListPath}/basicAuth/users/0/passwordHash", AccessListPasswordHashInvalid));
+            WithUsers(new AccessListUserConfig("alice"), new AccessListUserConfig("bob", PasswordCredentialId.Empty)),
+            ($"{ListPath}/basicAuth/users/0/password", AccessListPasswordMissing),
+            ($"{ListPath}/basicAuth/users/1/password", AccessListPasswordMissing));
+
+    [Fact]
+    public void EveryUserHasACredentialOfTheirOwnAcrossTheWholeDocument()
+    {
+        var shared = Credential(900);
+        AssertErrors(
+            WithUsers(new AccessListUserConfig("alice", shared), new AccessListUserConfig("bob", shared)),
+            ($"{ListPath}/basicAuth/users/1/credentialId", AccessListCredentialDuplicate));
+
+        AccessListConfig other = new(Id<AccessListId>(2), "other", BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", shared)]));
+        var document = WithUsers(new AccessListUserConfig("alice", shared));
+        AssertErrors(
+            document with { AccessLists = [.. document.AccessLists, other] },
+            ("/accessLists/1/basicAuth/users/0/credentialId", AccessListCredentialDuplicate));
+    }
 
     [Fact]
     public void APasswordThatReachesTheValidatorIsNeverAccepted()
     {
-        // The server hashes a password before anything is validated, so one that is still here is empty, too long, or a
-        // write path that skipped the hashing: none of them may be stored.
+        // The server hands a password to the vault before anything is validated, so one that is still here is empty, too long, or a
+        // write path that skipped the vault: none of them may be stored.
         AssertErrors(WithUsers(new AccessListUserConfig("alice", null, "")), ($"{ListPath}/basicAuth/users/0/password", AccessListPasswordEmpty));
-        AssertErrors(WithUsers(new AccessListUserConfig("alice", null, new string('p', PasswordHash.MaxPasswordBytes + 1))), ($"{ListPath}/basicAuth/users/0/password", AccessListPasswordTooLong));
-        AssertErrors(WithUsers(new AccessListUserConfig("alice", SampleHash, "secret")), ($"{ListPath}/basicAuth/users/0/password", AccessListPasswordUnhashed));
+        AssertErrors(WithUsers(new AccessListUserConfig("alice", null, new string('p', AccessListLimits.MaxPasswordBytes + 1))), ($"{ListPath}/basicAuth/users/0/password", AccessListPasswordTooLong));
+        AssertErrors(WithUsers(new AccessListUserConfig("alice", Credential(13), "secret")), ($"{ListPath}/basicAuth/users/0/password", AccessListPasswordUnhashed));
     }
 
     [Fact]
@@ -157,7 +167,7 @@ public sealed class AccessListValidationTests
     {
         // 129 two-byte characters are 258 bytes.
         AssertErrors(
-            WithUsers(new AccessListUserConfig("alice", null, new string('é', PasswordHash.MaxPasswordBytes / 2 + 1))),
+            WithUsers(new AccessListUserConfig("alice", null, new string('é', AccessListLimits.MaxPasswordBytes / 2 + 1))),
             ($"{ListPath}/basicAuth/users/0/password", AccessListPasswordTooLong));
     }
 

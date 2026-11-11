@@ -25,7 +25,7 @@ public static class ConfigServiceCollectionExtensions
     /// <see cref="CertificateService"/>, the <see cref="RequestSimulator"/> and the read-only <see cref="RevisionQueryService"/>
     /// and <see cref="AuditQueryService"/>. Needs the config database's context factory, an <see cref="IConfigCompiler"/>, the
     /// <see cref="SnapshotPublisher"/>, the <see cref="IPermissionEvaluator"/> (<c>AddPaduraksaIdentity</c>), the log factory, a
-    /// <see cref="LastKnownGoodFile"/>, the vault's <see cref="IServerCertificateSource"/> and <see cref="ICertificateCatalog"/>, the
+    /// <see cref="LastKnownGoodFile"/>, the vault's <see cref="IServerCertificateSource"/>, <see cref="ICertificateCatalog"/> and <see cref="IPasswordCredentials"/>, the
     /// proxy's <see cref="IUpstreamHealth"/>, <see cref="AcmeChallengeStore"/>, <see cref="ListenerFacts"/> and
     /// <see cref="ProofOfWorkRuntime"/>. <see cref="IBuiltInCertificates"/> is used when registered; <see cref="TimeProvider.System"/> and
     /// default <see cref="ConfigServiceOptions"/> unless registered.</summary>
@@ -45,7 +45,8 @@ public static class ConfigServiceCollectionExtensions
             sp.GetRequiredService<LastKnownGoodFile>(),
             sp.GetRequiredService<IServerCertificateSource>(),
             sp.GetService<IBuiltInCertificates>(),
-            sp.GetRequiredService<ICertificateCatalog>()));
+            sp.GetRequiredService<ICertificateCatalog>(),
+            sp.GetRequiredService<IPasswordCredentials>()));
         services.TryAddSingleton(sp => new CertificateService(
             sp.GetRequiredService<IDbContextFactory<ConfigDbContext>>(),
             sp.GetRequiredService<ConfigService>(),

@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
 using Paduraksa.Core.Ids;
+using Paduraksa.Core.Model;
 using Paduraksa.Core.Vault;
 using Paduraksa.Tests.Architecture.Fixtures;
 using static Paduraksa.Tests.Architecture.SolutionLayers;
@@ -129,7 +130,7 @@ public sealed class VaultContractTests
             Assert.False(type.IsVisible, $"{name} must be internal to the vault");
         }
 
-        foreach (var layer in Enum.GetValues<Layer>().Where(l => l != Layer.Vault))
+        foreach (var layer in SolutionLayers.All.Where(l => l != Layer.Vault))
         {
             Assert.DoesNotContain(LoadAssembly(layer).GetTypes(), t => names.Contains(t.Name));
         }

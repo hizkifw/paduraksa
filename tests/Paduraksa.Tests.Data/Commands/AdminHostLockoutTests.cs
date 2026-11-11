@@ -339,7 +339,7 @@ public sealed class AdminHostLockoutTests : IAsyncLifetime
 
         public ConfigCompilation Compile(ConfigDocument document, ConfigRevisionId revision, CertificateInventory inventory)
         {
-            var mapped = ProxyConfigMapping.Map(document, revision, inventory);
+            var mapped = TestMapping.Map(document, revision, inventory);
             var model = _omitCertificate
                 ? mapped.Model
                 : mapped.Model with { Defaults = mapped.Model.Defaults with { Certificate = _certificateId } };

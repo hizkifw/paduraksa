@@ -11,6 +11,7 @@ using Paduraksa.Application.Revisions;
 using Paduraksa.Contracts.Commands;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
+using Paduraksa.Core.Vault;
 using Paduraksa.Data;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Yarp;
@@ -36,12 +37,14 @@ internal sealed partial class ConfigPipeline
     private readonly ConfigAudit _audit;
     private readonly ConfigPublishing _publishing;
     private readonly ConfigChangeFeed _changes;
+    private readonly IPasswordCredentials _passwords;
     private readonly ILogger _logger;
 
     public ConfigPipeline(
         IDbContextFactory<ConfigDbContext> contexts, IConfigCompiler compiler, CertificateInventoryLoader certificates,
         CertificateInventoryLoader simulationCertificates, SnapshotPublisher publisher, IPermissionEvaluator permissions,
-        ConfigRevisionStore revisions, ConfigAudit audit, ConfigPublishing publishing, ConfigChangeFeed changes, ILoggerFactory loggerFactory)
+        ConfigRevisionStore revisions, ConfigAudit audit, ConfigPublishing publishing, ConfigChangeFeed changes, IPasswordCredentials passwords,
+        ILoggerFactory loggerFactory)
     {
         _contexts = contexts;
         _compiler = compiler;
@@ -53,6 +56,7 @@ internal sealed partial class ConfigPipeline
         _audit = audit;
         _publishing = publishing;
         _changes = changes;
+        _passwords = passwords;
         _logger = loggerFactory.CreateLogger<ConfigPipeline>();
     }
 
@@ -88,11 +92,13 @@ internal sealed partial class ConfigPipeline
         var context = await _contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         await using (context.ConfigureAwait(false))
         {
-            var (latest, current) = await ConfigHead.LoadAsync(context, cancellationToken).ConfigureAwait(false);
+            var (latest, current, headLegacy) = await ConfigHead.LoadForCommandAsync(context, cancellationToken).ConfigureAwait(false);
             var head = latest is null ? null : ConfigHead.Ref(latest.Info);
 
-            // Before anything validates, stores or audits: a plain password becomes a hash and is forgotten.
-            command = AccessListPasswords.Prepare(command, current);
+            // Before anything validates, stores or audits: a plain password leaves the command (the vault gets it once the command
+            // is certain) and the document keeps the ID of its credential.
+            var prepared = AccessListPasswords.Prepare(command, current);
+            command = prepared.Command;
             var plan = command switch
             {
                 UpsertHostCommand c => Upsert(head, Required(c.Host), "hosts", current.Hosts, h => h.Id.ToString(),
@@ -123,7 +129,11 @@ internal sealed partial class ConfigPipeline
                 _ => throw new ArgumentException($"Unknown command {command.GetType().Name}.", nameof(command)),
             };
 
-            var changes = plan.Arranged is null ? [] : ConfigDiff.Compare(current, plan.Arranged);
+            var changes = plan.Arranged is null
+                ? []
+                : AccessListPasswords.WithPasswordChanges(ConfigDiff.Compare(current, plan.Arranged), plan.Arranged, prepared);
+            IReadOnlyList<LegacyCredential> legacy = [.. headLegacy, .. plan.Legacy];
+            var commits = !command.DryRun && !simulation;
             if (plan.Early is { } early)
             {
                 return await RejectAsync(command, origin, audited, early with { Changes = changes }, plan.EarlyOutcome)
@@ -152,7 +162,12 @@ internal sealed partial class ConfigPipeline
             var revisionId = command.DryRun ? ConfigRevisionId.Empty : _revisions.NextId();
             var inventory = await (simulation ? _simulationCertificates : _certificates)
                 .LoadAsync(context, candidate, cancellationToken).ConfigureAwait(false);
-            var compilation = _compiler.Compile(candidate, revisionId, inventory, publish: !command.DryRun && !simulation);
+            // What the compile may assume about passwords the vault doesn't hold: for a command that will commit, that they are about to be set;
+            // for one that won't, handles that carry them for this compile alone, so a draft's passwords can be tried and nothing is stored.
+            var pending = commits
+                ? new PendingPasswords(new HashSet<PasswordCredentialId>(prepared.Ids.Concat(legacy.Select(static c => c.Id))), PendingPasswords.None.Overlay)
+                : await AccessListPasswords.OverlayAsync(_passwords, prepared.Passwords, legacy, cancellationToken).ConfigureAwait(false);
+            var compilation = _compiler.Compile(candidate, revisionId, inventory, commits, pending);
             if (compilation.Snapshot is not { } snapshot)
             {
                 var compileErrors = compilation.Errors.Count > 0
@@ -197,9 +212,69 @@ internal sealed partial class ConfigPipeline
                         Warnings: compilation.Warnings), Candidate: snapshot);
             }
 
-            return await CommitAsync(context, origin, audited, candidate, changes, revisionId, compilation,
-                    message ?? plan.DefaultMessage, version, cancellationToken)
-                .ConfigureAwait(false);
+            // Past every check: the passwords the command carries (and the verifiers of a restored document) reach the vault now,
+            // so the snapshot that publishes finds them. The vault is not part of the commit's transaction, so a failed commit
+            // takes the passwords back (the previous rows exactly), and says so in the audit log if even that fails.
+            var passwordChanges = await AccessListPasswords.SetAsync(_passwords, prepared.Passwords, cancellationToken).ConfigureAwait(false);
+            Execution execution;
+            try
+            {
+                await AccessListPasswords.ImportAsync(_passwords, legacy, cancellationToken).ConfigureAwait(false);
+                execution = await CommitAsync(context, origin, audited, candidate, changes, revisionId, compilation,
+                        message ?? plan.DefaultMessage, version, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                await TakePasswordsBackAsync(origin, candidate, prepared, passwordChanges).ConfigureAwait(false);
+                throw;
+            }
+
+            _passwords.Keep(passwordChanges);
+            await AccessListPasswords.DeleteUnreferencedAsync(_passwords, current, candidate, _logger, cancellationToken).ConfigureAwait(false);
+            return execution;
+        }
+    }
+
+    // Restores what the command's SetAsync calls replaced. A restore that fails is logged at Error and audited by itself, naming the
+    // lists and users whose password may be in an unknown state and never the passwords, because the commit's own audit event
+    // was never written.
+    private async Task TakePasswordsBackAsync(
+        CommandOrigin origin, ConfigDocument candidate, AccessListPasswords.Prepared prepared, IReadOnlyList<PasswordChange> passwordChanges)
+    {
+        if (passwordChanges.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await _passwords.RevertAsync(passwordChanges, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var users = AccessListPasswords.UsersOf(candidate, prepared);
+            LogPasswordRestoreFailed(ex, string.Join(", ", users.Select(static u => $"{u.Username} on {u.List}")));
+            AuditEntry entry = new(origin.Actor, origin.Channel, "config.access_list.password.restore_failed", AuditOutcome.Failed)
+            {
+                Target = users.Count > 0 ? users[0].List.ToString() : null,
+                ClientIp = origin.ClientIp,
+                ViaAdminProxy = origin.ViaAdminProxy,
+                Details = AuditDetails.Json(w =>
+                {
+                    w.WriteStartArray("users");
+                    foreach (var (list, username) in users)
+                    {
+                        w.WriteStartObject();
+                        w.WriteString("list", list.ToString());
+                        w.WriteString("username", username);
+                        w.WriteEndObject();
+                    }
+
+                    w.WriteEndArray();
+                }),
+            };
+            await _audit.TryAppendAsync(entry).ConfigureAwait(false);
         }
     }
 
@@ -329,6 +404,10 @@ internal sealed partial class ConfigPipeline
                 ConfigCommandStatus.Invalid,
                 Errors: compilation.Errors.Count > 0 ? compilation.Errors : [new ConfigError(string.Empty, ConfigErrorCodes.CompileFailed, "the config didn't compile")]));
     }
+
+    [LoggerMessage(Level = LogLevel.Error,
+        Message = "A config commit failed after its passwords were set, and putting them back failed too, so these users' passwords may not be what they were: {Users}.")]
+    private partial void LogPasswordRestoreFailed(Exception exception, string users);
 
     [LoggerMessage(Level = LogLevel.Information,
         Message =

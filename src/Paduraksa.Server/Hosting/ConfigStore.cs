@@ -57,7 +57,7 @@ internal static class ConfigStore
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
 
-        var compiler = builder.Add<IConfigCompiler>(new ConfigCompiler(listeners.CompilerOptions));
+        var compiler = builder.Add<IConfigCompiler>(new ConfigCompiler(listeners.CompilerOptions, vault.PasswordCredentials));
 
         // The public app attaches YARP's live health when it starts (PublicApp); until then every destination is unknown.
         var health = builder.Add(new DeferredUpstreamHealth());
@@ -75,6 +75,7 @@ internal static class ConfigStore
             .AddSingleton(vault.Import)
             .AddSingleton(vault.Catalog)
             .AddSingleton(vault.Totp)
+            .AddSingleton(vault.PasswordCredentials)
             .AddPaduraksaIdentity(dataDirectory, admin.ToIdentityOptions())
             .AddSingleton<IUpstreamHealth>(health)
             .AddSingleton(new ListenerFacts(listeners.HttpProxyProtocol, listeners.HttpsProxyProtocol, listeners.Http3))

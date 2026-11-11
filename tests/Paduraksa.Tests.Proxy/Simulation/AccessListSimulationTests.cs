@@ -219,6 +219,21 @@ public sealed class AccessListSimulationTests
         Assert.Equal("refused", Fact(refused, "address"));
     }
 
+    [Fact]
+    public void AUserWithoutAPasswordInTheVaultIsSaidSoAndCachesNothing()
+    {
+        var runtime = AccessListFixtures.NewRuntime();
+        var list = List("office", Allow, Deny) with { Users = [new AccessListUserSpec("alice", Paduraksa.Tests.Shared.TestPasswords.Credential(null))] };
+        GateFor(runtime, AccessListFixtures.Model(list), out var snapshot);
+
+        var step = AccessListStep(GateSimulator.Run(snapshot, Probe(Inside, Header("good"))));
+
+        Assert.Equal("noPassword", Fact(step, "credentials"));
+        Assert.Contains("no password in the vault", step.Summary, StringComparison.Ordinal);
+        Assert.DoesNotContain(Password, step.Summary, StringComparison.Ordinal);
+        Assert.Equal(0, AccessListFixtures.Cached(runtime));
+    }
+
     private static Paduraksa.Core.Model.HostId TestIds_Host() => Paduraksa.Tests.Shared.TestIds.Host("acl.test");
 
     private static (RuntimeSnapshot Snapshot, GateMiddleware Gate) Build(AccessListSatisfy satisfy, out AccessListRuntime runtime)

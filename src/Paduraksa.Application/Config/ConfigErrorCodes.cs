@@ -28,7 +28,8 @@ public static class ConfigErrorCodes
     public const string AccessListUsersTooMany = "accessList.users.tooMany";
     public const string AccessListUsernameInvalid = "accessList.user.username.invalid";
     public const string AccessListUsernameDuplicate = "accessList.user.username.duplicate";
-    public const string AccessListPasswordHashInvalid = "accessList.user.passwordHash.invalid";
+    public const string AccessListPasswordMissing = "accessList.user.password.missing";
+    public const string AccessListCredentialDuplicate = "accessList.user.credentialId.duplicate";
     public const string AccessListPasswordEmpty = "accessList.user.password.empty";
     public const string AccessListPasswordTooLong = "accessList.user.password.tooLong";
     public const string AccessListPasswordUnhashed = "accessList.user.password.unhashed";

@@ -8,4 +8,5 @@
     <PackageReference Include="bunit" />
     <PackageReference Include="Microsoft.Playwright" />
   </ItemGroup>
+  <Import Project="../Shared/TestPasswords.props" />
 </Project>

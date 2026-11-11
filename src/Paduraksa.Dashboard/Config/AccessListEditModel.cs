@@ -7,8 +7,8 @@ namespace Paduraksa.Dashboard.Config;
 
 /// <summary>
 /// An access list as its form edits it: the addresses as one box each, and the users as rows with a password box. A password
-/// typed (or generated) is sent as the user's <see cref="AccessListUserConfig.Password"/> and hashed by the server; a user
-/// whose box stays empty keeps the stored hash, so an edit never asks for every password again. A new list gets a fresh typed
+/// typed (or generated) is sent as the user's <see cref="AccessListUserConfig.Password"/> and goes to the vault; a user
+/// whose box stays empty keeps the credential the list names, so an edit never asks for every password again. A new list gets a fresh typed
 /// ID, and the version the form opened with makes a concurrent edit a conflict.
 /// </summary>
 public sealed class AccessListEditModel
@@ -30,7 +30,7 @@ public sealed class AccessListEditModel
         PassCredentialsUpstream = source?.PassCredentialsUpstream ?? false;
         foreach (var user in source?.BasicAuth?.Users ?? [])
         {
-            Users.Add(new AccessListUserEntry { Username = user.Username, StoredHash = user.PasswordHash, Password = user.Password });
+            Users.Add(new AccessListUserEntry { Username = user.Username, StoredCredential = user.CredentialId, Password = user.Password });
         }
     }
 
@@ -106,8 +106,12 @@ public sealed class AccessListUserEntry
 {
     public string Username { get; set; } = string.Empty;
 
-    /// <summary>The hash the list already keeps for this user; null for a user added in this form.</summary>
-    public string? StoredHash { get; init; }
+    /// <summary>The vault credential the list already names for this user; null for a user added in this form.</summary>
+    public PasswordCredentialId? StoredCredential { get; init; }
+
+    /// <summary>The vault holds no password for the stored credential (a rollback brought the user back after it was deleted), so
+    /// the user can't sign in until one is set. Filled from the live warnings when the form opens.</summary>
+    public bool LacksPassword { get; set; }
 
     /// <summary>A password typed or generated here, sent once and never read back.</summary>
     public string? Password { get; set; }
@@ -116,12 +120,12 @@ public sealed class AccessListUserEntry
     public bool Revealed { get; set; }
 
     /// <summary>The user has a password the box doesn't show: a stored one, or one just typed.</summary>
-    public bool HasPassword => !string.IsNullOrEmpty(Password) || StoredHash is not null;
+    public bool HasPassword => !string.IsNullOrEmpty(Password) || (StoredCredential is not null && !LacksPassword);
 
-    /// <summary>A typed password wins; otherwise the stored hash stays. A new user with neither sends an empty password, which the validator refuses.</summary>
+    /// <summary>A typed password wins; otherwise the stored credential stays. A new user with neither sends an empty password, which the validator refuses.</summary>
     public AccessListUserConfig ToConfig() => !string.IsNullOrEmpty(Password)
-        ? new AccessListUserConfig(Username, null, Password)
-        : StoredHash is { } hash ? new AccessListUserConfig(Username, hash) : new AccessListUserConfig(Username, null, string.Empty);
+        ? new AccessListUserConfig(Username, StoredCredential, Password)
+        : StoredCredential is { } credential ? new AccessListUserConfig(Username, credential) : new AccessListUserConfig(Username, null, string.Empty);
 
     /// <summary>A random password for the "Generate" button: 20 characters from letters and digits, about 115 bits.</summary>
     public static string Generate()

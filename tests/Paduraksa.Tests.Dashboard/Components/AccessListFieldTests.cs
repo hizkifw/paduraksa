@@ -15,7 +15,7 @@ namespace Paduraksa.Tests.Dashboard.Components;
 public sealed class AccessListFieldTests
 {
     private static readonly AccessListConfig Office = new(
-        AccessListId.New(), "Office", Ip: new AccessListIp(["10.0.0.0/8"]), BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", "$pbkdf2-sha256$i=210000$c2FsdHNhbHRzYWx0c2FsdA$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE")]));
+        AccessListId.New(), "Office", Ip: new AccessListIp(["10.0.0.0/8"]), BasicAuth: new AccessListBasicAuth(Users: [new AccessListUserConfig("alice", PasswordCredentialId.New())]));
 
     private static readonly AccessListConfig Guests = new(AccessListId.New(), "Guests", Ip: new AccessListIp(["203.0.113.0/24"]));
 

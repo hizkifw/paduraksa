@@ -5,7 +5,6 @@ using Paduraksa.Application.Compilation;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Ids;
 using Paduraksa.Core.Model;
-using Paduraksa.Core.Security;
 using Paduraksa.Core.Text;
 using Paduraksa.Proxy.RateLimiting;
 using static Paduraksa.Application.Config.ConfigErrorCodes;
@@ -69,6 +68,7 @@ public static class ConfigValidator
         // Typed IDs by their string form: prefixes keep the types apart, and the comparison ignores case.
         private readonly Dictionary<string, string> _ids = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, string> _enabledHostNames = new(StringComparer.Ordinal);
+        private readonly HashSet<PasswordCredentialId> _credentialIds = [];
         private string? _adminHostPath;
 
         public List<ConfigError> Errors { get; } = [];
@@ -1009,26 +1009,30 @@ public static class ConfigValidator
                 Add($"{path}/username", AccessListUsernameDuplicate, $"the username '{name}' is listed twice (usernames are case-sensitive)");
             }
 
-            // The server hashes a password before it validates anything, so a password still here is empty, too long, or a
-            // write path that skipped the hashing: never stored either way.
+            // The server hands a password to the vault before it validates anything and leaves the credential's ID in its place, so a
+            // password still here is empty, too long, or a write path that skipped the vault: never stored either way.
             if (user.Password is { } password)
             {
                 if (password.Length == 0)
                 {
                     Add($"{path}/password", AccessListPasswordEmpty, "a password can't be empty");
                 }
-                else if (Encoding.UTF8.GetByteCount(password) > PasswordHash.MaxPasswordBytes)
+                else if (Encoding.UTF8.GetByteCount(password) > AccessListLimits.MaxPasswordBytes)
                 {
-                    Add($"{path}/password", AccessListPasswordTooLong, $"a password can be at most {PasswordHash.MaxPasswordBytes} bytes");
+                    Add($"{path}/password", AccessListPasswordTooLong, $"a password can be at most {AccessListLimits.MaxPasswordBytes} bytes");
                 }
                 else
                 {
-                    Add($"{path}/password", AccessListPasswordUnhashed, "a password must be hashed before it is validated");
+                    Add($"{path}/password", AccessListPasswordUnhashed, "a password must be handed to the vault before it is validated");
                 }
             }
-            else if (!PasswordHash.IsValid(user.PasswordHash))
+            else if (user.CredentialId is not { IsEmpty: false } credential)
             {
-                Add($"{path}/passwordHash", AccessListPasswordHashInvalid, "the user needs a password, or a password hash this build reads ($pbkdf2-sha256$...)");
+                Add($"{path}/password", AccessListPasswordMissing, "the user needs a password");
+            }
+            else if (!_credentialIds.Add(credential))
+            {
+                Add($"{path}/credentialId", AccessListCredentialDuplicate, "another user already has this password credential; each user has their own");
             }
         }
 
