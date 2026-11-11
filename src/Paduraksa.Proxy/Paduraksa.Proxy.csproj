@@ -15,5 +15,6 @@
     <InternalsVisibleTo Include="Paduraksa.Tests.Unit" />
     <InternalsVisibleTo Include="Paduraksa.Tests.Dashboard" />
     <InternalsVisibleTo Include="Paduraksa.Benchmarks" />
+    <InternalsVisibleTo Include="Paduraksa.Fuzz.Targets" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../fuzz/Paduraksa.Fuzz.Targets/Paduraksa.Fuzz.Targets.csproj" />
+  </ItemGroup>
+</Project>

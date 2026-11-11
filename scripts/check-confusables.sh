@@ -24,7 +24,7 @@ class="${class}"'\x{2032}\x{2033}\x{205F}\x{2060}\x{2066}-\x{2069}\x{2212}\x{300
 class="${class}"'\x{FE58}\x{FE63}\x{FF01}-\x{FF5E}]'
 
 status=0
-matches=$(git grep -n -P "$class" --) || status=$?
+matches=$(git grep -I -n -P "$class" --) || status=$?
 
 case $status in
     0)

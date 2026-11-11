@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- The libFuzzer driver and the corpus replay: the targets themselves are in Paduraksa.Fuzz.Targets. -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpFuzz" />
+    <ProjectReference Include="../Paduraksa.Fuzz.Targets/Paduraksa.Fuzz.Targets.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,114 @@
+name: Fuzz
+
+# Coverage-guided fuzzing of the byte-level parsers (fuzz/, docs/PLAN.md section 15) and a deeper run of the property tests. Time-boxed and slow on
+# purpose, so it never runs on a push or a pull request: by hand, and every night. A crash is uploaded as an artifact; to keep it, put the file in
+# fuzz/regressions/<target>/, fix the bug and add a unit test beside the code.
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds of fuzzing per target
+        default: "600"
+      target:
+        description: One target (scripts/fuzz.sh --list shows them); empty runs every one
+        default: ""
+      property_scale:
+        description: Multiplier of the property tests' case counts (PADURAKSA_PROPERTY_SCALE)
+        default: "50"
+  schedule:
+    - cron: "17 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+  # A nightly run: 15 minutes a target (seven targets), and the same cases times 50.
+  FUZZ_SECONDS: ${{ github.event.inputs.seconds || '900' }}
+  FUZZ_TARGET: ${{ github.event.inputs.target }}
+  PROPERTY_SCALE: ${{ github.event.inputs.property_scale || '50' }}
+
+jobs:
+  fuzz:
+    name: Fuzz the parsers
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up .NET (from global.json)
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Fuzz
+        run: |
+          args=(--time "$FUZZ_SECONDS")
+          if [[ -n "$FUZZ_TARGET" ]]; then args+=(--target "$FUZZ_TARGET"); fi
+          scripts/fuzz.sh "${args[@]}"
+
+      # A crash is a file named crash-*, timeout-*, oom-* or leak-*; the logs say what each run covered.
+      - name: Upload crash inputs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-crashes
+          path: artifacts/fuzz/crashes
+          if-no-files-found: ignore
+
+      - name: Upload run logs and the grown corpus
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-logs-and-corpus
+          path: |
+            artifacts/fuzz/*.log
+            artifacts/fuzz/work
+          if-no-files-found: ignore
+
+  properties:
+    name: Property tests, deeper
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up .NET (from global.json)
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Build
+        run: dotnet build -c Release
+
+      # A seed of the day, so every night draws cases nobody has seen; a failure prints the seed that reproduces it
+      # (PADURAKSA_PROPERTY_SEED=<run id> PADURAKSA_PROPERTY_SCALE=<scale>), and CsCheck's own seed for the shrunk case.
+      - name: Property tests
+        env:
+          PADURAKSA_PROPERTY_SCALE: ${{ env.PROPERTY_SCALE }}
+          PADURAKSA_PROPERTY_SEED: ${{ github.run_id }}
+        run: |
+          echo "PADURAKSA_PROPERTY_SEED=$PADURAKSA_PROPERTY_SEED PADURAKSA_PROPERTY_SCALE=$PADURAKSA_PROPERTY_SCALE"
+          dotnet test --no-build -c Release --project tests/Paduraksa.Tests.Proxy --filter-class "*PropertyTests" --filter-class "*SimulatorParityTests"
+          dotnet test --no-build -c Release --project tests/Paduraksa.Tests.Unit --filter-class "*PropertyTests" --filter-class "*SimulatedBehaviourTests"

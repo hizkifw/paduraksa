@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/Paduraksa.Core/Paduraksa.Core.csproj" />
+    <ProjectReference Include="../../src/Paduraksa.Proxy/Paduraksa.Proxy.csproj" />
+  </ItemGroup>
+</Project>

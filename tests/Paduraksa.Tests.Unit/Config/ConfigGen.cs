@@ -267,9 +267,9 @@ internal static class ConfigGen
                     Gen.Int[0, 50],
                     static (mode, id, broken) => mode switch
                 {
-                        CertificateBindingMode.Specific => new CertificateBinding { Mode = mode, CertificateId = broken == 0 ? null : id ?? ConfigSamples.Id<CertificateId>(100) },
-                        _ => new CertificateBinding { Mode = mode },
-                    })),
+                    CertificateBindingMode.Specific => new CertificateBinding { Mode = mode, CertificateId = broken == 0 ? null : id ?? ConfigSamples.Id<CertificateId>(100) },
+                    _ => new CertificateBinding { Mode = mode },
+                })),
             Gen.Select(
                 HostSettingsGen(n, route: false),
                 Routes(n),

@@ -4,6 +4,10 @@
     <Project Path="bench/Paduraksa.Bench.Yarp/Paduraksa.Bench.Yarp.csproj" />
     <Project Path="bench/Paduraksa.Benchmarks/Paduraksa.Benchmarks.csproj" />
   </Folder>
+  <Folder Name="/fuzz/">
+    <Project Path="fuzz/Paduraksa.Fuzz.Targets/Paduraksa.Fuzz.Targets.csproj" />
+    <Project Path="fuzz/Paduraksa.Fuzz/Paduraksa.Fuzz.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Paduraksa.Acme/Paduraksa.Acme.csproj" />
     <Project Path="src/Paduraksa.Admin/Paduraksa.Admin.csproj" />
@@ -22,6 +26,7 @@
     <Project Path="tests/Paduraksa.Tests.Acme/Paduraksa.Tests.Acme.csproj" />
     <Project Path="tests/Paduraksa.Tests.Architecture/Paduraksa.Tests.Architecture.csproj" />
     <Project Path="tests/Paduraksa.Tests.Dashboard/Paduraksa.Tests.Dashboard.csproj" />
+    <Project Path="tests/Paduraksa.Tests.Fuzz/Paduraksa.Tests.Fuzz.csproj" />
     <Project Path="tests/Paduraksa.Tests.Data/Paduraksa.Tests.Data.csproj" />
     <Project Path="tests/Paduraksa.Tests.Integration/Paduraksa.Tests.Integration.csproj" />
     <Project Path="tests/Paduraksa.Tests.Issuance/Paduraksa.Tests.Issuance.csproj" />

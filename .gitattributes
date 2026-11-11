@@ -3,3 +3,7 @@
 
 # Raw benchmark and tool output is committed verbatim (BenchmarkDotNet pads lines).
 bench/results/** -whitespace
+
+# Fuzz inputs are raw bytes (a PROXY header ends in CR LF): no line-ending conversion, and no text diffs.
+fuzz/corpus/** binary
+fuzz/regressions/** binary

@@ -1,18 +1,14 @@
 using System.Net;
 using System.Security.Authentication;
-
-using Paduraksa.Application.Compilation;
 using CsCheck;
-
+using Paduraksa.Application.Compilation;
 using Paduraksa.Application.Config;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Simulation;
 using Paduraksa.Proxy.Snapshot;
 using Paduraksa.Proxy.Tls;
-
 using Paduraksa.Tests.Unit.Config;
-
 using static Paduraksa.Tests.Unit.Config.ConfigSamples;
 
 namespace Paduraksa.Tests.Unit.Compilation;

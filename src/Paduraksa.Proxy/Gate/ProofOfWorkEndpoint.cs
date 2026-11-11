@@ -179,7 +179,8 @@ internal static class ProofOfWorkEndpoint
         return total;
     }
 
-    private static bool TryParseForm(
+    /// <summary>The three fields of the posted form (<c>challenge</c>, <c>solution</c> and <c>return</c>) into the caller's buffers; false when it isn't a form this endpoint reads.</summary>
+    internal static bool TryParseForm(
         ReadOnlySpan<byte> body,
         Span<char> challenge,
         out int challengeLength,
