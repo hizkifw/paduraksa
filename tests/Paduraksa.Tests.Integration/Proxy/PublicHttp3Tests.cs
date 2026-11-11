@@ -154,6 +154,101 @@ public sealed class PublicHttp3Tests
         }
     }
 
+    [Fact]
+    public async Task RequestLimitsHoldOverHttp3()
+    {
+        // The gate's refusals and Kestrel's cut-off of a streaming body are the same code on every protocol; QUIC is the one this
+        // machine usually can't run, so the Docker run pins it: a body under the limit forwards, a declared one over it is
+        // refused before the upstream sees it, and one with no length is cut off at the limit.
+        QuicSupport.Require();
+        var ct = TestContext.Current.CancellationToken;
+        const long Limit = 64 * 1024;
+        await using var upstream = await BodyCountingUpstream.StartAsync(ct);
+        using TestCertificates certificates = new();
+        await using var host = await StartOnFreePortAsync(new ClientInfoProbe());
+        host.Shared.Certificates.Set(TestIds.Certificate("app"), certificates.Create("app.test", "app.test"));
+        var snapshot = Compile(host, new ProxyConfigModel
+        {
+            Upstreams = [new UpstreamSpec { Id = TestIds.Upstream("body"), Destinations = [new(TestIds.Destination("body-1"), upstream.Address)] }],
+            Hosts =
+            [
+                new HostSpec
+                {
+                    Id = TestIds.Host("app"),
+                    Names = ["app.test"],
+                    Certificate = TestIds.Certificate("app"),
+                    RequestLimits = new HostRequestLimitsSpec { MaxBodySize = Limit, MaxUrlLength = 1024, MaxHeaderCount = 20 },
+                    Routes = [new RouteSpec { Id = TestIds.Route("app-root"), Upstream = TestIds.Upstream("body") }],
+                },
+            ],
+        });
+        var published = await host.Shared.SnapshotPublisher.PublishAsync(snapshot, ct);
+        Assert.True(published.Succeeded, string.Join("; ", published.Errors));
+
+        HttpRequestMessage Upload(long length, bool declared)
+        {
+            var request = EdgeClient.Request(host, "https", "app.test", "/", HttpVersion.Version30);
+            request.Method = HttpMethod.Post;
+            request.Content = new StreamContent(new ZeroStream(length));
+            if (declared)
+            {
+                request.Content.Headers.ContentLength = length;
+            }
+
+            return request;
+        }
+
+        using var quic = EdgeClient.Create(out _);
+        using (var within = await quic.SendAsync(Upload(40 * 1024, declared: true), ct))
+        {
+            Assert.Equal(HttpVersion.Version30, within.Version);
+            Assert.Equal(HttpStatusCode.OK, within.StatusCode);
+        }
+
+        Assert.Equal(40 * 1024, upstream.Bytes);
+
+        using (var declared = await quic.SendAsync(Upload(Limit + 1, declared: true), ct))
+        {
+            Assert.Equal(HttpStatusCode.RequestEntityTooLarge, declared.StatusCode);
+            Assert.Equal("Paduraksa", Assert.Single(declared.Headers.GetValues("Server")));
+        }
+
+        Assert.Equal(40 * 1024, upstream.Bytes);
+        Assert.Equal(1, upstream.Targets.Count(target => target.StartsWith("POST ", StringComparison.Ordinal)));
+
+        // No length: the server cuts the body off at the limit, with the answer or a reset stream.
+        try
+        {
+            using var streamed = await quic.SendAsync(Upload(4 * Limit, declared: false), ct);
+            Assert.Equal(HttpStatusCode.RequestEntityTooLarge, streamed.StatusCode);
+        }
+        catch (HttpRequestException)
+        {
+        }
+
+        Assert.True(upstream.Bytes <= 40 * 1024 + Limit, $"the upstream received {upstream.Bytes} bytes");
+
+        using (var url = await quic.SendAsync(EdgeClient.Request(host, "https", "app.test", "/" + new string('a', 1100), HttpVersion.Version30), ct))
+        {
+            Assert.Equal(HttpStatusCode.RequestUriTooLong, url.StatusCode);
+        }
+
+        using var headers = EdgeClient.Request(host, "https", "app.test", "/", HttpVersion.Version30);
+        for (var i = 0; i < 30; i++)
+        {
+            headers.Headers.TryAddWithoutValidation($"X-Pad-{i}", "v");
+        }
+
+        using var many = await quic.SendAsync(headers, ct);
+        Assert.Equal(HttpStatusCode.RequestHeaderFieldsTooLarge, many.StatusCode);
+
+        // One 20 KiB field (a cookie) is under the host's limit of header bytes, and the transport takes it.
+        using var cookie = EdgeClient.Request(host, "https", "app.test", "/", HttpVersion.Version30);
+        cookie.Headers.TryAddWithoutValidation("Cookie", "c=" + new string('c', 20 * 1024));
+        using var cookieResponse = await quic.SendAsync(cookie, ct);
+        Assert.Equal(HttpStatusCode.OK, cookieResponse.StatusCode);
+    }
+
     private static async Task<PaduraksaHost> StartOnFreePortAsync(ClientInfoProbe probe)
     {
         for (var attempt = 1; ; attempt++)
