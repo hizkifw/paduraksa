@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
+using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
 using Paduraksa.Proxy.RuleSets;
@@ -190,6 +191,44 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         server.GateStats!.Reset();
         await SendAsync(server, client, "rules.test", path, expected, Measured, Agent);
 
+        Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
+    }
+
+    /// <summary>
+    /// The decision of a forward-auth route allocates nothing on Kestrel while the provider's allow is remembered: the key is hashed in a
+    /// stack buffer and the cache read is a few loads. The one call that fills the cache is outside the decision (the gate awaits it
+    /// after <c>Decide</c> returns), and the deferring verdict itself is 0 B too.
+    /// </summary>
+    [Fact]
+    public async Task AForwardAuthRouteAllocatesNothingOnKestrelOnceTheAllowIsRemembered()
+    {
+        await using var auth = await FakeAuthServer.StartAsync(TestContext.Current.CancellationToken);
+        auth.Handler = static context =>
+        {
+            context.Response.Headers["Remote-User"] = "alice";
+            return Task.CompletedTask;
+        };
+        var provider = TestIds.AuthProvider("kestrel");
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", upstream.Address("a"))],
+            AuthProviders =
+            [
+                new AuthProviderSpec { Id = provider, Name = "kestrel", Url = auth.Address, ResponseHeaders = ["Remote-User"], CacheTtl = TimeSpan.FromMinutes(5) },
+            ],
+            Hosts = [ProxyHost("auth", "auth.test", Route("auth-root", "web") with { AuthProvider = provider })],
+        };
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, CompilerOptions = new SnapshotCompilerOptions { ForwardAuth = new ForwardAuthRuntime() } });
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        static void Session(HttpRequestMessage request) => request.Headers.TryAddWithoutValidation("Cookie", "session=abc");
+
+        await SendAsync(server, client, "auth.test", "/page", HttpStatusCode.OK, Warmup, Session);
+        server.GateStats!.Reset();
+        await SendAsync(server, client, "auth.test", "/page", HttpStatusCode.OK, Measured, Session);
+
+        Assert.True(auth.CallCount <= Connections + 1, $"{auth.CallCount} calls: the allow wasn't remembered");
         Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
         Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");

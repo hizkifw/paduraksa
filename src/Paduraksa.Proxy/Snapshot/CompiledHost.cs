@@ -112,6 +112,10 @@ public sealed class CompiledHost
     /// <see cref="CompiledRoute.RuleSet"/> differs where it names another or turns the rules off.</summary>
     public RuleSets.CompiledRuleSet? RuleSet { get; init; }
 
+    /// <summary>The host's resolved auth provider (a Proxy host's), for the overview; <see cref="CompiledRoute.AuthProvider"/> differs where a route names
+    /// another or turns authentication off.</summary>
+    public ForwardAuth.CompiledAuthProvider? AuthProvider { get; init; }
+
     /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

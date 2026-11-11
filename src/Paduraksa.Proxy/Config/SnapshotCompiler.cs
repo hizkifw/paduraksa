@@ -1,6 +1,7 @@
 using System.Net;
 using Paduraksa.Core.Model;
 using Paduraksa.Proxy.AccessLists;
+using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Net;
 using Paduraksa.Proxy.RateLimiting;
@@ -113,6 +114,7 @@ public static partial class SnapshotCompiler
             RateLimitPolicies = CompileRateLimitPolicies(model.RateLimitPolicies ?? []);
             AccessLists = CompileAccessLists(model.AccessLists ?? [], options.AccessLists ?? AccessListRuntime.Default, Errors);
             RuleSets = CompileRuleSets(model.RuleSets ?? [], options.RuleSets ?? RuleSetRuntime.Default, Errors);
+            AuthProviders = CompileAuthProviders(model.AuthProviders ?? [], options.ForwardAuth ?? ForwardAuthRuntime.Default, options.RateLimitsWillBePublished, Errors);
         }
 
         public ProxyConfigModel Model { get; }
@@ -165,6 +167,9 @@ public static partial class SnapshotCompiler
 
         /// <summary>The named rule sets, compiled once so every policy that names one shares it.</summary>
         public RuleSetBinding RuleSets { get; }
+
+        /// <summary>The named auth providers, compiled once so every route that names one shares it.</summary>
+        public AuthProviderBinding AuthProviders { get; }
 
         public bool AdminHost { get; set; }
 

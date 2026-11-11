@@ -34,6 +34,9 @@ public sealed record ProxyConfigModel
 
     /// <summary>The rule sets (document sets and the built-in presets any host names) the chains refer to.</summary>
     public IReadOnlyList<RuleSetSpec> RuleSets { get; init; } = [];
+
+    /// <summary>The auth providers (forward-auth endpoints) hosts and routes name.</summary>
+    public IReadOnlyList<AuthProviderSpec> AuthProviders { get; init; } = [];
 }
 
 /// <summary>Global settings the compiler needs.</summary>
@@ -332,6 +335,10 @@ public sealed record HostSpec
     /// <summary>The host's resolved rule set, for the overview; its policy sits in the chains like the access list's.</summary>
     public HostRuleSetSpec RuleSet { get; init; } = HostRuleSetSpec.Off;
 
+    /// <summary>The host's resolved auth provider; each route's own layer may override it. Proxy hosts only: the others have no route to
+    /// ask it on.</summary>
+    public HostAuthProviderSpec AuthProvider { get; init; } = HostAuthProviderSpec.Off;
+
     /// <summary>What the host answers at <c>/robots.txt</c>.</summary>
     public HostRobotsSpec Robots { get; init; } = HostRobotsSpec.Passthrough;
 
@@ -393,6 +400,12 @@ public sealed record RouteSpec
 
     /// <summary>This route's effective rule set: the host's, another, or none, for the overview.</summary>
     public RuleSetId? RuleSet { get; init; }
+
+    /// <summary>This route's effective auth provider: the host's, another, or none.</summary>
+    public AuthProviderId? AuthProvider { get; init; }
+
+    /// <summary>True when the route's own layer set the provider (the trace says so).</summary>
+    public bool AuthProviderRouteOverride { get; init; }
 
     public IReadOnlyList<PolicySpec> Policies { get; init; } = [];
 }
@@ -570,4 +583,50 @@ public sealed record RuleSpec
 
     /// <summary>The user-agent condition also holds for a request with no user agent or an empty one.</summary>
     public bool UserAgentEmpty { get; init; }
+}
+
+/// <summary>The auth-provider setting resolved across the layers; a route may override the switch and the provider.</summary>
+public sealed record HostAuthProviderSpec
+{
+    /// <summary>No provider.</summary>
+    public static HostAuthProviderSpec Off { get; } = new();
+
+    /// <summary>False: an inherited provider is named but inert.</summary>
+    public bool Enabled { get; init; }
+
+    /// <summary>The provider to ask; <see cref="AuthProviderId.Empty"/> when none is named.</summary>
+    public AuthProviderId AuthProviderId { get; init; }
+
+    /// <summary>The provider that actually applies, or null.</summary>
+    public AuthProviderId? Effective => Enabled && !AuthProviderId.IsEmpty ? AuthProviderId : null;
+}
+
+/// <summary>A forward-auth endpoint with every default filled in. The validator has judged it; the compiler checks the URL again.</summary>
+public sealed record AuthProviderSpec
+{
+    public required AuthProviderId Id { get; init; }
+
+    /// <summary>The human label, for traces and errors. Not part of what a decision depends on.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>The endpoint: an absolute <c>http</c> or <c>https</c> URL.</summary>
+    public required string Url { get; init; }
+
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(ForwardAuthLimits.DefaultTimeoutSeconds);
+
+    /// <summary>How long an allow is remembered; zero: not at all.</summary>
+    public TimeSpan CacheTtl { get; init; } = TimeSpan.FromSeconds(ForwardAuthLimits.DefaultCacheSeconds);
+
+    public ForwardAuthCacheScope CacheScope { get; init; }
+
+    /// <summary>Client headers sent to the endpoint besides the standard set.</summary>
+    public IReadOnlyList<string> RequestHeaders { get; init; } = [];
+
+    /// <summary>The headers copied upstream when the endpoint allows, and removed from the client's request first; a trailing <c>*</c> is a prefix.</summary>
+    public IReadOnlyList<string> ResponseHeaders { get; init; } = [];
+
+    /// <summary>Where an unauthenticated browser is sent when the endpoint answers 401; null: the 401 is relayed.</summary>
+    public string? SignInUrl { get; init; }
+
+    public string? SignInReturnParameter { get; init; }
 }

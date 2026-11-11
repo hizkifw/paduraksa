@@ -30,6 +30,8 @@ internal static class TestIds
 
     public static RuleSetId RuleSet(string label) => Of<RuleSetId>(label);
 
+    public static AuthProviderId AuthProvider(string label) => Of<AuthProviderId>(label);
+
     public static CertificateId Certificate(string label) => Of<CertificateId>(label);
 
     public static ConfigRevisionId Revision(string label) => Of<ConfigRevisionId>(label);

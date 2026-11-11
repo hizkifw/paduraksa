@@ -110,6 +110,12 @@ public sealed class GateRequestState : IGateFeature
     /// <c>Authorization</c> header (<see cref="Yarp.ForwardedHeadersTransform"/> removes it).</summary>
     internal bool StripAuthorization { get; set; }
 
+    /// <summary>Set by a forward-auth policy that let the request through: the provider that answered, whose own headers the client's request must not
+    /// carry (<see cref="Yarp.ForwardedHeadersTransform"/> removes them) and the ones it returned, which the upstream request gets instead.</summary>
+    internal ForwardAuth.CompiledAuthProvider? ForwardAuthProvider { get; set; }
+
+    internal ForwardAuth.ForwardAuthHeader[]? ForwardAuthHeaders { get; set; }
+
     /// <summary>The policy whose verdict the gate is waiting for, where it sits (<see cref="DeferredScope"/>, <see cref="DeferredIndex"/>),
     /// so the chain resumes right after it.</summary>
     internal IDeferredPolicy? DeferredPolicy { get; set; }
@@ -125,6 +131,8 @@ public sealed class GateRequestState : IGateFeature
     internal void Reset()
     {
         StripAuthorization = false;
+        ForwardAuthProvider = null;
+        ForwardAuthHeaders = null;
         DeferredPolicy = null;
         AccessListOutcome = default;
         Snapshot = null;

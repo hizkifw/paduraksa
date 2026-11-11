@@ -25,6 +25,7 @@ internal static class HeaderEchoUpstreamHost
     [
         "X-Forwarded-For", "X-Real-IP", "X-Forwarded-Proto", "X-Forwarded-Host", "X-Forwarded-Prefix", "X-Forwarded-Port",
         "Host", "Forwarded", "X-Paduraksa-Internal", "Cookie", "Authorization", "X-Request-Id", "traceparent", .. CloudflareHeaders.StripWhenUntrusted, "Cf-Access-Authenticated-User-Email", "Cf-Access-Jwt-Assertion", "cf-ipcity",
+        "Remote-User", "Remote-Groups", "X-authentik-username", "X-authentik-uid", "X-Auth-Request-User",
     ];
 
     /// <summary>Starts the upstream on an ephemeral loopback port.</summary>

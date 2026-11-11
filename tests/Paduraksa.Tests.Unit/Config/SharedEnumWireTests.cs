@@ -34,6 +34,8 @@ public sealed class SharedEnumWireTests
         Assert.Equal(
             [
                 typeof(AccessListSatisfy),
+                typeof(ForwardAuthCacheScope),
+                typeof(ForwardAuthPreset),
                 typeof(HostKind),
                 typeof(OriginLockdownMode),
                 typeof(RateLimitKey),

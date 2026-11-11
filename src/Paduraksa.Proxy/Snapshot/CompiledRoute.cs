@@ -36,6 +36,9 @@ public sealed class CompiledRoute
     /// <summary>The rule set that applies to this route (the host's, another, or none), wherever its policy sits in the chains.</summary>
     public RuleSets.CompiledRuleSet? RuleSet { get; init; }
 
+    /// <summary>The auth provider this route asks, for the overview.</summary>
+    public ForwardAuth.CompiledAuthProvider? AuthProvider { get; init; }
+
     /// <summary>This route's effective proof of work: the host's values with the route's own switch applied.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

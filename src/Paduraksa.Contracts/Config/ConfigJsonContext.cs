@@ -47,6 +47,8 @@ namespace Paduraksa.Contracts.Config;
         typeof(ConfigEnumConverter<AccessListSatisfy>),
         typeof(ConfigEnumConverter<RobotsMode>),
         typeof(ConfigEnumConverter<OriginLockdownMode>),
+        typeof(ConfigEnumConverter<ForwardAuthCacheScope>),
+        typeof(ConfigEnumConverter<ForwardAuthPreset>),
         typeof(ConfigEnumConverter<RuleAction>),
         typeof(ConfigEnumConverter<RulePathKind>),
     ])]
@@ -54,6 +56,7 @@ namespace Paduraksa.Contracts.Config;
 [JsonSerializable(typeof(RateLimitPolicyConfig))]
 [JsonSerializable(typeof(AccessListConfig))]
 [JsonSerializable(typeof(RuleSetConfig))]
+[JsonSerializable(typeof(AuthProviderConfig))]
 [JsonSerializable(typeof(ConfigError))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigError>))]
 [JsonSerializable(typeof(IReadOnlyList<ConfigChange>))]

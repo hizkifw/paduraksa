@@ -28,6 +28,7 @@ namespace Paduraksa.Contracts.Config;
 /// <param name="RateLimitPolicies">Canonical order: by ID.</param>
 /// <param name="AccessLists">Canonical order: by ID.</param>
 /// <param name="RuleSets">Canonical order: by ID. The built-in presets (<see cref="RuleSetPresets"/>) aren't part of it.</param>
+/// <param name="AuthProviders">Canonical order: by ID.</param>
 public sealed record ConfigDocument(
     [property: JsonRequired] string ApiVersion = ConfigDocument.V1,
     GlobalSettings? Settings = null,
@@ -36,7 +37,8 @@ public sealed record ConfigDocument(
     IReadOnlyList<HostConfig>? Hosts = null,
     IReadOnlyList<RateLimitPolicyConfig>? RateLimitPolicies = null,
     IReadOnlyList<AccessListConfig>? AccessLists = null,
-    IReadOnlyList<RuleSetConfig>? RuleSets = null)
+    IReadOnlyList<RuleSetConfig>? RuleSets = null,
+    IReadOnlyList<AuthProviderConfig>? AuthProviders = null)
 {
     /// <summary>The only <see cref="ApiVersion"/> this build reads and writes.</summary>
     public const string V1 = "paduraksa.dev/v1";
@@ -54,6 +56,8 @@ public sealed record ConfigDocument(
     public IReadOnlyList<AccessListConfig> AccessLists { get; init; } = AccessLists ?? [];
 
     public IReadOnlyList<RuleSetConfig> RuleSets { get; init; } = RuleSets ?? [];
+
+    public IReadOnlyList<AuthProviderConfig> AuthProviders { get; init; } = AuthProviders ?? [];
 }
 
 /// <summary>The global settings: one per document.</summary>

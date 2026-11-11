@@ -62,6 +62,8 @@ namespace Paduraksa.Admin.Json;
         typeof(ConfigEnumConverter<AccessListSatisfy>),
         typeof(ConfigEnumConverter<RobotsMode>),
         typeof(ConfigEnumConverter<OriginLockdownMode>),
+        typeof(ConfigEnumConverter<ForwardAuthCacheScope>),
+        typeof(ConfigEnumConverter<ForwardAuthPreset>),
         typeof(ConfigEnumConverter<RuleAction>),
         typeof(ConfigEnumConverter<RulePathKind>),
     ])]
@@ -78,6 +80,8 @@ namespace Paduraksa.Admin.Json;
 [JsonSerializable(typeof(IReadOnlyList<AccessListConfig>))]
 [JsonSerializable(typeof(RuleSetConfig))]
 [JsonSerializable(typeof(IReadOnlyList<RuleSetConfig>))]
+[JsonSerializable(typeof(AuthProviderConfig))]
+[JsonSerializable(typeof(IReadOnlyList<AuthProviderConfig>))]
 [JsonSerializable(typeof(ProfileConfig))]
 [JsonSerializable(typeof(IReadOnlyList<ProfileConfig>))]
 [JsonSerializable(typeof(RouteConfig))]

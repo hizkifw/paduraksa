@@ -7,7 +7,7 @@ namespace Paduraksa.Contracts.Config;
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
 /// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>,
-/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>, <see cref="RequestLimits"/>, <see cref="RuleSet"/>) merge field by field.
+/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>, <see cref="RequestLimits"/>, <see cref="RuleSet"/>, <see cref="AuthProvider"/>) merge field by field.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
 public sealed record HostSettings
@@ -58,6 +58,9 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below. Built-in default: none.</summary>
     public RuleSetSettings? RuleSet { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: none.</summary>
+    public AuthProviderSettings? AuthProvider { get; init; }
 }
 
 /// <summary>
@@ -104,6 +107,10 @@ public sealed record RouteSettings
     /// <summary>Field by field over the host's resolved set: a route inherits the host's, names another, or turns the rules off
     /// for its own paths.</summary>
     public RuleSetSettings? RuleSet { get; init; }
+
+    /// <summary>Field by field over the host's resolved provider: a route inherits the host's, names another, or turns authentication off
+    /// for its own paths (the route that serves the provider's sign-in pages has to).</summary>
+    public AuthProviderSettings? AuthProvider { get; init; }
 }
 
 /// <summary>TLS settings; each field inherits on its own. A layer that sets none is the same as no layer.</summary>

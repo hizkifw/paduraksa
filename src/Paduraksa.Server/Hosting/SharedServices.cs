@@ -18,6 +18,7 @@ using Paduraksa.Core.Acme;
 using Paduraksa.Core.Hosting;
 using Paduraksa.Core.Vault;
 using Paduraksa.Proxy.AccessLists;
+using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Logging;
 using Paduraksa.Proxy.Net;
@@ -285,6 +286,9 @@ internal sealed class SharedServices : IAsyncDisposable
             // it, and the access-list gate asks its verifier for every password check.
             var vault = VaultStore.AddTo(builder, options.DataDirectory, coreLoggers);
             var accessLists = builder.Add(new AccessListRuntime(timeProvider, vault.PasswordVerifier));
+            // The forward-auth decision caches, clients and counters: compiled policies hold their provider's state, which this keeps
+            // across publishes while the provider's configuration is the same.
+            var forwardAuth = builder.Add(new ForwardAuthRuntime(timeProvider, coreLoggers.CreateLogger("Paduraksa.Proxy.ForwardAuth")));
             // Built here so its start time is the process's: the counters it reports begin at zero with them.
             builder.Add(new SecurityOverviewService(snapshots, proofOfWork, rateLimits, timeProvider, accessLists));
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
@@ -315,7 +319,7 @@ internal sealed class SharedServices : IAsyncDisposable
             }
 
             var originPullCa = LoadOriginPullCa(options.Cloudflare.OriginPullCaFile);
-            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists));
+            var listeners = builder.Add(new PublicListenerSetup(options.Listen, snapshots, adminInternal.Enabled, proofOfWork, rateLimits, edgeRanges, originPullCa, accessLists, forwardAuth));
             // Created after the publisher, so disposed before it (the service publishes with it).
             DevelopmentWarnings.Check(coreLoggers, options);
 

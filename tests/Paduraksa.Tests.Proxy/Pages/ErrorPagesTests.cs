@@ -30,6 +30,9 @@ public sealed class ErrorPagesTests
         { 403, ErrorPages.CheckFailed, "403 Forbidden" },
         { 503, ErrorPages.CheckUnavailable, "503 Service Unavailable" },
         { 413, ErrorPages.PayloadTooLarge, "413 Content Too Large" },
+        { 502, ErrorPages.AuthUnavailable, "502 Bad Gateway" },
+        { 503, ErrorPages.AuthBusy, "503 Service Unavailable" },
+        { 504, ErrorPages.AuthTimeout, "504 Gateway Timeout" },
     };
 
     [Theory]

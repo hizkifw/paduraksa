@@ -33,6 +33,8 @@ public abstract record CompileErrorSource
 
     public static CompileErrorSource RuleSet(RuleSetId set) => new RuleSetErrorSource(set);
 
+    public static CompileErrorSource AuthProvider(AuthProviderId provider) => new AuthProviderErrorSource(provider);
+
     public static CompileErrorSource Destination(UpstreamId upstream, DestinationId destination) =>
         new DestinationErrorSource(upstream, destination);
 }
@@ -89,4 +91,10 @@ public sealed record AccessListErrorSource(AccessListId ListId) : CompileErrorSo
 public sealed record RuleSetErrorSource(RuleSetId SetId) : CompileErrorSource
 {
     public override string ToString() => $"rule set '{SetId}'";
+}
+
+/// <summary>A named auth provider.</summary>
+public sealed record AuthProviderErrorSource(AuthProviderId ProviderId) : CompileErrorSource
+{
+    public override string ToString() => $"auth provider '{ProviderId}'";
 }

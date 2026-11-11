@@ -1,6 +1,7 @@
 using System.Text;
 
 using Paduraksa.Core.Model;
+using Paduraksa.Proxy.ForwardAuth;
 using Paduraksa.Proxy.Gate;
 using Paduraksa.Proxy.Http;
 using Paduraksa.Proxy.Snapshot;
@@ -156,6 +157,7 @@ public static partial class SnapshotCompiler
                 AuthenticatedOriginPulls = originPulls,
                 AccessList = AccessListOf(spec.AccessList.Effective),
                 RuleSet = RuleSetOf(spec.RuleSet.Effective),
+                AuthProvider = spec.Kind == HostKind.Proxy ? AuthProviderOf(spec.AuthProvider.Effective) : null,
                 HttpsRedirect = spec.ForceHttps ? HttpsRedirect : null,
                 Tls = tls,
                 Https = spec.Https,
@@ -398,6 +400,20 @@ public static partial class SnapshotCompiler
                 }
             }
 
+            // After the rate limit (a client over its budget is told so, and costs the endpoint nothing) and before proof of work, which
+            // only a request the provider let through is asked to solve.
+            if (spec.AuthProvider is { } providerId)
+            {
+                if (context.AuthProviderOf(providerId) is { } provider)
+                {
+                    own = [.. own, new ForwardAuthPolicy(provider, spec.AuthProviderRouteOverride)];
+                }
+                else
+                {
+                    errors.Add(new(routeWhere, $"auth provider '{providerId}' doesn't exist or didn't compile"));
+                }
+            }
+
             var routeProofOfWork = spec.ProofOfWorkRouteOverride ? spec.ProofOfWork : host.ProofOfWork;
             if (routeProofOfWork.Enabled)
             {
@@ -425,6 +441,7 @@ public static partial class SnapshotCompiler
                 Policies = own,
                 AccessList = context.AccessListOf(spec.AccessList),
                 RuleSet = context.RuleSetOf(spec.RuleSet),
+                AuthProvider = context.AuthProviderOf(spec.AuthProvider),
                 ProofOfWork = routeProofOfWork,
                 ProofOfWorkRouteOverride = spec.ProofOfWorkRouteOverride,
                 MaxBodySize = spec.MaxBodySizeRouteOverride ? spec.MaxBodySize : null,

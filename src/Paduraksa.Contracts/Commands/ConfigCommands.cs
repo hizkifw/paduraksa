@@ -29,6 +29,8 @@ namespace Paduraksa.Contracts.Commands;
 [JsonDerivedType(typeof(DeleteAccessListCommand), "deleteAccessList")]
 [JsonDerivedType(typeof(UpsertRuleSetCommand), "upsertRuleSet")]
 [JsonDerivedType(typeof(DeleteRuleSetCommand), "deleteRuleSet")]
+[JsonDerivedType(typeof(UpsertAuthProviderCommand), "upsertAuthProvider")]
+[JsonDerivedType(typeof(DeleteAuthProviderCommand), "deleteAuthProvider")]
 [JsonDerivedType(typeof(UpsertProfileCommand), "upsertProfile")]
 [JsonDerivedType(typeof(DeleteProfileCommand), "deleteProfile")]
 [JsonDerivedType(typeof(UpdateSettingsCommand), "updateSettings")]
@@ -96,6 +98,15 @@ public sealed record UpsertRuleSetCommand(RuleSetConfig RuleSet) : ConfigCommand
 /// <param name="RuleSetId">The set.</param>
 /// <param name="Version">The version the caller saw.</param>
 public sealed record DeleteRuleSetCommand(RuleSetId RuleSetId, long Version) : ConfigCommand;
+
+/// <summary>Creates an auth provider (<see cref="AuthProviderConfig.Version"/> 0) or replaces one.</summary>
+/// <param name="AuthProvider">The provider as it should be. Its <see cref="AuthProviderConfig.Version"/> is the version edited.</param>
+public sealed record UpsertAuthProviderCommand(AuthProviderConfig AuthProvider) : ConfigCommand;
+
+/// <summary>Deletes an auth provider; no host may still resolve to it, directly, through its profile or the global defaults, and no route may name it.</summary>
+/// <param name="AuthProviderId">The provider.</param>
+/// <param name="Version">The version the caller saw.</param>
+public sealed record DeleteAuthProviderCommand(AuthProviderId AuthProviderId, long Version) : ConfigCommand;
 
 /// <summary>Creates a profile (<see cref="ProfileConfig.Version"/> 0) or replaces one.</summary>
 /// <param name="Profile">The profile as it should be. Its <see cref="ProfileConfig.Version"/> is the version edited.</param>

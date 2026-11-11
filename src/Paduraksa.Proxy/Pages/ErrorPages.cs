@@ -60,6 +60,15 @@ internal static class ErrorPages
     /// <summary>Too many header lines, or too many header bytes (cookies are the usual cause).</summary>
     public static HtmlPageTemplate HeadersTooLarge { get; } = Page("431 Request Header Fields Too Large", "Your browser sent more headers than this site accepts. Clearing this site's cookies usually fixes it.");
 
+    /// <summary>A forward-auth endpoint answered something it must not, or couldn't be reached: the route fails closed.</summary>
+    public static HtmlPageTemplate AuthUnavailable { get; } = Page("502 Bad Gateway", "The sign-in service for this site didn't respond properly. Try again in a moment.");
+
+    /// <summary>A forward-auth endpoint didn't answer in time.</summary>
+    public static HtmlPageTemplate AuthTimeout { get; } = Page("504 Gateway Timeout", "The sign-in service for this site took too long to respond. Try again in a moment.");
+
+    /// <summary>Too many calls to a forward-auth endpoint were already running.</summary>
+    public static HtmlPageTemplate AuthBusy { get; } = Page("503 Service Unavailable", "The sign-in service for this site is busy. Try again in a moment.");
+
     private static readonly PrecomputedResponse UpstreamBadGateway =
         PrecomputedResponse.Text(502, "bad gateway\n", htmlPage: BadGateway);
 

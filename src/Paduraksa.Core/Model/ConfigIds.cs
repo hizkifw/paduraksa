@@ -34,6 +34,11 @@ public readonly partial record struct AccessListId;
 [TypedId("rs")]
 public readonly partial record struct RuleSetId;
 
+/// <summary>An authentication provider: a forward-auth endpoint (authentik, Authelia, oauth2-proxy or any other) that hosts and routes
+/// name to ask who a request is before it is forwarded.</summary>
+[TypedId("authp")]
+public readonly partial record struct AuthProviderId;
+
 /// <summary>A basic-auth user's password in the vault: the config document names it, the vault holds what verifies it.</summary>
 [TypedId("pwc")]
 public readonly partial record struct PasswordCredentialId;

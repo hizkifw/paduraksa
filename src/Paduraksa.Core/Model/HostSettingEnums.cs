@@ -143,6 +143,74 @@ public enum RulePathKind
     Regex,
 }
 
+/// <summary>Which provider a forward-auth endpoint is, so the preset can fill in what each one expects: the endpoint's path,
+/// the headers it returns, where a browser signs in and what a decision depends on.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<ForwardAuthPreset>))]
+public enum ForwardAuthPreset
+{
+    /// <summary>Any other forward-auth endpoint: the address is the whole URL and nothing else is assumed.</summary>
+    Custom,
+
+    /// <summary>authentik's proxy outpost (<c>/outpost.goauthentik.io/auth/traefik</c>).</summary>
+    Authentik,
+
+    /// <summary>Authelia (<c>/api/authz/forward-auth</c>).</summary>
+    Authelia,
+
+    /// <summary>oauth2-proxy (<c>/oauth2/auth</c>, which answers 202 or 401).</summary>
+    OAuth2Proxy,
+}
+
+/// <summary>What else, besides the session, a forward-auth endpoint's decision depends on: how far a remembered answer may be
+/// reused.</summary>
+[JsonConverter(typeof(ConfigEnumConverter<ForwardAuthCacheScope>))]
+public enum ForwardAuthCacheScope
+{
+    /// <summary>The same host, method and request target from the same client address with the same credentials: the provider
+    /// may decide per path and method (Authelia's access-control rules), so nothing broader is safe.</summary>
+    Request,
+
+    /// <summary>Any request to the same host from the same client address with the same credentials: the provider decides per
+    /// application (authentik, oauth2-proxy), so one answer holds for every path.</summary>
+    Host,
+}
+
+/// <summary>The bounds of a forward-auth provider, shared by the validator, the compiler and the proxy.</summary>
+public static class ForwardAuthLimits
+{
+    /// <summary>The longest wait for the endpoint's answer, in seconds.</summary>
+    public const int MaxTimeoutSeconds = 30;
+
+    /// <summary>The built-in wait for the endpoint's answer, in seconds.</summary>
+    public const int DefaultTimeoutSeconds = 5;
+
+    /// <summary>The longest an allow is remembered, in seconds: a revoked session is honoured by the proxy for that long.</summary>
+    public const int MaxCacheSeconds = 300;
+
+    /// <summary>The built-in time an allow is remembered, in seconds.</summary>
+    public const int DefaultCacheSeconds = 10;
+
+    /// <summary>Header names in either list.</summary>
+    public const int MaxHeaderNames = 32;
+
+    /// <summary>Longest header name or <c>name*</c> prefix.</summary>
+    public const int MaxHeaderNameLength = 64;
+
+    /// <summary>Longest endpoint URL, sign-in URL and return parameter.</summary>
+    public const int MaxUrlLength = 512;
+
+    /// <summary>Calls to one provider's endpoint that may be running at once; a request that finds them all busy is answered 503.</summary>
+    public const int MaxConcurrentCalls = 64;
+
+    /// <summary>Client headers every request to an endpoint carries: the credentials it decides on and what it uses to tell a browser from a
+    /// script. The rest of the client's headers (and every hop-by-hop one) are not sent.</summary>
+    public static IReadOnlyList<string> StandardRequestHeaders { get; } =
+        ["Accept", "Accept-Language", "Authorization", "Cookie", "Proxy-Authorization", "User-Agent", "X-Requested-With"];
+
+    /// <summary>The most of an endpoint's refusal (a sign-in page) the proxy takes in to relay, in bytes.</summary>
+    public const int MaxRelayedBodyBytes = 64 * 1024;
+}
+
 /// <summary>The bounds of a rule set, shared by the validator, the compiler and the proxy.</summary>
 public static class RuleSetLimits
 {

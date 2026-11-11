@@ -77,9 +77,12 @@ public sealed record SnapshotCompilerOptions
     /// <summary>The process's rule-set counters; null: <see cref="RuleSets.RuleSetRuntime.Default"/>.</summary>
     public RuleSets.RuleSetRuntime? RuleSets { get; init; }
 
+    /// <summary>The process's forward-auth decision caches, clients and counters; null: <see cref="ForwardAuth.ForwardAuthRuntime.Default"/>.</summary>
+    public ForwardAuth.ForwardAuthRuntime? ForwardAuth { get; init; }
+
     /// <summary>
     /// True for a candidate that a publisher will make live; false for a dry run, a draft or a simulation, which must
-    /// leave the process's slot registry exactly as it found it. A non-published compile only looks a pair's slot up:
+    /// leave the process's slot registry (and its forward-auth provider states) exactly as it found it. A non-published compile only looks a pair's slot up:
     /// a pair that has none yet compiles with slot 0, a placeholder the simulator reports as a new policy and the gate
     /// never sees (such a snapshot is never published).
     /// </summary>
