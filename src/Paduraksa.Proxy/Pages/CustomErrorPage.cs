@@ -238,3 +238,36 @@ internal sealed class CompiledErrorPages
         return index >= 0 && status != ErrorPageStatuses.MaintenanceKey ? _pages[index] : null;
     }
 }
+
+/// <summary>
+/// An error page rendered the way a request is served it, with sample values for the variables, for the dashboard's preview and the
+/// API's. It compiles the page with the proxy's own compiler and writes it with the proxy's own writer, so what a preview shows is the bytes
+/// a visitor gets, not a second rendering of the same text.
+/// </summary>
+public static class ErrorPagePreviews
+{
+    /// <summary>The values the preview fills the request's variables with.</summary>
+    public const string SampleRequestId = "7f3a9c2e-4b1d-4e8a-9c55-0d2f6a1b8e34";
+
+    public const string SampleHost = "app.example.com";
+
+    public const string SampleRay = "8a1b2c3d4e5f6a7b-AMS";
+
+    /// <summary>The page for <paramref name="status"/> as served: its bytes and the <c>Content-Security-Policy</c> that goes with them.</summary>
+    /// <param name="mode">How the page is written.</param>
+    /// <param name="heading">A message's heading.</param>
+    /// <param name="text">A message's sentence.</param>
+    /// <param name="html">A document.</param>
+    /// <param name="status">The status the page is served with, which its <c>{status}</c> and <c>{statusText}</c> say.</param>
+    public static ErrorPagePreviewBytes Render(ErrorPageMode mode, string? heading, string? text, string? html, int status)
+    {
+        var page = CustomErrorPage.Compile(new ErrorPageSpec { Mode = mode, Heading = heading, Text = text, Html = html }, status);
+        var policy = page.SecurityHeaders.First(static header => header.Name == "Content-Security-Policy").Value.ToString();
+        return new ErrorPagePreviewBytes(page.Render(SampleRequestId, SampleHost, SampleRay), policy);
+    }
+}
+
+/// <summary>A rendered preview.</summary>
+/// <param name="Body">The page's bytes (UTF-8).</param>
+/// <param name="ContentSecurityPolicy">The policy it is served with.</param>
+public sealed record ErrorPagePreviewBytes(byte[] Body, string ContentSecurityPolicy);

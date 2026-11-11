@@ -31,6 +31,9 @@ public static class ApiEndpointConventions
     /// <summary>The most a simulate request may be: a draft document can be a whole config.</summary>
     public const long SimulateBodyLimit = 1024 * 1024;
 
+    /// <summary>The most an error page preview may be: a 64 KiB document, which JSON may escape to six bytes a character.</summary>
+    public const long ErrorPagePreviewBodyLimit = 512 * 1024;
+
     /// <summary>Marks an endpoint whose change can be stored and still fail to go live: 500, code <c>config.publishFailed</c> (documented in the API description).</summary>
     public static TBuilder MayFailToPublish<TBuilder>(this TBuilder builder)
         where TBuilder : IEndpointConventionBuilder

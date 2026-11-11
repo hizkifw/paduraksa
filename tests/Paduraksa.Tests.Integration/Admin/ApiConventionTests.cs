@@ -304,6 +304,7 @@ public sealed class ApiConventionTests(SharedAdminApi shared) : IClassFixture<Sh
             ("GET /api/v1/logs/{name}", Permission.LogsRead),
             ("GET /api/v1/security/overview", Permission.ConfigRead),
             ("POST /api/v1/simulate", Permission.Simulate),
+            ("POST /api/v1/error-pages/preview", Permission.ConfigRead),
         ];
 
         var actual = ApiEndpoints(api)

@@ -84,6 +84,18 @@ public sealed class CustomErrorPagesGateTests : IDisposable
                     Pages = new Dictionary<int, ErrorPageSpec> { [429] = new() { Heading = "Slow down", Text = "Try later.", Source = ErrorPageSource.Host } },
                 },
             },
+            ProxyHost("sample", ErrorPagePreviews.SampleHost, Route("sample-app", "web", "/app")) with
+            {
+                Policies = [Locked.Policy()],
+                ErrorPages = new HostErrorPagesSpec
+                {
+                    Pages = new Dictionary<int, ErrorPageSpec>
+                    {
+                        [403] = new() { Mode = ErrorPageMode.Html, Html = "<style>b{color:red}</style><b>{status} {statusText}</b> {host} {requestId} {cfRay} caf\u00e9", Source = ErrorPageSource.Host },
+                        [404] = new() { Heading = "{status} {statusText}: {host}", Text = "{requestId} {cfRay}", Source = ErrorPageSource.Host },
+                    },
+                },
+            },
             ProxyHost("plain", "plain.test", Route("plain-app", "web", "/app")),
             ProxyHost("check", "check.test", Route("check-root", "web")) with
             {
@@ -260,6 +272,29 @@ public sealed class CustomErrorPagesGateTests : IDisposable
         Assert.DoesNotContain("Custom 503", unavailable.Body, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(404, false)]
+    [InlineData(403, true)]
+    public async Task APreviewIsTheBytesAVisitorGets(int status, bool document)
+    {
+        // The preview compiles with the proxy's own compiler and writes with its own writer; this holds the two to the same bytes.
+        var served = await ServeAsync(
+            ErrorPagePreviews.SampleHost,
+            status == 403 ? "/app" : "/missing",
+            accept: "text/html",
+            remote: status == 403 ? IPAddress.Parse("192.0.2.9") : Lan,
+            requestId: ErrorPagePreviews.SampleRequestId,
+            ray: ErrorPagePreviews.SampleRay,
+            cloudflareTrusted: true);
+        Assert.Equal(status, served.Status);
+
+        var preview = document
+            ? ErrorPagePreviews.Render(ErrorPageMode.Html, null, null, "<style>b{color:red}</style><b>{status} {statusText}</b> {host} {requestId} {cfRay} caf\u00e9", status)
+            : ErrorPagePreviews.Render(ErrorPageMode.Message, "{status} {statusText}: {host}", "{requestId} {cfRay}", null, status);
+        Assert.Equal(preview.Body, served.RawBody);
+        Assert.Equal(preview.ContentSecurityPolicy, served.Headers.Csp);
+    }
+
     [Fact]
     public void ThePageIsKnownAtCompileTimeFromItsLayer()
     {
@@ -340,6 +375,7 @@ public sealed class CustomErrorPagesGateTests : IDisposable
         return new Served(
             context.Response.StatusCode,
             Encoding.UTF8.GetString(body.ToArray()),
+            body.ToArray(),
             new ServedHeaders(
                 context.Response.ContentType,
                 headers.CacheControl.ToString(),
@@ -349,7 +385,7 @@ public sealed class CustomErrorPagesGateTests : IDisposable
             headers.RetryAfter.Count > 0 ? headers.RetryAfter.ToString() : null);
     }
 
-    private sealed record Served(int Status, string Body, ServedHeaders Headers, string? RetryAfter = null);
+    private sealed record Served(int Status, string Body, byte[] RawBody, ServedHeaders Headers, string? RetryAfter = null);
 
     private sealed record ServedHeaders(string? ContentType, string CacheControl, string? Csp, string ReferrerPolicy, string ContentTypeOptions);
 }
