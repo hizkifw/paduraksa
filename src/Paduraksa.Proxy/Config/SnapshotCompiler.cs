@@ -114,7 +114,7 @@ public static partial class SnapshotCompiler
             RateLimitPolicies = CompileRateLimitPolicies(model.RateLimitPolicies ?? []);
             AccessLists = CompileAccessLists(model.AccessLists ?? [], options.AccessLists ?? AccessListRuntime.Default, Errors);
             RuleSets = CompileRuleSets(model.RuleSets ?? [], options.RuleSets ?? RuleSetRuntime.Default, Errors);
-            AuthProviders = CompileAuthProviders(model.AuthProviders ?? [], options.ForwardAuth ?? ForwardAuthRuntime.Default, options.RateLimitsWillBePublished, Errors);
+            AuthProviders = CompileAuthProviders(model.AuthProviders ?? [], options.ForwardAuth ?? ForwardAuthRuntime.Default, Errors);
         }
 
         public ProxyConfigModel Model { get; }
@@ -225,6 +225,7 @@ public static partial class SnapshotCompiler
             Yarp = new YarpConfig(YarpRoutes.ToArray(), BuildClusters()),
             RouteIdBySlot = RouteIdBySlot.ToArray(),
             RateLimitRegistrations = RateLimitRegistrations.ToArray(),
+            AuthProviderStates = AuthProviders.States(),
             YarpEndpoints = [],
             Default = Defaults.UnknownHost switch
             {

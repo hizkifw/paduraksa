@@ -13,7 +13,8 @@ namespace Paduraksa.Proxy.ForwardAuth;
 /// What the forward-auth policies need from outside the immutable snapshot: the decision caches, the HTTP clients that call the
 /// endpoints, the counters and the secret the cache keys are hashed with. One per process, handed to the compiler like the access-list
 /// runtime. A snapshot is rebuilt on every publish, but a provider whose effective configuration didn't change keeps its state (cache, client
-/// and connections); one that changed gets a new state, so a changed endpoint, header list or scope never reuses an old decision.
+/// and connections); one that changed gets a new state, so a changed endpoint, header list or scope never reuses an old decision. Only
+/// <see cref="Publish"/>, which the publisher calls as a snapshot goes live, changes which states are live.
 /// </summary>
 public sealed partial class ForwardAuthRuntime
 {
@@ -21,6 +22,7 @@ public sealed partial class ForwardAuthRuntime
     private readonly ConcurrentDictionary<AuthProviderId, ForwardAuthCounters> _counters = new();
     private readonly Func<AuthProviderSpec, HttpMessageHandler>? _handlerFactory;
     private readonly ILogger? _logger;
+    private readonly object _publishLock = new();
 
     public ForwardAuthRuntime()
         : this(TimeProvider.System, null)
@@ -55,38 +57,61 @@ public sealed partial class ForwardAuthRuntime
     public ForwardAuthProviderState? StateOf(AuthProviderId id) => _providers.GetValueOrDefault(id);
 
     /// <summary>
-    /// The state <paramref name="spec"/> runs on: the one the process already has when its configuration hash is the same, else a new one.
-    /// <paramref name="publish"/> records it as the provider's live state; a compile that will never go live (a dry run, a draft, a
-    /// simulation) passes false and leaves the process exactly as it found it. Either way the HTTP client is made on the first call, so
-    /// compiling opens nothing.
+    /// The state <paramref name="spec"/> runs on: the one the process already has when its configuration hash is the same, else a new one that
+    /// nothing records. Compiling changes nothing in the process, whether or not the result goes live (a failed publish, a dry run, a draft and a
+    /// simulation all leave it as they found it); <see cref="Publish"/> makes a snapshot's states the live ones. The HTTP client is made on the
+    /// first call, so compiling opens nothing either.
     /// </summary>
-    internal ForwardAuthProviderState Bind(AuthProviderSpec spec, bool publish)
+    internal ForwardAuthProviderState Bind(AuthProviderSpec spec)
     {
         var hash = ForwardAuthProviderState.HashOf(spec);
-        if (_providers.TryGetValue(spec.Id, out var existing) && string.Equals(existing.ConfigHash, hash, StringComparison.Ordinal))
-        {
-            return existing;
-        }
-
-        var created = new ForwardAuthProviderState(this, spec, hash, CountersFor(spec.Id), _handlerFactory);
-        if (publish)
-        {
-            _providers[spec.Id] = created;
-        }
-
-        return created;
+        return _providers.TryGetValue(spec.Id, out var existing) && string.Equals(existing.ConfigHash, hash, StringComparison.Ordinal)
+            ? existing
+            : new ForwardAuthProviderState(this, spec, hash, CountersFor(spec.Id), _handlerFactory);
     }
 
-    /// <summary>Forgets the providers a published config no longer names. The old states stay reachable from the snapshots that still hold them; their idle connections close on their own.</summary>
-    internal void Retain(IReadOnlySet<AuthProviderId> live)
+    /// <summary>
+    /// Makes <paramref name="states"/>, the ones a snapshot that is about to go live runs on, the process's live providers: the ones it no longer
+    /// has or has replaced are retired. A retired state stays reachable from the snapshots that still hold it, so its client is disposed only
+    /// after a grace period and once no call is running (<see cref="ForwardAuthProviderState.Retire"/>). The publisher calls it with its lock held.
+    /// </summary>
+    internal void Publish(IReadOnlyList<ForwardAuthProviderState> states)
     {
-        foreach (var id in _providers.Keys)
+        lock (_publishLock)
         {
-            if (!live.Contains(id))
+            List<ForwardAuthProviderState> retired = [];
+            foreach (var old in _providers.Values)
             {
-                _providers.TryRemove(id, out _);
+                if (!Contains(states, old))
+                {
+                    retired.Add(old);
+                }
+            }
+
+            foreach (var state in states)
+            {
+                _providers[state.Id] = state;
+            }
+
+            foreach (var old in retired)
+            {
+                _providers.TryRemove(new KeyValuePair<AuthProviderId, ForwardAuthProviderState>(old.Id, old));
+                old.Retire();
             }
         }
+    }
+
+    private static bool Contains(IReadOnlyList<ForwardAuthProviderState> states, ForwardAuthProviderState state)
+    {
+        foreach (var candidate in states)
+        {
+            if (ReferenceEquals(candidate, state))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal void ReportFailure(ForwardAuthProviderState state, string name, string what)

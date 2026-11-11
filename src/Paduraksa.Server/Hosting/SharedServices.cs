@@ -294,7 +294,7 @@ internal sealed class SharedServices : IAsyncDisposable
             // Before the publisher, so disposed after it: once the publisher has stopped, no publish can go live behind a
             // last-known-good file that has stopped taking offers.
             var lastKnownGood = builder.Add(ConfigStore.CreateLastKnownGood(options.DataDirectory, coreLoggers));
-            var publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider, rateLimits: rateLimits));
+            var publisher = builder.Add(new SnapshotPublisher(snapshots, coreLoggers, timeProvider, rateLimits: rateLimits, forwardAuth: forwardAuth));
             var placeholder = builder.Add(PlaceholderServerCertificate.Create(timeProvider));
             var certificates = builder.Add(new PlaceholderCertificates(placeholder));
             AdminInternalListener adminInternal;

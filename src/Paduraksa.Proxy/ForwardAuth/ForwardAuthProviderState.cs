@@ -1,3 +1,4 @@
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Config;
 
 namespace Paduraksa.Proxy.ForwardAuth;
@@ -14,6 +15,9 @@ public sealed class ForwardAuthProviderState
     private readonly AuthProviderSpec _spec;
     private readonly Lazy<HttpClient> _client;
     private int _inFlight;
+    private int _retired;
+    private int _disposed;
+    private ITimer? _disposal;
 
     // Written by ForwardAuthRuntime.ReportFailure: when the last failure was logged, so a dead endpoint costs one line a minute.
     internal long LastReportedAt;
@@ -40,6 +44,8 @@ public sealed class ForwardAuthProviderState
 
     public ForwardAuthCounters Counters { get; }
 
+    public AuthProviderId Id => _spec.Id;
+
     public string Url => _spec.Url;
 
     internal Uri Uri { get; }
@@ -55,7 +61,45 @@ public sealed class ForwardAuthProviderState
     public int CachedAllows => Cache.Count(_runtime.Time.GetTimestamp());
 
     /// <summary>The client every call goes through; made on first use.</summary>
-    internal HttpClient Client => _client.Value;
+    internal HttpClient Client => Volatile.Read(ref _disposed) == 0 ? _client.Value : throw new ObjectDisposedException(nameof(ForwardAuthProviderState));
+
+    /// <summary>
+    /// The configuration that replaced or dropped this state went live. Snapshots published earlier still hold it, and a request that chose its route
+    /// on one of them may still make its call (within a few milliseconds of choosing) or be waiting on one (for at most the timeout), so the client is
+    /// not disposed at once: it is after the timeout and a margin, and not while a call still runs. A call that begins later than that fails closed
+    /// (<see cref="ObjectDisposedException"/>, answered 502).
+    /// </summary>
+    internal void Retire()
+    {
+        if (Interlocked.Exchange(ref _retired, 1) != 0)
+        {
+            return;
+        }
+
+        _disposal = _runtime.Time.CreateTimer(static s => ((ForwardAuthProviderState)s!).DisposeWhenIdle(), this, _spec.Timeout + DisposalMargin, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>Whether the client has been disposed, for tests.</summary>
+    internal bool IsDisposed => Volatile.Read(ref _disposed) != 0;
+
+    private static readonly TimeSpan DisposalMargin = TimeSpan.FromSeconds(10);
+
+    private void DisposeWhenIdle()
+    {
+        if (Volatile.Read(ref _inFlight) > 0)
+        {
+            _disposal?.Change(DisposalMargin, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        Interlocked.Exchange(ref _disposed, 1);
+        if (_client.IsValueCreated)
+        {
+            _client.Value.Dispose();
+        }
+
+        _disposal?.Dispose();
+    }
 
     /// <summary>Takes one of the places for a running call; false when they are all taken.</summary>
     internal bool TryEnter()

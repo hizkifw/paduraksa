@@ -441,9 +441,10 @@ public sealed class ForwardAuthPolicyTests
         var runtime = new ForwardAuthRuntime();
         var spec = Spec("http://127.0.0.1:1/auth");
 
-        var first = runtime.Bind(spec, publish: true);
+        var first = runtime.Bind(spec);
+        runtime.Publish([first]);
         // A rename isn't a change to what the endpoint is asked or how its answer is read.
-        var renamed = runtime.Bind(Spec("http://127.0.0.1:1/auth", b => b.Name = "renamed"), publish: true);
+        var renamed = runtime.Bind(Spec("http://127.0.0.1:1/auth", b => b.Name = "renamed"));
         Assert.Same(first, renamed);
 
         foreach (var changed in new Action<AuthProviderSpecBuilder>[]
@@ -466,23 +467,30 @@ public sealed class ForwardAuthPolicyTests
                     b.SignInReturnParameter = "rd";
                 }
             });
-            Assert.NotSame(first, runtime.Bind(specChanged, publish: false));
+            Assert.NotSame(first, runtime.Bind(specChanged));
         }
 
-        Assert.NotSame(first, runtime.Bind(Spec("http://127.0.0.1:2/auth"), publish: false));
+        Assert.NotSame(first, runtime.Bind(Spec("http://127.0.0.1:2/auth")));
     }
 
     [Fact]
-    public void ACompileThatWillNeverGoLiveLeavesTheProcessesProviderStatesAlone()
+    public void ACompileLeavesTheProcessesProviderStatesAloneUntilItsSnapshotIsPublished()
     {
         var runtime = new ForwardAuthRuntime();
-        var spec = Spec("http://127.0.0.1:1/auth");
-        var live = runtime.Bind(spec, publish: true);
+        var live = runtime.Bind(Spec("http://127.0.0.1:1/auth"));
+        runtime.Publish([live]);
 
-        var draft = runtime.Bind(Spec("http://127.0.0.1:2/auth"), publish: false);
+        // A candidate that changes the provider: whether or not it ever goes live (a failed publish, a draft, a dry run), compiling it changes nothing.
+        var changed = TestSnapshots.Compile(Model(Spec("http://127.0.0.1:2/auth")), new SnapshotCompilerOptions { ForwardAuth = runtime });
 
-        Assert.NotSame(live, draft);
         Assert.Same(live, runtime.StateOf(Provider));
+        Assert.False(live.IsDisposed);
+
+        // Going live is what replaces it.
+        runtime.Publish(changed.AuthProviderStates);
+        Assert.Same(Assert.Single(changed.AuthProviderStates), runtime.StateOf(Provider));
+        runtime.Publish([]);
+        Assert.Null(runtime.StateOf(Provider));
     }
 
     [Fact]
@@ -494,20 +502,26 @@ public sealed class ForwardAuthPolicyTests
         var options = new SnapshotCompilerOptions { ForwardAuth = runtime };
         var model = Model(Spec(auth.Address));
         SnapshotStore store = new();
-        store.Publish(TestSnapshots.Bound(model, options: options));
+        var first = TestSnapshots.Bound(model, options: options);
+        runtime.Publish(first.AuthProviderStates);
+        store.Publish(first);
         GateMiddleware gate = new(store, new TrustedProxyClientAddressSource());
 
         await RunAsync(gate, Context(cookie: "session=ok"));
 
         // An unrelated change (another host) and a new revision: the provider is the same.
         var again = model with { Hosts = [.. model.Hosts, TestSnapshots.ProxyHost("extra", "extra.test", TestSnapshots.Route("extra-root", "web"))] };
-        store.Publish(TestSnapshots.Bound(again, generation: 2, options: options));
+        var second = TestSnapshots.Bound(again, generation: 2, options: options);
+        runtime.Publish(second.AuthProviderStates);
+        store.Publish(second);
         await RunAsync(gate, Context(cookie: "session=ok"));
         Assert.Equal(1, auth.CallCount);
 
         // A changed endpoint setting: nothing remembered applies to it.
         var changed = again with { AuthProviders = [Spec(auth.Address, b => b.Scope = ForwardAuthCacheScope.Host)] };
-        store.Publish(TestSnapshots.Bound(changed, generation: 3, options: options));
+        var third = TestSnapshots.Bound(changed, generation: 3, options: options);
+        runtime.Publish(third.AuthProviderStates);
+        store.Publish(third);
         await RunAsync(gate, Context(cookie: "session=ok"));
         Assert.Equal(2, auth.CallCount);
     }
@@ -515,7 +529,7 @@ public sealed class ForwardAuthPolicyTests
     [Fact]
     public void ACallPlaceIsTakenAndGivenBackAndTheLastOneRefuses()
     {
-        var state = new ForwardAuthRuntime().Bind(Spec("http://127.0.0.1:1/auth"), publish: false);
+        var state = new ForwardAuthRuntime().Bind(Spec("http://127.0.0.1:1/auth"));
 
         for (var i = 0; i < ForwardAuthLimits.MaxConcurrentCalls; i++)
         {
@@ -616,14 +630,67 @@ public sealed class ForwardAuthPolicyTests
     }
 }
 
-/// <summary>A clock a test moves by hand.</summary>
+/// <summary>A clock a test moves by hand; a timer made on it fires when <see cref="Advance"/> passes its due time.</summary>
 internal sealed class ManualTime : TimeProvider
 {
+    private readonly List<ManualTimer> _timers = [];
     private long _ticks = 1_000_000_000;
 
     public override long TimestampFrequency => 1_000_000_000;
 
     public override long GetTimestamp() => Interlocked.Read(ref _ticks);
 
-    public void Advance(TimeSpan by) => Interlocked.Add(ref _ticks, (long)(by.TotalSeconds * TimestampFrequency));
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        ManualTimer timer = new(this, callback, state);
+        timer.Change(dueTime, period);
+        lock (_timers)
+        {
+            _timers.Add(timer);
+        }
+
+        return timer;
+    }
+
+    public void Advance(TimeSpan by)
+    {
+        Interlocked.Add(ref _ticks, (long)(by.TotalSeconds * TimestampFrequency));
+        ManualTimer[] due;
+        lock (_timers)
+        {
+            due = [.. _timers.Where(t => t.IsDue(GetTimestamp()))];
+        }
+
+        foreach (var timer in due)
+        {
+            timer.Fire();
+        }
+    }
+
+    private sealed class ManualTimer(ManualTime time, TimerCallback callback, object? state) : ITimer
+    {
+        private long _dueAt = long.MaxValue;
+
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            _dueAt = dueTime == Timeout.InfiniteTimeSpan ? long.MaxValue : time.GetTimestamp() + (long)(dueTime.TotalSeconds * time.TimestampFrequency);
+            return true;
+        }
+
+        public bool IsDue(long now) => _dueAt <= now;
+
+        public void Fire()
+        {
+            _dueAt = long.MaxValue;
+            callback(state);
+        }
+
+        public void Dispose() => _dueAt = long.MaxValue;
+
+        public ValueTask DisposeAsync()
+        {
+            Dispose();
+            return ValueTask.CompletedTask;
+        }
+    }
 }

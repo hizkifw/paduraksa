@@ -61,6 +61,12 @@ public sealed class RuntimeSnapshot
     /// </summary>
     public RateLimitRegistration[] RateLimitRegistrations { get; init; } = [];
 
+    /// <summary>
+    /// The forward-auth provider states the compiled routes run on. The publisher makes them the process's live ones as this snapshot goes live
+    /// (<see cref="ForwardAuth.ForwardAuthRuntime"/>) and retires the states it replaces; a candidate that never goes live leaves them alone.
+    /// </summary>
+    public ForwardAuth.ForwardAuthProviderState[] AuthProviderStates { get; init; } = [];
+
     public required DefaultHostBehaviour Default { get; init; }
 
     /// <summary>The global defaults' response headers, which a request for an unknown host and an ACME challenge
@@ -158,6 +164,7 @@ public sealed class RuntimeSnapshot
             RouteIdBySlot = RouteIdBySlot,
             YarpEndpoints = endpoints,
             RateLimitRegistrations = RateLimitRegistrations,
+            AuthProviderStates = AuthProviderStates,
             Default = Default,
             DefaultResponseHeaders = DefaultResponseHeaders,
             NoRoute = NoRoute,

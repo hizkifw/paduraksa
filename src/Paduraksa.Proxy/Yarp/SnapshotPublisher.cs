@@ -85,6 +85,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
     private readonly TimeProvider _timeProvider;
     private readonly SnapshotPublisherOptions _options;
     private readonly RateLimitRuntime? _rateLimits;
+    private readonly ForwardAuth.ForwardAuthRuntime? _forwardAuth;
     private Pending? _queued;
     private bool _workerRunning;
     private Attachment? _attachment;
@@ -98,7 +99,8 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         ILoggerFactory? loggerFactory = null,
         TimeProvider? timeProvider = null,
         SnapshotPublisherOptions? options = null,
-        RateLimitRuntime? rateLimits = null)
+        RateLimitRuntime? rateLimits = null,
+        ForwardAuth.ForwardAuthRuntime? forwardAuth = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Store = store;
@@ -106,6 +108,7 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         _timeProvider = timeProvider ?? TimeProvider.System;
         _options = options ?? new SnapshotPublisherOptions();
         _rateLimits = rateLimits;
+        _forwardAuth = forwardAuth;
     }
 
     public SnapshotStore Store { get; }
@@ -471,6 +474,9 @@ public sealed partial class SnapshotPublisher : IAsyncDisposable
         {
             LogRateLimitSlotReused(_logger, conflicts, candidate.RevisionLabel);
         }
+
+        // Likewise the forward-auth providers: a compile that went no further changed nothing, and a state this snapshot replaces is retired.
+        _forwardAuth?.Publish(candidate.AuthProviderStates);
 
         Store.Publish(candidate.Bind(generation, endpoints));
         LogPublished(_logger, generation, candidate.RevisionLabel, candidate.HostsByIndex.Length, candidate.RouteIdBySlot.Length);

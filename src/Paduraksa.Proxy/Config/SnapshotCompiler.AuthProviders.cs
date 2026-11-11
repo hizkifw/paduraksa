@@ -7,10 +7,24 @@ namespace Paduraksa.Proxy.Config;
 public static partial class SnapshotCompiler
 {
     /// <summary>What a route needs to bind its provider: the compiled providers that compiled.</summary>
-    internal sealed record AuthProviderBinding(Dictionary<AuthProviderId, CompiledAuthProvider> Providers);
+    internal sealed record AuthProviderBinding(Dictionary<AuthProviderId, CompiledAuthProvider> Providers)
+    {
+        /// <summary>The states the compiled providers run on.</summary>
+        public ForwardAuthProviderState[] States()
+        {
+            var states = new ForwardAuthProviderState[Providers.Count];
+            var at = 0;
+            foreach (var provider in Providers.Values)
+            {
+                states[at++] = provider.State;
+            }
+
+            return states;
+        }
+    }
 
     private static AuthProviderBinding CompileAuthProviders(
-        IReadOnlyList<AuthProviderSpec> specs, ForwardAuthRuntime runtime, bool publish, List<CompileError> errors)
+        IReadOnlyList<AuthProviderSpec> specs, ForwardAuthRuntime runtime, List<CompileError> errors)
     {
         Dictionary<AuthProviderId, CompiledAuthProvider> providers = [];
         foreach (var spec in specs)
@@ -25,19 +39,8 @@ public static partial class SnapshotCompiler
             CheckAuthProvider(spec, where, errors);
             if (errors.Count == before)
             {
-                providers.Add(spec.Id, new CompiledAuthProvider(spec, runtime.Bind(spec, publish)));
+                providers.Add(spec.Id, new CompiledAuthProvider(spec, runtime.Bind(spec)));
             }
-        }
-
-        if (publish)
-        {
-            HashSet<AuthProviderId> live = [];
-            foreach (var id in providers.Keys)
-            {
-                live.Add(id);
-            }
-
-            runtime.Retain(live);
         }
 
         return new AuthProviderBinding(providers);
