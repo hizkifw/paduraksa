@@ -202,7 +202,7 @@ public sealed class AccessListPolicyTests
     }
 
     [Fact]
-    public void ARememberedPasswordExpiresAfterFiveMinutes()
+    public void ARememberedPasswordExpiresFiveMinutesAfterItsLastUse()
     {
         StepClock clock = new();
         var runtime = new AccessListRuntime(clock);
@@ -214,7 +214,12 @@ public sealed class AccessListPolicyTests
         Decide(gate, Outside, credentials);
         Assert.Equal(1, runtime.Stats.Verifications);
 
-        clock.Advance(TimeSpan.FromSeconds(2));
+        // The hit pushed the expiry out: five minutes from the hit, not from the first check.
+        clock.Advance(TimeSpan.FromMinutes(4) + TimeSpan.FromSeconds(59));
+        Decide(gate, Outside, credentials);
+        Assert.Equal(1, runtime.Stats.Verifications);
+
+        clock.Advance(TimeSpan.FromMinutes(5) + TimeSpan.FromSeconds(1));
         Assert.Equal("pass", Describe(Decide(gate, Outside, credentials)));
         Assert.Equal(2, runtime.Stats.Verifications);
     }

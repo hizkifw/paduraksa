@@ -12,11 +12,20 @@ namespace Paduraksa.Proxy.AccessLists;
 /// the expiry, then the key again and believes it only when both reads of the key agree and the expiry is live. So a
 /// reader never pairs one entry's key with another's expiry. Two writers on one slot can leave a key with the other's
 /// expiry, which is harmless: each only writes a key it has just verified, with an expiry of the same moment.</para>
+/// <para><b>The refresh.</b> A hit stores a new expiry with no further check, so it can land after a writer has put another key
+/// in the slot, or between the writer's two expiry stores. That cannot make an unverified key live, because a key only enters
+/// through <see cref="Add"/>, after PBKDF2. It can only leave a verified key with an expiry that is off by the skew of two
+/// clock reads taken microseconds apart, or shorter when the refreshing thread was stalled after reading its clock; either way
+/// the cost is an entry living a few milliseconds longer or being verified again early.</para>
 /// </remarks>
 public sealed class AccessListVerificationCache
 {
     /// <summary>How long a verified credential stays trusted.</summary>
     public const long LifetimeMs = 5 * 60 * 1000;
+
+    /// <summary>A hit rewrites the expiry only when less than this is left (four of the five minutes), so an idle user drops out
+    /// between four and five minutes after the last request.</summary>
+    public const long RefreshBelowMs = LifetimeMs - 60 * 1000;
 
     /// <summary>The default entry count: 64 KiB.</summary>
     public const int DefaultCapacity = 4096;
@@ -43,8 +52,17 @@ public sealed class AccessListVerificationCache
 
     public int Capacity => _keys.Length;
 
-    /// <summary>Whether <paramref name="key"/> was added and has not expired. 0 B.</summary>
-    public bool Contains(ulong key, long nowMs)
+    /// <summary>Whether <paramref name="key"/> was added and has not expired, without touching it. 0 B.</summary>
+    public bool Contains(ulong key, long nowMs) => Find(key, nowMs, refresh: false);
+
+    /// <summary>
+    /// Whether <paramref name="key"/> is live; if so, pushes its expiry to <see cref="LifetimeMs"/> from
+    /// <paramref name="nowMs"/> once less than <see cref="RefreshBelowMs"/> of it is left, so an active user stays verified
+    /// and a hot entry is written about once a minute rather than on every request. 0 B, lock-free.
+    /// </summary>
+    public bool TryHit(ulong key, long nowMs) => Find(key, nowMs, refresh: true);
+
+    private bool Find(ulong key, long nowMs, bool refresh)
     {
         var start = (int)key & _mask;
         for (var i = 0; i < Probes; i++)
@@ -58,6 +76,11 @@ public sealed class AccessListVerificationCache
             var expires = Volatile.Read(ref _expires[slot]);
             if (expires > nowMs && Volatile.Read(ref _keys[slot]) == key)
             {
+                if (refresh && expires - nowMs < RefreshBelowMs)
+                {
+                    Volatile.Write(ref _expires[slot], nowMs + LifetimeMs);
+                }
+
                 return true;
             }
         }

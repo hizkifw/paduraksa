@@ -20,6 +20,67 @@ public sealed class AccessListVerificationCacheTests
     }
 
     [Fact]
+    public void AHitPushesTheExpiryToFiveMinutesFromNow()
+    {
+        AccessListVerificationCache cache = new(16);
+        cache.Add(42, 0);
+
+        Assert.True(cache.TryHit(42, 4 * Minute + 30_000));
+
+        Assert.True(cache.Contains(42, 9 * Minute + 29_000));
+        Assert.False(cache.Contains(42, 9 * Minute + 30_000));
+    }
+
+    [Fact]
+    public void AHitWithMoreThanFourMinutesLeftWritesNothing()
+    {
+        AccessListVerificationCache cache = new(16);
+        cache.Add(42, 0);
+
+        Assert.True(cache.TryHit(42, 30_000));
+        Assert.True(cache.TryHit(42, Minute - 1));
+
+        // Never extended: the entry still ends five minutes after it was added.
+        Assert.True(cache.Contains(42, 5 * Minute - 1));
+        Assert.False(cache.Contains(42, 5 * Minute));
+
+        // One minute in, exactly four are left: still not rewritten; a millisecond later it is.
+        Assert.True(cache.TryHit(42, Minute));
+        Assert.False(cache.Contains(42, 5 * Minute));
+        Assert.True(cache.TryHit(42, Minute + 1));
+        Assert.True(cache.Contains(42, 6 * Minute));
+    }
+
+    [Fact]
+    public void AnExpiredOrAbsentKeyIsNotBroughtBackByAHit()
+    {
+        AccessListVerificationCache cache = new(16);
+        cache.Add(42, 0);
+
+        Assert.False(cache.TryHit(42, 5 * Minute));
+        Assert.False(cache.Contains(42, 5 * Minute + 1));
+        Assert.False(cache.TryHit(43, 0));
+        Assert.Equal(0, cache.LiveCount(5 * Minute));
+    }
+
+    [Fact]
+    public void AnIdleEntryDropsOutBetweenFourAndFiveMinutesAfterItsLastUse()
+    {
+        AccessListVerificationCache cache = new(16);
+        cache.Add(42, 0);
+
+        // Used every ten seconds for ten minutes: always live.
+        for (long now = 10_000; now <= 10 * Minute; now += 10_000)
+        {
+            Assert.True(cache.TryHit(42, now));
+        }
+
+        // The last use was at 10:00 and rewrote at 9:00:10 at the latest, so it ends by 14:00:10 and not before 14:00.
+        Assert.True(cache.Contains(42, 10 * Minute + 3 * Minute + 59_000));
+        Assert.False(cache.Contains(42, 10 * Minute + 5 * Minute));
+    }
+
+    [Fact]
     public void AddingAKeyAgainRenewsItInPlace()
     {
         AccessListVerificationCache cache = new(16);
@@ -73,6 +134,39 @@ public sealed class AccessListVerificationCacheTests
     public void ACapacityThatIsNotAPowerOfTwoIsRefused(int capacity)
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new AccessListVerificationCache(capacity));
+    }
+
+    [Fact]
+    public async Task ConcurrentRefreshesAndWritersNeverMakeAnUnaddedKeyLive()
+    {
+        AccessListVerificationCache cache = new(64);
+        using CancellationTokenSource stop = new();
+        var forged = 0;
+        var writers = Enumerable.Range(0, 2).Select(w => Task.Run(() =>
+        {
+            for (ulong i = 1; !stop.IsCancellationRequested; i++)
+            {
+                cache.Add((ulong)w * 1_000_000 + (i % 200) + 1, 1000);
+            }
+        }, TestContext.Current.CancellationToken)).ToArray();
+        var refreshers = Enumerable.Range(0, 2).Select(r => Task.Run(() =>
+        {
+            for (var i = 0; i < 1_000_000; i++)
+            {
+                // Hits on keys the writers do produce, so the slots are rewritten; keys nobody adds must never turn up live.
+                cache.TryHit((ulong)(i % 200) + 1, 1000 + 4 * Minute);
+                if (cache.TryHit(9_000_000 + (ulong)(i % 1000), 1000 + 4 * Minute))
+                {
+                    Interlocked.Increment(ref forged);
+                }
+            }
+        }, TestContext.Current.CancellationToken)).ToArray();
+
+        await Task.WhenAll(refreshers);
+        await stop.CancelAsync();
+        await Task.WhenAll(writers);
+
+        Assert.Equal(0, forged);
     }
 
     [Fact]

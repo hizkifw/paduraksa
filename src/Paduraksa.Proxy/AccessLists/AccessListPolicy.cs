@@ -38,8 +38,8 @@ public enum AccessListStage : byte
 /// <para><b>Credentials.</b> The name is compared in constant time with every user's, so where in the list it matched isn't
 /// observable; an unknown name still pays one PBKDF2 against a dummy hash, so it is indistinguishable by timing from a wrong
 /// password. At most as many checks as the machine has processors run at once; the rest are answered 429 rather than
-/// queued behind a flood of wrong passwords. A verified credential is remembered for five minutes in
-/// <see cref="AccessListVerificationCache"/>, keyed by a keyed hash of the list's user (which changes with the password),
+/// queued behind a flood of wrong passwords. A verified credential is remembered in
+/// <see cref="AccessListVerificationCache"/> until five minutes after its last use, keyed by a keyed hash of the list's user (which changes with the password),
 /// the password and the client address masked as the rate limit masks it (IPv4 whole, IPv6 by /64).</para>
 /// <para><b>Allocation.</b> Every path is 0 B, a PBKDF2 included on .NET 10.0.14 (the distro build and Microsoft's 10.0.403
 /// both measured 0 B); <c>AccessListPolicyTests</c> only bounds a miss at 512 B, in case a runtime's provider allocates its
@@ -214,7 +214,7 @@ public sealed class AccessListPolicy : IRequestPolicy, IPolicyTraceFacts
         if (user is not null && !simulate)
         {
             fingerprint = Fingerprint(user, client, credentials);
-            if (_runtime.Cache.Contains(fingerprint, _runtime.NowMs))
+            if (_runtime.Cache.TryHit(fingerprint, _runtime.NowMs))
             {
                 stats!.CountCacheHit();
                 return CredentialVerdict.VerifiedFromCache;
