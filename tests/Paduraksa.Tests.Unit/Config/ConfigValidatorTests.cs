@@ -876,6 +876,75 @@ public sealed class ConfigValidatorTests
     }
 
     [Fact]
+    public void ChecksRequestLimitsInEveryLayerAndRefusesRouteHeaderLimits()
+    {
+        var document = Valid();
+        HostSettings edges = new()
+        {
+            RequestLimits = new RequestLimitsSettings
+            {
+                MaxBodySize = RequestLimitBounds.MaxBodySize,
+                MaxHeaderCount = RequestLimitBounds.MinHeaderCount,
+                MaxHeaderBytes = RequestLimitBounds.MaxHeaderBytes,
+                MaxUrlLength = RequestLimitBounds.MinUrlLength,
+            },
+        };
+        HostSettings unlimited = new() { RequestLimits = new RequestLimitsSettings { MaxBodySize = RequestLimitBounds.UnlimitedBodySize } };
+        Assert.Empty(ConfigValidator.Validate(document with { Settings = document.Settings with { Defaults = edges } }));
+        Assert.Empty(ConfigValidator.Validate(document with { Profiles = [document.Profiles[0] with { Settings = unlimited }] }));
+        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Settings = edges }) }));
+
+        HostSettings negativeBody = new() { RequestLimits = new RequestLimitsSettings { MaxBodySize = -1 } };
+        HostSettings hugeBody = new() { RequestLimits = new RequestLimitsSettings { MaxBodySize = RequestLimitBounds.MaxBodySize + 1 } };
+        HostSettings fewHeaders = new() { RequestLimits = new RequestLimitsSettings { MaxHeaderCount = RequestLimitBounds.MinHeaderCount - 1 } };
+        HostSettings manyHeaders = new() { RequestLimits = new RequestLimitsSettings { MaxHeaderCount = RequestLimitBounds.MaxHeaderCount + 1 } };
+        HostSettings smallHeaders = new() { RequestLimits = new RequestLimitsSettings { MaxHeaderBytes = RequestLimitBounds.MinHeaderBytes - 1 } };
+        HostSettings bigHeaders = new() { RequestLimits = new RequestLimitsSettings { MaxHeaderBytes = RequestLimitBounds.MaxHeaderBytes + 1 } };
+        HostSettings shortUrl = new() { RequestLimits = new RequestLimitsSettings { MaxUrlLength = RequestLimitBounds.MinUrlLength - 1 } };
+        HostSettings longUrl = new() { RequestLimits = new RequestLimitsSettings { MaxUrlLength = RequestLimitBounds.MaxUrlLength + 1 } };
+        AssertErrors(
+            document with { Settings = document.Settings with { Defaults = negativeBody } },
+            ("/settings/defaults/requestLimits/maxBodySize", RequestLimitsMaxBodySizeInvalid));
+        AssertErrors(
+            document with { Profiles = [document.Profiles[0] with { Settings = hugeBody }] },
+            ("/profiles/0/settings/requestLimits/maxBodySize", RequestLimitsMaxBodySizeInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = fewHeaders }) },
+            ($"{Proxy}/settings/requestLimits/maxHeaderCount", RequestLimitsMaxHeaderCountInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = manyHeaders }) },
+            ($"{Proxy}/settings/requestLimits/maxHeaderCount", RequestLimitsMaxHeaderCountInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = smallHeaders }) },
+            ($"{Proxy}/settings/requestLimits/maxHeaderBytes", RequestLimitsMaxHeaderBytesInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = bigHeaders }) },
+            ($"{Proxy}/settings/requestLimits/maxHeaderBytes", RequestLimitsMaxHeaderBytesInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = shortUrl }) },
+            ($"{Proxy}/settings/requestLimits/maxUrlLength", RequestLimitsMaxUrlLengthInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Settings = longUrl }) },
+            ($"{Proxy}/settings/requestLimits/maxUrlLength", RequestLimitsMaxUrlLengthInvalid));
+
+        // A route overrides only the body limit (even to none): the header and URL limits are judged before a route is known.
+        var route = new RouteConfig(RootRoute, AppUpstream, Settings: new RouteSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = RequestLimitBounds.UnlimitedBodySize } });
+        Assert.Empty(ConfigValidator.Validate(document with { Hosts = MapHost(document, AppHost, h => h with { Routes = [route] }) }));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Routes = [route with { Settings = new RouteSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = -5 } } }] }) },
+            ($"{Proxy}/routes/0/settings/requestLimits/maxBodySize", RequestLimitsMaxBodySizeInvalid));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Routes = [route with { Settings = new RouteSettings { RequestLimits = new RequestLimitsSettings { MaxHeaderCount = 50 } } }] }) },
+            ($"{Proxy}/routes/0/settings/requestLimits/maxHeaderCount", RequestLimitsRouteMaxHeaderCountUnexpected));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Routes = [route with { Settings = new RouteSettings { RequestLimits = new RequestLimitsSettings { MaxHeaderBytes = 4096 } } }] }) },
+            ($"{Proxy}/routes/0/settings/requestLimits/maxHeaderBytes", RequestLimitsRouteMaxHeaderBytesUnexpected));
+        AssertErrors(
+            document with { Hosts = MapHost(document, AppHost, h => h with { Routes = [route with { Settings = new RouteSettings { RequestLimits = new RequestLimitsSettings { MaxUrlLength = 1024 } } }] }) },
+            ($"{Proxy}/routes/0/settings/requestLimits/maxUrlLength", RequestLimitsRouteMaxUrlLengthUnexpected));
+    }
+
+    [Fact]
     public void ChecksRobotsTextInEveryLayer()
     {
         var document = Valid();

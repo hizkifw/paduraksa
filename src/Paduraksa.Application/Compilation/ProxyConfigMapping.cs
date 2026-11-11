@@ -256,6 +256,8 @@ public static class ProxyConfigMapping
                 RateLimit = rateLimit.EffectivePolicyId,
                 RateLimitRouteOverride = HostSettingsLayers.RouteOverridesRateLimit(route.Settings),
                 AccessList = HostSettingsLayers.ResolveRouteAccessList(effective, route.Settings).Effective,
+                MaxBodySize = HostSettingsLayers.ResolveRouteMaxBodySize(effective, route.Settings),
+                MaxBodySizeRouteOverride = HostSettingsLayers.RouteOverridesMaxBodySize(route.Settings),
             };
         }
 
@@ -332,6 +334,7 @@ public static class ProxyConfigMapping
             ProofOfWork = effective.ProofOfWork,
             RateLimit = effective.RateLimit,
             AccessList = effective.AccessList,
+            RequestLimits = effective.RequestLimits,
             Robots = effective.Robots,
             Cloudflare = effective.Cloudflare,
             Routes = routes,

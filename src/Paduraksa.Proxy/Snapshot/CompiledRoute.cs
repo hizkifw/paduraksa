@@ -39,6 +39,9 @@ public sealed class CompiledRoute
     /// <summary>True when the route's own layer decided <see cref="ProofOfWork"/>'s switch (the trace says so).</summary>
     public bool ProofOfWorkRouteOverride { get; init; }
 
+    /// <summary>The body limit in bytes (0: none) this route's own layer sets; null: the host's applies.</summary>
+    public long? MaxBodySize { get; init; }
+
     /// <summary>
     /// True for the implicit route every admin host gets: it takes every path and forwards to the
     /// <c>__admin</c> cluster. It has no <see cref="RouteId"/>, so <see cref="Id"/> is empty.

@@ -220,6 +220,38 @@ public sealed class SettingsInheritanceTests
             BuiltIn: null,
             First: Id<AccessListId>(1).ToString()!,
             Second: Id<AccessListId>(2).ToString()!),
+        new(
+            "requestLimits.maxBodySize",
+            static s => s.RequestLimits?.MaxBodySize?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = long.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.RequestLimits.MaxBodySize.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "104857600",
+            First: "10485760",
+            Second: "0"),
+        new(
+            "requestLimits.maxHeaderCount",
+            static s => s.RequestLimits?.MaxHeaderCount?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { RequestLimits = new RequestLimitsSettings { MaxHeaderCount = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.RequestLimits.MaxHeaderCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "100",
+            First: "30",
+            Second: "128"),
+        new(
+            "requestLimits.maxHeaderBytes",
+            static s => s.RequestLimits?.MaxHeaderBytes?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { RequestLimits = new RequestLimitsSettings { MaxHeaderBytes = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.RequestLimits.MaxHeaderBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "32768",
+            First: "16384",
+            Second: "65536"),
+        new(
+            "requestLimits.maxUrlLength",
+            static s => s.RequestLimits?.MaxUrlLength?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            static v => new HostSettings { RequestLimits = new RequestLimitsSettings { MaxUrlLength = int.Parse(v, System.Globalization.CultureInfo.InvariantCulture) } },
+            static h => h.RequestLimits.MaxUrlLength.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            BuiltIn: "8192",
+            First: "2048",
+            Second: "16384"),
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(f => f.Name)];
@@ -458,6 +490,7 @@ public sealed class SettingsInheritanceTests
         new("robots", Defaults: ["robots.customText"], Profile: ["robots.mode"], Host: []),
         new("cloudflare", Defaults: ["cloudflare.originLockdown"], Profile: [], Host: ["cloudflare.authenticatedOriginPulls"]),
         new("accessList", Defaults: ["accessList.enabled"], Profile: [], Host: ["accessList.accessListId"]),
+        new("requestLimits", Defaults: ["requestLimits.maxBodySize", "requestLimits.maxHeaderCount"], Profile: ["requestLimits.maxHeaderBytes"], Host: ["requestLimits.maxUrlLength"]),
     ];
 
     /// <summary>

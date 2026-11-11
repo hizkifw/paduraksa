@@ -101,6 +101,13 @@ public sealed class CompiledHost
     /// <see cref="CompiledRoute.AccessList"/> differs where it names another or turns the list off.</summary>
     public AccessLists.CompiledAccessList? AccessList { get; init; }
 
+    /// <summary>
+    /// What the host takes of a request. The gate sets its body limit on the request when the host is found and refuses a
+    /// request over the header or request-target limit before routing; a route's own <see cref="CompiledRoute.MaxBodySize"/> may
+    /// replace the body limit.
+    /// </summary>
+    public HostRequestLimitsSpec RequestLimits { get; init; } = HostRequestLimitsSpec.Default;
+
     /// <summary>The host's proof-of-work settings; a route's own switch may override <see cref="HostProofOfWorkSpec.Enabled"/>.</summary>
     public HostProofOfWorkSpec ProofOfWork { get; init; } = HostProofOfWorkSpec.Off;
 

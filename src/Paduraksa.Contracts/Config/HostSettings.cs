@@ -7,7 +7,7 @@ namespace Paduraksa.Contracts.Config;
 /// One layer of host settings. Every field is nullable and null (absent in JSON) means
 /// <i>inherit</i>: the compiler resolves built-in defaults → global defaults → profile → host → route. Nested settings
 /// (<see cref="Tls"/>, <see cref="Hsts"/>, <see cref="ServerHeader"/>, <see cref="ProofOfWork"/>, <see cref="RateLimit"/>,
-/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>) merge field by field.
+/// <see cref="Robots"/>, <see cref="Cloudflare"/>, <see cref="AccessList"/>, <see cref="RequestLimits"/>) merge field by field.
 /// </summary>
 /// <remarks>A new setting is a new nullable field at the end: stored documents simply don't set it.</remarks>
 public sealed record HostSettings
@@ -51,6 +51,10 @@ public sealed record HostSettings
 
     /// <summary>Merged field by field with the layers below. Built-in default: none.</summary>
     public AccessListSettings? AccessList { get; init; }
+
+    /// <summary>Merged field by field with the layers below. Built-in default: 100 MiB of body, 100 header lines, 32 KiB of
+    /// headers, an 8 KiB request target.</summary>
+    public RequestLimitsSettings? RequestLimits { get; init; }
 }
 
 /// <summary>
@@ -86,6 +90,13 @@ public sealed record RouteSettings
     /// <summary>Field by field over the host's resolved list: a route inherits the host's, names another, or turns the list
     /// off for its own paths.</summary>
     public AccessListSettings? AccessList { get; init; }
+
+    /// <summary>
+    /// The route-level subset of <see cref="RequestLimitsSettings"/>: only <see cref="RequestLimitsSettings.MaxBodySize"/> is
+    /// accepted here, over the host's resolved value, so an upload route can take more (or less) than the rest of the host.
+    /// The header and URL limits are judged before a route is known, so they belong to the host.
+    /// </summary>
+    public RequestLimitsSettings? RequestLimits { get; init; }
 }
 
 /// <summary>TLS settings; each field inherits on its own. A layer that sets none is the same as no layer.</summary>
@@ -233,4 +244,32 @@ public sealed record CloudflareSettings : ISettingsLayer
 
     [JsonIgnore]
     public bool SetsNothing => OriginLockdown is null && AuthenticatedOriginPulls is null;
+}
+
+/// <summary>
+/// How much of a request a host takes. Each field inherits on its own. A request over a limit is refused before the upstream
+/// sees it: 413 for the body, 431 for the headers, 414 for the request target. Sizes are bytes.
+/// </summary>
+public sealed record RequestLimitsSettings : ISettingsLayer
+{
+    /// <summary>
+    /// The largest request body, in bytes; 0 is no limit. Built-in default: 100 MiB. A declared <c>Content-Length</c> over it is
+    /// refused up front; a body that has none (chunked, or HTTP/2 and HTTP/3 without a length) is cut off when it passes the
+    /// limit, so the upstream may already have received part of it. A route may set its own.
+    /// </summary>
+    public long? MaxBodySize { get; init; }
+
+    /// <summary>Most header lines a request may carry, 8 to 128. Built-in default: 100. Host-wide: a route can't set it.</summary>
+    public int? MaxHeaderCount { get; init; }
+
+    /// <summary>Most bytes the header names and values may take together, 1 KiB to 64 KiB. Built-in default: 32 KiB.
+    /// Host-wide: a route can't set it.</summary>
+    public int? MaxHeaderBytes { get; init; }
+
+    /// <summary>Longest request target (path and query, as sent), in bytes, 256 to 16 KiB. Built-in default: 8 KiB. Host-wide:
+    /// a route can't set it.</summary>
+    public int? MaxUrlLength { get; init; }
+
+    [JsonIgnore]
+    public bool SetsNothing => MaxBodySize is null && MaxHeaderCount is null && MaxHeaderBytes is null && MaxUrlLength is null;
 }

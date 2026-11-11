@@ -615,6 +615,11 @@ public static class ConfigValidator
                 CheckProofOfWork(proofOfWork, $"{path}/settings/proofOfWork", route: true);
             }
 
+            if (route.Settings?.RequestLimits is { } requestLimits)
+            {
+                CheckRequestLimits(requestLimits, $"{path}/settings/requestLimits", route: true);
+            }
+
             // Only the route's own named policy is checked here: one inherited from the host is reported at the host.
             if (route.Settings?.RateLimit?.PolicyId is { IsEmpty: false } routePolicyId)
             {
@@ -681,6 +686,59 @@ public static class ConfigValidator
             if (settings.Robots is { } robots)
             {
                 CheckRobots(robots, $"{path}/robots");
+            }
+
+            if (settings.RequestLimits is { } requestLimits)
+            {
+                CheckRequestLimits(requestLimits, $"{path}/requestLimits", route: false);
+            }
+        }
+
+        /// <summary>
+        /// The request limits, judged where a layer sets them. A route's layer carries only the body limit: the header and
+        /// request-target limits are checked before a route is known, so an override there could only be ignored.
+        /// </summary>
+        private void CheckRequestLimits(RequestLimitsSettings settings, string path, bool route)
+        {
+            if (settings.MaxBodySize is { } body && body is < 0 or > RequestLimitBounds.MaxBodySize)
+            {
+                Add($"{path}/maxBodySize", RequestLimitsMaxBodySizeInvalid, $"the body limit is 0 (no limit) or 1 byte to {RequestLimitBounds.MaxBodySize} bytes (1 TiB), got {body}");
+            }
+
+            if (settings.MaxHeaderCount is { } count)
+            {
+                if (route)
+                {
+                    Add($"{path}/maxHeaderCount", RequestLimitsRouteMaxHeaderCountUnexpected, "a route can only override the body limit; set the header limit on the host");
+                }
+                else if (count is < RequestLimitBounds.MinHeaderCount or > RequestLimitBounds.MaxHeaderCount)
+                {
+                    Add($"{path}/maxHeaderCount", RequestLimitsMaxHeaderCountInvalid, $"the header limit must be {RequestLimitBounds.MinHeaderCount}-{RequestLimitBounds.MaxHeaderCount} lines, got {count}");
+                }
+            }
+
+            if (settings.MaxHeaderBytes is { } bytes)
+            {
+                if (route)
+                {
+                    Add($"{path}/maxHeaderBytes", RequestLimitsRouteMaxHeaderBytesUnexpected, "a route can only override the body limit; set the header size limit on the host");
+                }
+                else if (bytes is < RequestLimitBounds.MinHeaderBytes or > RequestLimitBounds.MaxHeaderBytes)
+                {
+                    Add($"{path}/maxHeaderBytes", RequestLimitsMaxHeaderBytesInvalid, $"the header size limit must be {RequestLimitBounds.MinHeaderBytes}-{RequestLimitBounds.MaxHeaderBytes} bytes, got {bytes}");
+                }
+            }
+
+            if (settings.MaxUrlLength is { } length)
+            {
+                if (route)
+                {
+                    Add($"{path}/maxUrlLength", RequestLimitsRouteMaxUrlLengthUnexpected, "a route can only override the body limit; set the URL limit on the host");
+                }
+                else if (length is < RequestLimitBounds.MinUrlLength or > RequestLimitBounds.MaxUrlLength)
+                {
+                    Add($"{path}/maxUrlLength", RequestLimitsMaxUrlLengthInvalid, $"the URL limit must be {RequestLimitBounds.MinUrlLength}-{RequestLimitBounds.MaxUrlLength} bytes, got {length}");
+                }
             }
         }
 

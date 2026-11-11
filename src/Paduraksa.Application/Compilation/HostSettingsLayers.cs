@@ -18,7 +18,7 @@ namespace Paduraksa.Application.Compilation;
 /// <para><b>The rules.</b> A null field inherits: keeping the result nullable is what lets a merged layer be a layer in
 /// its turn. Nested settings (<see cref="HostSettings.Tls"/>, <see cref="HostSettings.Hsts"/>,
 /// <see cref="HostSettings.ServerHeader"/>, <see cref="HostSettings.ProofOfWork"/>, <see cref="HostSettings.RateLimit"/>,
-/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>) merge field by field and stay absent when
+/// <see cref="HostSettings.Robots"/>, <see cref="HostSettings.Cloudflare"/>, <see cref="HostSettings.AccessList"/>, <see cref="HostSettings.RequestLimits"/>) merge field by field and stay absent when
 /// neither layer sets a field of theirs. Everything else is a plain override.</para>
 /// </remarks>
 public static class HostSettingsLayers
@@ -44,6 +44,10 @@ public static class HostSettingsLayers
     private const OriginLockdownMode BuiltInOriginLockdown = OriginLockdownMode.Off;
     private const bool BuiltInAuthenticatedOriginPulls = false;
     private const bool BuiltInAccessListEnabled = true;
+    private const long BuiltInMaxBodySize = RequestLimitBounds.DefaultMaxBodySize;
+    private const int BuiltInMaxHeaderCount = RequestLimitBounds.DefaultMaxHeaderCount;
+    private const int BuiltInMaxHeaderBytes = RequestLimitBounds.DefaultMaxHeaderBytes;
+    private const int BuiltInMaxUrlLength = RequestLimitBounds.DefaultMaxUrlLength;
 
     /// <summary>The built-in defaults under every layer, one constant per statement below.</summary>
     public static HostSettings BuiltIn { get; } = new()
@@ -64,6 +68,13 @@ public static class HostSettingsLayers
         Robots = new RobotsSettings { Mode = BuiltInRobotsMode },
         Cloudflare = new CloudflareSettings { OriginLockdown = BuiltInOriginLockdown, AuthenticatedOriginPulls = BuiltInAuthenticatedOriginPulls },
         AccessList = new AccessListSettings { Enabled = BuiltInAccessListEnabled },
+        RequestLimits = new RequestLimitsSettings
+        {
+            MaxBodySize = BuiltInMaxBodySize,
+            MaxHeaderCount = BuiltInMaxHeaderCount,
+            MaxHeaderBytes = BuiltInMaxHeaderBytes,
+            MaxUrlLength = BuiltInMaxUrlLength,
+        },
     };
 
     /// <summary>Null-preserving, so the result is a layer too: a field neither layer sets stays unset.</summary>
@@ -92,6 +103,7 @@ public static class HostSettingsLayers
             Robots = Merge(lower.Robots, upper.Robots),
             Cloudflare = Merge(lower.Cloudflare, upper.Cloudflare),
             AccessList = Merge(lower.AccessList, upper.AccessList),
+            RequestLimits = Merge(lower.RequestLimits, upper.RequestLimits),
         };
     }
 
@@ -253,6 +265,26 @@ public static class HostSettingsLayers
         return merged is { Enabled: null, AccessListId: null } ? null : merged;
     }
 
+    /// <summary><paramref name="lower"/> with the fields <paramref name="upper"/> sets; absent when neither sets
+    /// one.</summary>
+    public static RequestLimitsSettings? Merge(RequestLimitsSettings? lower, RequestLimitsSettings? upper)
+    {
+        if (upper is null)
+        {
+            return lower;
+        }
+
+        RequestLimitsSettings merged = new()
+        {
+            MaxBodySize = upper.MaxBodySize ?? lower?.MaxBodySize,
+            MaxHeaderCount = upper.MaxHeaderCount ?? lower?.MaxHeaderCount,
+            MaxHeaderBytes = upper.MaxHeaderBytes ?? lower?.MaxHeaderBytes,
+            MaxUrlLength = upper.MaxUrlLength ?? lower?.MaxUrlLength,
+        };
+
+        return merged.SetsNothing ? null : merged;
+    }
+
     /// <summary>The effective host settings of <paramref name="layers"/>, listed bottom (global defaults) to top (the
     /// host); null layers are skipped, and the built-in defaults sit underneath them all.</summary>
     internal static EffectiveHostSettings Resolve(params ReadOnlySpan<HostSettings?> layers) => Concrete(MergeAll(layers));
@@ -295,6 +327,13 @@ public static class HostSettingsLayers
     /// <summary>Whether the route's own layer decides its rate limit.</summary>
     internal static bool RouteOverridesRateLimit(RouteSettings? route) =>
         route?.RateLimit is { Enabled: not null } or { PolicyId: not null };
+
+    /// <summary>The body limit of a route: its own, when its layer sets one, else the host's resolved limit.</summary>
+    internal static long ResolveRouteMaxBodySize(EffectiveHostSettings host, RouteSettings? route) =>
+        route?.RequestLimits?.MaxBodySize ?? host.RequestLimits.MaxBodySize;
+
+    /// <summary>Whether the route's own layer decides its body limit.</summary>
+    internal static bool RouteOverridesMaxBodySize(RouteSettings? route) => route?.RequestLimits?.MaxBodySize is not null;
 
     /// <summary>
     /// Which of a host's layers set a field: the one to go and change when a message has to name it, or
@@ -339,6 +378,7 @@ public static class HostSettingsLayers
         var robots = settings.Robots ?? new RobotsSettings();
         var cloudflare = settings.Cloudflare ?? new CloudflareSettings();
         var accessList = settings.AccessList ?? new AccessListSettings();
+        var requestLimits = settings.RequestLimits ?? new RequestLimitsSettings();
         return new EffectiveHostSettings(
             settings.ForceHttps ?? BuiltInForceHttps,
             new HostTlsSpec
@@ -392,6 +432,13 @@ public static class HostSettingsLayers
                 // Naming a list is enough: only a layer that says otherwise turns it off.
                 Enabled = accessList.Enabled ?? BuiltInAccessListEnabled,
                 AccessListId = accessList.AccessListId ?? AccessListId.Empty,
+            },
+            new HostRequestLimitsSpec
+            {
+                MaxBodySize = requestLimits.MaxBodySize ?? BuiltInMaxBodySize,
+                MaxHeaderCount = requestLimits.MaxHeaderCount ?? BuiltInMaxHeaderCount,
+                MaxHeaderBytes = requestLimits.MaxHeaderBytes ?? BuiltInMaxHeaderBytes,
+                MaxUrlLength = requestLimits.MaxUrlLength ?? BuiltInMaxUrlLength,
             });
     }
 }
@@ -421,6 +468,7 @@ public enum SettingsLayer
 /// <param name="Robots">What the host answers at <c>/robots.txt</c>.</param>
 /// <param name="Cloudflare">Origin lockdown and Authenticated Origin Pulls.</param>
 /// <param name="AccessList">The access list in force, with the switch as it resolved.</param>
+/// <param name="RequestLimits">The body, header and request-target limits.</param>
 internal sealed record EffectiveHostSettings(
     bool ForceHttps,
     HostTlsSpec Tls,
@@ -432,4 +480,5 @@ internal sealed record EffectiveHostSettings(
     HostRateLimitSpec RateLimit,
     HostRobotsSpec Robots,
     HostCloudflareSpec Cloudflare,
-    HostAccessListSpec AccessList);
+    HostAccessListSpec AccessList,
+    HostRequestLimitsSpec RequestLimits);

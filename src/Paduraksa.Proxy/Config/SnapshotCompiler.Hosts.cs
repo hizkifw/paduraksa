@@ -120,6 +120,7 @@ public static partial class SnapshotCompiler
                 }
             }
 
+            CheckRequestLimits(spec, where, Errors);
             var hostScope = HostScopeOf(spec.Id);
             var serverNames =
                 spec.Enabled ? GroupByCertificate(ServerNamesOf(spec.Names ?? []), certificate, nameCertificates) : [];
@@ -161,6 +162,7 @@ public static partial class SnapshotCompiler
                 RequestIdPropagation = spec.RequestIdPropagation,
                 ResponseHeaders = responseHeaders,
                 ProofOfWork = spec.ProofOfWork,
+                RequestLimits = spec.RequestLimits,
                 ServesProofOfWork = servesProofOfWork,
                 ProofOfWorkHostScope = hostScope,
             };
@@ -423,10 +425,49 @@ public static partial class SnapshotCompiler
                 AccessList = context.AccessListOf(spec.AccessList),
                 ProofOfWork = routeProofOfWork,
                 ProofOfWorkRouteOverride = spec.ProofOfWorkRouteOverride,
+                MaxBodySize = spec.MaxBodySizeRouteOverride ? spec.MaxBodySize : null,
             };
         }
 
         return routes;
+    }
+
+    /// <summary>The compiler's backstop for the values the validator already judged: a limit outside its bounds would let the
+    /// transport refuse what the host admits, or make the gate's checks meaningless.</summary>
+    private static void CheckRequestLimits(HostSpec host, CompileErrorSource where, List<CompileError> errors)
+    {
+        var limits = host.RequestLimits;
+        CheckBodySize(limits.MaxBodySize, where, "the host", errors);
+        if (limits.MaxHeaderCount is < RequestLimitBounds.MinHeaderCount or > RequestLimitBounds.MaxHeaderCount)
+        {
+            errors.Add(new(where, $"the host's header limit must be {RequestLimitBounds.MinHeaderCount}-{RequestLimitBounds.MaxHeaderCount} lines, got {limits.MaxHeaderCount}"));
+        }
+
+        if (limits.MaxHeaderBytes is < RequestLimitBounds.MinHeaderBytes or > RequestLimitBounds.MaxHeaderBytes)
+        {
+            errors.Add(new(where, $"the host's header size limit must be {RequestLimitBounds.MinHeaderBytes}-{RequestLimitBounds.MaxHeaderBytes} bytes, got {limits.MaxHeaderBytes}"));
+        }
+
+        if (limits.MaxUrlLength is < RequestLimitBounds.MinUrlLength or > RequestLimitBounds.MaxUrlLength)
+        {
+            errors.Add(new(where, $"the host's URL limit must be {RequestLimitBounds.MinUrlLength}-{RequestLimitBounds.MaxUrlLength} bytes, got {limits.MaxUrlLength}"));
+        }
+
+        foreach (var route in host.Routes ?? [])
+        {
+            if (route.MaxBodySizeRouteOverride)
+            {
+                CheckBodySize(route.MaxBodySize, CompileErrorSource.Route(host.Id, route.Id), "the route", errors);
+            }
+        }
+    }
+
+    private static void CheckBodySize(long limit, CompileErrorSource where, string what, List<CompileError> errors)
+    {
+        if (limit is < 0 or > RequestLimitBounds.MaxBodySize)
+        {
+            errors.Add(new(where, $"{what}'s body limit must be 0 (none) or at most {RequestLimitBounds.MaxBodySize} bytes, got {limit}"));
+        }
     }
 
     /// <summary>The host's scope bytes: its stable <see cref="HostId"/>, so a token signed for one host never verifies on another.</summary>

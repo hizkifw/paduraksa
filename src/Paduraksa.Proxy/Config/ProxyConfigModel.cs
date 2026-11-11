@@ -205,6 +205,28 @@ public sealed record HostRateLimitSpec
     public RateLimitPolicyId? EffectivePolicyId => Enabled && !PolicyId.IsEmpty ? PolicyId : null;
 }
 
+/// <summary>
+/// What a host takes of a request, resolved across the layers; a route may override only <see cref="MaxBodySize"/>. The
+/// compiler checks every field against <see cref="RequestLimitBounds"/>.
+/// </summary>
+public sealed record HostRequestLimitsSpec
+{
+    /// <summary>The built-in limits.</summary>
+    public static HostRequestLimitsSpec Default { get; } = new();
+
+    /// <summary>The largest body in bytes; <see cref="RequestLimitBounds.UnlimitedBodySize"/> (0) for none.</summary>
+    public long MaxBodySize { get; init; } = RequestLimitBounds.DefaultMaxBodySize;
+
+    /// <summary>Most header lines.</summary>
+    public int MaxHeaderCount { get; init; } = RequestLimitBounds.DefaultMaxHeaderCount;
+
+    /// <summary>Most bytes of header names and values together.</summary>
+    public int MaxHeaderBytes { get; init; } = RequestLimitBounds.DefaultMaxHeaderBytes;
+
+    /// <summary>Longest request target, in bytes.</summary>
+    public int MaxUrlLength { get; init; } = RequestLimitBounds.DefaultMaxUrlLength;
+}
+
 /// <summary>The access-list setting resolved across the layers; a route may override the switch and the list.</summary>
 public sealed record HostAccessListSpec
 {
@@ -301,6 +323,9 @@ public sealed record HostSpec
     /// <summary>The host's resolved access list. The chains below are built from it and from each route's own layer.</summary>
     public HostAccessListSpec AccessList { get; init; } = HostAccessListSpec.Off;
 
+    /// <summary>The body, header and request-target limits; each route's own body limit may override the first.</summary>
+    public HostRequestLimitsSpec RequestLimits { get; init; } = HostRequestLimitsSpec.Default;
+
     /// <summary>What the host answers at <c>/robots.txt</c>.</summary>
     public HostRobotsSpec Robots { get; init; } = HostRobotsSpec.Passthrough;
 
@@ -353,6 +378,12 @@ public sealed record RouteSpec
     /// <summary>This route's effective access list: the host's, a different one, or none. Where the list's policies sit in the
     /// chains is <see cref="Policies"/>' business; this is what a route is guarded by, for the overview.</summary>
     public AccessListId? AccessList { get; init; }
+
+    /// <summary>This route's effective body limit in bytes (0: none): its own, or the host's.</summary>
+    public long MaxBodySize { get; init; } = RequestLimitBounds.DefaultMaxBodySize;
+
+    /// <summary>True when the route's own layer set <see cref="MaxBodySize"/> (the trace says so).</summary>
+    public bool MaxBodySizeRouteOverride { get; init; }
 
     public IReadOnlyList<PolicySpec> Policies { get; init; } = [];
 }

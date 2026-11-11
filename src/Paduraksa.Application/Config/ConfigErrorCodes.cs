@@ -51,6 +51,13 @@ public static class ConfigErrorCodes
     public const string RateLimitHeaderRequired = "rateLimit.header.required";
     public const string RateLimitHeaderUnexpected = "rateLimit.header.unexpected";
     public const string RateLimitHeaderInvalid = "rateLimit.header.invalid";
+    public const string RequestLimitsMaxBodySizeInvalid = "requestLimits.maxBodySize.invalid";
+    public const string RequestLimitsMaxHeaderCountInvalid = "requestLimits.maxHeaderCount.invalid";
+    public const string RequestLimitsMaxHeaderBytesInvalid = "requestLimits.maxHeaderBytes.invalid";
+    public const string RequestLimitsMaxUrlLengthInvalid = "requestLimits.maxUrlLength.invalid";
+    public const string RequestLimitsRouteMaxHeaderCountUnexpected = "requestLimits.route.maxHeaderCountUnexpected";
+    public const string RequestLimitsRouteMaxHeaderBytesUnexpected = "requestLimits.route.maxHeaderBytesUnexpected";
+    public const string RequestLimitsRouteMaxUrlLengthUnexpected = "requestLimits.route.maxUrlLengthUnexpected";
     public const string RobotsCustomTextRequired = "robots.customText.required";
     public const string RobotsCustomTextUnexpected = "robots.customText.unexpected";
     public const string RobotsCustomTextTooLong = "robots.customText.tooLong";

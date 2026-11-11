@@ -641,6 +641,34 @@ public sealed class ProxyConfigMappingTests
     }
 
     [Fact]
+    public void RequestLimitsResolvePerHostAndARouteOverridesOnlyTheBodyLimit()
+    {
+        HostSettings limits = new() { RequestLimits = new RequestLimitsSettings { MaxBodySize = 10 * 1024 * 1024, MaxHeaderCount = 30, MaxHeaderBytes = 16384, MaxUrlLength = 2048 } };
+        var host = Assert.Single(TestMapping.Map(Document(limits, null, null), Revision, CertificateInventory.Empty).Model.Hosts);
+        Assert.Equal(new HostRequestLimitsSpec { MaxBodySize = 10 * 1024 * 1024, MaxHeaderCount = 30, MaxHeaderBytes = 16384, MaxUrlLength = 2048 }, host.RequestLimits);
+        Assert.All(host.Routes, route => Assert.False(route.MaxBodySizeRouteOverride));
+        Assert.All(host.Routes, route => Assert.Equal(10 * 1024 * 1024, route.MaxBodySize));
+
+        // An upload route takes more than the host, or any body (0 is no limit); a route without its own inherits the host's.
+        var larger = MapOnlyHost(limits,
+            new RouteSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = 1024L * 1024 * 1024 } },
+            new RouteSettings());
+        Assert.Equal(1024L * 1024 * 1024, larger.Routes[0].MaxBodySize);
+        Assert.True(larger.Routes[0].MaxBodySizeRouteOverride);
+        Assert.Equal(10 * 1024 * 1024, larger.Routes[1].MaxBodySize);
+        Assert.False(larger.Routes[1].MaxBodySizeRouteOverride);
+        var unlimited = MapOnlyHost(limits,
+            new RouteSettings { RequestLimits = new RequestLimitsSettings { MaxBodySize = RequestLimitBounds.UnlimitedBodySize } },
+            new RouteSettings());
+        Assert.Equal(RequestLimitBounds.UnlimitedBodySize, unlimited.Routes[0].MaxBodySize);
+        Assert.True(unlimited.Routes[0].MaxBodySizeRouteOverride);
+
+        // Nothing set anywhere: the built-in limits.
+        var builtIn = Assert.Single(TestMapping.Map(Document(null, null, null), Revision, CertificateInventory.Empty).Model.Hosts);
+        Assert.Equal(HostRequestLimitsSpec.Default, builtIn.RequestLimits);
+    }
+
+    [Fact]
     public void CloudflareSettingsReachTheHostAndWarnWhereTheyCanEnforceNothing()
     {
         HostSettings locked = new() { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true } };

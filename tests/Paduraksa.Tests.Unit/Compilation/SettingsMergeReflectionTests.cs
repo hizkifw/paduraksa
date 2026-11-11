@@ -100,6 +100,11 @@ public sealed class SettingsMergeReflectionTests
             return 1;
         }
 
+        if (value == typeof(long))
+        {
+            return 1L;
+        }
+
         if (value == typeof(string))
         {
             return "x";

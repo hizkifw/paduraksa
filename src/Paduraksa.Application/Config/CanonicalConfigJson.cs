@@ -398,6 +398,7 @@ public static class CanonicalConfigJson
             ProofOfWork = DropIfNothingSet(route.Settings?.ProofOfWork),
             RateLimit = DropIfNothingSet(route.Settings?.RateLimit),
             AccessList = DropIfNothingSet(route.Settings?.AccessList),
+            RequestLimits = DropIfNothingSet(route.Settings?.RequestLimits),
         },
     };
 
@@ -414,6 +415,7 @@ public static class CanonicalConfigJson
             Robots = DropIfNothingSet(settings.Robots),
             Cloudflare = DropIfNothingSet(settings.Cloudflare),
             AccessList = DropIfNothingSet(settings.AccessList),
+            RequestLimits = DropIfNothingSet(settings.RequestLimits),
         };
     }
 
