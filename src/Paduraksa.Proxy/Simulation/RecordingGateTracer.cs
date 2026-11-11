@@ -309,6 +309,115 @@ internal readonly struct RecordingGateTracer(List<GateStep> steps, DateTimeOffse
             index));
     }
 
+    public void RequestLimits(CompiledHost host, in RequestSize size, RequestLimitVerdict verdict)
+    {
+        var limits = host.RequestLimits;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        List<GateFact> facts =
+        [
+            new("urlBytes", size.UrlBytes.ToString(inv)),
+            new("maxUrlLength", limits.MaxUrlLength.ToString(inv)),
+        ];
+
+        // The headers weren't read at all when the target already decided.
+        if (verdict != RequestLimitVerdict.UrlTooLong)
+        {
+            facts.Add(new("headerCount", size.HeaderCount.ToString(inv)));
+            facts.Add(new("maxHeaderCount", limits.MaxHeaderCount.ToString(inv)));
+        }
+
+        if (size.HeaderBytes >= 0)
+        {
+            facts.Add(new("headerBytes", size.HeaderBytes.ToString(inv)));
+            facts.Add(new("maxHeaderBytes", limits.MaxHeaderBytes.ToString(inv)));
+        }
+
+        var summary = verdict switch
+        {
+            RequestLimitVerdict.UrlTooLong => $"the request target is {SizeText(size.UrlBytes)}, over the host's limit of {SizeText(limits.MaxUrlLength)}: 414",
+            RequestLimitVerdict.TooManyHeaders => $"{size.HeaderCount} headers, limit {limits.MaxHeaderCount}: 431",
+            RequestLimitVerdict.HeadersTooLarge => $"the headers take {SizeText(size.HeaderBytes)}, over the host's limit of {SizeText(limits.MaxHeaderBytes)}: 431",
+            _ => $"{size.HeaderCount} headers ({SizeText(size.HeaderBytes)}) and a {SizeText(size.UrlBytes)} target, within the host's limits of {limits.MaxHeaderCount} headers, {SizeText(limits.MaxHeaderBytes)} and {SizeText(limits.MaxUrlLength)}",
+        };
+        if (verdict != RequestLimitVerdict.Within)
+        {
+            facts.Add(new("answer", RequestLimitResponses.For(verdict).StatusCode.ToString(inv)));
+        }
+
+        steps.Add(new GateStep(
+            GateStepKind.RequestLimits,
+            verdict == RequestLimitVerdict.Within ? GateStepVerdict.Passed : GateStepVerdict.Stopped,
+            summary,
+            facts,
+            host.Id));
+    }
+
+    /// <summary>Reported only for a request that has a body to speak of: one with a declared length, or a chunked one.</summary>
+    public void BodyLimit(HttpContext context, CompiledRoute route, long limit, long? declared, bool refused)
+    {
+        var request = context.Request;
+        var streamed = declared is null && request.Headers.ContainsKey("Transfer-Encoding");
+        if (declared is null or 0 && !streamed)
+        {
+            return;
+        }
+
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var unlimited = limit == RequestLimitBounds.UnlimitedBodySize;
+        var limitText = unlimited ? "no limit" : $"limit {SizeText(limit)}";
+        List<GateFact> facts =
+        [
+            new("maxBodySize", limit.ToString(inv)),
+            new("limitFrom", route.MaxBodySize is null ? "host" : "route"),
+        ];
+        if (declared is { } length)
+        {
+            facts.Add(new("contentLength", length.ToString(inv)));
+        }
+        else
+        {
+            facts.Add(new("contentLength", "none (chunked)"));
+        }
+
+        if (refused)
+        {
+            facts.Add(new("answer", "413"));
+        }
+
+        var summary = refused
+            ? $"body {SizeText(declared!.Value)} declared, {limitText}: 413"
+            : declared is { } within
+                ? $"body {SizeText(within)} declared, {limitText}"
+                : unlimited
+                    ? "a body with no declared length, and no limit"
+                    : $"a body with no declared length, {limitText}: the server cuts it off with 413 once it passes the limit";
+        steps.Add(new GateStep(
+            GateStepKind.RequestLimits,
+            refused ? GateStepVerdict.Stopped : GateStepVerdict.Passed,
+            summary,
+            facts,
+            context.Features.Get<IGateFeature>()?.State.Host?.Id,
+            route.Id.IsEmpty ? null : route.Id));
+    }
+
+    /// <summary>A size in the largest binary unit that holds it exactly ("10 MiB"), else in bytes.</summary>
+    private static string SizeText(long bytes)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        if (bytes > 0)
+        {
+            foreach (var (unit, name) in new[] { (1L << 30, "GiB"), (1L << 20, "MiB"), (1L << 10, "KiB") })
+            {
+                if (bytes % unit == 0)
+                {
+                    return $"{(bytes / unit).ToString(inv)} {name}";
+                }
+            }
+        }
+
+        return $"{bytes.ToString(inv)} bytes";
+    }
+
     public void HttpsRedirect(CompiledHost host, bool isHttps, bool redirected) =>
         steps.Add(new GateStep(
             GateStepKind.HttpsRedirect,

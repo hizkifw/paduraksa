@@ -92,6 +92,8 @@ internal sealed class ProxyTestServer : IAsyncDisposable
                 .UseKestrel(kestrel =>
                 {
                     kestrel.AddServerHeader = false;
+                    RequestLimitsGate.ConfigureTransport(kestrel.Limits);
+                    options.Limits?.Invoke(kestrel.Limits);
                     kestrel.Listen(IPAddress.Loopback, 0, listen =>
                     {
                         listen.Protocols = protocols;
@@ -233,6 +235,10 @@ internal sealed record ProxyTestServerOptions
 
     /// <summary>Installs the Cloudflare lockdown connection middleware after ClientInfo, counting into these counters.</summary>
     public OriginLockdownCounters? OriginLockdown { get; init; }
+
+    /// <summary>Kestrel's limits, after the public listeners' (<see cref="RequestLimitsGate.ConfigureTransport"/>): a test that
+    /// raises the body limit for a streaming case sets it here.</summary>
+    public Action<KestrelServerLimits>? Limits { get; init; }
 
     /// <summary>The listener's protocols; <see cref="HttpProtocols.Http2"/> means cleartext HTTP/2 only.</summary>
     public HttpProtocols Protocols { get; init; } = HttpProtocols.Http1;

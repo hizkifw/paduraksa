@@ -48,6 +48,15 @@ internal static class ErrorPages
     /// <summary>The verify endpoint's body is over 2 KiB.</summary>
     public static HtmlPageTemplate PayloadTooLarge { get; } = Page("413 Content Too Large", "The browser check sent more data than expected. Reload the page to try again.");
 
+    /// <summary>A declared body over the host's or route's limit.</summary>
+    public static HtmlPageTemplate RequestTooLarge { get; } = Page("413 Content Too Large", "What you sent is larger than this site accepts. Send less and try again.");
+
+    /// <summary>A request target over the host's limit.</summary>
+    public static HtmlPageTemplate UriTooLong { get; } = Page("414 URI Too Long", "The address is longer than this site accepts.");
+
+    /// <summary>Too many header lines, or too many header bytes (cookies are the usual cause).</summary>
+    public static HtmlPageTemplate HeadersTooLarge { get; } = Page("431 Request Header Fields Too Large", "Your browser sent more headers than this site accepts. Clearing this site's cookies usually fixes it.");
+
     private static readonly PrecomputedResponse UpstreamBadGateway =
         PrecomputedResponse.Text(502, "bad gateway\n", htmlPage: BadGateway);
 

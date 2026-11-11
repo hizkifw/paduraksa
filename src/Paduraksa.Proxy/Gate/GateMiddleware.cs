@@ -223,6 +223,9 @@ public sealed class GateMiddleware
         state.Host = host;
         ApplyHeaders(context, host.ResponseHeaders, ResponseHeaderStage.AfterHostLookup, state, host, tracer);
 
+        // Before any answer, so a body the gate leaves unread (a redirect, a refusal) can't be drained past the host's limit.
+        RequestLimitsGate.ApplyBodyLimit(context, host.RequestLimits.MaxBodySize);
+
         // Before the TLS check and everything else of the host: a peer that isn't Cloudflare learns nothing from the host,
         // not even a 421. The trust is the resolution's own (the policy's trusted peers, after PROXY protocol), not a
         // second test of the address. Answered or aborted here, the verdict is a constant: 0 B.
@@ -278,6 +281,15 @@ public sealed class GateMiddleware
     {
         var request = context.Request;
 
+        // After the host chain, so a client it refuses learns nothing from the size of a request; before the redirect, which
+        // would otherwise echo a target the host doesn't take, and before anything is routed or read.
+        var sizeVerdict = RequestLimitsGate.Check(context, host.RequestLimits, out var size);
+        tracer.RequestLimits(host, in size, sizeVerdict);
+        if (sizeVerdict != RequestLimitVerdict.Within)
+        {
+            return GateDecision.Respond(RequestLimitResponses.For(sizeVerdict));
+        }
+
         // The trusted scheme, not the connection's: behind a TLS-terminating trusted proxy the client already uses HTTPS.
         if (host.HttpsRedirect is { } httpsRedirect)
         {
@@ -329,6 +341,11 @@ public sealed class GateMiddleware
         }
 
         state.Route = route;
+        if (route.MaxBodySize is { } routeBodyLimit)
+        {
+            RequestLimitsGate.ApplyBodyLimit(context, routeBodyLimit);
+        }
+
         return DecideRoute(context, snapshot, route, state, 0, in view, tracer);
     }
 
@@ -340,6 +357,17 @@ public sealed class GateMiddleware
         if (Stops(PolicyScope.Route, route.Policies, first, in view, tracer, out var stopped))
         {
             return stopped;
+        }
+
+        // After the route's chain (a rate limit or a challenge answers first), before anything reads the body: a body that
+        // declares its size over the limit is never forwarded. One without a declared size is Kestrel's to cut off.
+        var bodyLimit = route.MaxBodySize ?? state.Host!.RequestLimits.MaxBodySize;
+        var declared = context.Request.ContentLength;
+        var tooLarge = bodyLimit != RequestLimitBounds.UnlimitedBodySize && declared > bodyLimit;
+        tracer.BodyLimit(context, route, bodyLimit, declared, tooLarge);
+        if (tooLarge)
+        {
+            return GateDecision.Respond(RequestLimitResponses.ContentTooLarge);
         }
 
         var endpoints = snapshot.YarpEndpoints;

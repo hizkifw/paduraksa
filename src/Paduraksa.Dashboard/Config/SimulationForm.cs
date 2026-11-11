@@ -100,6 +100,7 @@ public sealed class SimulationForm
             SimulationStepKind.HostPolicy => $"Host policy{policy}",
             SimulationStepKind.HttpsRedirect => "HTTPS redirect",
             SimulationStepKind.RobotsTxt => "robots.txt",
+            SimulationStepKind.RequestLimits => "Request limits",
             SimulationStepKind.FixedResponse => "Fixed answer",
             SimulationStepKind.ProofOfWork => "Proof of work",
             SimulationStepKind.RouteMatch => "Route match",

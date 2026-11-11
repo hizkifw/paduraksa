@@ -57,9 +57,10 @@ internal static partial class PublicApp
                     .ConfigureKestrel(kestrel =>
                     {
                         kestrel.AddServerHeader = false;
-                        // No body size limit until hosts get their own (PLAN §5.3): Kestrel's 30 MB default silently
-                        // breaks uploads to the apps people put behind this (photos, files, registries).
+                        // The body limit is per host and route and the gate puts it on each request. Kestrel's 30 MB default
+                        // would silently break the uploads people put behind this, so what the gate leaves unlimited stays so.
                         kestrel.Limits.MaxRequestBodySize = null;
+                        RequestLimitsGate.ConfigureTransport(kestrel.Limits);
                         kestrel.ListenPublicHttp(address: null, listen.Http, http => http.UseClientInfo(listeners.HttpProxyProtocol));
                         var http3 = kestrel.ListenPublicHttps(
                             new PublicHttpsListenerOptions

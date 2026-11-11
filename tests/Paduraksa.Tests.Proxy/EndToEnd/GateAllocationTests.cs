@@ -227,6 +227,80 @@ public sealed class GateAllocationTests(TestUpstream upstream) : IClassFixture<T
         Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
     }
 
+    /// <summary>
+    /// The request limits are part of the 0 B decision, on the allowed path (the header scan runs for every request of the
+    /// host) and on every refusal: a request target, the header lines, the header bytes and a declared body. A request with a
+    /// body is the awkward one, because Kestrel allocates a string for its Content-Length whenever the headers are copied.
+    /// A refused body is measured over HTTP/2 only: on HTTP/1.1 the server closes the connection after answering without
+    /// having read the body, which is not a steady state a keep-alive measurement can sit on.
+    /// </summary>
+    [Theory]
+    [InlineData(false, "allowed", HttpStatusCode.OK)]
+    [InlineData(false, "allowedBody", HttpStatusCode.OK)]
+    [InlineData(false, "url", HttpStatusCode.RequestUriTooLong)]
+    [InlineData(false, "headers", HttpStatusCode.RequestHeaderFieldsTooLarge)]
+    [InlineData(false, "headerBytes", HttpStatusCode.RequestHeaderFieldsTooLarge)]
+    [InlineData(true, "allowed", HttpStatusCode.OK)]
+    [InlineData(true, "allowedBody", HttpStatusCode.OK)]
+    [InlineData(true, "url", HttpStatusCode.RequestUriTooLong)]
+    [InlineData(true, "headers", HttpStatusCode.RequestHeaderFieldsTooLarge)]
+    [InlineData(true, "body", HttpStatusCode.RequestEntityTooLarge)]
+    [InlineData(true, "routeBody", HttpStatusCode.RequestEntityTooLarge)]
+    public async Task RequestLimitsAllocateNothingOnKestrel(bool h2c, string kind, HttpStatusCode expected)
+    {
+        ProxyConfigModel model = new()
+        {
+            Upstreams = [Upstream("web", upstream.Address("a"))],
+            Hosts =
+            [
+                ProxyHost("limits", "limits.test", Route("limits-small", "web", "/small") with { MaxBodySize = 1024, MaxBodySizeRouteOverride = true }, Route("limits-root", "web"))
+                    with
+                {
+                    RequestLimits = new HostRequestLimitsSpec { MaxBodySize = 4096, MaxUrlLength = 512, MaxHeaderCount = 12, MaxHeaderBytes = 1024 },
+                },
+            ],
+        };
+        await using var server = await ProxyTestServer.StartAsync(model, new() { MeasureGate = true, Protocols = h2c ? HttpProtocols.Http2 : HttpProtocols.Http1 });
+        using var client = ProxyTestServer.CreateClient(maxConnections: Connections);
+        var path = kind switch
+        {
+            "url" => "/" + new string('a', 600),
+            "routeBody" => "/small",
+            _ => "/",
+        };
+        Action<HttpRequestMessage> configure = kind switch
+        {
+            "headers" => WithManyHeaders,
+            "headerBytes" => request => request.Headers.TryAddWithoutValidation("X-Pad", new string('p', 1100)),
+            "allowedBody" => request => Post(request, 1000),
+            "body" => request => Post(request, 8192),
+            "routeBody" => request => Post(request, 2048),
+            _ => request => request.Headers.TryAddWithoutValidation("X-Pad", "v"),
+        };
+
+        await SendAsync(server, client, "limits.test", path, expected, Warmup, configure);
+        server.GateStats!.Reset();
+        await SendAsync(server, client, "limits.test", path, expected, Measured, configure);
+
+        Assert.True(server.GateStats.Requests >= Measured, $"only {server.GateStats.Requests} requests measured");
+        Assert.True(server.GateStats.NonZero <= 1, $"gate allocated on Kestrel: {server.GateStats}");
+        Assert.True(server.GateStats.FreshState <= 10, $"too many fresh connections/streams: {server.GateStats}");
+    }
+
+    private static void WithManyHeaders(HttpRequestMessage request)
+    {
+        for (var i = 0; i < 20; i++)
+        {
+            request.Headers.TryAddWithoutValidation($"X-Pad-{i}", "v");
+        }
+    }
+
+    private static void Post(HttpRequestMessage request, int length)
+    {
+        request.Method = HttpMethod.Post;
+        request.Content = new ByteArrayContent(new byte[length]);
+    }
+
     private static async Task SendAsync(ProxyTestServer server, HttpClient client, string host, string path, HttpStatusCode expected, int count, Action<HttpRequestMessage>? configure = null)
     {
         var ct = TestContext.Current.CancellationToken;

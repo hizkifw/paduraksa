@@ -603,6 +603,7 @@ public static class GateSimulator
                     GateStepKind.ClientCertificate => AnswerIs421(step) ? GateReason.MisdirectedConnection : GateReason.ClientCertificate,
                     GateStepKind.TlsPolicy => GateReason.MisdirectedConnection,
                     GateStepKind.HostPolicy => GateReason.HostPolicy,
+                    GateStepKind.RequestLimits => GateReason.RequestLimits,
                     GateStepKind.HttpsRedirect => GateReason.HttpsRedirect,
                     GateStepKind.RobotsTxt => GateReason.RobotsTxt,
                     GateStepKind.FixedResponse => GateReason.FixedHost,

@@ -6,6 +6,7 @@ using System.Text;
 using Paduraksa.Contracts.Config;
 using Paduraksa.Contracts.Simulation;
 using Paduraksa.Core.Geo;
+using Paduraksa.Core.Model;
 using Paduraksa.Proxy.Simulation;
 
 namespace Paduraksa.Application.Simulation;
@@ -32,14 +33,14 @@ public static class SimulationErrorCodes
 /// <summary>Turns a <see cref="SimulationRequest"/> into the facts the gate simulator takes, filling in the defaults.</summary>
 internal static class SimulationRequests
 {
-    /// <summary>Kestrel's default limit for the request line (<c>MaxRequestLineSize</c>).</summary>
-    public const int MaxRequestLineBytes = 8 * 1024;
+    /// <summary>The public listeners' limit for the request line (<c>MaxRequestLineSize</c>): the outer bound of every host's own.</summary>
+    public const int MaxRequestLineBytes = RequestLimitBounds.OuterRequestLineBytes;
 
-    /// <summary>Kestrel's default limit for the headers together (<c>MaxRequestHeadersTotalSize</c>).</summary>
-    public const int MaxHeadersBytes = 32 * 1024;
+    /// <summary>The public listeners' limit for the headers together (<c>MaxRequestHeadersTotalSize</c>).</summary>
+    public const int MaxHeadersBytes = RequestLimitBounds.OuterHeadersBytes;
 
-    /// <summary>Kestrel's default limit for the number of headers (<c>MaxRequestHeaderCount</c>).</summary>
-    public const int MaxHeaderCount = 100;
+    /// <summary>The public listeners' limit for the number of headers (<c>MaxRequestHeaderCount</c>).</summary>
+    public const int MaxHeaderCount = RequestLimitBounds.MaxHeaderCount;
 
     /// <summary>A method this long is not an HTTP method.</summary>
     public const int MaxMethodLength = 32;
@@ -99,6 +100,7 @@ internal static class SimulationRequests
         List<ProbeHeader> headers = [];
         List<string> hostHeaders = [];
         long headerBytes = 0;
+        var contentLengths = 0;
         if (request.Headers.Count > MaxHeaderCount)
         {
             errors.Add(new ConfigError("/headers", SimulationErrorCodes.TooLarge, $"At most {MaxHeaderCount} headers: Kestrel answers 431."));
@@ -114,6 +116,11 @@ internal static class SimulationRequests
             else if (header.Value is null || header.Value.AsSpan().ContainsAny('\r', '\n', '\0'))
             {
                 errors.Add(new ConfigError($"/headers/{i}/value", SimulationErrorCodes.HeaderInvalid, "A header value can't contain line breaks."));
+            }
+            else if (string.Equals(header.Name, "Content-Length", StringComparison.OrdinalIgnoreCase)
+                     && (!long.TryParse(header.Value, NumberStyles.None, CultureInfo.InvariantCulture, out _) || contentLengths++ > 0))
+            {
+                errors.Add(new ConfigError($"/headers/{i}/value", SimulationErrorCodes.HeaderInvalid, "Content-Length is one number of bytes: the server answers 400 to anything else."));
             }
             else
             {

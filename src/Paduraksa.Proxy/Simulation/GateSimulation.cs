@@ -60,6 +60,9 @@ public enum GateReason : byte
     /// <summary>The host requires Cloudflare's client certificate (Authenticated Origin Pulls) and the connection has no verified one.</summary>
     ClientCertificate,
 
+    /// <summary>The request is over the host's or route's limit: its target (414), its headers (431) or its declared body (413).</summary>
+    RequestLimits,
+
     /// <summary>The route has no YARP endpoint (not possible for a bound snapshot).</summary>
     Unavailable,
 
@@ -103,6 +106,10 @@ public enum GateStepKind : byte
 
     TlsPolicy,
     HostPolicy,
+
+    /// <summary>The host's request limits: the headers and request target before routing, the declared body once the route is known.</summary>
+    RequestLimits,
+
     HttpsRedirect,
 
     /// <summary>The managed <c>robots.txt</c>: served, or passed through to the upstream.</summary>

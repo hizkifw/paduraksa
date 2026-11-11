@@ -65,6 +65,7 @@ public sealed record SimulationTls(
 /// proxy reports.</param>
 /// <param name="Method">Default <c>GET</c>. Case matters, as on the wire: <c>get</c> is not <c>GET</c>.</param>
 /// <param name="Headers">Request headers (user agent, cookies, <c>X-Forwarded-Proto</c>, <c>CF-Visitor</c>, ...). A
+/// <c>Content-Length</c> declares a body, which the host's request limits judge. A
 /// header the arrival would add (the client-IP header) is added only when absent here. <c>Host</c> headers given here are the
 /// ones sent over HTTP/1.1 (two of them, or one that isn't a host, is a 400 from the server); over HTTP/2 and HTTP/3 the
 /// URL's authority is the host and a <c>Host</c> header is ignored.</param>

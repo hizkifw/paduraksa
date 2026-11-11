@@ -130,6 +130,10 @@ public enum SimulationStepKind
     /// <summary>A policy of the host's chain.</summary>
     HostPolicy,
 
+    /// <summary>The host's request limits: the headers and request target (431, 414) before routing, then the declared body
+    /// (413) once the route is known.</summary>
+    RequestLimits,
+
     /// <summary>The HTTP to HTTPS redirect.</summary>
     HttpsRedirect,
 

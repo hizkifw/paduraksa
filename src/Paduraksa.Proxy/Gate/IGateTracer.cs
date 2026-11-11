@@ -71,6 +71,14 @@ internal interface IGateTracer
     /// <summary>One policy ran and returned <paramref name="verdict"/>.</summary>
     void PolicyEvaluated(PolicyScope scope, int index, IRequestPolicy policy, in RequestView request, PolicyDecision verdict);
 
+    /// <summary>The request's header and request-target sizes were checked against the host's limits (after its policy chain).</summary>
+    void RequestLimits(CompiledHost host, in RequestSize size, RequestLimitVerdict verdict);
+
+    /// <summary>The body limit of the matched route was applied: <paramref name="limit"/> (0: none) is the route's own or the
+    /// host's, <paramref name="declared"/> the request's <c>Content-Length</c> if it sent one, and <paramref name="refused"/>
+    /// that it is over the limit and answered 413 without reading the body.</summary>
+    void BodyLimit(HttpContext context, CompiledRoute route, long limit, long? declared, bool refused);
+
     /// <summary>The host forces HTTPS: <paramref name="redirected"/> says whether this request was sent to it.</summary>
     void HttpsRedirect(CompiledHost host, bool isHttps, bool redirected);
 
@@ -135,6 +143,16 @@ internal readonly struct NoGateTracer : IGateTracer
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void PolicyEvaluated(PolicyScope scope, int index, IRequestPolicy policy, in RequestView request, PolicyDecision verdict)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void RequestLimits(CompiledHost host, in RequestSize size, RequestLimitVerdict verdict)
+    {
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void BodyLimit(HttpContext context, CompiledRoute route, long limit, long? declared, bool refused)
     {
     }
 

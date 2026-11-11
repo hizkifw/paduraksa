@@ -352,8 +352,14 @@ public sealed class SimulatorParityTests : IDisposable
                 ],
             },
             new HostSpec { Id = TestIds.Host("admin"), Names = ["admin.test"], Kind = HostKind.Admin, ForceHttps = true },
+            ProxyHost("limits", "limits.test", Route("limits-upload", "web", "/upload") with { MaxBodySize = 100 * Mebibyte, MaxBodySizeRouteOverride = true }, Route("limits-root", "web")) with
+            {
+                RequestLimits = new HostRequestLimitsSpec { MaxBodySize = 10 * Mebibyte, MaxHeaderCount = 30, MaxHeaderBytes = 2048, MaxUrlLength = 256 },
+            },
         ],
     };
+
+    private const long Mebibyte = 1024 * 1024;
 
     private static HostProofOfWorkSpec Spec => new() { Enabled = true, Difficulty = 10, TokenLifetimeHours = 24 };
 
@@ -374,6 +380,64 @@ public sealed class SimulatorParityTests : IDisposable
         public bool ProxyProtocol { get; init; }
 
         public string? ServerName { get; init; }
+    }
+
+    [Fact]
+    public async Task RequestLimitsMatchTheGateAndExplainEachRefusal()
+    {
+        using Fixture fixture = new(Model(new DefaultsSpec { Certificate = TestIds.Certificate("shared") }), _pki);
+        static Wire Request(string path = "/", string method = "GET", params (string Name, string Value)[] headers) =>
+            new("limits.test", true, ProbeHttpVersion.Http2, SslProtocols.Tls13, path, Lan) { Method = method, Headers = headers };
+
+        // The target, the header lines, the header bytes and the declared body, each on both sides of its limit and on both
+        // routes; the real gate and the simulator must agree on every one.
+        foreach (var length in (int[])[1, 100, 255, 256, 257, 400])
+        {
+            await fixture.CompareAsync(Request("/" + new string('a', length - 1)));
+        }
+
+        foreach (var count in (int[])[0, 10, 28, 29, 30, 40])
+        {
+            await fixture.CompareAsync(Request(headers: [.. Enumerable.Range(0, count).Select(i => ($"X-{i}", "v"))]));
+        }
+
+        foreach (var size in (int[])[100, 1900, 2000, 2100, 4000])
+        {
+            await fixture.CompareAsync(Request(headers: [("X-Pad", new string('p', size))]));
+        }
+
+        foreach (var length in (long[])[0, 1, 10 * Mebibyte, (10 * Mebibyte) + 1, 100 * Mebibyte, (100 * Mebibyte) + 1])
+        {
+            await fixture.CompareAsync(Request("/", "POST", ("Content-Length", length.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+            await fixture.CompareAsync(Request("/upload", "POST", ("Content-Length", length.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        }
+
+        // Each refusal names its reason, its numbers and the answer.
+        var body = fixture.Simulate(Request("/", "POST", ("Content-Length", (12 * Mebibyte).ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        Assert.Equal((GateOutcomeAction.Respond, GateReason.RequestLimits, 413), (body.Outcome.Action, body.Outcome.Reason, body.Outcome.StatusCode));
+        var bodyStep = Assert.Single(body.Steps, step => step is { Kind: GateStepKind.RequestLimits, Verdict: GateStepVerdict.Stopped });
+        Assert.Equal("body 12 MiB declared, limit 10 MiB: 413", bodyStep.Summary);
+        Assert.Equal("host", Assert.Single(bodyStep.Facts, fact => fact.Name == "limitFrom").Value);
+
+        var upload = fixture.Simulate(Request("/upload", "POST", ("Content-Length", (12 * Mebibyte).ToString(System.Globalization.CultureInfo.InvariantCulture))));
+        Assert.Equal(GateOutcomeAction.Forward, upload.Outcome.Action);
+        var uploadStep = Assert.Single(upload.Steps, step => step is { Kind: GateStepKind.RequestLimits } && step.Facts.Any(fact => fact.Name == "contentLength"));
+        Assert.Equal("body 12 MiB declared, limit 100 MiB", uploadStep.Summary);
+        Assert.Equal("route", Assert.Single(uploadStep.Facts, fact => fact.Name == "limitFrom").Value);
+
+        var headers = fixture.Simulate(Request(headers: [.. Enumerable.Range(0, 34).Select(i => ($"X-{i}", "v"))]));
+        Assert.Equal((GateReason.RequestLimits, 431), (headers.Outcome.Reason, headers.Outcome.StatusCode));
+        Assert.Equal("35 headers, limit 30: 431", Assert.Single(headers.Steps, step => step is { Kind: GateStepKind.RequestLimits, Verdict: GateStepVerdict.Stopped }).Summary);
+
+        var url = fixture.Simulate(Request("/" + new string('a', 300)));
+        Assert.Equal((GateReason.RequestLimits, 414), (url.Outcome.Reason, url.Outcome.StatusCode));
+        Assert.Contains("301 bytes", Assert.Single(url.Steps, step => step is { Kind: GateStepKind.RequestLimits, Verdict: GateStepVerdict.Stopped }).Summary, StringComparison.Ordinal);
+
+        // A request with no body says nothing about one, and a chunked one says the server decides.
+        var plain = fixture.Simulate(Request());
+        Assert.Single(plain.Steps, step => step.Kind == GateStepKind.RequestLimits);
+        var chunked = fixture.Simulate(Request("/", "POST", ("Transfer-Encoding", "chunked")));
+        Assert.Contains("no declared length", Assert.Single(chunked.Steps, step => step is { Kind: GateStepKind.RequestLimits } && step.Facts.Any(fact => fact.Name == "contentLength")).Summary, StringComparison.Ordinal);
     }
 
     [Fact]

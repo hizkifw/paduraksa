@@ -294,7 +294,7 @@ public sealed class SimulationContractTests
     }
 
     [Fact]
-    public void KestrelsDefaultLimitsAreEnforced()
+    public void TheListenersLimitsAreEnforced()
     {
         var ok = "http://app.example.com/" + new string('a', SimulationRequests.MaxRequestLineBytes - 100);
         Assert.True(SimulationRequests.TryBuild(new SimulationRequest(ok, "192.0.2.9"), out _, out _));
@@ -310,7 +310,7 @@ public sealed class SimulationContractTests
         Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", Headers: many), out _, out var count));
         Assert.Equal("/headers", Assert.Single(count).Path);
         Assert.True(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", Headers: many[..SimulationRequests.MaxHeaderCount]), out _, out _));
-        SimulationHeader[] heavy = [.. Enumerable.Range(0, 10).Select(i => new SimulationHeader($"X-{i}", new string('v', 4000)))];
+        SimulationHeader[] heavy = [.. Enumerable.Range(0, 30).Select(i => new SimulationHeader($"X-{i}", new string('v', 4000)))];
         Assert.False(SimulationRequests.TryBuild(new SimulationRequest("http://app.example.com/", "192.0.2.9", Headers: heavy), out _, out var size));
         Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(size).Code);
 
@@ -319,26 +319,44 @@ public sealed class SimulationContractTests
     }
 
     [Fact]
-    public void KestrelsLimitsAreCountedInBytesNotCharacters()
+    public void TheListenersLimitsAreCountedInBytesNotCharacters()
     {
-        // The URL: 8,192 UTF-8 bytes in 4,089 characters passes; two more bytes do not.
-        var url = "http://a.test/" + new string('é', 4089);
+        // The URL: the line's whole size in UTF-8 bytes, two for each 'é', passes; two more bytes do not.
+        var chars = (SimulationRequests.MaxRequestLineBytes - "http://a.test/".Length) / 2;
+        var url = "http://a.test/" + new string('é', chars);
         Assert.Equal(SimulationRequests.MaxRequestLineBytes, Encoding.UTF8.GetByteCount(url));
         Assert.True(SimulationRequests.TryBuild(new SimulationRequest(url, "192.0.2.9"), out _, out _));
-        Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(Errors("http://a.test/" + new string('é', 4090), "192.0.2.9")).Code);
+        Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(Errors("http://a.test/" + new string('é', chars + 1), "192.0.2.9")).Code);
 
-        // The request line: the same multi-byte path, a 32-character method and the version add up to 8,193 bytes.
-        Assert.True(SimulationRequests.TryBuild(
-            new SimulationRequest("http://a.test/" + new string('é', 4074), "192.0.2.9", new string('M', SimulationRequests.MaxMethodLength)), out _, out _));
-        Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(
-            Errors("http://a.test/" + new string('é', 4075), "192.0.2.9", new string('M', SimulationRequests.MaxMethodLength))).Code);
+        // The request line: the same multi-byte path, a 32-character method and the version make up the line, and one more
+        // character is two bytes over.
+        var method = new string('M', SimulationRequests.MaxMethodLength);
+        var fits = (SimulationRequests.MaxRequestLineBytes - method.Length - " HTTP/1.1".Length - 2) / 2;
+        Assert.True(SimulationRequests.TryBuild(new SimulationRequest("http://a.test/" + new string('é', fits), "192.0.2.9", method), out _, out _));
+        Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(Errors("http://a.test/" + new string('é', fits + 1), "192.0.2.9", method)).Code);
 
-        // Headers are counted as UTF-8 bytes on the wire, where 'é' takes two: 16,381 of them plus one ASCII byte make
-        // exactly 32,768 bytes with the name and separators, and fit; one more byte does not.
+        // Headers are counted as UTF-8 bytes on the wire, where 'é' takes two: the name, the value and the separators make up
+        // exactly the limit and fit; one more byte does not.
+        var wide = (SimulationRequests.MaxHeadersBytes - "X".Length - 4 - 1) / 2;
         Assert.True(SimulationRequests.TryBuild(
-            new SimulationRequest("http://a.test/", "192.0.2.9", Headers: [new SimulationHeader("X", new string('é', 16381) + "a")]), out _, out _));
+            new SimulationRequest("http://a.test/", "192.0.2.9", Headers: [new SimulationHeader("X", new string('é', wide) + "a")]), out _, out _));
         Assert.Equal(SimulationErrorCodes.TooLarge, Assert.Single(
-            Errors("http://a.test/", "192.0.2.9", headers: [new SimulationHeader("X", new string('é', 16381) + "ab")])).Code);
+            Errors("http://a.test/", "192.0.2.9", headers: [new SimulationHeader("X", new string('é', wide) + "ab")])).Code);
+    }
+
+    [Fact]
+    public void AContentLengthDeclaresABodyAndHasToBeOneNumber()
+    {
+        var probe = Build(new SimulationRequest("http://app.example.com/", "192.0.2.9", "POST", [new SimulationHeader("content-length", "12582912")]));
+        Assert.Equal(new ProbeHeader("content-length", "12582912"), Assert.Single(probe.Headers));
+
+        foreach (var value in (string[])["", "-1", "12 MiB", "1.5", "0x10"])
+        {
+            Assert.Equal("/headers/0/value", Assert.Single(Errors("http://app.example.com/", "192.0.2.9", "POST", [new SimulationHeader("Content-Length", value)])).Path);
+        }
+
+        // Two of them are two lengths: the server refuses the request.
+        Assert.Equal("/headers/1/value", Assert.Single(Errors("http://app.example.com/", "192.0.2.9", "POST", [new SimulationHeader("Content-Length", "1"), new SimulationHeader("content-length", "2")])).Path);
     }
 
     [Theory]

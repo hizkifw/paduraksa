@@ -48,7 +48,7 @@ public sealed class GateSimulatorTraceTests : IDisposable
         Assert.Equal(
             [
                 GateStepKind.TlsHandshake, GateStepKind.Request, GateStepKind.ClientAddress, GateStepKind.AcmeChallenge, GateStepKind.HostMatch,
-                GateStepKind.ResponseHeaders, GateStepKind.TlsPolicy, GateStepKind.HostPolicy, GateStepKind.RouteMatch, GateStepKind.Upstream,
+                GateStepKind.ResponseHeaders, GateStepKind.TlsPolicy, GateStepKind.HostPolicy, GateStepKind.RequestLimits, GateStepKind.RouteMatch, GateStepKind.Upstream,
             ],
             run.Steps.Select(s => s.Kind));
         Assert.DoesNotContain(run.Steps, s => s.Verdict == GateStepVerdict.Stopped);
