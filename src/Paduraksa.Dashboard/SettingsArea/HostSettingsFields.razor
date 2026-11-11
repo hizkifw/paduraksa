@@ -86,7 +86,7 @@
                       Error="@RuleSetError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
     </SettingRow>
 
-    <SettingRow Title="Sign-in" Help="Ask an auth provider (authentik, Authelia, oauth2-proxy) who the request is before it is forwarded; the provider's identity headers go upstream. Asked after the rate limit and before the browser check.">
+    <SettingRow Title="Sign-in" Help="Ask an auth provider (authentik, Authelia, oauth2-proxy) who the request is before it is forwarded. Route the provider's own sign-in pages with sign-in off.">
         <AuthProviderField Value="_current.AuthProvider" ValueChanged="SetAuthProvider" Inherited="@(Resolved.AuthProvider ?? new AuthProviderSettings())"
                            Providers="AuthProviders" Staged="StagedAuthProviders" InheritWord="@InheritWord" OnNew="OnNewAuthProvider"
                            Error="@AuthProviderError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />

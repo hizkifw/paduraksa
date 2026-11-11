@@ -157,7 +157,7 @@
                                 <AuthProviderField Value="route.AuthProvider" ValueChanged="@(value => SetAsync(() => route.AuthProvider = value, $"/routes/{index}/settings/authProvider/authProviderId"))"
                                                    Inherited="HostAuthProvider" Providers="AuthProviders" Staged="StagedAuthProviders" Label="Sign-in on this route"
                                                    OnNew="@(OnNewAuthProvider.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAuthProvider.InvokeAsync(route)) : default)"
-                                                   HelperText="Inherits the host's provider unless this route names one or turns sign-in off (the route that serves the provider's own pages has to)."
+                                                   HelperText="Inherits the host's provider unless this route names one or turns it off."
                                                    Error="@(E($"/routes/{index}/settings/authProvider/authProviderId") ?? E($"/routes/{index}/settings/authProvider/enabled"))" ReadOnly="ReadOnly"
                                                    Field="@($"route-auth-provider-{index}")" />
                                 </div>

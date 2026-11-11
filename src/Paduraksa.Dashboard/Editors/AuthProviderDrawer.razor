@@ -99,13 +99,13 @@
 
                 <FormSection Title="Answers" Name="answers"
                              Description="A 2xx lets the request through. A 401, 403 or redirect goes to the client as the provider sent it. Anything else, an unreachable endpoint or a timeout refuses the request.">
-                    <div class="pdk-request-row">
+                    <div class="pdk-field-grid">
                         <MudNumericField T="int?" Value="Model.TimeoutSeconds" ValueChanged="@(value => Set(() => Model.TimeoutSeconds = value, "/forwardAuth/timeoutSeconds"))"
-                                         Label="Wait for an answer (seconds)" Min="1" Max="ForwardAuthLimits.MaxTimeoutSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
+                                         Label="Wait for an answer (s)" Min="1" Max="ForwardAuthLimits.MaxTimeoutSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                          HelperText="@($"Empty: {resolved.Timeout.TotalSeconds:0}. A timeout is a 504.")"
                                          Error="@(E("/forwardAuth/timeoutSeconds") is not null)" ErrorText="@E("/forwardAuth/timeoutSeconds")" data-field="timeout" />
                         <MudNumericField T="int?" Value="Model.CacheSeconds" ValueChanged="@(value => Set(() => Model.CacheSeconds = value, "/forwardAuth/cacheSeconds"))"
-                                         Label="Remember an allow (seconds)" Min="0" Max="ForwardAuthLimits.MaxCacheSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
+                                         Label="Remember an allow (s)" Min="0" Max="ForwardAuthLimits.MaxCacheSeconds" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite"
                                          HelperText="@($"Empty: {resolved.CacheTtl.TotalSeconds:0}; 0: never. A revoked session works this long.")"
                                          Error="@(E("/forwardAuth/cacheSeconds") is not null)" ErrorText="@E("/forwardAuth/cacheSeconds")" data-field="cache-seconds" />
                     </div>
@@ -113,7 +113,7 @@
                                Label="A remembered allow covers" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" ReadOnly="!MayWrite"
                                HelperText="Always for the same client address and the same cookies. Choose a path when the provider's rules decide per path."
                                Error="@(E("/forwardAuth/cacheScope") is not null)" ErrorText="@E("/forwardAuth/cacheScope")" data-field="cache-scope">
-                        <MudSelectItem T="ForwardAuthCacheScope?" Value="@((ForwardAuthCacheScope?)null)">@($"{AuthProviderText.PresetLabel(Model.Preset)}'s choice ({AuthProviderText.ScopeLabel(ForwardAuthPresets.DefaultCacheScope(Model.Preset)).ToLowerInvariant()})")</MudSelectItem>
+                        <MudSelectItem T="ForwardAuthCacheScope?" Value="@((ForwardAuthCacheScope?)null)">@($"Default: {AuthProviderText.ScopeLabel(ForwardAuthPresets.DefaultCacheScope(Model.Preset)).ToLowerInvariant()}")</MudSelectItem>
                         <MudSelectItem T="ForwardAuthCacheScope?" Value="@((ForwardAuthCacheScope?)ForwardAuthCacheScope.Request)">@AuthProviderText.ScopeLabel(ForwardAuthCacheScope.Request)</MudSelectItem>
                         <MudSelectItem T="ForwardAuthCacheScope?" Value="@((ForwardAuthCacheScope?)ForwardAuthCacheScope.Host)">@AuthProviderText.ScopeLabel(ForwardAuthCacheScope.Host)</MudSelectItem>
                     </MudSelect>
@@ -158,7 +158,7 @@
                              Description="Where a browser without a session goes when the endpoint answers 401. Leave it empty when the provider redirects on its own (authentik, Authelia).">
                     <div class="pdk-field-grid">
                         <MudTextField T="string" Value="Model.SignInUrl" ValueChanged="@(value => Set(() => Model.SignInUrl = value, "/forwardAuth/signIn/url"))" Immediate="true" DebounceInterval="250"
-                                      Label="Sign-in address" Placeholder="@(resolved.SignInUrl ?? "/oauth2/start")" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
+                                      Label="Sign-in address" Placeholder="@(resolved.SignInUrl ?? "https://login.example.com/start")" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="!MayWrite" Class="pdk-mono-input"
                                       HelperText="@SignInHelp(resolved)" Error="@(E("/forwardAuth/signIn/url") is not null)" ErrorText="@E("/forwardAuth/signIn/url")"
                                       data-field="sign-in-url" spellcheck="false" autocomplete="off" />
                         <MudTextField T="string" Value="Model.SignInParameter" ValueChanged="@(value => Set(() => Model.SignInParameter = value, "/forwardAuth/signIn/returnParameter"))" Immediate="true" DebounceInterval="250"

@@ -5,6 +5,9 @@
     <ProjectReference Include="../../src/Paduraksa.Server/Paduraksa.Server.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Shared/FakeAuthServer.cs" Link="Shared/FakeAuthServer.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="bunit" />
     <PackageReference Include="Microsoft.Playwright" />
   </ItemGroup>
