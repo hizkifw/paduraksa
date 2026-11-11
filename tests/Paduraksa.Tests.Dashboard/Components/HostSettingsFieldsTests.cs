@@ -38,6 +38,7 @@ public sealed class HostSettingsFieldsTests
         ProofOfWork = new ProofOfWorkSettings { Enabled = true, Difficulty = 18, TokenLifetimeHours = 168 },
         RateLimit = new RateLimitSettings { PolicyId = SamplePolicy },
         Robots = new RobotsSettings { Mode = RobotsMode.BlockAiCrawlers },
+        Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -335,6 +336,35 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/robots/customText",
             ShowsAtField = true,
         },
+
+        // Group keys: the validator has no rule of its own for either (a lockdown mode the select can't make is the enum's
+        // error, and the pair only warns).
+        new(
+            "cloudflare.originLockdown",
+            "cloudflare-lockdown",
+            "/cloudflare/originLockdown",
+            new HostSettings(),
+            (fields, _) => SetSelect<OriginLockdownMode>(fields, "Only allow Cloudflare", OriginLockdownMode.Drop),
+            new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Drop } },
+            (fields, _) => SetSelect<OriginLockdownMode>(fields, "Only allow Cloudflare", null),
+            new HostSettings(),
+            "Inherit (refuse with 403)")
+        {
+            GroupKey = true,
+        },
+        new(
+            "cloudflare.authenticatedOriginPulls",
+            "cloudflare-aop",
+            "/cloudflare/authenticatedOriginPulls",
+            new HostSettings(),
+            (fields, _) => SetSelect<bool>(fields, "Authenticated Origin Pulls", false),
+            new HostSettings { Cloudflare = new CloudflareSettings { AuthenticatedOriginPulls = false } },
+            (fields, _) => SetSelect<bool>(fields, "Authenticated Origin Pulls", null),
+            new HostSettings(),
+            "Inherit (on)")
+        {
+            GroupKey = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -433,6 +463,49 @@ public sealed class HostSettingsFieldsTests
         Assert.Contains("Strict API", fields.Find("[data-field=rate-limit]").OuterHtml, StringComparison.Ordinal);
         await SetRateLimit(fields, "inherit");
         Assert.Null(holder.Value.RateLimit);
+    }
+
+    [Fact]
+    public async Task TheCloudflareRowsOfferTheThreeLockdownChoicesAndSayWhenTheModeMakesThemInert()
+    {
+        await using DashboardTestContext context = new();
+        var popovers = context.Render<MudPopoverProvider>();
+        var fields = Render(context, new Holder(), new HostSettings());
+
+        await fields.InvokeAsync(() => fields.FindComponents<MudSelect<OriginLockdownMode?>>().Single(s => s.Instance.Label == "Only allow Cloudflare").Instance.OpenMenu());
+        var choices = popovers.FindAll(".mud-popover-open .mud-list-item").Select(item => item.TextContent.Trim()).ToList();
+        Assert.Equal(["Inherit (refuse with 403)", "Off", "Refuse with 403", "Drop connection"], choices);
+
+        // No mode given (a caller that can't say) and a Cloudflare mode show nothing; any other mode says the rows do nothing.
+        Assert.Empty(fields.FindAll("[data-field=cloudflare-needs-mode]"));
+        foreach (var mode in new[] { TrustedProxyMode.CloudflareProxy, TrustedProxyMode.CloudflareTunnel })
+        {
+            var cloudflare = context.Render<HostSettingsFields>(parameters => parameters
+                .Add(f => f.Settings, new HostSettings())
+                .Add(f => f.Inherited, Inherited)
+                .Add(f => f.ProxyMode, mode));
+            Assert.Empty(cloudflare.FindAll("[data-field=cloudflare-needs-mode]"));
+        }
+
+        foreach (var mode in new[] { TrustedProxyMode.Off, TrustedProxyMode.Generic })
+        {
+            var inert = context.Render<HostSettingsFields>(parameters => parameters
+                .Add(f => f.Settings, new HostSettings())
+                .Add(f => f.Inherited, Inherited)
+                .Add(f => f.ProxyMode, mode));
+            Assert.Contains("do nothing until client addresses are set to Cloudflare proxy or Cloudflare Tunnel", inert.Find("[data-field=cloudflare-needs-mode]").TextContent, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void TheCloudflareSettingsAreSummarisedAndCounted()
+    {
+        Assert.Equal(["Cloudflare only (refuse with 403), Authenticated Origin Pulls"], SettingsSummary.Summary(new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true } }));
+        Assert.Equal(["Cloudflare only (drop the connection)"], SettingsSummary.Summary(new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Drop } }));
+        Assert.Equal(["Open to any peer, No Authenticated Origin Pulls"], SettingsSummary.Summary(new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Off, AuthenticatedOriginPulls = false } }));
+        Assert.Empty(SettingsSummary.Summary(new HostSettings()));
+        Assert.Equal(2, HostSettingsEdit.CountSet(new HostSettings { Cloudflare = new CloudflareSettings { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true } }));
+        Assert.Null(HostSettingsEdit.WithCloudflare(new HostSettings { Cloudflare = new CloudflareSettings { AuthenticatedOriginPulls = true } }, c => c with { AuthenticatedOriginPulls = null }).Cloudflare);
     }
 
     [Fact]

@@ -70,10 +70,11 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
     /// <summary>
     /// What needs the person: hosts the live config warns about or whose
     /// certificate is a problem, upstreams a host uses with no destination switched on, certificates that failed, and certificates in use
-    /// that end soon. Each with the drawer that fixes it.
+    /// that end soon, and a Cloudflare edge-range list that has gone stale. Each with the drawer that fixes it.
     /// </summary>
     public static IReadOnlyList<AttentionItem> AttentionOf(
-        ConfigDocument? document, IReadOnlyList<HostRow>? hosts, IReadOnlyList<CertificateSummary>? certificates, IReadOnlyList<ExpiringCertificate>? expiring, DateTimeOffset now)
+        ConfigDocument? document, IReadOnlyList<HostRow>? hosts, IReadOnlyList<CertificateSummary>? certificates, IReadOnlyList<ExpiringCertificate>? expiring, DateTimeOffset now,
+        CloudflareRangeStatus? cloudflareRanges = null)
     {
         List<AttentionItem> items = [];
         if (certificates is not null)
@@ -101,6 +102,12 @@ public sealed record HomeSnapshot(long? Revision, int? Hosts, int? Upstreams, in
                 var detail = row.Problems.Count > 0 ? string.Join(" ", row.Problems) : row.Certificate?.Detail ?? "Needs attention.";
                 items.Add(new AttentionItem(Tone.Warning, HostName(row.Host), detail, DashboardRoutes.Host(row.Host.Id), "Open host"));
             }
+        }
+
+        // Only where the proxy trusts the edge ranges: a stale list is nothing to act on under any other mode.
+        if (document?.Settings.TrustedProxies.Mode == TrustedProxyMode.CloudflareProxy && cloudflareRanges?.Warning is { } rangesWarning)
+        {
+            items.Add(new AttentionItem(Tone.Warning, "Cloudflare's edge ranges aren't being refreshed", rangesWarning, SettingsRoutes.Defaults, "Open settings"));
         }
 
         if (document is not null)

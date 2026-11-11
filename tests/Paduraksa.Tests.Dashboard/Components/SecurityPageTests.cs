@@ -91,6 +91,45 @@ public sealed class SecurityPageTests
     }
 
     [Fact]
+    public async Task TheCloudflareColumnSaysLockdownAndOriginPullsAndCountsAHostWithOnlyThemAsProtected()
+    {
+        await using DashboardTestContext context = new();
+        var shell = Start(context, Role.Operator);
+        HostSpec Plain(HostId id, string name, HostCloudflareSpec cloudflare) => new()
+        {
+            Id = id,
+            Names = [name],
+            Https = false,
+            Cloudflare = cloudflare,
+            Routes = [new RouteSpec { Id = RouteId.New(), Upstream = Upstream }],
+        };
+        shell.Publish(new ProxyConfigModel
+        {
+            Upstreams = [new UpstreamSpec { Id = Upstream, Destinations = [new DestinationSpec(DestinationId.New(), "http://127.0.0.1:1")] }],
+            Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = TrustedProxyMode.CloudflareProxy } },
+            Hosts =
+            [
+                Plain(HostId.New(), "z-none.test", new HostCloudflareSpec()),
+                Plain(HostId.New(), "b-both.test", new HostCloudflareSpec { OriginLockdown = OriginLockdownMode.Forbid, AuthenticatedOriginPulls = true }),
+                Plain(HostId.New(), "c-pulls.test", new HostCloudflareSpec { AuthenticatedOriginPulls = true }),
+                Plain(HostId.New(), "a-drop.test", new HostCloudflareSpec { OriginLockdown = OriginLockdownMode.Drop }),
+            ],
+        });
+
+        var page = context.Render<SecurityPage>();
+
+        // The three with something on come first, by name; the one with nothing last.
+        Assert.Equal(["a-drop.test", "b-both.test", "c-pulls.test", "z-none.test"], page.FindAll("[data-host]").Select(row => row.GetAttribute("data-host")));
+        string Cell(string host) => string.Join(" | ", page.Find($"[data-host='{host}'] [data-cell=cloudflare]").QuerySelectorAll("span").Select(span => span.TextContent.Trim()));
+        Assert.Equal("Locked, drop", Cell("a-drop.test"));
+        Assert.Equal("Locked, 403 | Origin pulls", Cell("b-both.test"));
+        Assert.Equal("Origin pulls", Cell("c-pulls.test"));
+        Assert.Equal("None", Cell("z-none.test"));
+        Assert.Single(page.FindAll("[data-host='b-both.test'] [data-cell=cloudflare] .pdk-dt-note"));
+        Assert.Empty(page.FindAll("[data-host='c-pulls.test'] [data-cell=cloudflare] .pdk-dt-note"));
+    }
+
+    [Fact]
     public async Task TheHostsTableListsProtectedHostsByNameThenThoseWithNothing()
     {
         await using DashboardTestContext context = new();
@@ -122,7 +161,7 @@ public sealed class SecurityPageTests
         var page = context.Render<SecurityPage>();
 
         var cells = page.Find("[data-host='files.test']").QuerySelectorAll(".pdk-dt-cell");
-        Assert.Equal(4, cells.Length);
+        Assert.Equal(5, cells.Length);
         Assert.All(cells, cell =>
         {
             Assert.Equal("None", cell.TextContent.Trim());

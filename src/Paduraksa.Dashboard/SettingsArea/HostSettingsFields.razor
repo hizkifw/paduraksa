@@ -151,6 +151,32 @@
         }
     </div>
 
+    @if (NeedsCloudflareMode)
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Text" Dense="true" Class="pdk-setting-note" data-field="cloudflare-needs-mode">
+            The two Cloudflare settings below do nothing until client addresses are set to Cloudflare proxy or Cloudflare Tunnel (Global defaults).
+        </MudAlert>
+    }
+
+    <InheritSelect T="OriginLockdownMode" Value="_current.Cloudflare?.OriginLockdown" ValueChanged="@(value => Update(WithCloudflare(cloudflare => cloudflare with { OriginLockdown = value }), "/cloudflare/originLockdown"))"
+                   Inherited="@Resolved.Cloudflare!.OriginLockdown!.Value" Format="@(mode => SettingsSummary.LockdownText(mode))" InheritWord="@InheritWord"
+                   Title="Only allow Cloudflare"
+                   Help="Refuse a connection that doesn't come from Cloudflare, before anything else the host does. It covers the admin host when it is served here, not the admin port."
+                   Label="Only allow Cloudflare" Field="cloudflare-lockdown" Error="@E("/cloudflare/originLockdown")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Off">Off</MudSelectItem>
+        <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Forbid">Refuse with 403</MudSelectItem>
+        <MudSelectItem T="OriginLockdownMode?" Value="OriginLockdownMode.Drop">Drop connection</MudSelectItem>
+    </InheritSelect>
+
+    <InheritSelect T="bool" Value="_current.Cloudflare?.AuthenticatedOriginPulls" ValueChanged="@(value => Update(WithCloudflare(cloudflare => cloudflare with { AuthenticatedOriginPulls = value }), "/cloudflare/authenticatedOriginPulls"))"
+                   Inherited="@Resolved.Cloudflare!.AuthenticatedOriginPulls!.Value" Format="@(value => value ? "on" : "off")" InheritWord="@InheritWord"
+                   Title="Authenticated Origin Pulls"
+                   Help="Only take Cloudflare's client certificate. Turn it on for the zone in Cloudflare too, or every request is refused. The host leaves HTTP/3."
+                   Label="Authenticated Origin Pulls" Field="cloudflare-aop" Error="@E("/cloudflare/authenticatedOriginPulls")" ReadOnly="@ReadOnly">
+        <MudSelectItem T="bool?" Value="true">On</MudSelectItem>
+        <MudSelectItem T="bool?" Value="false">Off</MudSelectItem>
+    </InheritSelect>
+
     <h4 class="pdk-setting-section">Headers and logging</h4>
 
     <InheritSelect T="ServerHeaderMode" Value="_current.ServerHeader?.Mode" ValueChanged="@(value => Update(WithServerHeader(server => server with { Mode = value }), "/serverHeader/mode"))"                  Inherited="@Resolved.ServerHeader!.Mode!.Value" Format="@(mode => SettingsSummary.ServerHeaderText(mode, Resolved.ServerHeader!.Value))"
@@ -214,6 +240,11 @@
     /// <summary>The words of the "inherit" choice: "Inherit" or "Built-in default".</summary>
     [Parameter]
     public string InheritWord { get; set; } = "Inherit";
+
+    /// <summary>The global client-address mode these settings act under; null when the page can't say. The two Cloudflare
+    /// settings do nothing unless it is a Cloudflare one, and the form says so.</summary>
+    [Parameter]
+    public TrustedProxyMode? ProxyMode { get; set; }
 
     /// <summary>The layer's path in the errors (<c>/defaults</c>, <c>/settings</c>).</summary>
     [Parameter]
@@ -308,6 +339,10 @@
     private HostSettings WithServerHeader(Func<ServerHeaderSettings, ServerHeaderSettings> change) => HostSettingsEdit.WithServerHeader(_current, change);
 
     private HostSettings WithProofOfWork(Func<ProofOfWorkSettings, ProofOfWorkSettings> change) => HostSettingsEdit.WithProofOfWork(_current, change);
+
+    private bool NeedsCloudflareMode => ProxyMode is { } mode && mode is not (TrustedProxyMode.CloudflareProxy or TrustedProxyMode.CloudflareTunnel);
+
+    private HostSettings WithCloudflare(Func<CloudflareSettings, CloudflareSettings> change) => HostSettingsEdit.WithCloudflare(_current, change);
 
     private HostSettings WithRobots(Func<RobotsSettings, RobotsSettings> change) => HostSettingsEdit.WithRobots(_current, change);
 

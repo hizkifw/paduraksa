@@ -186,6 +186,30 @@ public sealed class SecurityOverviewServiceTests
     }
 
     [Fact]
+    public void CloudflareLockdownAndOriginPullsAreReportedOnlyWhereTheModeMakesThemReal()
+    {
+        var (service, _, _, store) = Start();
+        var locked = new HostCloudflareSpec { OriginLockdown = OriginLockdownMode.Drop, AuthenticatedOriginPulls = true };
+        ProxyConfigModel Cloudflare(TrustedProxyMode mode) => Model(Host(1, "a.test") with { Cloudflare = locked }, Host(2, "b.test")) with
+        {
+            Defaults = new DefaultsSpec { TrustedProxies = new TrustedProxySpec { Mode = mode, Proxies = mode == TrustedProxyMode.Generic ? ["10.0.0.0/8"] : [] } },
+        };
+
+        Publish(store, Cloudflare(TrustedProxyMode.CloudflareProxy));
+        var overview = service.Read();
+        var a = Assert.Single(overview.Hosts, host => host.Name == "a.test");
+        Assert.Equal((OriginLockdownMode.Drop, true), (a.OriginLockdown, a.AuthenticatedOriginPulls));
+        var b = Assert.Single(overview.Hosts, host => host.Name == "b.test");
+        Assert.Equal((OriginLockdownMode.Off, false), (b.OriginLockdown, b.AuthenticatedOriginPulls));
+
+        // The compiler resolves both to nothing under a mode without Cloudflare, and the page reports what the gate does.
+        var (other, _, _, otherStore) = Start();
+        Publish(otherStore, Cloudflare(TrustedProxyMode.Generic));
+        var inert = Assert.Single(other.Read().Hosts, host => host.Name == "a.test");
+        Assert.Equal((OriginLockdownMode.Off, false), (inert.OriginLockdown, inert.AuthenticatedOriginPulls));
+    }
+
+    [Fact]
     public void OnlyEnabledHostsAreListedByNameWhateverTheirOrder()
     {
         var (service, _, _, store) = Start();

@@ -66,7 +66,7 @@
         {
             <HostForm Model="Model" Upstreams="DraftDocument.Upstreams" Staged="StagedUpstreamIds" Profiles="DraftDocument.Profiles" StagedProfiles="StagedProfileIds"
                       RateLimits="DraftDocument.RateLimitPolicies" StagedRateLimits="StagedRateLimitIds"
-                      Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" Errors="FieldErrors" ShowAll="Attempted" ReadOnly="!MayWrite"
+                      Certificates="_certificates" Defaults="@(_current?.Document.Settings.Defaults ?? new HostSettings())" ProxyMode="DraftDocument.Settings.TrustedProxies.Mode" Errors="FieldErrors" ShowAll="Attempted" ReadOnly="!MayWrite"
                       OnChanged="Changed"
                       OnNewUpstream="@(MayWrite ? EventCallback.Factory.Create<RouteEntry>(this, NewUpstreamAsync) : default)"
                       OnEditUpstream="EventCallback.Factory.Create<UpstreamId>(this, EditUpstreamAsync)"

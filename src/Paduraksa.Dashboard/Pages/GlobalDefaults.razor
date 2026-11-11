@@ -4,6 +4,7 @@
 @using Paduraksa.Contracts.Certificates
 @inject IDashboardConfig Config
 @inject DashboardCaller Caller
+@inject TimeProvider Time
 @* Settings: the global defaults: the bottom layer of host settings, what a request for an unknown name gets, the default
    certificate and the trusted proxies, applied through the review drawer. *@
 
@@ -62,7 +63,7 @@ else
             </div>
             <HostSettingsFields Settings="_model.Defaults" SettingsChanged="SetDefaults" Inherited="HostSettingsLayers.BuiltIn" InheritedFrom="the built-in defaults" InheritWord="Built-in default"
                                 PathPrefix="/defaults" Errors="_errors" ShowAll="_attempted" Touched="_touched" ReadOnly="!_mayWrite" OnChanged="Touch"
-                                Policies="_document.RateLimitPolicies" />
+                                Policies="_document.RateLimitPolicies" ProxyMode="_model.ProxyMode" />
         </MudPaper>
 
         <MudPaper Class="pdk-card pdk-form-card" Elevation="0" Outlined="true">
@@ -130,6 +131,19 @@ else
                     </button>
                 }
             </div>
+
+            @if (_model.ProxyMode == TrustedProxyMode.CloudflareProxy)
+            {
+                var ranges = Config.CloudflareRanges;
+                if (ranges.Warning is { } warning)
+                {
+                    <MudAlert Severity="Severity.Warning" Variant="Variant.Text" Dense="true" Class="mt-2" data-field="cloudflare-ranges" data-state="warning">@warning</MudAlert>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Class="pdk-muted d-block mt-2" data-field="cloudflare-ranges" data-state="ok">@CloudflareRangeText.Line(ranges, Time.GetUtcNow())</MudText>
+                }
+            }
 
             @if (_model.ModeTakesProxies)
             {

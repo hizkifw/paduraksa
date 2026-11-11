@@ -263,7 +263,7 @@
                 expiring,
                 ExpiringInUse: current is not null)
             {
-                Attention = HomeSnapshot.AttentionOf(current?.Document, rows, certificates, expiring, now),
+                Attention = HomeSnapshot.AttentionOf(current?.Document, rows, certificates, expiring, now, Config.CloudflareRanges),
                 Lines = rows is null ? null : HomeSnapshot.LinesOf(rows),
                 Online = rows?.Count(r => r.Health != Tone.Default) ?? 0,
                 Off = rows?.Count(r => r.Health == Tone.Default) ?? 0,

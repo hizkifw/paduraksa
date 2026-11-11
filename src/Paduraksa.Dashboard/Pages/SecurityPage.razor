@@ -61,6 +61,7 @@ else if (_current is { } current)
                         <span role="columnheader">Rate limit</span>
                         <span role="columnheader">robots.txt</span>
                         <span role="columnheader">IP allow list</span>
+                        <span role="columnheader">Cloudflare</span>
                     </div>
                     @foreach (var host in SecurityFigures.Ordered(current.Hosts))
                     {
@@ -139,6 +140,26 @@ else if (_current is { } current)
                                 else
                                 {
                                     @SecurityFigures.Ranges(host.AllowListRanges)
+                                }
+                            </div>
+                            <div role="cell" class="pdk-dt-cell" data-label="Cloudflare" data-cell="cloudflare">
+                                @if (host.OriginLockdown == OriginLockdownMode.Off && !host.AuthenticatedOriginPulls)
+                                {
+                                    <span class="pdk-muted">None</span>
+                                }
+                                else
+                                {
+                                    <div class="pdk-dt-stack">
+                                        @if (host.OriginLockdown != OriginLockdownMode.Off)
+                                        {
+                                            <span title="Only Cloudflare may connect: any other peer is refused with a 403 or dropped">@SecurityFigures.LockdownText(host.OriginLockdown)</span>
+                                        }
+
+                                        @if (host.AuthenticatedOriginPulls)
+                                        {
+                                            <span class="@(host.OriginLockdown == OriginLockdownMode.Off ? null : "pdk-dt-note")">Origin pulls</span>
+                                        }
+                                    </div>
                                 }
                             </div>
                         </div>

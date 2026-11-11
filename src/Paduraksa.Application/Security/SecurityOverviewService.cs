@@ -75,7 +75,9 @@ public sealed class SecurityOverviewService
             new ProofOfWorkProtection(powOn, host.ProofOfWork.Difficulty, powOverrides),
             new RateLimitProtection(overrides, hostPolicy is null ? null : RefOf(hostPolicy)),
             host.RobotsMode,
-            ranges);
+            ranges,
+            host.OriginLockdown,
+            host.AuthenticatedOriginPulls);
     }
 
     private static RateLimitPolicyRef RefOf(RateLimitPolicy policy) => new(policy.PolicyId, policy.PolicyName);

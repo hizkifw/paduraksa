@@ -35,7 +35,8 @@ internal static class SecurityFigures
     public static bool HasProtection(HostProtections host) =>
         host.ProofOfWork.Enabled || host.ProofOfWork.RouteOverrides > 0
         || host.RateLimit.Policy is not null || host.RateLimit.Overrides.Count > 0
-        || host.Robots != RobotsMode.Passthrough || host.AllowListRanges > 0;
+        || host.Robots != RobotsMode.Passthrough || host.AllowListRanges > 0
+        || host.OriginLockdown != OriginLockdownMode.Off || host.AuthenticatedOriginPulls;
 
     /// <summary>The hosts with something on first, then those with nothing, each by name.</summary>
     public static IReadOnlyList<HostProtections> Ordered(IReadOnlyList<HostProtections> hosts) =>
@@ -46,6 +47,13 @@ internal static class SecurityFigures
     public static string Routes(int count) => count == 1 ? "1 route" : $"{count} routes";
 
     public static string Ranges(int count) => count == 1 ? "1 range" : $"{count} ranges";
+
+    public static string LockdownText(OriginLockdownMode mode) => mode switch
+    {
+        OriginLockdownMode.Forbid => "Locked, 403",
+        OriginLockdownMode.Drop => "Locked, drop",
+        _ => string.Empty,
+    };
 
     public static string RobotsText(RobotsMode mode) => mode switch
     {

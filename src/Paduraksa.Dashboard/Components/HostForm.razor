@@ -218,7 +218,7 @@
 
     <FormSection Title="Settings" Description="The profile first: every setting under it inherits from the profile, then the global defaults, unless the host sets its own." Name="settings">
         <HostSettingsFields Settings="Model.Settings" SettingsChanged="@(settings => Model.Settings = settings)" Inherited="Inherited" InheritedFrom="@InheritedFrom" InheritWord="Inherit" PathPrefix="/settings" Errors="Errors"
-                            ShowAll="ShowAll" Touched="_touched" ReadOnly="ReadOnly" ShowForceHttps="@(Model.Kind != HostKind.Admin)"
+                            ShowAll="ShowAll" Touched="_touched" ReadOnly="ReadOnly" ShowForceHttps="@(Model.Kind != HostKind.Admin)" ProxyMode="ProxyMode"
                             ForceHttpsDisabled="@(Model.CertificateMode == CertificateBindingMode.None)" OnChanged="TouchAsync"
                             Policies="RateLimits" StagedRateLimits="StagedRateLimits"
                             OnNewRateLimit="@(OnNewRateLimit.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRateLimit.InvokeAsync(null)) : default)">
@@ -302,6 +302,10 @@
     /// <summary>The global defaults: the layer of settings under the profile's.</summary>
     [Parameter]
     public HostSettings Defaults { get; set; } = new();
+
+    /// <summary>The global client-address mode, which the Cloudflare settings need; null when the caller can't say.</summary>
+    [Parameter]
+    public TrustedProxyMode? ProxyMode { get; set; }
 
     /// <summary>The errors, by pointer relative to the host (<c>/names/0</c>).</summary>
     [Parameter]

@@ -66,6 +66,15 @@ public static class HostSettingsEdit
         return settings with { Robots = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its Cloudflare record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithCloudflare(HostSettings settings, Func<CloudflareSettings, CloudflareSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.Cloudflare ?? new CloudflareSettings());
+        return settings with { Cloudflare = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary>
     /// How many settings a layer sets: each top-level field, and each field of a nested record, that is not null. The walk reads
     /// <see cref="HostSettings"/> itself, so a new setting is counted without a hand-kept list. A preset-or-custom choice with no
@@ -116,6 +125,7 @@ public static class SettingsSummary
         static (settings, _) => settings.ProofOfWork is { } proofOfWork ? ProofOfWorkText(proofOfWork) : null,
         static (settings, document) => settings.RateLimit is { } rateLimit ? RateLimitText(rateLimit, document) : null,
         static (settings, _) => settings.Robots is { } robots ? RobotsSummary(robots) : null,
+        static (settings, _) => settings.Cloudflare is { } cloudflare ? CloudflareText(cloudflare) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
@@ -154,6 +164,31 @@ public static class SettingsSummary
         RobotsMode.Custom => string.IsNullOrWhiteSpace(customText) ? "custom text" : "custom text, set",
         _ => "the layer below's",
     };
+
+    /// <summary>An origin lockdown mode in the words of the row's choices.</summary>
+    public static string LockdownText(OriginLockdownMode mode) => mode switch
+    {
+        OriginLockdownMode.Off => "off",
+        OriginLockdownMode.Forbid => "refuse with 403",
+        OriginLockdownMode.Drop => "drop the connection",
+        _ => "the layer below's",
+    };
+
+    private static string? CloudflareText(CloudflareSettings cloudflare)
+    {
+        List<string> parts = [];
+        if (cloudflare.OriginLockdown is { } lockdown)
+        {
+            parts.Add(lockdown == OriginLockdownMode.Off ? "Open to any peer" : $"Cloudflare only ({LockdownText(lockdown)})");
+        }
+
+        if (cloudflare.AuthenticatedOriginPulls is { } pulls)
+        {
+            parts.Add(pulls ? "Authenticated Origin Pulls" : "No Authenticated Origin Pulls");
+        }
+
+        return parts.Count == 0 ? null : string.Join(", ", parts);
+    }
 
     public static string TlsText(TlsMinimumVersion version) => version == TlsMinimumVersion.Tls13 ? "TLS 1.3" : "TLS 1.2";
 

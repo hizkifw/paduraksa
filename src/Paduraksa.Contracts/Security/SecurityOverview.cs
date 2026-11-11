@@ -45,7 +45,17 @@ public sealed record RateLimitCounters(long Allowed, long Limited);
 /// <param name="RateLimit">The rate-limit policy, if any.</param>
 /// <param name="Robots">How the host answers robots.txt.</param>
 /// <param name="AllowListRanges">The address ranges the IP allow list admits, after merging overlaps; 0 when the host has no list.</param>
-public sealed record HostProtections(HostId Id, string Name, ProofOfWorkProtection ProofOfWork, RateLimitProtection RateLimit, RobotsMode Robots, int AllowListRanges);
+/// <param name="OriginLockdown">What the host does with a peer that isn't Cloudflare's; off unless the client-address mode is a Cloudflare one.</param>
+/// <param name="AuthenticatedOriginPulls">Whether the host's handshake requires Cloudflare's client certificate (the same condition).</param>
+public sealed record HostProtections(
+    HostId Id,
+    string Name,
+    ProofOfWorkProtection ProofOfWork,
+    RateLimitProtection RateLimit,
+    RobotsMode Robots,
+    int AllowListRanges,
+    OriginLockdownMode OriginLockdown = OriginLockdownMode.Off,
+    bool AuthenticatedOriginPulls = false);
 
 /// <summary>A host's proof-of-work setting.</summary>
 /// <param name="Enabled">The host's own switch.</param>

@@ -226,6 +226,41 @@ public sealed class SettingsPagesTests
     }
 
     [Fact]
+    public async Task TheClientAddressCardShowsTheEdgeRangeListWhereTheProxyModeNeedsIt()
+    {
+        await using DashboardTestContext context = new();
+        var (_, _, config, _) = IdentityPages.SignIn(context, Role.Operator);
+        config.Document = new ConfigDocument(Settings: new GlobalSettings(Version: 4));
+        var now = TimeProvider.System.GetUtcNow();
+        config.CloudflareRanges = new CloudflareRangeStatus(CloudflareRangeSource.Fetched, now.AddDays(-3), 22, 0, null);
+        context.Render<MudPopoverProvider>();
+        var page = context.Render<GlobalDefaults>();
+        await page.WaitForStateAsync(() => page.FindAll("[data-form=defaults]").Count == 1);
+
+        // Only the Cloudflare proxy mode trusts the list.
+        Assert.Empty(page.FindAll("[data-field=cloudflare-ranges]"));
+        await page.Find("[data-mode=cloudflareproxy]").ClickAsync(new());
+        var line = page.Find("[data-field=cloudflare-ranges]");
+        Assert.Equal("ok", line.GetAttribute("data-state"));
+        Assert.Equal("Cloudflare ranges: updated 3 days ago (22 ranges)", line.TextContent.Trim());
+
+        // The warning replaces the line, in the words the compiler gives.
+        config.CloudflareRanges = config.CloudflareRanges with { Warning = "Cloudflare's edge ranges are the stored list, 40 days old." };
+        await page.Find("[data-mode=cloudflaretunnel]").ClickAsync(new());
+        Assert.Empty(page.FindAll("[data-field=cloudflare-ranges]"));
+        await page.Find("[data-mode=cloudflareproxy]").ClickAsync(new());
+        var warning = page.Find("[data-field=cloudflare-ranges]");
+        Assert.Equal("warning", warning.GetAttribute("data-state"));
+        Assert.Contains("40 days old", warning.TextContent, StringComparison.Ordinal);
+
+        // The host settings on this page say what they need while the mode is something else.
+        await page.Find("[data-mode=off]").ClickAsync(new());
+        Assert.Single(page.FindAll("[data-field=cloudflare-needs-mode]"));
+        await page.Find("[data-mode=cloudflareproxy]").ClickAsync(new());
+        Assert.Empty(page.FindAll("[data-field=cloudflare-needs-mode]"));
+    }
+
+    [Fact]
     public async Task AProfileInUse_CannotBeDeleted_AndSaysWhichHosts()
     {
         await using DashboardTestContext context = new();
