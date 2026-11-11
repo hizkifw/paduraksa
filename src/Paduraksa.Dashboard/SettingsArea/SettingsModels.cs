@@ -75,6 +75,15 @@ public static class HostSettingsEdit
         return settings with { RuleSet = changed.SetsNothing ? null : changed };
     }
 
+    /// <summary><paramref name="settings"/> with its auth-provider record changed, and no record at all when nothing is left set.</summary>
+    public static HostSettings WithAuthProvider(HostSettings settings, Func<AuthProviderSettings, AuthProviderSettings> change)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(change);
+        var changed = change(settings.AuthProvider ?? new AuthProviderSettings());
+        return settings with { AuthProvider = changed.SetsNothing ? null : changed };
+    }
+
     /// <summary><paramref name="settings"/> with its robots.txt record changed, and no record at all when nothing is left set.</summary>
     public static HostSettings WithRobots(HostSettings settings, Func<RobotsSettings, RobotsSettings> change)
     {
@@ -151,6 +160,7 @@ public static class SettingsSummary
         static (settings, document) => settings.AccessList is { } accessList ? AccessListSummary(accessList, document) : null,
         static (settings, _) => settings.RequestLimits is { } requestLimits ? RequestLimitsText(requestLimits) : null,
         static (settings, document) => settings.RuleSet is { } ruleSet ? RuleSetSummary(ruleSet, document) : null,
+        static (settings, document) => settings.AuthProvider is { } authProvider ? AuthProviderSummary(authProvider, document) : null,
     ];
 
     /// <summary>What <paramref name="settings"/> sets, in short phrases. A named rate-limit policy is resolved in
@@ -403,6 +413,26 @@ public static class SettingsSummary
         }
 
         return $"Rules: {RuleSetText.NameOf(id, document?.RuleSets ?? []) ?? "a set"}";
+    }
+
+    private static string? AuthProviderSummary(AuthProviderSettings authProvider, ConfigDocument? document)
+    {
+        if (authProvider.SetsNothing)
+        {
+            return null;
+        }
+
+        if (authProvider.Enabled == false)
+        {
+            return "Sign-in off";
+        }
+
+        if (authProvider.AuthProviderId is not { IsEmpty: false } id)
+        {
+            return "Sign-in: the inherited provider";
+        }
+
+        return $"Sign-in: {AuthProviderText.NameOf(id, document?.AuthProviders ?? []) ?? "a provider"}";
     }
 
     private static string? RateLimitText(RateLimitSettings rateLimit, ConfigDocument? document)

@@ -154,6 +154,12 @@
                                               HelperText="Inherits the host's rule set unless this route names one or turns it off."
                                               Error="@(E($"/routes/{index}/settings/ruleSet/ruleSetId") ?? E($"/routes/{index}/settings/ruleSet/enabled"))" ReadOnly="ReadOnly"
                                               Field="@($"route-rule-set-{index}")" />
+                                <AuthProviderField Value="route.AuthProvider" ValueChanged="@(value => SetAsync(() => route.AuthProvider = value, $"/routes/{index}/settings/authProvider/authProviderId"))"
+                                                   Inherited="HostAuthProvider" Providers="AuthProviders" Staged="StagedAuthProviders" Label="Sign-in on this route"
+                                                   OnNew="@(OnNewAuthProvider.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAuthProvider.InvokeAsync(route)) : default)"
+                                                   HelperText="Inherits the host's provider unless this route names one or turns sign-in off (the route that serves the provider's own pages has to)."
+                                                   Error="@(E($"/routes/{index}/settings/authProvider/authProviderId") ?? E($"/routes/{index}/settings/authProvider/enabled"))" ReadOnly="ReadOnly"
+                                                   Field="@($"route-auth-provider-{index}")" />
                                 </div>
                             </div>
                         }
@@ -241,7 +247,9 @@
                             AccessLists="AccessLists" StagedAccessLists="StagedAccessLists"
                             OnNewAccessList="@(OnNewAccessList.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAccessList.InvokeAsync(null)) : default)"
                             RuleSets="RuleSets" StagedRuleSets="StagedRuleSets"
-                            OnNewRuleSet="@(OnNewRuleSet.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRuleSet.InvokeAsync(null)) : default)">
+                            OnNewRuleSet="@(OnNewRuleSet.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewRuleSet.InvokeAsync(null)) : default)"
+                            AuthProviders="AuthProviders" StagedAuthProviders="StagedAuthProviders"
+                            OnNewAuthProvider="@(OnNewAuthProvider.HasDelegate ? EventCallback.Factory.Create(this, () => OnNewAuthProvider.InvokeAsync(null)) : default)">
             <div class="pdk-setting">
                 <div class="pdk-setting-text">
                     <span class="pdk-setting-title">Profile</span>
@@ -331,6 +339,14 @@
     [Parameter]
     public IReadOnlySet<RuleSetId> StagedRuleSets { get; set; } = new HashSet<RuleSetId>();
 
+    /// <summary>The auth providers a host or a route can pick: the config's, and those made in this drawer.</summary>
+    [Parameter]
+    public IReadOnlyList<AuthProviderConfig> AuthProviders { get; set; } = [];
+
+    /// <summary>The auth providers made in this drawer (marked "New").</summary>
+    [Parameter]
+    public IReadOnlySet<AuthProviderId> StagedAuthProviders { get; set; } = new HashSet<AuthProviderId>();
+
     /// <summary>The inventory for the picker; null when the user may not read it.</summary>
     [Parameter]
     public IReadOnlyList<CertificateSummary>? Certificates { get; set; }
@@ -386,6 +402,10 @@
     [Parameter]
     public EventCallback<RouteEntry?> OnNewRuleSet { get; set; }
 
+    /// <summary>"New auth provider..." for the host (null) or one of its routes: the drawer makes one and selects it there.</summary>
+    [Parameter]
+    public EventCallback<RouteEntry?> OnNewAuthProvider { get; set; }
+
     private ProfileConfig? Profile => Model.ProfileId is { } id ? Profiles.FirstOrDefault(p => p.Id == id) : null;
 
     /// <summary>What the host's settings inherit: the profile's over the global defaults over the built-in ones.</summary>
@@ -403,6 +423,9 @@
 
     private RuleSetSettings HostRuleSet =>
         HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).RuleSet ?? new RuleSetSettings();
+
+    private AuthProviderSettings HostAuthProvider =>
+        HostSettingsLayers.MergeAll(HostSettingsLayers.BuiltIn, Defaults, Profile?.Settings, Model.Settings).AuthProvider ?? new AuthProviderSettings();
 
     private bool InheritedForceHttps => Inherited.ForceHttps == true;
 
@@ -536,5 +559,6 @@
         || route.AccessList is not null
         || route.MaxBodySize is not null
         || route.RuleSet is not null
+        || route.AuthProvider is not null
         || Errors.Keys.Any(key => key.StartsWith($"/routes/{index}/settings", StringComparison.Ordinal));
 }

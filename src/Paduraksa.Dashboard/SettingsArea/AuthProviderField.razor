@@ -1,0 +1,144 @@
+@using Paduraksa.Contracts.Config
+@using Paduraksa.Core.Model
+@* One picker for a layer's auth provider: inherit what the layer below resolves, no sign-in, or one of the providers by name. The choices are
+   the contract's AuthProviderSettings exactly: no record inherits, Enabled false is none, and a provider is Enabled true with its ID. A
+   provider is never shown by ID. *@
+<RefPicker T="string" Value="Choice" ValueChanged="OnChoiceAsync" Label="@Label" ReadOnly="@ReadOnly" Disabled="@Disabled"
+           ToStringFunc="ChoiceText" NewValue="@NewChoice" NewLabel="New auth provider..." OnNew="@OnNew"
+           HelperText="@HelperText" Error="@(Error is not null)" ErrorText="@Error" Class="@Class" data-field="@Field">
+    <MudSelectItem T="string" Value="@InheritChoice">
+        <span class="pdk-picker-item"><span>@ChoiceText(InheritChoice)</span></span>
+    </MudSelectItem>
+    <MudSelectItem T="string" Value="@OffChoice">
+        <span class="pdk-picker-item"><span>No sign-in</span><span class="pdk-picker-hint">anyone may reach it</span></span>
+    </MudSelectItem>
+    @if (Missing is not null)
+    {
+        <MudSelectItem T="string" Value="@MissingChoice">
+            <span class="pdk-picker-item"><span>A provider that isn't here</span><span class="pdk-picker-hint">choose another, or none</span></span>
+        </MudSelectItem>
+    }
+    @for (var i = 0; i < Providers.Count; i++)
+    {
+        var index = i;
+        var provider = Providers[index];
+        <MudSelectItem T="string" Value="@ProviderChoice(index)">
+            <span class="pdk-picker-item">
+                <span>@provider.Name</span>
+                @if (Staged.Contains(provider.Id))
+                {
+                    <span class="pdk-chip pdk-tone-primary">New</span>
+                }
+                <span class="pdk-picker-hint">@AuthProviderText.Summary(provider)</span>
+            </span>
+        </MudSelectItem>
+    }
+</RefPicker>
+
+@code {
+    private const string InheritChoice = "inherit";
+    private const string OffChoice = "off";
+    private const string MissingChoice = "missing";
+    private const string NewChoice = "new";
+
+    /// <summary>This layer's record; null inherits.</summary>
+    [Parameter]
+    public AuthProviderSettings? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<AuthProviderSettings?> ValueChanged { get; set; }
+
+    /// <summary>What the layer below resolves to, which the inherit choice names in words.</summary>
+    [Parameter, EditorRequired]
+    public AuthProviderSettings Inherited { get; set; } = new();
+
+    /// <summary>The providers a choice can name: the document's, and those staged in a host's draft.</summary>
+    [Parameter]
+    public IReadOnlyList<AuthProviderConfig> Providers { get; set; } = [];
+
+    /// <summary>The providers made in the host's drawer, marked "New".</summary>
+    [Parameter]
+    public IReadOnlySet<AuthProviderId> Staged { get; set; } = new HashSet<AuthProviderId>();
+
+    /// <summary>"New auth provider...": the caller opens the editor and selects what it hands back.</summary>
+    [Parameter]
+    public EventCallback OnNew { get; set; }
+
+    /// <summary>The words of the inherit choice: "Inherit" or "Built-in default".</summary>
+    [Parameter]
+    public string InheritWord { get; set; } = "Inherit";
+
+    [Parameter]
+    public string Label { get; set; } = "Sign-in";
+
+    /// <summary>The <c>data-field</c> the tests and the browser select it by.</summary>
+    [Parameter]
+    public string Field { get; set; } = "auth-provider";
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>The provider this layer names that the document doesn't have; it gets an option of its own so the select still says so.</summary>
+    private AuthProviderId? Missing =>
+        Value?.AuthProviderId is { IsEmpty: false } id && IndexOf(id) < 0 ? id : null;
+
+    private string Choice => Value switch
+    {
+        { Enabled: false } => OffChoice,
+        { AuthProviderId: { IsEmpty: false } id } when IndexOf(id) >= 0 => ProviderChoice(IndexOf(id)),
+        { AuthProviderId: { IsEmpty: false } } => MissingChoice,
+        _ => InheritChoice,
+    };
+
+    private string? ChoiceText(string? key) => key switch
+    {
+        InheritChoice => $"{InheritWord} ({AuthProviderText.Inherited(Inherited, Providers)})",
+        OffChoice => "No sign-in",
+        MissingChoice => "A provider that isn't here",
+        _ when key is not null && key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Providers.Count => Providers[index].Name,
+        _ => string.Empty,
+    };
+
+    private int IndexOf(AuthProviderId id)
+    {
+        for (var i = 0; i < Providers.Count; i++)
+        {
+            if (Providers[i].Id == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string ProviderChoice(int index) => $"p{index}";
+
+    private async Task OnChoiceAsync(string key)
+    {
+        if (key == InheritChoice)
+        {
+            await ValueChanged.InvokeAsync(null);
+        }
+        else if (key == OffChoice)
+        {
+            await ValueChanged.InvokeAsync(new AuthProviderSettings { Enabled = false });
+        }
+        else if (key.StartsWith('p') && int.TryParse(key[1..], out var index) && index < Providers.Count)
+        {
+            await ValueChanged.InvokeAsync(new AuthProviderSettings { Enabled = true, AuthProviderId = Providers[index].Id });
+        }
+    }
+}

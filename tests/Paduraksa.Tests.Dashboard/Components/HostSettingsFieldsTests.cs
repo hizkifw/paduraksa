@@ -28,6 +28,10 @@ public sealed class HostSettingsFieldsTests
 
     private static readonly RuleSetConfig SampleSetConfig = new(SampleSet, "Scanners");
 
+    private static readonly AuthProviderId SampleProvider = AuthProviderId.New();
+
+    private static readonly AuthProviderConfig SampleProviderConfig = new(SampleProvider, "Authelia", ForwardAuth: new ForwardAuthConfig("http://authelia:9091", ForwardAuthPreset.Authelia));
+
     private static readonly AccessListConfig SampleListConfig = new(SampleList, "Office", Ip: new AccessListIp(["10.0.0.0/8"]));
 
     private static readonly RateLimitPolicyConfig SamplePolicyConfig = new(
@@ -49,6 +53,7 @@ public sealed class HostSettingsFieldsTests
         AccessList = new AccessListSettings { AccessListId = SampleList },
         RequestLimits = new RequestLimitsSettings { MaxBodySize = 10 * 1024 * 1024, MaxHeaderCount = 30, MaxHeaderBytes = 16 * 1024, MaxUrlLength = 4 * 1024 },
         RuleSet = new RuleSetSettings { RuleSetId = SampleSet },
+        AuthProvider = new AuthProviderSettings { AuthProviderId = SampleProvider },
     };
 
     /// <summary>One row per field of the contract, in its order.</summary>
@@ -468,6 +473,34 @@ public sealed class HostSettingsFieldsTests
             ValidatorPath = "/ruleSet/ruleSetId",
             ShowsAtField = true,
         },
+        new(
+            "authProvider.enabled",
+            "auth-provider",
+            "/authProvider/enabled",
+            new HostSettings(),
+            (fields, _) => SetAuthProvider(fields, "off"),
+            new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = false } },
+            (fields, _) => SetAuthProvider(fields, "inherit"),
+            new HostSettings(),
+            "Inherit (Authelia)")
+        {
+            ValidatorPath = "/authProvider/enabled",
+            ShowsAtField = true,
+        },
+        new(
+            "authProvider.authProviderId",
+            "auth-provider",
+            "/authProvider/authProviderId",
+            new HostSettings(),
+            (fields, _) => SetAuthProvider(fields, "p0"),
+            new HostSettings { AuthProvider = new AuthProviderSettings { Enabled = true, AuthProviderId = SampleProvider } },
+            (fields, _) => SetAuthProvider(fields, "inherit"),
+            new HostSettings(),
+            "Inherit (Authelia)")
+        {
+            ValidatorPath = "/authProvider/authProviderId",
+            ShowsAtField = true,
+        },
     ];
 
     public static TheoryData<string> FieldNames => [.. Fields.Select(row => row.Name)];
@@ -766,7 +799,8 @@ public sealed class HostSettingsFieldsTests
             .Add(f => f.ShowAll, true)
             .Add(f => f.Policies, [SamplePolicyConfig])
             .Add(f => f.AccessLists, [SampleListConfig])
-            .Add(f => f.RuleSets, [SampleSetConfig]));
+            .Add(f => f.RuleSets, [SampleSetConfig])
+            .Add(f => f.AuthProviders, [SampleProviderConfig]));
 
     private static Task SetSelect<T>(IRenderedComponent<HostSettingsFields> fields, string label, T? value)
         where T : struct =>
@@ -790,6 +824,12 @@ public sealed class HostSettingsFieldsTests
     private static Task SetRuleSet(IRenderedComponent<HostSettingsFields> fields, string key) =>
         fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>()
             .Single(select => select.Instance.Label == "Rule set")
+            .Instance.ValueChanged.InvokeAsync(key));
+
+    /// <summary>Chooses the auth-provider picker's inherit, none, or nth-provider item by its key.</summary>
+    private static Task SetAuthProvider(IRenderedComponent<HostSettingsFields> fields, string key) =>
+        fields.InvokeAsync(() => fields.FindComponents<MudSelect<string>>()
+            .Single(select => select.Instance.Label == "Sign-in")
             .Instance.ValueChanged.InvokeAsync(key));
 
     private static async Task SetMaxAgeAsync(IRenderedComponent<HostSettingsFields> fields)

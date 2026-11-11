@@ -86,6 +86,12 @@
                       Error="@RuleSetError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
     </SettingRow>
 
+    <SettingRow Title="Sign-in" Help="Ask an auth provider (authentik, Authelia, oauth2-proxy) who the request is before it is forwarded; the provider's identity headers go upstream. Asked after the rate limit and before the browser check.">
+        <AuthProviderField Value="_current.AuthProvider" ValueChanged="SetAuthProvider" Inherited="@(Resolved.AuthProvider ?? new AuthProviderSettings())"
+                           Providers="AuthProviders" Staged="StagedAuthProviders" InheritWord="@InheritWord" OnNew="OnNewAuthProvider"
+                           Error="@AuthProviderError" ReadOnly="@ReadOnly" Class="pdk-setting-control" />
+    </SettingRow>
+
     <SettingRow Title="Rate limit" Help="Requests over the policy's rate get a 429. Each host counts its clients separately.">
         <RateLimitField Value="_current.RateLimit" ValueChanged="SetRateLimit" Inherited="@(Resolved.RateLimit ?? new RateLimitSettings())"
                         Policies="Policies" Staged="StagedRateLimits" InheritWord="@InheritWord" OnNew="OnNewRateLimit"
@@ -339,6 +345,18 @@
     [Parameter]
     public EventCallback OnNewRuleSet { get; set; }
 
+    /// <summary>The auth providers a host or a profile can pick, including those staged in a host's draft.</summary>
+    [Parameter]
+    public IReadOnlyList<AuthProviderConfig> AuthProviders { get; set; } = [];
+
+    /// <summary>The auth providers made in this host's drawer (marked "New").</summary>
+    [Parameter]
+    public IReadOnlySet<AuthProviderId> StagedAuthProviders { get; set; } = new HashSet<AuthProviderId>();
+
+    /// <summary>"New auth provider..." in the picker: the host's drawer makes one and selects it.</summary>
+    [Parameter]
+    public EventCallback OnNewAuthProvider { get; set; }
+
     /// <summary>"New rate limit..." in the picker: the host's drawer makes one and selects it.</summary>
     [Parameter]
     public EventCallback OnNewRateLimit { get; set; }
@@ -380,6 +398,8 @@
     private string? AccessListError => E("/accessList/accessListId") ?? E("/accessList/enabled");
 
     private string? RuleSetError => E("/ruleSet/ruleSetId") ?? E("/ruleSet/enabled");
+
+    private string? AuthProviderError => E("/authProvider/authProviderId") ?? E("/authProvider/enabled");
 
     /// <summary>The custom value shows for a custom mode, or when this layer or an error has one to show.</summary>
     private bool ServerValueVisible =>
@@ -432,6 +452,9 @@
 
     private Task SetRuleSet(RuleSetSettings? value) =>
         Update(HostSettingsEdit.WithRuleSet(_current, _ => value ?? new RuleSetSettings()), "/ruleSet/ruleSetId");
+
+    private Task SetAuthProvider(AuthProviderSettings? value) =>
+        Update(HostSettingsEdit.WithAuthProvider(_current, _ => value ?? new AuthProviderSettings()), "/authProvider/authProviderId");
 
     /// <summary>Hands the changed layer to the form, then says which field changed (so its errors show and it revalidates).</summary>
     private async Task Update(HostSettings settings, string path)
