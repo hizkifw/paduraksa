@@ -14,10 +14,13 @@ namespace Paduraksa.Proxy.ForwardAuth;
 
 /// <summary>
 /// The name a request's authentication state goes by in the decision cache: a keyed hash of everything the provider's answer may depend
-/// on. The credentials are the whole <c>Cookie</c>, <c>Authorization</c> and <c>Proxy-Authorization</c> headers (a provider's session cookie
-/// has a name only the operator knows, and an answer may depend on more than one), the client address (Authelia's rules match networks, and
+/// on that the call carries. The credentials are the whole <c>Cookie</c>, <c>Authorization</c> and <c>Proxy-Authorization</c> headers (a provider's session cookie
+/// has a name only the operator knows, and an answer may depend on more than one) and every other header the provider is told to read
+/// (<see cref="CompiledAuthProvider.KeyHeaders"/>: an API key it decides on), the client address (Authelia's rules match networks, and
 /// sessions can be bound to one), the host, and for a provider that decides per path also the method and the request target. Each field is
-/// length-prefixed, so no two different requests frame to the same bytes. The key is the first 64 bits of SHA-256 over a per-process random
+/// length-prefixed, a header also by its number of lines (so an absent header and an empty one differ), so no two different requests frame to
+/// the same bytes. A <c>host</c>-scoped key leaves the method and target out: it assumes the provider decides per identity, never per path, which
+/// is why an allow for a request with no credentials at all is never stored (<see cref="CarriesCredentials"/>). The key is the first 64 bits of SHA-256 over a per-process random
 /// secret and the framed fields, as the vault's password verification cache names its entries: no key ever leaves the process, so there is
 /// nothing for an attacker to measure, the cache holds no credential, and no one can choose a request whose key collides with another's.
 /// </summary>
@@ -25,7 +28,44 @@ internal static class ForwardAuthKey
 {
     private const int StackLimit = 2048;
 
-    public static ulong Compute(ReadOnlySpan<byte> secret, ForwardAuthCacheScope scope, HttpContext http, GateRequestState state)
+    /// <summary>
+    /// Whether the request carries something to tell it from any other from the same address: a non-empty <c>Cookie</c>, <c>Authorization</c> or
+    /// <c>Proxy-Authorization</c>, or one of the headers the provider is told to read. An allow for a request that carries none is the provider
+    /// letting an anonymous visitor see one path, which says nothing about another, so it is never remembered.
+    /// </summary>
+    public static bool CarriesCredentials(HttpContext http, string[] keyHeaders)
+    {
+        var headers = http.Request.Headers;
+        if (HasValue(headers.Cookie) || HasValue(headers.Authorization) || HasValue(headers.ProxyAuthorization))
+        {
+            return true;
+        }
+
+        foreach (var name in keyHeaders)
+        {
+            if (HasValue(headers[name]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasValue(StringValues values)
+    {
+        for (var i = 0; i < values.Count; i++)
+        {
+            if (!string.IsNullOrWhiteSpace(values[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static ulong Compute(ReadOnlySpan<byte> secret, ForwardAuthCacheScope scope, HttpContext http, GateRequestState state, string[] keyHeaders)
     {
         var request = http.Request;
         var perRequest = scope == ForwardAuthCacheScope.Request;
@@ -38,6 +78,11 @@ internal static class ForwardAuthKey
 
         var length = secret.Length + 1 + 16
             + Size(host) + Size(method) + Size(target) + Size(cookie) + Size(authorization) + Size(proxyAuthorization);
+        foreach (var name in keyHeaders)
+        {
+            length += Size(request.Headers[name]);
+        }
+
         byte[]? rented = null;
         Span<byte> buffer = length <= StackLimit ? stackalloc byte[StackLimit] : (rented = ArrayPool<byte>.Shared.Rent(length));
         try
@@ -53,6 +98,11 @@ internal static class ForwardAuthKey
             Write(buffer, ref at, cookie);
             Write(buffer, ref at, authorization);
             Write(buffer, ref at, proxyAuthorization);
+            foreach (var name in keyHeaders)
+            {
+                Write(buffer, ref at, request.Headers[name]);
+            }
+
             Span<byte> digest = stackalloc byte[32];
             SHA256.HashData(buffer[..at], digest);
             return BinaryPrimitives.ReadUInt64LittleEndian(digest);

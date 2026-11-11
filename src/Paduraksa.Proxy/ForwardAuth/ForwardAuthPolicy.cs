@@ -27,6 +27,8 @@ namespace Paduraksa.Proxy.ForwardAuth;
 /// route. A 401, 403 or 407 and a redirect are relayed to the client with their body and <c>Set-Cookie</c>; a 401 to a browser that asked for a page
 /// goes to the provider's sign-in URL when one is configured. Anything else, a failed or slow call and a call made while too many are
 /// running all refuse the request (502, 504, 503): the policy fails closed.</para>
+/// <para><b>What is remembered.</b> Only the allow of a request that carried credentials (<see cref="ForwardAuthKey.CarriesCredentials"/>): an allow for a
+/// visitor with none is the provider opening one path to everyone, and under <c>host</c> scope, which leaves the path out of the key, it would open every path.</para>
 /// <para><b>Allocation.</b> The cached allow, and every verdict that needs no call, allocates nothing (the key is hashed in a stack buffer). A
 /// call allocates what an outbound HTTP request does; that cost is accepted and is why allows are remembered.</para>
 /// </remarks>
@@ -115,12 +117,12 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
     private ForwardAuthAllowance? Peek(in RequestView request)
     {
         var state = _provider.State;
-        if (state.TtlTicks <= 0)
+        if (state.TtlTicks <= 0 || !ForwardAuthKey.CarriesCredentials(request.Http, _provider.KeyHeaders))
         {
             return null;
         }
 
-        var key = ForwardAuthKey.Compute(state.Runtime.CacheSecret, _provider.Spec.CacheScope, request.Http, request.State);
+        var key = ForwardAuthKey.Compute(state.Runtime.CacheSecret, _provider.Spec.CacheScope, request.Http, request.State, _provider.KeyHeaders);
         return state.Cache.TryGet(key, state.Runtime.Time.GetTimestamp(), out var allowance) ? allowance : null;
     }
 
@@ -137,7 +139,9 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
 
         try
         {
-            var key = ForwardAuthKey.Compute(providerState.Runtime.CacheSecret, provider.Spec.CacheScope, http, state);
+            ulong? key = providerState.TtlTicks > 0 && ForwardAuthKey.CarriesCredentials(http, provider.KeyHeaders)
+                ? ForwardAuthKey.Compute(providerState.Runtime.CacheSecret, provider.Spec.CacheScope, http, state, provider.KeyHeaders)
+                : null;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(http.RequestAborted);
             timeout.CancelAfter(provider.Spec.Timeout);
             counters.CountCall();
@@ -155,8 +159,9 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
             providerState.Runtime.ReportFailure(providerState, provider.Name, "no answer in " + provider.Spec.Timeout.TotalSeconds.ToString(CultureInfo.InvariantCulture) + " s");
             return TimedOut;
         }
-        catch (Exception e) when (e is HttpRequestException or IOException or InvalidOperationException or FormatException or ArgumentException)
+        catch (Exception e) when (e is not OutOfMemoryException)
         {
+            // Whatever else went wrong (a handler's own exception, a value the transport refuses) is the endpoint not answering properly: it counts, and the request is refused.
             counters.CountError();
             providerState.Runtime.ReportFailure(providerState, provider.Name, e.GetType().Name + ": " + e.Message);
             return Unavailable;
@@ -204,7 +209,7 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
             ? values[0] ?? string.Empty
             : string.Join(string.Equals(name, "Cookie", StringComparison.OrdinalIgnoreCase) ? "; " : ", ", values.ToArray());
 
-    private async ValueTask<PolicyDecision> ConcludeAsync(HttpResponseMessage response, HttpContext http, GateRequestState state, ulong key, CancellationToken cancel)
+    private async ValueTask<PolicyDecision> ConcludeAsync(HttpResponseMessage response, HttpContext http, GateRequestState state, ulong? key, CancellationToken cancel)
     {
         var provider = _provider;
         var counters = provider.Counters;
@@ -222,10 +227,10 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
             state.ForwardAuthProvider = provider;
             state.ForwardAuthHeaders = copied;
             var providerState = provider.State;
-            if (providerState.TtlTicks > 0)
+            if (key is { } cacheKey)
             {
                 var now = providerState.Runtime.Time.GetTimestamp();
-                providerState.Cache.Add(new ForwardAuthAllowance(key, now + providerState.TtlTicks, copied), now);
+                providerState.Cache.Add(new ForwardAuthAllowance(cacheKey, now + providerState.TtlTicks, copied), now);
             }
 
             return PolicyDecision.Continue;
@@ -255,6 +260,13 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
                 var at = 0;
                 foreach (var line in values)
                 {
+                    if (!IsForwardable(line))
+                    {
+                        counters.CountError();
+                        provider.State.Runtime.ReportFailure(provider.State, provider.Name, "answered " + status.ToString(CultureInfo.InvariantCulture) + " with a " + name + " header that can't be relayed");
+                        return Unavailable;
+                    }
+
                     lines[at++] = line;
                 }
 
@@ -273,6 +285,9 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
         if (status == 401 && SignInLocation(http, state) is { } signIn)
         {
             counters.CountRedirected();
+
+            // One Location: the sign-in page replaces whatever the provider pointed at.
+            relayed.RemoveAll(static h => h.Name == "Location");
             relayed.Add(new PrecomputedHeader("Location", signIn));
             return PolicyDecision.Respond(PrecomputedResponse.Create(StatusCodes.Status302Found, "Redirecting\n"u8, "text/plain; charset=utf-8", "no-store", [.. relayed]));
         }
@@ -309,7 +324,7 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
                 continue;
             }
 
-            if (HasControlCharacter(value))
+            if (!IsForwardable(value))
             {
                 copied = [];
                 return false;
@@ -329,18 +344,19 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
         return true;
     }
 
-    // A header value an upstream request can carry has no control character but a tab: a line break in one would split the request.
-    private static bool HasControlCharacter(string value)
+    // A value both an upstream request and a Kestrel response can carry: printable ASCII and tab. A line break would split the message, and a byte
+    // outside that makes the transport throw on write, which would answer 500 where the provider's misbehaviour is a 502.
+    private static bool IsForwardable(string value)
     {
         foreach (var c in value)
         {
-            if ((c < ' ' && c != '\t') || c == '\u007f')
+            if (!(c is '\t' or (>= ' ' and <= '~')))
             {
-                return true;
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
     private static async ValueTask<byte[]?> ReadBodyAsync(HttpContent content, CancellationToken cancel)
@@ -377,6 +393,12 @@ public sealed class ForwardAuthPolicy : IDeferredPolicy, IPolicyTraceFacts
         if (spec.SignInUrl is not { } url || host.Count != 1 || string.IsNullOrEmpty(host[0])
             || !(HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method))
             || !MediaTypes.AcceptsHtml(request.Headers.Accept) || request.Headers.ContainsKey("X-Requested-With"))
+        {
+            return null;
+        }
+
+        // A sign-in page that is itself behind this provider would send the visitor to itself, each time with the last address nested in the next.
+        if (_provider.IsSignInRequest(request.Path.Value, host[0]!))
         {
             return null;
         }
